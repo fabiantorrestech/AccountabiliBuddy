@@ -1,0 +1,10 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="AccountabiliBuddy.App.MainWindow"
+        Title="AccountabiliBuddy"
+        Width="480" Height="240"
+        WindowStartupLocation="CenterScreen">
+    <TextBlock Text="AccountabiliBuddy skeleton (M0)"
+               HorizontalAlignment="Center"
+               VerticalAlignment="Center" />
+</Window>

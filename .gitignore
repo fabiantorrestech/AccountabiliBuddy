@@ -1,0 +1,21 @@
+# Agent handoff state (never committed)
+handoffContext/
+
+# .NET build output
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+
+# Local data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Extension build artifacts
+extensions/**/dist/
+*.zip
+*.xpi
