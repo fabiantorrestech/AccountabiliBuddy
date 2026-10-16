@@ -27,6 +27,7 @@ public sealed class SessionController : IDisposable
         _engine.SetSchedule(configuration.Current.Schedule);
         _configuration.Changed += OnConfigurationChanged;
         _engine.StateChanged += (_, state) => StateChanged?.Invoke(this, state);
+        _engine.SessionCompleted += (_, state) => SessionCompleted?.Invoke(this, state);
 
         _timer = new DispatcherTimer { Interval = TickInterval };
         _timer.Tick += OnTick;
@@ -51,6 +52,9 @@ public sealed class SessionController : IDisposable
     /// <summary>Raised every second, for countdown displays.</summary>
     public event EventHandler? Ticked;
 
+    /// <summary>Raised with the finished state when a session runs out on its own (not when ended by the user).</summary>
+    public event EventHandler<SessionState>? SessionCompleted;
+
     public void Start()
     {
         // Tick immediately so a scheduled block that is already running starts at launch.
@@ -67,6 +71,14 @@ public sealed class SessionController : IDisposable
     {
         PomodoroSettings settings = _configuration.Current.PomodoroDefaults with { TotalCycles = totalCycles };
         return _engine.StartPomodoro(profileId, settings);
+    }
+
+    /// <summary>One focus block followed by one break, then the session ends (quick session with a break).</summary>
+    public bool StartFocusThenBreak(Guid profileId, TimeSpan focus, TimeSpan breakLength)
+    {
+        // One cycle never reaches the long-break count, so the single break is shown as a short break.
+        var settings = new PomodoroSettings(focus, breakLength, breakLength, CyclesBeforeLongBreak: 2, TotalCycles: 1);
+        return _engine.StartPomodoro(profileId, settings, breakAfterLastCycle: true);
     }
 
     /// <param name="earlyEndReason">The reason typed in the friction dialog, if one was required.</param>

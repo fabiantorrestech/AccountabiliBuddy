@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
              x:Class="AccountabiliBuddy.App.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
     <ScrollViewer>
@@ -8,6 +9,17 @@
             <Border IsVisible="{Binding IsLocked}" Background="#33F59E0B" Padding="12,8" CornerRadius="6">
                 <TextBlock Text="Settings are locked while a focus session is running." />
             </Border>
+
+            <StackPanel Spacing="6">
+                <TextBlock Text="Quick session shortcut" FontSize="16" FontWeight="SemiBold" />
+                <TextBlock Text="Click the box and press the keys you want (at least one of Ctrl, Alt or Win, plus a letter, number, F-key or Space)."
+                           Opacity="0.75" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <controls:HotkeyBox Text="{Binding HotkeyText}" Width="220" />
+                    <Button Content="Apply" Command="{Binding ApplyHotkeyCommand}" />
+                </StackPanel>
+                <TextBlock Text="{Binding HotkeyStatus}" TextWrapping="Wrap" />
+            </StackPanel>
 
             <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
                 <TextBlock Text="Pomodoro defaults" FontSize="16" FontWeight="SemiBold" />

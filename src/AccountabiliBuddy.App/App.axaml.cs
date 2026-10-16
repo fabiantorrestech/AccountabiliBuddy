@@ -8,6 +8,8 @@ using AccountabiliBuddy.Platform.Windows.Activity;
 using AccountabiliBuddy.Platform.Windows.Browser;
 using AccountabiliBuddy.Platform.Windows.Display;
 using AccountabiliBuddy.Platform.Windows.Enforcement;
+using AccountabiliBuddy.Platform.Windows.Hotkeys;
+using AccountabiliBuddy.Platform.Windows.Shortcuts;
 using AccountabiliBuddy.Platform.Windows.Integrations;
 using AccountabiliBuddy.Platform.Windows.Startup;
 using Avalonia;
@@ -33,6 +35,9 @@ public partial class App : Application
     private SessionEndFlow? _endFlow;
     private WinEventActivityWatcher? _activityWatcher;
     private NamedPipeBrowserSource? _browserSource;
+    private Win32GlobalHotkey? _hotkey;
+    private QuickSessionService? _quickSession;
+    private InstanceSignals? _instanceSignals;
     private EnforcementCoordinator? _enforcement;
     private MainWindow? _mainWindow;
     private TrayIcon? _trayIcon;
@@ -66,10 +71,27 @@ public partial class App : Application
             BuildServicesAndWindow();
             CreateTrayIcon();
 
-            if (!_options.StartMinimized)
+            if (_options.QuickSession)
+            {
+                _quickSession!.Show();
+            }
+            else if (!_options.StartMinimized)
             {
                 ShowMainWindow();
             }
+
+            // Later launches (second start, Start menu shortcut) hand over to this copy.
+            _instanceSignals = InstanceSignals.Listen(Program.InstanceName, signal => Dispatcher.UIThread.Post(() =>
+            {
+                if (signal == InstanceSignal.QuickSession)
+                {
+                    _quickSession?.Show();
+                }
+                else
+                {
+                    ShowMainWindow();
+                }
+            }));
         }
 
         base.OnFrameworkInitializationCompleted();
@@ -97,8 +119,18 @@ public partial class App : Application
             Path.Combine(AppContext.BaseDirectory, "AccountabiliBuddy.NativeHost.exe"),
             Path.Combine(AppContext.BaseDirectory, "browser-extension"),
             dataDirectory);
-        var sightings = new ColdTurkeySightingsService(_browserSource, new SqliteJsonDocumentStore(database, time), time);
+        var documents = new SqliteJsonDocumentStore(database, time);
+        var sightings = new ColdTurkeySightingsService(_browserSource, documents, time);
         _ = sightings.LoadAsync();
+
+        var monitorLocator = new Win32MonitorLocator();
+        _hotkey = new Win32GlobalHotkey();
+        _quickSession = new QuickSessionService(
+            _sessions, _configuration, _endFlow, monitorLocator, new GdiScreenCapture(), _hotkey, documents);
+        _quickSession.LoadBlocking();
+        var quickLaunch = new StartMenuQuickLaunchShortcut(
+            Environment.ProcessPath ?? throw new InvalidOperationException("Executable path is unknown."),
+            StartupOptions.QuickSessionArgument);
 
         var activityViewModel = new ActivityDebugViewModel();
         _activityWatcher = new WinEventActivityWatcher(time);
@@ -111,15 +143,15 @@ public partial class App : Application
             _sessions,
             _configuration,
             new EnforcementEngine(new RuleEvaluator(new RuleMatcher())),
-            new EnforcementPresenter(new WindowsEnforcer(), _browserSource, new Win32MonitorLocator(), time));
+            new EnforcementPresenter(new WindowsEnforcer(), _browserSource, monitorLocator, time));
 
         var mainViewModel = new MainWindowViewModel(
             new SessionViewModel(_sessions, _configuration, _endFlow, VisibleMainWindow),
             new ProfilesViewModel(_configuration, _sessions),
             new ScheduleViewModel(_configuration, _sessions),
-            new SetupViewModel(startupRegistrar, browserSetup, _browserSource),
+            new SetupViewModel(startupRegistrar, quickLaunch, browserSetup, _browserSource),
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
-            new SettingsViewModel(_configuration, _sessions, database.DatabasePath),
+            new SettingsViewModel(_configuration, _sessions, _quickSession, database.DatabasePath),
             activityViewModel,
             _configuration.LoadError);
 
@@ -135,6 +167,9 @@ public partial class App : Application
 
     private void CreateTrayIcon()
     {
+        var quickItem = new NativeMenuItem($"Quick session…  ({_quickSession!.Preferences.Hotkey})");
+        quickItem.Click += (_, _) => _quickSession.Show();
+
         var openItem = new NativeMenuItem("Open AccountabiliBuddy");
         openItem.Click += (_, _) => ShowMainWindow();
 
@@ -145,6 +180,7 @@ public partial class App : Application
         quitItem.Click += async (_, _) => await QuitAsync();
 
         var menu = new NativeMenu();
+        menu.Items.Add(quickItem);
         menu.Items.Add(openItem);
         menu.Items.Add(_endSessionMenuItem);
         menu.Items.Add(new NativeMenuItemSeparator());
@@ -221,6 +257,8 @@ public partial class App : Application
 
     private void DisposeServices()
     {
+        _instanceSignals?.Dispose();
+        _hotkey?.Dispose();
         _enforcement?.Dispose();
         _browserSource?.Dispose();
         _activityWatcher?.Dispose();

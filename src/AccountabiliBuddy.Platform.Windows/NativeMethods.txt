@@ -48,3 +48,26 @@ DwmGetWindowAttribute
 // Enforcement
 ShowWindowAsync
 IsWindow
+
+// Quick session: global hotkey, cursor monitor, foreground hand-off
+RegisterHotKey
+UnregisterHotKey
+WM_HOTKEY
+WM_APP
+GetCursorPos
+MonitorFromPoint
+AllowSetForegroundWindow
+ASFW_ANY
+PeekMessage
+
+// Quick session backdrop: GDI screen copy
+GetDC
+ReleaseDC
+CreateCompatibleDC
+CreateCompatibleBitmap
+SelectObject
+BitBlt
+GetDIBits
+DeleteObject
+DeleteDC
+BITMAPINFO

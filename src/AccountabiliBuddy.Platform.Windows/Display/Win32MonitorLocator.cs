@@ -30,6 +30,18 @@ public sealed class Win32MonitorLocator : IMonitorLocator
         return found;
     }
 
+    public unsafe string FindMonitorUnderCursor()
+    {
+        PInvoke.GetCursorPos(out System.Drawing.Point cursor);
+        HMONITOR monitor = PInvoke.MonitorFromPoint(cursor, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST);
+
+        var info = new MONITORINFOEXW();
+        info.monitorInfo.cbSize = (uint)sizeof(MONITORINFOEXW);
+        return PInvoke.GetMonitorInfo(monitor, (MONITORINFO*)&info)
+            ? info.szDevice.ToString()
+            : string.Empty;
+    }
+
     private static PixelBox ToBox(RECT rect)
     {
         return new PixelBox(rect.left, rect.top, rect.right, rect.bottom);

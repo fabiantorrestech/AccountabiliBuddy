@@ -9,19 +9,26 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// Setup tab: every permission the app holds, each with Grant and Revoke.
-/// Start with Windows (HKCU Run key) and one browser connection per supported browser.
+/// Start with Windows (HKCU Run key), the quick-session Start menu shortcut, and one browser connection per
+/// supported browser.
 /// Screen reading (M6) and activity logging (M7) are shown as upcoming.
 /// </summary>
 public sealed partial class SetupViewModel : ObservableObject
 {
     private readonly IStartupRegistrar _startup;
+    private readonly IQuickLaunchShortcut _quickLaunch;
     private readonly IBrowserActivitySource _browsers;
 
-    public SetupViewModel(IStartupRegistrar startup, IBrowserSetup browserSetup, IBrowserActivitySource browsers)
+    public SetupViewModel(
+        IStartupRegistrar startup,
+        IQuickLaunchShortcut quickLaunch,
+        IBrowserSetup browserSetup,
+        IBrowserActivitySource browsers)
     {
         _startup = startup;
+        _quickLaunch = quickLaunch;
         _browsers = browsers;
-        StartupStatus = string.Empty;
+        StartupStatus = QuickLaunchStatus = string.Empty;
 
         foreach (BrowserKind browser in browserSetup.SupportedBrowsers)
         {
@@ -31,6 +38,7 @@ public sealed partial class SetupViewModel : ObservableObject
         _browsers.ConnectionsChanged += (_, _) => Dispatcher.UIThread.Post(RefreshBrowsers);
 
         RefreshStartup();
+        RefreshQuickLaunch();
         RefreshBrowsers();
     }
 
@@ -42,6 +50,17 @@ public sealed partial class SetupViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string StartupStatus { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(GrantQuickLaunchCommand), nameof(RevokeQuickLaunchCommand))]
+    public partial bool IsQuickLaunchGranted { get; set; }
+
+    [ObservableProperty]
+    public partial string QuickLaunchStatus { get; set; }
+
+    private bool CanGrantQuickLaunch => !IsQuickLaunchGranted;
+
+    private bool CanRevokeQuickLaunch => IsQuickLaunchGranted;
 
     private bool CanGrantStartup => !IsStartupGranted;
 
@@ -59,11 +78,46 @@ public sealed partial class SetupViewModel : ObservableObject
         ChangeStartup(_startup.Disable);
     }
 
+    [RelayCommand(CanExecute = nameof(CanGrantQuickLaunch))]
+    private void GrantQuickLaunch()
+    {
+        ChangeQuickLaunch(_quickLaunch.Install);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRevokeQuickLaunch))]
+    private void RevokeQuickLaunch()
+    {
+        ChangeQuickLaunch(_quickLaunch.Remove);
+    }
+
     [RelayCommand]
     private void RefreshAll()
     {
         RefreshStartup();
+        RefreshQuickLaunch();
         RefreshBrowsers();
+    }
+
+    private void ChangeQuickLaunch(Action change)
+    {
+        try
+        {
+            change();
+            RefreshQuickLaunch();
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or InvalidOperationException
+                                       or System.Runtime.InteropServices.COMException)
+        {
+            QuickLaunchStatus = $"Could not change the shortcut: {ex.Message}";
+        }
+    }
+
+    private void RefreshQuickLaunch()
+    {
+        IsQuickLaunchGranted = _quickLaunch.IsInstalled;
+        QuickLaunchStatus = IsQuickLaunchGranted
+            ? "\"AccountabiliBuddy Quick Session\" is in the Start menu. Right-click it there to pin it to the taskbar."
+            : "Adds \"AccountabiliBuddy Quick Session\" to the Start menu, which you can pin to the taskbar.";
     }
 
     private void ChangeStartup(Action change)

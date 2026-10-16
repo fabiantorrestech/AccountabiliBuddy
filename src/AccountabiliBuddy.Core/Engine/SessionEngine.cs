@@ -15,6 +15,9 @@ public sealed class SessionEngine
     private WeeklySchedule _schedule = WeeklySchedule.Empty;
     private PomodoroSettings? _pomodoroSettings;
 
+    // When set, the last focus cycle is followed by its break before the session ends.
+    private bool _breakAfterLastCycle;
+
     // Set when a scheduled session is ended early, so the next Tick does not restart it.
     private DateTimeOffset? _scheduleSuppressedUntil;
 
@@ -26,6 +29,12 @@ public sealed class SessionEngine
     public SessionState State { get; private set; } = SessionState.Idle;
 
     public event EventHandler<SessionState>? StateChanged;
+
+    /// <summary>
+    /// Raised (with the state it ended from) when a session runs out on its own: a timed manual session or a
+    /// Pomodoro with a cycle limit reached its end, or a scheduled block finished. Not raised by <see cref="EndSession"/>.
+    /// </summary>
+    public event EventHandler<SessionState>? SessionCompleted;
 
     private DateTimeOffset Now => _timeProvider.GetUtcNow();
 
@@ -60,8 +69,10 @@ public sealed class SessionEngine
         return true;
     }
 
+    /// <param name="breakAfterLastCycle">With a cycle limit: also run the break after the last focus cycle
+    /// before ending (e.g. "one focus, one break").</param>
     /// <returns>False if a session is already running.</returns>
-    public bool StartPomodoro(Guid profileId, PomodoroSettings settings)
+    public bool StartPomodoro(Guid profileId, PomodoroSettings settings, bool breakAfterLastCycle = false)
     {
         if (State.IsActive)
         {
@@ -70,6 +81,7 @@ public sealed class SessionEngine
 
         ValidatePomodoro(settings);
         _pomodoroSettings = settings;
+        _breakAfterLastCycle = breakAfterLastCycle;
 
         DateTimeOffset now = Now;
         SetState(new SessionState(
@@ -105,6 +117,7 @@ public sealed class SessionEngine
     public void Tick()
     {
         DateTimeOffset now = Now;
+        SessionState before = State;
 
         switch (State.Mode)
         {
@@ -119,6 +132,11 @@ public sealed class SessionEngine
             case SessionMode.Pomodoro:
                 AdvancePomodoro(now);
                 break;
+        }
+
+        if (before.IsActive && !State.IsActive)
+        {
+            SessionCompleted?.Invoke(this, before);
         }
 
         if (!State.IsActive)
@@ -139,16 +157,23 @@ public sealed class SessionEngine
                && state.PhaseEndsAt is DateTimeOffset phaseEnd
                && now >= phaseEnd)
         {
-            state = NextPomodoroPhase(state, settings, phaseEnd);
+            state = NextPomodoroPhase(state, settings, phaseEnd, _breakAfterLastCycle);
         }
 
         SetState(state);
     }
 
-    private static SessionState NextPomodoroPhase(SessionState current, PomodoroSettings settings, DateTimeOffset phaseEnd)
+    private static SessionState NextPomodoroPhase(
+        SessionState current, PomodoroSettings settings, DateTimeOffset phaseEnd, bool breakAfterLastCycle)
     {
         if (current.Phase != SessionPhase.Focus)
         {
+            // The break after the last cycle has ended.
+            if (settings.TotalCycles is int limit && current.CompletedFocusCycles >= limit)
+            {
+                return SessionState.Idle;
+            }
+
             return current with
             {
                 Phase = SessionPhase.Focus,
@@ -158,7 +183,7 @@ public sealed class SessionEngine
         }
 
         int completed = current.CompletedFocusCycles + 1;
-        if (settings.TotalCycles is int totalCycles && completed >= totalCycles)
+        if (settings.TotalCycles is int totalCycles && completed >= totalCycles && !breakAfterLastCycle)
         {
             return SessionState.Idle;
         }

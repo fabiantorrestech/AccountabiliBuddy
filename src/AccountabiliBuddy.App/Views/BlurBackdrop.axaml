@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="AccountabiliBuddy.App.Views.BlurBackdrop"
+        Title="AccountabiliBuddy backdrop"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False"
+        WindowStartupLocation="Manual"
+        TransparencyLevelHint="Transparent" Background="Transparent">
+    <!-- A blurred snapshot of this monitor, faded in over the real screen. -->
+    <Grid x:Name="Root" Opacity="0" ClipToBounds="True">
+        <Grid.Transitions>
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+            </Transitions>
+        </Grid.Transitions>
+        <!-- Oversized so the blur's soft edges fall outside the screen. -->
+        <Image x:Name="Snapshot" Stretch="Fill" Margin="-48">
+            <Image.Effect>
+                <BlurEffect Radius="28" />
+            </Image.Effect>
+        </Image>
+        <Border Background="#47000000" />
+    </Grid>
+</Window>

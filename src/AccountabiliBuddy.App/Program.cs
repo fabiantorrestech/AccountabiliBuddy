@@ -1,22 +1,27 @@
+using AccountabiliBuddy.Platform.Windows.Shortcuts;
 using Avalonia;
 
 namespace AccountabiliBuddy.App;
 
 public static class Program
 {
-    private const string InstanceName = "AccountabiliBuddy";
+    public const string InstanceName = "AccountabiliBuddy";
 
     [STAThread]
     public static void Main(string[] args)
     {
+        StartupOptions options = StartupOptions.Parse(args);
+
         using SingleInstanceGuard? guard = SingleInstanceGuard.TryAcquire(InstanceName);
         if (guard is null)
         {
-            // Already running (lives in the tray).
+            // Already running (lives in the tray): hand over to it. This launch was a user action, so it may
+            // pass on the right to bring a window to the front.
+            ForegroundHandOff.AllowAnyProcess();
+            InstanceSignals.Send(InstanceName, options.QuickSession ? InstanceSignal.QuickSession : InstanceSignal.Show);
             return;
         }
 
-        StartupOptions options = StartupOptions.Parse(args);
         BuildAvaloniaApp(options).StartWithClassicDesktopLifetime(args);
     }
 

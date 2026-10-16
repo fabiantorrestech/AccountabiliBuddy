@@ -32,6 +32,25 @@ public static class MonitorPlacement
         window.Opened += (_, _) => MoveToCorner(window, area, corner);
     }
 
+    /// <summary>Centres the window in the monitor's work area, also when its content changes size.</summary>
+    public static void Center(Window window, MonitorArea area)
+    {
+        window.Position = new PixelPoint(area.WorkArea.Left + CornerMarginPixels, area.WorkArea.Top + CornerMarginPixels);
+
+        void MoveToCenter()
+        {
+            double scaling = window.DesktopScaling;
+            int widthPixels = (int)Math.Ceiling(window.Bounds.Width * scaling);
+            int heightPixels = (int)Math.Ceiling(window.Bounds.Height * scaling);
+            window.Position = new PixelPoint(
+                area.WorkArea.Left + ((area.WorkArea.Width - widthPixels) / 2),
+                area.WorkArea.Top + ((area.WorkArea.Height - heightPixels) / 2));
+        }
+
+        window.SizeChanged += (_, _) => MoveToCenter();
+        window.Opened += (_, _) => MoveToCenter();
+    }
+
     /// <summary>Covers the whole monitor, including the taskbar.</summary>
     public static void Cover(Window window, MonitorArea area)
     {

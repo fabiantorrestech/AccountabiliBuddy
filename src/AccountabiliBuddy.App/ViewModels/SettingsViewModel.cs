@@ -7,18 +7,27 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// Settings tab: Pomodoro defaults, escalation timings and friction. (Start with Windows lives in the Setup tab.)
+/// Settings tab: quick-session shortcut, Pomodoro defaults, escalation timings and friction.
+/// (Start with Windows lives in the Setup tab.)
 /// Saving is locked during a focus phase so friction cannot be turned off mid-session.
 /// </summary>
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly ConfigurationService _configuration;
     private readonly SessionController _sessions;
+    private readonly QuickSessionService _quickSession;
 
-    public SettingsViewModel(ConfigurationService configuration, SessionController sessions, string databasePath)
+    public SettingsViewModel(
+        ConfigurationService configuration,
+        SessionController sessions,
+        QuickSessionService quickSession,
+        string databasePath)
     {
         _configuration = configuration;
         _sessions = sessions;
+        _quickSession = quickSession;
+        HotkeyText = quickSession.Preferences.Hotkey;
+        HotkeyStatus = quickSession.HotkeyError ?? $"Press {quickSession.Preferences.Hotkey} anywhere to open the quick session.";
         DatabasePath = databasePath;
 
         FocusMinutes = ShortBreakMinutes = LongBreakMinutes = CyclesBeforeLongBreak = string.Empty;
@@ -32,6 +41,13 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     public string DatabasePath { get; }
+
+    /// <summary>The quick-session shortcut being edited (recorded by pressing keys).</summary>
+    [ObservableProperty]
+    public partial string HotkeyText { get; set; }
+
+    [ObservableProperty]
+    public partial string HotkeyStatus { get; set; }
 
     [ObservableProperty]
     public partial string FocusMinutes { get; set; }
@@ -101,6 +117,15 @@ public sealed partial class SettingsViewModel : ObservableObject
         await _configuration.UpdateAsync(document =>
             document with { PomodoroDefaults = pomodoro, Escalation = escalation, Bypass = bypass });
         StatusMessage = _configuration.IsReadOnly ? "Not saved: settings are read-only (see banner)." : "Saved.";
+    }
+
+    // Not locked during focus: changing the shortcut does not loosen anything.
+    [RelayCommand]
+    private async Task ApplyHotkeyAsync()
+    {
+        string? error = await _quickSession.ChangeHotkeyAsync(HotkeyText);
+        HotkeyStatus = error ?? $"Saved. Press {_quickSession.Preferences.Hotkey} anywhere to open the quick session.";
+        HotkeyText = _quickSession.Preferences.Hotkey;
     }
 
     [RelayCommand(CanExecute = nameof(CanEdit))]
