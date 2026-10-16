@@ -174,7 +174,8 @@ public sealed class QuickSessionService
             return;
         }
 
-        TimeSpan focus = TimeSpan.FromMinutes(viewModel.WholeFocusMinutes);
+        // Exact length: a chosen end time ends the session at that time, not on a rounded minute.
+        TimeSpan focus = viewModel.FocusLength;
         bool started = viewModel.BreakEnabled
             ? _sessions.StartFocusThenBreak(profile.Id, focus, TimeSpan.FromMinutes(viewModel.WholeBreakMinutes))
             : _sessions.StartManual(profile.Id, focus);
