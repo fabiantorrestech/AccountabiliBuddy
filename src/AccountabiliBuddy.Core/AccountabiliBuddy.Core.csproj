@@ -5,4 +5,9 @@
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Cross-platform; bundles native SQLite for Windows, Linux and macOS (ADR 6). -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
+  </ItemGroup>
+
 </Project>

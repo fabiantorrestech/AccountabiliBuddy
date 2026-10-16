@@ -8,4 +8,18 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
     }
+
+    /// <summary>When false, closing the window only hides it to the tray.</summary>
+    public bool AllowClose { get; set; }
+
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        if (!AllowClose)
+        {
+            e.Cancel = true;
+            Hide();
+        }
+
+        base.OnClosing(e);
+    }
 }

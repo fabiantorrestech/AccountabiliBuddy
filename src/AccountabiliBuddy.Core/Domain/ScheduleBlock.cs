@@ -6,7 +6,7 @@ namespace AccountabiliBuddy.Core.Domain;
 /// A weekly blocked-time window, e.g. Monday 09:00–12:00 with the "Coding" profile.
 /// If <see cref="End"/> is not after <see cref="Start"/>, the block runs past midnight into the next day.
 /// </summary>
-public sealed record ScheduleBlock(DayOfWeek Day, TimeOnly Start, TimeOnly End, Guid ProfileId)
+public sealed record ScheduleBlock(Guid Id, DayOfWeek Day, TimeOnly Start, TimeOnly End, Guid ProfileId)
 {
     // Derived from Start/End; not part of the shared JSON schema.
     [JsonIgnore]

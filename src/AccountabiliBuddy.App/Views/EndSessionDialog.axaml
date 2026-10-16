@@ -1,0 +1,20 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.EndSessionDialog"
+        x:DataType="vm:EndSessionDialogViewModel"
+        Title="End focus session early?"
+        Icon="/Assets/app-icon.png"
+        Width="460" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner" Topmost="True">
+    <StackPanel Margin="20" Spacing="12">
+        <TextBlock Text="End focus session early?" FontSize="18" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding ReasonHint}" TextWrapping="Wrap" />
+        <TextBox Text="{Binding Reason}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" />
+        <TextBlock Text="{Binding StatusText}" Opacity="0.85" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="Keep focusing" Command="{Binding CancelCommand}" Classes="accent" IsDefault="True" />
+            <Button Content="End session" Command="{Binding ConfirmCommand}" />
+        </StackPanel>
+    </StackPanel>
+</Window>

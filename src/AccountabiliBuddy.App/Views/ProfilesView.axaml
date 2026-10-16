@@ -1,0 +1,93 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.ProfilesView"
+             x:DataType="vm:ProfilesViewModel">
+    <DockPanel Margin="12">
+        <Border DockPanel.Dock="Top" IsVisible="{Binding IsLocked}" Background="#33F59E0B"
+                Padding="12,8" Margin="0,0,0,12" CornerRadius="6">
+            <TextBlock Text="Profiles are locked while a focus session is running." />
+        </Border>
+
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
+            <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" />
+            <Button Content="Revert" Command="{Binding RevertCommand}" />
+            <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Margin="8,0,0,0" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Grid ColumnDefinitions="240,16,*">
+            <DockPanel Grid.Column="0">
+                <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0">
+                    <Button Content="Add profile" Command="{Binding AddProfileCommand}" HorizontalAlignment="Stretch" />
+                    <Button Content="Add example profile" Command="{Binding AddExampleProfileCommand}" HorizontalAlignment="Stretch" />
+                    <Button Content="Delete profile" Command="{Binding DeleteProfileCommand}" HorizontalAlignment="Stretch" />
+                </StackPanel>
+                <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ProfileEditorViewModel">
+                            <TextBlock Text="{Binding Name}" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+
+            <ScrollViewer Grid.Column="2">
+                <ContentControl Content="{Binding SelectedProfile}" IsEnabled="{Binding !IsLocked}">
+                    <ContentControl.ContentTemplate>
+                        <DataTemplate x:DataType="vm:ProfileEditorViewModel">
+                            <StackPanel Spacing="12">
+                                <StackPanel Orientation="Horizontal" Spacing="16">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="Name" FontWeight="SemiBold" />
+                                        <TextBox Text="{Binding Name}" Width="260" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="Ask about unknown apps after (seconds)" FontWeight="SemiBold" />
+                                        <TextBox Text="{Binding GraceSeconds}" Width="120" HorizontalAlignment="Left" />
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <TextBlock TextWrapping="Wrap" Opacity="0.75"
+                                           Text="Rules: when several match, Url beats WindowTitle beats ProcessName, a longer pattern beats a shorter one, and Block wins a tie. OcrText rules are only checked when nothing else matched. ProcessName is without .exe (e.g. chrome). Domain matching (Url only) includes subdomains." />
+
+                                <Grid ColumnDefinitions="130,110,*,100,180,40" Margin="0,4,0,0">
+                                    <TextBlock Grid.Column="0" Text="Match on" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Column="1" Text="How" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Column="2" Text="Pattern" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Column="3" Text="Verdict" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Column="4" Text="Note" FontWeight="SemiBold" />
+                                </Grid>
+
+                                <ItemsControl ItemsSource="{Binding Rules}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:RuleEditorViewModel">
+                                            <Grid ColumnDefinitions="130,110,*,100,180,40" Margin="0,2">
+                                                <ComboBox Grid.Column="0" HorizontalAlignment="Stretch" Margin="0,0,4,0"
+                                                          ItemsSource="{x:Static vm:RuleEditorViewModel.Targets}"
+                                                          SelectedItem="{Binding Target}" />
+                                                <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" Margin="0,0,4,0"
+                                                          ItemsSource="{x:Static vm:RuleEditorViewModel.Kinds}"
+                                                          SelectedItem="{Binding Kind}" />
+                                                <TextBox Grid.Column="2" Text="{Binding Pattern}" Margin="0,0,4,0"
+                                                         PlaceholderText="e.g. youtube.com/shorts" />
+                                                <ComboBox Grid.Column="3" HorizontalAlignment="Stretch" Margin="0,0,4,0"
+                                                          ItemsSource="{x:Static vm:RuleEditorViewModel.Verdicts}"
+                                                          SelectedItem="{Binding Verdict}" />
+                                                <TextBox Grid.Column="4" Text="{Binding Note}" Margin="0,0,4,0"
+                                                         PlaceholderText="optional" />
+                                                <Button Grid.Column="5" Content="✕" Command="{Binding RemoveCommand}"
+                                                        ToolTip.Tip="Remove rule" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <Button Content="Add rule" Command="{Binding AddRuleCommand}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ContentControl.ContentTemplate>
+                </ContentControl>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
+</UserControl>

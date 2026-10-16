@@ -1,0 +1,60 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
+             x:Class="AccountabiliBuddy.App.Views.ScheduleView"
+             x:DataType="vm:ScheduleViewModel">
+    <DockPanel Margin="12">
+        <Border DockPanel.Dock="Top" IsVisible="{Binding IsLocked}" Background="#33F59E0B"
+                Padding="12,8" Margin="0,0,0,12" CornerRadius="6">
+            <TextBlock Text="The schedule is locked while a focus session is running." />
+        </Border>
+
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+            <TextBlock Text="Drag on the grid to add blocked time for" VerticalAlignment="Center" />
+            <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding PaintProfile}"
+                      MinWidth="200" PlaceholderText="Choose a profile" />
+        </StackPanel>
+
+        <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusMessage}" Margin="0,8,0,0" TextWrapping="Wrap" />
+
+        <Grid ColumnDefinitions="*,16,260">
+            <ScrollViewer Grid.Column="0">
+                <controls:WeekScheduleGrid Items="{Binding Items}"
+                                           SelectedBlockId="{Binding SelectedBlockId}"
+                                           CreateBlockCommand="{Binding CreateBlockCommand}" />
+            </ScrollViewer>
+
+            <StackPanel Grid.Column="2" Spacing="10">
+                <TextBlock Text="Selected block" FontSize="16" FontWeight="SemiBold" />
+                <TextBlock IsVisible="{Binding !HasSelection}" Opacity="0.75" TextWrapping="Wrap"
+                           Text="Click a block on the grid to edit or delete it." />
+
+                <StackPanel Spacing="10" IsVisible="{Binding HasSelection}">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Day" />
+                        <ComboBox ItemsSource="{x:Static vm:ScheduleViewModel.Days}" SelectedItem="{Binding EditDay}"
+                                  HorizontalAlignment="Stretch" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Start" />
+                        <TimePicker SelectedTime="{Binding EditStart}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="End (earlier than start = runs past midnight)" TextWrapping="Wrap" />
+                        <TimePicker SelectedTime="{Binding EditEnd}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Profile" />
+                        <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding EditProfile}"
+                                  HorizontalAlignment="Stretch" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Apply" Command="{Binding ApplyEditCommand}" Classes="accent" />
+                        <Button Content="Delete" Command="{Binding DeleteSelectedCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+    </DockPanel>
+</UserControl>

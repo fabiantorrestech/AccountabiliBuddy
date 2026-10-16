@@ -1,30 +1,35 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:dev="using:AccountabiliBuddy.App.DevTools"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        xmlns:views="using:AccountabiliBuddy.App.Views"
         x:Class="AccountabiliBuddy.App.MainWindow"
-        x:DataType="dev:ActivityDebugViewModel"
-        Title="AccountabiliBuddy — activity monitor (dev view)"
-        Width="960" Height="600"
+        x:DataType="vm:MainWindowViewModel"
+        Title="AccountabiliBuddy"
+        Icon="/Assets/app-icon.png"
+        Width="1100" Height="760" MinWidth="760" MinHeight="520"
         WindowStartupLocation="CenterScreen">
-    <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="16">
-        <TextBlock Grid.Row="0" Text="Visible window per monitor" FontSize="16" FontWeight="SemiBold" />
+    <DockPanel>
+        <Border DockPanel.Dock="Top" IsVisible="{Binding HasLoadError}"
+                Background="#33D13438" Padding="16,10">
+            <TextBlock Text="{Binding LoadError}" TextWrapping="Wrap" />
+        </Border>
 
-        <ItemsControl Grid.Row="1" ItemsSource="{Binding Monitors}" Margin="0,8,0,16">
-            <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="dev:MonitorActivityRow">
-                    <Grid ColumnDefinitions="150,200,*,80" Margin="0,3">
-                        <TextBlock Grid.Column="0" Text="{Binding MonitorId}" />
-                        <TextBlock Grid.Column="1" Text="{Binding ProcessName}" FontWeight="SemiBold" />
-                        <TextBlock Grid.Column="2" Text="{Binding WindowTitle}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Grid.Column="3" Text="{Binding Time}" HorizontalAlignment="Right" />
-                    </Grid>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
-
-        <TextBlock Grid.Row="2" Text="Changes (newest first)" FontWeight="SemiBold" />
-
-        <ListBox Grid.Row="3" ItemsSource="{Binding Log}" Margin="0,8,0,0"
-                 FontFamily="Consolas, Cascadia Mono, monospace" FontSize="12" />
-    </Grid>
+        <TabControl Margin="8,4,8,8">
+            <TabItem Header="Session">
+                <views:SessionView DataContext="{Binding Session}" />
+            </TabItem>
+            <TabItem Header="Profiles">
+                <views:ProfilesView DataContext="{Binding Profiles}" />
+            </TabItem>
+            <TabItem Header="Schedule">
+                <views:ScheduleView DataContext="{Binding Schedule}" />
+            </TabItem>
+            <TabItem Header="Settings">
+                <views:SettingsView DataContext="{Binding Settings}" />
+            </TabItem>
+            <TabItem Header="Activity (dev)">
+                <views:ActivityView DataContext="{Binding Activity}" />
+            </TabItem>
+        </TabControl>
+    </DockPanel>
 </Window>
