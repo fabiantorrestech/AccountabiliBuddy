@@ -22,6 +22,16 @@
   <ItemGroup>
     <ProjectReference Include="..\AccountabiliBuddy.Core\AccountabiliBuddy.Core.csproj" />
     <ProjectReference Include="..\AccountabiliBuddy.Platform.Windows\AccountabiliBuddy.Platform.Windows.csproj" />
+    <!-- Built alongside so AccountabiliBuddy.NativeHost.exe lands next to the app, where the Setup tab registers it. -->
+    <ProjectReference Include="..\AccountabiliBuddy.NativeHost\AccountabiliBuddy.NativeHost.csproj" />
+  </ItemGroup>
+
+  <!-- The browser extension ships with the app: shared files plus one manifest per browser family. -->
+  <ItemGroup>
+    <None Include="..\..\extensions\shared\**" LinkBase="browser-extension\chromium" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\extensions\chromium\manifest.json" Link="browser-extension\chromium\manifest.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\extensions\shared\**" LinkBase="browser-extension\firefox" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\extensions\firefox\manifest.json" Link="browser-extension\firefox\manifest.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

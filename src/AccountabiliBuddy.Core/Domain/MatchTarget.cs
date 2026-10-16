@@ -10,4 +10,6 @@ public enum MatchTarget
     Url,
     /// <summary>OCR text of the window. Only evaluated when no other rule matched.</summary>
     OcrText,
+    /// <summary>Channel or author of the page, reported by the browser extension (e.g. a YouTube channel name).</summary>
+    Channel,
 }

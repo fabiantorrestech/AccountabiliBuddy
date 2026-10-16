@@ -24,6 +24,12 @@
             <TabItem Header="Schedule">
                 <views:ScheduleView DataContext="{Binding Schedule}" />
             </TabItem>
+            <TabItem Header="Setup">
+                <views:SetupView DataContext="{Binding Setup}" />
+            </TabItem>
+            <TabItem Header="Integrations">
+                <views:IntegrationsView DataContext="{Binding Integrations}" />
+            </TabItem>
             <TabItem Header="Settings">
                 <views:SettingsView DataContext="{Binding Settings}" />
             </TabItem>

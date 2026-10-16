@@ -14,8 +14,12 @@
             <TextBlock Text="{Binding Question}" FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap" />
             <TextBlock Text="{Binding WindowTitleText}" Opacity="0.75" TextWrapping="Wrap" MaxLines="2"
                        TextTrimming="CharacterEllipsis" />
-            <RadioButton Content="The whole app" IsChecked="{Binding MatchWholeApp}" GroupName="scope" />
-            <RadioButton Content="Only this view (match the window title)" IsChecked="{Binding MatchOnlyThisView}"
+            <RadioButton Content="{Binding SiteLabel}" IsChecked="{Binding IsSite}" IsVisible="{Binding HasSite}"
+                         GroupName="scope" />
+            <RadioButton Content="{Binding ChannelLabel}" IsChecked="{Binding IsChannel}" IsVisible="{Binding HasChannel}"
+                         GroupName="scope" />
+            <RadioButton Content="{Binding WholeAppLabel}" IsChecked="{Binding IsWholeApp}" GroupName="scope" />
+            <RadioButton Content="Only this view (match the window title)" IsChecked="{Binding IsTitle}"
                          GroupName="scope" />
             <TextBlock Text="{Binding PatternLabel}" FontSize="12" Opacity="0.75" />
             <TextBox Text="{Binding Pattern}" />

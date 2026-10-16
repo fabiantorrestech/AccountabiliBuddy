@@ -9,12 +9,6 @@
                 <TextBlock Text="Settings are locked while a focus session is running." />
             </Border>
 
-            <StackPanel Spacing="6">
-                <TextBlock Text="Startup" FontSize="16" FontWeight="SemiBold" />
-                <CheckBox Content="Start AccountabiliBuddy when I sign in to Windows (starts in the tray)"
-                          IsChecked="{Binding StartWithWindows}" />
-            </StackPanel>
-
             <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
                 <TextBlock Text="Pomodoro defaults" FontSize="16" FontWeight="SemiBold" />
                 <Grid ColumnDefinitions="240,120" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6">

@@ -9,13 +9,15 @@ namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
 /// Connects the activity watcher, the session and the <see cref="EnforcementEngine"/> to the
-/// <see cref="EnforcementPresenter"/>. Re-evaluates every monitor when activity changes, when the
-/// session changes, and once a second so drift keeps escalating while nothing on screen changes.
+/// <see cref="EnforcementPresenter"/>. Re-evaluates every monitor when activity changes, when browser tabs
+/// change, when the session changes, and once a second so drift keeps escalating while nothing on screen changes.
+/// Browser windows get their active tab's URL, tab id and channel from the extension before evaluation.
 /// All work happens on the UI thread.
 /// </summary>
 public sealed class EnforcementCoordinator : IDisposable
 {
     private readonly IActivityWatcher _watcher;
+    private readonly IBrowserActivitySource _browsers;
     private readonly SessionController _sessions;
     private readonly ConfigurationService _configuration;
     private readonly EnforcementEngine _engine;
@@ -25,12 +27,14 @@ public sealed class EnforcementCoordinator : IDisposable
 
     public EnforcementCoordinator(
         IActivityWatcher watcher,
+        IBrowserActivitySource browsers,
         SessionController sessions,
         ConfigurationService configuration,
         EnforcementEngine engine,
         EnforcementPresenter presenter)
     {
         _watcher = watcher;
+        _browsers = browsers;
         _sessions = sessions;
         _configuration = configuration;
         _engine = engine;
@@ -38,6 +42,7 @@ public sealed class EnforcementCoordinator : IDisposable
 
         _watcher.ActivityChanged += OnActivityChanged;
         _watcher.MonitorDisconnected += OnMonitorDisconnected;
+        _browsers.ConnectionsChanged += OnBrowserConnectionsChanged;
         _sessions.StateChanged += OnSessionStateChanged;
         _sessions.Ticked += OnSessionTicked;
         _configuration.Changed += OnConfigurationChanged;
@@ -51,6 +56,7 @@ public sealed class EnforcementCoordinator : IDisposable
     {
         _watcher.ActivityChanged -= OnActivityChanged;
         _watcher.MonitorDisconnected -= OnMonitorDisconnected;
+        _browsers.ConnectionsChanged -= OnBrowserConnectionsChanged;
         _sessions.StateChanged -= OnSessionStateChanged;
         _sessions.Ticked -= OnSessionTicked;
         _configuration.Changed -= OnConfigurationChanged;
@@ -78,6 +84,12 @@ public sealed class EnforcementCoordinator : IDisposable
         });
     }
 
+    // Browser events arrive on pipe threads.
+    private void OnBrowserConnectionsChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.UIThread.Post(Reevaluate);
+    }
+
     private void OnSessionStateChanged(object? sender, SessionState state)
     {
         Reevaluate();
@@ -99,9 +111,9 @@ public sealed class EnforcementCoordinator : IDisposable
         Reevaluate();
     }
 
-    private void OnClassificationDeferred(object? sender, string processName)
+    private void OnClassificationDeferred(object? sender, string subject)
     {
-        _engine.DeferClassification(processName);
+        _engine.DeferClassification(subject);
         Reevaluate();
     }
 
@@ -113,14 +125,7 @@ public sealed class EnforcementCoordinator : IDisposable
         }
 
         // Saving notifies Changed, which re-evaluates with the new rule.
-        await _configuration.UpdateAsync(document => document with
-        {
-            Profiles = document.Profiles
-                .Select(profile => profile.Id == profileId
-                    ? profile with { Rules = profile.Rules.Append(rule).ToList() }
-                    : profile)
-                .ToList(),
-        });
+        await _configuration.AddRulesAsync(profileId, new[] { rule });
     }
 
     private void Reevaluate()
@@ -130,11 +135,15 @@ public sealed class EnforcementCoordinator : IDisposable
         FocusProfile? profile = profiles.FirstOrDefault(candidate => candidate.Id == state.ProfileId);
         DateTimeOffset now = _sessions.Now;
 
+        IReadOnlyList<BrowserConnection> browsers = _browsers.Connections;
+        IEnumerable<ActivitySnapshot> snapshots = _latestByMonitor.Values
+            .Select(snapshot => BrowserTabMatcher.Enrich(snapshot, browsers));
+
         IReadOnlyList<MonitorEnforcement> decisions = _engine.Evaluate(
             state,
             profile,
             _configuration.Current.Escalation,
-            _latestByMonitor.Values,
+            snapshots,
             now);
 
         string profileName = ProfileOptions.NameOf(profiles, state.ProfileId) ?? "this session";

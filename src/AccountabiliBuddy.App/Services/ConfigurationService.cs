@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using Microsoft.Data.Sqlite;
@@ -52,6 +53,36 @@ public sealed class ConfigurationService
         }
     }
 
+    /// <summary>
+    /// Appends rules to one profile, skipping any that duplicate an existing rule (same target, kind and pattern).
+    /// </summary>
+    /// <returns>How many rules were added.</returns>
+    public async Task<int> AddRulesAsync(Guid profileId, IEnumerable<Rule> rules)
+    {
+        FocusProfile? profile = Current.Profiles.FirstOrDefault(candidate => candidate.Id == profileId);
+        if (profile is null)
+        {
+            return 0;
+        }
+
+        var existing = new HashSet<string>(profile.Rules.Select(RuleKey), StringComparer.OrdinalIgnoreCase);
+        List<Rule> added = rules.Where(rule => existing.Add(RuleKey(rule))).ToList();
+        if (added.Count == 0)
+        {
+            return 0;
+        }
+
+        await UpdateAsync(document => document with
+        {
+            Profiles = document.Profiles
+                .Select(candidate => candidate.Id == profileId
+                    ? candidate with { Rules = candidate.Rules.Concat(added).ToList() }
+                    : candidate)
+                .ToList(),
+        });
+        return added.Count;
+    }
+
     public async Task UpdateAsync(Func<ProfileDocument, ProfileDocument> change)
     {
         Current = change(Current);
@@ -61,5 +92,10 @@ public sealed class ConfigurationService
         {
             await _store.SaveAsync(Current);
         }
+    }
+
+    private static string RuleKey(Rule rule)
+    {
+        return $"{rule.Target}|{rule.Kind}|{rule.Pattern.Trim()}";
     }
 }

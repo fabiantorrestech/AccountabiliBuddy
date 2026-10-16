@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "AccountabiliBuddy",
+  "version": "0.1.0",
+  "description": "Connects your browser to the AccountabiliBuddy desktop app. Everything stays on this computer.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo/AyN96BJJA3SDrvmgGZ7BT36lJtLBC9k027sKqb5YjScy8OG//chGhKFhPOChCOMWUOec2Tfa4prPXoDTIhAowpHmskfKZh81PTRadi9pBv/jnu2y8BNcUh0U/i7ao2BQfFeBLb9q1A3Mv4DfzDbbxBqeCmIHCwf2+8gLfCRfbKKIyu7oU+GguZAMBGBMu0tXHbcFq+F8YvqKxSktM74Bi2OHnboF9qmjwy/qNj+Hnf4t+BKjiAMLa6KvNtl+kxapBRuCAgdde+5vpY/hl6Ez8a643a1FSIhT86dkniyO352T4GZ2FutLTSaYlLVy7Dy8pKgBgvdtsMGG8D9qc2OQIDAQAB",
+  "minimum_chrome_version": "110",
+  "icons": { "128": "icon.png" },
+  "permissions": ["tabs", "nativeMessaging"],
+  "host_permissions": ["*://*.youtube.com/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["*://www.youtube.com/*", "*://m.youtube.com/*"],
+      "js": ["youtube.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

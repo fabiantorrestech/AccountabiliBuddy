@@ -28,6 +28,7 @@ public sealed class RuleMatcher
             MatchTarget.WindowTitle => MatchesText(rule.Kind, snapshot.WindowTitle, rule.Pattern),
             MatchTarget.OcrText => snapshot.OcrText is not null && MatchesText(rule.Kind, snapshot.OcrText, rule.Pattern),
             MatchTarget.Url => snapshot.Url is not null && MatchesUrl(rule, snapshot.Url),
+            MatchTarget.Channel => snapshot.Channel is not null && MatchesText(rule.Kind, snapshot.Channel, rule.Pattern),
             _ => false,
         };
     }

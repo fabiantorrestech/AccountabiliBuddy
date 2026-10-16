@@ -8,28 +8,31 @@ namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
 /// Turns enforcement decisions into what the user sees: a toast per monitor, a dimmed overlay per monitor,
-/// minimize requests, and one "is this on track?" prompt at a time.
+/// minimize requests, block-page redirects for browser tabs, and one "is this on track?" prompt at a time.
 /// Only acts on changes, so it can be called every second. Use from the UI thread only.
 /// </summary>
 public sealed class EnforcementPresenter
 {
-    // A minimize request is not repeated for the same window sooner than this, while Windows carries it out.
-    private static readonly TimeSpan MinimizeRetryInterval = TimeSpan.FromSeconds(2);
+    // A minimize or redirect is not repeated for the same window/tab sooner than this, while it is carried out.
+    private static readonly TimeSpan ActionRetryInterval = TimeSpan.FromSeconds(2);
     private const int MaxTitleLength = 80;
 
     private readonly IEnforcer _enforcer;
+    private readonly IBrowserActivitySource _browsers;
     private readonly IMonitorLocator _monitors;
     private readonly TimeProvider _timeProvider;
 
     private readonly Dictionary<string, MonitorPresentation> _presentationByMonitor = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, DateTimeOffset> _lastMinimizeByWindow = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTimeOffset> _lastActionByTarget = new(StringComparer.Ordinal);
 
     private ClassifyPrompt? _prompt;
-    private string? _promptProcessName;
+    private string? _promptSubject;
 
-    public EnforcementPresenter(IEnforcer enforcer, IMonitorLocator monitors, TimeProvider timeProvider)
+    public EnforcementPresenter(
+        IEnforcer enforcer, IBrowserActivitySource browsers, IMonitorLocator monitors, TimeProvider timeProvider)
     {
         _enforcer = enforcer;
+        _browsers = browsers;
         _monitors = monitors;
         _timeProvider = timeProvider;
     }
@@ -40,7 +43,7 @@ public sealed class EnforcementPresenter
     /// <summary>Raised when the user answers the classify prompt.</summary>
     public event EventHandler<Rule>? RuleCreated;
 
-    /// <summary>Raised with the process name when the user picks "Not now" on the classify prompt.</summary>
+    /// <summary>Raised with the question's subject (site or app) when the user picks "Not now" on the classify prompt.</summary>
     public event EventHandler<string>? ClassificationDeferred;
 
     /// <param name="profileName">Name of the session's profile, shown on the overlay and prompt.</param>
@@ -123,6 +126,18 @@ public sealed class EnforcementPresenter
                 if (RequestMinimize(decision.Snapshot.WindowId))
                 {
                     ShowMinimizedNotice(presentation, decision);
+                }
+
+                break;
+
+            case EnforcementAction.RedirectTab:
+                CloseOverlay(presentation);
+                if (decision.Snapshot.TabId is { } tabId && IsDue(tabId))
+                {
+                    _ = _browsers.RedirectToBlockPageAsync(tabId, $"Blocked during your {profileName} session.");
+                    ShowToast(presentation,
+                        new NudgeToastViewModel($"Sent {DescribeTarget(decision)} to the block page", "Back to it.", null, null),
+                        ToastKind.Minimized);
                 }
 
                 break;
@@ -238,7 +253,8 @@ public sealed class EnforcementPresenter
         if (_prompt is not null)
         {
             bool stillNeeded = decisions.Any(decision => decision.NeedsClassification
-                && string.Equals(decision.Snapshot.ProcessName, _promptProcessName, StringComparison.OrdinalIgnoreCase));
+                && string.Equals(EnforcementEngine.ClassificationSubject(decision.Snapshot), _promptSubject,
+                    StringComparison.OrdinalIgnoreCase));
             if (!stillNeeded)
             {
                 ClosePrompt();
@@ -259,8 +275,8 @@ public sealed class EnforcementPresenter
             return;
         }
 
-        string processName = unknown.Snapshot.ProcessName;
-        var viewModel = new ClassifyPromptViewModel(profileName, processName, unknown.Snapshot.WindowTitle);
+        var viewModel = new ClassifyPromptViewModel(profileName, unknown.Snapshot);
+        string subject = viewModel.Subject;
         viewModel.Answered += (_, rule) =>
         {
             ClosePrompt();
@@ -269,7 +285,7 @@ public sealed class EnforcementPresenter
         viewModel.Deferred += (_, _) =>
         {
             ClosePrompt();
-            ClassificationDeferred?.Invoke(this, processName);
+            ClassificationDeferred?.Invoke(this, subject);
         };
 
         var prompt = new ClassifyPrompt { DataContext = viewModel };
@@ -280,11 +296,11 @@ public sealed class EnforcementPresenter
             if (_prompt == prompt)
             {
                 ClosePrompt();
-                ClassificationDeferred?.Invoke(this, processName);
+                ClassificationDeferred?.Invoke(this, subject);
             }
         };
         _prompt = prompt;
-        _promptProcessName = processName;
+        _promptSubject = subject;
         prompt.Show();
     }
 
@@ -292,33 +308,45 @@ public sealed class EnforcementPresenter
     {
         ClassifyPrompt? prompt = _prompt;
         _prompt = null;
-        _promptProcessName = null;
+        _promptSubject = null;
         prompt?.Close();
     }
 
     private void MinimizeNow(string windowId)
     {
-        _lastMinimizeByWindow[windowId] = _timeProvider.GetUtcNow();
+        _lastActionByTarget[windowId] = _timeProvider.GetUtcNow();
         _ = _enforcer.MinimizeWindowAsync(windowId);
     }
 
     /// <returns>True if a new minimize request was sent; false if one was sent moments ago.</returns>
     private bool RequestMinimize(string windowId)
     {
+        if (!IsDue(windowId))
+        {
+            return false;
+        }
+
+        _ = _enforcer.MinimizeWindowAsync(windowId);
+        return true;
+    }
+
+    /// <summary>True (and records the attempt) unless the same window or tab was acted on moments ago.</summary>
+    private bool IsDue(string targetId)
+    {
         DateTimeOffset now = _timeProvider.GetUtcNow();
-        if (_lastMinimizeByWindow.TryGetValue(windowId, out DateTimeOffset last) && now - last < MinimizeRetryInterval)
+        if (_lastActionByTarget.TryGetValue(targetId, out DateTimeOffset last) && now - last < ActionRetryInterval)
         {
             return false;
         }
 
         // Drop stale entries so the map does not grow over a long session.
-        foreach (string staleId in _lastMinimizeByWindow.Where(entry => now - entry.Value >= MinimizeRetryInterval)
+        foreach (string staleId in _lastActionByTarget.Where(entry => now - entry.Value >= ActionRetryInterval)
                      .Select(entry => entry.Key).ToList())
         {
-            _lastMinimizeByWindow.Remove(staleId);
+            _lastActionByTarget.Remove(staleId);
         }
 
-        MinimizeNow(windowId);
+        _lastActionByTarget[targetId] = now;
         return true;
     }
 
@@ -341,6 +369,12 @@ public sealed class EnforcementPresenter
     private static string DescribeTarget(MonitorEnforcement decision)
     {
         ActivitySnapshot snapshot = decision.Snapshot;
+        if (decision.Scope == BlockScope.View && snapshot.Url is not null)
+        {
+            string site = UrlNormalizer.GetHost(snapshot.Url) ?? snapshot.Url;
+            return snapshot.Channel is null ? site : $"{site} · {snapshot.Channel}";
+        }
+
         if (decision.Scope != BlockScope.View || string.IsNullOrWhiteSpace(snapshot.WindowTitle))
         {
             return snapshot.ProcessName;

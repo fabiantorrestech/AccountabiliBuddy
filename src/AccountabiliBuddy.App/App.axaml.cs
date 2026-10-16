@@ -5,8 +5,10 @@ using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Storage;
 using AccountabiliBuddy.Platform.Windows.Activity;
+using AccountabiliBuddy.Platform.Windows.Browser;
 using AccountabiliBuddy.Platform.Windows.Display;
 using AccountabiliBuddy.Platform.Windows.Enforcement;
+using AccountabiliBuddy.Platform.Windows.Integrations;
 using AccountabiliBuddy.Platform.Windows.Startup;
 using Avalonia;
 using Avalonia.Controls;
@@ -30,6 +32,7 @@ public partial class App : Application
     private SessionController? _sessions;
     private SessionEndFlow? _endFlow;
     private WinEventActivityWatcher? _activityWatcher;
+    private NamedPipeBrowserSource? _browserSource;
     private EnforcementCoordinator? _enforcement;
     private MainWindow? _mainWindow;
     private TrayIcon? _trayIcon;
@@ -89,6 +92,14 @@ public partial class App : Application
             Environment.ProcessPath ?? throw new InvalidOperationException("Executable path is unknown."),
             StartupOptions.MinimizedArgument);
 
+        _browserSource = new NamedPipeBrowserSource(time);
+        var browserSetup = new WindowsBrowserSetup(
+            Path.Combine(AppContext.BaseDirectory, "AccountabiliBuddy.NativeHost.exe"),
+            Path.Combine(AppContext.BaseDirectory, "browser-extension"),
+            dataDirectory);
+        var sightings = new ColdTurkeySightingsService(_browserSource, new SqliteJsonDocumentStore(database, time), time);
+        _ = sightings.LoadAsync();
+
         var activityViewModel = new ActivityDebugViewModel();
         _activityWatcher = new WinEventActivityWatcher(time);
         // The watcher raises events on its own thread; UI collections must be touched on the UI thread.
@@ -96,16 +107,19 @@ public partial class App : Application
 
         _enforcement = new EnforcementCoordinator(
             _activityWatcher,
+            _browserSource,
             _sessions,
             _configuration,
             new EnforcementEngine(new RuleEvaluator(new RuleMatcher())),
-            new EnforcementPresenter(new WindowsEnforcer(), new Win32MonitorLocator(), time));
+            new EnforcementPresenter(new WindowsEnforcer(), _browserSource, new Win32MonitorLocator(), time));
 
         var mainViewModel = new MainWindowViewModel(
             new SessionViewModel(_sessions, _configuration, _endFlow, VisibleMainWindow),
             new ProfilesViewModel(_configuration, _sessions),
             new ScheduleViewModel(_configuration, _sessions),
-            new SettingsViewModel(_configuration, _sessions, startupRegistrar, database.DatabasePath),
+            new SetupViewModel(startupRegistrar, browserSetup, _browserSource),
+            new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
+            new SettingsViewModel(_configuration, _sessions, database.DatabasePath),
             activityViewModel,
             _configuration.LoadError);
 
@@ -116,6 +130,7 @@ public partial class App : Application
 
         _sessions.Start();
         _activityWatcher.Start();
+        _browserSource.Start();
     }
 
     private void CreateTrayIcon()
@@ -207,6 +222,7 @@ public partial class App : Application
     private void DisposeServices()
     {
         _enforcement?.Dispose();
+        _browserSource?.Dispose();
         _activityWatcher?.Dispose();
         _sessions?.Dispose();
         _trayIcon?.Dispose();

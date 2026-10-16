@@ -138,7 +138,7 @@ public sealed partial class ProfilesViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Rules can be added outside this tab (the classify prompt during focus). Merge those in
+    /// Rules can be added outside this tab (the classify prompt, the Integrations tab). Merge those in
     /// without discarding edits that have not been saved yet.
     /// </summary>
     private void OnConfigurationChanged(object? sender, ProfileDocument document)
@@ -157,8 +157,8 @@ public sealed partial class ProfilesViewModel : ObservableObject
         if (added > 0)
         {
             StatusMessage = added == 1
-                ? "A rule was added from the classify prompt."
-                : $"{added} rules were added from the classify prompt.";
+                ? "A rule was added from the classify prompt or the Integrations tab."
+                : $"{added} rules were added from the classify prompt or the Integrations tab.";
         }
     }
 }

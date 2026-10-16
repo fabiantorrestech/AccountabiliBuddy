@@ -1,7 +1,5 @@
-using System.Security;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
-using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,27 +7,18 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// Settings tab: auto-start, Pomodoro defaults, escalation timings and friction.
+/// Settings tab: Pomodoro defaults, escalation timings and friction. (Start with Windows lives in the Setup tab.)
 /// Saving is locked during a focus phase so friction cannot be turned off mid-session.
 /// </summary>
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly ConfigurationService _configuration;
     private readonly SessionController _sessions;
-    private readonly IStartupRegistrar _startup;
 
-    // Prevents the registry from being written while the toggle is set programmatically.
-    private bool _isLoadingStartupState;
-
-    public SettingsViewModel(
-        ConfigurationService configuration,
-        SessionController sessions,
-        IStartupRegistrar startup,
-        string databasePath)
+    public SettingsViewModel(ConfigurationService configuration, SessionController sessions, string databasePath)
     {
         _configuration = configuration;
         _sessions = sessions;
-        _startup = startup;
         DatabasePath = databasePath;
 
         FocusMinutes = ShortBreakMinutes = LongBreakMinutes = CyclesBeforeLongBreak = string.Empty;
@@ -39,14 +28,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         _sessions.StateChanged += (_, _) => IsLocked = _sessions.IsEnforcing;
         IsLocked = _sessions.IsEnforcing;
 
-        LoadStartupState();
         LoadFromConfiguration();
     }
 
     public string DatabasePath { get; }
-
-    [ObservableProperty]
-    public partial bool StartWithWindows { get; set; }
 
     [ObservableProperty]
     public partial string FocusMinutes { get; set; }
@@ -123,40 +108,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         LoadFromConfiguration();
         StatusMessage = "Unsaved changes discarded.";
-    }
-
-    partial void OnStartWithWindowsChanged(bool value)
-    {
-        if (_isLoadingStartupState)
-        {
-            return;
-        }
-
-        try
-        {
-            if (value)
-            {
-                _startup.Enable();
-            }
-            else
-            {
-                _startup.Disable();
-            }
-
-            StatusMessage = value ? "Will start when you sign in to Windows." : "Will no longer start with Windows.";
-        }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or SecurityException or IOException)
-        {
-            StatusMessage = $"Could not change auto-start: {ex.Message}";
-            LoadStartupState();
-        }
-    }
-
-    private void LoadStartupState()
-    {
-        _isLoadingStartupState = true;
-        StartWithWindows = _startup.IsEnabled;
-        _isLoadingStartupState = false;
     }
 
     private void LoadFromConfiguration()

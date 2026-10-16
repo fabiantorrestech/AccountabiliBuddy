@@ -6,8 +6,10 @@ namespace AccountabiliBuddy.Core.Engine;
 /// Decides, for every monitor, how strongly to respond to what is on screen during a focus phase.
 /// Builds on <see cref="DriftTracker"/> (nudge → overlay → enforce over time) and adds:
 /// <list type="bullet">
-/// <item>Scope: a whole-app block is minimized at the enforce level; a view block (title/URL) keeps the
-/// overlay instead, so the user is never locked out of an app that is partly allowed.</item>
+/// <item>Scope: a whole-app block is minimized at the enforce level; a view block (title/URL/channel) keeps the
+/// overlay instead, so the user is never locked out of an app that is partly allowed. When the view is a browser
+/// tab the extension reported, the tab is sent to the block page instead.</item>
+/// <item>Browser extension pages (our block page, Cold Turkey's) always count as on track.</item>
 /// <item>Repeat offenses: once a whole-app block was minimized, reopening it in the same focus phase is
 /// minimized immediately. Once a view block reached the overlay, returning to it brings the overlay back immediately.</item>
 /// <item>Recovery: the user can ask for <see cref="RecoveryWindow"/> to navigate away from a blocked view.
@@ -25,7 +27,7 @@ public sealed class EnforcementEngine
     private readonly HashSet<Guid> _minimizedAppRuleIds = new();
     private readonly HashSet<Guid> _overlaidViewRuleIds = new();
     private readonly Dictionary<string, DateTimeOffset> _recoveryEndsByMonitor = new(StringComparer.Ordinal);
-    private readonly HashSet<string> _deferredProcessNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _deferredSubjects = new(StringComparer.OrdinalIgnoreCase);
 
     private DriftTracker? _tracker;
     private PhaseKey? _currentPhase;
@@ -69,12 +71,21 @@ public sealed class EnforcementEngine
         }
     }
 
-    /// <summary>"Not now": stop asking about this app until the next focus phase.</summary>
-    public void DeferClassification(string processName)
+    /// <summary>
+    /// What a classify question is about: the site for a browser tab, otherwise the app.
+    /// "Not now" applies to this, so deferring one site does not silence questions about every other site.
+    /// </summary>
+    public static string ClassificationSubject(ActivitySnapshot snapshot)
+    {
+        return (snapshot.Url is null ? null : UrlNormalizer.GetHost(snapshot.Url)) ?? snapshot.ProcessName;
+    }
+
+    /// <summary>"Not now": stop asking about this subject (see <see cref="ClassificationSubject"/>) until the next focus phase.</summary>
+    public void DeferClassification(string subject)
     {
         if (_currentPhase is not null)
         {
-            _deferredProcessNames.Add(processName);
+            _deferredSubjects.Add(subject);
         }
     }
 
@@ -88,15 +99,15 @@ public sealed class EnforcementEngine
     private MonitorEnforcement EvaluateMonitor(
         DriftTracker tracker, FocusProfile profile, ActivitySnapshot snapshot, DateTimeOffset now)
     {
-        // An empty desktop counts as back on track, which also resets any drift on that monitor.
-        ClassificationResult result = snapshot.IsEmptyDesktop
+        // An empty desktop or a blocker's own page counts as back on track, which also resets drift on that monitor.
+        ClassificationResult result = snapshot.IsEmptyDesktop || snapshot.IsBrowserExtensionPage
             ? new ClassificationResult(Classification.OnTrack, null)
             : _evaluator.Evaluate(profile, snapshot);
 
         DriftAssessment drift = tracker.Observe(snapshot, result, profile.UnknownGracePeriod);
 
         bool needsClassification = drift.NeedsClassification
-            && !_deferredProcessNames.Contains(snapshot.ProcessName);
+            && !_deferredSubjects.Contains(ClassificationSubject(snapshot));
 
         if (result.Classification != Classification.Distracting || result.MatchedRule is null)
         {
@@ -109,7 +120,7 @@ public sealed class EnforcementEngine
         Rule rule = result.MatchedRule;
         BlockScope scope = rule.Target == MatchTarget.ProcessName ? BlockScope.App : BlockScope.View;
 
-        EnforcementAction action = ToAction(drift.Level, scope);
+        EnforcementAction action = ToAction(drift.Level, scope, canRedirectTab: snapshot.TabId is not null);
 
         // An earlier escalation of the same rule sets a floor; it only counts as a repeat when it raises the response.
         EnforcementAction floor = EnforcementAction.None;
@@ -147,16 +158,27 @@ public sealed class EnforcementEngine
             NeedsClassification: false);
     }
 
-    private static EnforcementAction ToAction(EscalationLevel level, BlockScope scope)
+    private static EnforcementAction ToAction(EscalationLevel level, BlockScope scope, bool canRedirectTab)
     {
         return level switch
         {
             EscalationLevel.Nudge => EnforcementAction.Nudge,
             EscalationLevel.Overlay => EnforcementAction.Overlay,
-            // A view block never minimizes the whole app; the overlay stays until the user navigates away.
-            EscalationLevel.Enforce => scope == BlockScope.App ? EnforcementAction.Minimize : EnforcementAction.Overlay,
+            EscalationLevel.Enforce => EnforceAction(scope, canRedirectTab),
             _ => EnforcementAction.None,
         };
+    }
+
+    private static EnforcementAction EnforceAction(BlockScope scope, bool canRedirectTab)
+    {
+        if (scope == BlockScope.App)
+        {
+            return EnforcementAction.Minimize;
+        }
+
+        // A view block never minimizes the whole app. A browser tab goes to the block page;
+        // any other view keeps the overlay until the user navigates away.
+        return canRedirectTab ? EnforcementAction.RedirectTab : EnforcementAction.Overlay;
     }
 
     private void RememberEscalation(Guid ruleId, BlockScope scope, EnforcementAction action)
@@ -165,7 +187,7 @@ public sealed class EnforcementEngine
         {
             _minimizedAppRuleIds.Add(ruleId);
         }
-        else if (scope == BlockScope.View && action == EnforcementAction.Overlay)
+        else if (scope == BlockScope.View && action is (EnforcementAction.Overlay or EnforcementAction.RedirectTab))
         {
             _overlaidViewRuleIds.Add(ruleId);
         }
@@ -216,7 +238,7 @@ public sealed class EnforcementEngine
         _minimizedAppRuleIds.Clear();
         _overlaidViewRuleIds.Clear();
         _recoveryEndsByMonitor.Clear();
-        _deferredProcessNames.Clear();
+        _deferredSubjects.Clear();
     }
 
     /// <summary>Identifies one focus phase; a new value means a new phase started.</summary>

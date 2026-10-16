@@ -5,7 +5,7 @@ namespace AccountabiliBuddy.Core.Engine;
 /// <summary>
 /// Classifies a snapshot against a profile.
 /// When several rules match, the most specific wins:
-/// 1. URL beats window title, which beats process name.
+/// 1. Channel beats URL, which beats window title, which beats process name.
 /// 2. A longer pattern beats a shorter one.
 /// 3. On a tie, Block beats Allow.
 /// OCR rules are only consulted when no other rule matched (detection cascade).
@@ -83,6 +83,7 @@ public sealed class RuleEvaluator
     {
         return target switch
         {
+            MatchTarget.Channel => 4,
             MatchTarget.Url => 3,
             MatchTarget.WindowTitle => 2,
             MatchTarget.ProcessName => 1,

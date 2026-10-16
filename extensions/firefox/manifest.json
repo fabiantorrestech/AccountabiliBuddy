@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "AccountabiliBuddy",
+  "version": "0.1.0",
+  "description": "Connects your browser to the AccountabiliBuddy desktop app. Everything stays on this computer.",
+  "icons": { "128": "icon.png" },
+  "permissions": ["tabs", "nativeMessaging"],
+  "host_permissions": ["*://*.youtube.com/*"],
+  "background": { "scripts": ["background.js"] },
+  "content_scripts": [
+    {
+      "matches": ["*://www.youtube.com/*", "*://m.youtube.com/*"],
+      "js": ["youtube.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "accountabilibuddy@fabiantorrestech.github.io",
+      "strict_min_version": "115.0"
+    }
+  }
+}

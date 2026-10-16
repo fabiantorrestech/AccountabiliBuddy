@@ -9,6 +9,8 @@ public sealed class MainWindowViewModel
         SessionViewModel session,
         ProfilesViewModel profiles,
         ScheduleViewModel schedule,
+        SetupViewModel setup,
+        IntegrationsViewModel integrations,
         SettingsViewModel settings,
         ActivityDebugViewModel activity,
         string? loadError)
@@ -16,6 +18,8 @@ public sealed class MainWindowViewModel
         Session = session;
         Profiles = profiles;
         Schedule = schedule;
+        Setup = setup;
+        Integrations = integrations;
         Settings = settings;
         Activity = activity;
         LoadError = loadError;
@@ -26,6 +30,10 @@ public sealed class MainWindowViewModel
     public ProfilesViewModel Profiles { get; }
 
     public ScheduleViewModel Schedule { get; }
+
+    public SetupViewModel Setup { get; }
+
+    public IntegrationsViewModel Integrations { get; }
 
     public SettingsViewModel Settings { get; }
 

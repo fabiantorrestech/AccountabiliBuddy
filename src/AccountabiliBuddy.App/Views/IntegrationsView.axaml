@@ -1,0 +1,90 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.IntegrationsView"
+             x:DataType="vm:IntegrationsViewModel">
+    <UserControl.Styles>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16,12" />
+        </Style>
+        <Style Selector="TextBlock.title">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.muted">
+            <Setter Property="Opacity" Value="0.75" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer>
+        <StackPanel Margin="16" Spacing="12" MaxWidth="760" HorizontalAlignment="Left">
+            <TextBlock Classes="muted"
+                       Text="Use AccountabiliBuddy alongside other blockers. Nothing here changes the other apps." />
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Add rules to profile" VerticalAlignment="Center" />
+                <ComboBox ItemsSource="{Binding ProfileOptions}" SelectedItem="{Binding SelectedProfile}" MinWidth="220" />
+            </StackPanel>
+
+            <!-- Cold Turkey -->
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Cold Turkey Blocker" Classes="title" />
+                            <TextBlock Text="{Binding ColdTurkeySummary}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Check again" Command="{Binding DetectColdTurkeyCommand}" VerticalAlignment="Top" />
+                    </Grid>
+                    <TextBlock Text="{Binding ColdTurkeyDetails}" Classes="muted" IsVisible="{Binding IsColdTurkeyInstalled}" />
+
+                    <TextBlock Text="Sites Cold Turkey was seen blocking" FontWeight="SemiBold" Margin="0,6,0,0" />
+                    <TextBlock Classes="muted"
+                               Text="Noted when Cold Turkey's block page shows up in a browser with the AccountabiliBuddy extension (see Setup)." />
+                    <TextBlock Text="Nothing seen yet." Classes="muted" IsVisible="{Binding HasNoSightings}" />
+                    <TextBlock Text="{Binding SightingsNote}" Classes="muted"
+                               IsVisible="{Binding SightingsNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <ItemsControl ItemsSource="{Binding Sightings}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SightingRowViewModel">
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Site}" />
+                                        <TextBlock Text="{Binding Details}" FontSize="12" Opacity="0.7" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                        <Button Content="Block in profile" Command="{Binding AddCommand}" />
+                                        <Button Content="Forget" Command="{Binding ForgetCommand}" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Import -->
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Import a list" Classes="title" />
+                    <TextBlock Classes="muted"
+                               Text="Paste a list from Cold Turkey, LeechBlock, BlockSite or anywhere else: one site, address or app per line (e.g. reddit.com, *.tiktok.com, youtube.com/shorts, Discord.exe). Lines starting with # are ignored." />
+                    <TextBox Text="{Binding ImportText}" AcceptsReturn="True" TextWrapping="NoWrap"
+                             MinHeight="120" MaxHeight="260" FontFamily="Consolas,monospace" />
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <RadioButton Content="Block these" IsChecked="{Binding !ImportAsAllow}" GroupName="importVerdict" />
+                        <RadioButton Content="Allow these (exceptions)" IsChecked="{Binding ImportAsAllow}" GroupName="importVerdict" />
+                        <Button Content="Import" Command="{Binding ImportCommand}" Classes="accent" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

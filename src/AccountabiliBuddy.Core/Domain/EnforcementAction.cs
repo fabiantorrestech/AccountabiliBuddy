@@ -13,4 +13,7 @@ public enum EnforcementAction
 
     /// <summary>Minimize the offending window (whole-app blocks only).</summary>
     Minimize,
+
+    /// <summary>Send the browser tab to the extension's block page (URL and channel blocks with a known tab).</summary>
+    RedirectTab,
 }

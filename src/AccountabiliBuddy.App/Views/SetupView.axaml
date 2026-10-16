@@ -1,0 +1,108 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.SetupView"
+             x:DataType="vm:SetupViewModel">
+    <UserControl.Styles>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16,12" />
+        </Style>
+        <Style Selector="TextBlock.title">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.muted">
+            <Setter Property="Opacity" Value="0.75" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer>
+        <StackPanel Margin="16" Spacing="12" MaxWidth="760" HorizontalAlignment="Left">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Everything AccountabiliBuddy is allowed to do on this computer. Revoke anything at any time."
+                           Classes="muted" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="Refresh" Command="{Binding RefreshAllCommand}" />
+            </Grid>
+
+            <!-- Start with Windows -->
+            <Border Classes="card">
+                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                    <TextBlock Text="Start with Windows" Classes="title" />
+                    <TextBlock Grid.Row="1" Text="{Binding StartupStatus}" Classes="muted" />
+                    <StackPanel Grid.RowSpan="2" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button Content="Grant" Command="{Binding GrantStartupCommand}" Classes="accent" />
+                        <Button Content="Revoke" Command="{Binding RevokeStartupCommand}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Browsers -->
+            <TextBlock Text="Browsers" Classes="title" Margin="0,8,0,0" />
+            <TextBlock Classes="muted"
+                       Text="Lets AccountabiliBuddy see the address of the active tab (and the YouTube channel) and send a tab to its block page. It talks only to this app; nothing leaves the computer." />
+            <ItemsControl ItemsSource="{Binding Browsers}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="8" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:BrowserSetupRowViewModel">
+                        <Border Classes="card">
+                            <StackPanel Spacing="6">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="{Binding DisplayName}" Classes="title" />
+                                        <TextBlock Text="{Binding StatusText}" Classes="muted" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Ellipse Width="8" Height="8" Fill="#2A9D8F" IsVisible="{Binding IsConnected}" />
+                                            <Ellipse Width="8" Height="8" Fill="#8A9396" IsVisible="{Binding !IsConnected}" />
+                                            <TextBlock Text="{Binding ConnectionText}" FontSize="12" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                                        <Button Content="Install extension…" Command="{Binding InstallExtensionCommand}" Classes="accent" />
+                                        <Button Content="Grant" Command="{Binding GrantCommand}" />
+                                        <Button Content="Revoke" Command="{Binding RevokeCommand}" />
+                                    </StackPanel>
+                                </Grid>
+                                <StackPanel IsVisible="{Binding HasInstallSteps}" Spacing="6" Margin="0,6,0,0">
+                                    <TextBlock Text="{Binding InstallSteps}" TextWrapping="Wrap" />
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <SelectableTextBlock Text="{Binding InstallFolder}" FontFamily="Consolas,monospace"
+                                                             TextWrapping="Wrap" VerticalAlignment="Center" />
+                                        <Button Grid.Column="1" Content="Open folder" Command="{Binding OpenInstallFolderCommand}" />
+                                    </Grid>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Coming later -->
+            <TextBlock Text="Coming in later updates" Classes="title" Margin="0,8,0,0" />
+            <Border Classes="card" Opacity="0.6">
+                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                    <TextBlock Text="Screen reading (OCR)" Classes="title" />
+                    <TextBlock Grid.Row="1" Classes="muted"
+                               Text="Reads on-screen text, on this computer only, when no rule recognises a window. Off by default. Arrives in M6." />
+                    <Button Grid.RowSpan="2" Grid.Column="1" Content="Grant" IsEnabled="False" VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+            <Border Classes="card" Opacity="0.6">
+                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                    <TextBlock Text="Activity history" Classes="title" />
+                    <TextBlock Grid.Row="1" Classes="muted"
+                               Text="Keeps a local log of what was on screen and how you labelled it, to suggest rules later. Includes 'delete my data'. Arrives in M7." />
+                    <Button Grid.RowSpan="2" Grid.Column="1" Content="Grant" IsEnabled="False" VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
