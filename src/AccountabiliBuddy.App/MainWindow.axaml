@@ -1,10 +1,30 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:dev="using:AccountabiliBuddy.App.DevTools"
         x:Class="AccountabiliBuddy.App.MainWindow"
-        Title="AccountabiliBuddy"
-        Width="480" Height="240"
+        x:DataType="dev:ActivityDebugViewModel"
+        Title="AccountabiliBuddy — activity monitor (dev view)"
+        Width="960" Height="600"
         WindowStartupLocation="CenterScreen">
-    <TextBlock Text="AccountabiliBuddy skeleton (M0)"
-               HorizontalAlignment="Center"
-               VerticalAlignment="Center" />
+    <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="16">
+        <TextBlock Grid.Row="0" Text="Visible window per monitor" FontSize="16" FontWeight="SemiBold" />
+
+        <ItemsControl Grid.Row="1" ItemsSource="{Binding Monitors}" Margin="0,8,0,16">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="dev:MonitorActivityRow">
+                    <Grid ColumnDefinitions="150,200,*,80" Margin="0,3">
+                        <TextBlock Grid.Column="0" Text="{Binding MonitorId}" />
+                        <TextBlock Grid.Column="1" Text="{Binding ProcessName}" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="2" Text="{Binding WindowTitle}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="3" Text="{Binding Time}" HorizontalAlignment="Right" />
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock Grid.Row="2" Text="Changes (newest first)" FontWeight="SemiBold" />
+
+        <ListBox Grid.Row="3" ItemsSource="{Binding Log}" Margin="0,8,0,0"
+                 FontFamily="Consolas, Cascadia Mono, monospace" FontSize="12" />
+    </Grid>
 </Window>

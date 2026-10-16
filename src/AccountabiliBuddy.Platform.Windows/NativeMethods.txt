@@ -1,0 +1,46 @@
+// Win32 APIs CsWin32 generates bindings for. One name per line.
+
+// Window events + message loop
+SetWinEventHook
+UnhookWinEvent
+GetMessage
+TranslateMessage
+DispatchMessage
+PostThreadMessage
+SetTimer
+KillTimer
+GetCurrentThreadId
+WM_QUIT
+WM_TIMER
+EVENT_SYSTEM_FOREGROUND
+EVENT_SYSTEM_MOVESIZEEND
+EVENT_SYSTEM_MINIMIZESTART
+EVENT_SYSTEM_MINIMIZEEND
+EVENT_OBJECT_DESTROY
+EVENT_OBJECT_SHOW
+EVENT_OBJECT_HIDE
+EVENT_OBJECT_NAMECHANGE
+EVENT_OBJECT_CLOAKED
+EVENT_OBJECT_UNCLOAKED
+WINEVENT_OUTOFCONTEXT
+WINEVENT_SKIPOWNPROCESS
+CHILDID_SELF
+
+// Window + monitor inspection
+EnumWindows
+EnumChildWindows
+EnumDisplayMonitors
+GetMonitorInfo
+MONITORINFOEXW
+MonitorFromWindow
+IsWindowVisible
+IsIconic
+GetWindowTextLength
+GetWindowText
+GetClassName
+GetWindowThreadProcessId
+GetWindowLong
+WINDOW_EX_STYLE
+GetWindowRect
+GetAncestor
+DwmGetWindowAttribute
