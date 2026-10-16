@@ -60,6 +60,8 @@ public sealed class WinEventActivityWatcher : IActivityWatcher, IDisposable
 
     public event EventHandler<ActivitySnapshot>? ActivityChanged;
 
+    public event EventHandler<string>? MonitorDisconnected;
+
     public void Start()
     {
         if (_thread is not null)
@@ -181,6 +183,7 @@ public sealed class WinEventActivityWatcher : IActivityWatcher, IDisposable
     private void Rescan()
     {
         var changed = new List<ActivitySnapshot>();
+        var disconnected = new List<string>();
 
         lock (_scanLock)
         {
@@ -209,10 +212,16 @@ public sealed class WinEventActivityWatcher : IActivityWatcher, IDisposable
             foreach (string monitorId in _lastSnapshotByMonitor.Keys.Where(id => !connectedMonitors.Contains(id)).ToList())
             {
                 _lastSnapshotByMonitor.Remove(monitorId);
+                disconnected.Add(monitorId);
             }
         }
 
         // Raise outside the lock so handlers can call CaptureCurrent safely.
+        foreach (string monitorId in disconnected)
+        {
+            MonitorDisconnected?.Invoke(this, monitorId);
+        }
+
         foreach (ActivitySnapshot snapshot in changed)
         {
             ActivityChanged?.Invoke(this, snapshot);

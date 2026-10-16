@@ -44,3 +44,7 @@ WINDOW_EX_STYLE
 GetWindowRect
 GetAncestor
 DwmGetWindowAttribute
+
+// Enforcement
+ShowWindowAsync
+IsWindow

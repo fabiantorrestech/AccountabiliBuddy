@@ -1,14 +1,11 @@
 namespace AccountabiliBuddy.Core.Ports;
 
-/// <summary>Carries out the Overlay and Enforce escalation levels.</summary>
+/// <summary>
+/// OS-level enforcement actions. Toasts and overlays are drawn by the app's UI layer;
+/// browser tab redirects arrive with the extension (M5).
+/// </summary>
 public interface IEnforcer
 {
-    Task ShowOverlayAsync(string monitorId, string message, CancellationToken cancellationToken = default);
-
-    Task HideOverlayAsync(string monitorId, CancellationToken cancellationToken = default);
-
+    /// <summary>Minimizes a window. Does nothing if the window no longer exists.</summary>
     Task MinimizeWindowAsync(string windowId, CancellationToken cancellationToken = default);
-
-    /// <summary>Sends the tab to the extension's block page.</summary>
-    Task RedirectBrowserTabAsync(string tabId, CancellationToken cancellationToken = default);
 }

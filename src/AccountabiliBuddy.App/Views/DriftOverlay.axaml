@@ -1,0 +1,31 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.DriftOverlay"
+        x:DataType="vm:DriftOverlayViewModel"
+        Title="AccountabiliBuddy overlay"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False"
+        WindowStartupLocation="Manual"
+        TransparencyLevelHint="Transparent" Background="Transparent">
+    <!-- Mostly opaque everywhere, so clicks land here instead of the app underneath. -->
+    <Border Background="#D9101418">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" MaxWidth="640">
+            <TextBlock Text="You're drifting" FontSize="34" FontWeight="SemiBold"
+                       Foreground="White" HorizontalAlignment="Center" />
+            <TextBlock Text="{Binding Target}" FontSize="20" Foreground="#FFE0A030"
+                       TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" />
+            <TextBlock Text="{Binding SessionDetail}" FontSize="15" Foreground="#CCFFFFFF"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="{Binding Hint}" IsVisible="{Binding Hint, Converter={x:Static ObjectConverters.IsNotNull}}"
+                       FontSize="14" Foreground="#B3FFFFFF" TextWrapping="Wrap" TextAlignment="Center"
+                       HorizontalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center" Margin="0,10,0,0">
+                <Button Content="{Binding PrimaryLabel}" Command="{Binding PrimaryCommand}"
+                        Classes="accent" FontSize="16" Padding="20,10" />
+                <Button Content="{Binding SecondaryLabel}" Command="{Binding SecondaryCommand}"
+                        IsVisible="{Binding HasSecondary}" FontSize="16" Padding="20,10" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

@@ -56,6 +56,12 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
         Rules.Add(new RuleEditorViewModel(rule, RemoveRule));
     }
 
+    /// <summary>Adds a rule that was saved elsewhere (the classify prompt) without touching unsaved edits.</summary>
+    public void AddSavedRule(Rule rule)
+    {
+        Rules.Add(new RuleEditorViewModel(rule, RemoveRule));
+    }
+
     public bool TryBuild([NotNullWhen(true)] out FocusProfile? profile, [NotNullWhen(false)] out string? error)
     {
         profile = null;

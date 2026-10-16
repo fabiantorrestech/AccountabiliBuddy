@@ -8,6 +8,9 @@ public interface IActivityWatcher
     /// <summary>Raised when the top visible window, or its title, changes on any monitor.</summary>
     event EventHandler<ActivitySnapshot>? ActivityChanged;
 
+    /// <summary>Raised with the monitor id when a monitor is no longer connected.</summary>
+    event EventHandler<string>? MonitorDisconnected;
+
     void Start();
 
     void Stop();

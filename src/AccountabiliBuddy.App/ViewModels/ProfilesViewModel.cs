@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -15,6 +16,9 @@ public sealed partial class ProfilesViewModel : ObservableObject
     private readonly ConfigurationService _configuration;
     private readonly SessionController _sessions;
 
+    // Every rule id this tab already has an editor for, so rules added elsewhere can be told apart.
+    private readonly HashSet<Guid> _knownRuleIds = new();
+
     public ProfilesViewModel(ConfigurationService configuration, SessionController sessions)
     {
         _configuration = configuration;
@@ -22,6 +26,7 @@ public sealed partial class ProfilesViewModel : ObservableObject
 
         _sessions.StateChanged += (_, _) => IsLocked = _sessions.IsEnforcing;
         IsLocked = _sessions.IsEnforcing;
+        _configuration.Changed += OnConfigurationChanged;
 
         LoadFromConfiguration();
     }
@@ -98,6 +103,7 @@ public sealed partial class ProfilesViewModel : ObservableObject
             built.Add(profile);
         }
 
+        _knownRuleIds.UnionWith(built.SelectMany(profile => profile.Rules).Select(rule => rule.Id));
         await _configuration.UpdateAsync(document => document with { Profiles = built });
         StatusMessage = _configuration.IsReadOnly ? "Not saved: settings are read-only (see banner)." : "Saved.";
     }
@@ -121,11 +127,38 @@ public sealed partial class ProfilesViewModel : ObservableObject
         Guid? selectedId = SelectedProfile?.Id;
 
         Profiles.Clear();
+        _knownRuleIds.Clear();
         foreach (FocusProfile profile in _configuration.Current.Profiles)
         {
             Profiles.Add(ProfileEditorViewModel.FromProfile(profile));
+            _knownRuleIds.UnionWith(profile.Rules.Select(rule => rule.Id));
         }
 
         SelectedProfile = Profiles.FirstOrDefault(editor => editor.Id == selectedId) ?? Profiles.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Rules can be added outside this tab (the classify prompt during focus). Merge those in
+    /// without discarding edits that have not been saved yet.
+    /// </summary>
+    private void OnConfigurationChanged(object? sender, ProfileDocument document)
+    {
+        int added = 0;
+        foreach (FocusProfile profile in document.Profiles)
+        {
+            ProfileEditorViewModel? editor = Profiles.FirstOrDefault(candidate => candidate.Id == profile.Id);
+            foreach (Rule rule in profile.Rules.Where(rule => _knownRuleIds.Add(rule.Id)))
+            {
+                editor?.AddSavedRule(rule);
+                added++;
+            }
+        }
+
+        if (added > 0)
+        {
+            StatusMessage = added == 1
+                ? "A rule was added from the classify prompt."
+                : $"{added} rules were added from the classify prompt.";
+        }
     }
 }

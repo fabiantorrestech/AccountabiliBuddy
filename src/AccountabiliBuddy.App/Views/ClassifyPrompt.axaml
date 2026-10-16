@@ -1,0 +1,31 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.ClassifyPrompt"
+        x:DataType="vm:ClassifyPromptViewModel"
+        Title="Is this on track?"
+        Width="400" SizeToContent="Height"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False"
+        WindowStartupLocation="Manual">
+    <Grid ColumnDefinitions="6,*">
+        <Border Grid.Column="0" Background="#2A9D8F" />
+        <StackPanel Grid.Column="1" Margin="14,12" Spacing="8">
+            <TextBlock Text="{Binding Question}" FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding WindowTitleText}" Opacity="0.75" TextWrapping="Wrap" MaxLines="2"
+                       TextTrimming="CharacterEllipsis" />
+            <RadioButton Content="The whole app" IsChecked="{Binding MatchWholeApp}" GroupName="scope" />
+            <RadioButton Content="Only this view (match the window title)" IsChecked="{Binding MatchOnlyThisView}"
+                         GroupName="scope" />
+            <TextBlock Text="{Binding PatternLabel}" FontSize="12" Opacity="0.75" />
+            <TextBox Text="{Binding Pattern}" />
+            <TextBlock Text="{Binding Error}" Foreground="#E76F51"
+                       IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button Content="Not now" Command="{Binding NotNowCommand}" />
+                <Button Content="Distracting" Command="{Binding MarkDistractingCommand}" />
+                <Button Content="On track" Command="{Binding MarkOnTrackCommand}" Classes="accent" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Window>

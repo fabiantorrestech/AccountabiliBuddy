@@ -1,0 +1,25 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.NudgeToast"
+        x:DataType="vm:NudgeToastViewModel"
+        Title="AccountabiliBuddy nudge"
+        Width="360" SizeToContent="Height"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False"
+        WindowStartupLocation="Manual">
+    <Grid ColumnDefinitions="6,*">
+        <Border Grid.Column="0" Background="#E0A030" />
+        <StackPanel Grid.Column="1" Margin="14,12" Spacing="6">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap" />
+                <Button Grid.Column="1" Content="✕" Command="{Binding DismissCommand}"
+                        Padding="6,0" Background="Transparent" VerticalAlignment="Top"
+                        ToolTip.Tip="Dismiss" />
+            </Grid>
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Opacity="0.9" />
+            <Button Content="{Binding ActionLabel}" Command="{Binding ActCommand}"
+                    IsVisible="{Binding HasAction}" Classes="accent" HorizontalAlignment="Right" />
+        </StackPanel>
+    </Grid>
+</Window>

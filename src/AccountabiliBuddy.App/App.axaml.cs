@@ -5,6 +5,8 @@ using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Storage;
 using AccountabiliBuddy.Platform.Windows.Activity;
+using AccountabiliBuddy.Platform.Windows.Display;
+using AccountabiliBuddy.Platform.Windows.Enforcement;
 using AccountabiliBuddy.Platform.Windows.Startup;
 using Avalonia;
 using Avalonia.Controls;
@@ -28,6 +30,7 @@ public partial class App : Application
     private SessionController? _sessions;
     private SessionEndFlow? _endFlow;
     private WinEventActivityWatcher? _activityWatcher;
+    private EnforcementCoordinator? _enforcement;
     private MainWindow? _mainWindow;
     private TrayIcon? _trayIcon;
     private NativeMenuItem? _endSessionMenuItem;
@@ -90,6 +93,13 @@ public partial class App : Application
         _activityWatcher = new WinEventActivityWatcher(time);
         // The watcher raises events on its own thread; UI collections must be touched on the UI thread.
         _activityWatcher.ActivityChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => activityViewModel.Apply(snapshot));
+
+        _enforcement = new EnforcementCoordinator(
+            _activityWatcher,
+            _sessions,
+            _configuration,
+            new EnforcementEngine(new RuleEvaluator(new RuleMatcher())),
+            new EnforcementPresenter(new WindowsEnforcer(), new Win32MonitorLocator(), time));
 
         var mainViewModel = new MainWindowViewModel(
             new SessionViewModel(_sessions, _configuration, _endFlow, VisibleMainWindow),
@@ -196,6 +206,7 @@ public partial class App : Application
 
     private void DisposeServices()
     {
+        _enforcement?.Dispose();
         _activityWatcher?.Dispose();
         _sessions?.Dispose();
         _trayIcon?.Dispose();
