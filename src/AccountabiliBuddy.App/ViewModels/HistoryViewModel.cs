@@ -169,6 +169,10 @@ public sealed partial class HistoryViewModel : ObservableObject
             SessionEventKind.Ended => "Ended",
             _ => "Running, or the app was closed",
         };
+        if (record.AppClosedFor > TimeSpan.Zero)
+        {
+            outcome += $" · app closed {FormatDuration(record.AppClosedFor)}, resumed";
+        }
 
         return new SessionRowViewModel(when, $"{profile} · {mode}", length, outcome, record.Reason);
     }

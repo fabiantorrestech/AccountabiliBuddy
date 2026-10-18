@@ -68,6 +68,20 @@ public sealed class EnforcementPresenter
         }
     }
 
+    /// <summary>Shows a one-off toast on the monitor under the mouse cursor (e.g. "session resumed").</summary>
+    public void ShowNotice(string title, string message)
+    {
+        MonitorArea? area = _monitors.Find(_monitors.FindMonitorUnderCursor());
+        if (area is null)
+        {
+            return;
+        }
+
+        var toast = new NudgeToast { DataContext = new NudgeToastViewModel(title, message, null, null) };
+        MonitorPlacement.PlaceInCorner(toast, area, MonitorPlacement.Corner.TopRight);
+        toast.Show();
+    }
+
     public void CloseAll()
     {
         foreach (MonitorPresentation presentation in _presentationByMonitor.Values)
@@ -149,7 +163,9 @@ public sealed class EnforcementPresenter
         string target = DescribeTarget(decision);
         string message = decision.Scope == BlockScope.App
             ? $"{target} isn't part of this session."
-            : $"This view isn't part of this session: {target}";
+            : UnseenBrowserWindow.IsRule(decision.MatchedRule)
+                ? $"AccountabiliBuddy can't see this browser window (private window, or a profile without the extension): {target}"
+                : $"This view isn't part of this session: {target}";
 
         // Minimizing is the quick way back for a whole-app block; for a view the user navigates away themselves.
         NudgeToastViewModel viewModel = decision.Scope == BlockScope.App
@@ -230,6 +246,11 @@ public sealed class EnforcementPresenter
         if (decision.IsRepeatOffense)
         {
             viewModel.Hint = "You were already warned about this earlier in this focus block.";
+        }
+        else if (UnseenBrowserWindow.IsRule(decision.MatchedRule))
+        {
+            viewModel.Hint = "AccountabiliBuddy can't see what this browser window shows. Allow the extension in private "
+                             + "windows (Setup tab), or use a window it can see.";
         }
 
         string windowId = decision.Snapshot.WindowId;

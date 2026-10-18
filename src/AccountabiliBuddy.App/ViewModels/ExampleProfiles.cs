@@ -23,7 +23,10 @@ public static class ExampleProfiles
             Block(MatchTarget.ProcessName, MatchKind.Exact, "steam", null),
         };
 
-        return new FocusProfile(Guid.NewGuid(), "Coding (example)", rules, TimeSpan.FromSeconds(30));
+        return new FocusProfile(Guid.NewGuid(), "Coding (example)", rules, TimeSpan.FromSeconds(30))
+        {
+            UnlockOptions = new[] { UnlockOption.CreateOffDay() },
+        };
     }
 
     private static Rule Allow(MatchTarget target, MatchKind kind, string pattern, string? note)

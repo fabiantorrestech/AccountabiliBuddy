@@ -61,13 +61,20 @@ public sealed partial class PrivacySetupViewModel : ObservableObject
     [ObservableProperty]
     public partial string? DeleteStatus { get; set; }
 
+    /// <summary>Set by the Setup tab during a focus phase: Revoke and "Delete my data" are disabled.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RevokeScreenReadingCommand), nameof(RevokeActivityLogCommand), nameof(DeleteDataCommand))]
+    public partial bool IsLocked { get; set; }
+
     private bool CanGrantScreenReading => !IsScreenReadingGranted && _ocrAvailable;
 
-    private bool CanRevokeScreenReading => IsScreenReadingGranted;
+    private bool CanRevokeScreenReading => IsScreenReadingGranted && !IsLocked;
 
     private bool CanGrantActivityLog => !IsActivityLogGranted;
 
-    private bool CanRevokeActivityLog => IsActivityLogGranted;
+    private bool CanRevokeActivityLog => IsActivityLogGranted && !IsLocked;
+
+    private bool CanDeleteData => !IsLocked;
 
     [RelayCommand(CanExecute = nameof(CanGrantScreenReading))]
     private Task GrantScreenReadingAsync()
@@ -93,7 +100,7 @@ public sealed partial class PrivacySetupViewModel : ObservableObject
         return _privacy.SetActivityLogAsync(false);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanDeleteData))]
     private async Task DeleteDataAsync()
     {
         if (DeleteButtonText != ConfirmLabel)
@@ -116,6 +123,14 @@ public sealed partial class PrivacySetupViewModel : ObservableObject
         }
 
         await RefreshEntryCountAsync();
+    }
+
+    partial void OnIsLockedChanged(bool value)
+    {
+        if (value)
+        {
+            ResetDeleteConfirmation();
+        }
     }
 
     private void ResetDeleteConfirmation()

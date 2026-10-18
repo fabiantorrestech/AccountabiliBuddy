@@ -9,6 +9,7 @@ namespace AccountabiliBuddy.Core.Engine;
 /// browsers title their window "&lt;active tab title&gt; - &lt;browser name&gt;", so the window title starts with
 /// the tab title. The longest matching tab title wins; a tab from the same browser wins a tie.
 /// Two windows of one browser showing tabs with identical titles cannot be told apart.
+/// A main window of a watched browser that matches no reported tab is marked <see cref="ActivitySnapshot.IsUnseenBrowserWindow"/>.
 /// </summary>
 public static class BrowserTabMatcher
 {
@@ -23,15 +24,27 @@ public static class BrowserTabMatcher
         ["vivaldi"] = BrowserKind.Chromium,
     };
 
+    // How browsers end the title of a normal or private main window ("<tab title> - Google Chrome").
+    // Chrome's incognito title is the same as a normal one; Firefox ends private windows with "Private Browsing".
+    // Other windows (DevTools, picture-in-picture, installed web apps) don't end like this and are left alone.
+    private static readonly string[] MainWindowTitleEndings =
+    {
+        "Google Chrome", "Microsoft Edge", "Brave", "Mozilla Firefox", "Private Browsing", "Chromium", "Opera", "Vivaldi",
+    };
+
     public static bool IsBrowserProcess(string processName)
     {
         return BrowserByProcessName.ContainsKey(processName);
     }
 
-    public static ActivitySnapshot Enrich(ActivitySnapshot snapshot, IReadOnlyList<BrowserConnection> connections)
+    /// <param name="watchedBrowsers">Browsers whose windows must be visible to the extension
+    /// (their extension has connected since they were granted in Setup).</param>
+    public static ActivitySnapshot Enrich(
+        ActivitySnapshot snapshot,
+        IReadOnlyList<BrowserConnection> connections,
+        IReadOnlySet<BrowserKind> watchedBrowsers)
     {
         if (snapshot.IsEmptyDesktop
-            || connections.Count == 0
             || !BrowserByProcessName.TryGetValue(snapshot.ProcessName, out BrowserKind windowBrowser))
         {
             return snapshot;
@@ -60,9 +73,21 @@ public static class BrowserTabMatcher
             }
         }
 
-        return best is null
-            ? snapshot
-            : snapshot with { Url = best.Url, TabId = best.TabId, Channel = best.Channel };
+        if (best is not null)
+        {
+            return snapshot with { Url = best.Url, TabId = best.TabId, Channel = best.Channel };
+        }
+
+        return watchedBrowsers.Contains(windowBrowser) && IsMainWindowTitle(windowTitle)
+            ? snapshot with { IsUnseenBrowserWindow = true }
+            : snapshot;
+    }
+
+    private static bool IsMainWindowTitle(string windowTitle)
+    {
+        // Edge writes "Microsoft\u200B Edge" with a zero-width space.
+        string title = windowTitle.Replace("\u200B", string.Empty, StringComparison.Ordinal);
+        return MainWindowTitleEndings.Any(ending => title.EndsWith(ending, StringComparison.Ordinal));
     }
 
     private static bool IsSameBrowser(BrowserKind reported, BrowserKind fromProcess)

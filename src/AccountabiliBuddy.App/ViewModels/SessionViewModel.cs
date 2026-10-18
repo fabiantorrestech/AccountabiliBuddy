@@ -20,8 +20,10 @@ public sealed partial class SessionViewModel : ObservableObject
         SessionController sessions,
         ConfigurationService configuration,
         SessionEndFlow endFlow,
-        Func<Window?> ownerWindow)
+        Func<Window?> ownerWindow,
+        UnlockViewModel unlock)
     {
+        Unlock = unlock;
         _sessions = sessions;
         _configuration = configuration;
         _endFlow = endFlow;
@@ -42,6 +44,9 @@ public sealed partial class SessionViewModel : ObservableObject
     }
 
     public ObservableCollection<ProfileOption> Profiles { get; } = new();
+
+    /// <summary>The Unlock card.</summary>
+    public UnlockViewModel Unlock { get; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(StartManualCommand))]

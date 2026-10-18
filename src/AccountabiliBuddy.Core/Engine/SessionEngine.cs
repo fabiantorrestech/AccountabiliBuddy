@@ -21,6 +21,9 @@ public sealed class SessionEngine
     // Set when a scheduled session is ended early, so the next Tick does not restart it.
     private DateTimeOffset? _scheduleSuppressedUntil;
 
+    // Set while an unlock is in effect: no scheduled block starts before this.
+    private DateTimeOffset? _scheduleHeldUntil;
+
     public SessionEngine(TimeProvider timeProvider)
     {
         _timeProvider = timeProvider;
@@ -42,6 +45,15 @@ public sealed class SessionEngine
     public void SetSchedule(WeeklySchedule schedule)
     {
         _schedule = schedule;
+    }
+
+    /// <summary>
+    /// Stops scheduled blocks from starting before <paramref name="until"/> (an unlock); null lifts the hold.
+    /// Does not end a running session. Takes effect on the next <see cref="Tick"/>.
+    /// </summary>
+    public void HoldSchedule(DateTimeOffset? until)
+    {
+        _scheduleHeldUntil = until;
     }
 
     /// <param name="duration">Null runs until <see cref="EndSession"/> is called.</param>
@@ -98,19 +110,64 @@ public sealed class SessionEngine
     /// Ends the current session immediately. Callers must apply <see cref="BypassPolicy"/> first
     /// when the user is ending a focus phase early.
     /// </summary>
-    public void EndSession()
+    /// <param name="suppressSchedule">For a scheduled session: keep its block from restarting until the block ends.
+    /// False when an unlock's hold (<see cref="HoldSchedule"/>) already decides when blocks start again.</param>
+    public void EndSession(bool suppressSchedule = true)
     {
         if (!State.IsActive)
         {
             return;
         }
 
-        if (State.Mode == SessionMode.Scheduled)
+        if (State.Mode == SessionMode.Scheduled && suppressSchedule)
         {
             _scheduleSuppressedUntil = State.PhaseEndsAt;
         }
 
         SetState(SessionState.Idle);
+    }
+
+    /// <summary>Everything needed to carry on with the current session after the app restarts.</summary>
+    public SessionCheckpoint CreateCheckpoint()
+    {
+        return new SessionCheckpoint(State, _pomodoroSettings, _breakAfterLastCycle, _scheduleSuppressedUntil);
+    }
+
+    /// <summary>
+    /// Puts back a session saved with <see cref="CreateCheckpoint"/>, e.g. after a crash or restart.
+    /// Call <see cref="Tick"/> afterwards to catch up on phases that ran out while the app was closed.
+    /// </summary>
+    /// <returns>True if a session is running again; false if the checkpoint had none, was invalid,
+    /// or a session is already running.</returns>
+    public bool Restore(SessionCheckpoint checkpoint)
+    {
+        if (State.IsActive)
+        {
+            return false;
+        }
+
+        // Kept even without a session, so a scheduled block ended early does not restart.
+        _scheduleSuppressedUntil = checkpoint.ScheduleSuppressedUntil;
+
+        SessionState saved = checkpoint.State;
+        if (!saved.IsActive || saved.PhaseStartedAt is null)
+        {
+            return false;
+        }
+
+        if (saved.Mode == SessionMode.Pomodoro)
+        {
+            if (checkpoint.Pomodoro is null || !IsValidPomodoro(checkpoint.Pomodoro))
+            {
+                return false;
+            }
+
+            _pomodoroSettings = checkpoint.Pomodoro;
+            _breakAfterLastCycle = checkpoint.BreakAfterLastCycle;
+        }
+
+        SetState(saved);
+        return true;
     }
 
     /// <summary>Advances phases that have run out and starts scheduled blocks that have begun.</summary>
@@ -202,6 +259,11 @@ public sealed class SessionEngine
 
     private void TryStartScheduled(DateTimeOffset now)
     {
+        if (_scheduleHeldUntil is DateTimeOffset heldUntil && now < heldUntil)
+        {
+            return;
+        }
+
         if (_scheduleSuppressedUntil is DateTimeOffset suppressedUntil)
         {
             if (now < suppressedUntil)
@@ -249,6 +311,19 @@ public sealed class SessionEngine
     private static DateTimeOffset ToOffset(DateTime localTime, TimeZoneInfo timeZone)
     {
         return new DateTimeOffset(localTime, timeZone.GetUtcOffset(localTime));
+    }
+
+    private static bool IsValidPomodoro(PomodoroSettings settings)
+    {
+        try
+        {
+            ValidatePomodoro(settings);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
     }
 
     private static void ValidatePomodoro(PomodoroSettings settings)

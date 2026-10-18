@@ -35,6 +35,9 @@ public partial class App : Application
     private ConfigurationService? _configuration;
     private SessionController? _sessions;
     private SessionEndFlow? _endFlow;
+    private SessionCheckpointService? _checkpoints;
+    private WatchedBrowsersService? _watchedBrowsers;
+    private UnlockService? _unlocks;
     private WinEventActivityWatcher? _activityWatcher;
     private NamedPipeBrowserSource? _browserSource;
     private Win32GlobalHotkey? _hotkey;
@@ -123,6 +126,13 @@ public partial class App : Application
             Path.Combine(AppContext.BaseDirectory, "browser-extension"),
             dataDirectory);
         var documents = new SqliteJsonDocumentStore(database, time);
+        _checkpoints = new SessionCheckpointService(_sessions, documents);
+        SavedSession? savedSession = _checkpoints.LoadBlocking();
+        // Loaded before the sessions start, so an unlock in effect keeps scheduled blocks from starting at launch.
+        _unlocks = new UnlockService(_sessions, documents);
+        _unlocks.LoadBlocking();
+        _watchedBrowsers = new WatchedBrowsersService(_browserSource, documents);
+        _watchedBrowsers.LoadBlocking();
         var sightings = new ColdTurkeySightingsService(_browserSource, documents, time);
         _ = sightings.LoadAsync();
 
@@ -147,19 +157,22 @@ public partial class App : Application
         // The watcher raises events on its own thread; UI collections must be touched on the UI thread.
         _activityWatcher.ActivityChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => activityViewModel.Apply(snapshot));
 
+        var presenter = new EnforcementPresenter(new WindowsEnforcer(), _browserSource, monitorLocator, time);
         _enforcement = new EnforcementCoordinator(
             _activityWatcher,
             _browserSource,
             _sessions,
             _configuration,
             new EnforcementEngine(new RuleEvaluator(new RuleMatcher())),
-            new EnforcementPresenter(new WindowsEnforcer(), _browserSource, monitorLocator, time),
+            presenter,
             ocrReader,
             privacy,
-            _recorder);
+            _recorder,
+            _watchedBrowsers);
 
         var mainViewModel = new MainWindowViewModel(
-            new SessionViewModel(_sessions, _configuration, _endFlow, VisibleMainWindow),
+            new SessionViewModel(
+                _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks)),
             new ProfilesViewModel(_configuration, _sessions),
             new ScheduleViewModel(_configuration, _sessions),
             new HistoryViewModel(activityLog, _recorder, _configuration, privacy, time),
@@ -168,7 +181,9 @@ public partial class App : Application
                 quickLaunch,
                 browserSetup,
                 _browserSource,
-                new PrivacySetupViewModel(privacy, _recorder, ocrReader.IsAvailable)),
+                new PrivacySetupViewModel(privacy, _recorder, ocrReader.IsAvailable),
+                _sessions,
+                _watchedBrowsers),
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
             new SettingsViewModel(_configuration, _sessions, _quickSession, database.DatabasePath),
             activityViewModel,
@@ -180,7 +195,13 @@ public partial class App : Application
         _sessions.Ticked += (_, _) => UpdateTray();
 
         _recorder.Start();
-        _sessions.Start();
+        SessionResume? resumed = _sessions.Start(savedSession);
+        if (resumed is not null && _sessions.State.IsActive)
+        {
+            presenter.ShowNotice(
+                "Session resumed",
+                $"AccountabiliBuddy was closed for {DescribeGap(resumed.ClosedFor)}. Your session kept running.");
+        }
         _activityWatcher.Start();
         _browserSource.Start();
     }
@@ -259,10 +280,18 @@ public partial class App : Application
         return _mainWindow is { IsVisible: true } ? _mainWindow : null;
     }
 
+    private static string DescribeGap(TimeSpan gap)
+    {
+        return gap.TotalMinutes < 1 ? "less than a minute"
+            : gap.TotalHours < 1 ? $"{(int)gap.TotalMinutes} min"
+            : $"{(int)gap.TotalHours} h {gap.Minutes} min";
+    }
+
     private async Task QuitAsync()
     {
-        // Quitting during focus is the same as ending the session early.
-        if (_sessions is { IsEnforcing: true } && !await _endFlow!.TryEndSessionAsync(VisibleMainWindow()))
+        // Quitting ends the running session, so it is not resumed at the next launch.
+        // During focus that is the same as ending it early (friction); in a break it just ends.
+        if (_sessions is { State.IsActive: true } && !await _endFlow!.TryEndSessionAsync(VisibleMainWindow()))
         {
             return;
         }
@@ -281,8 +310,11 @@ public partial class App : Application
         _hotkey?.Dispose();
         _enforcement?.Dispose();
         _recorder?.Dispose();
+        _watchedBrowsers?.Dispose();
         _browserSource?.Dispose();
         _activityWatcher?.Dispose();
+        _checkpoints?.Dispose();
+        _unlocks?.Dispose();
         _sessions?.Dispose();
         _trayIcon?.Dispose();
     }

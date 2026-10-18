@@ -58,11 +58,28 @@ public sealed class SessionController : IDisposable
     /// <summary>Raised when the user ends a session by hand (with the friction reason, if one was required).</summary>
     public event EventHandler<SessionEnd>? SessionEnded;
 
-    public void Start()
+    /// <summary>Raised at launch when a session saved before the app stopped was put back (before catching up).</summary>
+    public event EventHandler<SessionResume>? SessionResumed;
+
+    /// <summary>True while a saved session is being put back: its StateChanged continues a session rather than starting one.</summary>
+    public bool IsResuming { get; private set; }
+
+    public SessionCheckpoint CreateCheckpoint() => _engine.CreateCheckpoint();
+
+    /// <summary>Keeps scheduled blocks from starting before <paramref name="until"/> (an unlock); null lifts the hold.</summary>
+    public void HoldSchedule(DateTimeOffset? until) => _engine.HoldSchedule(until);
+
+    /// <param name="saved">The session saved before the app last stopped, if any; a running one is resumed.</param>
+    /// <returns>The resumed session, or null when nothing was resumed.</returns>
+    public SessionResume? Start(SavedSession? saved)
     {
-        // Tick immediately so a scheduled block that is already running starts at launch.
+        SessionResume? resume = saved is null ? null : TryResume(saved);
+
+        // Tick immediately so a scheduled block that is already running starts at launch,
+        // and a resumed session catches up on phases that ran out while the app was closed.
         _engine.Tick();
         _timer.Start();
+        return resume;
     }
 
     public bool StartManual(Guid profileId, TimeSpan? duration)
@@ -85,7 +102,8 @@ public sealed class SessionController : IDisposable
     }
 
     /// <param name="earlyEndReason">The reason typed in the friction dialog, if one was required.</param>
-    public void EndSession(string? earlyEndReason)
+    /// <param name="suppressSchedule">See <see cref="SessionEngine.EndSession"/>.</param>
+    public void EndSession(string? earlyEndReason, bool suppressSchedule = true)
     {
         if (earlyEndReason is not null)
         {
@@ -93,7 +111,7 @@ public sealed class SessionController : IDisposable
         }
 
         SessionState ending = _engine.State;
-        _engine.EndSession();
+        _engine.EndSession(suppressSchedule);
         if (ending.IsActive)
         {
             SessionEnded?.Invoke(this, new SessionEnd(ending, earlyEndReason));
@@ -104,6 +122,29 @@ public sealed class SessionController : IDisposable
     {
         _timer.Stop();
         _configuration.Changed -= OnConfigurationChanged;
+    }
+
+    private SessionResume? TryResume(SavedSession saved)
+    {
+        bool restored;
+        IsResuming = true;
+        try
+        {
+            restored = _engine.Restore(saved.Checkpoint);
+        }
+        finally
+        {
+            IsResuming = false;
+        }
+
+        if (!restored)
+        {
+            return null;
+        }
+
+        var resume = new SessionResume(saved.Checkpoint.State, saved.LastAliveAt, Now);
+        SessionResumed?.Invoke(this, resume);
+        return resume;
     }
 
     private void OnConfigurationChanged(object? sender, ProfileDocument document)

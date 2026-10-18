@@ -1,8 +1,11 @@
 namespace AccountabiliBuddy.Core.Domain;
 
+/// <summary>Weekly blocked time, minus <see cref="OffDays"/>: dates planned ahead on which no block starts (schema v2).</summary>
 public sealed record WeeklySchedule(IReadOnlyList<ScheduleBlock> Blocks)
 {
     public static WeeklySchedule Empty { get; } = new(Array.Empty<ScheduleBlock>());
+
+    public IReadOnlyList<DateOnly> OffDays { get; init; } = Array.Empty<DateOnly>();
 
     /// <summary>
     /// Returns the block active at <paramref name="localTime"/>. When blocks overlap,
@@ -14,7 +17,8 @@ public sealed record WeeklySchedule(IReadOnlyList<ScheduleBlock> Blocks)
 
         foreach (ScheduleBlock block in Blocks)
         {
-            if (!block.TryGetOccurrence(localTime, out DateTime start, out DateTime end))
+            if (!block.TryGetOccurrence(localTime, out DateTime start, out DateTime end)
+                || OffDays.Contains(DateOnly.FromDateTime(start)))
             {
                 continue;
             }

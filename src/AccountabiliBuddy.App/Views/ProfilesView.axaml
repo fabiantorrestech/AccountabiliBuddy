@@ -99,6 +99,24 @@
                                 </ItemsControl>
 
                                 <Button Content="Add rule" Command="{Binding AddRuleCommand}" />
+
+                                <TextBlock Text="Unlock options" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,0" />
+                                <TextBlock TextWrapping="Wrap" Opacity="0.75"
+                                           Text="Ways to lift this profile's blocks (Session tab → Unlock). You wait the time shown and give a reason; then the session ends and scheduled blocks pause until it relocks (midnight by default, see Settings). Can't be changed during focus." />
+                                <ItemsControl ItemsSource="{Binding UnlockOptions}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:UnlockOptionEditorViewModel">
+                                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
+                                                <TextBox Text="{Binding Name}" Width="220" PlaceholderText="e.g. Off day" />
+                                                <TextBlock Text="wait" VerticalAlignment="Center" />
+                                                <TextBox Text="{Binding WaitMinutes}" Width="72" />
+                                                <TextBlock Text="minutes" VerticalAlignment="Center" />
+                                                <Button Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove unlock option" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Button Content="Add unlock option" Command="{Binding AddUnlockOptionCommand}" />
                             </StackPanel>
                         </DataTemplate>
                     </ContentControl.ContentTemplate>

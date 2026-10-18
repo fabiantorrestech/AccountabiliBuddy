@@ -33,10 +33,14 @@ public static class ProfileDocumentSerializer
             throw new UnsupportedSchemaVersionException(version, ProfileDocument.CurrentSchemaVersion);
         }
 
-        // Migrations from older versions go here once version 2 exists.
-
-        return JsonSerializer.Deserialize<ProfileDocument>(json, Options)
+        ProfileDocument document = JsonSerializer.Deserialize<ProfileDocument>(json, Options)
             ?? throw new JsonException("Profile document is empty.");
+
+        // v1 → v2: the fields v2 added are absent and take their defaults (no unlock options, no off days,
+        // relock at midnight); the document is written back as v2 on the next save.
+        return version < ProfileDocument.CurrentSchemaVersion
+            ? document with { SchemaVersion = ProfileDocument.CurrentSchemaVersion }
+            : document;
     }
 
     private static int ReadSchemaVersion(string json)

@@ -58,7 +58,13 @@ async function onHostMessage(message) {
   if (message?.type === "hostStatus") {
     appConnected = message.appConnected === true;
     if (appConnected) {
-      post({ type: "hello", browser: await detectBrowser(), version: api.runtime.getManifest().version });
+      post({
+        type: "hello",
+        browser: await detectBrowser(),
+        version: api.runtime.getManifest().version,
+        // Without this the extension can't see private windows; the app then treats them as distracting during focus.
+        privateAllowed: await api.extension.isAllowedIncognitoAccess(),
+      });
       await sendTabs();
     }
     return;

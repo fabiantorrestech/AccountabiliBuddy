@@ -55,6 +55,7 @@ public sealed class ActivityRecorder : IDisposable
         _sessions.StateChanged += OnSessionStateChanged;
         _sessions.SessionCompleted += OnSessionCompleted;
         _sessions.SessionEnded += OnSessionEnded;
+        _sessions.SessionResumed += OnSessionResumed;
         _privacy.Changed += OnPrivacyChanged;
 
         _pruneTimer = new DispatcherTimer { Interval = PruneInterval };
@@ -140,6 +141,7 @@ public sealed class ActivityRecorder : IDisposable
         _sessions.StateChanged -= OnSessionStateChanged;
         _sessions.SessionCompleted -= OnSessionCompleted;
         _sessions.SessionEnded -= OnSessionEnded;
+        _sessions.SessionResumed -= OnSessionResumed;
         _privacy.Changed -= OnPrivacyChanged;
 
         // Keep what was on screen up to now; give the disk a moment, but never hang the exit.
@@ -156,7 +158,8 @@ public sealed class ActivityRecorder : IDisposable
         SessionState previous = _lastState;
         _lastState = state;
 
-        if (!previous.IsActive && state.IsActive && IsEnabled)
+        // A resumed session was logged as started before the app stopped.
+        if (!previous.IsActive && state.IsActive && IsEnabled && !_sessions.IsResuming)
         {
             var started = new SessionEvent(
                 _timeProvider.GetUtcNow(), SessionEventKind.Started, state.Mode, state.ProfileId, state.PhaseEndsAt);
@@ -182,6 +185,18 @@ public sealed class ActivityRecorder : IDisposable
             var ended = new SessionEvent(
                 _timeProvider.GetUtcNow(), kind, end.Ended.Mode, end.Ended.ProfileId, Reason: end.EarlyEndReason);
             Enqueue(() => _log.RecordSessionEventAsync(ended));
+        }
+    }
+
+    private void OnSessionResumed(object? sender, SessionResume resume)
+    {
+        if (IsEnabled)
+        {
+            SessionState state = resume.State;
+            var interrupted = new SessionEvent(resume.LastAliveAt, SessionEventKind.Interrupted, state.Mode, state.ProfileId);
+            var resumed = new SessionEvent(resume.ResumedAt, SessionEventKind.Resumed, state.Mode, state.ProfileId);
+            Enqueue(() => _log.RecordSessionEventAsync(interrupted));
+            Enqueue(() => _log.RecordSessionEventAsync(resumed));
         }
     }
 

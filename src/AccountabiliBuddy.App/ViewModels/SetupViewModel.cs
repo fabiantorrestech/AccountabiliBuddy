@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Security;
+using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Ports;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -11,6 +12,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// Setup tab: every permission the app holds, each with Grant and Revoke.
 /// Start with Windows (HKCU Run key), the quick-session Start menu shortcut, one browser connection per
 /// supported browser, and the data permissions (screen reading, activity history) in <see cref="Privacy"/>.
+/// During a focus phase every Revoke (and "Delete my data") is locked, so the session can't be loosened from here;
+/// granting always works.
 /// </summary>
 public sealed partial class SetupViewModel : ObservableObject
 {
@@ -23,7 +26,9 @@ public sealed partial class SetupViewModel : ObservableObject
         IQuickLaunchShortcut quickLaunch,
         IBrowserSetup browserSetup,
         IBrowserActivitySource browsers,
-        PrivacySetupViewModel privacy)
+        PrivacySetupViewModel privacy,
+        SessionController sessions,
+        WatchedBrowsersService watchedBrowsers)
     {
         Privacy = privacy;
         _startup = startup;
@@ -33,10 +38,14 @@ public sealed partial class SetupViewModel : ObservableObject
 
         foreach (BrowserKind browser in browserSetup.SupportedBrowsers)
         {
-            Browsers.Add(new BrowserSetupRowViewModel(browserSetup, browser, () => _browsers.Connections));
+            Browsers.Add(new BrowserSetupRowViewModel(browserSetup, browser, () => _browsers.Connections, watchedBrowsers));
         }
 
+        watchedBrowsers.Changed += (_, _) => RefreshBrowsers();
+
         _browsers.ConnectionsChanged += (_, _) => Dispatcher.UIThread.Post(RefreshBrowsers);
+        sessions.StateChanged += (_, _) => IsLocked = sessions.IsEnforcing;
+        IsLocked = sessions.IsEnforcing;
 
         RefreshStartup();
         RefreshQuickLaunch();
@@ -46,6 +55,11 @@ public sealed partial class SetupViewModel : ObservableObject
     public ObservableCollection<BrowserSetupRowViewModel> Browsers { get; } = new();
 
     public PrivacySetupViewModel Privacy { get; }
+
+    /// <summary>True during a focus phase: revoking and deleting are disabled.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RevokeStartupCommand), nameof(RevokeQuickLaunchCommand))]
+    public partial bool IsLocked { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(GrantStartupCommand), nameof(RevokeStartupCommand))]
@@ -63,11 +77,20 @@ public sealed partial class SetupViewModel : ObservableObject
 
     private bool CanGrantQuickLaunch => !IsQuickLaunchGranted;
 
-    private bool CanRevokeQuickLaunch => IsQuickLaunchGranted;
+    private bool CanRevokeQuickLaunch => IsQuickLaunchGranted && !IsLocked;
 
     private bool CanGrantStartup => !IsStartupGranted;
 
-    private bool CanRevokeStartup => IsStartupGranted;
+    private bool CanRevokeStartup => IsStartupGranted && !IsLocked;
+
+    partial void OnIsLockedChanged(bool value)
+    {
+        Privacy.IsLocked = value;
+        foreach (BrowserSetupRowViewModel row in Browsers)
+        {
+            row.IsLocked = value;
+        }
+    }
 
     [RelayCommand(CanExecute = nameof(CanGrantStartup))]
     private void GrantStartup()

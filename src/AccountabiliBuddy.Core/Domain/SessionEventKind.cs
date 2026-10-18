@@ -12,4 +12,10 @@ public enum SessionEventKind
 
     /// <summary>Ended by the user outside a focus phase (e.g. during a break), no friction.</summary>
     Ended,
+
+    /// <summary>The app stopped mid-session without ending it (crash, killed, restart); recorded at the last moment it was known to run.</summary>
+    Interrupted,
+
+    /// <summary>The app started again and carried on with the interrupted session.</summary>
+    Resumed,
 }

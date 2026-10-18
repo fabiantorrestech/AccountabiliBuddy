@@ -15,6 +15,29 @@
                 </StackPanel>
             </Border>
 
+            <!-- Unlock: lift the blocks after a wait (options are set per profile). -->
+            <Border DataContext="{Binding Unlock}" IsVisible="{Binding IsVisible}" Padding="16,12" CornerRadius="8"
+                    Background="#1A808080" BorderBrush="#33808080" BorderThickness="1">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Unlock" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
+                    <StackPanel Spacing="8" IsVisible="{Binding IsFormVisible}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" MinWidth="240" />
+                            <ComboBox ItemsSource="{Binding RelockChoices}" SelectedItem="{Binding SelectedRelock}" MinWidth="200" />
+                            <TextBox Text="{Binding RelockTimeText}" IsVisible="{Binding IsRelockTimeVisible}"
+                                     PlaceholderText="e.g. 6pm" Width="100" />
+                        </StackPanel>
+                        <TextBox Text="{Binding Reason}" PlaceholderText="{Binding ReasonHint}" />
+                        <Button Content="Start unlock countdown" Command="{Binding RequestCommand}" />
+                    </StackPanel>
+                    <Button Content="Cancel unlock" Command="{Binding CancelCommand}" IsVisible="{Binding IsWaiting}" />
+                    <Button Content="Lock again" Command="{Binding LockAgainCommand}" Classes="accent"
+                            IsVisible="{Binding IsUnlocked}" />
+                    <TextBlock Text="{Binding ErrorMessage}" Foreground="#E5484D" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
             <StackPanel Spacing="20" IsVisible="{Binding !IsSessionActive}">
                 <StackPanel Spacing="6">
                     <TextBlock Text="Profile" FontWeight="SemiBold" />

@@ -7,7 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// Settings tab: quick-session shortcut, Pomodoro defaults, escalation timings and friction.
+/// Settings tab: quick-session shortcut, Pomodoro defaults, escalation timings, friction and unlock relocking.
 /// (Start with Windows lives in the Setup tab.)
 /// Saving is locked during a focus phase so friction cannot be turned off mid-session.
 /// </summary>
@@ -76,6 +76,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial string MinReasonLength { get; set; }
 
+    /// <summary>Unlocks relock at midnight unless another time is picked when unlocking.</summary>
+    [ObservableProperty]
+    public partial bool RelockAtMidnight { get; set; }
+
     [ObservableProperty]
     public partial string? StatusMessage { get; set; }
 
@@ -114,8 +118,10 @@ public sealed partial class SettingsViewModel : ObservableObject
             TimeSpan.FromMinutes(focus), TimeSpan.FromMinutes(shortBreak), TimeSpan.FromMinutes(longBreak), cycles);
         var bypass = new BypassSettings(TimeSpan.FromSeconds(bypassWait), reasonLength);
 
+        var locks = new LockSettings(RelockAtMidnight);
+
         await _configuration.UpdateAsync(document =>
-            document with { PomodoroDefaults = pomodoro, Escalation = escalation, Bypass = bypass });
+            document with { PomodoroDefaults = pomodoro, Escalation = escalation, Bypass = bypass, Locks = locks });
         StatusMessage = _configuration.IsReadOnly ? "Not saved: settings are read-only (see banner)." : "Saved.";
     }
 
@@ -150,6 +156,8 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         BypassWaitSeconds = document.Bypass.WaitDuration.TotalSeconds.ToString("0");
         MinReasonLength = document.Bypass.MinReasonLength.ToString();
+
+        RelockAtMidnight = document.Locks.RelockAtMidnight;
     }
 
     private bool TryReadPositive(string text, string label, out int value)

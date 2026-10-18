@@ -5,6 +5,7 @@ namespace AccountabiliBuddy.Core.Storage;
 /// <summary>
 /// Everything the user configures, as one versioned JSON document (ADR 7).
 /// This is the export/import and sync format shared with future companion apps.
+/// Version 2 added <see cref="Locks"/>, <see cref="FocusProfile.UnlockOptions"/> and <see cref="WeeklySchedule.OffDays"/>.
 /// </summary>
 public sealed record ProfileDocument(
     int SchemaVersion,
@@ -14,7 +15,9 @@ public sealed record ProfileDocument(
     EscalationSettings Escalation,
     BypassSettings Bypass)
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
+
+    public LockSettings Locks { get; init; } = LockSettings.Default;
 
     public static ProfileDocument CreateDefault()
     {

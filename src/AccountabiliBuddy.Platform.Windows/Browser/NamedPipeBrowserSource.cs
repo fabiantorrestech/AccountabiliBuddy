@@ -10,7 +10,7 @@ namespace AccountabiliBuddy.Platform.Windows.Browser;
 /// The app's end of the browser bridge (ADR 5): a named pipe that only the current user can open.
 /// Each connected native host (one per browser running the extension) gets its own pipe instance.
 /// Messages from the extension:
-/// <c>{"type":"hello","browser":"chrome","version":"0.1.0"}</c> and
+/// <c>{"type":"hello","browser":"chrome","version":"0.2.0","privateAllowed":true}</c> and
 /// <c>{"type":"tabs","tabs":[{"tabId":12,"title":"…","url":"…","channel":null}]}</c> (the active tab of every window).
 /// Messages to the extension: <c>{"type":"redirect","tabId":12,"reason":"…"}</c>.
 /// Events are raised on background threads.
@@ -211,6 +211,10 @@ public sealed class NamedPipeBrowserSource : IBrowserActivitySource, IDisposable
                     case "hello":
                         connection.Browser = ParseBrowser(ReadString(root, "browser"));
                         connection.ExtensionVersion = ReadString(root, "version") ?? "?";
+                        connection.PrivateWindowsAllowed = root.TryGetProperty("privateAllowed", out JsonElement allowed)
+                                                           && allowed.ValueKind is JsonValueKind.True or JsonValueKind.False
+                            ? allowed.GetBoolean()
+                            : null;
                         return true;
 
                     case "tabs" when root.TryGetProperty("tabs", out JsonElement tabs) && tabs.ValueKind == JsonValueKind.Array:
@@ -301,11 +305,14 @@ public sealed class NamedPipeBrowserSource : IBrowserActivitySource, IDisposable
 
         public string ExtensionVersion { get; set; } = "?";
 
+        public bool? PrivateWindowsAllowed { get; set; }
+
         public IReadOnlyList<BrowserActivity> ActiveTabs { get; set; } = Array.Empty<BrowserActivity>();
 
         public BrowserConnection ToSnapshot()
         {
-            return new BrowserConnection(Id, Browser, ExtensionVersion, ConnectedAt, LastMessageAt, ActiveTabs);
+            return new BrowserConnection(
+                Id, Browser, ExtensionVersion, ConnectedAt, LastMessageAt, ActiveTabs, PrivateWindowsAllowed);
         }
 
         public async Task SendAsync(byte[] message, CancellationToken cancellationToken)

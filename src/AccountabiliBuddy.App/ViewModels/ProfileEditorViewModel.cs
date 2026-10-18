@@ -21,6 +21,11 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
         {
             Rules.Add(new RuleEditorViewModel(rule, RemoveRule));
         }
+
+        foreach (UnlockOption option in profile.UnlockOptions)
+        {
+            UnlockOptions.Add(new UnlockOptionEditorViewModel(option, RemoveUnlockOption));
+        }
     }
 
     public Guid Id { get; }
@@ -34,6 +39,9 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
 
     public ObservableCollection<RuleEditorViewModel> Rules { get; } = new();
 
+    /// <summary>Ways to lift this profile's blocks after a wait (Session tab → Unlock).</summary>
+    public ObservableCollection<UnlockOptionEditorViewModel> UnlockOptions { get; } = new();
+
     public static ProfileEditorViewModel FromProfile(FocusProfile profile)
     {
         return new ProfileEditorViewModel(profile);
@@ -45,7 +53,10 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
             Guid.NewGuid(),
             "New profile",
             Array.Empty<Rule>(),
-            TimeSpan.FromSeconds(DefaultGraceSeconds));
+            TimeSpan.FromSeconds(DefaultGraceSeconds))
+        {
+            UnlockOptions = new[] { UnlockOption.CreateOffDay() },
+        };
         return new ProfileEditorViewModel(profile);
     }
 
@@ -54,6 +65,12 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
     {
         var rule = new Rule(Guid.NewGuid(), MatchTarget.ProcessName, MatchKind.Exact, string.Empty, RuleVerdict.Block);
         Rules.Add(new RuleEditorViewModel(rule, RemoveRule));
+    }
+
+    [RelayCommand]
+    private void AddUnlockOption()
+    {
+        UnlockOptions.Add(new UnlockOptionEditorViewModel(UnlockOption.CreateOffDay(), RemoveUnlockOption));
     }
 
     /// <summary>Adds a rule that was saved elsewhere (the classify prompt) without touching unsaved edits.</summary>
@@ -88,11 +105,24 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
             }
         }
 
+        foreach (UnlockOptionEditorViewModel option in UnlockOptions)
+        {
+            string? optionError = option.Validate();
+            if (optionError is not null)
+            {
+                error = $"'{Name}': {optionError}";
+                return false;
+            }
+        }
+
         profile = new FocusProfile(
             Id,
             Name.Trim(),
             Rules.Select(rule => rule.ToRule()).ToList(),
-            TimeSpan.FromSeconds(graceSeconds));
+            TimeSpan.FromSeconds(graceSeconds))
+        {
+            UnlockOptions = UnlockOptions.Select(option => option.ToOption()).ToList(),
+        };
         error = null;
         return true;
     }
@@ -100,5 +130,10 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
     private void RemoveRule(RuleEditorViewModel rule)
     {
         Rules.Remove(rule);
+    }
+
+    private void RemoveUnlockOption(UnlockOptionEditorViewModel option)
+    {
+        UnlockOptions.Remove(option);
     }
 }

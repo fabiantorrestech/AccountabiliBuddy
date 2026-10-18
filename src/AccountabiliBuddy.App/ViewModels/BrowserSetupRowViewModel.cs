@@ -1,4 +1,5 @@
 using System.Security;
+using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Ports;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -7,7 +8,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// One browser in the Setup tab: grant/revoke its connection to the app (native messaging host registration),
-/// install the extension, and show whether the extension is currently connected.
+/// install the extension, and show whether the extension is currently connected, whether it may run in private
+/// windows, and whether the browser is watched (its unseen windows count as distracting during focus).
 /// </summary>
 public sealed partial class BrowserSetupRowViewModel : ObservableObject
 {
@@ -16,12 +18,17 @@ public sealed partial class BrowserSetupRowViewModel : ObservableObject
 
     private readonly IBrowserSetup _setup;
     private readonly Func<IReadOnlyList<BrowserConnection>> _currentConnections;
+    private readonly WatchedBrowsersService _watched;
 
     public BrowserSetupRowViewModel(
-        IBrowserSetup setup, BrowserKind browser, Func<IReadOnlyList<BrowserConnection>> currentConnections)
+        IBrowserSetup setup,
+        BrowserKind browser,
+        Func<IReadOnlyList<BrowserConnection>> currentConnections,
+        WatchedBrowsersService watched)
     {
         _setup = setup;
         _currentConnections = currentConnections;
+        _watched = watched;
         Browser = browser;
         DisplayName = browser.ToString();
         StatusText = ConnectionText = string.Empty;
@@ -40,6 +47,11 @@ public sealed partial class BrowserSetupRowViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(RevokeCommand))]
     public partial bool IsGranted { get; set; }
 
+    /// <summary>Set by the Setup tab during a focus phase: Revoke is disabled.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RevokeCommand))]
+    public partial bool IsLocked { get; set; }
+
     /// <summary>Registration state in words, including a repair hint when it is broken.</summary>
     [ObservableProperty]
     public partial string StatusText { get; set; }
@@ -49,6 +61,17 @@ public sealed partial class BrowserSetupRowViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string ConnectionText { get; set; }
+
+    /// <summary>Private-window permission and watch state in words; null when there is nothing to say.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPrivateWindowsText))]
+    public partial string? PrivateWindowsText { get; set; }
+
+    /// <summary>True when the extension can't see private windows, so the text is a warning.</summary>
+    [ObservableProperty]
+    public partial bool IsPrivateWindowsWarning { get; set; }
+
+    public bool HasPrivateWindowsText => PrivateWindowsText is not null;
 
     /// <summary>Install instructions, shown after "Install extension" is pressed.</summary>
     [ObservableProperty]
@@ -81,11 +104,43 @@ public sealed partial class BrowserSetupRowViewModel : ObservableObject
         ConnectionText = connection is null
             ? "Extension not connected"
             : $"Extension {connection.ExtensionVersion} connected · {connection.ActiveTabs.Count} window(s)";
+
+        DescribePrivateWindows(connection);
+    }
+
+    private void DescribePrivateWindows(BrowserConnection? connection)
+    {
+        bool watched = _watched.Watched.Contains(Browser);
+        string watchNote = watched
+            ? " During focus, windows of this browser that the extension can't see count as distracting."
+            : string.Empty;
+
+        IsPrivateWindowsWarning = connection?.PrivateWindowsAllowed == false;
+        PrivateWindowsText = connection?.PrivateWindowsAllowed switch
+        {
+            true => "Allowed in private windows, so your rules apply there too." + watchNote,
+            false => $"Not allowed in private windows.{watchNote} To allow it: {PrivateWindowSteps()}.",
+            null when connection is not null => "Private windows: unknown. Update the extension (Install extension… again)." + watchNote,
+            _ when watched => "Watched (the extension connects when the browser is open)." + watchNote,
+            _ => null,
+        };
+    }
+
+    private string PrivateWindowSteps()
+    {
+        return Browser switch
+        {
+            BrowserKind.Chrome => "chrome://extensions → AccountabiliBuddy → Details → turn on \"Allow in Incognito\"",
+            BrowserKind.Brave => "brave://extensions → AccountabiliBuddy → Details → turn on \"Allow in Private\"",
+            BrowserKind.Edge => "edge://extensions → AccountabiliBuddy → Details → turn on \"Allow in InPrivate\"",
+            BrowserKind.Firefox => "about:addons → AccountabiliBuddy → Details → \"Run in Private Windows\" → Allow",
+            _ => "open the browser's extensions page → AccountabiliBuddy → Details → allow it in private windows",
+        };
     }
 
     private bool CanGrant => IsInstalled;
 
-    private bool CanRevoke => IsGranted;
+    private bool CanRevoke => IsGranted && !IsLocked;
 
     [RelayCommand(CanExecute = nameof(CanGrant))]
     private void Grant()
@@ -96,7 +151,11 @@ public sealed partial class BrowserSetupRowViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanRevoke))]
     private void Revoke()
     {
-        Run(() => _setup.Unregister(Browser));
+        Run(() =>
+        {
+            _setup.Unregister(Browser);
+            _watched.ForgetUngranted(_setup);
+        });
         InstallSteps = null;
     }
 

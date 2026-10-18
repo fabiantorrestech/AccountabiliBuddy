@@ -15,6 +15,9 @@
             <Setter Property="FontSize" Value="16" />
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
+        <Style Selector="TextBlock.warning">
+            <Setter Property="Foreground" Value="#E9A23B" />
+        </Style>
         <Style Selector="TextBlock.muted">
             <Setter Property="Opacity" Value="0.75" />
             <Setter Property="TextWrapping" Value="Wrap" />
@@ -23,6 +26,10 @@
 
     <ScrollViewer>
         <StackPanel Margin="16" Spacing="12" MaxWidth="760" HorizontalAlignment="Left">
+            <Border IsVisible="{Binding IsLocked}" Background="#33F59E0B" Padding="12,8" CornerRadius="6">
+                <TextBlock Text="Revoking and deleting are locked while a focus session is running. Granting still works."
+                           TextWrapping="Wrap" />
+            </Border>
             <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="Everything AccountabiliBuddy is allowed to do on this computer. Revoke anything at any time."
                            Classes="muted" VerticalAlignment="Center" />
@@ -76,6 +83,9 @@
                                             <Ellipse Width="8" Height="8" Fill="#8A9396" IsVisible="{Binding !IsConnected}" />
                                             <TextBlock Text="{Binding ConnectionText}" FontSize="12" />
                                         </StackPanel>
+                                        <TextBlock Text="{Binding PrivateWindowsText}" IsVisible="{Binding HasPrivateWindowsText}"
+                                                   Classes.warning="{Binding IsPrivateWindowsWarning}"
+                                                   FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
                                         <Button Content="Install extension…" Command="{Binding InstallExtensionCommand}" Classes="accent" />
