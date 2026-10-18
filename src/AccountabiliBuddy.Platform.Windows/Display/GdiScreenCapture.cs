@@ -11,7 +11,7 @@ namespace AccountabiliBuddy.Platform.Windows.Display;
 /// </summary>
 public sealed class GdiScreenCapture : IScreenCapture
 {
-    public unsafe ScreenImage? Capture(PixelBox area)
+    public ScreenImage? Capture(PixelBox area)
     {
         if (area.Width <= 0 || area.Height <= 0)
         {
@@ -25,31 +25,10 @@ public sealed class GdiScreenCapture : IScreenCapture
 
         try
         {
-            if (!PInvoke.BitBlt(memory, 0, 0, area.Width, area.Height, screen, area.Left, area.Top,
-                    ROP_CODE.SRCCOPY | ROP_CODE.CAPTUREBLT))
-            {
-                return null;
-            }
-
-            var info = new BITMAPINFO();
-            info.bmiHeader.biSize = (uint)sizeof(BITMAPINFOHEADER);
-            info.bmiHeader.biWidth = area.Width;
-            info.bmiHeader.biHeight = -area.Height; // negative = top-down rows
-            info.bmiHeader.biPlanes = 1;
-            info.bmiHeader.biBitCount = 32;
-            info.bmiHeader.biCompression = 0; // BI_RGB
-
-            byte[] pixels = new byte[area.Width * area.Height * 4];
-            fixed (byte* buffer = pixels)
-            {
-                int rows = PInvoke.GetDIBits(memory, bitmap, 0, (uint)area.Height, buffer, &info, DIB_USAGE.DIB_RGB_COLORS);
-                if (rows == 0)
-                {
-                    return null;
-                }
-            }
-
-            return new ScreenImage(area.Width, area.Height, pixels);
+            return PInvoke.BitBlt(memory, 0, 0, area.Width, area.Height, screen, area.Left, area.Top,
+                    ROP_CODE.SRCCOPY | ROP_CODE.CAPTUREBLT)
+                ? GdiPixels.Read(memory, bitmap, area.Width, area.Height)
+                : null;
         }
         finally
         {

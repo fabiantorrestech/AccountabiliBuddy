@@ -44,7 +44,7 @@ public sealed class SessionController : IDisposable
 
     public BypassSettings BypassSettings => _configuration.Current.Bypass;
 
-    /// <summary>Reason given the last time a focus session was ended early. Persisted to the log in M7.</summary>
+    /// <summary>Reason given the last time a focus session was ended early (also logged via <see cref="SessionEnded"/>).</summary>
     public string? LastEarlyEndReason { get; private set; }
 
     public event EventHandler<SessionState>? StateChanged;
@@ -54,6 +54,9 @@ public sealed class SessionController : IDisposable
 
     /// <summary>Raised with the finished state when a session runs out on its own (not when ended by the user).</summary>
     public event EventHandler<SessionState>? SessionCompleted;
+
+    /// <summary>Raised when the user ends a session by hand (with the friction reason, if one was required).</summary>
+    public event EventHandler<SessionEnd>? SessionEnded;
 
     public void Start()
     {
@@ -89,7 +92,12 @@ public sealed class SessionController : IDisposable
             LastEarlyEndReason = earlyEndReason;
         }
 
+        SessionState ending = _engine.State;
         _engine.EndSession();
+        if (ending.IsActive)
+        {
+            SessionEnded?.Invoke(this, new SessionEnd(ending, earlyEndReason));
+        }
     }
 
     public void Dispose()

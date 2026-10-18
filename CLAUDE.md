@@ -7,6 +7,8 @@ Windows desktop focus guardian. Runs at startup, watches the visible window on e
 - Core (`src/AccountabiliBuddy.Core`) has **no UI or OS dependencies**. Anything Windows-specific goes in `src/AccountabiliBuddy.Platform.Windows` behind a `Core/Ports` interface (ADR 4).
 - Profiles/rules are persisted in a versioned JSON schema so a Kotlin Android companion can read them (ADR 7).
 - Detection cascade, cheapest first: process/title/URL rules → OCR only when still unknown. Event-driven, plus a slow periodic recheck. Keep CPU and battery use low.
+- Activity history (ADR 8): only times, app (process name), site (domain), classification and session context are stored readable. Window titles, full URLs, OCR text and early-end reasons are always DPAPI-encrypted (`IDataProtector`). Kept 90 days; logging and screen reading are revocable in the Setup tab, and screen reading is off by default.
+- App-owned preferences (quick session, privacy, integrations) live in the `documents` table via `SqliteJsonDocumentStore`, never in the shared profile JSON.
 
 ## Stack
 - .NET 10 (LTS), C#, Avalonia UI (ADR 3)
@@ -32,7 +34,7 @@ dotnet run --project src/AccountabiliBuddy.App
 ```
 
 ## Roadmap
-MVP milestones M0–M7 (setup → core → watcher → app shell → enforcement → browser → OCR → logging). Post-MVP: V2 habit suggestions + distilled local classifier (synthetic frontier-generated data; real samples opt-in and redacted only); V3 Android companion + LAN/Bluetooth sync, Linux, tamper resistance.
+MVP milestones M0–M7 (setup → core → watcher → app shell → enforcement → browser → OCR → logging) are done, plus the quick-session popup. Post-MVP: V2 habit suggestions + distilled local classifier (synthetic frontier-generated data; real samples opt-in and redacted only); V3 Android companion + LAN/Bluetooth sync, Linux, tamper resistance.
 
 ## Conventions
 - Explicit, readable code; SOLID; one public type per file; file-scoped namespaces; nullable enabled.

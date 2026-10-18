@@ -5,8 +5,8 @@
              x:DataType="vm:IntegrationsViewModel">
     <UserControl.Styles>
         <Style Selector="Border.card">
-            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="Background" Value="#1A808080" />
+            <Setter Property="BorderBrush" Value="#33808080" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Padding" Value="16,12" />

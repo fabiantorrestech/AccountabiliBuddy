@@ -11,6 +11,8 @@ using AccountabiliBuddy.Platform.Windows.Enforcement;
 using AccountabiliBuddy.Platform.Windows.Hotkeys;
 using AccountabiliBuddy.Platform.Windows.Shortcuts;
 using AccountabiliBuddy.Platform.Windows.Integrations;
+using AccountabiliBuddy.Platform.Windows.Ocr;
+using AccountabiliBuddy.Platform.Windows.Security;
 using AccountabiliBuddy.Platform.Windows.Startup;
 using Avalonia;
 using Avalonia.Controls;
@@ -38,6 +40,7 @@ public partial class App : Application
     private Win32GlobalHotkey? _hotkey;
     private QuickSessionService? _quickSession;
     private InstanceSignals? _instanceSignals;
+    private ActivityRecorder? _recorder;
     private EnforcementCoordinator? _enforcement;
     private MainWindow? _mainWindow;
     private TrayIcon? _trayIcon;
@@ -128,6 +131,13 @@ public partial class App : Application
         _quickSession = new QuickSessionService(
             _sessions, _configuration, _endFlow, monitorLocator, new GdiScreenCapture(), _hotkey, documents);
         _quickSession.LoadBlocking();
+        // M6 screen reading and M7 activity history.
+        var privacy = new PrivacySettingsService(documents);
+        privacy.LoadBlocking();
+        var ocrReader = new WindowsOcrReader();
+        var activityLog = new SqliteActivityLog(database, new DpapiDataProtector());
+        _recorder = new ActivityRecorder(activityLog, privacy, _sessions, new Win32UserIdleDetector(), time);
+
         var quickLaunch = new StartMenuQuickLaunchShortcut(
             Environment.ProcessPath ?? throw new InvalidOperationException("Executable path is unknown."),
             StartupOptions.QuickSessionArgument);
@@ -143,13 +153,22 @@ public partial class App : Application
             _sessions,
             _configuration,
             new EnforcementEngine(new RuleEvaluator(new RuleMatcher())),
-            new EnforcementPresenter(new WindowsEnforcer(), _browserSource, monitorLocator, time));
+            new EnforcementPresenter(new WindowsEnforcer(), _browserSource, monitorLocator, time),
+            ocrReader,
+            privacy,
+            _recorder);
 
         var mainViewModel = new MainWindowViewModel(
             new SessionViewModel(_sessions, _configuration, _endFlow, VisibleMainWindow),
             new ProfilesViewModel(_configuration, _sessions),
             new ScheduleViewModel(_configuration, _sessions),
-            new SetupViewModel(startupRegistrar, quickLaunch, browserSetup, _browserSource),
+            new HistoryViewModel(activityLog, _recorder, _configuration, privacy, time),
+            new SetupViewModel(
+                startupRegistrar,
+                quickLaunch,
+                browserSetup,
+                _browserSource,
+                new PrivacySetupViewModel(privacy, _recorder, ocrReader.IsAvailable)),
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
             new SettingsViewModel(_configuration, _sessions, _quickSession, database.DatabasePath),
             activityViewModel,
@@ -160,6 +179,7 @@ public partial class App : Application
         _sessions.StateChanged += (_, _) => UpdateTray();
         _sessions.Ticked += (_, _) => UpdateTray();
 
+        _recorder.Start();
         _sessions.Start();
         _activityWatcher.Start();
         _browserSource.Start();
@@ -260,6 +280,7 @@ public partial class App : Application
         _instanceSignals?.Dispose();
         _hotkey?.Dispose();
         _enforcement?.Dispose();
+        _recorder?.Dispose();
         _browserSource?.Dispose();
         _activityWatcher?.Dispose();
         _sessions?.Dispose();

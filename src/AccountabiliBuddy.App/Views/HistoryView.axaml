@@ -1,0 +1,143 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.HistoryView"
+             x:DataType="vm:HistoryViewModel">
+    <UserControl.Styles>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="#1A808080" />
+            <Setter Property="BorderBrush" Value="#33808080" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16,12" />
+        </Style>
+        <Style Selector="TextBlock.title">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.muted">
+            <Setter Property="Opacity" Value="0.7" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="TextBlock.big">
+            <Setter Property="FontSize" Value="22" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer>
+        <StackPanel Margin="16" Spacing="14" MaxWidth="900" HorizontalAlignment="Left">
+            <Border IsVisible="{Binding IsLoggingOff}" Background="#33F59E0B" Padding="12,8" CornerRadius="6">
+                <TextBlock Text="Activity history is turned off, so nothing new is being recorded. Turn it on in Setup." TextWrapping="Wrap" />
+            </Border>
+            <TextBlock Text="{Binding ErrorText}" Foreground="#E76F51" TextWrapping="Wrap"
+                       IsVisible="{Binding ErrorText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <RadioButton Content="Today" IsChecked="{Binding ShowToday}" GroupName="period" />
+                    <RadioButton Content="Last 7 days" IsChecked="{Binding ShowWeek}" GroupName="period" />
+                    <TextBlock Text="{Binding PeriodLabel}" Classes="muted" VerticalAlignment="Center" Margin="8,0,0,0" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="Refresh" Command="{Binding RefreshCommand}" />
+            </Grid>
+
+            <!-- Totals during focus -->
+            <UniformGrid Rows="1" Columns="4">
+                <Border Classes="card" Margin="0,0,8,0">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Focus time" Classes="muted" />
+                        <TextBlock Text="{Binding FocusTimeText}" Classes="big" />
+                    </StackPanel>
+                </Border>
+                <Border Classes="card" Margin="0,0,8,0">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="On track" Classes="muted" />
+                        <TextBlock Text="{Binding OnTrackText}" Classes="big" Foreground="#2A9D8F" />
+                    </StackPanel>
+                </Border>
+                <Border Classes="card" Margin="0,0,8,0">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Distracted" Classes="muted" />
+                        <TextBlock Text="{Binding DistractedText}" Classes="big" Foreground="#E0A030" />
+                    </StackPanel>
+                </Border>
+                <Border Classes="card">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Not classified" Classes="muted" />
+                        <TextBlock Text="{Binding UnknownText}" Classes="big" />
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+            <TextBlock Classes="muted" FontSize="12"
+                       Text="Totals cover focus phases only and are counted per monitor. Activities appear once they end; idle time (5+ min without keyboard or mouse) is not counted." />
+
+            <!-- Top lists -->
+            <Grid ColumnDefinitions="*,16,*">
+                <Border Classes="card">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Top distractions during focus" Classes="title" />
+                        <TextBlock Text="None. Nice." Classes="muted" IsVisible="{Binding HasNoDistractions}" />
+                        <ItemsControl ItemsSource="{Binding TopDistractions}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:UsageRowViewModel">
+                                    <StackPanel Spacing="2" Margin="0,0,0,8">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="1" Text="{Binding TimeText}" Opacity="0.8" />
+                                        </Grid>
+                                        <ProgressBar Minimum="0" Maximum="1" Value="{Binding Fraction}" Height="5" MinHeight="5"
+                                                     Foreground="#E0A030" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Classes="card">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Most used apps and sites" Classes="title" />
+                        <TextBlock Text="Nothing recorded yet." Classes="muted" IsVisible="{Binding HasNoUsage}" />
+                        <ItemsControl ItemsSource="{Binding TopOverall}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:UsageRowViewModel">
+                                    <StackPanel Spacing="2" Margin="0,0,0,8">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="1" Text="{Binding TimeText}" Opacity="0.8" />
+                                        </Grid>
+                                        <ProgressBar Minimum="0" Maximum="1" Value="{Binding Fraction}" Height="5" MinHeight="5" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Sessions -->
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Sessions" Classes="title" />
+                    <TextBlock Text="No sessions in this period." Classes="muted" IsVisible="{Binding HasNoSessions}" />
+                    <ItemsControl ItemsSource="{Binding Sessions}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SessionRowViewModel">
+                                <Grid ColumnDefinitions="130,*,90,170" Margin="0,4">
+                                    <TextBlock Text="{Binding WhenText}" Opacity="0.8" />
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding ReasonText}" IsVisible="{Binding HasReason}"
+                                                   FontSize="12" Opacity="0.7" TextWrapping="Wrap" FontStyle="Italic" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2" Text="{Binding LengthText}" HorizontalAlignment="Right" />
+                                    <TextBlock Grid.Column="3" Text="{Binding OutcomeText}" HorizontalAlignment="Right" Opacity="0.8" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

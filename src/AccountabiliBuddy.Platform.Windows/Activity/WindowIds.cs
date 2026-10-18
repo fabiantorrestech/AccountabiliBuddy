@@ -1,3 +1,4 @@
+using System.Globalization;
 using Windows.Win32.Foundation;
 
 namespace AccountabiliBuddy.Platform.Windows.Activity;
@@ -8,5 +9,17 @@ internal static class WindowIds
     public static string Format(HWND window)
     {
         return ((nint)window).ToString("X");
+    }
+
+    public static bool TryParse(string windowId, out HWND window)
+    {
+        window = HWND.Null;
+        if (!nint.TryParse(windowId, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out nint handle) || handle == 0)
+        {
+            return false;
+        }
+
+        window = new HWND(handle);
+        return true;
     }
 }

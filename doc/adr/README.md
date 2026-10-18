@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0008](0008-store-activity-history-with-readable-totals-and-encrypted-details.md) | Store activity history with readable totals and encrypted details | Accepted | — |
 | [0007](0007-use-versioned-json-for-profiles-and-rules.md) | Use versioned JSON for profiles and rules | Accepted | — |
 | [0006](0006-store-local-data-in-sqlite.md) | Store local data in SQLite | Accepted | — |
 | [0005](0005-use-browser-native-messaging-for-url-detection.md) | Use browser native messaging for URL detection | Accepted | — |

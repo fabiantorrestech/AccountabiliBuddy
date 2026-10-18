@@ -9,7 +9,7 @@ namespace AccountabiliBuddy.Core.Storage;
 public sealed class LocalDatabase
 {
     private const string FileName = "accountabilibuddy.db";
-    private const int CurrentSchemaVersion = 1;
+    private const int CurrentSchemaVersion = 2;
 
     private readonly string _connectionString;
     private readonly SemaphoreSlim _migrationLock = new(1, 1);
@@ -66,7 +66,56 @@ public sealed class LocalDatabase
                     """, cancellationToken).ConfigureAwait(false);
             }
 
-            // Future migrations: if (version < 2) { ... }
+            if (version < 2)
+            {
+                // M7 activity log (ADR 8). Times are UTC ISO 8601 text ("O" format), so they sort and compare as text.
+                // App/site/classification stay readable for totals; *_protected columns hold DPAPI-encrypted text.
+                await ExecuteAsync(connection, """
+                    CREATE TABLE IF NOT EXISTS activity_segments (
+                        id               INTEGER PRIMARY KEY,
+                        started_at       TEXT    NOT NULL,
+                        ended_at         TEXT    NOT NULL,
+                        duration_ms      INTEGER NOT NULL,
+                        monitor_id       TEXT    NOT NULL,
+                        process_name     TEXT    NOT NULL,
+                        domain           TEXT,
+                        classification   TEXT    NOT NULL,
+                        profile_id       TEXT,
+                        in_focus         INTEGER NOT NULL,
+                        title_protected  BLOB,
+                        url_protected    BLOB,
+                        ocr_protected    BLOB
+                    );
+                    CREATE INDEX IF NOT EXISTS ix_activity_segments_started_at ON activity_segments (started_at);
+
+                    CREATE TABLE IF NOT EXISTS activity_labels (
+                        id               INTEGER PRIMARY KEY,
+                        created_at       TEXT    NOT NULL,
+                        profile_id       TEXT    NOT NULL,
+                        source           TEXT    NOT NULL,
+                        verdict          TEXT    NOT NULL,
+                        process_name     TEXT    NOT NULL,
+                        domain           TEXT,
+                        title_protected  BLOB,
+                        url_protected    BLOB,
+                        ocr_protected    BLOB
+                    );
+                    CREATE INDEX IF NOT EXISTS ix_activity_labels_created_at ON activity_labels (created_at);
+
+                    CREATE TABLE IF NOT EXISTS session_events (
+                        id               INTEGER PRIMARY KEY,
+                        at               TEXT    NOT NULL,
+                        kind             TEXT    NOT NULL,
+                        mode             TEXT,
+                        profile_id       TEXT,
+                        planned_end      TEXT,
+                        reason_protected BLOB
+                    );
+                    CREATE INDEX IF NOT EXISTS ix_session_events_at ON session_events (at);
+                    """, cancellationToken).ConfigureAwait(false);
+            }
+
+            // Future migrations: if (version < 3) { ... }
 
             if (version < CurrentSchemaVersion)
             {

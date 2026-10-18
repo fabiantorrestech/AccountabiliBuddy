@@ -41,7 +41,7 @@ public sealed class EnforcementPresenter
     public event EventHandler<string>? RecoveryRequested;
 
     /// <summary>Raised when the user answers the classify prompt.</summary>
-    public event EventHandler<Rule>? RuleCreated;
+    public event EventHandler<ClassifyAnswer>? RuleCreated;
 
     /// <summary>Raised with the question's subject (site or app) when the user picks "Not now" on the classify prompt.</summary>
     public event EventHandler<string>? ClassificationDeferred;
@@ -275,12 +275,13 @@ public sealed class EnforcementPresenter
             return;
         }
 
-        var viewModel = new ClassifyPromptViewModel(profileName, unknown.Snapshot);
+        ActivitySnapshot asked = unknown.Snapshot;
+        var viewModel = new ClassifyPromptViewModel(profileName, asked);
         string subject = viewModel.Subject;
         viewModel.Answered += (_, rule) =>
         {
             ClosePrompt();
-            RuleCreated?.Invoke(this, rule);
+            RuleCreated?.Invoke(this, new ClassifyAnswer(rule, asked));
         };
         viewModel.Deferred += (_, _) =>
         {

@@ -9,9 +9,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// Setup tab: every permission the app holds, each with Grant and Revoke.
-/// Start with Windows (HKCU Run key), the quick-session Start menu shortcut, and one browser connection per
-/// supported browser.
-/// Screen reading (M6) and activity logging (M7) are shown as upcoming.
+/// Start with Windows (HKCU Run key), the quick-session Start menu shortcut, one browser connection per
+/// supported browser, and the data permissions (screen reading, activity history) in <see cref="Privacy"/>.
 /// </summary>
 public sealed partial class SetupViewModel : ObservableObject
 {
@@ -23,8 +22,10 @@ public sealed partial class SetupViewModel : ObservableObject
         IStartupRegistrar startup,
         IQuickLaunchShortcut quickLaunch,
         IBrowserSetup browserSetup,
-        IBrowserActivitySource browsers)
+        IBrowserActivitySource browsers,
+        PrivacySetupViewModel privacy)
     {
+        Privacy = privacy;
         _startup = startup;
         _quickLaunch = quickLaunch;
         _browsers = browsers;
@@ -43,6 +44,8 @@ public sealed partial class SetupViewModel : ObservableObject
     }
 
     public ObservableCollection<BrowserSetupRowViewModel> Browsers { get; } = new();
+
+    public PrivacySetupViewModel Privacy { get; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(GrantStartupCommand), nameof(RevokeStartupCommand))]

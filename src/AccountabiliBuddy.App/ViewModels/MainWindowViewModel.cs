@@ -9,6 +9,7 @@ public sealed class MainWindowViewModel
         SessionViewModel session,
         ProfilesViewModel profiles,
         ScheduleViewModel schedule,
+        HistoryViewModel history,
         SetupViewModel setup,
         IntegrationsViewModel integrations,
         SettingsViewModel settings,
@@ -18,6 +19,7 @@ public sealed class MainWindowViewModel
         Session = session;
         Profiles = profiles;
         Schedule = schedule;
+        History = history;
         Setup = setup;
         Integrations = integrations;
         Settings = settings;
@@ -30,6 +32,8 @@ public sealed class MainWindowViewModel
     public ProfilesViewModel Profiles { get; }
 
     public ScheduleViewModel Schedule { get; }
+
+    public HistoryViewModel History { get; }
 
     public SetupViewModel Setup { get; }
 

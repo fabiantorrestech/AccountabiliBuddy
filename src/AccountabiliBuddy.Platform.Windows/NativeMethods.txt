@@ -71,3 +71,13 @@ GetDIBits
 DeleteObject
 DeleteDC
 BITMAPINFO
+
+// M6: window copy for OCR
+PrintWindow
+
+// M7: DPAPI encryption and idle detection
+CryptProtectData
+CryptUnprotectData
+CRYPTPROTECT_UI_FORBIDDEN
+LocalFree
+GetLastInputInfo
