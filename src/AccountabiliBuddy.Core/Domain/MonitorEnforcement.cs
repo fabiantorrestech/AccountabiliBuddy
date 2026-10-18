@@ -1,12 +1,11 @@
 namespace AccountabiliBuddy.Core.Domain;
 
 /// <summary>The enforcement decision for one monitor.</summary>
-/// <param name="Scope">Set only when <paramref name="Classification"/> is Distracting.</param>
+/// <param name="Scope">Set when <paramref name="Classification"/> is Distracting, or Unknown and escalating.</param>
 /// <param name="IsRepeatOffense">True when this block was already escalated earlier in the same focus phase,
 /// so the response skipped straight to its earlier level.</param>
 /// <param name="IsRecovering">True while the user's "Navigate away" window is running on this monitor.</param>
-/// <param name="NeedsClassification">True when unknown activity outlasted the profile's grace period
-/// and the user has not deferred the question.</param>
+/// <param name="NeedsClassification">True when unknown activity outlasted the profile's grace period.</param>
 public sealed record MonitorEnforcement(
     ActivitySnapshot Snapshot,
     Classification Classification,

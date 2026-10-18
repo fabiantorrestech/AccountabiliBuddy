@@ -42,7 +42,16 @@ public sealed class SessionController : IDisposable
 
     public TimeProvider TimeProvider => _timeProvider;
 
-    public BypassSettings BypassSettings => _configuration.Current.Bypass;
+    /// <summary>
+    /// Friction for ending the running session early: the configured wait, or longer for a scheduled block
+    /// (see <see cref="BypassPolicy.ForSession"/>).
+    /// </summary>
+    public BypassSettings BypassSettings => BypassPolicy.ForSession(_configuration.Current.Bypass, State, SessionProfile);
+
+    /// <summary>True when <see cref="BypassSettings"/> waits longer than configured because the session is a scheduled block.</summary>
+    public bool EndEarlyWaitMatchesUnlock => BypassSettings.WaitDuration > _configuration.Current.Bypass.WaitDuration;
+
+    private FocusProfile? SessionProfile => _configuration.Current.Profiles.FirstOrDefault(profile => profile.Id == State.ProfileId);
 
     /// <summary>Reason given the last time a focus session was ended early (also logged via <see cref="SessionEnded"/>).</summary>
     public string? LastEarlyEndReason { get; private set; }

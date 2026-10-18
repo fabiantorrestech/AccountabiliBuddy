@@ -36,8 +36,9 @@ public static class ProfileDocumentSerializer
         ProfileDocument document = JsonSerializer.Deserialize<ProfileDocument>(json, Options)
             ?? throw new JsonException("Profile document is empty.");
 
-        // v1 → v2: the fields v2 added are absent and take their defaults (no unlock options, no off days,
-        // relock at midnight); the document is written back as v2 on the next save.
+        // Older versions: the fields added since are absent and take their defaults (v2: no unlock options, no off
+        // days, relock at midnight; v3: looser changes wait 10 minutes, ask about unlisted sites); the document is
+        // written back in the current version on the next save.
         return version < ProfileDocument.CurrentSchemaVersion
             ? document with { SchemaVersion = ProfileDocument.CurrentSchemaVersion }
             : document;

@@ -9,6 +9,9 @@ namespace AccountabiliBuddy.Core.Engine;
 /// 2. A longer pattern beats a shorter one.
 /// 3. On a tie, Block beats Allow.
 /// OCR rules are only consulted when no other rule matched (detection cascade).
+/// With <see cref="FocusProfile.AskAboutUnlistedSites"/>, a website matched only by an app rule that allows the
+/// browser counts as unmatched, so it becomes Unknown and the user is asked about it. Browser-internal pages
+/// (new tab, settings) are not websites and stay covered by the app rule.
 /// </summary>
 public sealed class RuleEvaluator
 {
@@ -25,7 +28,7 @@ public sealed class RuleEvaluator
             profile.Rules.Where(rule => rule.Target != MatchTarget.OcrText),
             snapshot);
 
-        if (primaryMatch is not null)
+        if (primaryMatch is not null && !IsUnlistedSite(profile, snapshot, primaryMatch))
         {
             return ClassificationResult.FromRule(primaryMatch);
         }
@@ -40,6 +43,20 @@ public sealed class RuleEvaluator
             snapshot);
 
         return ocrMatch is null ? ClassificationResult.Unknown : ClassificationResult.FromRule(ocrMatch);
+    }
+
+    private static bool IsUnlistedSite(FocusProfile profile, ActivitySnapshot snapshot, Rule match)
+    {
+        return profile.AskAboutUnlistedSites
+            && match is { Target: MatchTarget.ProcessName, Verdict: RuleVerdict.Allow }
+            && IsWebsite(snapshot.Url);
+    }
+
+    private static bool IsWebsite(string? url)
+    {
+        return url is not null
+            && (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
     }
 
     private Rule? FindMostSpecificMatch(IEnumerable<Rule> rules, ActivitySnapshot snapshot)

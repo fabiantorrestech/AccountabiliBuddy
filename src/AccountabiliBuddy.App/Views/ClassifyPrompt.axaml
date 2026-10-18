@@ -23,12 +23,28 @@
                          GroupName="scope" />
             <TextBlock Text="{Binding PatternLabel}" FontSize="12" Opacity="0.75" />
             <TextBox Text="{Binding Pattern}" />
-            <TextBlock Text="{Binding Error}" Foreground="#E76F51"
+            <TextBox Text="{Binding Reason}" PlaceholderText="Why? Needed to allow it (one word is enough)" />
+            <TextBlock Text="{Binding Error}" Foreground="#E76F51" TextWrapping="Wrap"
                        IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
             <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                <Button Content="Not now" Command="{Binding NotNowCommand}" />
                 <Button Content="Distracting" Command="{Binding MarkDistractingCommand}" />
-                <Button Content="On track" Command="{Binding MarkOnTrackCommand}" Classes="accent" />
+                <Button Content="On track (this session)" Command="{Binding MarkOnTrackCommand}" Classes="accent" />
+            </StackPanel>
+
+            <Button Content="Add exemption to profile…" Command="{Binding ToggleExemptionCommand}"
+                    Background="Transparent" BorderThickness="0" Padding="0" FontSize="12" Opacity="0.7"
+                    HorizontalAlignment="Left" />
+            <StackPanel Spacing="4" IsVisible="{Binding IsExemptionOpen}">
+                <TextBlock Text="{Binding ExemptionProfileText}" FontSize="12" TextWrapping="Wrap"
+                           IsVisible="{Binding HasOtherProfiles}" />
+                <ItemsControl ItemsSource="{Binding OtherProfiles}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ProfileChoiceViewModel">
+                            <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Button Content="Add exemption" Command="{Binding AddExemptionCommand}" HorizontalAlignment="Right" />
             </StackPanel>
         </StackPanel>
     </Grid>

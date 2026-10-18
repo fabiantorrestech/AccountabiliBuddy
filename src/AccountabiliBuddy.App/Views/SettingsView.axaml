@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:controls="using:AccountabiliBuddy.App.Controls"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
     <ScrollViewer>
@@ -9,6 +10,7 @@
             <Border IsVisible="{Binding IsLocked}" Background="#33F59E0B" Padding="12,8" CornerRadius="6">
                 <TextBlock Text="Settings are locked while a focus session is running." />
             </Border>
+            <views:PendingChangesBanner DataContext="{Binding PendingChanges}" />
 
             <StackPanel Spacing="6">
                 <TextBlock Text="Quick session shortcut" FontSize="16" FontWeight="SemiBold" />
@@ -62,6 +64,16 @@
                 <CheckBox IsChecked="{Binding RelockAtMidnight}" Content="Relock at midnight" />
                 <TextBlock Opacity="0.75" TextWrapping="Wrap"
                            Text="When on, an unlock lifts the blocks only until the next midnight unless you pick another time when unlocking. Unlock options are set per profile." />
+            </StackPanel>
+
+            <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
+                <TextBlock Text="Looser changes" FontSize="16" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="240,120">
+                    <TextBlock Text="Wait before they apply (minutes)" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding LooseningDelayMinutes}" />
+                </Grid>
+                <TextBlock Opacity="0.75" TextWrapping="Wrap"
+                           Text="Deleting a scheduled block, removing a block rule, adding an allow rule, an off day or an unlock option, or lowering any wait counts down this long first, and never takes effect during a session. Stricter changes apply at once. Shortening this wait counts down too." />
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Spacing="8">

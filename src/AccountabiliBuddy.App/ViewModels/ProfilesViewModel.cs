@@ -9,7 +9,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// Profiles tab. Edits are kept in memory until Save, so a half-written rule never takes effect.
-/// Editing is locked during a focus phase so rules cannot be loosened mid-session.
+/// Saving applies stricter changes at once; looser ones count down first and the tab shows them as saved
+/// (see <see cref="PendingChangesViewModel"/>). Editing is locked during a focus phase.
 /// </summary>
 public sealed partial class ProfilesViewModel : ObservableObject
 {
@@ -19,17 +20,25 @@ public sealed partial class ProfilesViewModel : ObservableObject
     // Every rule id this tab already has an editor for, so rules added elsewhere can be told apart.
     private readonly HashSet<Guid> _knownRuleIds = new();
 
-    public ProfilesViewModel(ConfigurationService configuration, SessionController sessions)
+    public ProfilesViewModel(ConfigurationService configuration, SessionController sessions, PendingChangesViewModel pendingChanges)
     {
         _configuration = configuration;
         _sessions = sessions;
+        PendingChanges = pendingChanges;
 
         _sessions.StateChanged += (_, _) => IsLocked = _sessions.IsEnforcing;
         IsLocked = _sessions.IsEnforcing;
         _configuration.Changed += OnConfigurationChanged;
+        _configuration.PendingCancelled += (_, _) =>
+        {
+            LoadFromConfiguration();
+            StatusMessage = "Looser changes cancelled.";
+        };
 
         LoadFromConfiguration();
     }
+
+    public PendingChangesViewModel PendingChanges { get; }
 
     public ObservableCollection<ProfileEditorViewModel> Profiles { get; } = new();
 
@@ -69,7 +78,7 @@ public sealed partial class ProfilesViewModel : ObservableObject
     {
         ProfileEditorViewModel profile = SelectedProfile!;
 
-        int scheduledBlocks = _configuration.Current.Schedule.Blocks.Count(block => block.ProfileId == profile.Id);
+        int scheduledBlocks = _configuration.Editing.Schedule.Blocks.Count(block => block.ProfileId == profile.Id);
         if (scheduledBlocks > 0)
         {
             StatusMessage = $"'{profile.Name}' is used by {scheduledBlocks} schedule block(s). Remove those first.";
@@ -104,8 +113,10 @@ public sealed partial class ProfilesViewModel : ObservableObject
         }
 
         _knownRuleIds.UnionWith(built.SelectMany(profile => profile.Rules).Select(rule => rule.Id));
-        await _configuration.UpdateAsync(document => document with { Profiles = built });
-        StatusMessage = _configuration.IsReadOnly ? "Not saved: settings are read-only (see banner)." : "Saved.";
+        PendingChanges? waiting = await _configuration.UpdateAsync(document => document with { Profiles = built });
+        StatusMessage = _configuration.IsReadOnly
+            ? "Not saved: settings are read-only (see banner)."
+            : waiting is null ? "Saved." : "Saved. Looser changes wait for the countdown above.";
     }
 
     [RelayCommand(CanExecute = nameof(CanEdit))]
@@ -128,7 +139,7 @@ public sealed partial class ProfilesViewModel : ObservableObject
 
         Profiles.Clear();
         _knownRuleIds.Clear();
-        foreach (FocusProfile profile in _configuration.Current.Profiles)
+        foreach (FocusProfile profile in _configuration.Editing.Profiles)
         {
             Profiles.Add(ProfileEditorViewModel.FromProfile(profile));
             _knownRuleIds.UnionWith(profile.Rules.Select(rule => rule.Id));
@@ -141,10 +152,10 @@ public sealed partial class ProfilesViewModel : ObservableObject
     /// Rules can be added outside this tab (the classify prompt, the Integrations tab). Merge those in
     /// without discarding edits that have not been saved yet.
     /// </summary>
-    private void OnConfigurationChanged(object? sender, ProfileDocument document)
+    private void OnConfigurationChanged(object? sender, ProfileDocument current)
     {
         int added = 0;
-        foreach (FocusProfile profile in document.Profiles)
+        foreach (FocusProfile profile in _configuration.Editing.Profiles)
         {
             ProfileEditorViewModel? editor = Profiles.FirstOrDefault(candidate => candidate.Id == profile.Id);
             foreach (Rule rule in profile.Rules.Where(rule => _knownRuleIds.Add(rule.Id)))

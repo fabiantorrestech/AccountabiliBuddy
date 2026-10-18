@@ -10,28 +10,33 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// Schedule tab: the week grid plus an editor for the selected block, and planned off days.
-/// Changes save immediately. The grid is locked during a focus phase; off days can always be added for tomorrow
-/// or later (planning ahead doesn't loosen today) and removed (that only tightens). For today, use Unlock.
+/// Changes save immediately; looser ones (deleting or shortening a block, adding an off day) count down first and
+/// the grid shows them as saved (see <see cref="PendingChangesViewModel"/>). The grid is locked during a focus phase;
+/// off days can still be added (they wait for the countdown and the end of the session) and removed (that only tightens).
 /// </summary>
 public sealed partial class ScheduleViewModel : ObservableObject
 {
     private readonly ConfigurationService _configuration;
     private readonly SessionController _sessions;
 
-    public ScheduleViewModel(ConfigurationService configuration, SessionController sessions)
+    public ScheduleViewModel(ConfigurationService configuration, SessionController sessions, PendingChangesViewModel pendingChanges)
     {
         _configuration = configuration;
         _sessions = sessions;
+        PendingChanges = pendingChanges;
 
         Items = Array.Empty<ScheduleBlockItem>();
-        NewOffDay = Tomorrow;
+        NewOffDay = FirstOffDay;
 
-        _configuration.Changed += (_, document) => RefreshFromConfiguration(document);
+        _configuration.Changed += (_, _) => RefreshFromConfiguration(_configuration.Editing);
+        _configuration.PendingChanged += (_, _) => RefreshFromConfiguration(_configuration.Editing);
         _sessions.StateChanged += (_, _) => IsLocked = _sessions.IsEnforcing;
         IsLocked = _sessions.IsEnforcing;
 
-        RefreshFromConfiguration(_configuration.Current);
+        RefreshFromConfiguration(_configuration.Editing);
     }
+
+    public PendingChangesViewModel PendingChanges { get; }
 
     /// <summary>Monday-first, matching the grid.</summary>
     public static IReadOnlyList<DayOfWeek> Days { get; } = new[]
@@ -75,14 +80,14 @@ public sealed partial class ScheduleViewModel : ObservableObject
 
     public ObservableCollection<OffDayRowViewModel> OffDays { get; } = new();
 
-    /// <summary>The date picked for a new off day; tomorrow at the earliest.</summary>
+    /// <summary>The date picked for a new off day; today at the earliest.</summary>
     [ObservableProperty]
     public partial DateTime? NewOffDay { get; set; }
 
     [ObservableProperty]
     public partial string? OffDayMessage { get; set; }
 
-    public DateTime Tomorrow => Today.AddDays(1);
+    public DateTime FirstOffDay => Today;
 
     private DateTime Today => TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).Date;
 
@@ -106,9 +111,9 @@ public sealed partial class ScheduleViewModel : ObservableObject
         }
 
         var block = new ScheduleBlock(Guid.NewGuid(), slot.Day, slot.Start, slot.End, PaintProfile.Id);
-        await ReplaceBlocksAsync(blocks => blocks.Append(block));
+        PendingChanges? waiting = await ReplaceBlocksAsync(blocks => blocks.Append(block));
         SelectedBlockId = block.Id;
-        StatusMessage = "Block added.";
+        StatusMessage = Describe("Block added.", waiting);
     }
 
     [RelayCommand(CanExecute = nameof(CanEditSelection))]
@@ -128,8 +133,8 @@ public sealed partial class ScheduleViewModel : ObservableObject
 
         Guid id = SelectedBlockId!.Value;
         var updated = new ScheduleBlock(id, EditDay, TimeOnly.FromTimeSpan(start), TimeOnly.FromTimeSpan(end), EditProfile.Id);
-        await ReplaceBlocksAsync(blocks => blocks.Select(block => block.Id == id ? updated : block));
-        StatusMessage = "Block updated.";
+        PendingChanges? waiting = await ReplaceBlocksAsync(blocks => blocks.Select(block => block.Id == id ? updated : block));
+        StatusMessage = Describe("Block updated.", waiting);
     }
 
     [RelayCommand(CanExecute = nameof(CanEditSelection))]
@@ -137,8 +142,8 @@ public sealed partial class ScheduleViewModel : ObservableObject
     {
         Guid id = SelectedBlockId!.Value;
         SelectedBlockId = null;
-        await ReplaceBlocksAsync(blocks => blocks.Where(block => block.Id != id));
-        StatusMessage = "Block deleted.";
+        PendingChanges? waiting = await ReplaceBlocksAsync(blocks => blocks.Where(block => block.Id != id));
+        StatusMessage = Describe("Block deleted.", waiting);
     }
 
     [RelayCommand]
@@ -150,33 +155,33 @@ public sealed partial class ScheduleViewModel : ObservableObject
             return;
         }
 
-        if (picked.Date < Tomorrow)
+        if (picked.Date < Today)
         {
-            OffDayMessage = "Off days start tomorrow at the earliest. For today, use Unlock on the Session tab.";
+            OffDayMessage = "That day is already over.";
             return;
         }
 
         DateOnly date = DateOnly.FromDateTime(picked);
-        if (_configuration.Current.Schedule.OffDays.Contains(date))
+        if (_configuration.Editing.Schedule.OffDays.Contains(date))
         {
             OffDayMessage = "That day is already an off day.";
             return;
         }
 
-        await ReplaceOffDaysAsync(days => days.Append(date));
-        OffDayMessage = $"No scheduled blocks on {date:dddd d MMMM}.";
+        PendingChanges? waiting = await ReplaceOffDaysAsync(days => days.Append(date));
+        OffDayMessage = Describe($"No scheduled blocks on {date:dddd d MMMM}.", waiting);
     }
 
     [RelayCommand]
     private async Task RemoveOffDayAsync(OffDayRowViewModel row)
     {
-        await ReplaceOffDaysAsync(days => days.Where(day => day != row.Date));
-        OffDayMessage = $"{row.Date:dddd d MMMM} is a normal day again.";
+        PendingChanges? waiting = await ReplaceOffDaysAsync(days => days.Where(day => day != row.Date));
+        OffDayMessage = Describe($"{row.Date:dddd d MMMM} is a normal day again.", waiting);
     }
 
     partial void OnSelectedBlockIdChanged(Guid? value)
     {
-        ScheduleBlock? block = _configuration.Current.Schedule.Blocks.FirstOrDefault(candidate => candidate.Id == value);
+        ScheduleBlock? block = _configuration.Editing.Schedule.Blocks.FirstOrDefault(candidate => candidate.Id == value);
         HasSelection = block is not null;
         if (block is null)
         {
@@ -189,13 +194,19 @@ public sealed partial class ScheduleViewModel : ObservableObject
         EditProfile = Profiles.FirstOrDefault(option => option.Id == block.ProfileId);
     }
 
-    private Task ReplaceBlocksAsync(Func<IEnumerable<ScheduleBlock>, IEnumerable<ScheduleBlock>> change)
+    /// <summary>What a save did, mentioning the countdown when something is still waiting.</summary>
+    private static string Describe(string done, PendingChanges? waiting)
+    {
+        return waiting is null ? done : $"{done} Looser changes wait for the countdown above.";
+    }
+
+    private Task<PendingChanges?> ReplaceBlocksAsync(Func<IEnumerable<ScheduleBlock>, IEnumerable<ScheduleBlock>> change)
     {
         return _configuration.UpdateAsync(document =>
             document with { Schedule = document.Schedule with { Blocks = change(document.Schedule.Blocks).ToList() } });
     }
 
-    private Task ReplaceOffDaysAsync(Func<IEnumerable<DateOnly>, IEnumerable<DateOnly>> change)
+    private Task<PendingChanges?> ReplaceOffDaysAsync(Func<IEnumerable<DateOnly>, IEnumerable<DateOnly>> change)
     {
         // Past off days are dropped whenever the list changes.
         DateOnly today = DateOnly.FromDateTime(Today);

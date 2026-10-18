@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -6,9 +7,16 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// "Is this on track?" prompt for activity no rule covers. The answer becomes a rule in the session's profile.
-/// Browser tabs default to the site (domain); other apps default to the whole app. The user can narrow it to
-/// the window title, or to the channel on YouTube, and edit the text before answering.
+/// "Is this on track?" prompt for activity no rule covers, shown during focus until it is answered (there is no
+/// "not now"; unanswered activity escalates). Browser tabs default to the site (domain); other apps default to the
+/// whole app. The user can narrow it to the window title, or to the channel on YouTube, and edit the text.
+/// <list type="bullet">
+/// <item>On track: allowed for this session only, and needs a reason (at least one word).</item>
+/// <item>Add exemption (the quieter option): a permanent Allow rule in the session's profile and any others ticked,
+/// right away; needs a reason too.</item>
+/// <item>Distracting: a Block rule in the session's profile; the reason is optional.</item>
+/// </list>
+/// Reasons are logged with the answer (encrypted) so patterns can be spotted later.
 /// </summary>
 public sealed partial class ClassifyPromptViewModel : ObservableObject
 {
@@ -18,10 +26,15 @@ public sealed partial class ClassifyPromptViewModel : ObservableObject
     private readonly string _windowTitle;
     private readonly string? _site;
     private readonly string? _channel;
+    private readonly ActivitySnapshot _snapshot;
 
-    public ClassifyPromptViewModel(string profileName, ActivitySnapshot snapshot)
+    /// <param name="otherProfiles">Profiles besides the session's that an exemption can also be added to.</param>
+    public ClassifyPromptViewModel(string profileName, ActivitySnapshot snapshot, IReadOnlyList<ProfileOption> otherProfiles)
     {
         ProfileName = profileName;
+        _snapshot = snapshot;
+        OtherProfiles = otherProfiles.Select(profile => new ProfileChoiceViewModel(profile)).ToList();
+        Reason = string.Empty;
         _processName = snapshot.ProcessName;
         _windowTitle = snapshot.WindowTitle;
         _site = snapshot.Url is null ? null : UrlNormalizer.GetHost(snapshot.Url);
@@ -93,11 +106,22 @@ public sealed partial class ClassifyPromptViewModel : ObservableObject
     [ObservableProperty]
     public partial string? Error { get; set; }
 
-    /// <summary>Raised with the new rule when the user answers.</summary>
-    public event EventHandler<Rule>? Answered;
+    /// <summary>Why; required to allow anything.</summary>
+    [ObservableProperty]
+    public partial string Reason { get; set; }
 
-    /// <summary>Raised when the user picks "Not now".</summary>
-    public event EventHandler? Deferred;
+    /// <summary>True while the "add exemption" panel is open.</summary>
+    [ObservableProperty]
+    public partial bool IsExemptionOpen { get; set; }
+
+    public string ExemptionProfileText => $"Always allowed in {ProfileName}, and also in:";
+
+    public IReadOnlyList<ProfileChoiceViewModel> OtherProfiles { get; }
+
+    public bool HasOtherProfiles => OtherProfiles.Count > 0;
+
+    /// <summary>Raised when the user answers.</summary>
+    public event EventHandler<ClassifyAnswer>? Answered;
 
     partial void OnScopeChanged(ClassifyScope value)
     {
@@ -105,22 +129,34 @@ public sealed partial class ClassifyPromptViewModel : ObservableObject
         Error = null;
     }
 
+    partial void OnReasonChanged(string value)
+    {
+        Error = null;
+    }
+
     [RelayCommand]
     private void MarkOnTrack()
     {
-        Answer(RuleVerdict.Allow);
+        Answer(RuleVerdict.Allow, LabelLifetime.Session, Array.Empty<Guid>());
     }
 
     [RelayCommand]
     private void MarkDistracting()
     {
-        Answer(RuleVerdict.Block);
+        Answer(RuleVerdict.Block, LabelLifetime.Permanent, Array.Empty<Guid>());
     }
 
     [RelayCommand]
-    private void NotNow()
+    private void ToggleExemption()
     {
-        Deferred?.Invoke(this, EventArgs.Empty);
+        IsExemptionOpen = !IsExemptionOpen;
+    }
+
+    [RelayCommand]
+    private void AddExemption()
+    {
+        IReadOnlyList<Guid> others = OtherProfiles.Where(profile => profile.IsSelected).Select(profile => profile.Id).ToList();
+        Answer(RuleVerdict.Allow, LabelLifetime.Permanent, others);
     }
 
     private void SelectScope(ClassifyScope scope, bool selected)
@@ -142,12 +178,19 @@ public sealed partial class ClassifyPromptViewModel : ObservableObject
         };
     }
 
-    private void Answer(RuleVerdict verdict)
+    private void Answer(RuleVerdict verdict, LabelLifetime lifetime, IReadOnlyList<Guid> otherProfileIds)
     {
         string pattern = Pattern.Trim();
         if (pattern.Length == 0)
         {
             Error = "Enter what to match first.";
+            return;
+        }
+
+        string reason = Reason.Trim();
+        if (verdict == RuleVerdict.Allow && !reason.Any(char.IsLetterOrDigit))
+        {
+            Error = "Write why first (one word is enough).";
             return;
         }
 
@@ -159,6 +202,7 @@ public sealed partial class ClassifyPromptViewModel : ObservableObject
             _ => (MatchTarget.ProcessName, MatchKind.Exact),
         };
 
-        Answered?.Invoke(this, new Rule(Guid.NewGuid(), target, kind, pattern, verdict, RuleNote));
+        var rule = new Rule(Guid.NewGuid(), target, kind, pattern, verdict, RuleNote);
+        Answered?.Invoke(this, new ClassifyAnswer(rule, _snapshot, lifetime, reason.Length == 0 ? null : reason, otherProfileIds));
     }
 }

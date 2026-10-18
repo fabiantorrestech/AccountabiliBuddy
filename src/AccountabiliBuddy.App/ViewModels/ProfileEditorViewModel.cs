@@ -16,6 +16,7 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
         Id = profile.Id;
         Name = profile.Name;
         GraceSeconds = ((int)profile.UnknownGracePeriod.TotalSeconds).ToString();
+        AskAboutUnlistedSites = profile.AskAboutUnlistedSites;
 
         foreach (Rule rule in profile.Rules)
         {
@@ -36,6 +37,10 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
     /// <summary>How long unknown activity is tolerated before asking "is this distracting?".</summary>
     [ObservableProperty]
     public partial string GraceSeconds { get; set; }
+
+    /// <summary>A website no rule names counts as unknown even when the browser app is allowed.</summary>
+    [ObservableProperty]
+    public partial bool AskAboutUnlistedSites { get; set; }
 
     public ObservableCollection<RuleEditorViewModel> Rules { get; } = new();
 
@@ -122,6 +127,7 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
             TimeSpan.FromSeconds(graceSeconds))
         {
             UnlockOptions = UnlockOptions.Select(option => option.ToOption()).ToList(),
+            AskAboutUnlistedSites = AskAboutUnlistedSites,
         };
         error = null;
         return true;

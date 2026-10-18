@@ -5,7 +5,8 @@ namespace AccountabiliBuddy.Core.Engine;
 /// <summary>
 /// Tracks, per monitor, how long the current classification has lasted and turns that
 /// into an escalation level. Switching between two distracting windows does not reset
-/// the timer; only a change of classification does.
+/// the timer; only a change of classification does. Unknown activity escalates too once it outlasts the grace
+/// period, timed from the end of the grace period.
 /// Not thread-safe: call from a single thread.
 /// </summary>
 public sealed class DriftTracker
@@ -33,12 +34,15 @@ public sealed class DriftTracker
 
         TimeSpan duration = snapshot.Timestamp - drift!.Since;
 
-        EscalationLevel level = result.Classification == Classification.Distracting
-            ? _policy.Decide(duration)
-            : EscalationLevel.None;
-
         bool needsClassification = result.Classification == Classification.Unknown
             && duration >= unknownGracePeriod;
+
+        EscalationLevel level = result.Classification switch
+        {
+            Classification.Distracting => _policy.Decide(duration),
+            Classification.Unknown when needsClassification => _policy.Decide(duration - unknownGracePeriod),
+            _ => EscalationLevel.None,
+        };
 
         return new DriftAssessment(
             snapshot.MonitorId,

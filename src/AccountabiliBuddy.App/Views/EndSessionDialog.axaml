@@ -9,6 +9,7 @@
         WindowStartupLocation="CenterOwner" Topmost="True">
     <StackPanel Margin="20" Spacing="12">
         <TextBlock Text="End focus session early?" FontSize="18" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding Note}" IsVisible="{Binding HasNote}" TextWrapping="Wrap" Opacity="0.85" />
         <TextBlock Text="{Binding ReasonHint}" TextWrapping="Wrap" />
         <TextBox Text="{Binding Reason}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" />
         <TextBlock Text="{Binding StatusText}" Opacity="0.85" TextWrapping="Wrap" />

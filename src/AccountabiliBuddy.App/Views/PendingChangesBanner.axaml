@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.PendingChangesBanner"
+             x:DataType="vm:PendingChangesViewModel">
+    <Border IsVisible="{Binding HasPending}" Background="#332A9D8F" Padding="12,8" CornerRadius="6">
+        <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="4">
+                <TextBlock Text="{Binding Headline}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding Changes}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                            <TextBlock Text="{Binding StringFormat='• {0}'}" TextWrapping="Wrap" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Opacity="0.75" TextWrapping="Wrap"
+                           Text="Stricter changes already apply. The editors below show your saved changes; until then the old values are enforced." />
+            </StackPanel>
+            <Button Grid.Column="1" Content="Cancel looser changes" Command="{Binding CancelCommand}"
+                    VerticalAlignment="Top" Margin="12,0,0,0" />
+        </Grid>
+    </Border>
+</UserControl>

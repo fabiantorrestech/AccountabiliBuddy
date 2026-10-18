@@ -18,9 +18,11 @@ public sealed partial class EndSessionDialogViewModel : ObservableObject, IDispo
     private readonly DateTimeOffset _requestedAt;
     private readonly DispatcherTimer _timer;
 
-    public EndSessionDialogViewModel(BypassSettings settings, TimeProvider timeProvider)
+    /// <param name="note">Shown above the reason when the wait is longer than usual; null for none.</param>
+    public EndSessionDialogViewModel(BypassSettings settings, TimeProvider timeProvider, string? note = null)
     {
         _settings = settings;
+        Note = note;
         _policy = new BypassPolicy(settings);
         _timeProvider = timeProvider;
         _requestedAt = timeProvider.GetUtcNow();
@@ -46,6 +48,10 @@ public sealed partial class EndSessionDialogViewModel : ObservableObject, IDispo
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ConfirmCommand))]
     public partial bool CanConfirm { get; set; }
+
+    public string? Note { get; }
+
+    public bool HasNote => Note is not null;
 
     public string ReasonHint => $"Why are you ending this focus session early? (at least {_settings.MinReasonLength} characters)";
 
@@ -79,11 +85,17 @@ public sealed partial class EndSessionDialogViewModel : ObservableObject, IDispo
 
         StatusText = result switch
         {
-            BypassCheckResult.WaitNotElapsed => $"Take a breath. You can end the session in {Math.Ceiling(remaining.TotalSeconds):0} s.",
+            BypassCheckResult.WaitNotElapsed => $"Take a breath. You can end the session in {FormatRemaining(remaining)}.",
             BypassCheckResult.ReasonTooShort => $"Write at least {_settings.MinReasonLength} characters about why.",
             _ => "You can end the session now.",
         };
 
         CanConfirm = result == BypassCheckResult.Allowed;
+    }
+
+    private static string FormatRemaining(TimeSpan remaining)
+    {
+        int seconds = (int)Math.Ceiling(remaining.TotalSeconds);
+        return seconds < 60 ? $"{seconds} s" : $"{seconds / 60}:{seconds % 60:00}";
     }
 }

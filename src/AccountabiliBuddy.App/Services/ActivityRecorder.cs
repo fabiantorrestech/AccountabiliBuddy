@@ -102,13 +102,14 @@ public sealed class ActivityRecorder : IDisposable
     }
 
     /// <summary>The user answered the classify prompt: keep the answer as a label for future suggestions.</summary>
-    public void RecordClassification(Rule rule, ActivitySnapshot snapshot, Guid profileId)
+    public void RecordClassification(ClassifyAnswer answer, Guid profileId)
     {
         if (!IsEnabled)
         {
             return;
         }
 
+        ActivitySnapshot snapshot = answer.Snapshot;
         var label = new ActivityLabel(
             _timeProvider.GetUtcNow(),
             profileId,
@@ -116,8 +117,10 @@ public sealed class ActivityRecorder : IDisposable
             snapshot.WindowTitle,
             snapshot.Url,
             snapshot.OcrText,
-            rule.Verdict,
-            LabelSource.ClassifyPrompt);
+            answer.Rule.Verdict,
+            LabelSource.ClassifyPrompt,
+            answer.Lifetime,
+            answer.Reason);
         Enqueue(() => _log.RecordLabelAsync(label));
     }
 

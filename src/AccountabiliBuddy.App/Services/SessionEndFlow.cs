@@ -32,7 +32,10 @@ public sealed class SessionEndFlow
             return true;
         }
 
-        using var viewModel = new EndSessionDialogViewModel(_sessions.BypassSettings, _sessions.TimeProvider);
+        string? note = _sessions.EndEarlyWaitMatchesUnlock
+            ? "This is a scheduled block, so the wait matches the profile's shortest unlock option: ending the block isn't quicker than unlocking."
+            : null;
+        using var viewModel = new EndSessionDialogViewModel(_sessions.BypassSettings, _sessions.TimeProvider, note);
         var dialog = new EndSessionDialog { DataContext = viewModel };
 
         bool confirmed = owner is { IsVisible: true }

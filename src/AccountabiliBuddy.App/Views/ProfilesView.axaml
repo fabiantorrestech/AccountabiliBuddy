@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.ProfilesView"
              x:DataType="vm:ProfilesViewModel">
     <DockPanel Margin="12">
@@ -8,6 +9,7 @@
                 Padding="12,8" Margin="0,0,0,12" CornerRadius="6">
             <TextBlock Text="Profiles are locked while a focus session is running." />
         </Border>
+        <views:PendingChangesBanner DockPanel.Dock="Top" DataContext="{Binding PendingChanges}" Margin="0,0,0,12" />
 
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
             <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" />
@@ -47,12 +49,17 @@
                                     </StackPanel>
                                 </StackPanel>
 
+                                <CheckBox IsChecked="{Binding AskAboutUnlistedSites}">
+                                    <TextBlock TextWrapping="Wrap"
+                                               Text="Ask about websites with no rule, even when the browser app is allowed (otherwise allowing a browser allows every site you haven't blocked)" />
+                                </CheckBox>
+
                                 <TextBlock TextWrapping="Wrap" Opacity="0.75"
                                            Text="Rules: when several match, Channel beats Url beats WindowTitle beats ProcessName, a longer pattern beats a shorter one, and Block wins a tie. OcrText rules are only checked when nothing else matched. ProcessName is without .exe (e.g. chrome). Domain matching (Url only) includes subdomains." />
 
                                 <Grid Margin="0,4,0,0">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="124" />
+                                        <ColumnDefinition Width="140" />
                                         <ColumnDefinition Width="110" />
                                         <ColumnDefinition Width="2*" MinWidth="140" />
                                         <ColumnDefinition Width="96" />
@@ -71,7 +78,7 @@
                                         <DataTemplate x:DataType="vm:RuleEditorViewModel">
                                             <Grid Margin="0,2">
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="124" />
+                                                    <ColumnDefinition Width="140" />
                                                     <ColumnDefinition Width="110" />
                                                     <ColumnDefinition Width="2*" MinWidth="140" />
                                                     <ColumnDefinition Width="96" />

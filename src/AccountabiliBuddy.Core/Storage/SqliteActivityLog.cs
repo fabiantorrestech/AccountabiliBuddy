@@ -9,7 +9,8 @@ namespace AccountabiliBuddy.Core.Storage;
 /// <summary>
 /// The activity log in the local database (tables created by migration v2, ADR 8).
 /// Readable columns: times, monitor, app (process name), site (domain), classification, profile, session context.
-/// Encrypted with <see cref="IDataProtector"/>: window titles, full addresses, screen text and early-end reasons.
+/// Encrypted with <see cref="IDataProtector"/>: window titles, full addresses, screen text, early-end reasons and
+/// classify-prompt reasons.
 /// Thread-safe: every call opens its own connection.
 /// </summary>
 public sealed class SqliteActivityLog : IActivityLog
@@ -58,19 +59,22 @@ public sealed class SqliteActivityLog : IActivityLog
         await using SqliteCommand command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO activity_labels
-                (created_at, profile_id, source, verdict, process_name, domain, title_protected, url_protected, ocr_protected)
+                (created_at, profile_id, source, verdict, lifetime, process_name, domain,
+                 title_protected, url_protected, ocr_protected, reason_protected)
             VALUES
-                ($at, $profile, $source, $verdict, $process, $domain, $title, $url, $ocr);
+                ($at, $profile, $source, $verdict, $lifetime, $process, $domain, $title, $url, $ocr, $reason);
             """;
         command.Parameters.AddWithValue("$at", Format(label.Timestamp));
         command.Parameters.AddWithValue("$profile", label.ProfileId.ToString());
         command.Parameters.AddWithValue("$source", label.Source.ToString());
         command.Parameters.AddWithValue("$verdict", label.Verdict.ToString());
+        command.Parameters.AddWithValue("$lifetime", label.Lifetime.ToString());
         command.Parameters.AddWithValue("$process", label.ProcessName);
         command.Parameters.AddWithValue("$domain", DbValue(DomainOf(label.Url)));
         command.Parameters.AddWithValue("$title", ProtectOrNull(label.WindowTitle));
         command.Parameters.AddWithValue("$url", ProtectOrNull(label.Url));
         command.Parameters.AddWithValue("$ocr", ProtectOrNull(label.OcrText));
+        command.Parameters.AddWithValue("$reason", ProtectOrNull(label.Reason));
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 

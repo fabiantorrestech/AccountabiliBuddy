@@ -14,6 +14,8 @@ namespace AccountabiliBuddy.Core.Engine;
 /// minimized immediately. Once a view block reached the overlay, returning to it brings the overlay back immediately.</item>
 /// <item>Recovery: the user can ask for <see cref="RecoveryWindow"/> to navigate away from a blocked view.
 /// Nothing escalates past a nudge on that monitor until it runs out.</item>
+/// <item>Unknown activity that outlasts the grace period escalates as a view block up to the overlay
+/// (<see cref="UnknownActivity"/>) while the classify prompt asks about it; there is no "not now".</item>
 /// </list>
 /// All state resets when a new focus phase begins or enforcement stops.
 /// Not thread-safe: call from a single thread.
@@ -27,7 +29,6 @@ public sealed class EnforcementEngine
     private readonly HashSet<Guid> _minimizedAppRuleIds = new();
     private readonly HashSet<Guid> _overlaidViewRuleIds = new();
     private readonly Dictionary<string, DateTimeOffset> _recoveryEndsByMonitor = new(StringComparer.Ordinal);
-    private readonly HashSet<string> _deferredSubjects = new(StringComparer.OrdinalIgnoreCase);
 
     private DriftTracker? _tracker;
     private PhaseKey? _currentPhase;
@@ -71,22 +72,10 @@ public sealed class EnforcementEngine
         }
     }
 
-    /// <summary>
-    /// What a classify question is about: the site for a browser tab, otherwise the app.
-    /// "Not now" applies to this, so deferring one site does not silence questions about every other site.
-    /// </summary>
+    /// <summary>What a classify question is about: the site for a browser tab, otherwise the app.</summary>
     public static string ClassificationSubject(ActivitySnapshot snapshot)
     {
         return (snapshot.Url is null ? null : UrlNormalizer.GetHost(snapshot.Url)) ?? snapshot.ProcessName;
-    }
-
-    /// <summary>"Not now": stop asking about this subject (see <see cref="ClassificationSubject"/>) until the next focus phase.</summary>
-    public void DeferClassification(string subject)
-    {
-        if (_currentPhase is not null)
-        {
-            _deferredSubjects.Add(subject);
-        }
     }
 
     /// <summary>Drops state for a monitor that was disconnected.</summary>
@@ -106,14 +95,16 @@ public sealed class EnforcementEngine
 
         DriftAssessment drift = tracker.Observe(snapshot, result, profile.UnknownGracePeriod);
 
-        bool needsClassification = drift.NeedsClassification
-            && !_deferredSubjects.Contains(ClassificationSubject(snapshot));
+        if (result.Classification == Classification.Unknown && drift.Level > EscalationLevel.None)
+        {
+            return EvaluateUnclassified(snapshot, drift, now);
+        }
 
         if (result.Classification != Classification.Distracting || result.MatchedRule is null)
         {
             return MonitorEnforcement.Relaxed(snapshot, result.Classification) with
             {
-                NeedsClassification = needsClassification,
+                NeedsClassification = drift.NeedsClassification,
             };
         }
 
@@ -156,6 +147,25 @@ public sealed class EnforcementEngine
             isRepeatOffense,
             isRecovering,
             NeedsClassification: false);
+    }
+
+    /// <summary>Unknown past its grace period: a nudge, then the overlay at most (see <see cref="UnknownActivity"/>).</summary>
+    private MonitorEnforcement EvaluateUnclassified(ActivitySnapshot snapshot, DriftAssessment drift, DateTimeOffset now)
+    {
+        bool isRecovering = IsRecovering(snapshot.MonitorId, now);
+        EnforcementAction action = drift.Level == EscalationLevel.Nudge || isRecovering
+            ? EnforcementAction.Nudge
+            : EnforcementAction.Overlay;
+
+        return new MonitorEnforcement(
+            snapshot,
+            Classification.Unknown,
+            action,
+            BlockScope.View,
+            UnknownActivity.Rule,
+            IsRepeatOffense: false,
+            isRecovering,
+            NeedsClassification: true);
     }
 
     private static EnforcementAction ToAction(EscalationLevel level, BlockScope scope, bool canRedirectTab)
@@ -238,7 +248,6 @@ public sealed class EnforcementEngine
         _minimizedAppRuleIds.Clear();
         _overlaidViewRuleIds.Clear();
         _recoveryEndsByMonitor.Clear();
-        _deferredSubjects.Clear();
     }
 
     /// <summary>Identifies one focus phase; a new value means a new phase started.</summary>

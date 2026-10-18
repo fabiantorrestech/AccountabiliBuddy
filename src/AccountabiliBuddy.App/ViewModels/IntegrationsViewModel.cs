@@ -125,6 +125,7 @@ public sealed partial class IntegrationsViewModel : ObservableObject
 
         int duplicates = parsed.Rules.Count - added;
         StatusMessage = $"Added {added} rule(s) to {SelectedProfile.Name}."
+            + (verdict == RuleVerdict.Allow && added > 0 ? " Allow rules are looser, so they take effect after the countdown (Profiles tab)." : string.Empty)
             + (duplicates > 0 ? $" {duplicates} were already there." : string.Empty)
             + (parsed.SkippedLines.Count > 0 ? $" Skipped {parsed.SkippedLines.Count} line(s) that weren't a site or app: {string.Join(", ", parsed.SkippedLines.Take(3))}" : string.Empty);
 

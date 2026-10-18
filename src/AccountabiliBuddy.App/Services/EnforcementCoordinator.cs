@@ -35,6 +35,10 @@ public sealed class EnforcementCoordinator : IDisposable
     private readonly ScreenTextCache _screenText = new();
     private bool _isReadingScreen;
 
+    // "On track (this session)" answers: allowed until the session ends, never saved.
+    private readonly List<Rule> _sessionRules = new();
+    private Guid? _sessionRulesProfileId;
+
     public EnforcementCoordinator(
         IActivityWatcher watcher,
         IBrowserActivitySource browsers,
@@ -67,8 +71,7 @@ public sealed class EnforcementCoordinator : IDisposable
         _privacy.Changed += OnPrivacyChanged;
 
         _presenter.RecoveryRequested += OnRecoveryRequested;
-        _presenter.RuleCreated += OnRuleCreated;
-        _presenter.ClassificationDeferred += OnClassificationDeferred;
+        _presenter.Answered += OnClassifyAnswered;
     }
 
     public void Dispose()
@@ -112,6 +115,12 @@ public sealed class EnforcementCoordinator : IDisposable
 
     private void OnSessionStateChanged(object? sender, SessionState state)
     {
+        if (!state.IsActive || state.ProfileId != _sessionRulesProfileId)
+        {
+            _sessionRules.Clear();
+            _sessionRulesProfileId = null;
+        }
+
         Reevaluate();
     }
 
@@ -142,23 +151,31 @@ public sealed class EnforcementCoordinator : IDisposable
         Reevaluate();
     }
 
-    private void OnClassificationDeferred(object? sender, string subject)
-    {
-        _engine.DeferClassification(subject);
-        Reevaluate();
-    }
-
-    private async void OnRuleCreated(object? sender, ClassifyAnswer answer)
+    private async void OnClassifyAnswered(object? sender, ClassifyAnswer answer)
     {
         if (_sessions.State.ProfileId is not Guid profileId)
         {
             return;
         }
 
-        _recorder.RecordClassification(answer.Rule, answer.Snapshot, profileId);
+        _recorder.RecordClassification(answer, profileId);
 
-        // Saving notifies Changed, which re-evaluates with the new rule.
-        await _configuration.AddRulesAsync(profileId, new[] { answer.Rule });
+        if (answer.Lifetime == LabelLifetime.Session)
+        {
+            _sessionRules.Add(answer.Rule);
+            _sessionRulesProfileId = profileId;
+            Reevaluate();
+        }
+        else if (answer.Rule.Verdict == RuleVerdict.Block)
+        {
+            // Stricter, so it takes effect at once; saving notifies Changed, which re-evaluates.
+            await _configuration.AddRulesAsync(profileId, new[] { answer.Rule });
+        }
+        else
+        {
+            // "Add exemption": the typed reason is the friction, so it skips the wait for looser changes.
+            await _configuration.AddRuleNowAsync(answer.OtherProfileIds.Prepend(profileId).ToList(), answer.Rule);
+        }
     }
 
     private void Reevaluate()
@@ -166,6 +183,11 @@ public sealed class EnforcementCoordinator : IDisposable
         SessionState state = _sessions.State;
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
         FocusProfile? profile = profiles.FirstOrDefault(candidate => candidate.Id == state.ProfileId);
+        if (profile is not null && _sessionRules.Count > 0)
+        {
+            profile = profile with { Rules = profile.Rules.Concat(_sessionRules).ToList() };
+        }
+
         DateTimeOffset now = _sessions.Now;
 
         IReadOnlyList<BrowserConnection> browsers = _browsers.Connections;
@@ -183,7 +205,11 @@ public sealed class EnforcementCoordinator : IDisposable
             now);
 
         string profileName = ProfileOptions.NameOf(profiles, state.ProfileId) ?? "this session";
-        _presenter.Apply(decisions, profileName, SessionStatusFormatter.Detail(state, now));
+        IReadOnlyList<ProfileOption> otherProfiles = profiles
+            .Where(candidate => candidate.Id != state.ProfileId)
+            .Select(ProfileOption.From)
+            .ToList();
+        _presenter.Apply(decisions, profileName, SessionStatusFormatter.Detail(state, now), otherProfiles);
         _recorder.Observe(decisions, state, now);
 
         if (readScreens)

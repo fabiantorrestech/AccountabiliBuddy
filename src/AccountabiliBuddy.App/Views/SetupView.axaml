@@ -31,7 +31,7 @@
                            TextWrapping="Wrap" />
             </Border>
             <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="Everything AccountabiliBuddy is allowed to do on this computer. Revoke anything at any time."
+                <TextBlock Text="Everything AccountabiliBuddy is allowed to do on this computer. Revoke anything outside a focus session."
                            Classes="muted" VerticalAlignment="Center" />
                 <Button Grid.Column="1" Content="Refresh" Command="{Binding RefreshAllCommand}" />
             </Grid>

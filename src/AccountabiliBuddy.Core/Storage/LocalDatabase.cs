@@ -9,7 +9,7 @@ namespace AccountabiliBuddy.Core.Storage;
 public sealed class LocalDatabase
 {
     private const string FileName = "accountabilibuddy.db";
-    private const int CurrentSchemaVersion = 2;
+    private const int CurrentSchemaVersion = 3;
 
     private readonly string _connectionString;
     private readonly SemaphoreSlim _migrationLock = new(1, 1);
@@ -115,7 +115,16 @@ public sealed class LocalDatabase
                     """, cancellationToken).ConfigureAwait(false);
             }
 
-            // Future migrations: if (version < 3) { ... }
+            if (version < 3)
+            {
+                // Classify-prompt answers keep why (encrypted) and whether they were for one session only.
+                await ExecuteAsync(connection, """
+                    ALTER TABLE activity_labels ADD COLUMN lifetime TEXT NOT NULL DEFAULT 'Permanent';
+                    ALTER TABLE activity_labels ADD COLUMN reason_protected BLOB;
+                    """, cancellationToken).ConfigureAwait(false);
+            }
+
+            // Future migrations: if (version < 4) { ... }
 
             if (version < CurrentSchemaVersion)
             {

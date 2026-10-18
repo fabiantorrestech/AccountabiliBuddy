@@ -5,11 +5,12 @@ Windows desktop focus guardian. Runs at startup, watches the visible window on e
 ## Hard rules
 - **Local only.** No network egress from the app. Activity data, OCR text and labels never leave the device (ADR 2). The browser extension talks only to the local native messaging host.
 - Core (`src/AccountabiliBuddy.Core`) has **no UI or OS dependencies**. Anything Windows-specific goes in `src/AccountabiliBuddy.Platform.Windows` behind a `Core/Ports` interface (ADR 4).
-- Profiles/rules are persisted in a versioned JSON schema so a Kotlin Android companion can read them (ADR 7). Current: v2 (unlock options, off days, lock settings); any shape change bumps it with a migration in `ProfileDocumentSerializer`.
+- Profiles/rules are persisted in a versioned JSON schema so a Kotlin Android companion can read them (ADR 7). Current: v3 (v2: unlock options, off days, lock settings; v3: looser-change delay, ask about unlisted sites); any shape change bumps it with a migration in `ProfileDocumentSerializer`.
 - Detection cascade, cheapest first: process/title/URL rules → OCR only when still unknown. Event-driven, plus a slow periodic recheck. Keep CPU and battery use low.
 - Activity history (ADR 8): only times, app (process name), site (domain), classification and session context are stored readable. Window titles, full URLs, OCR text and early-end reasons are always DPAPI-encrypted (`IDataProtector`). Kept 90 days; logging and screen reading are revocable in the Setup tab, and screen reading is off by default.
-- App-owned preferences and device-local state (quick session, privacy, integrations, watched browsers, the running-session checkpoint, the current unlock) live in the `documents` table via `SqliteJsonDocumentStore`, never in the shared profile JSON.
+- App-owned preferences and device-local state (quick session, privacy, integrations, watched browsers, the running-session checkpoint, the current unlock, pending looser changes) live in the `documents` table via `SqliteJsonDocumentStore`, never in the shared profile JSON.
 - No escape hatches during focus: Profiles, the schedule grid, Settings and every Setup Revoke/Delete are locked. The only ways out are ending early (wait + reason) or a profile's unlock option (wait + reason, then blocks lift until relock, midnight by default). A killed or crashed app resumes its session at the next launch. Windows of a watched browser that the extension can't see (private windows, profiles without the extension) count as distracting.
+- Stricter changes apply at once; looser ones (`LooseningDetector`) wait `LockSettings.LooseningDelay` (10 min default) with a countdown and Cancel, never take effect during a session, and have no "apply now". Unknown activity escalates (nudge → overlay, never further) after the grace period; the classify prompt has no "not now": "On track" lasts for the session and needs a reason, "add exemption" is permanent and needs a reason. Ending a scheduled block early waits at least the profile's shortest unlock.
 
 ## Stack
 - .NET 10 (LTS), C#, Avalonia UI (ADR 3)
@@ -35,7 +36,7 @@ dotnet run --project src/AccountabiliBuddy.App
 ```
 
 ## Roadmap
-MVP milestones M0–M7 (setup → core → watcher → app shell → enforcement → browser → OCR → logging) are done, plus the quick-session popup and the anti-escape pass (Setup lock, session resume, unseen browser windows, unlocks, off days). Device sync is planned in `doc/plans/device-sync.md` (not started). Post-MVP: V2 habit suggestions + distilled local classifier (synthetic frontier-generated data; real samples opt-in and redacted only); V3 Android companion + LAN/Bluetooth sync, Linux, tamper resistance.
+MVP milestones M0–M7 (setup → core → watcher → app shell → enforcement → browser → OCR → logging) are done, plus the quick-session popup and two anti-escape passes (Setup lock, session resume, unseen browser windows, unlocks, off days; delayed looser changes, unknown escalation, ask about unlisted sites, scheduled end-early wait). Device sync is planned in `doc/plans/device-sync.md` (not started). Post-MVP: V2 habit suggestions + distilled local classifier (synthetic frontier-generated data; real samples opt-in and redacted only); V3 Android companion + LAN/Bluetooth sync, Linux, tamper resistance.
 
 ## Conventions
 - Explicit, readable code; SOLID; one public type per file; file-scoped namespaces; nullable enabled.

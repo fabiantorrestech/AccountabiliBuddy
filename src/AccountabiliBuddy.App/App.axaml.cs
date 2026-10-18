@@ -110,7 +110,8 @@ public partial class App : Application
         // Override lets test runs use a throwaway database instead of the real one.
         string dataDirectory = Environment.GetEnvironmentVariable(DataDirectoryVariable) ?? LocalDatabase.DefaultDirectory();
         var database = new LocalDatabase(dataDirectory);
-        _configuration = new ConfigurationService(new SqliteProfileStore(database, time));
+        var documents = new SqliteJsonDocumentStore(database, time);
+        _configuration = new ConfigurationService(new SqliteProfileStore(database, time), documents, time);
         _configuration.LoadBlocking();
 
         _sessions = new SessionController(new SessionEngine(time), _configuration, time);
@@ -125,7 +126,6 @@ public partial class App : Application
             Path.Combine(AppContext.BaseDirectory, "AccountabiliBuddy.NativeHost.exe"),
             Path.Combine(AppContext.BaseDirectory, "browser-extension"),
             dataDirectory);
-        var documents = new SqliteJsonDocumentStore(database, time);
         _checkpoints = new SessionCheckpointService(_sessions, documents);
         SavedSession? savedSession = _checkpoints.LoadBlocking();
         // Loaded before the sessions start, so an unlock in effect keeps scheduled blocks from starting at launch.
@@ -170,11 +170,12 @@ public partial class App : Application
             _recorder,
             _watchedBrowsers);
 
+        var pendingChanges = new PendingChangesViewModel(_configuration, _sessions);
         var mainViewModel = new MainWindowViewModel(
             new SessionViewModel(
                 _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks)),
-            new ProfilesViewModel(_configuration, _sessions),
-            new ScheduleViewModel(_configuration, _sessions),
+            new ProfilesViewModel(_configuration, _sessions, pendingChanges),
+            new ScheduleViewModel(_configuration, _sessions, pendingChanges),
             new HistoryViewModel(activityLog, _recorder, _configuration, privacy, time),
             new SetupViewModel(
                 startupRegistrar,
@@ -185,7 +186,7 @@ public partial class App : Application
                 _sessions,
                 _watchedBrowsers),
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
-            new SettingsViewModel(_configuration, _sessions, _quickSession, database.DatabasePath),
+            new SettingsViewModel(_configuration, _sessions, _quickSession, pendingChanges, database.DatabasePath),
             activityViewModel,
             _configuration.LoadError);
 
@@ -193,6 +194,10 @@ public partial class App : Application
 
         _sessions.StateChanged += (_, _) => UpdateTray();
         _sessions.Ticked += (_, _) => UpdateTray();
+
+        // Looser changes take effect once their countdown is over and no session is running.
+        _sessions.StateChanged += (_, state) => _ = _configuration.ApplyPendingIfDueAsync(state.IsActive);
+        _sessions.Ticked += (_, _) => _ = _configuration.ApplyPendingIfDueAsync(_sessions.State.IsActive);
 
         _recorder.Start();
         SessionResume? resumed = _sessions.Start(savedSession);

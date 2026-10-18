@@ -41,21 +41,23 @@ public sealed class EnforcementPresenter
     public event EventHandler<string>? RecoveryRequested;
 
     /// <summary>Raised when the user answers the classify prompt.</summary>
-    public event EventHandler<ClassifyAnswer>? RuleCreated;
-
-    /// <summary>Raised with the question's subject (site or app) when the user picks "Not now" on the classify prompt.</summary>
-    public event EventHandler<string>? ClassificationDeferred;
+    public event EventHandler<ClassifyAnswer>? Answered;
 
     /// <param name="profileName">Name of the session's profile, shown on the overlay and prompt.</param>
     /// <param name="sessionDetail">Time left and session type, shown on the overlay.</param>
-    public void Apply(IReadOnlyList<MonitorEnforcement> decisions, string profileName, string sessionDetail)
+    /// <param name="otherProfiles">The other profiles, offered by the prompt's "add exemption".</param>
+    public void Apply(
+        IReadOnlyList<MonitorEnforcement> decisions,
+        string profileName,
+        string sessionDetail,
+        IReadOnlyList<ProfileOption> otherProfiles)
     {
         foreach (MonitorEnforcement decision in decisions)
         {
             ApplyToMonitor(decision, profileName, sessionDetail);
         }
 
-        UpdatePrompt(decisions, profileName);
+        UpdatePrompt(decisions, profileName, otherProfiles);
     }
 
     /// <summary>Closes everything shown on a monitor that was disconnected.</summary>
@@ -165,7 +167,9 @@ public sealed class EnforcementPresenter
             ? $"{target} isn't part of this session."
             : UnseenBrowserWindow.IsRule(decision.MatchedRule)
                 ? $"AccountabiliBuddy can't see this browser window (private window, or a profile without the extension): {target}"
-                : $"This view isn't part of this session: {target}";
+                : UnknownActivity.IsRule(decision.MatchedRule)
+                    ? $"Is {target} on track? Answer the question in the corner."
+                    : $"This view isn't part of this session: {target}";
 
         // Minimizing is the quick way back for a whole-app block; for a view the user navigates away themselves.
         NudgeToastViewModel viewModel = decision.Scope == BlockScope.App
@@ -237,6 +241,9 @@ public sealed class EnforcementPresenter
             MonitorPlacement.Cover(overlay, area);
             presentation.Overlay = overlay;
             overlay.Show();
+
+            // The overlay would cover the classify prompt; keep the prompt on top so it can still be answered.
+            BringPromptToFront();
         }
 
         DriftOverlayViewModel viewModel = presentation.OverlayViewModel!;
@@ -251,6 +258,11 @@ public sealed class EnforcementPresenter
         {
             viewModel.Hint = "AccountabiliBuddy can't see what this browser window shows. Allow the extension in private "
                              + "windows (Setup tab), or use a window it can see.";
+        }
+        else if (UnknownActivity.IsRule(decision.MatchedRule))
+        {
+            viewModel.Hint = "This hasn't been classified yet. Answer the question in the corner: on track (with a reason) "
+                             + "or distracting.";
         }
 
         string windowId = decision.Snapshot.WindowId;
@@ -269,7 +281,8 @@ public sealed class EnforcementPresenter
         }
     }
 
-    private void UpdatePrompt(IReadOnlyList<MonitorEnforcement> decisions, string profileName)
+    private void UpdatePrompt(
+        IReadOnlyList<MonitorEnforcement> decisions, string profileName, IReadOnlyList<ProfileOption> otherProfiles)
     {
         if (_prompt is not null)
         {
@@ -297,33 +310,38 @@ public sealed class EnforcementPresenter
         }
 
         ActivitySnapshot asked = unknown.Snapshot;
-        var viewModel = new ClassifyPromptViewModel(profileName, asked);
+        var viewModel = new ClassifyPromptViewModel(profileName, asked, otherProfiles);
         string subject = viewModel.Subject;
-        viewModel.Answered += (_, rule) =>
+        viewModel.Answered += (_, answer) =>
         {
             ClosePrompt();
-            RuleCreated?.Invoke(this, new ClassifyAnswer(rule, asked));
-        };
-        viewModel.Deferred += (_, _) =>
-        {
-            ClosePrompt();
-            ClassificationDeferred?.Invoke(this, subject);
+            Answered?.Invoke(this, answer);
         };
 
         var prompt = new ClassifyPrompt { DataContext = viewModel };
         MonitorPlacement.PlaceInCorner(prompt, area, MonitorPlacement.Corner.BottomRight);
         prompt.Closed += (_, _) =>
         {
-            // Closed some other way (e.g. Alt+F4): treat it like "Not now" instead of asking again next second.
+            // Closed some other way (e.g. Alt+F4): there is no "not now", so it is asked again on the next update.
             if (_prompt == prompt)
             {
-                ClosePrompt();
-                ClassificationDeferred?.Invoke(this, subject);
+                _prompt = null;
+                _promptSubject = null;
             }
         };
         _prompt = prompt;
         _promptSubject = subject;
         prompt.Show();
+    }
+
+    private void BringPromptToFront()
+    {
+        if (_prompt is { } prompt)
+        {
+            // Re-applying Topmost moves the window to the top of the topmost band.
+            prompt.Topmost = false;
+            prompt.Topmost = true;
+        }
     }
 
     private void ClosePrompt()
