@@ -15,7 +15,7 @@
             <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Margin="8,0,0,0" TextWrapping="Wrap" />
         </StackPanel>
 
-        <Grid ColumnDefinitions="240,16,*">
+        <Grid ColumnDefinitions="200,16,*">
             <DockPanel Grid.Column="0">
                 <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0">
                     <Button Content="Add profile" Command="{Binding AddProfileCommand}" HorizontalAlignment="Stretch" />
@@ -48,9 +48,17 @@
                                 </StackPanel>
 
                                 <TextBlock TextWrapping="Wrap" Opacity="0.75"
-                                           Text="Rules: when several match, Url beats WindowTitle beats ProcessName, a longer pattern beats a shorter one, and Block wins a tie. OcrText rules are only checked when nothing else matched. ProcessName is without .exe (e.g. chrome). Domain matching (Url only) includes subdomains." />
+                                           Text="Rules: when several match, Channel beats Url beats WindowTitle beats ProcessName, a longer pattern beats a shorter one, and Block wins a tie. OcrText rules are only checked when nothing else matched. ProcessName is without .exe (e.g. chrome). Domain matching (Url only) includes subdomains." />
 
-                                <Grid ColumnDefinitions="130,110,*,100,180,40" Margin="0,4,0,0">
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="124" />
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="2*" MinWidth="140" />
+                                        <ColumnDefinition Width="96" />
+                                        <ColumnDefinition Width="*" MinWidth="90" />
+                                        <ColumnDefinition Width="40" />
+                                    </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Match on" FontWeight="SemiBold" />
                                     <TextBlock Grid.Column="1" Text="How" FontWeight="SemiBold" />
                                     <TextBlock Grid.Column="2" Text="Pattern" FontWeight="SemiBold" />
@@ -61,7 +69,15 @@
                                 <ItemsControl ItemsSource="{Binding Rules}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:RuleEditorViewModel">
-                                            <Grid ColumnDefinitions="130,110,*,100,180,40" Margin="0,2">
+                                            <Grid Margin="0,2">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="124" />
+                                                    <ColumnDefinition Width="110" />
+                                                    <ColumnDefinition Width="2*" MinWidth="140" />
+                                                    <ColumnDefinition Width="96" />
+                                                    <ColumnDefinition Width="*" MinWidth="90" />
+                                                    <ColumnDefinition Width="40" />
+                                                </Grid.ColumnDefinitions>
                                                 <ComboBox Grid.Column="0" HorizontalAlignment="Stretch" Margin="0,0,4,0"
                                                           ItemsSource="{x:Static vm:RuleEditorViewModel.Targets}"
                                                           SelectedItem="{Binding Target}" />

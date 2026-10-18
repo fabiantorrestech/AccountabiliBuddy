@@ -6,7 +6,7 @@
         x:DataType="vm:MainWindowViewModel"
         Title="AccountabiliBuddy"
         Icon="/Assets/app-icon.png"
-        Width="1100" Height="760" MinWidth="760" MinHeight="520"
+        Width="1180" Height="780" MinWidth="900" MinHeight="560"
         WindowStartupLocation="CenterScreen">
     <DockPanel>
         <Border DockPanel.Dock="Top" IsVisible="{Binding HasLoadError}"
@@ -14,7 +14,27 @@
             <TextBlock Text="{Binding LoadError}" TextWrapping="Wrap" />
         </Border>
 
-        <TabControl Margin="8,4,8,8">
+        <!-- Tabs as a sidebar on the left; headers sized for a vertical list rather than the Fluent top-row default. -->
+        <TabControl TabStripPlacement="Left" Margin="0,8,8,8">
+            <TabControl.Styles>
+                <Style Selector="TabControl[TabStripPlacement=Left] /template/ ItemsPresenter#PART_ItemsPresenter">
+                    <Setter Property="Margin" Value="8,4,12,0" />
+                </Style>
+                <Style Selector="TabItem">
+                    <Setter Property="FontSize" Value="16" />
+                    <Setter Property="MinHeight" Value="40" />
+                    <Setter Property="MinWidth" Value="168" />
+                    <Setter Property="Padding" Value="16,0,24,0" />
+                    <Setter Property="CornerRadius" Value="6" />
+                </Style>
+                <Style Selector="TabItem:selected">
+                    <Setter Property="Background" Value="#1F808080" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                </Style>
+                <Style Selector="TabItem:pointerover /template/ Border#PART_LayoutRoot">
+                    <Setter Property="Background" Value="#14808080" />
+                </Style>
+            </TabControl.Styles>
             <TabItem Header="Session">
                 <views:SessionView DataContext="{Binding Session}" />
             </TabItem>
