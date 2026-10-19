@@ -66,6 +66,7 @@ public sealed class OverlaySettingsService
         {
             Opacity = Math.Clamp(changed.Opacity, OverlaySettings.MinOpacity, 1),
             Divisions = Math.Max(0, changed.Divisions),
+            QuickHideSeconds = Math.Clamp(changed.QuickHideSeconds, OverlaySettings.MinQuickHideSeconds, OverlaySettings.MaxQuickHideSeconds),
             X = Current.X,
             Y = Current.Y,
             Profiles = Current.Profiles,

@@ -8,6 +8,7 @@ using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using AccountabiliBuddy.Platform.Windows.Activity;
+using AccountabiliBuddy.Platform.Windows.Audio;
 using AccountabiliBuddy.Platform.Windows.Browser;
 using AccountabiliBuddy.Platform.Windows.Display;
 using AccountabiliBuddy.Platform.Windows.Enforcement;
@@ -53,6 +54,8 @@ public partial class App : Application
     private WatchedBrowsersService? _watchedBrowsers;
     private UnlockService? _unlocks;
     private SessionOverlayService? _sessionOverlay;
+    private SessionCueService? _sessionCues;
+    private Win32SoundPlayer? _soundPlayer;
     private DayBarViewModel? _dayBar;
     private PrivateWindowAccessMonitor? _privateAccess;
     private PrivateWindowsNagWindow? _privateWindowsNag;
@@ -223,7 +226,12 @@ public partial class App : Application
         var overlaySettings = new OverlaySettingsService(documents);
         overlaySettings.LoadBlocking();
         var timelineDay = new DayBarViewModel(_configuration, _sessions, calendars, activityLog, dayBarSettings, time, ignoresShowSetting: true);
-        _sessionOverlay = new SessionOverlayService(_sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), timelineDay);
+        var soundSettings = new SessionSoundSettingsService(documents);
+        soundSettings.LoadBlocking();
+        _soundPlayer = new Win32SoundPlayer();
+        _sessionCues = new SessionCueService(_sessions, soundSettings, _soundPlayer);
+        _sessionOverlay = new SessionOverlayService(
+            _sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), timelineDay, _sessionCues);
         _dayBar = new DayBarViewModel(_configuration, _sessions, calendars, activityLog, dayBarSettings, time);
         var dataProtector = new DpapiDataProtector();
         _calendarNetwork = new CalendarNetwork();
@@ -266,7 +274,7 @@ public partial class App : Application
             setupViewModel,
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
             new SettingsViewModel(
-                _configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, dayBarSettings, overlaySettings, database.DatabasePath)
+                _configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, dayBarSettings, overlaySettings, soundSettings, _sessionCues, database.DatabasePath)
             {
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
             },
@@ -308,6 +316,7 @@ public partial class App : Application
         _browserSource.Start();
         _calendarSync.Start();
         _clockAnchors.Start();
+        _sessionCues.Start();
         _sessionOverlay.Start();
         _dayBar.Start();
         PrivateWindowAccessMonitor privateAccess = _privateAccess;
@@ -582,6 +591,7 @@ public partial class App : Application
         _activityWatcher?.Dispose();
         _checkpoints?.Dispose();
         _sessionOverlay?.Dispose();
+        _soundPlayer?.Dispose();
         _dayBar?.Dispose();
         _privateAccess?.Dispose();
         _clockAnchors?.Dispose();

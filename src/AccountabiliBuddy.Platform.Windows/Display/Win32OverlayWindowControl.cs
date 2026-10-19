@@ -36,6 +36,16 @@ public sealed class Win32OverlayWindowControl : IOverlayWindowControl
         return IsDown(VIRTUAL_KEY.VK_CONTROL) && IsDown(VIRTUAL_KEY.VK_MENU);
     }
 
+    public bool IsCursorOver(nint windowHandle)
+    {
+        if (!PInvoke.GetCursorPos(out System.Drawing.Point cursor) || !PInvoke.GetWindowRect(new HWND(windowHandle), out RECT rect))
+        {
+            return false;
+        }
+
+        return cursor.X >= rect.left && cursor.X < rect.right && cursor.Y >= rect.top && cursor.Y < rect.bottom;
+    }
+
     public unsafe bool IsFullscreenAppInFront()
     {
         HWND window = PInvoke.GetForegroundWindow();

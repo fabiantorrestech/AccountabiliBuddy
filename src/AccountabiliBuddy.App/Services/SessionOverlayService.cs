@@ -13,7 +13,8 @@ namespace AccountabiliBuddy.App.Services;
 /// tab), which resets when the session ends. The all-day timeline shows on days with focus blocks; while the timer
 /// shows it steps aside or stays above it (<see cref="OverlaySettings.TimelineInFocus"/>). With
 /// <see cref="OverlaySettings.HideInFullscreen"/> the window also steps aside while a fullscreen app is in front
-/// (checked every tick). Display only: nothing here changes what is blocked. Use from the UI thread only.
+/// (checked every tick), and the Ctrl+Alt "Hide" button hides it for a few seconds. When time is up it glows (sounds:
+/// <see cref="SessionCueService"/>). Display only: nothing here changes what is blocked. Use from the UI thread only.
 /// </summary>
 public sealed class SessionOverlayService : IDisposable
 {
@@ -26,6 +27,13 @@ public sealed class SessionOverlayService : IDisposable
     private readonly OnScreenOverlayViewModel _viewModel;
 
     private SessionOverlayWindow? _window;
+    private DateTimeOffset _hiddenUntil = DateTimeOffset.MinValue;
+
+    // After a session ran out, the window stays a few seconds (glowing) even if nothing else would show.
+    private static readonly TimeSpan DoneHold = TimeSpan.FromSeconds(4);
+    private DateTimeOffset _doneUntil = DateTimeOffset.MinValue;
+    private string? _doneText;
+    private DateTimeOffset _lastShownAt = DateTimeOffset.MinValue;
     private (int? X, int? Y) _placedAt;
     private (bool On, bool Hidden) _lastStatus;
 
@@ -34,10 +42,12 @@ public sealed class SessionOverlayService : IDisposable
         ConfigurationService configuration,
         OverlaySettingsService settings,
         IOverlayWindowControl control,
-        DayBarViewModel timelineDay)
+        DayBarViewModel timelineDay,
+        SessionCueService cues)
     {
+        cues.Cued += (_, cue) => OnCue(cue.Cue, cue.SessionEnded);
         _day = timelineDay;
-        _viewModel = new OnScreenOverlayViewModel(_timer, timelineDay);
+        _viewModel = new OnScreenOverlayViewModel(_timer, timelineDay, HideBriefly);
         _sessions = sessions;
         _configuration = configuration;
         _settings = settings;
@@ -84,6 +94,33 @@ public sealed class SessionOverlayService : IDisposable
         Update();
     }
 
+    /// <summary>The Ctrl+Alt "Hide" button: out of the way for a few seconds, then back on its own.</summary>
+    public void HideBriefly()
+    {
+        _hiddenUntil = _sessions.Now + TimeSpan.FromSeconds(_settings.Current.QuickHideSeconds);
+        Update();
+    }
+
+    /// <summary>
+    /// Time is up: the window glows. When the session ended with it and the window was showing a moment ago, it
+    /// stays a few seconds so the glow is seen. A window hidden for now (quick hide, fullscreen) stays hidden.
+    /// </summary>
+    private void OnCue(SessionCue cue, bool sessionEnded)
+    {
+        DateTimeOffset now = _sessions.Now;
+        if (sessionEnded && now - _lastShownAt <= TimeSpan.FromSeconds(2))
+        {
+            _doneUntil = now + DoneHold;
+            _doneText = cue == SessionCue.BreakEnded ? "Break over · session done" : "Session done";
+        }
+
+        Update();
+        if (_window is not null)
+        {
+            _viewModel.Glow();
+        }
+    }
+
     public void Dispose()
     {
         _day.Dispose();
@@ -113,7 +150,9 @@ public sealed class SessionOverlayService : IDisposable
         bool showsTimeline = settings.ShowTimeline && _day.HasPlannedFocus
                              && !(showsTimer && settings.TimelineInFocus == TimelineInFocus.SwapForTimer);
         bool fullscreenInFront = settings.HideInFullscreen && _control.IsFullscreenAppInFront();
-        if ((!showsTimer && !showsTimeline) || fullscreenInFront)
+        bool hiddenBriefly = _sessions.Now < _hiddenUntil;
+        string? doneText = _sessions.Now < _doneUntil ? _doneText : null;
+        if ((!showsTimer && !showsTimeline && doneText is null) || fullscreenInFront || hiddenBriefly)
         {
             _window?.Close();
             _window = null;
@@ -128,7 +167,8 @@ public sealed class SessionOverlayService : IDisposable
         }
 
         DateTime localNow = TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime;
-        _viewModel.Update(showsTimer, showsTimeline, localNow, settings);
+        _viewModel.Update(showsTimer, showsTimeline, doneText, localNow, settings);
+        _lastShownAt = _sessions.Now;
 
         if (_window is null)
         {

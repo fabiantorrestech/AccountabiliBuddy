@@ -87,3 +87,6 @@ SetWindowLong
 GetAsyncKeyState
 VIRTUAL_KEY
 GetForegroundWindow
+GetCursorPos
+// Session cues: chime when focus or a break is up
+PlaySound

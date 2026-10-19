@@ -2,7 +2,8 @@ namespace AccountabiliBuddy.Core.Ports;
 
 /// <summary>
 /// What the on-screen session timer needs from the OS: letting clicks pass through its window, noticing the keys
-/// that make it draggable while another app has the keyboard, and noticing a fullscreen app in front.
+/// that make it draggable while another app has the keyboard, noticing the mouse over it (it gets no mouse events
+/// while clicks pass through), and noticing a fullscreen app in front.
 /// </summary>
 public interface IOverlayWindowControl
 {
@@ -14,6 +15,9 @@ public interface IOverlayWindowControl
 
     /// <summary>True while Ctrl and Alt are both held down, whichever app is in front.</summary>
     bool AreDragKeysHeld();
+
+    /// <summary>True while the mouse pointer is over the window, also while clicks pass through it.</summary>
+    bool IsCursorOver(nint windowHandle);
 
     /// <summary>
     /// True when another app's window in front covers its whole screen (a fullscreen video, presentation or game).

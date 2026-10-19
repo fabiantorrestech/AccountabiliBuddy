@@ -18,6 +18,7 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="ShowTimeline">The all-day timeline shows on days with focus blocks.</param>
 /// <param name="TimelineInFocus">Whether the timeline makes room for the session timer.</param>
 /// <param name="TimelineShowsTime">The timeline shows the current time next to the next block.</param>
+/// <param name="QuickHideSeconds">How long the Ctrl+Alt "Hide" button hides the window.</param>
 public sealed record OverlaySettings(
     OverlayStyle Style,
     double Opacity,
@@ -33,9 +34,12 @@ public sealed record OverlaySettings(
     ProfileOverlay? DefaultTimer = null,
     bool ShowTimeline = true,
     TimelineInFocus TimelineInFocus = TimelineInFocus.SwapForTimer,
-    bool TimelineShowsTime = false)
+    bool TimelineShowsTime = false,
+    int QuickHideSeconds = 15)
 {
     public const double MinOpacity = 0.2;
+    public const int MinQuickHideSeconds = 3;
+    public const int MaxQuickHideSeconds = 600;
 
     public static OverlaySettings Default { get; } = new(
         OverlayStyle.BarWithEndTime, 0.85, OverlaySize.Medium, null, null, new Dictionary<Guid, ProfileOverlay>(),

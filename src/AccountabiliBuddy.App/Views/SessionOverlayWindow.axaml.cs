@@ -11,6 +11,7 @@ namespace AccountabiliBuddy.App.Views;
 /// <summary>
 /// The on-screen window with the session timer and the all-day timeline. Clicks pass through it to the app underneath; while Ctrl+Alt is held it
 /// takes the mouse, so it can be dragged, and where it is dropped is reported through <see cref="PositionChosen"/>.
+/// With the mouse over it (and Ctrl+Alt not held) it fades almost away.
 /// </summary>
 public partial class SessionOverlayWindow : Window
 {
@@ -107,6 +108,11 @@ public partial class SessionOverlayWindow : Window
     private void PollDragKeys()
     {
         bool held = _control?.AreDragKeysHeld() == true;
+        var viewModel = DataContext as OnScreenOverlayViewModel;
+        bool hovered = !held && _control is not null && TryGetPlatformHandle() is IPlatformHandle handle
+                       && _control.IsCursorOver(handle.Handle);
+        viewModel?.SetHovered(hovered);
+
         if (held == _dragKeysHeld)
         {
             return;
@@ -114,7 +120,7 @@ public partial class SessionOverlayWindow : Window
 
         _dragKeysHeld = held;
         SetClickThrough(!held);
-        (DataContext as OnScreenOverlayViewModel)?.SetDragReady(held);
+        viewModel?.SetDragReady(held);
     }
 
     private void SetClickThrough(bool clickThrough)

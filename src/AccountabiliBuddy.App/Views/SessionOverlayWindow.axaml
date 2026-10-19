@@ -14,7 +14,12 @@
         <LayoutTransformControl.LayoutTransform>
             <ScaleTransform ScaleX="{Binding Scale}" ScaleY="{Binding Scale}" />
         </LayoutTransformControl.LayoutTransform>
-        <Panel>
+        <Panel Opacity="{Binding Fade}">
+            <Panel.Transitions>
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="QuadraticEaseOut" />
+                </Transitions>
+            </Panel.Transitions>
             <Border Margin="2" CornerRadius="10" Padding="10,7" Background="#FF15191E"
                     BorderBrush="{Binding OutlineBrush}" BorderThickness="1.5" Opacity="{Binding PanelOpacity}">
                 <StackPanel Spacing="8">
@@ -45,8 +50,15 @@
                                                Foreground="White" FontSize="20" FontWeight="SemiBold" />
                                     <Panel IsVisible="{Binding ShowsBar}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}" Height="6">
                                         <Border Background="#40FFFFFF" CornerRadius="3" />
+                                        <!-- Glides over the second between updates instead of stepping. -->
                                         <Border Background="{Binding AccentBrush}" CornerRadius="3" HorizontalAlignment="Left"
-                                                Width="{Binding BarWidth}" />
+                                                Width="{Binding BarWidth}">
+                                            <Border.Transitions>
+                                                <Transitions>
+                                                    <DoubleTransition Property="Width" Duration="0:0:1" />
+                                                </Transitions>
+                                            </Border.Transitions>
+                                        </Border>
                                         <controls:TimerMarks Divisions="{Binding Divisions}" />
                                     </Panel>
                                     <TextBlock Text="{Binding EndText}" IsVisible="{Binding ShowsEndText}"
@@ -56,7 +68,13 @@
                                 <Panel IsVisible="{Binding IsRing}" Width="68" Height="68">
                                     <Ellipse Stroke="#40FFFFFF" StrokeThickness="6" Margin="3" />
                                     <Arc Stroke="{Binding AccentBrush}" StrokeThickness="6" Margin="3"
-                                         StartAngle="-90" SweepAngle="{Binding RingSweep}" StrokeLineCap="Round" />
+                                         StartAngle="-90" SweepAngle="{Binding RingSweep}" StrokeLineCap="Round">
+                                        <Arc.Transitions>
+                                            <Transitions>
+                                                <DoubleTransition Property="SweepAngle" Duration="0:0:1" />
+                                            </Transitions>
+                                        </Arc.Transitions>
+                                    </Arc>
                                     <controls:TimerMarks Divisions="{Binding Divisions}" IsRing="True" RingStroke="6" RingInset="3" />
                                     <TextBlock Text="{Binding RingText}" Foreground="White" FontSize="13" FontWeight="SemiBold"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -74,8 +92,25 @@
                         </StackPanel>
                     </Panel>
 
-                    <TextBlock Text="Drag to move" IsVisible="{Binding ShowsDetails}" Foreground="#99FFFFFF" FontSize="10" />
+                    <TextBlock Text="{Binding DoneText}" IsVisible="{Binding ShowsDone}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}"
+                               Foreground="White" FontSize="13" FontWeight="SemiBold" TextAlignment="Center" />
+
+                    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding ShowsDetails}">
+                        <TextBlock Text="Drag to move" Foreground="#99FFFFFF" FontSize="10" VerticalAlignment="Center" />
+                        <!-- Only reachable while Ctrl+Alt is held (otherwise clicks pass through the window). -->
+                        <Button Grid.Column="1" Content="{Binding HideButtonText}" Command="{Binding HideBrieflyCommand}"
+                                Padding="8,2" FontSize="11" Foreground="White" Background="#33FFFFFF" CornerRadius="5" />
+                    </Grid>
                 </StackPanel>
+            </Border>
+
+            <!-- Glows white when time is up. -->
+            <Border Margin="2" CornerRadius="10" Background="White" IsHitTestVisible="False" Opacity="{Binding GlowOpacity}">
+                <Border.Transitions>
+                    <Transitions>
+                        <DoubleTransition Property="Opacity" Duration="0:0:0.9" Easing="SineEaseInOut" />
+                    </Transitions>
+                </Border.Transitions>
             </Border>
 
             <!-- Soft brighten when a mark is passed. -->

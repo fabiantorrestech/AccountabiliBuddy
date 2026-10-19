@@ -11,7 +11,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// Settings tab: quick-session shortcut, Pomodoro defaults, escalation timings, friction, unlock relocking and how
-/// long looser changes wait, calendars (link check interval, Google client), the day bar, the on-screen timer (look, default, which profiles show it) and the on-screen timeline.
+/// long looser changes wait, calendars (link check interval, Google client), the day bar, the on-screen timer (look, default, which profiles show it), the on-screen timeline and the sounds when time is up.
 /// (Start with Windows lives in the Setup tab.)
 /// Saving is locked during a focus phase so friction cannot be turned off mid-session; looser values count down
 /// first and the tab shows them as saved (see <see cref="PendingChangesViewModel"/>).
@@ -25,6 +25,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly IDataProtector _protector;
     private readonly DayBarSettingsService _dayBar;
     private readonly OverlaySettingsService _overlays;
+    private readonly SessionSoundSettingsService _sounds;
+    private readonly SessionCueService _cues;
 
     /// <summary>Choices for the on-screen timer, in <see cref="OverlayStyle"/> order.</summary>
     public static IReadOnlyList<string> TimerStyleNames { get; } = new[]
@@ -53,8 +55,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         PendingChangesViewModel pendingChanges,
         DayBarSettingsService dayBar,
         OverlaySettingsService overlays,
+        SessionSoundSettingsService sounds,
+        SessionCueService cues,
         string databasePath)
     {
+        _sounds = sounds;
+        _cues = cues;
         _dayBar = dayBar;
         _overlays = overlays;
         _configuration = configuration;
@@ -89,7 +95,87 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         LoadFromConfiguration();
         LoadDisplaySettings();
+        LoadSoundSettings();
         RefreshTimerProfiles();
+    }
+
+    /// <summary>Set by the view: asks for a .wav file, null when cancelled.</summary>
+    public Func<Task<string?>>? PickSoundFile { get; set; }
+
+    /// <summary>Every sound that can be picked (see <see cref="SoundChoice"/>).</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<SoundChoice> SoundChoices { get; set; }
+
+    [ObservableProperty]
+    public partial SoundChoice? FocusEndSound { get; set; }
+
+    [ObservableProperty]
+    public partial SoundChoice? BreakEndSound { get; set; }
+
+    /// <summary>0–100.</summary>
+    [ObservableProperty]
+    public partial double SoundVolume { get; set; }
+
+    [ObservableProperty]
+    public partial string? SoundStatus { get; set; }
+
+    // Not locked during focus: sounds are display only, like the timer.
+    [RelayCommand]
+    private async Task ApplySoundsAsync()
+    {
+        await _sounds.SaveAsync(_sounds.Current with
+        {
+            FocusEndSound = FocusEndSound?.Id ?? SoundChoice.OffId,
+            BreakEndSound = BreakEndSound?.Id ?? SoundChoice.OffId,
+            Volume = (int)Math.Round(SoundVolume),
+        });
+        SoundStatus = "Saved.";
+    }
+
+    [RelayCommand]
+    private void TestFocusEndSound()
+    {
+        _cues.Play(FocusEndSound?.Id ?? SoundChoice.OffId, (int)Math.Round(SoundVolume));
+    }
+
+    [RelayCommand]
+    private void TestBreakEndSound()
+    {
+        _cues.Play(BreakEndSound?.Id ?? SoundChoice.OffId, (int)Math.Round(SoundVolume));
+    }
+
+    /// <summary>Adds a .wav file to the choices (one at a time; a new one replaces it) and picks it for the end of focus.</summary>
+    [RelayCommand]
+    private async Task AddSoundFileAsync()
+    {
+        string? path = PickSoundFile is null ? null : await PickSoundFile();
+        if (path is null)
+        {
+            return;
+        }
+
+        if (!path.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
+        {
+            SoundStatus = "Only .wav files can be played.";
+            return;
+        }
+
+        string? breakId = BreakEndSound?.Id;
+        await _sounds.SaveAsync(_sounds.Current with { CustomFile = path });
+        SoundChoices = SoundChoice.List(path);
+        FocusEndSound = SoundChoices.First(choice => choice.Id == SoundChoice.FilePrefix + path);
+        BreakEndSound = SoundChoices.FirstOrDefault(choice => choice.Id == breakId) ?? SoundChoices[0];
+        SoundStatus = $"Added {Path.GetFileName(path)}. Pick it for either moment, then Apply.";
+    }
+
+    [MemberNotNull(nameof(SoundChoices))]
+    private void LoadSoundSettings()
+    {
+        SessionSoundSettings sounds = _sounds.Current;
+        SoundChoices = SoundChoice.List(sounds.CustomFile);
+        FocusEndSound = SoundChoices.FirstOrDefault(choice => choice.Id == sounds.FocusEndSound) ?? SoundChoices[0];
+        BreakEndSound = SoundChoices.FirstOrDefault(choice => choice.Id == sounds.BreakEndSound) ?? SoundChoices[0];
+        SoundVolume = sounds.Volume;
     }
 
     /// <summary>Each profile's timer on/off and colour (also set in the profile's editor).</summary>
@@ -160,6 +246,10 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool TimelineShowsTime { get; set; }
+
+    /// <summary>Seconds the Ctrl+Alt "Hide" button hides the on-screen window.</summary>
+    [ObservableProperty]
+    public partial decimal? QuickHideSeconds { get; set; }
 
     public PendingChangesViewModel PendingChanges { get; }
 
@@ -341,6 +431,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             ShowTimeline = ShowTimeline,
             TimelineInFocus = TimelineStaysInFocus ? TimelineInFocus.ShowBoth : TimelineInFocus.SwapForTimer,
             TimelineShowsTime = TimelineShowsTime,
+            QuickHideSeconds = (int)(QuickHideSeconds ?? OverlaySettings.Default.QuickHideSeconds),
         });
         await _overlays.SaveProfilesAsync(profiles);
         TimerStatus = "Saved.";
@@ -409,6 +500,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         ShowTimeline = overlay.ShowTimeline;
         TimelineStaysInFocus = overlay.TimelineInFocus == TimelineInFocus.ShowBoth;
         TimelineShowsTime = overlay.TimelineShowsTime;
+        QuickHideSeconds = overlay.QuickHideSeconds;
     }
 
     [RelayCommand(CanExecute = nameof(CanEdit))]
