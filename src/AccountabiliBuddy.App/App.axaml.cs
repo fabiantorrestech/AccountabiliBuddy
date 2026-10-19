@@ -52,6 +52,8 @@ public partial class App : Application
     private ClockAnchorService? _clockAnchors;
     private WatchedBrowsersService? _watchedBrowsers;
     private UnlockService? _unlocks;
+    private PrivateWindowAccessMonitor? _privateAccess;
+    private PrivateWindowsNagWindow? _privateWindowsNag;
     private CalendarNetwork? _calendarNetwork;
     private CalendarSyncService? _calendarSync;
     private DateTimeOffset _lastWindowRefresh = DateTimeOffset.MinValue;
@@ -173,6 +175,7 @@ public partial class App : Application
         _unlocks.LoadBlocking();
         _watchedBrowsers = new WatchedBrowsersService(_browserSource, documents);
         _watchedBrowsers.LoadBlocking();
+        _privateAccess = new PrivateWindowAccessMonitor(new WindowsPrivateWindowAccessReader(), _browserSource, _watchedBrowsers, time);
         var sightings = new ColdTurkeySightingsService(_browserSource, documents, time);
         _ = sightings.LoadAsync();
 
@@ -207,7 +210,8 @@ public partial class App : Application
             ocrReader,
             privacy,
             _recorder,
-            _watchedBrowsers);
+            _watchedBrowsers,
+            _privateAccess);
 
         var pendingChanges = new PendingChangesViewModel(_configuration, _sessions);
         var calendars = new CalendarService(documents);
@@ -227,7 +231,8 @@ public partial class App : Application
             _browserSource,
             new PrivacySetupViewModel(privacy, _recorder, ocrReader.IsAvailable),
             _sessions,
-            _watchedBrowsers);
+            _watchedBrowsers,
+            _privateAccess);
         _setupAssistant = new SetupAssistantService(documents, time);
         _setupAssistant.LoadBlocking();
         var blockerLocator = new WindowsBlockerSourceLocator();
@@ -287,6 +292,9 @@ public partial class App : Application
         _browserSource.Start();
         _calendarSync.Start();
         _clockAnchors.Start();
+        PrivateWindowAccessMonitor privateAccess = _privateAccess;
+        privateAccess.NagRequested += (_, _) => ShowPrivateWindowsNag(privateAccess, browserSetup);
+        privateAccess.Start();
 
         if (extensionUpdated)
         {
@@ -397,6 +405,31 @@ public partial class App : Application
         {
             _endSessionMenuItem.IsEnabled = state.IsActive;
         }
+    }
+
+    /// <summary>Shows the "allow in private windows" reminder unless it is already open; closing it snoozes it.</summary>
+    private void ShowPrivateWindowsNag(PrivateWindowAccessMonitor monitor, IBrowserSetup browserSetup)
+    {
+        if (_privateWindowsNag is not null)
+        {
+            return;
+        }
+
+        var viewModel = new PrivateWindowsNagViewModel(monitor, browserSetup);
+        if (viewModel.Browsers.Count == 0)
+        {
+            viewModel.Dispose();
+            return;
+        }
+
+        _privateWindowsNag = new PrivateWindowsNagWindow { DataContext = viewModel };
+        _privateWindowsNag.Closed += (_, _) =>
+        {
+            viewModel.Dispose();
+            _privateWindowsNag = null;
+            monitor.Snooze();
+        };
+        _privateWindowsNag.Show();
     }
 
     /// <summary>Starts a new copy (which waits for this one to exit) and quits, e.g. to load restored settings.</summary>
@@ -530,6 +563,7 @@ public partial class App : Application
         _browserSource?.Dispose();
         _activityWatcher?.Dispose();
         _checkpoints?.Dispose();
+        _privateAccess?.Dispose();
         _clockAnchors?.Dispose();
         _unlocks?.Dispose();
         _calendarSync?.Dispose();

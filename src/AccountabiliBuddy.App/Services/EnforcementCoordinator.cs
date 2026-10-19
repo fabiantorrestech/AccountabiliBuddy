@@ -30,6 +30,7 @@ public sealed class EnforcementCoordinator : IDisposable
     private readonly PrivacySettingsService _privacy;
     private readonly ActivityRecorder _recorder;
     private readonly WatchedBrowsersService _watchedBrowsers;
+    private readonly PrivateWindowAccessMonitor _privateAccess;
 
     private readonly Dictionary<string, ActivitySnapshot> _latestByMonitor = new(StringComparer.Ordinal);
     private readonly ScreenTextCache _screenText = new();
@@ -49,7 +50,8 @@ public sealed class EnforcementCoordinator : IDisposable
         IScreenTextReader screenReader,
         PrivacySettingsService privacy,
         ActivityRecorder recorder,
-        WatchedBrowsersService watchedBrowsers)
+        WatchedBrowsersService watchedBrowsers,
+        PrivateWindowAccessMonitor privateAccess)
     {
         _watcher = watcher;
         _browsers = browsers;
@@ -61,6 +63,7 @@ public sealed class EnforcementCoordinator : IDisposable
         _privacy = privacy;
         _recorder = recorder;
         _watchedBrowsers = watchedBrowsers;
+        _privateAccess = privateAccess;
 
         _watcher.ActivityChanged += OnActivityChanged;
         _watcher.MonitorDisconnected += OnMonitorDisconnected;
@@ -193,7 +196,7 @@ public sealed class EnforcementCoordinator : IDisposable
         IReadOnlyList<BrowserConnection> browsers = _browsers.Connections;
         bool readScreens = ShouldReadScreens(state, profile);
         List<ActivitySnapshot> snapshots = _latestByMonitor.Values
-            .Select(snapshot => BrowserTabMatcher.Enrich(snapshot, browsers, _watchedBrowsers.Watched))
+            .Select(snapshot => BrowserTabMatcher.Enrich(snapshot, browsers, _watchedBrowsers.Watched, _privateAccess.Missing))
             .Select(snapshot => readScreens ? WithScreenText(snapshot) : snapshot)
             .ToList();
 

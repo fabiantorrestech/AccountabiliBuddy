@@ -165,6 +165,8 @@ public sealed class EnforcementPresenter
         string target = DescribeTarget(decision);
         string message = decision.Scope == BlockScope.App
             ? $"{target} isn't part of this session."
+            : BrowserWithoutPrivateAccess.IsRule(decision.MatchedRule)
+                ? $"{target} can't be used during focus until AccountabiliBuddy is allowed in its private windows."
             : UnseenBrowserWindow.IsRule(decision.MatchedRule)
                 ? $"AccountabiliBuddy can't see this browser window (private window, or a profile without the extension): {target}"
                 : UnknownActivity.IsRule(decision.MatchedRule)
@@ -253,6 +255,11 @@ public sealed class EnforcementPresenter
         if (decision.IsRepeatOffense)
         {
             viewModel.Hint = "You were already warned about this earlier in this focus block.";
+        }
+        else if (BrowserWithoutPrivateAccess.IsRule(decision.MatchedRule))
+        {
+            viewModel.Hint = "Allow AccountabiliBuddy in this browser's private windows (its extensions page stays usable): "
+                             + "open the extensions page, choose AccountabiliBuddy → Details, and allow it in private windows.";
         }
         else if (UnseenBrowserWindow.IsRule(decision.MatchedRule))
         {

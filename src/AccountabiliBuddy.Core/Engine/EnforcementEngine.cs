@@ -91,7 +91,7 @@ public sealed class EnforcementEngine
         // An empty desktop or a blocker's own page counts as back on track, which also resets drift on that monitor.
         ClassificationResult result = snapshot.IsEmptyDesktop || snapshot.IsBrowserExtensionPage
             ? new ClassificationResult(Classification.OnTrack, null)
-            : UnseenBrowserWindow.Apply(snapshot, _evaluator.Evaluate(profile, snapshot));
+            : BrowserWithoutPrivateAccess.Apply(snapshot, UnseenBrowserWindow.Apply(snapshot, _evaluator.Evaluate(profile, snapshot)));
 
         DriftAssessment drift = tracker.Observe(snapshot, result, profile.UnknownGracePeriod);
 

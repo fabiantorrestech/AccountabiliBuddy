@@ -28,7 +28,8 @@ public sealed partial class SetupViewModel : ObservableObject
         IBrowserActivitySource browsers,
         PrivacySetupViewModel privacy,
         SessionController sessions,
-        WatchedBrowsersService watchedBrowsers)
+        WatchedBrowsersService watchedBrowsers,
+        PrivateWindowAccessMonitor privateAccess)
     {
         Privacy = privacy;
         _startup = startup;
@@ -38,8 +39,10 @@ public sealed partial class SetupViewModel : ObservableObject
 
         foreach (BrowserKind browser in browserSetup.SupportedBrowsers)
         {
-            Browsers.Add(new BrowserSetupRowViewModel(browserSetup, browser, () => _browsers.Connections, watchedBrowsers));
+            Browsers.Add(new BrowserSetupRowViewModel(browserSetup, browser, () => _browsers.Connections, watchedBrowsers, privateAccess.StatusOf));
         }
+
+        privateAccess.Changed += (_, _) => RefreshBrowsers();
 
         watchedBrowsers.Changed += (_, _) => RefreshBrowsers();
 

@@ -59,7 +59,11 @@
                             <Grid ColumnDefinitions="*,Auto">
                                 <SelectableTextBlock Text="{Binding InstallFolder}" FontFamily="Consolas,monospace"
                                                      TextWrapping="Wrap" VerticalAlignment="Center" />
-                                <Button Grid.Column="1" Content="Open folder" Command="{Binding OpenInstallFolderCommand}" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Copy" Click="OnCopyFolderClick" ToolTip.Tip="Copy the folder path"
+                                            AutomationProperties.Name="Copy extension folder" />
+                                    <Button Content="Open folder" Command="{Binding OpenInstallFolderCommand}" />
+                                </StackPanel>
                             </Grid>
                         </StackPanel>
                     </StackPanel>

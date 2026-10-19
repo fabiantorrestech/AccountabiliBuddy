@@ -19,16 +19,20 @@ public sealed partial class BrowserSetupRowViewModel : ObservableObject
     private readonly IBrowserSetup _setup;
     private readonly Func<IReadOnlyList<BrowserConnection>> _currentConnections;
     private readonly WatchedBrowsersService _watched;
+    private readonly Func<BrowserKind, PrivateWindowAccess> _privateAccess;
 
+    /// <param name="privateAccess">Private-window access read from the browser's settings, for when it isn't running.</param>
     public BrowserSetupRowViewModel(
         IBrowserSetup setup,
         BrowserKind browser,
         Func<IReadOnlyList<BrowserConnection>> currentConnections,
-        WatchedBrowsersService watched)
+        WatchedBrowsersService watched,
+        Func<BrowserKind, PrivateWindowAccess> privateAccess)
     {
         _setup = setup;
         _currentConnections = currentConnections;
         _watched = watched;
+        _privateAccess = privateAccess;
         Browser = browser;
         DisplayName = browser.ToString();
         StatusText = ConnectionText = string.Empty;
@@ -115,26 +119,23 @@ public sealed partial class BrowserSetupRowViewModel : ObservableObject
             ? " During focus, windows of this browser that the extension can't see count as distracting."
             : string.Empty;
 
-        IsPrivateWindowsWarning = connection?.PrivateWindowsAllowed == false;
-        PrivateWindowsText = connection?.PrivateWindowsAllowed switch
+        // While the browser runs the extension reports it; otherwise the browser's settings are read.
+        bool? allowed = connection?.PrivateWindowsAllowed ?? _privateAccess(Browser) switch
+        {
+            PrivateWindowAccess.Allowed => true,
+            PrivateWindowAccess.NotAllowed => false,
+            _ => null,
+        };
+        string blockNote = watched ? " Until it's allowed, this browser counts as distracting during focus." : string.Empty;
+
+        IsPrivateWindowsWarning = allowed == false;
+        PrivateWindowsText = allowed switch
         {
             true => "Allowed in private windows, so your rules apply there too." + watchNote,
-            false => $"Not allowed in private windows.{watchNote} To allow it: {PrivateWindowSteps()}.",
+            false => $"Not allowed in private windows.{blockNote} To allow it: {PrivateWindowSteps.For(Browser)}.",
             null when connection is not null => "Private windows: unknown. Update the extension (Install extension… again)." + watchNote,
             _ when watched => "Watched (the extension connects when the browser is open)." + watchNote,
             _ => null,
-        };
-    }
-
-    private string PrivateWindowSteps()
-    {
-        return Browser switch
-        {
-            BrowserKind.Chrome => "chrome://extensions → AccountabiliBuddy → Details → turn on \"Allow in Incognito\"",
-            BrowserKind.Brave => "brave://extensions → AccountabiliBuddy → Details → turn on \"Allow in Private\"",
-            BrowserKind.Edge => "edge://extensions → AccountabiliBuddy → Details → turn on \"Allow in InPrivate\"",
-            BrowserKind.Firefox => "about:addons → AccountabiliBuddy → Details → \"Run in Private Windows\" → Allow",
-            _ => "open the browser's extensions page → AccountabiliBuddy → Details → allow it in private windows",
         };
     }
 

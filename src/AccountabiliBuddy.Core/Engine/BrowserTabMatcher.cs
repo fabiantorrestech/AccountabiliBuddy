@@ -10,6 +10,8 @@ namespace AccountabiliBuddy.Core.Engine;
 /// the tab title. The longest matching tab title wins; a tab from the same browser wins a tie.
 /// Two windows of one browser showing tabs with identical titles cannot be told apart.
 /// A main window of a watched browser that matches no reported tab is marked <see cref="ActivitySnapshot.IsUnseenBrowserWindow"/>.
+/// Main windows of a browser in <c>withoutPrivateAccess</c> are marked <see cref="ActivitySnapshot.LacksPrivateWindowAccess"/>,
+/// except the browser's own pages (extensions page, settings), so the user can still turn the setting on.
 /// </summary>
 public static class BrowserTabMatcher
 {
@@ -27,6 +29,10 @@ public static class BrowserTabMatcher
     // How browsers end the title of a normal or private main window ("<tab title> - Google Chrome").
     // Chrome's incognito title is the same as a normal one; Firefox ends private windows with "Private Browsing".
     // Other windows (DevTools, picture-in-picture, installed web apps) don't end like this and are left alone.
+    // Browser-internal pages, by address or by the title the browser gives them.
+    private static readonly string[] InternalPageSchemes = { "chrome://", "edge://", "brave://", "about:", "opera://", "vivaldi://" };
+    private static readonly string[] InternalPageTitles = { "Extensions", "Add-ons Manager", "Settings", "Manage Extensions" };
+
     private static readonly string[] MainWindowTitleEndings =
     {
         "Google Chrome", "Microsoft Edge", "Brave", "Mozilla Firefox", "Private Browsing", "Chromium", "Opera", "Vivaldi",
@@ -39,7 +45,35 @@ public static class BrowserTabMatcher
 
     /// <param name="watchedBrowsers">Browsers whose windows must be visible to the extension
     /// (their extension has connected since they were granted in Setup).</param>
+    /// <param name="withoutPrivateAccess">Watched browsers whose extension isn't allowed in private windows.</param>
     public static ActivitySnapshot Enrich(
+        ActivitySnapshot snapshot,
+        IReadOnlyList<BrowserConnection> connections,
+        IReadOnlySet<BrowserKind> watchedBrowsers,
+        IReadOnlySet<BrowserKind>? withoutPrivateAccess = null)
+    {
+        ActivitySnapshot enriched = MatchTab(snapshot, connections, watchedBrowsers);
+        if (withoutPrivateAccess is null
+            || !BrowserByProcessName.TryGetValue(enriched.ProcessName, out BrowserKind browser)
+            || !withoutPrivateAccess.Contains(browser)
+            || !IsMainWindowTitle(enriched.WindowTitle.Trim())
+            || IsInternalPage(enriched))
+        {
+            return enriched;
+        }
+
+        return enriched with { LacksPrivateWindowAccess = true };
+    }
+
+    private static bool IsInternalPage(ActivitySnapshot snapshot)
+    {
+        string title = snapshot.WindowTitle.Trim();
+        return (snapshot.Url is { } url && InternalPageSchemes.Any(scheme => url.StartsWith(scheme, StringComparison.OrdinalIgnoreCase)))
+               || InternalPageTitles.Any(page => title.StartsWith(page + " - ", StringComparison.Ordinal)
+                                                 || title.StartsWith(page + " – ", StringComparison.Ordinal));
+    }
+
+    private static ActivitySnapshot MatchTab(
         ActivitySnapshot snapshot,
         IReadOnlyList<BrowserConnection> connections,
         IReadOnlySet<BrowserKind> watchedBrowsers)

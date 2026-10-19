@@ -6,7 +6,9 @@ namespace AccountabiliBuddy.Core.Domain;
 /// An empty <see cref="WindowId"/> means no window is visible (only the desktop).
 /// <see cref="Url"/>, <see cref="TabId"/> and <see cref="Channel"/> are filled in for browser windows
 /// whose active tab the extension reported. <see cref="IsUnseenBrowserWindow"/> marks a window of a watched browser
-/// that the extension did not report (see <see cref="Engine.UnseenBrowserWindow"/>).
+/// that the extension did not report (see <see cref="Engine.UnseenBrowserWindow"/>). <see cref="LacksPrivateWindowAccess"/>
+/// marks a window of a watched browser whose extension isn't allowed in private windows
+/// (see <see cref="Engine.BrowserWithoutPrivateAccess"/>).
 /// </summary>
 public sealed record ActivitySnapshot(
     DateTimeOffset Timestamp,
@@ -18,7 +20,8 @@ public sealed record ActivitySnapshot(
     string? OcrText = null,
     string? TabId = null,
     string? Channel = null,
-    bool IsUnseenBrowserWindow = false)
+    bool IsUnseenBrowserWindow = false,
+    bool LacksPrivateWindowAccess = false)
 {
     private static readonly string[] ExtensionPageSchemes = { "chrome-extension://", "moz-extension://", "extension://" };
 
