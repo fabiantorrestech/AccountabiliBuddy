@@ -13,6 +13,10 @@
                 Background="#33D13438" Padding="16,10">
             <TextBlock Text="{Binding LoadError}" TextWrapping="Wrap" />
         </Border>
+        <Border DockPanel.Dock="Top" IsVisible="{Binding HasClockNotice}"
+                Background="#33E0A800" Padding="16,10">
+            <TextBlock Text="{Binding ClockNotice}" TextWrapping="Wrap" />
+        </Border>
 
         <!-- Tabs as a sidebar on the left; headers sized for a vertical list rather than the Fluent top-row default. -->
         <TabControl TabStripPlacement="Left" Margin="0,8,8,8">
@@ -59,7 +63,7 @@
             <TabItem Header="Settings">
                 <views:SettingsView DataContext="{Binding Settings}" />
             </TabItem>
-            <TabItem Header="Activity (dev)">
+            <TabItem Header="Activity (dev)" IsVisible="{Binding ShowDevTools}">
                 <views:ActivityView DataContext="{Binding Activity}" />
             </TabItem>
         </TabControl>

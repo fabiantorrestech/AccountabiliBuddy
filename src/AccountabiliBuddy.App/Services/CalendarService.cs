@@ -118,6 +118,17 @@ public sealed class CalendarService
         Save(LocalEventsKey, LocalEvents);
     }
 
+    public void UpdateLocalEvent(string eventId, string title, DateTime localStart, DateTime localEnd, bool isAllDay)
+    {
+        LocalEvents = LocalEvents
+            .Select(item => item.Id == eventId
+                ? item with { Title = title, LocalStart = localStart, LocalEnd = localEnd, IsAllDay = isAllDay }
+                : item)
+            .OrderBy(item => item.LocalStart)
+            .ToList();
+        Save(LocalEventsKey, LocalEvents);
+    }
+
     public void RemoveLocalEvent(string eventId)
     {
         LocalEvents = LocalEvents.Where(item => item.Id != eventId).ToList();

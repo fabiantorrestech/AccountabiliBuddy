@@ -110,6 +110,19 @@ public sealed partial class ExceptionsViewModel : ObservableObject
     [ObservableProperty]
     public partial TimeSpan? NewEventEnd { get; set; }
 
+    /// <summary>The in-app event the event form is editing; null while the form adds a new one.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEditingEvent))]
+    [NotifyPropertyChangedFor(nameof(EventButtonText))]
+    public partial string? EditingEventId { get; set; }
+
+    public bool IsEditingEvent => EditingEventId is not null;
+
+    public string EventButtonText => IsEditingEvent ? "Save event" : "Add event";
+
+    // An edited event keeps its own date, even if another day is selected meanwhile.
+    private DateOnly _editingEventDate;
+
     /// <summary>First day of the month on view.</summary>
     [ObservableProperty]
     public partial DateOnly Month { get; set; }
@@ -365,10 +378,13 @@ public sealed partial class ExceptionsViewModel : ObservableObject
             return;
         }
 
-        DateTime day = SelectedDate.ToDateTime(TimeOnly.MinValue);
+        DateTime day = (IsEditingEvent ? _editingEventDate : SelectedDate).ToDateTime(TimeOnly.MinValue);
+        DateTime localStart;
+        DateTime localEnd;
         if (NewEventAllDay)
         {
-            _calendars.AddLocalEvent(title, day, day.AddDays(1), isAllDay: true);
+            localStart = day;
+            localEnd = day.AddDays(1);
         }
         else
         {
@@ -378,11 +394,54 @@ public sealed partial class ExceptionsViewModel : ObservableObject
                 return;
             }
 
-            _calendars.AddLocalEvent(title, day + start, end > start ? day + end : day.AddDays(1) + end, isAllDay: false);
+            localStart = day + start;
+            localEnd = end > start ? day + end : day.AddDays(1) + end;
         }
 
+        if (EditingEventId is string eventId)
+        {
+            _calendars.UpdateLocalEvent(eventId, title, localStart, localEnd, NewEventAllDay);
+            StatusMessage = "Event saved.";
+        }
+        else
+        {
+            _calendars.AddLocalEvent(title, localStart, localEnd, NewEventAllDay);
+            StatusMessage = "Event added.";
+        }
+
+        EditingEventId = null;
         NewEventTitle = null;
-        StatusMessage = "Event added.";
+    }
+
+    /// <summary>Loads an in-app event into the event form; Save event writes it back.</summary>
+    [RelayCommand]
+    private void EditEvent(EventRowViewModel row)
+    {
+        if (!row.IsEditable)
+        {
+            return;
+        }
+
+        CalendarEvent calendarEvent = row.Entry.Event;
+        _editingEventDate = DateOnly.FromDateTime(calendarEvent.LocalStart);
+        EditingEventId = calendarEvent.Id;
+        NewEventTitle = calendarEvent.Title;
+        NewEventAllDay = calendarEvent.IsAllDay;
+        if (!calendarEvent.IsAllDay)
+        {
+            NewEventStart = calendarEvent.LocalStart.TimeOfDay;
+            NewEventEnd = calendarEvent.LocalEnd.TimeOfDay;
+        }
+
+        StatusMessage = $"Editing '{calendarEvent.Title}'. Change it, then press Save event.";
+    }
+
+    [RelayCommand]
+    private void CancelEventEdit()
+    {
+        EditingEventId = null;
+        NewEventTitle = null;
+        StatusMessage = null;
     }
 
     [RelayCommand]
@@ -391,6 +450,12 @@ public sealed partial class ExceptionsViewModel : ObservableObject
         if (row.IsEditable)
         {
             _calendars.RemoveLocalEvent(row.Entry.Event.Id);
+            if (EditingEventId == row.Entry.Event.Id)
+            {
+                EditingEventId = null;
+                NewEventTitle = null;
+            }
+
             StatusMessage = "Event removed.";
         }
     }

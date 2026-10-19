@@ -14,6 +14,7 @@ using AccountabiliBuddy.Platform.Windows.Integrations;
 using AccountabiliBuddy.Platform.Windows.Ocr;
 using AccountabiliBuddy.Platform.Windows.Security;
 using AccountabiliBuddy.Platform.Windows.Startup;
+using AccountabiliBuddy.Platform.Windows.Time;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -31,6 +32,9 @@ public partial class App : Application
     // Test runs point Google sign-in and the Calendar API at a local stand-in (e.g. http://127.0.0.1:5199/).
     private const string GoogleTestBaseVariable = "ACCOUNTABILIBUDDY_GOOGLE_TEST_BASE";
 
+    // "1" shows the Activity (dev) tab; it is hidden otherwise.
+    private const string DevToolsVariable = "ACCOUNTABILIBUDDY_DEV_TOOLS";
+
     // Opening the window refreshes calendars, but not more often than this.
     private static readonly TimeSpan WindowRefreshInterval = TimeSpan.FromMinutes(1);
     private static readonly Uri IconUri = new("avares://AccountabiliBuddy.App/Assets/app-icon.png");
@@ -42,6 +46,7 @@ public partial class App : Application
     private SessionController? _sessions;
     private SessionEndFlow? _endFlow;
     private SessionCheckpointService? _checkpoints;
+    private ClockAnchorService? _clockAnchors;
     private WatchedBrowsersService? _watchedBrowsers;
     private UnlockService? _unlocks;
     private CalendarNetwork? _calendarNetwork;
@@ -114,12 +119,15 @@ public partial class App : Application
 
     private void BuildServicesAndWindow()
     {
-        TimeProvider time = TimeProvider.System;
+        // Changing the Windows clock can't move sessions, waits or countdowns (see TrustedClock).
+        var time = new TrustedClock(TimeProvider.System, () => Environment.TickCount64, new RegistryBootIdProvider().GetBootId());
 
         // Override lets test runs use a throwaway database instead of the real one.
         string dataDirectory = Environment.GetEnvironmentVariable(DataDirectoryVariable) ?? LocalDatabase.DefaultDirectory();
         var database = new LocalDatabase(dataDirectory);
         var documents = new SqliteJsonDocumentStore(database, time);
+        _clockAnchors = new ClockAnchorService(time, documents);
+        _clockAnchors.RestoreBlocking();
         _configuration = new ConfigurationService(new SqliteProfileStore(database, time), documents, time);
         _configuration.LoadBlocking();
 
@@ -208,9 +216,20 @@ public partial class App : Application
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
             new SettingsViewModel(_configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, database.DatabasePath),
             activityViewModel,
+            Environment.GetEnvironmentVariable(DevToolsVariable) == "1",
             _configuration.LoadError);
 
         _mainWindow = new MainWindow { DataContext = mainViewModel };
+
+        mainViewModel.ShowSystemClockOffset(time.SystemClockOffset);
+        time.SystemClockOffsetChanged += (_, offset) => Dispatcher.UIThread.Post(() =>
+        {
+            mainViewModel.ShowSystemClockOffset(offset);
+            if (offset != TimeSpan.Zero)
+            {
+                presenter.ShowNotice("Windows clock changed", mainViewModel.ClockNotice ?? string.Empty);
+            }
+        });
 
         _sessions.StateChanged += (_, _) => UpdateTray();
         _sessions.Ticked += (_, _) => UpdateTray();
@@ -230,6 +249,7 @@ public partial class App : Application
         _activityWatcher.Start();
         _browserSource.Start();
         _calendarSync.Start();
+        _clockAnchors.Start();
     }
 
     private void CreateTrayIcon()
@@ -371,6 +391,7 @@ public partial class App : Application
         _browserSource?.Dispose();
         _activityWatcher?.Dispose();
         _checkpoints?.Dispose();
+        _clockAnchors?.Dispose();
         _unlocks?.Dispose();
         _calendarSync?.Dispose();
         _calendarNetwork?.Dispose();

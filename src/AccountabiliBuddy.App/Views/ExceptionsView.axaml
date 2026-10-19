@@ -165,9 +165,15 @@
                                         <TextBlock Text="{Binding Title}" TextWrapping="Wrap" FontWeight="SemiBold" />
                                         <TextBlock Text="{Binding When}" FontSize="12" />
                                         <TextBlock Text="{Binding CalendarName}" FontSize="11" Opacity="0.7" TextTrimming="CharacterEllipsis" />
-                                        <Button Content="Time off for this" FontSize="12" Padding="6,2" Margin="0,4,0,0"
-                                                Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).TimeOffForEventCommand}"
-                                                CommandParameter="{Binding}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+                                            <Button Content="Time off for this" FontSize="12" Padding="6,2"
+                                                    Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).TimeOffForEventCommand}"
+                                                    CommandParameter="{Binding}" />
+                                            <Button Content="Edit" FontSize="12" Padding="6,2" IsVisible="{Binding IsEditable}"
+                                                    AutomationProperties.Name="Edit event"
+                                                    Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).EditEventCommand}"
+                                                    CommandParameter="{Binding}" />
+                                        </StackPanel>
                                     </StackPanel>
                                     <Button Grid.Column="2" Content="✕" ToolTip.Tip="Remove event" IsVisible="{Binding IsEditable}"
                                             VerticalAlignment="Top"
@@ -185,7 +191,11 @@
                         <TextBlock Grid.Row="1" Text="To" VerticalAlignment="Center" />
                         <TimePicker Grid.Row="1" Grid.Column="1" SelectedTime="{Binding NewEventEnd}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
                     </Grid>
-                    <Button Content="Add event" Command="{Binding AddEventCommand}" />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Content="{Binding EventButtonText}" Command="{Binding AddEventCommand}" />
+                        <Button Content="Cancel" IsVisible="{Binding IsEditingEvent}" Command="{Binding CancelEventEditCommand}"
+                                AutomationProperties.Name="Cancel event edit" />
+                    </StackPanel>
 
                     <TextBlock Text="Time off" FontWeight="SemiBold" Margin="0,6,0,0" />
                     <ItemsControl ItemsSource="{Binding SelectedTimeOff}">
