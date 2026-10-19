@@ -37,6 +37,19 @@ public sealed class RunKeyStartupRegistrar : IStartupRegistrar
         key.SetValue(ValueName, _command, RegistryValueKind.String);
     }
 
+    public bool RepairIfMoved()
+    {
+        using RegistryKey? key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: false);
+        if (key?.GetValue(ValueName) is not string registered
+            || string.Equals(registered, _command, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        Enable();
+        return true;
+    }
+
     public void Disable()
     {
         using RegistryKey? key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);

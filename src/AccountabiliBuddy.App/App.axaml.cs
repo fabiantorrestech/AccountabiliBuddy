@@ -1,8 +1,11 @@
 using AccountabiliBuddy.App.DevTools;
 using AccountabiliBuddy.App.Services;
+using AccountabiliBuddy.App.Services.Backup;
 using AccountabiliBuddy.App.ViewModels;
+using AccountabiliBuddy.App.Views;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
+using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using AccountabiliBuddy.Platform.Windows.Activity;
 using AccountabiliBuddy.Platform.Windows.Browser;
@@ -60,6 +63,9 @@ public partial class App : Application
     private ActivityRecorder? _recorder;
     private EnforcementCoordinator? _enforcement;
     private MainWindow? _mainWindow;
+    private SetupAssistantService? _setupAssistant;
+    private Func<SetupAssistantViewModel>? _createAssistant;
+    private SetupAssistantWindow? _assistantWindow;
     private TrayIcon? _trayIcon;
     private NativeMenuItem? _endSessionMenuItem;
 
@@ -88,7 +94,14 @@ public partial class App : Application
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             desktop.Exit += (_, _) => DisposeServices();
 
-            BuildServicesAndWindow();
+            string? problem = BuildServicesAndWindow();
+            if (problem is not null)
+            {
+                ShowStartupProblem(problem);
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
+
             CreateTrayIcon();
 
             if (_options.QuickSession)
@@ -98,6 +111,12 @@ public partial class App : Application
             else if (!_options.StartMinimized)
             {
                 ShowMainWindow();
+
+                // First launch: offer to bring over other blockers' blocks and set up browsers.
+                if (_setupAssistant is { HasBeenShown: false } && _sessions is { State.IsActive: false })
+                {
+                    ShowSetupAssistant();
+                }
             }
 
             // Later launches (second start, Start menu shortcut) hand over to this copy.
@@ -117,7 +136,8 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    private void BuildServicesAndWindow()
+    /// <returns>Why the app can't start (e.g. data from a newer version), or null when it started.</returns>
+    private string? BuildServicesAndWindow()
     {
         // Changing the Windows clock can't move sessions, waits or countdowns (see TrustedClock).
         var time = new TrustedClock(TimeProvider.System, () => Environment.TickCount64, new RegistryBootIdProvider().GetBootId());
@@ -125,7 +145,15 @@ public partial class App : Application
         // Override lets test runs use a throwaway database instead of the real one.
         string dataDirectory = Environment.GetEnvironmentVariable(DataDirectoryVariable) ?? LocalDatabase.DefaultDirectory();
         var database = new LocalDatabase(dataDirectory);
+        string? problem = UpgradeSafety.CheckBlocking(database);
+        if (problem is not null)
+        {
+            return problem;
+        }
+
         var documents = new SqliteJsonDocumentStore(database, time);
+        // First launch of a new version: keep a copy of the data before anything migrates it.
+        UpgradeSafety.BackupIfNewVersionBlocking(database, documents, BackupService.AppVersion, time);
         _clockAnchors = new ClockAnchorService(time, documents);
         _clockAnchors.RestoreBlocking();
         _configuration = new ConfigurationService(new SqliteProfileStore(database, time), documents, time);
@@ -134,15 +162,10 @@ public partial class App : Application
         _sessions = new SessionController(new SessionEngine(time), _configuration, time);
         _endFlow = new SessionEndFlow(_sessions);
 
-        var startupRegistrar = new RunKeyStartupRegistrar(
-            Environment.ProcessPath ?? throw new InvalidOperationException("Executable path is unknown."),
-            StartupOptions.MinimizedArgument);
+        var startupRegistrar = new RunKeyStartupRegistrar(AppPaths.LaunchPath, StartupOptions.MinimizedArgument);
 
         _browserSource = new NamedPipeBrowserSource(time);
-        var browserSetup = new WindowsBrowserSetup(
-            Path.Combine(AppContext.BaseDirectory, "AccountabiliBuddy.NativeHost.exe"),
-            Path.Combine(AppContext.BaseDirectory, "browser-extension"),
-            dataDirectory);
+        var browserSetup = new WindowsBrowserSetup(AppPaths.NativeHostPath, AppPaths.BundledExtensionFolder, dataDirectory);
         _checkpoints = new SessionCheckpointService(_sessions, documents);
         SavedSession? savedSession = _checkpoints.LoadBlocking();
         // Loaded before the sessions start, so an unlock in effect keeps scheduled blocks from starting at launch.
@@ -165,9 +188,8 @@ public partial class App : Application
         var activityLog = new SqliteActivityLog(database, new DpapiDataProtector());
         _recorder = new ActivityRecorder(activityLog, privacy, _sessions, new Win32UserIdleDetector(), time);
 
-        var quickLaunch = new StartMenuQuickLaunchShortcut(
-            Environment.ProcessPath ?? throw new InvalidOperationException("Executable path is unknown."),
-            StartupOptions.QuickSessionArgument);
+        var quickLaunch = new StartMenuQuickLaunchShortcut(AppPaths.LaunchPath, StartupOptions.QuickSessionArgument);
+        bool extensionUpdated = RepairRegistrations(startupRegistrar, quickLaunch, browserSetup);
 
         var activityViewModel = new ActivityDebugViewModel();
         _activityWatcher = new WinEventActivityWatcher(time);
@@ -198,6 +220,25 @@ public partial class App : Application
             new GoogleCalendarClient(_calendarNetwork, GoogleEndpointsFromEnvironment(), time),
             dataProtector,
             time);
+        var setupViewModel = new SetupViewModel(
+            startupRegistrar,
+            quickLaunch,
+            browserSetup,
+            _browserSource,
+            new PrivacySetupViewModel(privacy, _recorder, ocrReader.IsAvailable),
+            _sessions,
+            _watchedBrowsers);
+        _setupAssistant = new SetupAssistantService(documents, time);
+        _setupAssistant.LoadBlocking();
+        var blockerLocator = new WindowsBlockerSourceLocator();
+        ConfigurationService configuration = _configuration;
+        SessionController sessions = _sessions;
+        var backups = new BackupService(_configuration, documents, activityLog, new DpapiDataProtector(), time, dataDirectory);
+        _createAssistant = () => new SetupAssistantViewModel(
+            blockerLocator, configuration, sessions, activityLog, privacy, time, setupViewModel,
+            new BackupViewModel(backups, sessions, RestartApp, showExport: false));
+        setupViewModel.OpenAssistant = ShowSetupAssistant;
+
         var mainViewModel = new MainWindowViewModel(
             new SessionViewModel(
                 _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks)),
@@ -205,16 +246,12 @@ public partial class App : Application
             new ScheduleViewModel(_configuration, _sessions, pendingChanges),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
             new HistoryViewModel(activityLog, _recorder, _configuration, privacy, time),
-            new SetupViewModel(
-                startupRegistrar,
-                quickLaunch,
-                browserSetup,
-                _browserSource,
-                new PrivacySetupViewModel(privacy, _recorder, ocrReader.IsAvailable),
-                _sessions,
-                _watchedBrowsers),
+            setupViewModel,
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
-            new SettingsViewModel(_configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, database.DatabasePath),
+            new SettingsViewModel(_configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, database.DatabasePath)
+            {
+                Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
+            },
             activityViewModel,
             Environment.GetEnvironmentVariable(DevToolsVariable) == "1",
             _configuration.LoadError);
@@ -250,6 +287,63 @@ public partial class App : Application
         _browserSource.Start();
         _calendarSync.Start();
         _clockAnchors.Start();
+
+        if (extensionUpdated)
+        {
+            presenter.ShowNotice(
+                "Browser extension updated",
+                "A newer AccountabiliBuddy extension came with this version. Reload it on each browser's extensions page (or restart the browser).");
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// An install or update moves the program, so registrations made by another copy (a build folder or an older
+    /// install) are pointed at this one. Each step is best effort and never stops the app from starting.
+    /// </summary>
+    /// <returns>True if the browser extension copy was updated (the browser must reload it).</returns>
+    private static bool RepairRegistrations(IStartupRegistrar startup, IQuickLaunchShortcut quickLaunch, IBrowserSetup browsers)
+    {
+        TryRepair(() => startup.RepairIfMoved());
+        TryRepair(() =>
+        {
+            if (quickLaunch.IsInstalled)
+            {
+                quickLaunch.Install();
+            }
+        });
+        TryRepair(() => browsers.RepairRegistrations());
+        bool extensionUpdated = false;
+        TryRepair(() => extensionUpdated = browsers.RefreshExtensionCopies());
+        return extensionUpdated;
+    }
+
+    private static void TryRepair(Action repair)
+    {
+        try
+        {
+            repair();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException
+                                       or System.Runtime.InteropServices.COMException or InvalidOperationException)
+        {
+            // Left for the Setup tab, which shows what needs granting again.
+        }
+    }
+
+    private void ShowStartupProblem(string message)
+    {
+        var window = new Window
+        {
+            Title = "AccountabiliBuddy",
+            Width = 560,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+            Content = new TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(24) },
+        };
+        window.Closed += (_, _) => _desktop?.Shutdown();
+        window.Show();
     }
 
     private void CreateTrayIcon()
@@ -303,6 +397,51 @@ public partial class App : Application
         {
             _endSessionMenuItem.IsEnabled = state.IsActive;
         }
+    }
+
+    /// <summary>Starts a new copy (which waits for this one to exit) and quits, e.g. to load restored settings.</summary>
+    private void RestartApp()
+    {
+        string? executable = Environment.ProcessPath;
+        if (executable is null)
+        {
+            return;
+        }
+
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(executable, StartupOptions.RestartedArgument) { UseShellExecute = false });
+        if (_mainWindow is not null)
+        {
+            _mainWindow.AllowClose = true;
+        }
+
+        _desktop?.Shutdown();
+    }
+
+    private void ShowSetupAssistant()
+    {
+        if (_assistantWindow is not null)
+        {
+            _assistantWindow.Activate();
+            return;
+        }
+
+        if (_createAssistant is null)
+        {
+            return;
+        }
+
+        SetupAssistantViewModel viewModel = _createAssistant();
+        _assistantWindow = new SetupAssistantWindow { DataContext = viewModel };
+        _assistantWindow.Closed += (_, _) =>
+        {
+            viewModel.Dispose();
+            _assistantWindow = null;
+        };
+
+        // Marked when opened, so a restart from inside it (restoring a backup) doesn't open it again.
+        _ = _setupAssistant?.MarkShownAsync();
+        _assistantWindow.Show();
+        _assistantWindow.Activate();
     }
 
     private void ShowMainWindow()

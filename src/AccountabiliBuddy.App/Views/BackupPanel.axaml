@@ -1,0 +1,65 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.BackupPanel"
+             x:DataType="vm:BackupViewModel">
+    <!-- Export (Settings tab only) and import of backups; used by the Settings tab and the setup assistant. -->
+    <StackPanel Spacing="14">
+        <StackPanel Spacing="6" IsVisible="{Binding ShowExport}">
+            <TextBlock Text="Export" FontWeight="SemiBold" />
+            <WrapPanel>
+                <CheckBox Content="Profiles, rules and schedule" IsChecked="{Binding ExportProfiles}" Margin="0,0,16,0" />
+                <CheckBox Content="App settings" IsChecked="{Binding ExportSettings}" Margin="0,0,16,0" />
+                <CheckBox Content="Calendars" IsChecked="{Binding ExportCalendars}" Margin="0,0,16,0" />
+                <CheckBox Content="Activity history" IsChecked="{Binding ExportHistory}" />
+            </WrapPanel>
+            <RadioButton GroupName="secrets" IsChecked="{Binding !IncludeSecrets}"
+                         Content="Without secrets: no password; calendar links, Google sign-ins and history titles/addresses are left out" />
+            <RadioButton GroupName="secrets" IsChecked="{Binding IncludeSecrets}"
+                         Content="Everything, including secrets: protected with a password" />
+            <StackPanel IsVisible="{Binding IncludeSecrets}" Spacing="6" Margin="28,0,0,0">
+                <TextBox Text="{Binding ExportPassword}" PasswordChar="●" PlaceholderText="Password (at least 8 characters)"
+                         MaxWidth="320" HorizontalAlignment="Left" AutomationProperties.Name="Backup password" />
+                <TextBox Text="{Binding ExportPasswordConfirm}" PasswordChar="●" PlaceholderText="Repeat the password"
+                         MaxWidth="320" HorizontalAlignment="Left" AutomationProperties.Name="Repeat backup password" />
+                <TextBlock Text="There's no way to open the file without it." Opacity="0.75" TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Export…" Command="{Binding ExportCommand}" AutomationProperties.Name="Export backup" />
+            </StackPanel>
+            <TextBlock Text="{Binding ExportStatus}" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+            <TextBlock Text="Import" FontWeight="SemiBold" IsVisible="{Binding ShowExport}" />
+            <Border IsVisible="{Binding IsLocked}" Background="#33F59E0B" Padding="12,8" CornerRadius="6">
+                <TextBlock Text="Importing is locked while a focus session is running." TextWrapping="Wrap" />
+            </Border>
+            <Button Content="Choose a backup file…" Command="{Binding ChooseBackupCommand}" AutomationProperties.Name="Choose backup file" />
+            <StackPanel IsVisible="{Binding NeedsPassword}" Orientation="Horizontal" Spacing="8">
+                <TextBox Text="{Binding ImportPassword}" PasswordChar="●" PlaceholderText="Backup password" Width="260"
+                         AutomationProperties.Name="Backup file password" />
+                <Button Content="Open" Command="{Binding OpenWithPasswordCommand}" AutomationProperties.Name="Open backup" />
+            </StackPanel>
+            <StackPanel IsVisible="{Binding IsOpened}" Spacing="6">
+                <TextBlock Text="{Binding OpenedSummary}" TextWrapping="Wrap" />
+                <WrapPanel>
+                    <CheckBox Content="Profiles, rules and schedule" IsChecked="{Binding RestoreProfiles}" IsVisible="{Binding HasProfilesPart}" Margin="0,0,16,0" />
+                    <CheckBox Content="App settings" IsChecked="{Binding RestoreSettings}" IsVisible="{Binding HasSettingsPart}" Margin="0,0,16,0" />
+                    <CheckBox Content="Calendars" IsChecked="{Binding RestoreCalendars}" IsVisible="{Binding HasCalendarsPart}" Margin="0,0,16,0" />
+                    <CheckBox Content="Activity history" IsChecked="{Binding RestoreHistory}" IsVisible="{Binding HasHistoryPart}" />
+                </WrapPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Overwrite" Command="{Binding OverwriteCommand}" IsVisible="{Binding HasExistingData}" Classes="accent"
+                            AutomationProperties.Name="Overwrite with backup" />
+                    <Button Content="Merge" Command="{Binding MergeCommand}" IsVisible="{Binding HasExistingData}"
+                            AutomationProperties.Name="Merge backup" />
+                    <Button Content="Restore" Command="{Binding OverwriteCommand}" IsVisible="{Binding !HasExistingData}" Classes="accent"
+                            AutomationProperties.Name="Restore backup" />
+                    <Button Content="Cancel" Command="{Binding CancelImportCommand}" AutomationProperties.Name="Cancel restore" />
+                </StackPanel>
+            </StackPanel>
+            <TextBlock Text="{Binding ImportStatus}" TextWrapping="Wrap" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

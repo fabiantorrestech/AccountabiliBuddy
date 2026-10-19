@@ -1,0 +1,286 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        xmlns:views="using:AccountabiliBuddy.App.Views"
+        x:Class="AccountabiliBuddy.App.Views.SetupAssistantWindow"
+        x:DataType="vm:SetupAssistantViewModel"
+        Title="AccountabiliBuddy setup"
+        Icon="/Assets/app-icon.png"
+        Width="880" Height="720" MinWidth="720" MinHeight="560"
+        WindowStartupLocation="CenterScreen">
+    <Window.Styles>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="#1A808080" />
+            <Setter Property="BorderBrush" Value="#33808080" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16,12" />
+        </Style>
+        <Style Selector="Border.locked">
+            <Setter Property="Background" Value="#33F59E0B" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style Selector="TextBlock.title">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.muted">
+            <Setter Property="Opacity" Value="0.75" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="TextBlock.warning">
+            <Setter Property="Foreground" Value="#E9A23B" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="TextBlock.body">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="FontSize" Value="15" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+        <!-- Header -->
+        <Border DockPanel.Dock="Top" Padding="28,20,28,12">
+            <StackPanel Spacing="2">
+                <TextBlock Text="{Binding StepNumberText}" Opacity="0.7" />
+                <TextBlock Text="{Binding StepTitle}" FontSize="24" FontWeight="SemiBold" />
+            </StackPanel>
+        </Border>
+
+        <!-- Footer -->
+        <Border DockPanel.Dock="Bottom" Padding="28,12" BorderBrush="#33808080" BorderThickness="0,1,0,0">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Spacing="4" Margin="0,0,16,0">
+                    <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" Width="160" HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Content="Close" Command="{Binding CloseCommand}" IsVisible="{Binding !IsDone}"
+                            AutomationProperties.Name="Close assistant" />
+                    <Button Content="Back" Command="{Binding BackCommand}" />
+                    <Button Content="{Binding NextText}" Command="{Binding NextCommand}" Classes="accent" MinWidth="110"
+                            AutomationProperties.Name="Next step" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <ScrollViewer Padding="28,4,28,16">
+            <Panel>
+                <!-- 1. Welcome -->
+                <StackPanel IsVisible="{Binding IsWelcome}" Spacing="14" MaxWidth="720" HorizontalAlignment="Left">
+                    <TextBlock Classes="body"
+                               Text="AccountabiliBuddy watches what's on your screens and nudges you back when you drift from what you planned. Everything it sees stays on this computer." />
+                    <TextBlock Classes="body"
+                               Text="This assistant brings over your blocks from other blockers (Cold Turkey, AppBlock, BlockSite, LeechBlock, or any list you paste), then connects your browsers and sets the basics. It takes a couple of minutes, and you can skip any step." />
+                    <TextBlock Classes="muted" Text="You can run it again later from the Setup tab." />
+                    <Border Classes="locked" IsVisible="{Binding IsLocked}">
+                        <TextBlock Text="A focus session is running, so nothing can be imported right now. You can still set up browsers and the basics."
+                                   TextWrapping="Wrap" />
+                    </Border>
+                </StackPanel>
+
+                <!-- 2. Bring your blocks -->
+                <StackPanel IsVisible="{Binding IsImport}" Spacing="12">
+                    <Border Classes="locked" IsVisible="{Binding IsLocked}">
+                        <TextBlock Text="Importing is locked while a focus session is running." TextWrapping="Wrap" />
+                    </Border>
+                    <TextBlock Classes="muted"
+                               Text="Tick what to bring over. Nothing is changed in the other blockers, and nothing existing here is replaced." />
+                    <TextBlock Text="Found on this PC" Classes="title" IsVisible="{Binding HasSources}" />
+                    <ItemsControl ItemsSource="{Binding Sources}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Spacing="8" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:DetectedSourceRowViewModel">
+                                <Border Classes="card">
+                                    <StackPanel Spacing="4">
+                                        <CheckBox IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanSelect}">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="{Binding Title}" Classes="title" />
+                                                <TextBlock Text="{Binding Summary}" Classes="muted" />
+                                            </StackPanel>
+                                        </CheckBox>
+                                        <TextBlock Text="{Binding Details}" IsVisible="{Binding Details, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" TextWrapping="Wrap" FontSize="13" Margin="28,0,0,0" />
+                                        <TextBlock Text="{Binding Problem}" IsVisible="{Binding HasProblem}" Classes="warning"
+                                                   FontSize="13" Margin="28,0,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="LeechBlock" Classes="title" Margin="0,8,0,0" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Classes="muted" VerticalAlignment="Center"
+                                   Text="In LeechBlock's options, use Export Options to save a file, then import it here." />
+                        <Button Grid.Column="1" Content="Import a LeechBlock file…" Command="{Binding ImportFileCommand}" />
+                    </Grid>
+
+                    <TextBlock Text="Paste a list" Classes="title" Margin="0,8,0,0" />
+                    <TextBlock Classes="muted"
+                               Text="From Freedom, FocusMe, Curbox, BlockSite or any other blocker: open its block list, copy the sites or apps and paste them here, one per line or separated by spaces. Wildcards like *.example.com work; apps can be names like Discord.exe." />
+                    <TextBox Text="{Binding PasteName}" PlaceholderText="Name, e.g. Freedom" MaxWidth="320" HorizontalAlignment="Left"
+                             AutomationProperties.Name="Pasted list name" />
+                    <TextBox Text="{Binding PasteText}" AcceptsReturn="True" TextWrapping="Wrap" Height="110"
+                             PlaceholderText="reddit.com&#x0a;youtube.com/shorts&#x0a;Discord.exe"
+                             AutomationProperties.Name="Pasted list" />
+                    <Button Content="Add pasted list" Command="{Binding AddPasteCommand}" />
+
+                    <TextBlock Text="Restore an AccountabiliBuddy backup" Classes="title" Margin="0,8,0,0" />
+                    <TextBlock Classes="muted" Text="Moving from another PC? Restore a backup made in Settings, under Backup." />
+                    <views:BackupPanel DataContext="{Binding Backup}" />
+                </StackPanel>
+
+                <!-- 3. Your usage -->
+                <StackPanel IsVisible="{Binding IsUsage}" Spacing="12">
+                    <TextBlock Classes="muted"
+                               Text="Your most-used sites and apps in Cold Turkey over the last 30 days. Tick any you want blocked." />
+                    <Grid ColumnDefinitions="*,24,*">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Sites" Classes="title" />
+                            <ItemsControl ItemsSource="{Binding SiteSuggestions}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:UsageSuggestionRowViewModel">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <CheckBox IsChecked="{Binding IsSelected}" Content="{Binding Name}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Time}" Opacity="0.7" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Spacing="4">
+                            <TextBlock Text="Apps" Classes="title" />
+                            <ItemsControl ItemsSource="{Binding AppSuggestions}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:UsageSuggestionRowViewModel">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <CheckBox IsChecked="{Binding IsSelected}" Content="{Binding Name}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Time}" Opacity="0.7" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="Add the ticked ones to" VerticalAlignment="Center" />
+                        <ComboBox ItemsSource="{Binding SuggestionTargets}" SelectedItem="{Binding SelectedSuggestionTarget}" MinWidth="280"
+                                  AutomationProperties.Name="Add suggestions to" />
+                    </StackPanel>
+                    <CheckBox IsChecked="{Binding CopyUsageToHistory}" IsEnabled="{Binding CanCopyUsageToHistory}"
+                              Content="Also copy the last 90 days of Cold Turkey usage into History (times, sites and apps only)" />
+                </StackPanel>
+
+                <!-- 4. Review -->
+                <StackPanel IsVisible="{Binding IsReview}" Spacing="12">
+                    <Border Classes="locked" IsVisible="{Binding IsLocked}">
+                        <TextBlock Text="Importing is locked while a focus session is running." TextWrapping="Wrap" />
+                    </Border>
+                    <TextBlock Classes="muted" IsVisible="{Binding !HasPlannedProfiles}"
+                               Text="Nothing is selected to import. Go back to pick something, or skip this step." />
+                    <StackPanel IsVisible="{Binding HasPlannedProfiles}" Spacing="12">
+                        <TextBlock Text="Profiles to create" Classes="title" />
+                        <TextBlock Classes="muted"
+                                   Text="Each one only blocks what's listed, like the blocker it came from (it gets 'allow everything else' rules you can remove later to make it stricter). Rename them or untick any you don't want." />
+                        <ItemsControl ItemsSource="{Binding PlannedProfiles}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="8" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:PlannedProfileRowViewModel">
+                                    <Border Classes="card">
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <CheckBox IsChecked="{Binding IsIncluded}" VerticalAlignment="Top"
+                                                      AutomationProperties.Name="Include profile" />
+                                            <StackPanel Grid.Column="1" Spacing="4">
+                                                <TextBox Text="{Binding Name}" MaxWidth="460" HorizontalAlignment="Left"
+                                                         AutomationProperties.Name="Profile name" />
+                                                <TextBlock Text="{Binding Origin}" IsVisible="{Binding IsCombined}" FontStyle="Italic" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Details}" TextWrapping="Wrap" Opacity="0.8" />
+                                                <TextBlock Text="{Binding Skipped}" IsVisible="{Binding HasSkipped}" Classes="warning" FontSize="12" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="Weekly schedule" Classes="title" />
+                        <SelectableTextBlock Text="{Binding WeekPreview}" TextWrapping="Wrap" FontFamily="Consolas,monospace" FontSize="13" />
+                    </StackPanel>
+                    <StackPanel IsVisible="{Binding HasNotes}" Spacing="4">
+                        <TextBlock Text="Left out" Classes="title" />
+                        <ItemsControl ItemsSource="{Binding Notes}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <TextBlock Text="{Binding}" Classes="muted" FontSize="13" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- 5. Browsers -->
+                <StackPanel IsVisible="{Binding IsBrowsers}" Spacing="12">
+                    <TextBlock Classes="muted"
+                               Text="Install the AccountabiliBuddy extension in each browser you use, so it can see the active tab's address and send distracting tabs to its block page. It talks only to this app." />
+                    <views:BrowserSetupList DataContext="{Binding Setup}" />
+                </StackPanel>
+
+                <!-- 6. Basics -->
+                <Panel IsVisible="{Binding IsBasics}">
+                <StackPanel Spacing="8" DataContext="{Binding Setup}" x:DataType="vm:SetupViewModel">
+                    <TextBlock Classes="muted" Text="Each of these can be revoked later in the Setup tab (outside a focus session)." />
+                    <Border Classes="card">
+                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                            <TextBlock Text="Start with Windows" Classes="title" />
+                            <TextBlock Grid.Row="1" Text="{Binding StartupStatus}" Classes="muted" />
+                            <Button Grid.RowSpan="2" Grid.Column="1" Content="Turn on" Command="{Binding GrantStartupCommand}" Classes="accent"
+                                    VerticalAlignment="Center" AutomationProperties.Name="Turn on start with Windows" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="card">
+                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                            <TextBlock Text="Quick session in the Start menu" Classes="title" />
+                            <TextBlock Grid.Row="1" Text="{Binding QuickLaunchStatus}" Classes="muted" />
+                            <Button Grid.RowSpan="2" Grid.Column="1" Content="Turn on" Command="{Binding GrantQuickLaunchCommand}" Classes="accent"
+                                    VerticalAlignment="Center" AutomationProperties.Name="Turn on quick session shortcut" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="card" DataContext="{Binding Privacy}" x:DataType="vm:PrivacySetupViewModel">
+                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                            <TextBlock Text="Activity history" Classes="title" />
+                            <TextBlock Grid.Row="1" Text="{Binding ActivityLogStatus}" Classes="muted" />
+                            <Button Grid.RowSpan="2" Grid.Column="1" Content="Turn on" Command="{Binding GrantActivityLogCommand}" Classes="accent"
+                                    VerticalAlignment="Center" AutomationProperties.Name="Turn on activity history" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="card" DataContext="{Binding Privacy}" x:DataType="vm:PrivacySetupViewModel">
+                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                            <TextBlock Text="Screen reading (OCR), optional" Classes="title" />
+                            <TextBlock Grid.Row="1" Text="{Binding ScreenReadingStatus}" Classes="muted" />
+                            <Button Grid.RowSpan="2" Grid.Column="1" Content="Turn on" Command="{Binding GrantScreenReadingCommand}"
+                                    VerticalAlignment="Center" AutomationProperties.Name="Turn on screen reading" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+                </Panel>
+
+                <!-- 7. Done -->
+                <StackPanel IsVisible="{Binding IsDone}" Spacing="12" MaxWidth="720" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" Text="{Binding Summary}" />
+                    <TextBlock Text="What's next" Classes="title" />
+                    <TextBlock Classes="body" Text="• Start a session from the Session tab, or press Ctrl+Alt+F anywhere." />
+                    <TextBlock Classes="body" Text="• Your weekly blocks are in the Schedule tab; time off and one-off blocks are in Exceptions." />
+                    <TextBlock Classes="body" Text="• Run this assistant again any time from the Setup tab." />
+                </StackPanel>
+            </Panel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

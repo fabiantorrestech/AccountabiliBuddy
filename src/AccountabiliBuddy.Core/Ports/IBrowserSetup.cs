@@ -23,4 +23,15 @@ public interface IBrowserSetup
     void OpenExtensionsPage(BrowserKind browser);
 
     void OpenFolder(string path);
+
+    /// <summary>
+    /// Registers again every browser whose registration points to another copy's host program (e.g. after the app
+    /// was installed, updated or run from a build folder), so the extension reaches this copy.
+    /// </summary>
+    /// <returns>The browsers whose registration was changed.</returns>
+    IReadOnlyList<BrowserKind> RepairRegistrations();
+
+    /// <summary>Updates the extension copies made by <see cref="PrepareExtensionInstall"/> when the bundled extension is newer.</summary>
+    /// <returns>True if a copy was updated (the browser must reload the extension to use it).</returns>
+    bool RefreshExtensionCopies();
 }

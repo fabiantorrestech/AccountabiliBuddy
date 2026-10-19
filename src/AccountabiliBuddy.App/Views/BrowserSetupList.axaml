@@ -1,0 +1,70 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.BrowserSetupList"
+             x:DataType="vm:SetupViewModel">
+    <!-- One card per supported browser; used by the Setup tab and the setup assistant. -->
+    <UserControl.Styles>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="#1A808080" />
+            <Setter Property="BorderBrush" Value="#33808080" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16,12" />
+        </Style>
+        <Style Selector="TextBlock.title">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.warning">
+            <Setter Property="Foreground" Value="#E9A23B" />
+        </Style>
+        <Style Selector="TextBlock.muted">
+            <Setter Property="Opacity" Value="0.75" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Styles>
+
+    <ItemsControl ItemsSource="{Binding Browsers}">
+        <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+                <StackPanel Spacing="8" />
+            </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:BrowserSetupRowViewModel">
+                <Border Classes="card">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="{Binding DisplayName}" Classes="title" />
+                                <TextBlock Text="{Binding StatusText}" Classes="muted" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Ellipse Width="8" Height="8" Fill="#2A9D8F" IsVisible="{Binding IsConnected}" />
+                                    <Ellipse Width="8" Height="8" Fill="#8A9396" IsVisible="{Binding !IsConnected}" />
+                                    <TextBlock Text="{Binding ConnectionText}" FontSize="12" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding PrivateWindowsText}" IsVisible="{Binding HasPrivateWindowsText}"
+                                           Classes.warning="{Binding IsPrivateWindowsWarning}"
+                                           FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                                <Button Content="Install extension…" Command="{Binding InstallExtensionCommand}" Classes="accent" />
+                                <Button Content="Grant" Command="{Binding GrantCommand}" />
+                                <Button Content="Revoke" Command="{Binding RevokeCommand}" />
+                            </StackPanel>
+                        </Grid>
+                        <StackPanel IsVisible="{Binding HasInstallSteps}" Spacing="6" Margin="0,6,0,0">
+                            <TextBlock Text="{Binding InstallSteps}" TextWrapping="Wrap" />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <SelectableTextBlock Text="{Binding InstallFolder}" FontFamily="Consolas,monospace"
+                                                     TextWrapping="Wrap" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Content="Open folder" Command="{Binding OpenInstallFolderCommand}" />
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </DataTemplate>
+        </ItemsControl.ItemTemplate>
+    </ItemsControl>
+</UserControl>

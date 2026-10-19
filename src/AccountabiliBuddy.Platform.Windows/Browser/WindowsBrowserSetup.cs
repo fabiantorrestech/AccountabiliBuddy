@@ -95,6 +95,94 @@ public sealed class WindowsBrowserSetup : IBrowserSetup
         Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = false })?.Dispose();
     }
 
+    public IReadOnlyList<BrowserKind> RepairRegistrations()
+    {
+        var repaired = new List<BrowserKind>();
+        foreach (BrowserKind kind in SupportedBrowsers)
+        {
+            BrowserInfo browser = BrowserCatalog.Get(kind);
+            string? manifestPath;
+            using (RegistryKey? key = Registry.CurrentUser.OpenSubKey($@"{browser.NativeHostKey}\{BrowserBridge.HostName}"))
+            {
+                manifestPath = key?.GetValue(null) as string;
+            }
+
+            if (manifestPath is not null
+                && !string.Equals(RegisteredHostPath(manifestPath), _hostExecutablePath, StringComparison.OrdinalIgnoreCase))
+            {
+                Register(kind);
+                repaired.Add(kind);
+            }
+        }
+
+        return repaired;
+    }
+
+    /// <summary>Removes the registrations that point to <paramref name="hostExecutablePath"/> (used when uninstalling that copy).</summary>
+    public void UnregisterWhereHostIs(string hostExecutablePath)
+    {
+        foreach (BrowserKind kind in SupportedBrowsers)
+        {
+            BrowserInfo browser = BrowserCatalog.Get(kind);
+            string? manifestPath;
+            using (RegistryKey? key = Registry.CurrentUser.OpenSubKey($@"{browser.NativeHostKey}\{BrowserBridge.HostName}"))
+            {
+                manifestPath = key?.GetValue(null) as string;
+            }
+
+            if (manifestPath is not null
+                && string.Equals(RegisteredHostPath(manifestPath), hostExecutablePath, StringComparison.OrdinalIgnoreCase))
+            {
+                Unregister(kind);
+            }
+        }
+    }
+
+    public bool RefreshExtensionCopies()
+    {
+        bool updated = false;
+        foreach (string flavor in new[] { "chromium", "firefox" })
+        {
+            string source = Path.Combine(_bundledExtensionFolder, flavor);
+            string target = Path.Combine(_dataFolder, "browser-extension", flavor);
+            if (Directory.Exists(source) && Directory.Exists(target) && ExtensionVersion(source) > ExtensionVersion(target))
+            {
+                CopyFolder(source, target);
+                updated = true;
+            }
+        }
+
+        return updated;
+    }
+
+    private static string? RegisteredHostPath(string manifestPath)
+    {
+        try
+        {
+            using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
+            return manifest.RootElement.TryGetProperty("path", out JsonElement value) ? value.GetString() : null;
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static Version ExtensionVersion(string folder)
+    {
+        try
+        {
+            using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(folder, "manifest.json")));
+            return manifest.RootElement.TryGetProperty("version", out JsonElement value) && Version.TryParse(value.GetString(), out Version? version)
+                ? version
+                : new Version(0, 0);
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            return new Version(0, 0);
+        }
+    }
+
     private string WriteHostManifest(bool forFirefox)
     {
         string folder = Path.Combine(_dataFolder, "native-host");

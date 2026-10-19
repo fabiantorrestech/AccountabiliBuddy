@@ -1,4 +1,5 @@
 using System.Globalization;
+using AccountabiliBuddy.Core.Backup;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Ports;
@@ -16,6 +17,17 @@ namespace AccountabiliBuddy.Core.Storage;
 public sealed class SqliteActivityLog : IActivityLog
 {
     private const int TopEntries = 5;
+    private const string ProtectedSuffix = "_protected";
+
+    private static readonly string[] HistoryTables = { "activity_segments", "activity_labels", "session_events" };
+
+    // Columns that identify the same entry; merging a backup skips rows that match a stored row on all of them.
+    private static readonly IReadOnlyDictionary<string, string[]> DuplicateKeys = new Dictionary<string, string[]>
+    {
+        ["activity_segments"] = new[] { "started_at", "monitor_id", "process_name" },
+        ["activity_labels"] = new[] { "created_at", "process_name", "verdict" },
+        ["session_events"] = new[] { "at", "kind" },
+    };
 
     private readonly LocalDatabase _database;
     private readonly IDataProtector _protector;
@@ -210,6 +222,131 @@ public sealed class SqliteActivityLog : IActivityLog
         await using SqliteCommand vacuum = connection.CreateCommand();
         vacuum.CommandText = "VACUUM;";
         await vacuum.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Every history row, for a backup. With <paramref name="includeProtected"/> the encrypted columns are
+    /// decrypted into the export; otherwise they are left out.
+    /// </summary>
+    public async Task<ActivityHistoryExport> ExportHistoryAsync(bool includeProtected, CancellationToken cancellationToken = default)
+    {
+        await using SqliteConnection connection = await _database.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var tables = new Dictionary<string, IReadOnlyList<IReadOnlyDictionary<string, string?>>>(StringComparer.Ordinal);
+        foreach (string table in HistoryTables)
+        {
+            var rows = new List<IReadOnlyDictionary<string, string?>>();
+            await using SqliteCommand command = connection.CreateCommand();
+            // Table names are constants, never input.
+            command.CommandText = $"SELECT * FROM {table} ORDER BY id;";
+            await using SqliteDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                var row = new Dictionary<string, string?>(StringComparer.Ordinal);
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    string column = reader.GetName(i);
+                    if (column == "id")
+                    {
+                        continue;
+                    }
+
+                    if (column.EndsWith(ProtectedSuffix, StringComparison.Ordinal))
+                    {
+                        if (includeProtected && !reader.IsDBNull(i))
+                        {
+                            row[column] = _protector.Unprotect((byte[])reader.GetValue(i));
+                        }
+
+                        continue;
+                    }
+
+                    row[column] = reader.IsDBNull(i) ? null : Convert.ToString(reader.GetValue(i), CultureInfo.InvariantCulture);
+                }
+
+                rows.Add(row);
+            }
+
+            tables[table] = rows;
+        }
+
+        return new ActivityHistoryExport(tables);
+    }
+
+    /// <summary>
+    /// Restores history rows from a backup in one transaction. <paramref name="replace"/> deletes the current history
+    /// first; otherwise rows already stored (same time, app and kind) are skipped. Columns this version doesn't have
+    /// are ignored, and encrypted columns are encrypted again for this computer.
+    /// </summary>
+    /// <returns>The number of rows added.</returns>
+    public async Task<int> ImportHistoryAsync(ActivityHistoryExport history, bool replace, CancellationToken cancellationToken = default)
+    {
+        await using SqliteConnection connection = await _database.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        if (replace)
+        {
+            await using SqliteCommand delete = connection.CreateCommand();
+            delete.Transaction = transaction;
+            delete.CommandText = "DELETE FROM activity_segments; DELETE FROM activity_labels; DELETE FROM session_events;";
+            await delete.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        int added = 0;
+        foreach (string table in HistoryTables)
+        {
+            if (!history.Tables.TryGetValue(table, out IReadOnlyList<IReadOnlyDictionary<string, string?>>? rows))
+            {
+                continue;
+            }
+
+            HashSet<string> columns = await ColumnsOfAsync(connection, transaction, table, cancellationToken).ConfigureAwait(false);
+            foreach (IReadOnlyDictionary<string, string?> row in rows)
+            {
+                // Only column names the table really has are used, so the file can't inject SQL.
+                List<string> used = row.Keys.Where(column => column != "id" && columns.Contains(column)).ToList();
+                if (used.Count == 0)
+                {
+                    continue;
+                }
+
+                string[] keys = replace ? Array.Empty<string>() : DuplicateKeys[table].Where(used.Contains).ToArray();
+                string skipDuplicates = keys.Length == 0
+                    ? string.Empty
+                    : $" WHERE NOT EXISTS (SELECT 1 FROM {table} WHERE {string.Join(" AND ", keys.Select(key => $"{key} IS $p{used.IndexOf(key)}"))})";
+
+                await using SqliteCommand insert = connection.CreateCommand();
+                insert.Transaction = transaction;
+                insert.CommandText = $"INSERT INTO {table} ({string.Join(", ", used)}) SELECT {string.Join(", ", used.Select((_, i) => $"$p{i}"))}{skipDuplicates};";
+                for (int i = 0; i < used.Count; i++)
+                {
+                    string? value = row[used[i]];
+                    object parameter = value is null ? DBNull.Value
+                        : used[i].EndsWith(ProtectedSuffix, StringComparison.Ordinal) ? _protector.Protect(value)
+                        : value;
+                    insert.Parameters.AddWithValue($"$p{i}", parameter);
+                }
+
+                added += await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return added;
+    }
+
+    private static async Task<HashSet<string>> ColumnsOfAsync(
+        SqliteConnection connection, SqliteTransaction transaction, string table, CancellationToken cancellationToken)
+    {
+        var columns = new HashSet<string>(StringComparer.Ordinal);
+        await using SqliteCommand command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = $"PRAGMA table_info({table});";
+        await using SqliteDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            columns.Add(reader.GetString(1));
+        }
+
+        return columns;
     }
 
     private static async Task<IReadOnlyList<UsageEntry>> TopUsageAsync(

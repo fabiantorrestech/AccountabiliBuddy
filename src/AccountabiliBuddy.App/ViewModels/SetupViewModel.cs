@@ -58,8 +58,11 @@ public sealed partial class SetupViewModel : ObservableObject
 
     /// <summary>True during a focus phase: revoking and deleting are disabled.</summary>
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(RevokeStartupCommand), nameof(RevokeQuickLaunchCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RevokeStartupCommand), nameof(RevokeQuickLaunchCommand), nameof(RunAssistantCommand))]
     public partial bool IsLocked { get; set; }
+
+    /// <summary>Opens the setup assistant; set by the app. Not available during a focus phase (it imports profiles).</summary>
+    public Action? OpenAssistant { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(GrantStartupCommand), nameof(RevokeStartupCommand))]
@@ -90,6 +93,14 @@ public sealed partial class SetupViewModel : ObservableObject
         {
             row.IsLocked = value;
         }
+    }
+
+    private bool CanRunAssistant => !IsLocked;
+
+    [RelayCommand(CanExecute = nameof(CanRunAssistant))]
+    private void RunAssistant()
+    {
+        OpenAssistant?.Invoke();
     }
 
     [RelayCommand(CanExecute = nameof(CanGrantStartup))]

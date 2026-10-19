@@ -21,6 +21,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly CalendarService _calendars;
     private readonly IDataProtector _protector;
 
+    /// <summary>E.g. "Version 0.1.3".</summary>
+    public string VersionText => $"Version {AccountabiliBuddy.App.Services.Backup.BackupService.AppVersion}";
+
+    /// <summary>Export and import of backups (the Backup section).</summary>
+    public BackupViewModel? Backup { get; init; }
+
     public SettingsViewModel(
         ConfigurationService configuration,
         SessionController sessions,

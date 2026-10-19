@@ -1,15 +1,19 @@
+using System.Globalization;
 using Microsoft.Data.Sqlite;
 
 namespace AccountabiliBuddy.Core.Storage;
 
 /// <summary>
 /// The single local SQLite database (ADR 6). Creates the file and applies schema migrations on first open.
-/// Schema version is tracked with SQLite's built-in <c>PRAGMA user_version</c>.
+/// Schema version is tracked with SQLite's built-in <c>PRAGMA user_version</c>. Before a migration the file is copied
+/// to <see cref="BackupFolder"/>; a database newer than this version is not opened (<see cref="DatabaseTooNewException"/>).
 /// </summary>
 public sealed class LocalDatabase
 {
+    public const int CurrentSchemaVersion = 3;
+
     private const string FileName = "accountabilibuddy.db";
-    private const int CurrentSchemaVersion = 3;
+    private const int KeptBackups = 10;
 
     private readonly string _connectionString;
     private readonly SemaphoreSlim _migrationLock = new(1, 1);
@@ -19,10 +23,33 @@ public sealed class LocalDatabase
     {
         Directory.CreateDirectory(directory);
         DatabasePath = Path.Combine(directory, FileName);
+        BackupFolder = Path.Combine(directory, "backups");
         _connectionString = new SqliteConnectionStringBuilder { DataSource = DatabasePath }.ToString();
     }
 
     public string DatabasePath { get; }
+
+    /// <summary>Copies made before migrations and updates (and before restoring a backup).</summary>
+    public string BackupFolder { get; }
+
+    /// <summary>The schema version of the file without migrating it (0 for a new database).</summary>
+    public async Task<long> ReadSchemaVersionAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        return await ReadSchemaVersionAsync(connection, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Writes a consistent copy of the database (pending writes included) to the backup folder, named
+    /// "before-{label}-{time}.db", and keeps only the newest copies.
+    /// </summary>
+    /// <returns>The copy's path.</returns>
+    public async Task<string> BackupAsync(string label, CancellationToken cancellationToken = default)
+    {
+        await using SqliteConnection connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        return await BackupAsync(connection, label, cancellationToken).ConfigureAwait(false);
+    }
 
     /// <summary>Default location: %LOCALAPPDATA%\AccountabiliBuddy on Windows, ~/.local/share/AccountabiliBuddy on Linux.</summary>
     public static string DefaultDirectory()
@@ -55,6 +82,16 @@ public sealed class LocalDatabase
             }
 
             long version = await ReadSchemaVersionAsync(connection, cancellationToken).ConfigureAwait(false);
+            if (version > CurrentSchemaVersion)
+            {
+                throw new DatabaseTooNewException(version, CurrentSchemaVersion);
+            }
+
+            if (version > 0 && version < CurrentSchemaVersion)
+            {
+                await BackupAsync(connection, $"database-v{CurrentSchemaVersion}", cancellationToken).ConfigureAwait(false);
+            }
+
             if (version < 1)
             {
                 await ExecuteAsync(connection, """
@@ -138,6 +175,28 @@ public sealed class LocalDatabase
         {
             _migrationLock.Release();
         }
+    }
+
+    private async Task<string> BackupAsync(SqliteConnection connection, string label, CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(BackupFolder);
+        string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        string path = Path.Combine(BackupFolder, $"before-{label}-{stamp}.db");
+        await using (SqliteCommand command = connection.CreateCommand())
+        {
+            // VACUUM INTO writes a clean, consistent copy even while the database is in use.
+            command.CommandText = "VACUUM INTO $path;";
+            command.Parameters.AddWithValue("$path", path);
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        foreach (FileInfo old in new DirectoryInfo(BackupFolder).GetFiles("before-*.db")
+                     .OrderByDescending(file => file.CreationTimeUtc).Skip(KeptBackups))
+        {
+            old.Delete();
+        }
+
+        return path;
     }
 
     private static async Task<long> ReadSchemaVersionAsync(SqliteConnection connection, CancellationToken cancellationToken)

@@ -97,10 +97,18 @@
                 <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="8,0,0,0" />
             </StackPanel>
 
+            <StackPanel Spacing="6">
+                <TextBlock Text="Backup" FontSize="16" FontWeight="SemiBold" />
+                <TextBlock Text="Save your profiles, settings, calendars and history to a file, or restore them from one, e.g. on a new PC."
+                           Opacity="0.75" TextWrapping="Wrap" />
+                <views:BackupPanel DataContext="{Binding Backup}" />
+            </StackPanel>
+
             <StackPanel Spacing="4">
                 <TextBlock Text="Data" FontSize="16" FontWeight="SemiBold" />
                 <TextBlock Text="Everything is stored only on this computer:" Opacity="0.75" />
                 <SelectableTextBlock Text="{Binding DatabasePath}" />
+                <TextBlock Text="{Binding VersionText}" Opacity="0.75" Margin="0,6,0,0" />
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

@@ -19,3 +19,7 @@ obj/
 extensions/**/dist/
 *.zip
 *.xpi
+
+# Packaging output (scripts/package.ps1)
+publish/
+releases/
