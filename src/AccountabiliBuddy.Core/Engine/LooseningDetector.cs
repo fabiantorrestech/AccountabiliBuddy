@@ -7,7 +7,8 @@ namespace AccountabiliBuddy.Core.Engine;
 /// Finds the changes between two configurations that make focus easier to escape ("looser"), described in plain
 /// words. Everything not listed here is stricter or neutral and may take effect at once.
 /// <list type="bullet">
-/// <item>Schedule: a block no longer fully covered by a block with the same profile; a new off day.</item>
+/// <item>Schedule: a weekly or one-off block no longer fully covered by a block with the same profile; time off
+/// not fully covered by existing time off.</item>
 /// <item>Profile: a Block rule removed, an Allow rule added, a longer grace period, "ask about unlisted sites"
 /// turned off, an unlock option added or its wait shortened, or the profile deleted while the schedule uses it.</item>
 /// <item>Settings: a shorter end-early wait or reason, later escalation, relock at midnight turned off, or a
@@ -46,9 +47,23 @@ public static class LooseningDetector
             }
         }
 
-        foreach (DateOnly day in to.Schedule.OffDays.Except(from.Schedule.OffDays).Order())
+        foreach (OneOffBlock block in from.Schedule.OneOffBlocks)
         {
-            changes.Add($"Off day {day:ddd d MMM}");
+            LocalWindow window = block.GetWindow();
+            if (!to.Schedule.OneOffBlocks.Any(candidate =>
+                    candidate.ProfileId == block.ProfileId && candidate.GetWindow().Covers(window)))
+            {
+                changes.Add($"Removed or shortened one-off block {Describe(block, from)}");
+            }
+        }
+
+        foreach (TimeOff timeOff in to.Schedule.TimeOff.OrderBy(off => off.GetWindow().Start))
+        {
+            LocalWindow window = timeOff.GetWindow();
+            if (!from.Schedule.TimeOff.Any(existing => existing.GetWindow().Covers(window)))
+            {
+                changes.Add($"Time off {Describe(timeOff)}");
+            }
         }
 
         return changes;
@@ -60,6 +75,7 @@ public static class LooseningDetector
         if (after is null)
         {
             return from.Schedule.Blocks.Any(block => block.ProfileId == before.Id)
+                   || from.Schedule.OneOffBlocks.Any(block => block.ProfileId == before.Id)
                 ? new[] { $"Deleted profile '{before.Name}' (the schedule uses it)" }
                 : Array.Empty<string>();
         }
@@ -196,6 +212,20 @@ public static class LooseningDetector
         string profile = document.Profiles.FirstOrDefault(candidate => candidate.Id == block.ProfileId)?.Name
                          ?? "deleted profile";
         return $"{block.Day.ToString()[..3]} {block.Start:HH\\:mm}–{block.End:HH\\:mm} ({profile})";
+    }
+
+    private static string Describe(OneOffBlock block, ProfileDocument document)
+    {
+        string profile = document.Profiles.FirstOrDefault(candidate => candidate.Id == block.ProfileId)?.Name
+                         ?? "deleted profile";
+        return $"{block.Date:ddd d MMM} {block.Start:HH\\:mm}–{block.End:HH\\:mm} ({profile})";
+    }
+
+    private static string Describe(TimeOff timeOff)
+    {
+        return timeOff.IsAllDay
+            ? $"{timeOff.Date:ddd d MMM}, all day"
+            : $"{timeOff.Date:ddd d MMM} {timeOff.Start:HH\\:mm}–{timeOff.End:HH\\:mm}";
     }
 
     private static string Format(TimeSpan duration)

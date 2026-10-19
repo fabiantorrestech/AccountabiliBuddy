@@ -5,13 +5,14 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0009](0009-allow-read-only-calendar-connections.md) | Allow read-only calendar connections | Accepted | [2](0002-process-all-activity-data-locally.md) |
 | [0008](0008-store-activity-history-with-readable-totals-and-encrypted-details.md) | Store activity history with readable totals and encrypted details | Accepted | — |
 | [0007](0007-use-versioned-json-for-profiles-and-rules.md) | Use versioned JSON for profiles and rules | Accepted | — |
 | [0006](0006-store-local-data-in-sqlite.md) | Store local data in SQLite | Accepted | — |
 | [0005](0005-use-browser-native-messaging-for-url-detection.md) | Use browser native messaging for URL detection | Accepted | — |
 | [0004](0004-separate-portable-core-from-platform-adapters.md) | Separate portable Core from platform adapters | Accepted | — |
 | [0003](0003-use-dotnet-10-and-avalonia.md) | Use .NET 10 and Avalonia | Accepted | — |
-| [0002](0002-process-all-activity-data-locally.md) | Process all activity data locally | Accepted | — |
+| [0002](0002-process-all-activity-data-locally.md) | ~~Process all activity data locally~~ | Superseded by [9](0009-allow-read-only-calendar-connections.md) | — |
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted | — |
 
 <!-- END GENERATED ADR INDEX -->

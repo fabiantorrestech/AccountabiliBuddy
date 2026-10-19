@@ -1,0 +1,241 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             x:Class="AccountabiliBuddy.App.Views.ExceptionsView"
+             x:DataType="vm:ExceptionsViewModel">
+    <UserControl.Styles>
+        <Style Selector="Button.day">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="Margin" Value="2" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="#0F808080" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+    </UserControl.Styles>
+
+    <DockPanel Margin="12">
+        <views:PendingChangesBanner DockPanel.Dock="Top" DataContext="{Binding PendingChanges}" Margin="0,0,0,12" />
+        <TextBlock DockPanel.Dock="Top" Opacity="0.75" TextWrapping="Wrap" Margin="0,0,0,8"
+                   Text="Exceptions to the weekly schedule on single dates. Time off (all day or certain hours) pauses scheduled blocks; it's a looser change, so it waits for the countdown and never starts during a session. One-off blocks add blocked time and apply at once." />
+
+        <Grid ColumnDefinitions="*,16,320">
+            <DockPanel Grid.Column="0">
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,*" Margin="0,0,0,6">
+                    <Button Grid.Column="0" Content="◀" Command="{Binding PreviousMonthCommand}" ToolTip.Tip="Previous month" />
+                    <Button Grid.Column="1" Content="Today" Command="{Binding GoToTodayCommand}" Margin="6,0" />
+                    <Button Grid.Column="2" Content="▶" Command="{Binding NextMonthCommand}" ToolTip.Tip="Next month" />
+                    <TextBlock Grid.Column="3" Text="{Binding MonthTitle}" FontSize="18" FontWeight="SemiBold"
+                               VerticalAlignment="Center" Margin="12,0,0,0" />
+                    <Button Grid.Column="3" Content="Refresh calendars" HorizontalAlignment="Right"
+                            Command="{Binding RefreshCalendarsCommand}"
+                            ToolTip.Tip="Fetch every event of every connected calendar now, hidden ones included" />
+                </Grid>
+                <ItemsControl DockPanel.Dock="Top" ItemsSource="{x:Static vm:ExceptionsViewModel.WeekdayHeaders}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="7" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                            <TextBlock Text="{Binding}" Opacity="0.75" Margin="8,0,0,4" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <ItemsControl ItemsSource="{Binding Days}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="7" Rows="6" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:CalendarDayViewModel">
+                            <Button Classes="day" Classes.selected="{Binding IsSelected}" Classes.today="{Binding IsToday}"
+                                    Opacity="{Binding Opacity}"
+                                    Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).SelectDayCommand}"
+                                    CommandParameter="{Binding}">
+                                <Button.Styles>
+                                    <Style Selector="Button.selected">
+                                        <Setter Property="BorderBrush" Value="#2A9D8F" />
+                                        <Setter Property="Background" Value="#262A9D8F" />
+                                    </Style>
+                                    <Style Selector="Button.today TextBlock.number">
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                        <Setter Property="Foreground" Value="#2A9D8F" />
+                                    </Style>
+                                </Button.Styles>
+                                <StackPanel Spacing="1">
+                                    <TextBlock Classes="number" Text="{Binding DayNumber}" FontSize="13" />
+                                    <ItemsControl ItemsSource="{Binding Lines}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:CalendarDayLine">
+                                                <Border Background="{Binding Brush}" CornerRadius="3" Padding="4,0" Margin="0,1"
+                                                        ToolTip.Tip="{Binding Text}">
+                                                    <TextBlock Text="{Binding Text}" FontSize="11" Foreground="White"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="{Binding MoreText}" FontSize="11" Opacity="0.75"
+                                               IsVisible="{Binding MoreText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                </StackPanel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </DockPanel>
+
+            <ScrollViewer Grid.Column="2">
+                <StackPanel Spacing="10" Margin="0,0,14,0">
+                    <Expander Header="Calendars" HorizontalAlignment="Stretch">
+                        <StackPanel Spacing="10">
+                            <ItemsControl ItemsSource="{Binding CalendarSources}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:CalendarSourceRowViewModel">
+                                        <StackPanel Margin="0,0,0,10" Spacing="2">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                                           VerticalAlignment="Center" ToolTip.Tip="{Binding Name}" />
+                                                <Button Grid.Column="1" Content="{Binding RemoveLabel}" IsVisible="{Binding CanRemove}"
+                                                        FontSize="12" Padding="6,2"
+                                                        Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).RemoveSourceCommand}"
+                                                        CommandParameter="{Binding}" />
+                                            </Grid>
+                                            <TextBlock Text="{Binding StatusText}" FontSize="11" Opacity="0.75" TextWrapping="Wrap"
+                                                       Classes.error="{Binding HasError}">
+                                                <TextBlock.Styles>
+                                                    <Style Selector="TextBlock.error">
+                                                        <Setter Property="Foreground" Value="#E76F51" />
+                                                        <Setter Property="Opacity" Value="1" />
+                                                    </Style>
+                                                </TextBlock.Styles>
+                                            </TextBlock>
+                                            <ItemsControl ItemsSource="{Binding Calendars}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:CalendarRowViewModel">
+                                                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,1">
+                                                            <CheckBox IsChecked="{Binding IsVisible}" ToolTip.Tip="Show on the calendar"
+                                                                      AutomationProperties.Name="{Binding Name, StringFormat='Show {0}'}" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center"
+                                                                       TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" />
+                                                            <Button Grid.Column="2" Width="22" Height="22" Padding="0" CornerRadius="11"
+                                                                    Background="{Binding Brush}" ToolTip.Tip="Change colour"
+                                                                    Command="{Binding NextColorCommand}" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="Add an iCal link" FontWeight="SemiBold" />
+                            <TextBlock FontSize="11" Opacity="0.75" TextWrapping="Wrap"
+                                       Text="Google: calendar Settings → Integrate calendar → Secret address in iCal format. One link per calendar. Outlook, iCloud and Nextcloud have the same kind of link. The address is stored encrypted." />
+                            <TextBox Text="{Binding NewLinkAddress}" PasswordChar="•" PlaceholderText="https://… or webcal://…"
+                                     AutomationProperties.Name="iCal address" />
+                            <TextBox Text="{Binding NewLinkGroup}" PlaceholderText="Group name (optional), e.g. Work account"
+                                     AutomationProperties.Name="Group name" />
+                            <Button Content="Add link" Command="{Binding AddLinkCommand}" />
+
+                            <Button Content="Connect Google account…" Command="{Binding ConnectGoogleCommand}" Margin="0,6,0,0"
+                                    ToolTip.Tip="Lists all calendars of the account; changes show up within about 30 seconds. Needs your Google client ID in Settings." />
+                            <TextBlock Text="{Binding CalendarMessage}" TextWrapping="Wrap" FontSize="12"
+                                       IsVisible="{Binding CalendarMessage, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        </StackPanel>
+                    </Expander>
+
+                    <TextBlock Text="{Binding SelectedDateTitle}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+
+                    <TextBlock Text="Events" FontWeight="SemiBold" Margin="0,6,0,0" />
+                    <ItemsControl ItemsSource="{Binding SelectedEvents}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:EventRowViewModel">
+                                <Grid ColumnDefinitions="4,*,Auto" Margin="0,3">
+                                    <Border Background="{Binding Brush}" CornerRadius="2" />
+                                    <StackPanel Grid.Column="1" Margin="8,0,4,0">
+                                        <TextBlock Text="{Binding Title}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding When}" FontSize="12" />
+                                        <TextBlock Text="{Binding CalendarName}" FontSize="11" Opacity="0.7" TextTrimming="CharacterEllipsis" />
+                                        <Button Content="Time off for this" FontSize="12" Padding="6,2" Margin="0,4,0,0"
+                                                Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).TimeOffForEventCommand}"
+                                                CommandParameter="{Binding}" />
+                                    </StackPanel>
+                                    <Button Grid.Column="2" Content="✕" ToolTip.Tip="Remove event" IsVisible="{Binding IsEditable}"
+                                            VerticalAlignment="Top"
+                                            Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).RemoveEventCommand}"
+                                            CommandParameter="{Binding}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBox Text="{Binding NewEventTitle}" PlaceholderText="New event, e.g. Exam" AutomationProperties.Name="New event title" />
+                    <CheckBox Content="All day" IsChecked="{Binding NewEventAllDay}" AutomationProperties.Name="Event all day" />
+                    <Grid ColumnDefinitions="44,*" RowDefinitions="Auto,Auto" RowSpacing="6" IsVisible="{Binding !NewEventAllDay}">
+                        <TextBlock Text="From" VerticalAlignment="Center" />
+                        <TimePicker Grid.Column="1" SelectedTime="{Binding NewEventStart}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
+                        <TextBlock Grid.Row="1" Text="To" VerticalAlignment="Center" />
+                        <TimePicker Grid.Row="1" Grid.Column="1" SelectedTime="{Binding NewEventEnd}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
+                    </Grid>
+                    <Button Content="Add event" Command="{Binding AddEventCommand}" />
+
+                    <TextBlock Text="Time off" FontWeight="SemiBold" Margin="0,6,0,0" />
+                    <ItemsControl ItemsSource="{Binding SelectedTimeOff}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TimeOffRowViewModel">
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                                    <TextBlock Text="{Binding Text}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <Button Grid.Column="1" Content="✕" ToolTip.Tip="Remove time off"
+                                            Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).RemoveTimeOffCommand}"
+                                            CommandParameter="{Binding}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <CheckBox Content="All day" IsChecked="{Binding NewTimeOffAllDay}" AutomationProperties.Name="Time off all day" />
+                    <Grid ColumnDefinitions="44,*" RowDefinitions="Auto,Auto" RowSpacing="6" IsVisible="{Binding !NewTimeOffAllDay}">
+                        <TextBlock Text="From" VerticalAlignment="Center" />
+                        <TimePicker Grid.Column="1" SelectedTime="{Binding NewTimeOffStart}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
+                        <TextBlock Grid.Row="1" Text="To" VerticalAlignment="Center" />
+                        <TimePicker Grid.Row="1" Grid.Column="1" SelectedTime="{Binding NewTimeOffEnd}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
+                    </Grid>
+                    <TextBox Text="{Binding NewTimeOffNote}" PlaceholderText="Note (optional), e.g. dentist" AutomationProperties.Name="Time off note" />
+                    <Button Content="Add time off" Command="{Binding AddTimeOffCommand}" />
+
+                    <TextBlock Text="One-off blocks" FontWeight="SemiBold" Margin="0,12,0,0" />
+                    <ItemsControl ItemsSource="{Binding SelectedOneOffBlocks}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:OneOffBlockRowViewModel">
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                                    <TextBlock Text="{Binding Text}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <Button Grid.Column="1" Content="✕" ToolTip.Tip="Remove one-off block"
+                                            Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).RemoveOneOffBlockCommand}"
+                                            CommandParameter="{Binding}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Grid ColumnDefinitions="44,*" RowDefinitions="Auto,Auto" RowSpacing="6">
+                        <TextBlock Text="From" VerticalAlignment="Center" />
+                        <TimePicker Grid.Column="1" SelectedTime="{Binding NewBlockStart}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
+                        <TextBlock Grid.Row="1" Text="To" VerticalAlignment="Center" />
+                        <TimePicker Grid.Row="1" Grid.Column="1" SelectedTime="{Binding NewBlockEnd}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
+                    </Grid>
+                    <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding NewBlockProfile}"
+                              HorizontalAlignment="Stretch" PlaceholderText="Choose a profile" />
+                    <Button Content="Add one-off block" Command="{Binding AddOneOffBlockCommand}" />
+
+                    <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
+</UserControl>

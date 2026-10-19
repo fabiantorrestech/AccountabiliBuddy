@@ -67,13 +67,28 @@
             </StackPanel>
 
             <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
+                <TextBlock Text="Calendars" FontSize="16" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="240,120">
+                    <TextBlock Text="Check iCal links every (minutes)" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding CalendarRefreshMinutes}" />
+                </Grid>
+                <TextBlock Opacity="0.75" TextWrapping="Wrap"
+                           Text="5 minutes or more. Links are also checked when you press Refresh calendars and when the window opens. Google accounts check for changes every 30 seconds." />
+                <TextBlock Text="Google client (for Connect Google account)" Margin="0,6,0,0" />
+                <TextBox Text="{Binding GoogleClientId}" PlaceholderText="Client ID (…apps.googleusercontent.com)" />
+                <TextBox Text="{Binding GoogleClientSecret}" PasswordChar="•" PlaceholderText="{Binding GoogleClientSecretHint}" />
+                <TextBlock Opacity="0.75" TextWrapping="Wrap"
+                           Text="Create these in your own Google Cloud project: enable the Google Calendar API, set up the OAuth consent screen (add yourself as a test user), then create an OAuth client of type Desktop app. While the project is in Testing, Google ends the sign-in after 7 days. The secret is stored encrypted on this computer." />
+            </StackPanel>
+
+            <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
                 <TextBlock Text="Looser changes" FontSize="16" FontWeight="SemiBold" />
                 <Grid ColumnDefinitions="240,120">
                     <TextBlock Text="Wait before they apply (minutes)" VerticalAlignment="Center" />
                     <TextBox Grid.Column="1" Text="{Binding LooseningDelayMinutes}" />
                 </Grid>
                 <TextBlock Opacity="0.75" TextWrapping="Wrap"
-                           Text="Deleting a scheduled block, removing a block rule, adding an allow rule, an off day or an unlock option, or lowering any wait counts down this long first, and never takes effect during a session. Stricter changes apply at once. Shortening this wait counts down too." />
+                           Text="Deleting a scheduled block, removing a block rule, adding an allow rule, time off or an unlock option, or lowering any wait counts down this long first, and never takes effect during a session. Stricter changes apply at once. Shortening this wait counts down too." />
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Spacing="8">

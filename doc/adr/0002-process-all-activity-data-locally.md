@@ -4,7 +4,7 @@ Date: 2026-10-15
 
 ## Status
 
-Accepted
+Superseded by [9. Allow read-only calendar connections](0009-allow-read-only-calendar-connections.md)
 
 ## Context
 

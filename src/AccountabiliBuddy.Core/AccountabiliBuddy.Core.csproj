@@ -7,6 +7,7 @@
 
   <ItemGroup>
     <!-- Cross-platform; bundles native SQLite for Windows, Linux and macOS (ADR 6). -->
+    <PackageReference Include="Ical.Net" Version="5.2.3" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
   </ItemGroup>
 

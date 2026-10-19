@@ -1,6 +1,6 @@
 # Exceptions tab and calendar: plan
 
-Status: **draft, waiting for approval**.
+Status: **built (E1–E6), 2026-10-18**. Plan and ADR 9 approved; Google client is our own small HTTP client.
 
 Decisions so far (2026-10-18):
 - In-app calendar, iCal links **and** Google sign-in.
@@ -99,6 +99,9 @@ ADR 2 forbids any outbound connection. **ADR 9 (proposed) replaces it.**
 | E5 | Google sign-in: calendar list, 30-s changes-only fetch, Disconnect | With your test project: all calendars listed, a change shows up within ~30 s, Disconnect revokes |
 | E6 | Checks | Regression suites, light and dark screenshots |
 
-## Open questions
+## Notes from building it
 
-1. Google: official libraries (new dependencies) or our own small client?
+- Google is our own client over `HttpClient` (no Google libraries). Ical.Net 5.2.3 brings NodaTime and Portable.System.DateTimeOnly with it.
+- Google changes are asked for with `updatedMin` + `showDeleted` (not sync tokens), and everything is re-fetched every 6 hours and on Refresh.
+- All-day time off covers its own date only: a Sunday 23:00–01:00 block with Sunday off runs 00:00–01:00 on Monday (old off days skipped the whole block).
+- Not yet tried against real Google: it needs your Google Cloud project. Checked against a local stand-in (PKCE, calendar list, changes, token refresh, revoke).

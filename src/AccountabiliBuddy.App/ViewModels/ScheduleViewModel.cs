@@ -9,10 +9,9 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// Schedule tab: the week grid plus an editor for the selected block, and planned off days.
-/// Changes save immediately; looser ones (deleting or shortening a block, adding an off day) count down first and
-/// the grid shows them as saved (see <see cref="PendingChangesViewModel"/>). The grid is locked during a focus phase;
-/// off days can still be added (they wait for the countdown and the end of the session) and removed (that only tightens).
+/// Schedule tab: the week grid plus an editor for the selected block. Exceptions on single dates (time off, one-off
+/// blocks) live in the Exceptions tab. Changes save immediately; looser ones (deleting or shortening a block) count
+/// down first and the grid shows them as saved (see <see cref="PendingChangesViewModel"/>). Locked during a focus phase.
 /// </summary>
 public sealed partial class ScheduleViewModel : ObservableObject
 {
@@ -26,7 +25,6 @@ public sealed partial class ScheduleViewModel : ObservableObject
         PendingChanges = pendingChanges;
 
         Items = Array.Empty<ScheduleBlockItem>();
-        NewOffDay = FirstOffDay;
 
         _configuration.Changed += (_, _) => RefreshFromConfiguration(_configuration.Editing);
         _configuration.PendingChanged += (_, _) => RefreshFromConfiguration(_configuration.Editing);
@@ -77,19 +75,6 @@ public sealed partial class ScheduleViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string? StatusMessage { get; set; }
-
-    public ObservableCollection<OffDayRowViewModel> OffDays { get; } = new();
-
-    /// <summary>The date picked for a new off day; today at the earliest.</summary>
-    [ObservableProperty]
-    public partial DateTime? NewOffDay { get; set; }
-
-    [ObservableProperty]
-    public partial string? OffDayMessage { get; set; }
-
-    public DateTime FirstOffDay => Today;
-
-    private DateTime Today => TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).Date;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CreateBlockCommand))]
@@ -146,39 +131,6 @@ public sealed partial class ScheduleViewModel : ObservableObject
         StatusMessage = Describe("Block deleted.", waiting);
     }
 
-    [RelayCommand]
-    private async Task AddOffDayAsync()
-    {
-        if (NewOffDay is not DateTime picked)
-        {
-            OffDayMessage = "Pick a date first.";
-            return;
-        }
-
-        if (picked.Date < Today)
-        {
-            OffDayMessage = "That day is already over.";
-            return;
-        }
-
-        DateOnly date = DateOnly.FromDateTime(picked);
-        if (_configuration.Editing.Schedule.OffDays.Contains(date))
-        {
-            OffDayMessage = "That day is already an off day.";
-            return;
-        }
-
-        PendingChanges? waiting = await ReplaceOffDaysAsync(days => days.Append(date));
-        OffDayMessage = Describe($"No scheduled blocks on {date:dddd d MMMM}.", waiting);
-    }
-
-    [RelayCommand]
-    private async Task RemoveOffDayAsync(OffDayRowViewModel row)
-    {
-        PendingChanges? waiting = await ReplaceOffDaysAsync(days => days.Where(day => day != row.Date));
-        OffDayMessage = Describe($"{row.Date:dddd d MMMM} is a normal day again.", waiting);
-    }
-
     partial void OnSelectedBlockIdChanged(Guid? value)
     {
         ScheduleBlock? block = _configuration.Editing.Schedule.Blocks.FirstOrDefault(candidate => candidate.Id == value);
@@ -206,19 +158,6 @@ public sealed partial class ScheduleViewModel : ObservableObject
             document with { Schedule = document.Schedule with { Blocks = change(document.Schedule.Blocks).ToList() } });
     }
 
-    private Task<PendingChanges?> ReplaceOffDaysAsync(Func<IEnumerable<DateOnly>, IEnumerable<DateOnly>> change)
-    {
-        // Past off days are dropped whenever the list changes.
-        DateOnly today = DateOnly.FromDateTime(Today);
-        return _configuration.UpdateAsync(document => document with
-        {
-            Schedule = document.Schedule with
-            {
-                OffDays = change(document.Schedule.OffDays).Where(day => day >= today).Distinct().Order().ToList(),
-            },
-        });
-    }
-
     private void RefreshFromConfiguration(ProfileDocument document)
     {
         PaintProfile = ProfileOptions.Refresh(Profiles, document.Profiles, PaintProfile?.Id);
@@ -230,12 +169,6 @@ public sealed partial class ScheduleViewModel : ObservableObject
                 ProfileColors.For(block.ProfileId)))
             .ToList();
 
-        DateOnly today = DateOnly.FromDateTime(Today);
-        OffDays.Clear();
-        foreach (DateOnly day in document.Schedule.OffDays.Where(day => day >= today).Order())
-        {
-            OffDays.Add(new OffDayRowViewModel(day));
-        }
 
         if (SelectedBlockId is Guid id && document.Schedule.Blocks.All(block => block.Id != id))
         {

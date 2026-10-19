@@ -44,6 +44,9 @@
             <TabItem Header="Schedule">
                 <views:ScheduleView DataContext="{Binding Schedule}" />
             </TabItem>
+            <TabItem Header="Exceptions">
+                <views:ExceptionsView DataContext="{Binding Exceptions}" />
+            </TabItem>
             <TabItem Header="History">
                 <views:HistoryView DataContext="{Binding History}" />
             </TabItem>

@@ -1,5 +1,6 @@
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -8,7 +9,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// Settings tab: quick-session shortcut, Pomodoro defaults, escalation timings, friction, unlock relocking and how
-/// long looser changes wait. (Start with Windows lives in the Setup tab.)
+/// long looser changes wait, and calendars (link check interval, Google client). (Start with Windows lives in the Setup tab.)
 /// Saving is locked during a focus phase so friction cannot be turned off mid-session; looser values count down
 /// first and the tab shows them as saved (see <see cref="PendingChangesViewModel"/>).
 /// </summary>
@@ -17,17 +18,23 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly ConfigurationService _configuration;
     private readonly SessionController _sessions;
     private readonly QuickSessionService _quickSession;
+    private readonly CalendarService _calendars;
+    private readonly IDataProtector _protector;
 
     public SettingsViewModel(
         ConfigurationService configuration,
         SessionController sessions,
         QuickSessionService quickSession,
+        CalendarService calendars,
+        IDataProtector protector,
         PendingChangesViewModel pendingChanges,
         string databasePath)
     {
         _configuration = configuration;
         _sessions = sessions;
         _quickSession = quickSession;
+        _calendars = calendars;
+        _protector = protector;
         PendingChanges = pendingChanges;
         HotkeyText = quickSession.Preferences.Hotkey;
         HotkeyStatus = quickSession.HotkeyError ?? $"Press {quickSession.Preferences.Hotkey} anywhere to open the quick session.";
@@ -36,6 +43,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         FocusMinutes = ShortBreakMinutes = LongBreakMinutes = CyclesBeforeLongBreak = string.Empty;
         NudgeSeconds = OverlaySeconds = EnforceSeconds = string.Empty;
         BypassWaitSeconds = MinReasonLength = LooseningDelayMinutes = string.Empty;
+        CalendarRefreshMinutes = calendars.Settings.LinkRefreshMinutes.ToString();
+        GoogleClientId = calendars.Settings.GoogleClientId ?? string.Empty;
+        GoogleClientSecret = string.Empty;
 
         _sessions.StateChanged += (_, _) => IsLocked = _sessions.IsEnforcing;
         IsLocked = _sessions.IsEnforcing;
@@ -90,6 +100,21 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool RelockAtMidnight { get; set; }
 
+    /// <summary>How often iCal links are checked (5 minutes or more).</summary>
+    [ObservableProperty]
+    public partial string CalendarRefreshMinutes { get; set; }
+
+    [ObservableProperty]
+    public partial string GoogleClientId { get; set; }
+
+    /// <summary>Typed to replace the saved secret; left empty, the saved one is kept.</summary>
+    [ObservableProperty]
+    public partial string GoogleClientSecret { get; set; }
+
+    public string GoogleClientSecretHint => _calendars.Settings.ProtectedGoogleClientSecret is null
+        ? "Client secret"
+        : "Client secret (saved; type to replace)";
+
     /// <summary>How long looser changes wait before they take effect.</summary>
     [ObservableProperty]
     public partial string LooseningDelayMinutes { get; set; }
@@ -116,8 +141,15 @@ public sealed partial class SettingsViewModel : ObservableObject
             || !TryReadNonNegative(EnforceSeconds, "Enforce after", out int enforce)
             || !TryReadNonNegative(BypassWaitSeconds, "End-early wait", out int bypassWait)
             || !TryReadNonNegative(MinReasonLength, "Minimum reason length", out int reasonLength)
-            || !TryReadNonNegative(LooseningDelayMinutes, "Looser changes wait", out int looseningDelay))
+            || !TryReadNonNegative(LooseningDelayMinutes, "Looser changes wait", out int looseningDelay)
+            || !TryReadPositive(CalendarRefreshMinutes, "Calendar check interval", out int calendarMinutes))
         {
+            return;
+        }
+
+        if (calendarMinutes < CalendarSettings.MinLinkRefreshMinutes)
+        {
+            StatusMessage = $"Not saved: calendar links can't be checked more often than every {CalendarSettings.MinLinkRefreshMinutes} minutes.";
             return;
         }
 
@@ -137,9 +169,24 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         PendingChanges? waiting = await _configuration.UpdateAsync(document =>
             document with { PomodoroDefaults = pomodoro, Escalation = escalation, Bypass = bypass, Locks = locks });
+        SaveCalendarSettings(calendarMinutes);
         StatusMessage = _configuration.IsReadOnly
             ? "Not saved: settings are read-only (see banner)."
             : waiting is null ? "Saved." : "Saved. Looser changes wait for the countdown above.";
+    }
+
+    /// <summary>Calendar settings are this computer's own (not part of the shared profile file) and never loosen anything.</summary>
+    private void SaveCalendarSettings(int calendarMinutes)
+    {
+        string? secret = GoogleClientSecret.Trim().Length > 0
+            ? Convert.ToBase64String(_protector.Protect(GoogleClientSecret.Trim()))
+            : _calendars.Settings.ProtectedGoogleClientSecret;
+        _calendars.SaveSettings(new CalendarSettings(
+            calendarMinutes,
+            GoogleClientId.Trim().Length > 0 ? GoogleClientId.Trim() : null,
+            secret));
+        GoogleClientSecret = string.Empty;
+        OnPropertyChanged(nameof(GoogleClientSecretHint));
     }
 
     // Not locked during focus: changing the shortcut does not loosen anything.

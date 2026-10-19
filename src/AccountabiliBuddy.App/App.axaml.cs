@@ -27,6 +27,12 @@ namespace AccountabiliBuddy.App;
 public partial class App : Application
 {
     private const string DataDirectoryVariable = "ACCOUNTABILIBUDDY_DATA_DIR";
+
+    // Test runs point Google sign-in and the Calendar API at a local stand-in (e.g. http://127.0.0.1:5199/).
+    private const string GoogleTestBaseVariable = "ACCOUNTABILIBUDDY_GOOGLE_TEST_BASE";
+
+    // Opening the window refreshes calendars, but not more often than this.
+    private static readonly TimeSpan WindowRefreshInterval = TimeSpan.FromMinutes(1);
     private static readonly Uri IconUri = new("avares://AccountabiliBuddy.App/Assets/app-icon.png");
 
     private readonly StartupOptions _options;
@@ -38,6 +44,9 @@ public partial class App : Application
     private SessionCheckpointService? _checkpoints;
     private WatchedBrowsersService? _watchedBrowsers;
     private UnlockService? _unlocks;
+    private CalendarNetwork? _calendarNetwork;
+    private CalendarSyncService? _calendarSync;
+    private DateTimeOffset _lastWindowRefresh = DateTimeOffset.MinValue;
     private WinEventActivityWatcher? _activityWatcher;
     private NamedPipeBrowserSource? _browserSource;
     private Win32GlobalHotkey? _hotkey;
@@ -171,11 +180,22 @@ public partial class App : Application
             _watchedBrowsers);
 
         var pendingChanges = new PendingChangesViewModel(_configuration, _sessions);
+        var calendars = new CalendarService(documents);
+        calendars.LoadBlocking();
+        var dataProtector = new DpapiDataProtector();
+        _calendarNetwork = new CalendarNetwork();
+        _calendarSync = new CalendarSyncService(
+            calendars,
+            _calendarNetwork,
+            new GoogleCalendarClient(_calendarNetwork, GoogleEndpointsFromEnvironment(), time),
+            dataProtector,
+            time);
         var mainViewModel = new MainWindowViewModel(
             new SessionViewModel(
                 _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks)),
             new ProfilesViewModel(_configuration, _sessions, pendingChanges),
             new ScheduleViewModel(_configuration, _sessions, pendingChanges),
+            new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
             new HistoryViewModel(activityLog, _recorder, _configuration, privacy, time),
             new SetupViewModel(
                 startupRegistrar,
@@ -186,7 +206,7 @@ public partial class App : Application
                 _sessions,
                 _watchedBrowsers),
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
-            new SettingsViewModel(_configuration, _sessions, _quickSession, pendingChanges, database.DatabasePath),
+            new SettingsViewModel(_configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, database.DatabasePath),
             activityViewModel,
             _configuration.LoadError);
 
@@ -209,6 +229,7 @@ public partial class App : Application
         }
         _activityWatcher.Start();
         _browserSource.Start();
+        _calendarSync.Start();
     }
 
     private void CreateTrayIcon()
@@ -278,6 +299,37 @@ public partial class App : Application
         }
 
         _mainWindow.Activate();
+
+        if (_calendarSync is not null && DateTimeOffset.UtcNow - _lastWindowRefresh >= WindowRefreshInterval)
+        {
+            _lastWindowRefresh = DateTimeOffset.UtcNow;
+            _ = _calendarSync.RefreshAllAsync();
+        }
+    }
+
+    private static bool OpenInBrowser(Uri uri)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+            return true;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return false;
+        }
+    }
+
+    private static GoogleEndpoints GoogleEndpointsFromEnvironment()
+    {
+        string? testBase = Environment.GetEnvironmentVariable(GoogleTestBaseVariable);
+        if (testBase is null || !Uri.TryCreate(testBase, UriKind.Absolute, out Uri? baseUri) || !baseUri.IsLoopback)
+        {
+            return GoogleEndpoints.Default;
+        }
+
+        return new GoogleEndpoints(
+            new Uri(baseUri, "auth"), new Uri(baseUri, "token"), new Uri(baseUri, "revoke"), new Uri(baseUri, "calendar/v3/"));
     }
 
     private Window? VisibleMainWindow()
@@ -320,6 +372,8 @@ public partial class App : Application
         _activityWatcher?.Dispose();
         _checkpoints?.Dispose();
         _unlocks?.Dispose();
+        _calendarSync?.Dispose();
+        _calendarNetwork?.Dispose();
         _sessions?.Dispose();
         _trayIcon?.Dispose();
     }

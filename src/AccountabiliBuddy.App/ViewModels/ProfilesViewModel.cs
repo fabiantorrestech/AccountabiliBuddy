@@ -78,7 +78,8 @@ public sealed partial class ProfilesViewModel : ObservableObject
     {
         ProfileEditorViewModel profile = SelectedProfile!;
 
-        int scheduledBlocks = _configuration.Editing.Schedule.Blocks.Count(block => block.ProfileId == profile.Id);
+        int scheduledBlocks = _configuration.Editing.Schedule.Blocks.Count(block => block.ProfileId == profile.Id)
+            + _configuration.Editing.Schedule.OneOffBlocks.Count(block => block.ProfileId == profile.Id);
         if (scheduledBlocks > 0)
         {
             StatusMessage = $"'{profile.Name}' is used by {scheduledBlocks} schedule block(s). Remove those first.";
