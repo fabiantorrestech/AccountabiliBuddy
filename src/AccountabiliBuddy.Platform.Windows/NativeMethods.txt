@@ -81,3 +81,9 @@ CryptUnprotectData
 CRYPTPROTECT_UI_FORBIDDEN
 LocalFree
 GetLastInputInfo
+
+// Session timer overlay: click-through window, Ctrl+Alt drag
+SetWindowLong
+GetAsyncKeyState
+VIRTUAL_KEY
+GetForegroundWindow

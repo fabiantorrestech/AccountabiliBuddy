@@ -52,6 +52,8 @@ public partial class App : Application
     private ClockAnchorService? _clockAnchors;
     private WatchedBrowsersService? _watchedBrowsers;
     private UnlockService? _unlocks;
+    private SessionOverlayService? _sessionOverlay;
+    private DayBarViewModel? _dayBar;
     private PrivateWindowAccessMonitor? _privateAccess;
     private PrivateWindowsNagWindow? _privateWindowsNag;
     private CalendarNetwork? _calendarNetwork;
@@ -216,6 +218,13 @@ public partial class App : Application
         var pendingChanges = new PendingChangesViewModel(_configuration, _sessions);
         var calendars = new CalendarService(documents);
         calendars.LoadBlocking();
+        var dayBarSettings = new DayBarSettingsService(documents);
+        dayBarSettings.LoadBlocking();
+        var overlaySettings = new OverlaySettingsService(documents);
+        overlaySettings.LoadBlocking();
+        var timelineDay = new DayBarViewModel(_configuration, _sessions, calendars, activityLog, dayBarSettings, time, ignoresShowSetting: true);
+        _sessionOverlay = new SessionOverlayService(_sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), timelineDay);
+        _dayBar = new DayBarViewModel(_configuration, _sessions, calendars, activityLog, dayBarSettings, time);
         var dataProtector = new DpapiDataProtector();
         _calendarNetwork = new CalendarNetwork();
         _calendarSync = new CalendarSyncService(
@@ -246,20 +255,27 @@ public partial class App : Application
 
         var mainViewModel = new MainWindowViewModel(
             new SessionViewModel(
-                _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks)),
-            new ProfilesViewModel(_configuration, _sessions, pendingChanges),
+                _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks))
+            {
+                TimerToggle = new TimerToggleViewModel(_sessionOverlay),
+            },
+            new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings),
             new ScheduleViewModel(_configuration, _sessions, pendingChanges),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
             new HistoryViewModel(activityLog, _recorder, _configuration, privacy, time),
             setupViewModel,
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
-            new SettingsViewModel(_configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, database.DatabasePath)
+            new SettingsViewModel(
+                _configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, dayBarSettings, overlaySettings, database.DatabasePath)
             {
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
             },
             activityViewModel,
             Environment.GetEnvironmentVariable(DevToolsVariable) == "1",
-            _configuration.LoadError);
+            _configuration.LoadError)
+        {
+            DayBar = _dayBar,
+        };
 
         _mainWindow = new MainWindow { DataContext = mainViewModel };
 
@@ -292,6 +308,8 @@ public partial class App : Application
         _browserSource.Start();
         _calendarSync.Start();
         _clockAnchors.Start();
+        _sessionOverlay.Start();
+        _dayBar.Start();
         PrivateWindowAccessMonitor privateAccess = _privateAccess;
         privateAccess.NagRequested += (_, _) => ShowPrivateWindowsNag(privateAccess, browserSetup);
         privateAccess.Start();
@@ -563,6 +581,8 @@ public partial class App : Application
         _browserSource?.Dispose();
         _activityWatcher?.Dispose();
         _checkpoints?.Dispose();
+        _sessionOverlay?.Dispose();
+        _dayBar?.Dispose();
         _privateAccess?.Dispose();
         _clockAnchors?.Dispose();
         _unlocks?.Dispose();

@@ -16,19 +16,26 @@ public sealed partial class ProfilesViewModel : ObservableObject
 {
     private readonly ConfigurationService _configuration;
     private readonly SessionController _sessions;
+    private readonly OverlaySettingsService _overlays;
 
     // Every rule id this tab already has an editor for, so rules added elsewhere can be told apart.
     private readonly HashSet<Guid> _knownRuleIds = new();
 
-    public ProfilesViewModel(ConfigurationService configuration, SessionController sessions, PendingChangesViewModel pendingChanges)
+    public ProfilesViewModel(
+        ConfigurationService configuration,
+        SessionController sessions,
+        PendingChangesViewModel pendingChanges,
+        OverlaySettingsService overlays)
     {
         _configuration = configuration;
         _sessions = sessions;
+        _overlays = overlays;
         PendingChanges = pendingChanges;
 
         _sessions.StateChanged += (_, _) => IsLocked = _sessions.IsEnforcing;
         IsLocked = _sessions.IsEnforcing;
         _configuration.Changed += OnConfigurationChanged;
+        _overlays.Changed += OnOverlayChanged;
         _configuration.PendingCancelled += (_, _) =>
         {
             LoadFromConfiguration();
@@ -115,6 +122,12 @@ public sealed partial class ProfilesViewModel : ObservableObject
 
         _knownRuleIds.UnionWith(built.SelectMany(profile => profile.Rules).Select(rule => rule.Id));
         PendingChanges? waiting = await _configuration.UpdateAsync(document => document with { Profiles = built });
+        if (!_configuration.IsReadOnly)
+        {
+            // Display only and this computer's own, so it applies at once even when the profiles wait.
+            await _overlays.SaveProfilesAsync(Profiles.ToDictionary(editor => editor.Id, editor => editor.ToOverlay()));
+        }
+
         StatusMessage = _configuration.IsReadOnly
             ? "Not saved: settings are read-only (see banner)."
             : waiting is null ? "Saved." : "Saved. Looser changes wait for the countdown above.";
@@ -142,11 +155,26 @@ public sealed partial class ProfilesViewModel : ObservableObject
         _knownRuleIds.Clear();
         foreach (FocusProfile profile in _configuration.Editing.Profiles)
         {
-            Profiles.Add(ProfileEditorViewModel.FromProfile(profile));
+            Profiles.Add(ProfileEditorViewModel.FromProfile(profile, _overlays.Current.SavedFor(profile.Id)));
             _knownRuleIds.UnionWith(profile.Rules.Select(rule => rule.Id));
         }
 
         SelectedProfile = Profiles.FirstOrDefault(editor => editor.Id == selectedId) ?? Profiles.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// The timer choices can also be changed in the Settings tab. Show those, so saving this tab doesn't put back
+    /// the old ones. Profiles not saved yet keep what was picked here.
+    /// </summary>
+    private void OnOverlayChanged(object? sender, OverlaySettings settings)
+    {
+        foreach (ProfileEditorViewModel editor in Profiles)
+        {
+            if (settings.Profiles.TryGetValue(editor.Id, out ProfileOverlay? overlay))
+            {
+                editor.ShowOverlay(overlay);
+            }
+        }
     }
 
     /// <summary>

@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace AccountabiliBuddy.App.ViewModels;
 
-/// <summary>Root of the main window: one view model per tab, plus banners for load errors and a changed clock.</summary>
+/// <summary>Root of the main window: one view model per tab, the day bar, and banners for load errors and a changed clock.</summary>
 public sealed partial class MainWindowViewModel : ObservableObject
 {
     public MainWindowViewModel(
@@ -49,6 +49,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public SettingsViewModel Settings { get; }
 
     public ActivityDebugViewModel Activity { get; }
+
+    /// <summary>Today at a glance, above the tabs.</summary>
+    public DayBarViewModel? DayBar { get; init; }
 
     /// <summary>Shows the Activity (dev) tab. Off unless ACCOUNTABILIBUDDY_DEV_TOOLS=1.</summary>
     public bool ShowDevTools { get; }

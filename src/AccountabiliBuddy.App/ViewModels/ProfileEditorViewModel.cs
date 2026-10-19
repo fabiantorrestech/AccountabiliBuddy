@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
+using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -11,12 +12,14 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
 {
     private const int DefaultGraceSeconds = 30;
 
-    private ProfileEditorViewModel(FocusProfile profile)
+    private ProfileEditorViewModel(FocusProfile profile, ProfileOverlay overlay)
     {
         Id = profile.Id;
         Name = profile.Name;
         GraceSeconds = ((int)profile.UnknownGracePeriod.TotalSeconds).ToString();
         AskAboutUnlistedSites = profile.AskAboutUnlistedSites;
+        TimerColors = TimerColorOption.For(profile.Id);
+        ShowOverlay(overlay);
 
         foreach (Rule rule in profile.Rules)
         {
@@ -42,14 +45,30 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
     [ObservableProperty]
     public partial bool AskAboutUnlistedSites { get; set; }
 
+    /// <summary>
+    /// The on-screen session timer during this profile's sessions (this computer only): a <see cref="TimerChoice"/>
+    /// index (use the default, on or off).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasOwnTimer))]
+    public partial int TimerChoiceIndex { get; set; }
+
+    /// <summary>True when the timer is on by the profile's own choice, so it has its own colour.</summary>
+    public bool HasOwnTimer => TimerChoiceIndex == TimerChoice.On;
+
+    [ObservableProperty]
+    public partial TimerColorOption TimerColor { get; set; }
+
+    public IReadOnlyList<TimerColorOption> TimerColors { get; }
+
     public ObservableCollection<RuleEditorViewModel> Rules { get; } = new();
 
     /// <summary>Ways to lift this profile's blocks after a wait (Session tab → Unlock).</summary>
     public ObservableCollection<UnlockOptionEditorViewModel> UnlockOptions { get; } = new();
 
-    public static ProfileEditorViewModel FromProfile(FocusProfile profile)
+    public static ProfileEditorViewModel FromProfile(FocusProfile profile, ProfileOverlay? overlay = null)
     {
-        return new ProfileEditorViewModel(profile);
+        return new ProfileEditorViewModel(profile, overlay ?? ProfileOverlay.FollowDefault);
     }
 
     public static ProfileEditorViewModel CreateNew()
@@ -62,7 +81,21 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
         {
             UnlockOptions = new[] { UnlockOption.CreateOffDay() },
         };
-        return new ProfileEditorViewModel(profile);
+        return new ProfileEditorViewModel(profile, ProfileOverlay.FollowDefault);
+    }
+
+    /// <summary>The on-screen timer choices, saved apart from the profile (they aren't part of the shared schema).</summary>
+    public ProfileOverlay ToOverlay()
+    {
+        return TimerChoice.ToOverlay(TimerChoiceIndex, TimerColor.Hex);
+    }
+
+    /// <summary>Shows saved timer choices, e.g. after they were changed in the Settings tab.</summary>
+    [MemberNotNull(nameof(TimerColor))]
+    public void ShowOverlay(ProfileOverlay overlay)
+    {
+        TimerChoiceIndex = TimerChoice.IndexOf(overlay);
+        TimerColor = TimerColorOption.Match(TimerColors, overlay.Color);
     }
 
     [RelayCommand]

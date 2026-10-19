@@ -1,0 +1,91 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        xmlns:controls="using:AccountabiliBuddy.App.Controls"
+        x:Class="AccountabiliBuddy.App.Views.SessionOverlayWindow"
+        x:DataType="vm:OnScreenOverlayViewModel"
+        Title="AccountabiliBuddy timer"
+        WindowDecorations="None" CanResize="False" SizeToContent="WidthAndHeight"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False" Focusable="False"
+        WindowStartupLocation="Manual" RequestedThemeVariant="Dark"
+        TransparencyLevelHint="Transparent" Background="Transparent">
+    <!-- Click-through except while Ctrl+Alt is held; then it can be dragged (see code-behind). -->
+    <LayoutTransformControl>
+        <LayoutTransformControl.LayoutTransform>
+            <ScaleTransform ScaleX="{Binding Scale}" ScaleY="{Binding Scale}" />
+        </LayoutTransformControl.LayoutTransform>
+        <Panel>
+            <Border Margin="2" CornerRadius="10" Padding="10,7" Background="#FF15191E"
+                    BorderBrush="{Binding OutlineBrush}" BorderThickness="1.5" Opacity="{Binding PanelOpacity}">
+                <StackPanel Spacing="8">
+                    <!-- All-day timeline: a small copy of the day bar, with the next block under it. -->
+                    <StackPanel Spacing="2" IsVisible="{Binding ShowsTimeline}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
+                        <controls:DayBarControl Layout="{Binding Day.Layout}" Compact="True" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="{Binding Day.StatusText}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
+                                       Foreground="#CCFFFFFF" FontSize="10" />
+                            <TextBlock Grid.Column="1" Text="{Binding TimeText}" IsVisible="{Binding ShowsTimelineTime}" Margin="6,0,0,0"
+                                       Foreground="White" FontSize="10" FontWeight="SemiBold" />
+                        </Grid>
+                        <TextBlock Text="{Binding Day.SummaryText}" IsVisible="{Binding ShowsDetails}"
+                                   Foreground="#CCFFFFFF" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+
+                    <Panel IsVisible="{Binding ShowsTimer}">
+                        <StackPanel Spacing="6" DataContext="{Binding Timer}" x:DataType="vm:SessionOverlayViewModel">
+                            <Panel HorizontalAlignment="Center">
+                                <StackPanel Spacing="4" IsVisible="{Binding !IsRing}" MaxWidth="{x:Static vm:SessionOverlayViewModel.BarLength}">
+                                    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding ShowsHeader}">
+                                        <TextBlock Text="{Binding HeaderLabel}" TextTrimming="CharacterEllipsis"
+                                                   Foreground="White" FontSize="13" FontWeight="SemiBold" />
+                                        <TextBlock Grid.Column="1" Text="{Binding HeaderTime}" Margin="6,0,0,0"
+                                                   Foreground="White" FontSize="13" FontWeight="SemiBold" />
+                                    </Grid>
+                                    <TextBlock Text="{Binding BigTimeText}" IsVisible="{Binding ShowsBigTime}"
+                                               Foreground="White" FontSize="20" FontWeight="SemiBold" />
+                                    <Panel IsVisible="{Binding ShowsBar}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}" Height="6">
+                                        <Border Background="#40FFFFFF" CornerRadius="3" />
+                                        <Border Background="{Binding AccentBrush}" CornerRadius="3" HorizontalAlignment="Left"
+                                                Width="{Binding BarWidth}" />
+                                        <controls:TimerMarks Divisions="{Binding Divisions}" />
+                                    </Panel>
+                                    <TextBlock Text="{Binding EndText}" IsVisible="{Binding ShowsEndText}"
+                                               Foreground="#CCFFFFFF" FontSize="10" HorizontalAlignment="Right" />
+                                </StackPanel>
+
+                                <Panel IsVisible="{Binding IsRing}" Width="68" Height="68">
+                                    <Ellipse Stroke="#40FFFFFF" StrokeThickness="6" Margin="3" />
+                                    <Arc Stroke="{Binding AccentBrush}" StrokeThickness="6" Margin="3"
+                                         StartAngle="-90" SweepAngle="{Binding RingSweep}" StrokeLineCap="Round" />
+                                    <controls:TimerMarks Divisions="{Binding Divisions}" IsRing="True" RingStroke="6" RingInset="3" />
+                                    <TextBlock Text="{Binding RingText}" Foreground="White" FontSize="13" FontWeight="SemiBold"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Panel>
+                            </Panel>
+
+                            <!-- Only while Ctrl+Alt is held: the full picture, then it folds away again. -->
+                            <StackPanel Spacing="1" IsVisible="{Binding ShowsDetails}" MaxWidth="{x:Static vm:SessionOverlayViewModel.BarLength}">
+                                <TextBlock Text="{Binding DetailTitle}" Foreground="White" FontSize="12" FontWeight="SemiBold"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding DetailTimes}" Foreground="#CCFFFFFF" FontSize="11" />
+                                <TextBlock Text="{Binding DetailProgress}" Foreground="#CCFFFFFF" FontSize="11"
+                                           IsVisible="{Binding DetailProgress, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Panel>
+
+                    <TextBlock Text="Drag to move" IsVisible="{Binding ShowsDetails}" Foreground="#99FFFFFF" FontSize="10" />
+                </StackPanel>
+            </Border>
+
+            <!-- Soft brighten when a mark is passed. -->
+            <Border Margin="2" CornerRadius="10" Background="White" IsHitTestVisible="False" Opacity="{Binding Timer.PulseOpacity}">
+                <Border.Transitions>
+                    <Transitions>
+                        <DoubleTransition Property="Opacity" Duration="0:0:0.45" />
+                    </Transitions>
+                </Border.Transitions>
+            </Border>
+        </Panel>
+    </LayoutTransformControl>
+</Window>

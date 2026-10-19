@@ -54,6 +54,24 @@
                                                Text="Ask about websites with no rule, even when the browser app is allowed (otherwise allowing a browser allows every site you haven't blocked)" />
                                 </CheckBox>
 
+                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                    <TextBlock Text="On-screen timer during this profile's sessions" VerticalAlignment="Center" />
+                                    <ComboBox ItemsSource="{x:Static vm:TimerChoice.Names}" SelectedIndex="{Binding TimerChoiceIndex}"
+                                              MinWidth="130" ToolTip.Tip="Use default follows Settings → On-screen timer" />
+                                    <ComboBox ItemsSource="{Binding TimerColors}" SelectedItem="{Binding TimerColor}"
+                                              IsVisible="{Binding HasOwnTimer}" MinWidth="170" ToolTip.Tip="Timer colour">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:TimerColorOption">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <Border Width="14" Height="14" CornerRadius="3" Background="{Binding Swatch}"
+                                                            BorderBrush="#55808080" BorderThickness="1" />
+                                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+
                                 <TextBlock TextWrapping="Wrap" Opacity="0.75"
                                            Text="Rules: when several match, Channel beats Url beats WindowTitle beats ProcessName, a longer pattern beats a shorter one, and Block wins a tie. OcrText rules are only checked when nothing else matched. ProcessName is without .exe (e.g. chrome). Domain matching (Url only) includes subdomains." />
 

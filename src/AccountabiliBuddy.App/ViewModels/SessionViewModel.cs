@@ -48,6 +48,9 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>The Unlock card.</summary>
     public UnlockViewModel Unlock { get; }
 
+    /// <summary>Hide or show the on-screen timer for the running session.</summary>
+    public TimerToggleViewModel? TimerToggle { get; init; }
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(StartManualCommand))]
     [NotifyCanExecuteChangedFor(nameof(StartPomodoroCommand))]
