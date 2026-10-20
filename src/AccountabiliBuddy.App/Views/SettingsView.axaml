@@ -6,6 +6,29 @@
              xmlns:services="using:AccountabiliBuddy.App.Services"
              x:Class="AccountabiliBuddy.App.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
+    <DockPanel>
+        <!-- One Save for the whole tab, always in reach; leaving with unsaved changes asks first. -->
+        <Border DockPanel.Dock="Top" Padding="16,10" BorderBrush="#33808080" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <TextBlock Text="Settings" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="16,0" VerticalAlignment="Center">
+                    <Ellipse Width="8" Height="8" Fill="#F59E0B" IsVisible="{Binding HasUnsavedChanges}" VerticalAlignment="Center" />
+                    <TextBlock Text="Unsaved changes" IsVisible="{Binding HasUnsavedChanges}" Opacity="0.85" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding SaveStatus}" Opacity="0.75" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="560"
+                               IsVisible="{Binding !HasUnsavedChanges}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                    <Button Content="Revert" Command="{Binding RevertCommand}" IsEnabled="{Binding HasUnsavedChanges}" />
+                    <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" IsEnabled="{Binding HasUnsavedChanges}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+        <!-- Why a save didn't go through stays visible while the changes are still unsaved. -->
+        <Border DockPanel.Dock="Top" Padding="16,6" Background="#22E5484D"
+                IsVisible="{Binding HasUnsavedChanges}">
+            <TextBlock Text="{Binding SaveStatus}" TextWrapping="Wrap"
+                       IsVisible="{Binding SaveStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </Border>
     <ScrollViewer>
         <StackPanel Margin="16" Spacing="20" MaxWidth="640" HorizontalAlignment="Left">
             <Border IsVisible="{Binding IsLocked}" Background="#33F59E0B" Padding="12,8" CornerRadius="6">
@@ -17,16 +40,13 @@
                 <TextBlock Text="Quick session shortcut" FontSize="16" FontWeight="SemiBold" />
                 <TextBlock Text="Click the box and press the keys you want (at least one of Ctrl, Alt or Win, plus a letter, number, F-key or Space)."
                            Opacity="0.75" TextWrapping="Wrap" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <controls:HotkeyBox Text="{Binding HotkeyText}" Width="220" />
-                    <Button Content="Apply" Command="{Binding ApplyHotkeyCommand}" />
-                </StackPanel>
+                <controls:HotkeyBox Text="{Binding HotkeyText}" Width="220" HorizontalAlignment="Left" />
                 <TextBlock Text="{Binding HotkeyStatus}" TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Spacing="6">
                 <TextBlock Text="Day bar" FontSize="16" FontWeight="SemiBold" />
-                <TextBlock Text="The bar above the tabs: planned focus, what actually ran, calendar events and a red line at now. Changes apply right away, also during focus."
+                <TextBlock Text="The bar above the tabs: planned focus, what actually ran, calendar events and a red line at now. Can be saved during focus too."
                            Opacity="0.75" TextWrapping="Wrap" />
                 <CheckBox IsChecked="{Binding ShowDayBar}" Content="Show the day bar" />
                 <RadioButton GroupName="dayRange" IsChecked="{Binding !DayBarFullDay}" Content="Fit to my day (grows when a block falls outside it; with sleep mode on, wake time to bedtime)" />
@@ -37,50 +57,50 @@
                     <TextBlock Grid.Row="1" Text="Day ends at (before the start = after midnight)" VerticalAlignment="Center" TextWrapping="Wrap" />
                     <TimePicker Grid.Row="1" Grid.Column="1" SelectedTime="{Binding DayEnd}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
                 </Grid>
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Content="Apply" Command="{Binding ApplyDayBarCommand}" />
-                    <TextBlock Text="{Binding DayBarStatus}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                </StackPanel>
+
             </StackPanel>
 
             <StackPanel Spacing="6">
                 <TextBlock Text="Sleep" FontSize="16" FontWeight="SemiBold" />
-                <TextBlock Text="Your bedtime and wake time. The day bar runs from wake time to bedtime and shades the night; staying up past bedtime shades the lost sleep red. From two hours before bedtime a line on screen says how much sleep you'll get if you go to bed now (green from 7 hours, yellow from 5, red below). Changes apply right away, also during focus."
+                <TextBlock Text="Your bedtime and wake time. The day bar runs from wake time to bedtime and shades the night; staying up past bedtime shades the lost sleep red. From two hours before bedtime a line on screen says how much sleep you'll get if you go to bed now (green from 7 hours, yellow from 5, red below), and a reminder pops up once. Can be saved during focus too."
                            Opacity="0.75" TextWrapping="Wrap" />
                 <CheckBox IsChecked="{Binding SleepEnabled}" Content="Use sleep mode" />
                 <StackPanel Spacing="6" IsEnabled="{Binding SleepEnabled}">
                     <RadioButton GroupName="sleepNights" IsChecked="{Binding !SleepSameEveryNight}" Content="Weeknights and weekends (Friday and Saturday nights)" />
                     <RadioButton GroupName="sleepNights" IsChecked="{Binding SleepSameEveryNight}" Content="Same every night" />
-                    <Grid ColumnDefinitions="240,Auto,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="12">
+                    <Grid ColumnDefinitions="240,Auto,Auto,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="12">
                         <TextBlock Grid.Row="0" Grid.Column="1" Text="Bedtime" Opacity="0.75" />
                         <TextBlock Grid.Row="0" Grid.Column="2" Text="Wake up" Opacity="0.75" />
                         <TextBlock Grid.Row="1" Text="Every night" IsVisible="{Binding SleepSameEveryNight}" VerticalAlignment="Center" />
                         <TextBlock Grid.Row="1" Text="Weeknights (Sun–Thu)" IsVisible="{Binding !SleepSameEveryNight}" VerticalAlignment="Center" />
                         <TimePicker Grid.Row="1" Grid.Column="1" SelectedTime="{Binding WeeknightBedtime}" MinuteIncrement="15" />
                         <TimePicker Grid.Row="1" Grid.Column="2" SelectedTime="{Binding WeeknightWake}" MinuteIncrement="15" />
+                        <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding WeeknightSleepText}" Opacity="0.8" VerticalAlignment="Center" />
                         <TextBlock Grid.Row="2" Text="Weekend nights (Fri–Sat)" IsVisible="{Binding !SleepSameEveryNight}" VerticalAlignment="Center" />
                         <TimePicker Grid.Row="2" Grid.Column="1" SelectedTime="{Binding WeekendBedtime}" MinuteIncrement="15"
                                     IsVisible="{Binding !SleepSameEveryNight}" />
                         <TimePicker Grid.Row="2" Grid.Column="2" SelectedTime="{Binding WeekendWake}" MinuteIncrement="15"
                                     IsVisible="{Binding !SleepSameEveryNight}" />
+                        <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding WeekendSleepText}" Opacity="0.8" VerticalAlignment="Center"
+                                   IsVisible="{Binding !SleepSameEveryNight}" />
                     </Grid>
                 </StackPanel>
                 <StackPanel Spacing="4" Margin="0,4,0,0">
                     <TextBlock Text="Real sleep from a Fitbit or Pixel Watch (coming next): prepare your Google project now." Opacity="0.75" TextWrapping="Wrap" />
                     <Button Content="Set up sleep tracking with Google…" Command="{Binding OpenSleepGuideCommand}" />
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Content="Apply" Command="{Binding ApplySleepCommand}" />
-                    <TextBlock Text="{Binding SleepStatus}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                </StackPanel>
+
             </StackPanel>
 
             <StackPanel Spacing="6">
                 <TextBlock Text="On-screen timer" FontSize="16" FontWeight="SemiBold" />
-                <TextBlock Text="Shows how much of the session is left, on top of other windows, for the profiles chosen below (also set in each profile on the Profiles tab). Clicks go through it; hold Ctrl+Alt to see the details and drag to move it. Changes apply right away, also during focus."
+                <TextBlock Text="Shows how much of the session is left, on top of other windows, for the profiles chosen below (also set in each profile on the Profiles tab). Clicks go through it; hold Ctrl+Alt to see the details and drag to move it. Can be saved during focus too."
                            Opacity="0.75" TextWrapping="Wrap" />
-                <Grid ColumnDefinitions="240,Auto" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6">
+                <Grid ColumnDefinitions="240,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="6">
                     <TextBlock Grid.Row="0" Text="Look" VerticalAlignment="Center" />
+                    <TextBlock Grid.Row="4" Text="Corner (bottom corners stay above the taskbar)" VerticalAlignment="Center" TextWrapping="Wrap" />
+                    <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerCornerNames}"
+                              SelectedIndex="{Binding TimerCornerIndex}" MinWidth="200" />
                     <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerStyleNames}"
                               SelectedIndex="{Binding TimerStyleIndex}" MinWidth="200" />
                     <TextBlock Grid.Row="1" Text="Size" VerticalAlignment="Center" />
@@ -102,13 +122,32 @@
                 <CheckBox IsChecked="{Binding TimerFillUp}" Content="Fill up as time passes (instead of counting down from a full bar)" />
                 <Grid ColumnDefinitions="240,Auto" ColumnSpacing="8">
                     <CheckBox IsChecked="{Binding MoveForMaximizedApps}" VerticalAlignment="Center">
-                        <TextBlock Text="Move down while a maximized app is in front (keeps its top-right buttons clickable)" TextWrapping="Wrap" />
+                        <TextBlock Text="Move in from the corner while a maximized app is in front (keeps its buttons and bars clickable)" TextWrapping="Wrap" />
                     </CheckBox>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" IsEnabled="{Binding MoveForMaximizedApps}" VerticalAlignment="Center">
                         <NumericUpDown Value="{Binding MaximizedAppDrop}" Minimum="0" Maximum="600" Increment="10" FormatString="0" MinWidth="140" />
-                        <TextBlock Text="px down" VerticalAlignment="Center" Opacity="0.75" />
+                        <TextBlock Text="{Binding VerticalLabel}" VerticalAlignment="Center" Opacity="0.75" />
+                        <TextBlock Text="(default)" VerticalAlignment="Center" Opacity="0.75" />
                     </StackPanel>
                 </Grid>
+                <StackPanel Spacing="4" IsEnabled="{Binding MoveForMaximizedApps}" Margin="0,2,0,4">
+                    <TextBlock Text="Per app: maximize the app, hold Ctrl+Alt and drag the timer where it should sit (away from the corner, and sideways past a side panel if needed); that spot is kept for the app."
+                               Opacity="0.75" TextWrapping="Wrap" FontSize="12" />
+                    <ItemsControl ItemsSource="{Binding AppDrops}" IsVisible="{Binding HasAppDrops}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:AppDropRowViewModel">
+                                <Grid ColumnDefinitions="160,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="6" Margin="0,2">
+                                    <TextBlock Text="{Binding App}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    <NumericUpDown Grid.Column="1" Value="{Binding Drop}" Minimum="0" Maximum="600" Increment="10" FormatString="0" MinWidth="120" />
+                                    <TextBlock Grid.Column="2" Text="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).VerticalLabel}" VerticalAlignment="Center" Opacity="0.75" />
+                                    <NumericUpDown Grid.Column="3" Value="{Binding Shift}" Minimum="0" Maximum="2000" Increment="10" FormatString="0" MinWidth="120" />
+                                    <TextBlock Grid.Column="4" Text="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).SidewaysLabel}" VerticalAlignment="Center" Opacity="0.75" />
+                                    <Button Grid.Column="5" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Use the default for this app" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
                 <Grid ColumnDefinitions="240,Auto">
                     <TextBlock Text="Hide button (hold Ctrl+Alt) hides it for (seconds)" VerticalAlignment="Center" TextWrapping="Wrap" />
                     <NumericUpDown Grid.Column="1" Value="{Binding QuickHideSeconds}" Minimum="3" Maximum="600" Increment="5"
@@ -165,7 +204,6 @@
                     <CheckBox IsChecked="{Binding TimelineShowsTime}" Content="Show the current time" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Content="Apply" Command="{Binding ApplyTimerCommand}" />
                     <Button Content="Reset position" Command="{Binding ResetTimerPositionCommand}" />
                     <TextBlock Text="{Binding TimerStatus}" VerticalAlignment="Center" TextWrapping="Wrap" />
                 </StackPanel>
@@ -173,7 +211,7 @@
 
             <StackPanel Spacing="6">
                 <TextBlock Text="Sounds when time is up" FontSize="16" FontWeight="SemiBold" />
-                <TextBlock Text="Played when focus or a break runs out (not when you end a session yourself), also while the on-screen window is hidden. Changes apply right away, also during focus."
+                <TextBlock Text="Played when focus or a break runs out (not when you end a session yourself), also while the on-screen window is hidden. Can be saved during focus too."
                            Opacity="0.75" TextWrapping="Wrap" />
                 <Grid ColumnDefinitions="240,Auto,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="8">
                     <TextBlock Grid.Row="0" Text="When focus is up (break or end)" VerticalAlignment="Center" />
@@ -201,7 +239,6 @@
                     </StackPanel>
                 </Grid>
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Content="Apply" Command="{Binding ApplySoundsCommand}" />
                     <Button Content="Add a .wav file…" Command="{Binding AddSoundFileCommand}" />
                     <TextBlock Text="{Binding SoundStatus}" VerticalAlignment="Center" TextWrapping="Wrap" />
                 </StackPanel>
@@ -278,11 +315,8 @@
                            Text="Deleting a scheduled block, removing a block rule, adding an allow rule, time off or an unlock option, or lowering any wait counts down this long first, and never takes effect during a session. Stricter changes apply at once. Shortening this wait counts down too." />
             </StackPanel>
 
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" />
-                <Button Content="Revert" Command="{Binding RevertCommand}" />
-                <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="8,0,0,0" />
-            </StackPanel>
+            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"
+                       IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
             <StackPanel Spacing="6" DataContext="{Binding Updates}" x:DataType="vm:UpdatesViewModel">
                 <TextBlock Text="Updates" FontSize="16" FontWeight="SemiBold" />
@@ -313,4 +347,5 @@
             </StackPanel>
         </StackPanel>
     </ScrollViewer>
+    </DockPanel>
 </UserControl>

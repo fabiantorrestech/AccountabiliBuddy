@@ -6,7 +6,7 @@ namespace AccountabiliBuddy.App.Services;
 /// <see cref="Profiles"/> follow <see cref="DefaultTimer"/>.
 /// </summary>
 /// <param name="Opacity">0.2–1.</param>
-/// <param name="X">Saved left edge on the virtual desktop in pixels; null = top-right of the main monitor.</param>
+/// <param name="X">Saved left edge on the virtual desktop in pixels; null = the chosen corner (<paramref name="Corner"/>).</param>
 /// <param name="Y">Saved top edge in pixels; null with <paramref name="X"/>.</param>
 /// <param name="Divisions">Marks splitting the bar or ring into equal parts (4 = quarters); 0 = none.</param>
 /// <param name="WrapUpColor">Turns amber near the end of a focus phase (last 5 minutes, or last fifth if shorter).</param>
@@ -19,9 +19,15 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="TimelineInFocus">Whether the timeline makes room for the session timer.</param>
 /// <param name="TimelineShowsTime">The timeline shows the current time next to the next block.</param>
 /// <param name="QuickHideSeconds">How long the Ctrl+Alt "Hide" button hides the window.</param>
-/// <param name="MoveForMaximizedApps">In its default corner, slide down while a maximized app (title bar, not F11) is
-/// in front on that screen, so the app's top-right buttons stay clickable.</param>
-/// <param name="MaximizedAppDrop">How far it slides down, in display pixels (100% scaling).</param>
+/// <param name="MoveForMaximizedApps">In its default corner, slide in from the corner while a maximized app (title bar,
+/// not F11) is in front on that screen, so the app's buttons and bars stay clickable.</param>
+/// <param name="MaximizedAppDrop">How far it slides in vertically (down from a top corner, up from a bottom one), in
+/// display pixels at 100% scaling, for apps without their own distance.</param>
+/// <param name="AppDrops">Each app's own vertical distance in from the corner (process name, lowercase → display
+/// pixels; 0 = don't move), set by Ctrl+Alt-dragging the timer while that app is maximized, or in Settings.</param>
+/// <param name="AppShifts">Each app's own sideways distance in from the corner (process name, lowercase → display
+/// pixels), e.g. to clear a browser's side panel; apps without one stay at the screen edge.</param>
+/// <param name="Corner">The corner it sits in by default; bottom corners stay above the taskbar while it shows.</param>
 public sealed record OverlaySettings(
     OverlayStyle Style,
     double Opacity,
@@ -40,8 +46,23 @@ public sealed record OverlaySettings(
     bool TimelineShowsTime = false,
     int QuickHideSeconds = 15,
     bool MoveForMaximizedApps = true,
-    int MaximizedAppDrop = 110)
+    int MaximizedAppDrop = OverlaySettings.BottomCornerDrop,
+    IReadOnlyDictionary<string, int>? AppDrops = null,
+    IReadOnlyDictionary<string, int>? AppShifts = null,
+    OverlayCorner Corner = OverlayCorner.BottomRight)
 {
+    /// <summary>Default vertical distance for maximized apps from a top corner (clears tabs, toolbars, window buttons).</summary>
+    public const int TopCornerDrop = 110;
+
+    /// <summary>
+    /// Default vertical distance from a bottom corner: none. Apps rarely have buttons there, so a maximized app only moves
+    /// it once that app has its own spot.
+    /// </summary>
+    public const int BottomCornerDrop = 0;
+
+    public bool IsTopCorner => Corner is OverlayCorner.TopRight or OverlayCorner.TopLeft;
+
+    public const int MaxAppShift = 2000;
     public const int MaxMaximizedAppDrop = 600;
     public const double MinOpacity = 0.2;
     public const int MinQuickHideSeconds = 3;
@@ -50,6 +71,25 @@ public sealed record OverlaySettings(
     public static OverlaySettings Default { get; } = new(
         OverlayStyle.BarWithEndTime, 0.85, OverlaySize.Medium, null, null, new Dictionary<Guid, ProfileOverlay>(),
         DefaultTimer: ProfileOverlay.Off);
+
+    /// <summary>How far to slide down for this maximized app: its own distance, or the default.</summary>
+    public int DropFor(string processName)
+    {
+        return AppDrops is not null && AppDrops.TryGetValue(processName.ToLowerInvariant(), out int drop) ? drop : MaximizedAppDrop;
+    }
+
+    /// <summary>True when this app has its own distances (set by dragging or in Settings).</summary>
+    public bool HasOwnOffset(string processName)
+    {
+        string app = processName.ToLowerInvariant();
+        return (AppDrops?.ContainsKey(app) ?? false) || (AppShifts?.ContainsKey(app) ?? false);
+    }
+
+    /// <summary>How far to slide left for this maximized app (0 unless it has its own distance).</summary>
+    public int ShiftFor(string processName)
+    {
+        return AppShifts is not null && AppShifts.TryGetValue(processName.ToLowerInvariant(), out int shift) ? shift : 0;
+    }
 
     /// <summary>The profile's own choice, or "Use default" when it has none.</summary>
     public ProfileOverlay SavedFor(Guid profileId)

@@ -9,91 +9,109 @@
         Icon="/Assets/app-icon.png"
         Width="1180" Height="780" MinWidth="900" MinHeight="560"
         WindowStartupLocation="CenterScreen">
-    <DockPanel>
-        <!--
-            Tabs as a sidebar on the left; headers sized for a vertical list rather than the Fluent top-row default.
-            The TabControl only draws the headers: the pages live side by side in Pages and switching only shows or
-            hides them. A TabControl takes a page out of the window and puts it back on every switch, which rebuilds
-            every control on it (hundreds of ms on Profiles or Settings); a hidden page costs nothing.
-        -->
-        <DockPanel DockPanel.Dock="Left">
-            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="22,18,12,6">
-                <Image Source="/Assets/app-icon.png" Width="26" Height="26" />
-                <TextBlock Text="AccountabiliBuddy" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
-            </StackPanel>
-            <TabControl x:Name="Tabs" TabStripPlacement="Left" Margin="0,4,0,8" SelectionChanged="OnTabChanged"
-                        SelectedIndex="{Binding SelectedTab}">
-                <TabControl.Styles>
-                    <Style Selector="TabControl[TabStripPlacement=Left] /template/ ItemsPresenter#PART_ItemsPresenter">
-                        <Setter Property="Margin" Value="8,4,12,0" />
-                    </Style>
-                    <Style Selector="TabItem">
-                        <Setter Property="FontSize" Value="16" />
-                        <Setter Property="MinHeight" Value="40" />
-                        <Setter Property="MinWidth" Value="168" />
-                        <Setter Property="Padding" Value="16,0,24,0" />
-                        <Setter Property="CornerRadius" Value="6" />
-                    </Style>
-                    <Style Selector="TabItem:selected">
-                        <Setter Property="Background" Value="#1F808080" />
-                        <Setter Property="FontWeight" Value="SemiBold" />
-                    </Style>
-                    <Style Selector="TabItem:pointerover /template/ Border#PART_LayoutRoot">
-                        <Setter Property="Background" Value="#14808080" />
-                    </Style>
-                </TabControl.Styles>
-                <!-- Same order as Pages below. -->
-                <TabItem Header="Session" />
-                <TabItem Header="Profiles" />
-                <TabItem Header="Schedule" />
-                <TabItem Header="Exceptions" />
-                <TabItem Header="History" />
-                <TabItem Header="Setup" />
-                <TabItem Header="Integrations" />
-                <TabItem Header="Settings" />
-                <TabItem Header="Activity (dev)" IsVisible="{Binding ShowDevTools}" />
-            </TabControl>
+    <Panel>
+        <DockPanel>
+            <!--
+                Tabs as a sidebar on the left; headers sized for a vertical list rather than the Fluent top-row default.
+                The TabControl only draws the headers: the pages live side by side in Pages and switching only shows or
+                hides them. A TabControl takes a page out of the window and puts it back on every switch, which rebuilds
+                every control on it (hundreds of ms on Profiles or Settings); a hidden page costs nothing.
+            -->
+            <DockPanel DockPanel.Dock="Left">
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="22,18,12,6">
+                    <Image Source="/Assets/app-icon.png" Width="26" Height="26" />
+                    <TextBlock Text="AccountabiliBuddy" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
+                <TabControl x:Name="Tabs" TabStripPlacement="Left" Margin="0,4,0,8" SelectionChanged="OnTabChanged"
+                            SelectedIndex="{Binding SelectedTab}">
+                    <TabControl.Styles>
+                        <Style Selector="TabControl[TabStripPlacement=Left] /template/ ItemsPresenter#PART_ItemsPresenter">
+                            <Setter Property="Margin" Value="8,4,12,0" />
+                        </Style>
+                        <Style Selector="TabItem">
+                            <Setter Property="FontSize" Value="16" />
+                            <Setter Property="MinHeight" Value="40" />
+                            <Setter Property="MinWidth" Value="168" />
+                            <Setter Property="Padding" Value="16,0,24,0" />
+                            <Setter Property="CornerRadius" Value="6" />
+                        </Style>
+                        <Style Selector="TabItem:selected">
+                            <Setter Property="Background" Value="#1F808080" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Style>
+                        <Style Selector="TabItem:pointerover /template/ Border#PART_LayoutRoot">
+                            <Setter Property="Background" Value="#14808080" />
+                        </Style>
+                    </TabControl.Styles>
+                    <!-- Same order as Pages below. -->
+                    <TabItem Header="Session" />
+                    <TabItem Header="Profiles" />
+                    <TabItem Header="Schedule" />
+                    <TabItem Header="Exceptions" />
+                    <TabItem Header="History" />
+                    <TabItem Header="Setup" />
+                    <TabItem Header="Integrations" />
+                    <TabItem Header="Settings" />
+                    <TabItem Header="Activity (dev)" IsVisible="{Binding ShowDevTools}" />
+                </TabControl>
+            </DockPanel>
+
+            <!-- Right-hand pane: banners, today's bar, then the selected page. -->
+            <DockPanel>
+                <Border DockPanel.Dock="Top" IsVisible="{Binding HasLoadError}"
+                        Background="#33D13438" Padding="16,10">
+                    <TextBlock Text="{Binding LoadError}" TextWrapping="Wrap" />
+                </Border>
+                <Border DockPanel.Dock="Top" IsVisible="{Binding HasClockNotice}"
+                        Background="#33E0A800" Padding="16,10">
+                    <TextBlock Text="{Binding ClockNotice}" TextWrapping="Wrap" />
+                </Border>
+
+                <!-- Today at a glance: planned focus, what actually ran, calendar events and a live "now" line. -->
+                <Border DockPanel.Dock="Top" DataContext="{Binding DayBar}" x:DataType="vm:DayBarViewModel"
+                        IsVisible="{Binding IsVisible, FallbackValue=False}" Padding="12,14,16,4">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <TextBlock Text="{Binding DateText}" FontWeight="SemiBold" Margin="0,0,10,0" />
+                            <TextBlock Grid.Column="1" Text="{Binding StatusText}" Opacity="0.85" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="2" Text="{Binding SummaryText}" Opacity="0.75" Margin="10,0,0,0" />
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsSleep}">
+                            <Ellipse Width="8" Height="8" Fill="{Binding SleepBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding SleepText}" Opacity="0.85" />
+                        </StackPanel>
+                        <controls:DayBarControl Layout="{Binding Layout}" OpenProfileCommand="{Binding OpenProfileCommand}" />
+                    </StackPanel>
+                </Border>
+
+                <Panel x:Name="Pages" Margin="12,8,8,8">
+                    <views:SessionView DataContext="{Binding Session}" />
+                    <views:ProfilesView DataContext="{Binding Profiles}" IsVisible="False" />
+                    <views:ScheduleView DataContext="{Binding Schedule}" IsVisible="False" />
+                    <views:ExceptionsView DataContext="{Binding Exceptions}" IsVisible="False" />
+                    <views:HistoryView DataContext="{Binding History}" IsVisible="False" />
+                    <views:SetupView DataContext="{Binding Setup}" IsVisible="False" />
+                    <views:IntegrationsView DataContext="{Binding Integrations}" IsVisible="False" />
+                    <views:SettingsView DataContext="{Binding Settings}" IsVisible="False" />
+                    <views:ActivityView DataContext="{Binding Activity}" IsVisible="False" />
+                </Panel>
+            </DockPanel>
         </DockPanel>
 
-        <!-- Right-hand pane: banners, today's bar, then the selected page. -->
-        <DockPanel>
-            <Border DockPanel.Dock="Top" IsVisible="{Binding HasLoadError}"
-                    Background="#33D13438" Padding="16,10">
-                <TextBlock Text="{Binding LoadError}" TextWrapping="Wrap" />
-            </Border>
-            <Border DockPanel.Dock="Top" IsVisible="{Binding HasClockNotice}"
-                    Background="#33E0A800" Padding="16,10">
-                <TextBlock Text="{Binding ClockNotice}" TextWrapping="Wrap" />
-            </Border>
-
-            <!-- Today at a glance: planned focus, what actually ran, calendar events and a live "now" line. -->
-            <Border DockPanel.Dock="Top" DataContext="{Binding DayBar}" x:DataType="vm:DayBarViewModel"
-                    IsVisible="{Binding IsVisible, FallbackValue=False}" Padding="12,14,16,4">
-                <StackPanel Spacing="6">
-                    <Grid ColumnDefinitions="Auto,*,Auto">
-                        <TextBlock Text="{Binding DateText}" FontWeight="SemiBold" Margin="0,0,10,0" />
-                        <TextBlock Grid.Column="1" Text="{Binding StatusText}" Opacity="0.85" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Grid.Column="2" Text="{Binding SummaryText}" Opacity="0.75" Margin="10,0,0,0" />
-                    </Grid>
-                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsSleep}">
-                        <Ellipse Width="8" Height="8" Fill="{Binding SleepBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding SleepText}" Opacity="0.85" />
+        <!-- Leaving Settings (or closing the window) with unsaved changes. -->
+        <Border IsVisible="{Binding ShowsLeavePrompt}" Background="#99000000">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="440" Padding="20,16" CornerRadius="10"
+                    Background="{DynamicResource SystemControlBackgroundAltHighBrush}" BorderBrush="#55808080" BorderThickness="1">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Unsaved settings" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="You changed settings without saving them. Save them before you go?" TextWrapping="Wrap" Opacity="0.85" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                        <Button Content="Stay" Command="{Binding StayCommand}" />
+                        <Button Content="Discard" Command="{Binding DiscardAndLeaveCommand}" />
+                        <Button Content="Save" Command="{Binding SaveAndLeaveCommand}" Classes="accent" />
                     </StackPanel>
-                    <controls:DayBarControl Layout="{Binding Layout}" OpenProfileCommand="{Binding OpenProfileCommand}" />
                 </StackPanel>
             </Border>
-
-            <Panel x:Name="Pages" Margin="12,8,8,8">
-                <views:SessionView DataContext="{Binding Session}" />
-                <views:ProfilesView DataContext="{Binding Profiles}" IsVisible="False" />
-                <views:ScheduleView DataContext="{Binding Schedule}" IsVisible="False" />
-                <views:ExceptionsView DataContext="{Binding Exceptions}" IsVisible="False" />
-                <views:HistoryView DataContext="{Binding History}" IsVisible="False" />
-                <views:SetupView DataContext="{Binding Setup}" IsVisible="False" />
-                <views:IntegrationsView DataContext="{Binding Integrations}" IsVisible="False" />
-                <views:SettingsView DataContext="{Binding Settings}" IsVisible="False" />
-                <views:ActivityView DataContext="{Binding Activity}" IsVisible="False" />
-            </Panel>
-        </DockPanel>
-    </DockPanel>
+        </Border>
+    </Panel>
 </Window>

@@ -1,5 +1,6 @@
 using AccountabiliBuddy.App.DevTools;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace AccountabiliBuddy.App.ViewModels;
 
@@ -34,6 +35,74 @@ public sealed partial class MainWindowViewModel : ObservableObject
     }
 
     private const int ProfilesTab = 1;
+    public const int SettingsTab = 7;
+
+    // Where the user was going when Settings had unsaved changes: a tab, or null = hiding the window.
+    private int? _leaveTarget;
+
+    /// <summary>Asks Save / Discard / Stay before leaving Settings with unsaved changes.</summary>
+    [ObservableProperty]
+    public partial bool ShowsLeavePrompt { get; set; }
+
+    /// <summary>Raised when the window should hide (closing it with unsaved settings, after Save or Discard).</summary>
+    public event EventHandler? HideRequested;
+
+    /// <summary>
+    /// False (and the prompt opens) when leaving Settings would drop unsaved changes; the view then stays on Settings.
+    /// </summary>
+    /// <param name="to">The tab being opened, or null when the window is being closed.</param>
+    public bool MayLeaveTab(int from, int? to)
+    {
+        if (from != SettingsTab || to == SettingsTab || !Settings.HasUnsavedChanges)
+        {
+            return true;
+        }
+
+        _leaveTarget = to;
+        ShowsLeavePrompt = true;
+        return false;
+    }
+
+    [RelayCommand]
+    private async Task SaveAndLeaveAsync()
+    {
+        if (!await Settings.SaveAllAsync())
+        {
+            ShowsLeavePrompt = false; // The header says what's wrong; stay to fix it.
+            return;
+        }
+
+        Leave();
+    }
+
+    [RelayCommand]
+    private void DiscardAndLeave()
+    {
+        Settings.Revert();
+        Leave();
+    }
+
+    [RelayCommand]
+    private void Stay()
+    {
+        ShowsLeavePrompt = false;
+        _leaveTarget = null;
+    }
+
+    private void Leave()
+    {
+        ShowsLeavePrompt = false;
+        if (_leaveTarget is int tab)
+        {
+            SelectedTab = tab;
+        }
+        else
+        {
+            HideRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        _leaveTarget = null;
+    }
 
     /// <summary>Index of the tab shown, in sidebar order (Session, Profiles, Schedule, …).</summary>
     [ObservableProperty]

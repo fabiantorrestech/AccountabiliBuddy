@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Threading;
 
@@ -10,10 +11,19 @@ public partial class MainWindow : Window
 
     private bool _warmedUp;
 
+    private int _shownTab;
+
     public MainWindow()
     {
         InitializeComponent();
         Opened += (_, _) => WarmUpPages();
+        DataContextChanged += (_, _) =>
+        {
+            if (DataContext is MainWindowViewModel viewModel)
+            {
+                viewModel.HideRequested += (_, _) => Hide();
+            }
+        };
     }
 
     private void OnTabChanged(object? sender, SelectionChangedEventArgs e)
@@ -23,6 +33,16 @@ public partial class MainWindow : Window
         {
             return;
         }
+
+        // Settings with unsaved changes: stay there while it asks Save / Discard / Stay.
+        if (DataContext is MainWindowViewModel viewModel && !viewModel.MayLeaveTab(_shownTab, Tabs.SelectedIndex))
+        {
+            int back = _shownTab;
+            Dispatcher.UIThread.Post(() => Tabs.SelectedIndex = back);
+            return;
+        }
+
+        _shownTab = Tabs.SelectedIndex;
 
         for (int i = 0; i < Pages.Children.Count; i++)
         {
@@ -75,6 +95,11 @@ public partial class MainWindow : Window
         if (!AllowClose)
         {
             e.Cancel = true;
+            if (DataContext is MainWindowViewModel viewModel && !viewModel.MayLeaveTab(_shownTab, null))
+            {
+                return; // It asks first; Save or Discard then hides it.
+            }
+
             Hide();
         }
 

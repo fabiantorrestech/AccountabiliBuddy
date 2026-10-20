@@ -22,91 +22,121 @@
             </Panel.Transitions>
             <Border Margin="2" CornerRadius="10" Padding="10,7" Background="#FF15191E"
                     BorderBrush="{Binding OutlineBrush}" BorderThickness="1.5" Opacity="{Binding PanelOpacity}">
-                <StackPanel Spacing="8">
-                    <!-- Sleep mode, in the evening: sleep left if you go to bed now. -->
-                    <TextBlock Text="{Binding Day.SleepText}" IsVisible="{Binding ShowsSleep}" Foreground="{Binding Day.SleepBrush}"
-                               Width="{x:Static vm:SessionOverlayViewModel.BarLength}" FontSize="12" FontWeight="SemiBold"
-                               TextTrimming="CharacterEllipsis" />
+                <Grid RowDefinitions="Auto,Auto,Auto">
+                    <StackPanel Grid.Row="1" Spacing="8" HorizontalAlignment="{Binding MainAlignment}">
+                        <!-- Sleep mode, in the evening: sleep left if you go to bed now. -->
+                        <TextBlock Text="{Binding Day.SleepText}" IsVisible="{Binding ShowsSleep}" Foreground="{Binding Day.SleepBrush}"
+                                   Width="{x:Static vm:SessionOverlayViewModel.BarLength}" FontSize="12" FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis" />
 
-                    <!-- All-day timeline: a small copy of the day bar, with the next block under it. -->
-                    <StackPanel Spacing="2" IsVisible="{Binding ShowsTimeline}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
-                        <controls:DayBarControl Layout="{Binding Day.Layout}" Compact="True" />
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Text="{Binding Day.StatusText}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
-                                       Foreground="#CCFFFFFF" FontSize="10" />
-                            <TextBlock Grid.Column="1" Text="{Binding TimeText}" IsVisible="{Binding ShowsTimelineTime}" Margin="6,0,0,0"
-                                       Foreground="White" FontSize="10" FontWeight="SemiBold" />
-                        </Grid>
-                        <TextBlock Text="{Binding Day.SummaryText}" IsVisible="{Binding ShowsDetails}"
-                                   Foreground="#CCFFFFFF" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0" />
-                    </StackPanel>
+                        <!-- All-day timeline: a small copy of the day bar, with the next block under it. -->
+                        <StackPanel Spacing="2" IsVisible="{Binding ShowsTimeline}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
+                            <controls:DayBarControl Layout="{Binding Day.Layout}" Compact="True" />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="{Binding Day.StatusText}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
+                                           Foreground="#CCFFFFFF" FontSize="10" />
+                                <TextBlock Grid.Column="1" Text="{Binding TimeText}" IsVisible="{Binding ShowsTimelineTime}" Margin="6,0,0,0"
+                                           Foreground="White" FontSize="10" FontWeight="SemiBold" />
+                            </Grid>
+                        </StackPanel>
 
-                    <Panel IsVisible="{Binding ShowsTimer}">
-                        <StackPanel Spacing="6" DataContext="{Binding Timer}" x:DataType="vm:SessionOverlayViewModel">
-                            <Panel HorizontalAlignment="Center">
-                                <StackPanel Spacing="4" IsVisible="{Binding !IsRing}" MaxWidth="{x:Static vm:SessionOverlayViewModel.BarLength}">
-                                    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding ShowsHeader}">
-                                        <TextBlock Text="{Binding HeaderLabel}" TextTrimming="CharacterEllipsis"
-                                                   Foreground="White" FontSize="13" FontWeight="SemiBold" />
-                                        <TextBlock Grid.Column="1" Text="{Binding HeaderTime}" Margin="6,0,0,0"
-                                                   Foreground="White" FontSize="13" FontWeight="SemiBold" />
-                                    </Grid>
-                                    <TextBlock Text="{Binding BigTimeText}" IsVisible="{Binding ShowsBigTime}"
-                                               Foreground="White" FontSize="20" FontWeight="SemiBold" />
-                                    <Panel IsVisible="{Binding ShowsBar}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}" Height="6">
-                                        <Border Background="#40FFFFFF" CornerRadius="3" />
-                                        <!-- Glides over the second between updates instead of stepping. -->
-                                        <Border Background="{Binding AccentBrush}" CornerRadius="3" HorizontalAlignment="Left"
-                                                Width="{Binding BarWidth}">
-                                            <Border.Transitions>
+                        <Panel IsVisible="{Binding ShowsTimer}">
+                            <StackPanel Spacing="6" DataContext="{Binding Timer}" x:DataType="vm:SessionOverlayViewModel">
+                                <Panel HorizontalAlignment="Center">
+                                    <StackPanel Spacing="4" IsVisible="{Binding !IsRing}" MaxWidth="{x:Static vm:SessionOverlayViewModel.BarLength}">
+                                        <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding ShowsHeader}">
+                                            <TextBlock Text="{Binding HeaderLabel}" TextTrimming="CharacterEllipsis"
+                                                       Foreground="White" FontSize="13" FontWeight="SemiBold" />
+                                            <TextBlock Grid.Column="1" Text="{Binding HeaderTime}" Margin="6,0,0,0"
+                                                       Foreground="White" FontSize="13" FontWeight="SemiBold" />
+                                        </Grid>
+                                        <TextBlock Text="{Binding BigTimeText}" IsVisible="{Binding ShowsBigTime}"
+                                                   Foreground="White" FontSize="20" FontWeight="SemiBold" />
+                                        <Panel IsVisible="{Binding ShowsBar}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}" Height="6">
+                                            <Border Background="#40FFFFFF" CornerRadius="3" />
+                                            <!-- Glides over the second between updates instead of stepping. -->
+                                            <Border Background="{Binding AccentBrush}" CornerRadius="3" HorizontalAlignment="Left"
+                                                    Width="{Binding BarWidth}">
+                                                <Border.Transitions>
+                                                    <Transitions>
+                                                        <DoubleTransition Property="Width" Duration="0:0:1" />
+                                                    </Transitions>
+                                                </Border.Transitions>
+                                            </Border>
+                                            <controls:TimerMarks Divisions="{Binding Divisions}" />
+                                        </Panel>
+                                        <TextBlock Text="{Binding EndText}" IsVisible="{Binding ShowsEndText}"
+                                                   Foreground="#CCFFFFFF" FontSize="10" HorizontalAlignment="Right" />
+                                    </StackPanel>
+
+                                    <Panel IsVisible="{Binding IsRing}" Width="68" Height="68">
+                                        <Ellipse Stroke="#40FFFFFF" StrokeThickness="6" Margin="3" />
+                                        <Arc Stroke="{Binding AccentBrush}" StrokeThickness="6" Margin="3"
+                                             StartAngle="-90" SweepAngle="{Binding RingSweep}" StrokeLineCap="Round">
+                                            <Arc.Transitions>
                                                 <Transitions>
-                                                    <DoubleTransition Property="Width" Duration="0:0:1" />
+                                                    <DoubleTransition Property="SweepAngle" Duration="0:0:1" />
                                                 </Transitions>
-                                            </Border.Transitions>
-                                        </Border>
-                                        <controls:TimerMarks Divisions="{Binding Divisions}" />
+                                            </Arc.Transitions>
+                                        </Arc>
+                                        <controls:TimerMarks Divisions="{Binding Divisions}" IsRing="True" RingStroke="6" RingInset="3" />
+                                        <TextBlock Text="{Binding RingText}" Foreground="White" FontSize="13" FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
                                     </Panel>
-                                    <TextBlock Text="{Binding EndText}" IsVisible="{Binding ShowsEndText}"
-                                               Foreground="#CCFFFFFF" FontSize="10" HorizontalAlignment="Right" />
-                                </StackPanel>
-
-                                <Panel IsVisible="{Binding IsRing}" Width="68" Height="68">
-                                    <Ellipse Stroke="#40FFFFFF" StrokeThickness="6" Margin="3" />
-                                    <Arc Stroke="{Binding AccentBrush}" StrokeThickness="6" Margin="3"
-                                         StartAngle="-90" SweepAngle="{Binding RingSweep}" StrokeLineCap="Round">
-                                        <Arc.Transitions>
-                                            <Transitions>
-                                                <DoubleTransition Property="SweepAngle" Duration="0:0:1" />
-                                            </Transitions>
-                                        </Arc.Transitions>
-                                    </Arc>
-                                    <controls:TimerMarks Divisions="{Binding Divisions}" IsRing="True" RingStroke="6" RingInset="3" />
-                                    <TextBlock Text="{Binding RingText}" Foreground="White" FontSize="13" FontWeight="SemiBold"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Panel>
-                            </Panel>
+                            </StackPanel>
+                        </Panel>
 
-                            <!-- Only while Ctrl+Alt is held: the full picture, then it folds away again. -->
-                            <StackPanel Spacing="1" IsVisible="{Binding ShowsDetails}" MaxWidth="{x:Static vm:SessionOverlayViewModel.BarLength}">
-                                <TextBlock Text="{Binding DetailTitle}" Foreground="White" FontSize="12" FontWeight="SemiBold"
-                                           TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding DetailTimes}" Foreground="#CCFFFFFF" FontSize="11" />
-                                <TextBlock Text="{Binding DetailProgress}" Foreground="#CCFFFFFF" FontSize="11"
-                                           IsVisible="{Binding DetailProgress, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        <TextBlock Text="{Binding DoneText}" IsVisible="{Binding ShowsDone}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}"
+                                   Foreground="White" FontSize="13" FontWeight="SemiBold" TextAlignment="Center" />
+                    </StackPanel>
+                    <!-- Only while Ctrl+Alt is held. It opens toward the middle of the screen (above the bar in the lower half), so
+                         the bar itself never moves and stays where the window's spot is measured from. -->
+                    <StackPanel Grid.Row="{Binding DetailsRow}" Margin="{Binding DetailsMargin}" Spacing="8" IsVisible="{Binding ShowsDetails}">
+                        <TextBlock Text="{Binding Day.SummaryText}" IsVisible="{Binding ShowsTimeline}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}"
+                                   Foreground="#CCFFFFFF" FontSize="11" TextWrapping="Wrap" />
+                        <Panel IsVisible="{Binding ShowsTimer}">
+                            <Panel DataContext="{Binding Timer}" x:DataType="vm:SessionOverlayViewModel">
+                                <StackPanel Spacing="1" IsVisible="{Binding ShowsDetails}" MaxWidth="{x:Static vm:SessionOverlayViewModel.BarLength}">
+                                    <TextBlock Text="{Binding DetailTitle}" Foreground="White" FontSize="12" FontWeight="SemiBold"
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding DetailTimes}" Foreground="#CCFFFFFF" FontSize="11" />
+                                    <TextBlock Text="{Binding DetailProgress}" Foreground="#CCFFFFFF" FontSize="11"
+                                               IsVisible="{Binding DetailProgress, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                </StackPanel>
+                            </Panel>
+                        </Panel>
+                        <Panel IsVisible="{Binding ShowsDetails}">
+                            <TextBlock Text="{Binding AppDropText}" IsVisible="{Binding ShowsAppDrop}" Foreground="#CCFFFFFF" FontSize="10"
+                                       TextWrapping="Wrap" Width="{x:Static vm:SessionOverlayViewModel.BarLength}" />
+                        </Panel>
+                        <!-- After a drag: only for now, until Keep. -->
+                        <StackPanel Spacing="4" IsVisible="{Binding ShowsTemporary}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
+                            <TextBlock Text="Moved for now" Foreground="#CCFFFFFF" FontSize="10" />
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Button Content="{Binding KeepText}" Click="OnKeepClick" Padding="8,2" FontSize="11" Foreground="White"
+                                        Background="#4D0F766E" CornerRadius="5" />
+                                <Button Content="↺" Click="OnUndoMoveClick" ToolTip.Tip="Put it back" Padding="8,2" FontSize="11"
+                                        Foreground="White" Background="#33FFFFFF" CornerRadius="5" />
                             </StackPanel>
                         </StackPanel>
-                    </Panel>
-
-                    <TextBlock Text="{Binding DoneText}" IsVisible="{Binding ShowsDone}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}"
-                               Foreground="White" FontSize="13" FontWeight="SemiBold" TextAlignment="Center" />
-
-                    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding ShowsDetails}">
-                        <TextBlock Text="Drag to move" Foreground="#99FFFFFF" FontSize="10" VerticalAlignment="Center" />
-                        <!-- Only reachable while Ctrl+Alt is held (otherwise clicks pass through the window). -->
-                        <Button Grid.Column="1" Content="{Binding HideButtonText}" Command="{Binding HideBrieflyCommand}"
-                                Padding="8,2" FontSize="11" Foreground="White" Background="#33FFFFFF" CornerRadius="5" />
-                    </Grid>
-                </StackPanel>
+                        <Panel IsVisible="{Binding ShowsDetails}">
+                            <Button Content="{Binding UseDefaultText}" Command="{Binding UseDefaultForAppCommand}" IsVisible="{Binding ShowsUseDefaultForApp}"
+                                    ToolTip.Tip="Forget this app's own spot" Padding="8,2" FontSize="11" Foreground="White" Background="#33FFFFFF"
+                                    CornerRadius="5" HorizontalAlignment="Left" />
+                        </Panel>
+                        <Panel IsVisible="{Binding ShowsDetails}">
+                            <Button Content="Back to default spot" Command="{Binding BackToDefaultSpotCommand}" IsVisible="{Binding ShowsBackToSpot}"
+                                    Padding="8,2" FontSize="11" Foreground="White" Background="#33FFFFFF" CornerRadius="5" HorizontalAlignment="Left" />
+                        </Panel>
+                        <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding ShowsDetails}">
+                            <TextBlock Text="Drag to move" Foreground="#99FFFFFF" FontSize="10" VerticalAlignment="Center" />
+                            <!-- Only reachable while Ctrl+Alt is held (otherwise clicks pass through the window). -->
+                            <Button Grid.Column="1" Content="{Binding HideButtonText}" Command="{Binding HideBrieflyCommand}"
+                                    Padding="8,2" FontSize="11" Foreground="White" Background="#33FFFFFF" CornerRadius="5" />
+                        </Grid>
+                    </StackPanel>
+                </Grid>
             </Border>
 
             <!-- Glows white when time is up. -->

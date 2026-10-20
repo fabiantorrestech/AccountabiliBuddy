@@ -1,5 +1,3 @@
-using System.ComponentModel;
-using System.Diagnostics;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Ports;
 using Windows.Win32;
@@ -18,39 +16,8 @@ public sealed class Win32AppIconReader : IAppIconReader
 {
     public IconPixels? ReadIcon(string processName)
     {
-        string? path = ProgramFileOf(processName);
+        string? path = Win32DesktopShell.RunningProgramFile(processName);
         return path is null ? null : ReadFileIcon(path);
-    }
-
-    private static string? ProgramFileOf(string processName)
-    {
-        Process[] processes = Process.GetProcessesByName(processName);
-        try
-        {
-            foreach (Process process in processes)
-            {
-                try
-                {
-                    if (process.MainModule?.FileName is string path)
-                    {
-                        return path;
-                    }
-                }
-                catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
-                {
-                    // Elevated or already exited; try the next one.
-                }
-            }
-
-            return null;
-        }
-        finally
-        {
-            foreach (Process process in processes)
-            {
-                process.Dispose();
-            }
-        }
     }
 
     private static unsafe IconPixels? ReadFileIcon(string path)

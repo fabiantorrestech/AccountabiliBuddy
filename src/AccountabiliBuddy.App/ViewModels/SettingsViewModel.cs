@@ -1,7 +1,11 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -13,8 +17,12 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// Settings tab: quick-session shortcut, Pomodoro defaults, escalation timings, friction, unlock relocking and how
 /// long looser changes wait, calendars (link check interval, Google client), the day bar, the on-screen timer (look, default, which profiles show it), the on-screen timeline, the sounds when time is up and sleep mode.
 /// (Start with Windows lives in the Setup tab.)
-/// Saving is locked during a focus phase so friction cannot be turned off mid-session; looser values count down
-/// first and the tab shows them as saved (see <see cref="PendingChangesViewModel"/>).
+/// Nothing applies until the one Save at the top: it saves every section that changed, after checking them all
+/// (<see cref="HasUnsavedChanges"/> compares each section with what's saved; leaving the tab with changes asks first).
+/// The profile-wide sections (Pomodoro, escalation, ending early, unlocks, calendars, looser changes) are locked during
+/// a focus phase so friction cannot be turned off mid-session, and looser values count down first (see
+/// <see cref="PendingChangesViewModel"/>); the display sections (shortcut, day bar, sleep, on-screen timer, sounds)
+/// can be saved any time.
 /// </summary>
 public sealed partial class SettingsViewModel : ObservableObject
 {
@@ -29,6 +37,13 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly SessionCueService _cues;
     private readonly SleepSettingsService _sleep;
 
+    // Shortest and longest night that can be saved: anything outside is almost surely an AM/PM slip.
+    private static readonly TimeSpan ShortestNight = TimeSpan.FromHours(3);
+    private static readonly TimeSpan LongestNight = TimeSpan.FromHours(16);
+
+    // Set once everything is loaded, so loading doesn't count as changes.
+    private bool _ready;
+
     /// <summary>Choices for the on-screen timer, in <see cref="OverlayStyle"/> order.</summary>
     public static IReadOnlyList<string> TimerStyleNames { get; } = new[]
     {
@@ -37,6 +52,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>In <see cref="OverlaySize"/> order.</summary>
     public static IReadOnlyList<string> TimerSizeNames { get; } = new[] { "Small", "Medium", "Large" };
+
+    /// <summary>In <see cref="OverlayCorner"/> order.</summary>
+    public static IReadOnlyList<string> TimerCornerNames { get; } = new[] { "Bottom right", "Bottom left", "Top right", "Top left" };
 
     /// <summary>Division marks on the timer; the index is the number of parts, except 0 = none.</summary>
     public static IReadOnlyList<string> TimerMarkNames { get; } = new[] { "None", "Halves", "Thirds", "Quarters", "Fifths", "Sixths" };
@@ -130,13 +148,184 @@ public sealed partial class SettingsViewModel : ObservableObject
         // The per-profile timer list follows the profiles and the Profiles tab's timer choices.
         _configuration.Changed += (_, _) => RefreshTimerProfiles();
         _configuration.PendingChanged += (_, _) => RefreshTimerProfiles();
-        _overlays.Changed += (_, _) => ShowSavedTimerProfiles();
+        _overlays.Changed += (_, _) =>
+        {
+            ShowSavedTimerProfiles();
+            ShowAppDrops(_overlays.Current);
+        };
 
         LoadFromConfiguration();
         LoadDisplaySettings();
         LoadSoundSettings();
         LoadSleepSettings();
         RefreshTimerProfiles();
+        TimerProfiles.CollectionChanged += (_, _) => RefreshUnsaved();
+        AppDrops.CollectionChanged += (_, _) => RefreshUnsaved();
+
+        // Saved from elsewhere (a drag on the timer, the Profiles tab, a countdown ending): compare again.
+        _overlays.Changed += (_, _) => RefreshUnsaved();
+        _configuration.Changed += (_, _) => RefreshUnsaved();
+        _dayBar.Changed += (_, _) => RefreshUnsaved();
+        _sleep.Changed += (_, _) => RefreshUnsaved();
+        _ready = true;
+        RefreshUnsaved();
+    }
+
+    /// <summary>True when any section differs from what's saved (the header says so; leaving the tab asks first).</summary>
+    [ObservableProperty]
+    public partial bool HasUnsavedChanges { get; set; }
+
+    /// <summary>The header's message after Save or Revert (e.g. "Saved." or why nothing was saved).</summary>
+    [ObservableProperty]
+    public partial string? SaveStatus { get; set; }
+
+    protected override void OnPropertyChanged(PropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+        if (e.PropertyName is not (nameof(HasUnsavedChanges) or nameof(SaveStatus)))
+        {
+            RefreshUnsaved();
+        }
+    }
+
+    private void RefreshUnsaved()
+    {
+        if (!_ready)
+        {
+            return;
+        }
+
+        bool unsaved = HotkeyChanged || DayBarChanged || SleepChanged || SoundsChanged || TimerChanged || ConfigChanged;
+        if (unsaved && !HasUnsavedChanges)
+        {
+            SaveStatus = null; // A new edit: the last save's message is old news.
+        }
+
+        HasUnsavedChanges = unsaved;
+    }
+
+    /// <summary>Saves every changed section, after checking them all; nothing is saved when one has a mistake.</summary>
+    /// <returns>True when nothing is left unsaved (except profile-wide settings held back by a focus session).</returns>
+    public async Task<bool> SaveAllAsync()
+    {
+        bool hotkey = HotkeyChanged, dayBar = DayBarChanged, sleep = SleepChanged, sounds = SoundsChanged, timer = TimerChanged;
+        bool config = ConfigChanged && !IsLocked;
+
+        var problems = new List<string>();
+        DayBarSettings? dayBarSettings = dayBar ? BuildDayBar(problems) : null;
+        SleepSettings? sleepSettings = sleep ? BuildSleep(problems) : null;
+        ConfigValues? configValues = config ? BuildConfig(problems) : null;
+        if (problems.Count > 0)
+        {
+            SaveStatus = "Not saved: " + string.Join(" ", problems);
+            return false;
+        }
+
+        var notes = new List<string>();
+        if (hotkey && await SaveHotkeyAsync() is string hotkeyError)
+        {
+            notes.Add(hotkeyError);
+        }
+
+        if (dayBarSettings is not null)
+        {
+            await _dayBar.SaveAsync(dayBarSettings);
+        }
+
+        if (sleepSettings is not null)
+        {
+            await _sleep.SaveAsync(sleepSettings);
+        }
+
+        if (sounds)
+        {
+            await _sounds.SaveAsync(BuildSounds());
+        }
+
+        if (timer)
+        {
+            await SaveTimerAsync();
+        }
+
+        if (configValues is not null)
+        {
+            notes.Add(await SaveConfigAsync(configValues));
+        }
+        else if (ConfigChanged && IsLocked)
+        {
+            notes.Add("Pomodoro, escalation, unlock and calendar changes can be saved after this focus session.");
+        }
+
+        RefreshUnsaved();
+        SaveStatus = notes.Count == 0 ? "Saved." : string.Join(" ", notes.Prepend("Saved."));
+        // Profile-wide changes held back by a focus session don't keep you on the tab.
+        return !(HotkeyChanged || DayBarChanged || SleepChanged || SoundsChanged || TimerChanged || (ConfigChanged && !IsLocked));
+    }
+
+    [RelayCommand]
+    private Task SaveAsync()
+    {
+        return SaveAllAsync();
+    }
+
+    /// <summary>Puts every section back to what's saved.</summary>
+    [RelayCommand]
+    public void Revert()
+    {
+        HotkeyText = _quickSession.Preferences.Hotkey;
+        CalendarRefreshMinutes = _calendars.Settings.LinkRefreshMinutes.ToString();
+        GoogleClientId = _calendars.Settings.GoogleClientId ?? string.Empty;
+        GoogleClientSecret = string.Empty;
+        LoadFromConfiguration();
+        LoadDisplaySettings();
+        LoadSoundSettings();
+        LoadSleepSettings();
+        ShowSavedTimerProfiles();
+        RefreshUnsaved();
+        SaveStatus = "Changes discarded.";
+    }
+
+    private bool HotkeyChanged => !string.Equals(HotkeyText.Trim(), _quickSession.Preferences.Hotkey, StringComparison.OrdinalIgnoreCase);
+
+    private bool DayBarChanged => BuildDayBar(null) is not DayBarSettings built || built != _dayBar.Current;
+
+    private bool SleepChanged => BuildSleep(null) is not SleepSettings built || built != _sleep.Current;
+
+    private bool SoundsChanged => _sounds.Current != BuildSounds();
+
+    private bool TimerChanged => TimerProfiles.Any(row => row.IsChanged)
+                                 || LookKey(_overlays.Normalized(BuildTimerLook(_overlays.Current))) != LookKey(_overlays.Normalized(_overlays.Current));
+
+    private bool ConfigChanged
+    {
+        get
+        {
+            ConfigValues? values = BuildConfig(null);
+            if (values is null)
+            {
+                return true; // Something typed that can't be saved yet still counts as a change.
+            }
+
+            ProfileDocument document = _configuration.Editing;
+            CalendarSettings calendars = _calendars.Settings;
+            return values.Pomodoro != document.PomodoroDefaults || values.Escalation != document.Escalation || values.Bypass != document.Bypass
+                   || values.Locks != document.Locks || values.CalendarMinutes != calendars.LinkRefreshMinutes
+                   || (GoogleClientId.Trim().Length > 0 ? GoogleClientId.Trim() : null) != calendars.GoogleClientId
+                   || GoogleClientSecret.Trim().Length > 0;
+        }
+    }
+
+    /// <summary>The look compared without position, per-profile choices or the order of the per-app lists.</summary>
+    private static string LookKey(OverlaySettings settings)
+    {
+        return JsonSerializer.Serialize(settings with
+        {
+            X = null,
+            Y = null,
+            Profiles = new Dictionary<Guid, ProfileOverlay>(),
+            AppDrops = new SortedDictionary<string, int>(settings.AppDrops?.ToDictionary(entry => entry.Key, entry => entry.Value) ?? new Dictionary<string, int>()),
+            AppShifts = new SortedDictionary<string, int>(settings.AppShifts?.ToDictionary(entry => entry.Key, entry => entry.Value) ?? new Dictionary<string, int>()),
+        });
     }
 
     [ObservableProperty]
@@ -147,37 +336,80 @@ public sealed partial class SettingsViewModel : ObservableObject
     public partial bool SleepSameEveryNight { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WeeknightSleepText))]
     public partial TimeSpan? WeeknightBedtime { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WeeknightSleepText))]
     public partial TimeSpan? WeeknightWake { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WeekendSleepText))]
     public partial TimeSpan? WeekendBedtime { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WeekendSleepText))]
     public partial TimeSpan? WeekendWake { get; set; }
 
-    [ObservableProperty]
-    public partial string? SleepStatus { get; set; }
+    /// <summary>E.g. "7 h 30 min of sleep", or a warning when the night looks wrong (AM/PM).</summary>
+    public string WeeknightSleepText => NightText(WeeknightBedtime, WeeknightWake);
 
-    // Not locked during focus: sleep mode is display only.
-    [RelayCommand]
-    private async Task ApplySleepAsync()
+    public string WeekendSleepText => NightText(WeekendBedtime, WeekendWake);
+
+    // Sleep mode is display only, so it can be saved during focus too.
+    private SleepSettings? BuildSleep(List<string>? problems)
     {
         if (WeeknightBedtime is not TimeSpan weeknightBed || WeeknightWake is not TimeSpan weeknightWake
             || WeekendBedtime is not TimeSpan weekendBed || WeekendWake is not TimeSpan weekendWake)
         {
-            SleepStatus = "Not saved: pick every bedtime and wake time.";
-            return;
+            problems?.Add("Sleep: pick every bedtime and wake time.");
+            return null;
         }
 
-        await _sleep.SaveAsync(new SleepSettings(
-            SleepEnabled,
-            SleepSameEveryNight,
-            new SleepTimes(TimeOnly.FromTimeSpan(weeknightBed), TimeOnly.FromTimeSpan(weeknightWake)),
-            new SleepTimes(TimeOnly.FromTimeSpan(weekendBed), TimeOnly.FromTimeSpan(weekendWake))));
-        SleepStatus = "Saved.";
+        var weeknights = new SleepTimes(TimeOnly.FromTimeSpan(weeknightBed), TimeOnly.FromTimeSpan(weeknightWake));
+        var weekends = new SleepTimes(TimeOnly.FromTimeSpan(weekendBed), TimeOnly.FromTimeSpan(weekendWake));
+        if (SleepEnabled)
+        {
+            CheckNight(weeknights, SleepSameEveryNight ? "Every night" : "Weeknights", problems);
+            if (!SleepSameEveryNight)
+            {
+                CheckNight(weekends, "Weekend nights", problems);
+            }
+        }
+
+        return problems is { Count: > 0 } ? null : new SleepSettings(SleepEnabled, SleepSameEveryNight, weeknights, weekends);
+    }
+
+    private static void CheckNight(SleepTimes times, string label, List<string>? problems)
+    {
+        TimeSpan length = NightLength(times);
+        if (length < ShortestNight || length > LongestNight)
+        {
+            problems?.Add($"Sleep: {label} from {times.Bedtime:t} to {times.Wake:t} is {Hours(length)}; check AM/PM.");
+        }
+    }
+
+    /// <summary>How long a night with these times is (a bedtime before noon counts as after midnight).</summary>
+    private static TimeSpan NightLength(SleepTimes times)
+    {
+        LocalWindow night = new SleepSchedule(times, times).Night(new DateOnly(2026, 1, 5));
+        return night.End - night.Start;
+    }
+
+    private static string NightText(TimeSpan? bedtime, TimeSpan? wake)
+    {
+        if (bedtime is not TimeSpan bed || wake is not TimeSpan up)
+        {
+            return string.Empty;
+        }
+
+        TimeSpan length = NightLength(new SleepTimes(TimeOnly.FromTimeSpan(bed), TimeOnly.FromTimeSpan(up)));
+        return length < ShortestNight || length > LongestNight ? $"⚠ {Hours(length)}: check AM/PM" : $"{Hours(length)} of sleep";
+    }
+
+    private static string Hours(TimeSpan length)
+    {
+        return length.Minutes == 0 ? $"{(int)length.TotalHours} h" : $"{(int)length.TotalHours} h {length.Minutes} min";
     }
 
     private void LoadSleepSettings()
@@ -211,17 +443,15 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial string? SoundStatus { get; set; }
 
-    // Not locked during focus: sounds are display only, like the timer.
-    [RelayCommand]
-    private async Task ApplySoundsAsync()
+    // Sounds are display only, like the timer, so they can be saved during focus too.
+    private SessionSoundSettings BuildSounds()
     {
-        await _sounds.SaveAsync(_sounds.Current with
+        return _sounds.Current with
         {
             FocusEndSound = FocusEndSound?.Id ?? SoundChoice.OffId,
             BreakEndSound = BreakEndSound?.Id ?? SoundChoice.OffId,
             Volume = (int)Math.Round(SoundVolume),
-        });
-        SoundStatus = "Saved.";
+        };
     }
 
     [RelayCommand]
@@ -257,7 +487,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         SoundChoices = SoundChoice.List(path);
         FocusEndSound = SoundChoices.First(choice => choice.Id == SoundChoice.FilePrefix + path);
         BreakEndSound = SoundChoices.FirstOrDefault(choice => choice.Id == breakId) ?? SoundChoices[0];
-        SoundStatus = $"Added {Path.GetFileName(path)}. Pick it for either moment, then Apply.";
+        SoundStatus = $"Added {Path.GetFileName(path)}. Pick it for either moment, then Save.";
     }
 
     [MemberNotNull(nameof(SoundChoices))]
@@ -339,13 +569,43 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool TimelineShowsTime { get; set; }
 
-    /// <summary>Slide the on-screen window down while a maximized app is in front.</summary>
+    /// <summary>The default corner, as an index into <see cref="TimerCornerNames"/>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VerticalLabel), nameof(SidewaysLabel))]
+    public partial int TimerCornerIndex { get; set; }
+
+    private bool IsTopCornerChosen => (OverlayCorner)TimerCornerIndex is OverlayCorner.TopRight or OverlayCorner.TopLeft;
+
+    /// <summary>"px down" from a top corner, "px up" from a bottom one.</summary>
+    public string VerticalLabel => IsTopCornerChosen ? "px down" : "px up";
+
+    /// <summary>"px left" from a right corner, "px right" from a left one.</summary>
+    public string SidewaysLabel => (OverlayCorner)TimerCornerIndex is OverlayCorner.TopRight or OverlayCorner.BottomRight ? "px left" : "px right";
+
+    partial void OnTimerCornerIndexChanged(int oldValue, int newValue)
+    {
+        // Switching between top and bottom: a distance still at the other side's default moves to this side's.
+        bool wasTop = (OverlayCorner)oldValue is OverlayCorner.TopRight or OverlayCorner.TopLeft;
+        if (wasTop != IsTopCornerChosen && MaximizedAppDrop is decimal drop
+            && (int)drop == (wasTop ? OverlaySettings.TopCornerDrop : OverlaySettings.BottomCornerDrop))
+        {
+            MaximizedAppDrop = IsTopCornerChosen ? OverlaySettings.TopCornerDrop : OverlaySettings.BottomCornerDrop;
+        }
+    }
+
+    /// <summary>Slide the on-screen window in from its corner while a maximized app is in front.</summary>
     [ObservableProperty]
     public partial bool MoveForMaximizedApps { get; set; }
 
     /// <summary>How far, in display pixels.</summary>
     [ObservableProperty]
     public partial decimal? MaximizedAppDrop { get; set; }
+
+    /// <summary>Each app's own distance (set by Ctrl+Alt-dragging the timer while the app is maximized).</summary>
+    public System.Collections.ObjectModel.ObservableCollection<AppDropRowViewModel> AppDrops { get; } = new();
+
+    [ObservableProperty]
+    public partial bool HasAppDrops { get; set; }
 
     /// <summary>Seconds the Ctrl+Alt "Hide" button hides the on-screen window.</summary>
     [ObservableProperty]
@@ -414,56 +674,62 @@ public sealed partial class SettingsViewModel : ObservableObject
     public partial string? StatusMessage { get; set; }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RevertCommand))]
     public partial bool IsLocked { get; set; }
 
-    private bool CanEdit => !IsLocked;
+    /// <summary>The profile-wide values typed in the tab, read and checked.</summary>
+    private sealed record ConfigValues(
+        PomodoroSettings Pomodoro, EscalationSettings Escalation, BypassSettings Bypass, LockSettings Locks, int CalendarMinutes);
 
-    [RelayCommand(CanExecute = nameof(CanEdit))]
-    private async Task SaveAsync()
+    /// <summary>Reads the profile-wide sections; null (with the reason added to <paramref name="problems"/>) when one can't be saved.</summary>
+    private ConfigValues? BuildConfig(List<string>? problems)
     {
-        if (!TryReadPositive(FocusMinutes, "Focus minutes", out int focus)
-            || !TryReadPositive(ShortBreakMinutes, "Short break minutes", out int shortBreak)
-            || !TryReadPositive(LongBreakMinutes, "Long break minutes", out int longBreak)
-            || !TryReadPositive(CyclesBeforeLongBreak, "Cycles before long break", out int cycles)
-            || !TryReadNonNegative(NudgeSeconds, "Nudge after", out int nudge)
-            || !TryReadNonNegative(OverlaySeconds, "Overlay after", out int overlay)
-            || !TryReadNonNegative(EnforceSeconds, "Enforce after", out int enforce)
-            || !TryReadNonNegative(BypassWaitSeconds, "End-early wait", out int bypassWait)
-            || !TryReadNonNegative(MinReasonLength, "Minimum reason length", out int reasonLength)
-            || !TryReadNonNegative(LooseningDelayMinutes, "Looser changes wait", out int looseningDelay)
-            || !TryReadPositive(CalendarRefreshMinutes, "Calendar check interval", out int calendarMinutes))
+        if (!TryReadPositive(FocusMinutes, "Focus minutes", out int focus, problems)
+            || !TryReadPositive(ShortBreakMinutes, "Short break minutes", out int shortBreak, problems)
+            || !TryReadPositive(LongBreakMinutes, "Long break minutes", out int longBreak, problems)
+            || !TryReadPositive(CyclesBeforeLongBreak, "Cycles before long break", out int cycles, problems)
+            || !TryReadNonNegative(NudgeSeconds, "Nudge after", out int nudge, problems)
+            || !TryReadNonNegative(OverlaySeconds, "Overlay after", out int overlay, problems)
+            || !TryReadNonNegative(EnforceSeconds, "Enforce after", out int enforce, problems)
+            || !TryReadNonNegative(BypassWaitSeconds, "End-early wait", out int bypassWait, problems)
+            || !TryReadNonNegative(MinReasonLength, "Minimum reason length", out int reasonLength, problems)
+            || !TryReadNonNegative(LooseningDelayMinutes, "Looser changes wait", out int looseningDelay, problems)
+            || !TryReadPositive(CalendarRefreshMinutes, "Calendar check interval", out int calendarMinutes, problems))
         {
-            return;
+            return null;
         }
 
         if (calendarMinutes < CalendarSettings.MinLinkRefreshMinutes)
         {
-            StatusMessage = $"Not saved: calendar links can't be checked more often than every {CalendarSettings.MinLinkRefreshMinutes} minutes.";
-            return;
+            problems?.Add($"Calendar links can't be checked more often than every {CalendarSettings.MinLinkRefreshMinutes} minutes.");
+            return null;
         }
 
         if (nudge > overlay || overlay > enforce)
         {
-            StatusMessage = "Not saved: escalation must go nudge ≤ overlay ≤ enforce.";
-            return;
+            problems?.Add("Escalation must go nudge ≤ overlay ≤ enforce.");
+            return null;
         }
 
-        var escalation = new EscalationSettings(
-            TimeSpan.FromSeconds(nudge), TimeSpan.FromSeconds(overlay), TimeSpan.FromSeconds(enforce));
-        var pomodoro = new PomodoroSettings(
-            TimeSpan.FromMinutes(focus), TimeSpan.FromMinutes(shortBreak), TimeSpan.FromMinutes(longBreak), cycles);
-        var bypass = new BypassSettings(TimeSpan.FromSeconds(bypassWait), reasonLength);
+        return new ConfigValues(
+            new PomodoroSettings(TimeSpan.FromMinutes(focus), TimeSpan.FromMinutes(shortBreak), TimeSpan.FromMinutes(longBreak), cycles),
+            new EscalationSettings(TimeSpan.FromSeconds(nudge), TimeSpan.FromSeconds(overlay), TimeSpan.FromSeconds(enforce)),
+            new BypassSettings(TimeSpan.FromSeconds(bypassWait), reasonLength),
+            new LockSettings(RelockAtMidnight) { LooseningDelay = TimeSpan.FromMinutes(looseningDelay) },
+            calendarMinutes);
+    }
 
-        var locks = new LockSettings(RelockAtMidnight) { LooseningDelay = TimeSpan.FromMinutes(looseningDelay) };
-
-        PendingChanges? waiting = await _configuration.UpdateAsync(document =>
-            document with { PomodoroDefaults = pomodoro, Escalation = escalation, Bypass = bypass, Locks = locks });
-        SaveCalendarSettings(calendarMinutes);
-        StatusMessage = _configuration.IsReadOnly
-            ? "Not saved: settings are read-only (see banner)."
-            : waiting is null ? "Saved." : "Saved. Looser changes wait for the countdown above.";
+    /// <returns>What happened, for the header.</returns>
+    private async Task<string> SaveConfigAsync(ConfigValues values)
+    {
+        PendingChanges? waiting = await _configuration.UpdateAsync(document => document with
+        {
+            PomodoroDefaults = values.Pomodoro, Escalation = values.Escalation, Bypass = values.Bypass, Locks = values.Locks,
+        });
+        SaveCalendarSettings(values.CalendarMinutes);
+        StatusMessage = null;
+        return _configuration.IsReadOnly
+            ? "Profile-wide settings weren't saved: they are read-only (see banner)."
+            : waiting is null ? string.Empty : "Looser changes wait for the countdown above.";
     }
 
     /// <summary>Calendar settings are this computer's own (not part of the shared profile file) and never loosen anything.</summary>
@@ -480,35 +746,33 @@ public sealed partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(GoogleClientSecretHint));
     }
 
-    // Not locked during focus: changing the shortcut does not loosen anything.
-    [RelayCommand]
-    private async Task ApplyHotkeyAsync()
+    // Changing the shortcut doesn't loosen anything, so it can be saved during focus too.
+    /// <returns>Why the shortcut wasn't taken, or null.</returns>
+    private async Task<string?> SaveHotkeyAsync()
     {
         string? error = await _quickSession.ChangeHotkeyAsync(HotkeyText);
-        HotkeyStatus = error ?? $"Saved. Press {_quickSession.Preferences.Hotkey} anywhere to open the quick session.";
+        HotkeyStatus = error ?? $"Press {_quickSession.Preferences.Hotkey} anywhere to open the quick session.";
         HotkeyText = _quickSession.Preferences.Hotkey;
+        return error;
     }
 
-    // Not locked during focus: the day bar and the timer's look are display only.
-    [RelayCommand]
-    private async Task ApplyDayBarAsync()
+    // The day bar and the timer's look are display only, so they can be saved during focus too.
+    private DayBarSettings? BuildDayBar(List<string>? problems)
     {
         if (DayStart is not TimeSpan start || DayEnd is not TimeSpan end)
         {
-            DayBarStatus = "Not saved: pick a day start and a day end.";
-            return;
+            problems?.Add("Day bar: pick a day start and a day end.");
+            return null;
         }
 
-        await _dayBar.SaveAsync(new DayBarSettings(
+        return new DayBarSettings(
             ShowDayBar,
             DayBarFullDay ? DayBarRange.FullDay : DayBarRange.FitToDay,
             TimeOnly.FromTimeSpan(start),
-            TimeOnly.FromTimeSpan(end)));
-        DayBarStatus = "Saved.";
+            TimeOnly.FromTimeSpan(end));
     }
 
-    [RelayCommand]
-    private async Task ApplyTimerAsync()
+    private async Task SaveTimerAsync()
     {
         // Read the rows first: saving the look shows the saved per-profile choices in them again.
         var profiles = new Dictionary<Guid, ProfileOverlay>(_overlays.Current.Profiles);
@@ -517,7 +781,15 @@ public sealed partial class SettingsViewModel : ObservableObject
             profiles[row.Id] = row.ToOverlay();
         }
 
-        await _overlays.SaveLookAsync(current => current with
+        await _overlays.SaveLookAsync(BuildTimerLook);
+        await _overlays.SaveProfilesAsync(profiles);
+        TimerStatus = null;
+    }
+
+    /// <summary>The timer's look as set in the tab, on top of <paramref name="current"/>.</summary>
+    private OverlaySettings BuildTimerLook(OverlaySettings current)
+    {
+        return current with
         {
             Style = (OverlayStyle)Math.Clamp(TimerStyleIndex, 0, TimerStyleNames.Count - 1),
             Opacity = TimerOpacityPercent / 100,
@@ -533,10 +805,11 @@ public sealed partial class SettingsViewModel : ObservableObject
             TimelineShowsTime = TimelineShowsTime,
             QuickHideSeconds = (int)(QuickHideSeconds ?? OverlaySettings.Default.QuickHideSeconds),
             MoveForMaximizedApps = MoveForMaximizedApps,
+            Corner = (OverlayCorner)Math.Clamp(TimerCornerIndex, 0, TimerCornerNames.Count - 1),
             MaximizedAppDrop = (int)(MaximizedAppDrop ?? OverlaySettings.Default.MaximizedAppDrop),
-        });
-        await _overlays.SaveProfilesAsync(profiles);
-        TimerStatus = "Saved.";
+            AppDrops = AppDrops.ToDictionary(row => row.App, row => (int)(row.Drop ?? 0)),
+            AppShifts = AppDrops.ToDictionary(row => row.App, row => (int)(row.Shift ?? 0)),
+        };
     }
 
     /// <summary>Adds rows for new profiles, renames and drops the others; choices not applied yet are kept.</summary>
@@ -554,13 +827,38 @@ public sealed partial class SettingsViewModel : ObservableObject
             ProfileTimerViewModel? row = TimerProfiles.FirstOrDefault(candidate => candidate.Id == profile.Id);
             if (row is null)
             {
-                TimerProfiles.Insert(Math.Min(index, TimerProfiles.Count), new ProfileTimerViewModel(profile.Id, profile.Name, _overlays.Current.SavedFor(profile.Id)));
+                var added = new ProfileTimerViewModel(profile.Id, profile.Name, _overlays.Current.SavedFor(profile.Id));
+                added.PropertyChanged += (_, _) => RefreshUnsaved();
+                TimerProfiles.Insert(Math.Min(index, TimerProfiles.Count), added);
             }
             else
             {
                 row.Name = profile.Name;
             }
         }
+    }
+
+    /// <summary>Lists each app's own distance (also after one was set by dragging the timer).</summary>
+    private void ShowAppDrops(OverlaySettings overlay)
+    {
+        AppDrops.Clear();
+        IEnumerable<string> apps = (overlay.AppDrops?.Keys ?? Enumerable.Empty<string>())
+            .Concat(overlay.AppShifts?.Keys ?? Enumerable.Empty<string>())
+            .Distinct()
+            .Order();
+        foreach (string app in apps)
+        {
+            var added = new AppDropRowViewModel(app, overlay.DropFor(app), overlay.ShiftFor(app), row =>
+            {
+                AppDrops.Remove(row);
+                HasAppDrops = AppDrops.Count > 0;
+                TimerStatus = $"Removed {row.App}; press Save to keep it.";
+            });
+            added.PropertyChanged += (_, _) => RefreshUnsaved();
+            AppDrops.Add(added);
+        }
+
+        HasAppDrops = AppDrops.Count > 0;
     }
 
     private void ShowSavedTimerProfiles()
@@ -575,7 +873,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private async Task ResetTimerPositionAsync()
     {
         await _overlays.SavePositionAsync(null, null);
-        TimerStatus = "Moved back to the top-right corner.";
+        TimerStatus = "Moved back to its corner.";
     }
 
     [MemberNotNull(nameof(DefaultTimerColor))]
@@ -603,15 +901,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         TimelineStaysInFocus = overlay.TimelineInFocus == TimelineInFocus.ShowBoth;
         TimelineShowsTime = overlay.TimelineShowsTime;
         QuickHideSeconds = overlay.QuickHideSeconds;
+        TimerCornerIndex = (int)overlay.Corner;
         MoveForMaximizedApps = overlay.MoveForMaximizedApps;
         MaximizedAppDrop = overlay.MaximizedAppDrop;
-    }
-
-    [RelayCommand(CanExecute = nameof(CanEdit))]
-    private void Revert()
-    {
-        LoadFromConfiguration();
-        StatusMessage = "Unsaved changes discarded.";
+        ShowAppDrops(overlay);
     }
 
     private void LoadFromConfiguration()
@@ -634,25 +927,25 @@ public sealed partial class SettingsViewModel : ObservableObject
         LooseningDelayMinutes = document.Locks.LooseningDelay.TotalMinutes.ToString("0");
     }
 
-    private bool TryReadPositive(string text, string label, out int value)
+    private static bool TryReadPositive(string text, string label, out int value, List<string>? problems)
     {
         if (int.TryParse(text.Trim(), out value) && value > 0)
         {
             return true;
         }
 
-        StatusMessage = $"Not saved: {label} must be a whole number above 0.";
+        problems?.Add($"{label} must be a whole number above 0.");
         return false;
     }
 
-    private bool TryReadNonNegative(string text, string label, out int value)
+    private static bool TryReadNonNegative(string text, string label, out int value, List<string>? problems)
     {
         if (int.TryParse(text.Trim(), out value) && value >= 0)
         {
             return true;
         }
 
-        StatusMessage = $"Not saved: {label} must be a whole number (0 or more).";
+        problems?.Add($"{label} must be a whole number (0 or more).");
         return false;
     }
 }

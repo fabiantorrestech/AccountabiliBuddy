@@ -28,6 +28,8 @@ public sealed partial class UsageRowViewModel : ObservableObject
     private readonly Func<Task>? _delete;
     private readonly string _periodText;
     private readonly IReadOnlyList<UsageRowViewModel> _sites;
+    private readonly Func<Task<bool>>? _showFile;
+    private readonly Action? _openSite;
 
     /// <param name="realNames">The process names or domains this row adds up (several when they share a display name).</param>
     /// <param name="fraction">0–1, this entry's time divided by the top entry's time.</param>
@@ -37,6 +39,8 @@ public sealed partial class UsageRowViewModel : ObservableObject
     /// <param name="delete">Deletes the row's time in the period shown; null when it can't be deleted.</param>
     /// <param name="periodText">The period shown, for the delete question (e.g. "today").</param>
     /// <param name="isDistraction">In "Top distractions" (orange bar).</param>
+    /// <param name="showFile">For an app: shows its program file in File Explorer; false when it can't be found.</param>
+    /// <param name="openSite">For a website: opens it in the default browser.</param>
     public UsageRowViewModel(
         IReadOnlyList<string> realNames,
         string name,
@@ -48,8 +52,13 @@ public sealed partial class UsageRowViewModel : ObservableObject
         Func<UsageRowViewModel, Task>? hide = null,
         Func<Task>? delete = null,
         string periodText = "",
-        bool isDistraction = false)
+        bool isDistraction = false,
+        Func<Task<bool>>? showFile = null,
+        Action? openSite = null)
     {
+        _showFile = showFile;
+        _openSite = openSite;
+        FileNotFoundText = string.Empty;
         _hide = hide;
         _delete = delete;
         _periodText = periodText;
@@ -110,6 +119,17 @@ public sealed partial class UsageRowViewModel : ObservableObject
 
     public bool CanDelete => _delete is not null;
 
+    public bool CanShowFile => _showFile is not null;
+
+    public bool CanOpenSite => _openSite is not null;
+
+    /// <summary>Shown under the name for a while when the app's program file can't be found.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsFileNotFound))]
+    public partial string FileNotFoundText { get; set; }
+
+    public bool ShowsFileNotFound => FileNotFoundText.Length > 0;
+
     public bool IsDistraction { get; }
 
     /// <summary>E.g. "Delete 1 h 3 min of brave from today?"</summary>
@@ -162,6 +182,25 @@ public sealed partial class UsageRowViewModel : ObservableObject
     private void CancelDelete()
     {
         IsConfirmingDelete = false;
+    }
+
+    [RelayCommand]
+    private async Task ShowInExplorerAsync()
+    {
+        if (_showFile is null)
+        {
+            return;
+        }
+
+        FileNotFoundText = await _showFile()
+            ? string.Empty
+            : $"Couldn't find {Name}'s program file. Open the app once, then try again.";
+    }
+
+    [RelayCommand]
+    private void OpenSite()
+    {
+        _openSite?.Invoke();
     }
 
     [RelayCommand]

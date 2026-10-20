@@ -61,17 +61,54 @@ public sealed class OverlaySettingsService
     /// </summary>
     public Task SaveLookAsync(Func<OverlaySettings, OverlaySettings> change)
     {
-        OverlaySettings changed = change(Current);
-        return SaveAsync(changed with
+        return SaveAsync(Normalized(change(Current)));
+    }
+
+    /// <summary>The look as it would be saved: values kept in range; position and per-profile choices stay as saved.</summary>
+    public OverlaySettings Normalized(OverlaySettings changed)
+    {
+        return changed with
         {
             Opacity = Math.Clamp(changed.Opacity, OverlaySettings.MinOpacity, 1),
             Divisions = Math.Max(0, changed.Divisions),
             QuickHideSeconds = Math.Clamp(changed.QuickHideSeconds, OverlaySettings.MinQuickHideSeconds, OverlaySettings.MaxQuickHideSeconds),
             MaximizedAppDrop = Math.Clamp(changed.MaximizedAppDrop, 0, OverlaySettings.MaxMaximizedAppDrop),
+            AppDrops = Clamped(changed.AppDrops, OverlaySettings.MaxMaximizedAppDrop),
+            AppShifts = Clamped(changed.AppShifts, OverlaySettings.MaxAppShift),
             X = Current.X,
             Y = Current.Y,
             Profiles = Current.Profiles,
+        };
+    }
+
+    /// <summary>One app's own distances (down and left), from Ctrl+Alt-dragging the timer while that app is maximized.</summary>
+    public Task SaveAppOffsetAsync(string processName, int drop, int shift)
+    {
+        string app = processName.ToLowerInvariant();
+        var drops = new Dictionary<string, int>(Current.AppDrops ?? new Dictionary<string, int>()) { [app] = drop };
+        var shifts = new Dictionary<string, int>(Current.AppShifts ?? new Dictionary<string, int>()) { [app] = shift };
+        return SaveAsync(Current with
+        {
+            AppDrops = Clamped(drops, OverlaySettings.MaxMaximizedAppDrop),
+            AppShifts = Clamped(shifts, OverlaySettings.MaxAppShift),
         });
+    }
+
+    /// <summary>Forgets an app's own distances, so it uses the default again.</summary>
+    public Task ForgetAppOffsetAsync(string processName)
+    {
+        string app = processName.ToLowerInvariant();
+        var drops = new Dictionary<string, int>(Current.AppDrops ?? new Dictionary<string, int>());
+        var shifts = new Dictionary<string, int>(Current.AppShifts ?? new Dictionary<string, int>());
+        drops.Remove(app);
+        shifts.Remove(app);
+        return SaveAsync(Current with { AppDrops = drops, AppShifts = shifts });
+    }
+
+    private static Dictionary<string, int> Clamped(IReadOnlyDictionary<string, int>? values, int max)
+    {
+        return (values ?? new Dictionary<string, int>()).ToDictionary(
+            entry => entry.Key.ToLowerInvariant(), entry => Math.Clamp(entry.Value, 0, max));
     }
 
     /// <summary>Where the timer was dragged to; null puts it back in the default corner.</summary>

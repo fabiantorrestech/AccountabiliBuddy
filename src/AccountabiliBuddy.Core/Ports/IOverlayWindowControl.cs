@@ -28,8 +28,14 @@ public interface IOverlayWindowControl
     bool IsFullscreenAppInFront();
 
     /// <summary>
-    /// The screen (whole monitor) of another app's maximized window in front, title bar and all (Word, a browser…),
-    /// or null when the window in front isn't maximized. The desktop and this app's own windows don't count.
+    /// Another app's maximized window in front, title bar and all (Word, a browser…): which app and its screen (whole
+    /// monitor); null when the window in front isn't maximized. The desktop and this app's own windows don't count.
     /// </summary>
-    ScreenBox? MaximizedAppScreen();
+    MaximizedApp? MaximizedAppInFront();
+
+    /// <summary>
+    /// Where the main taskbar is now (physical pixels), also while an auto-hiding taskbar is slid away (mostly off
+    /// screen then); null when there is none.
+    /// </summary>
+    ScreenBox? TaskbarBox();
 }

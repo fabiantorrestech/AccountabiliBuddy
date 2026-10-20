@@ -34,6 +34,8 @@ public sealed partial class HistoryViewModel : ObservableObject
     private readonly HiddenUsageService _hidden;
     private readonly HiddenUsageService _hiddenDistractions;
     private readonly DeletedUsageService _deleted;
+    private readonly ProgramPathsService? _programs;
+    private readonly IDesktopShell? _shell;
 
     // The period shown, for deleting from it.
     private DateTimeOffset _from;
@@ -55,8 +57,12 @@ public sealed partial class HistoryViewModel : ObservableObject
         HiddenUsageService hidden,
         HiddenUsageService hiddenDistractions,
         DeletedUsageService deleted,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ProgramPathsService? programs = null,
+        IDesktopShell? shell = null)
     {
+        _programs = programs;
+        _shell = shell;
         _hidden = hidden;
         _hidden.Changed += (_, _) => _ = RefreshAsync();
         _hiddenDistractions = hiddenDistractions;
@@ -336,7 +342,10 @@ public sealed partial class HistoryViewModel : ObservableObject
         DistractedText = $"{FormatDuration(summary.DistractedTime)} ({Percent(summary.DistractedTime, summary.FocusTime)})";
         UnknownText = FormatDuration(summary.UnknownTime);
 
-        _allDistractions = BuildRows(summary.TopDistractions);
+        // Distractions are named by site, or by app when there was no site; the period's sites tell them apart.
+        var siteNames = summary.AppsAndSites.Where(entry => entry.Site is not null).Select(entry => entry.Site!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _allDistractions = BuildRows(summary.TopDistractions, siteNames);
         _allOverall = BuildAppRows(summary.AppsAndSites);
         DeletedRows.Clear();
         foreach (DeletedUsage deletion in _deleted.Overlapping(from, to))
@@ -419,7 +428,8 @@ public sealed partial class HistoryViewModel : ObservableObject
     /// One row per shown name, longest first, adding up entries that show the same name (e.g. "WindowsTerminal" and
     /// "windowsterminal", or two names the user renamed alike).
     /// </summary>
-    private List<UsageRowViewModel> BuildRows(IReadOnlyList<UsageEntry> entries)
+    /// <param name="siteNames">The sites in the period, to tell site entries from app entries.</param>
+    private List<UsageRowViewModel> BuildRows(IReadOnlyList<UsageEntry> entries, IReadOnlySet<string> siteNames)
     {
         var rows = entries
             .Where(entry => !_hiddenDistractions.IsHidden(entry.Name))
@@ -440,7 +450,9 @@ public sealed partial class HistoryViewModel : ObservableObject
                 hide: shown => _hiddenDistractions.SetHiddenAsync(shown.RealNames, hidden: true),
                 delete: () => DeleteAsync(row.Name, row.RealNames.Select(name => new UsageDeletion(null, name, _from, _to))),
                 periodText: PeriodForQuestion,
-                isDistraction: true))
+                isDistraction: true,
+                showFile: row.RealNames.Any(siteNames.Contains) ? null : ShowFileFor(row.RealNames),
+                openSite: row.RealNames.Any(siteNames.Contains) ? OpenSiteFor(row.RealNames) : null))
             .ToList();
     }
 
@@ -477,15 +489,53 @@ public sealed partial class HistoryViewModel : ObservableObject
                         delete: () => DeleteAsync(
                             $"{site.Name} in {app.Name}",
                             app.RealNames.SelectMany(appName => site.RealNames.Select(siteName => new UsageDeletion(appName, siteName, _from, _to)))),
-                        periodText: PeriodForQuestion))
+                        periodText: PeriodForQuestion,
+                        openSite: OpenSiteFor(site.RealNames)))
                     .ToList();
                 return new UsageRowViewModel(
                     app.RealNames, app.Name, FormatDuration(app.Time), app.Time.TotalSeconds / max, FindIcon(app.RealNames), RenameAsync, sites,
                     HideAsync,
                     delete: () => DeleteAsync(app.Name, app.RealNames.Select(appName => new UsageDeletion(appName, null, _from, _to))),
-                    periodText: PeriodForQuestion);
+                    periodText: PeriodForQuestion,
+                    showFile: ShowFileFor(app.RealNames));
             })
             .ToList();
+    }
+
+    /// <summary>Shows the first of these apps whose program file can be found in File Explorer; false when none can.</summary>
+    private Func<Task<bool>>? ShowFileFor(IReadOnlyList<string> processNames)
+    {
+        if (_programs is null || _shell is null)
+        {
+            return null;
+        }
+
+        return async () =>
+        {
+            foreach (string processName in processNames)
+            {
+                if (await _programs.FindAsync(processName) is string path)
+                {
+                    _shell.ShowInFileManager(path);
+                    return true;
+                }
+            }
+
+            return false;
+        };
+    }
+
+    /// <summary>Opens the first real website among these names in the browser; null when there is none (apps, browser pages).</summary>
+    private Action? OpenSiteFor(IReadOnlyList<string> names)
+    {
+        string? site = names.FirstOrDefault(IsWebsite);
+        return site is null || _shell is null ? null : () => _shell.OpenWebsite(site);
+    }
+
+    /// <summary>A website's host: has a dot, isn't a browser page, and is a valid host name.</summary>
+    private static bool IsWebsite(string name)
+    {
+        return name.Contains('.') && !IsBrowserPage(name) && Uri.CheckHostName(name) == UriHostNameType.Dns;
     }
 
     /// <summary>

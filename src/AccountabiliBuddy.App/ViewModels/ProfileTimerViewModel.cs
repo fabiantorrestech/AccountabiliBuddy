@@ -38,10 +38,19 @@ public sealed partial class ProfileTimerViewModel : ObservableObject
         return TimerChoice.ToOverlay(TimerChoiceIndex, TimerColor.Hex);
     }
 
+    // What was shown last from the saved settings, to tell unsaved choices apart.
+    private int _savedChoiceIndex;
+    private TimerColorOption? _savedColor;
+
+    /// <summary>True when the choice or colour differs from the saved one.</summary>
+    public bool IsChanged => TimerChoiceIndex != _savedChoiceIndex || !Equals(TimerColor, _savedColor);
+
     [MemberNotNull(nameof(TimerColor))]
     public void ShowOverlay(ProfileOverlay overlay)
     {
-        TimerChoiceIndex = TimerChoice.IndexOf(overlay);
-        TimerColor = TimerColorOption.Match(TimerColors, overlay.Color);
+        _savedChoiceIndex = TimerChoice.IndexOf(overlay);
+        _savedColor = TimerColorOption.Match(TimerColors, overlay.Color);
+        TimerChoiceIndex = _savedChoiceIndex;
+        TimerColor = _savedColor;
     }
 }

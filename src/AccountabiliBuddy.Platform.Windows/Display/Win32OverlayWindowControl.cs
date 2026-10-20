@@ -22,6 +22,13 @@ public sealed class Win32OverlayWindowControl : IOverlayWindowControl
     // The desktop and the taskbar cover the screen too but aren't fullscreen apps.
     private static readonly HashSet<string> ShellClasses = new(StringComparer.Ordinal) { "Progman", "WorkerW", "Shell_TrayWnd" };
 
+    // Windows' own screens that cover everything for a moment while switching apps (Alt+Tab, Task view, Start,
+    // Search, notifications); they are never a fullscreen app.
+    private static readonly HashSet<string> ShellProcesses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "explorer", "ShellExperienceHost", "StartMenuExperienceHost", "SearchHost", "SearchApp", "ShellHost",
+    };
+
     private readonly uint _ownProcessId = (uint)Environment.ProcessId;
 
     public void SetClickThrough(nint windowHandle, bool clickThrough)
@@ -58,7 +65,8 @@ public sealed class Win32OverlayWindowControl : IOverlayWindowControl
 
         uint processId;
         PInvoke.GetWindowThreadProcessId(window, &processId);
-        if (processId == _ownProcessId || ShellClasses.Contains(ClassNameOf(window)))
+        if (processId == _ownProcessId || ShellClasses.Contains(ClassNameOf(window))
+            || (ProcessNameOf(processId) is string name && ShellProcesses.Contains(name)))
         {
             return false;
         }
@@ -85,7 +93,7 @@ public sealed class Win32OverlayWindowControl : IOverlayWindowControl
         return rect.left <= screen.left && rect.top <= screen.top && rect.right >= screen.right && rect.bottom >= screen.bottom;
     }
 
-    public unsafe ScreenBox? MaximizedAppScreen()
+    public unsafe MaximizedApp? MaximizedAppInFront()
     {
         HWND window = PInvoke.GetForegroundWindow();
         if (window.IsNull || !PInvoke.IsZoomed(window))
@@ -108,7 +116,43 @@ public sealed class Win32OverlayWindowControl : IOverlayWindowControl
         }
 
         RECT screen = info.rcMonitor;
-        return new ScreenBox(screen.left, screen.top, screen.right, screen.bottom);
+        string? app = ProcessNameOf(processId);
+        return app is null ? null : new MaximizedApp(app, new ScreenBox(screen.left, screen.top, screen.right, screen.bottom));
+    }
+
+    public ScreenBox? TaskbarBox()
+    {
+        HWND taskbar = PInvoke.FindWindow("Shell_TrayWnd", null);
+        if (taskbar.IsNull || !PInvoke.GetWindowRect(taskbar, out RECT rect))
+        {
+            return null;
+        }
+
+        return new ScreenBox(rect.left, rect.top, rect.right, rect.bottom);
+    }
+
+    // Checked every second; the same window in front is looked up once.
+    private uint _lastProcessId;
+    private string? _lastProcessName;
+
+    private string? ProcessNameOf(uint processId)
+    {
+        if (processId != _lastProcessId)
+        {
+            try
+            {
+                using var process = System.Diagnostics.Process.GetProcessById((int)processId);
+                _lastProcessName = process.ProcessName;
+            }
+            catch (ArgumentException)
+            {
+                _lastProcessName = null; // Exited meanwhile.
+            }
+
+            _lastProcessId = processId;
+        }
+
+        return _lastProcessName;
     }
 
     private static unsafe string ClassNameOf(HWND window)

@@ -69,6 +69,8 @@ public partial class App : Application
     private CalendarSyncService? _calendarSync;
     private DateTimeOffset _lastWindowRefresh = DateTimeOffset.MinValue;
     private WinEventActivityWatcher? _activityWatcher;
+    private ProgramPathsService? _programPaths;
+    private BedtimeReminderService? _bedtimeReminder;
     private NamedPipeBrowserSource? _browserSource;
     private Win32GlobalHotkey? _hotkey;
     private QuickSessionService? _quickSession;
@@ -241,6 +243,8 @@ public partial class App : Application
         overlaySettings.LoadBlocking();
         var sleepSettings = new SleepSettingsService(documents);
         sleepSettings.LoadBlocking();
+        _bedtimeReminder = new BedtimeReminderService(sleepSettings, documents, time);
+        _bedtimeReminder.LoadBlocking();
         var omittedSessions = new OmittedSessionsService(documents);
         omittedSessions.LoadBlocking();
         var displayNames = new DisplayNamesService(documents);
@@ -252,6 +256,9 @@ public partial class App : Application
         var deletedUsage = new DeletedUsageService(documents);
         deletedUsage.LoadBlocking();
         _icons = new AppAndSiteIcons(Path.Combine(dataDirectory, "icons"), new Win32AppIconReader());
+        var desktopShell = new Win32DesktopShell();
+        _programPaths = new ProgramPathsService(documents, desktopShell);
+        _programPaths.LoadBlocking();
         var timelineDay = new DayBarViewModel(
             _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, time, ignoresShowSetting: true);
         var soundSettings = new SessionSoundSettingsService(documents);
@@ -299,7 +306,8 @@ public partial class App : Application
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings),
             new ScheduleViewModel(_configuration, _sessions, pendingChanges),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
-            new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time),
+            new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time,
+                _programPaths, desktopShell),
             setupViewModel,
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
             new SettingsViewModel(
@@ -349,6 +357,7 @@ public partial class App : Application
                 $"AccountabiliBuddy was closed for {DescribeGap(resumed.ClosedFor)}. Your session kept running.");
         }
         _icons.Start(_activityWatcher, _browserSource);
+        _programPaths.Start(_activityWatcher);
         _updates.Start();
         _activityWatcher.Start();
         _browserSource.Start();
@@ -356,6 +365,10 @@ public partial class App : Application
         _clockAnchors.Start();
         _sessionCues.Start();
         _sessionOverlay.Start();
+        _bedtimeReminder.ReminderDue += (_, reminder) =>
+            presenter.ShowReminder(reminder.Title, reminder.Message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#6366F1")));
+        _bedtimeReminder.Start();
+        _activityWatcher.ActivityChanged += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(_sessionOverlay.OnActivityChanged);
         _dayBar.Start();
         PrivateWindowAccessMonitor privateAccess = _privateAccess;
         privateAccess.NagRequested += (_, _) => ShowPrivateWindowsNag(privateAccess, browserSetup);

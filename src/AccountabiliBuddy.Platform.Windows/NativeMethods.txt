@@ -99,3 +99,5 @@ GetIconInfo
 ICONINFO
 GetObject
 BITMAP
+// On-screen window: stay above a revealed taskbar
+FindWindow

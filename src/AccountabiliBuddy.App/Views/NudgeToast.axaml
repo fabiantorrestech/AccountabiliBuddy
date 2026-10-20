@@ -9,7 +9,7 @@
         Topmost="True" ShowInTaskbar="False" ShowActivated="False"
         WindowStartupLocation="Manual">
     <Grid ColumnDefinitions="6,*">
-        <Border Grid.Column="0" Background="#E0A030" />
+        <Border Grid.Column="0" Background="{Binding Accent}" />
         <StackPanel Grid.Column="1" Margin="14,12" Spacing="6">
             <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap" />

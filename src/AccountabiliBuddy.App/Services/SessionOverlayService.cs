@@ -35,6 +35,10 @@ public sealed class SessionOverlayService : IDisposable
     private DateTimeOffset _doneUntil = DateTimeOffset.MinValue;
     private string? _doneText;
     private DateTimeOffset _lastShownAt = DateTimeOffset.MinValue;
+
+    // A fullscreen app must stay in front this long before the window steps aside.
+    private static readonly TimeSpan FullscreenDelay = TimeSpan.FromSeconds(1.5);
+    private DateTimeOffset? _fullscreenSince;
     private (int? X, int? Y) _placedAt;
     private (bool On, bool Hidden) _lastStatus;
 
@@ -48,11 +52,12 @@ public sealed class SessionOverlayService : IDisposable
     {
         cues.Cued += (_, cue) => OnCue(cue.Cue, cue.SessionEnded);
         _day = timelineDay;
-        _viewModel = new OnScreenOverlayViewModel(_timer, timelineDay, HideBriefly);
         _sessions = sessions;
         _configuration = configuration;
         _settings = settings;
         _control = control;
+        _viewModel = new OnScreenOverlayViewModel(_timer, timelineDay, HideBriefly, () => _ = _settings.SavePositionAsync(null, null));
+        _viewModel.SetUseDefaultForApp(app => _ = _settings.ForgetAppOffsetAsync(app));
     }
 
     /// <summary>True when the timer was hidden for the session that is running now.</summary>
@@ -87,6 +92,15 @@ public sealed class SessionOverlayService : IDisposable
         };
         _day.Start();
         Update();
+    }
+
+    /// <summary>The window in front changed (switching apps): place or hide the window now, not at the next tick.</summary>
+    public void OnActivityChanged()
+    {
+        if (_window is not null)
+        {
+            Update();
+        }
     }
 
     public void SetHiddenForSession(bool hidden)
@@ -150,7 +164,7 @@ public sealed class SessionOverlayService : IDisposable
         bool showsTimer = IsOnForSession && !IsHiddenForSession;
         bool showsTimeline = settings.ShowTimeline && _day.HasPlannedFocus
                              && !(showsTimer && settings.TimelineInFocus == TimelineInFocus.SwapForTimer);
-        bool fullscreenInFront = settings.HideInFullscreen && _control.IsFullscreenAppInFront();
+        bool fullscreenInFront = settings.HideInFullscreen && FullscreenLastedAWhile();
         bool hiddenBriefly = _sessions.Now < _hiddenUntil;
         string? doneText = _sessions.Now < _doneUntil ? _doneText : null;
         bool showsSleep = _day.ShowsSleep;
@@ -183,8 +197,31 @@ public sealed class SessionOverlayService : IDisposable
             _window.PlaceAt(settings.X, settings.Y);
         }
 
-        // Keeps a maximized app's top-right buttons (close, tabs, extensions) clickable.
-        _window!.AvoidMaximizedApp(settings.MoveForMaximizedApps ? _control.MaximizedAppScreen() : null, settings.MaximizedAppDrop);
+        _window!.SetCorner(settings.Corner);
+
+        // Keeps a maximized app's top-right buttons (close, tabs, extensions) clickable, by that app's own distance.
+        MaximizedApp? maximized = settings.MoveForMaximizedApps ? _control.MaximizedAppInFront() : null;
+        int drop = maximized is null ? 0 : settings.DropFor(maximized.ProcessName);
+        int shift = maximized is null ? 0 : settings.ShiftFor(maximized.ProcessName);
+        _window!.AvoidMaximizedApp(maximized?.Screen, drop, shift, maximized?.ProcessName);
+        _viewModel.SetPlacement(_window.IsInDefaultCorner, _window.AvoidedApp, drop, shift, settings.Corner,
+            _window.IsTemporary, _window.TemporaryForApp, maximized is not null && settings.HasOwnOffset(maximized.ProcessName));
+    }
+
+    /// <summary>
+    /// True once a fullscreen app has been in front for a moment, so something that covers the screen only briefly
+    /// (switching apps) never makes the window blink; it shows again as soon as the fullscreen app is gone.
+    /// </summary>
+    private bool FullscreenLastedAWhile()
+    {
+        if (!_control.IsFullscreenAppInFront())
+        {
+            _fullscreenSince = null;
+            return false;
+        }
+
+        _fullscreenSince ??= _sessions.Now;
+        return _sessions.Now - _fullscreenSince.Value >= FullscreenDelay;
     }
 
     private void Open(OverlaySettings settings)
@@ -192,11 +229,16 @@ public sealed class SessionOverlayService : IDisposable
         var window = new SessionOverlayWindow(_control) { DataContext = _viewModel };
         window.PositionChosen += (_, position) =>
         {
-            _placedAt = (position.X, position.Y);
-            _ = _settings.SavePositionAsync(position.X, position.Y);
+            // Null: dropped near the default corner, which then counts as no saved position.
+            _placedAt = (position?.X, position?.Y);
+            _ = _settings.SavePositionAsync(position?.X, position?.Y);
         };
 
+        window.TemporaryChanged += (_, _) => Update();
+        window.AppOffsetChosen += (_, chosen) => _ = _settings.SaveAppOffsetAsync(chosen.App, (int)chosen.InVDips, (int)chosen.InHDips);
+
         _placedAt = (settings.X, settings.Y);
+        window.SetCorner(settings.Corner);
         window.PlaceAt(settings.X, settings.Y);
         _window = window;
         window.Show();

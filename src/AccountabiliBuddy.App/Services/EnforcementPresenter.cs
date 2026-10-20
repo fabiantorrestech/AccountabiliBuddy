@@ -70,6 +70,22 @@ public sealed class EnforcementPresenter
         }
     }
 
+    /// <summary>
+    /// Shows a reminder on the monitor under the mouse cursor that stays until dismissed (e.g. bedtime is near). Silent.
+    /// </summary>
+    public void ShowReminder(string title, string message, Avalonia.Media.IBrush accent)
+    {
+        MonitorArea? area = _monitors.Find(_monitors.FindMonitorUnderCursor());
+        if (area is null)
+        {
+            return;
+        }
+
+        var toast = new NudgeToast { DataContext = new NudgeToastViewModel(title, message, "Got it", null, staysOpen: true, accent) };
+        MonitorPlacement.PlaceInCorner(toast, area, MonitorPlacement.Corner.TopRight);
+        toast.Show();
+    }
+
     /// <summary>Shows a one-off toast on the monitor under the mouse cursor (e.g. "session resumed").</summary>
     public void ShowNotice(string title, string message)
     {

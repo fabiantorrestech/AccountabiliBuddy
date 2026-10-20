@@ -22,10 +22,12 @@
                             <TextBlock Text="{Binding RealNameHint}" Opacity="0.5" FontSize="11" VerticalAlignment="Center"
                                        TextTrimming="CharacterEllipsis" />
                         </StackPanel>
-                        <Button Grid.Column="1" Content="⋯" ToolTip.Tip="Rename, hide or delete"
+                        <Button Grid.Column="1" Content="⋯" ToolTip.Tip="Show, rename, hide or delete"
                                 Background="Transparent" Padding="6,0" Margin="4,0" FontSize="14" Opacity="0.7">
                             <Button.Flyout>
                                 <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                    <MenuItem Header="Show in File Explorer" Command="{Binding ShowInExplorerCommand}" IsVisible="{Binding CanShowFile}" />
+                                    <MenuItem Header="Open in browser" Command="{Binding OpenSiteCommand}" IsVisible="{Binding CanOpenSite}" />
                                     <MenuItem Header="Rename" Command="{Binding StartRenameCommand}" />
                                     <MenuItem Header="Hide from this list (time still counts)" Command="{Binding HideCommand}"
                                               IsVisible="{Binding CanHide}" />
@@ -36,6 +38,8 @@
                         </Button>
                         <TextBlock Grid.Column="2" Text="{Binding TimeText}" Opacity="0.8" VerticalAlignment="Center" />
                     </Grid>
+                    <TextBlock Text="{Binding FileNotFoundText}" IsVisible="{Binding ShowsFileNotFound}" FontSize="11" Opacity="0.75"
+                               TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding IsEditing}">
                         <TextBox Text="{Binding EditText}" Width="170" />
                         <Button Content="Save" Command="{Binding SaveRenameCommand}" Classes="accent" />

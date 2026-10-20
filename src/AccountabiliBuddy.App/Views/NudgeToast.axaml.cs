@@ -13,7 +13,13 @@ public partial class NudgeToast : Window
         InitializeComponent();
 
         _autoClose.Tick += (_, _) => Close();
-        Opened += (_, _) => _autoClose.Start();
+        Opened += (_, _) =>
+        {
+            if (DataContext is not NudgeToastViewModel { StaysOpen: true })
+            {
+                _autoClose.Start();
+            }
+        };
         Closed += (_, _) => _autoClose.Stop();
 
         DataContextChanged += (_, _) =>
