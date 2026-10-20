@@ -39,6 +39,10 @@ class LinkClient(
     private val deviceName: String,
     private val deviceKind: String,
     private val scope: CoroutineScope,
+    /** Finds the PC on the network when it isn't at its remembered address. */
+    private val discovery: LinkDiscovery,
+    /** Applies the PC's settings (profiles, sleep, day bar, events); false when they couldn't be read. */
+    private val applySettings: (content: JsonObject, pcName: String) -> Boolean,
 ) {
     private val _status = MutableStateFlow<LinkStatus>(if (store.pc.value == null) LinkStatus.Unlinked else LinkStatus.Idle)
     private val requests = Mutex()
@@ -68,18 +72,35 @@ class LinkClient(
             }
 
             try {
-                val opened = Connection.open(pc.host, pc.port, pc.fingerprint)
+                val opened = openPc(pc)
                 opened.send(LinkMessages.HELLO, buildJsonObject {
                     put("deviceId", pc.deviceId)
                     put("token", token)
                     put("deviceName", deviceName)
                     put("protocolVersion", LinkMessages.PROTOCOL_VERSION)
+                    pc.settingsVersion?.let { put("settingsVersion", it) }
                 })
                 adopt(opened, pc.pcName)
             } catch (e: IOException) {
                 _status.value = LinkStatus.Offline("Can't reach ${pc.pcName} (${e.message ?: "no answer"}). Is the PC on, with linking on, on the same Wi-Fi?")
             }
         }
+    }
+
+    /**
+     * The remembered address first; when the PC isn't there (a new address from the router, or another network
+     * both are on), ask the network once and remember where it is now.
+     */
+    private fun openPc(pc: LinkedPc): Connection = try {
+        Connection.open(pc.host, pc.port, pc.fingerprint)
+    } catch (e: IOException) {
+        val found = discovery.find(pc.fingerprint, pc.port) ?: throw e
+        val moved = Connection.open(found.host, found.port, pc.fingerprint)
+        if (found.host != pc.host || found.port != pc.port) {
+            store.save(pc.copy(host = found.host, port = found.port))
+        }
+
+        moved
     }
 
     /** Closes the connection (the app left the screen). */
@@ -97,7 +118,13 @@ class LinkClient(
     suspend fun pair(link: PairingLink): String? = withContext(Dispatchers.IO) {
         disconnect()
         try {
-            val opened = Connection.open(link.host, link.port, link.fingerprint)
+            val opened = try {
+                Connection.open(link.host, link.port, link.fingerprint)
+            } catch (e: IOException) {
+                // The QR code's address may be one the phone can't reach (another adapter); ask the network.
+                val found = discovery.find(link.fingerprint, link.port) ?: throw e
+                Connection.open(found.host, found.port, link.fingerprint)
+            }
             opened.send(LinkMessages.PAIR, buildJsonObject {
                 put("code", link.code)
                 put("deviceName", deviceName)
@@ -212,6 +239,13 @@ class LinkClient(
         val body = message.body as? JsonObject
         when (message.type) {
             LinkMessages.STATE -> body?.let { _status.value = LinkStatus.Connected(pcName, PcState.parse(it)) }
+            LinkMessages.SETTINGS -> {
+                val content = body?.get("content") as? JsonObject
+                val version = body?.string("version")
+                if (content != null && version != null && applySettings(content, pcName)) {
+                    store.setSettingsVersion(version)
+                }
+            }
             LinkMessages.REFUSED -> forget(body?.string("message") ?: "The PC no longer knows this phone. Pair again.")
             else -> pending?.takeIf { message.type in it.types }?.answer?.complete(message)
         }

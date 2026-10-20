@@ -3,7 +3,9 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text.Json;
 
 namespace AccountabiliBuddy.Core.Link;
 
@@ -29,6 +31,7 @@ public sealed class LinkServer : IAsyncDisposable
 
     private PairingWindow? _pairing;
     private TcpListener? _listener;
+    private LinkDiscoveryResponder? _discovery;
     private CancellationTokenSource? _stopping;
     private Task? _acceptLoop;
 
@@ -47,6 +50,9 @@ public sealed class LinkServer : IAsyncDisposable
     public string Fingerprint { get; }
 
     public bool IsRunning => _listener is not null;
+
+    /// <summary>True when devices can find this PC by asking the network (its UDP port was free).</summary>
+    public bool IsDiscoverable { get; private set; }
 
     /// <summary>The devices connected right now.</summary>
     public IReadOnlyCollection<Guid> ConnectedDeviceIds =>
@@ -72,7 +78,12 @@ public sealed class LinkServer : IAsyncDisposable
         _listener = listener;
         _stopping = new CancellationTokenSource();
         _host.StateChanged += OnStateChanged;
+        _host.SettingsChanged += OnSettingsChanged;
         _acceptLoop = AcceptLoopAsync(listener, _stopping.Token);
+
+        // "Where is the PC?" on the same port number over UDP; without it devices need the remembered address.
+        _discovery = new LinkDiscoveryResponder(Fingerprint, Port, _host.PcName);
+        IsDiscoverable = _discovery.Start(Port);
     }
 
     public async Task StopAsync()
@@ -83,6 +94,9 @@ public sealed class LinkServer : IAsyncDisposable
         }
 
         _host.StateChanged -= OnStateChanged;
+        _host.SettingsChanged -= OnSettingsChanged;
+        _discovery?.Dispose();
+        _discovery = null;
         _stopping.Cancel();
         _listener.Stop();
         _listener = null;
@@ -210,6 +224,9 @@ public sealed class LinkServer : IAsyncDisposable
                     LinkEnvelope.Of(LinkMessages.Welcome, new LinkWelcome(_host.PcName, LinkMessages.ProtocolVersion)), stopping).ConfigureAwait(false);
                 await connection.SendAsync(LinkEnvelope.Of(LinkMessages.State, await _host.GetStateAsync().ConfigureAwait(false)), stopping)
                     .ConfigureAwait(false);
+                // A newly paired device has none yet; a signed-in one says which it has.
+                connection.SettingsVersion = first!.Type == LinkMessages.Hello ? first.BodyAs<LinkHello>()?.SettingsVersion : null;
+                await SendSettingsIfNewerAsync(connection, await SettingsAsync().ConfigureAwait(false), stopping).ConfigureAwait(false);
 
                 while (await LinkFraming.ReadAsync(tls, stopping).ConfigureAwait(false) is LinkEnvelope request)
                 {
@@ -367,6 +384,52 @@ public sealed class LinkServer : IAsyncDisposable
         }
     }
 
+    private void OnSettingsChanged(object? sender, EventArgs e)
+    {
+        _ = PushSettingsAsync();
+    }
+
+    /// <summary>Sends the settings to every device whose copy is older (most changes, e.g. a calendar check, change nothing).</summary>
+    private async Task PushSettingsAsync()
+    {
+        if (_connections.IsEmpty)
+        {
+            return;
+        }
+
+        LinkSettingsMessage settings = await SettingsAsync().ConfigureAwait(false);
+        foreach (Connection connection in _connections.Keys)
+        {
+            try
+            {
+                await SendSettingsIfNewerAsync(connection, settings, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
+            {
+                connection.Close();
+            }
+        }
+    }
+
+    private static async Task SendSettingsIfNewerAsync(Connection connection, LinkSettingsMessage settings, CancellationToken cancellationToken)
+    {
+        if (connection.SettingsVersion == settings.Version)
+        {
+            return;
+        }
+
+        connection.SettingsVersion = settings.Version;
+        await connection.SendAsync(LinkEnvelope.Of(LinkMessages.Settings, settings), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>The host's settings with their version: a hash of their JSON.</summary>
+    private async Task<LinkSettingsMessage> SettingsAsync()
+    {
+        JsonElement content = await _host.GetSettingsAsync().ConfigureAwait(false);
+        string version = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(content, LinkFraming.JsonOptions)));
+        return new LinkSettingsMessage(version, content);
+    }
+
     private sealed record PairingWindow(string Code, DateTimeOffset ExpiresAt, int AttemptsLeft);
 
     /// <summary>One device's connection; sends go one at a time (state pushes and answers can overlap).</summary>
@@ -375,6 +438,7 @@ public sealed class LinkServer : IAsyncDisposable
         private readonly Stream _stream;
         private readonly SemaphoreSlim _sending = new(1, 1);
         private LinkEndEarlyTerms? _endEarlyTerms;
+        private string? _settingsVersion;
 
         public Connection(Stream stream)
         {
@@ -382,6 +446,13 @@ public sealed class LinkServer : IAsyncDisposable
         }
 
         public Guid? DeviceId { get; set; }
+
+        /// <summary>The settings version the device has (from its hello, then each one sent).</summary>
+        public string? SettingsVersion
+        {
+            get => Volatile.Read(ref _settingsVersion);
+            set => Volatile.Write(ref _settingsVersion, value);
+        }
 
         /// <summary>The terms given for ending early, until used or the session changes.</summary>
         public LinkEndEarlyTerms? EndEarlyTerms

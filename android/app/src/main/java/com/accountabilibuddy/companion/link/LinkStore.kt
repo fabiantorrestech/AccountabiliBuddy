@@ -26,6 +26,7 @@ class LinkStore(private val file: File) {
             put("fingerprint", pc.fingerprint)
             put("deviceId", pc.deviceId)
             put("sealedToken", pc.sealedToken)
+            pc.settingsVersion?.let { put("settingsVersion", it) }
         }
         file.parentFile?.mkdirs()
         val temporary = File(file.parentFile, "${file.name}.tmp")
@@ -36,6 +37,12 @@ class LinkStore(private val file: File) {
         }
 
         _pc.value = pc
+    }
+
+    /** The PC's settings of this version are now on the phone. */
+    @Synchronized
+    fun setSettingsVersion(version: String) {
+        _pc.value?.let { save(it.copy(settingsVersion = version)) }
     }
 
     @Synchronized
@@ -58,6 +65,7 @@ class LinkStore(private val file: File) {
                 fingerprint = json.string("fingerprint")!!,
                 deviceId = json.string("deviceId")!!,
                 sealedToken = json.string("sealedToken")!!,
+                settingsVersion = json.string("settingsVersion"),
             )
         }.getOrNull()
     }

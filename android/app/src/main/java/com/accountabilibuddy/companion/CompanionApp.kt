@@ -4,12 +4,17 @@ import android.app.Application
 import android.os.Build
 import android.provider.Settings
 import com.accountabilibuddy.companion.data.CompanionStore
+import com.accountabilibuddy.companion.data.ImportException
+import com.accountabilibuddy.companion.data.Importer
 import com.accountabilibuddy.companion.link.LinkClient
+import com.accountabilibuddy.companion.link.LinkDiscovery
 import com.accountabilibuddy.companion.link.LinkStore
 import com.accountabilibuddy.companion.notify.Refresher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
 import java.io.File
 
 /** The app's single store, the link to the PC (ADR 14), and the refresh loop for the notification, widget and bedtime reminder. */
@@ -26,8 +31,23 @@ class CompanionApp : Application() {
     override fun onCreate() {
         super.onCreate()
         store = CompanionStore(File(filesDir, "companion"))
-        link = LinkClient(LinkStore(File(filesDir, "companion/link.json")), deviceName(), deviceKind(), appScope)
+        link = LinkClient(
+            LinkStore(File(filesDir, "companion/link.json")), deviceName(), deviceKind(), appScope, LinkDiscovery(this), ::applyPcSettings,
+        )
         Refresher.start(this)
+    }
+
+    /** The linked PC's profiles, sleep, day bar and events (L2): kept like an import, then the card and widget redraw. */
+    private fun applyPcSettings(content: JsonObject, pcName: String): Boolean {
+        val data = try {
+            Importer.fromLink(content, pcName)
+        } catch (e: ImportException) {
+            return false
+        }
+
+        store.import(data)
+        appScope.launch { Refresher.refresh(this@CompanionApp) }
+        return true
     }
 
     /** E.g. "Fabian's Pixel 7" (the name set in Android's settings), else the model. */

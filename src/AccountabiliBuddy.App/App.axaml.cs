@@ -280,7 +280,8 @@ public partial class App : Application
             dataProtector,
             time);
         // Linked devices (ADR 14): off until turned on in Setup.
-        var linkHost = new AccountabiliBuddy.App.Services.Link.LinkSessionHost(_sessions, _configuration, _quickSession);
+        var linkHost = new AccountabiliBuddy.App.Services.Link.LinkSessionHost(
+            _sessions, _configuration, _quickSession, documents, calendars, sleepSettings, dayBarSettings);
         _link = new AccountabiliBuddy.App.Services.Link.LinkService(documents, new DpapiDataProtector(), linkHost, _sessions);
         _link.LoadBlocking();
 

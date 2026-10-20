@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace AccountabiliBuddy.Core.Link;
 
 /// <summary>
@@ -16,6 +18,15 @@ public interface ILinkSessionHost
     event EventHandler? StateChanged;
 
     Task<LinkState> GetStateAsync();
+
+    /// <summary>Raised when what <see cref="GetSettingsAsync"/> returns may have changed.</summary>
+    event EventHandler? SettingsChanged;
+
+    /// <summary>
+    /// The profiles, sleep and day bar settings and upcoming events the device shows, in a backup's shape
+    /// (profiles as the ADR 7 document string, "settings" with "sleep" and "daybar", "calendarEvents").
+    /// </summary>
+    Task<JsonElement> GetSettingsAsync();
 
     /// <returns>Null when the session started, otherwise why not.</returns>
     Task<string?> StartAsync(LinkStartRequest request);

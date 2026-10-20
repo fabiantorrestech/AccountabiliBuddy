@@ -233,7 +233,7 @@ private fun SleepSection(saved: SleepSettings, clock: ClockFormat, onSave: (Slee
 
     Section("Sleep") {
         Text(
-            "The bar runs from wake time to bedtime and shades the night; from two hours before bedtime it says how much sleep you'll get if you go now. Imported from the PC when the backup has it.",
+            "The bar runs from wake time to bedtime and shades the night; from two hours before bedtime it says how much sleep you'll get if you go now. Comes from the PC: over the link when it's paired, or from a backup.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         ToggleRow("Sleep mode", "Bedtime and wake time on the timeline", saved.enabled) { onSave(saved.copy(enabled = it)) }

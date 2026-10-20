@@ -16,6 +16,7 @@ object LinkMessages {
     const val PAIRED = "paired"
     const val WELCOME = "welcome"
     const val STATE = "state"
+    const val SETTINGS = "settings"
     const val END_EARLY_TERMS = "endEarlyTerms"
     const val RESULT = "result"
     const val REFUSED = "refused"

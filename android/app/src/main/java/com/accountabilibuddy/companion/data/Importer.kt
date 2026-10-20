@@ -47,7 +47,10 @@ object Importer {
         )
     }
 
-    private fun fromBackup(content: JsonObject): ImportedData {
+    /** The PC's settings sent over the link (ADR 14, L2): a backup's content, without the file around it. */
+    fun fromLink(content: JsonObject, pcName: String): ImportedData = fromBackup(content, "Linked PC $pcName")
+
+    private fun fromBackup(content: JsonObject, description: String? = null): ImportedData {
         // The profiles are a JSON document stored as a string inside the backup.
         val profilesText = content.string("profiles")
             ?: throw ImportException("This backup has no profiles. On the PC, export a backup with Profiles ticked.")
@@ -73,7 +76,8 @@ object Importer {
             dayBarJson = dayBarJson,
             events = eventsJson?.let(SettingsJson::events).orEmpty(),
             eventsJson = eventsJson,
-            sourceDescription = listOfNotNull(version?.let { "Windows $it backup" } ?: "PC backup", created?.let { "made $it" }).joinToString(", "),
+            sourceDescription = description
+                ?: listOfNotNull(version?.let { "Windows $it backup" } ?: "PC backup", created?.let { "made $it" }).joinToString(", "),
         )
     }
 }

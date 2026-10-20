@@ -133,7 +133,7 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial string DetailTimes { get; set; }
 
-    /// <summary>E.g. "2 of 4 parts done · 58%"; empty when there is no set end.</summary>
+    /// <summary>E.g. "2 of 4 parts done · 58% · 23m left", or "1h 12m so far" counting up.</summary>
     [ObservableProperty]
     public partial string DetailProgress { get; set; }
 
@@ -197,10 +197,12 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
         DetailTimes = end is DateTimeOffset finish
             ? $"{TimeZoneInfo.ConvertTime(start, zone):t} – {TimeZoneInfo.ConvertTime(finish, zone):t}"
             : $"since {TimeZoneInfo.ConvertTime(start, zone):t}";
+        // Whole minutes left, rounded up, so the last minute reads "1m left" rather than "0m".
+        string left = hasEnd ? $" · {Elapsed(TimeSpan.FromMinutes(Math.Ceiling(Math.Max(0, (end!.Value - now).TotalMinutes))))} left" : string.Empty;
         DetailProgress = countsUp ? $"{Elapsed(elapsed)} so far"
             : !hasEnd ? string.Empty
-            : settings.Divisions >= 2 ? $"{_marksPassed} of {settings.Divisions} parts done · {(1 - remaining):0%}"
-            : $"{(1 - remaining):0%} done";
+            : settings.Divisions >= 2 ? $"{_marksPassed} of {settings.Divisions} parts done · {(1 - remaining):0%}{left}"
+            : $"{(1 - remaining):0%} done{left}";
     }
 
     /// <summary>The last 5 minutes, or the last fifth of a phase shorter than 25 minutes.</summary>

@@ -95,7 +95,7 @@ Switching devices is the easiest way out of a focus session: the PC is locked do
 
 Order: L5 first (quick, PC only), then L1 → L4, then L6.
 
-Progress: **L1 built 2026-10-20** (Core `Link/` 22/22 loopback checks; Setup → Linked devices with QR code; Android pairing, PC card, start, end early, unpair verified emulator ↔ test server. Still to try: the real Pixel over Wi-Fi with the camera scanning the QR code, and the Windows Firewall prompt). **L5 built 2026-10-20** (block states parsed from Cold Turkey's settings copy, Session tab card, per-profile expected blocks, notice at focus start / when one turns off; checks pass on the user's real file and made-up "on" cases; screens not seen yet, needs an install).
+Progress: **L2 built and verified on the real PC and Pixel 7 2026-10-20** (settings pushed as a hashed `settings` message, only when changed; the phone shows "Linked PC FABTZEPHYRUSG15"). **Discovery built** (the phone broadcasts one UDP "where" with the fingerprint when the remembered address fails; the PC answers with its port; verified: a planted wrong address was corrected within ~2 s). **L1 built 2026-10-20** (Core `Link/` 22/22 loopback checks; Setup → Linked devices with QR code; Android pairing, PC card, start, end early, unpair verified emulator ↔ test server. Still to try: the real Pixel over Wi-Fi with the camera scanning the QR code, and the Windows Firewall prompt). **L5 built 2026-10-20** (block states parsed from Cold Turkey's settings copy, Session tab card, per-profile expected blocks, notice at focus start / when one turns off; checks pass on the user's real file and made-up "on" cases; screens not seen yet, needs an install).
 
 ## L1 build notes
 

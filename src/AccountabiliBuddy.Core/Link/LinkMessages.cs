@@ -39,6 +39,12 @@ public static class LinkMessages
     /// <summary><see cref="LinkState"/>: the session and profiles, sent after sign-in and on every change.</summary>
     public const string State = "state";
 
+    /// <summary>
+    /// <see cref="LinkSettingsMessage"/>: the PC's profiles, sleep and day bar settings and upcoming events, sent after
+    /// sign-in when the device's copy is older, and whenever they change (L2: no more backup imports).
+    /// </summary>
+    public const string Settings = "settings";
+
     /// <summary><see cref="LinkEndEarlyTerms"/>: the wait and the reason length for ending early.</summary>
     public const string EndEarlyTerms = "endEarlyTerms";
 
