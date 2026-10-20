@@ -11,7 +11,8 @@ namespace AccountabiliBuddy.Platform.Windows.Display;
 /// Click-through via the window's extended style: WS_EX_TRANSPARENT (with WS_EX_LAYERED) passes the mouse to the
 /// window underneath, WS_EX_NOACTIVATE keeps a click from taking focus, WS_EX_TOOLWINDOW keeps it out of Alt+Tab.
 /// The drag keys are read with GetAsyncKeyState, which sees them whichever app is in front (no keyboard hook).
-/// A fullscreen app is a foreground window whose rectangle covers its monitor (maximized windows leave the taskbar).
+/// A fullscreen app is a foreground window without a title bar whose rectangle covers its monitor. A maximized window
+/// keeps its title bar, so it never counts (it can cover the monitor too when the taskbar hides itself).
 /// </summary>
 public sealed class Win32OverlayWindowControl : IOverlayWindowControl
 {
@@ -57,6 +58,12 @@ public sealed class Win32OverlayWindowControl : IOverlayWindowControl
         uint processId;
         PInvoke.GetWindowThreadProcessId(window, &processId);
         if (processId == _ownProcessId || ShellClasses.Contains(ClassNameOf(window)))
+        {
+            return false;
+        }
+
+        var style = (WINDOW_STYLE)PInvoke.GetWindowLong(window, WINDOW_LONG_PTR_INDEX.GWL_STYLE);
+        if ((style & WINDOW_STYLE.WS_CAPTION) == WINDOW_STYLE.WS_CAPTION)
         {
             return false;
         }

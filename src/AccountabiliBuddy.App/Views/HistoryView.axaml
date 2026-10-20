@@ -4,6 +4,7 @@
              x:Class="AccountabiliBuddy.App.Views.HistoryView"
              x:DataType="vm:HistoryViewModel">
     <UserControl.Resources>
+        <!-- One app or site: icon, name, time, a ⋯ menu (rename, hide, delete), and its bar. -->
         <DataTemplate x:Key="UsageRow" x:DataType="vm:UsageRowViewModel">
             <Grid ColumnDefinitions="26,*" Margin="0,0,0,8">
                 <!-- The app's or site's icon, or a coloured letter until there is one. -->
@@ -21,14 +22,19 @@
                             <TextBlock Text="{Binding RealNameHint}" Opacity="0.5" FontSize="11" VerticalAlignment="Center"
                                        TextTrimming="CharacterEllipsis" />
                         </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <Button Content="✎" Command="{Binding StartRenameCommand}" ToolTip.Tip="Rename"
-                                    Background="Transparent" Padding="4,0" FontSize="12" Opacity="0.6" />
-                            <Button Content="⊘" Command="{Binding HideCommand}" IsVisible="{Binding CanHide}"
-                                    ToolTip.Tip="Hide from this list (its time still counts)"
-                                    Background="Transparent" Padding="4,0" Margin="0,0,4,0" FontSize="12" Opacity="0.6" />
-                        </StackPanel>
-                        <TextBlock Grid.Column="2" Text="{Binding TimeText}" Opacity="0.8" />
+                        <Button Grid.Column="1" Content="⋯" ToolTip.Tip="Rename, hide or delete"
+                                Background="Transparent" Padding="6,0" Margin="4,0" FontSize="14" Opacity="0.7">
+                            <Button.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                    <MenuItem Header="Rename" Command="{Binding StartRenameCommand}" />
+                                    <MenuItem Header="Hide from this list (time still counts)" Command="{Binding HideCommand}"
+                                              IsVisible="{Binding CanHide}" />
+                                    <MenuItem Header="Delete from this period (time is subtracted)…" Command="{Binding AskDeleteCommand}"
+                                              IsVisible="{Binding CanDelete}" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                        <TextBlock Grid.Column="2" Text="{Binding TimeText}" Opacity="0.8" VerticalAlignment="Center" />
                     </Grid>
                     <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding IsEditing}">
                         <TextBox Text="{Binding EditText}" Width="170" />
@@ -36,13 +42,42 @@
                         <Button Content="Reset" Command="{Binding ResetNameCommand}" ToolTip.Tip="Back to the real name" />
                         <Button Content="✕" Command="{Binding CancelRenameCommand}" ToolTip.Tip="Cancel" />
                     </StackPanel>
-                    <ProgressBar Minimum="0" Maximum="1" Value="{Binding Fraction}" Height="5" MinHeight="5"  />
+                    <Border IsVisible="{Binding IsConfirmingDelete}" Background="#22E5484D" CornerRadius="6" Padding="8,6">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="{Binding DeleteQuestion}" TextWrapping="Wrap" FontSize="12" />
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Button Content="Delete" Command="{Binding ConfirmDeleteCommand}" Background="#B91C1C" Foreground="White" />
+                                <Button Content="Cancel" Command="{Binding CancelDeleteCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <ProgressBar Minimum="0" Maximum="1" Value="{Binding Fraction}" Height="5" MinHeight="5"
+                                 Classes.distraction="{Binding IsDistraction}" />
                 </StackPanel>
             </Grid>
+        </DataTemplate>
+
+        <!-- The names hidden from a list, each with Show again (open from the "N hidden" button). -->
+        <DataTemplate x:Key="HiddenList" x:DataType="vm:HiddenListViewModel">
+            <ItemsControl ItemsSource="{Binding Names}" IsVisible="{Binding IsOpen}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                            <TextBlock Text="{Binding}" Opacity="0.75" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Content="Show again" FontSize="12" Padding="8,2"
+                                    Command="{Binding $parent[ItemsControl].((vm:HiddenListViewModel)DataContext).ShowAgainCommand}"
+                                    CommandParameter="{Binding}" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         </DataTemplate>
     </UserControl.Resources>
 
     <UserControl.Styles>
+        <Style Selector="ProgressBar.distraction">
+            <Setter Property="Foreground" Value="#E0A030" />
+        </Style>
         <Style Selector="Border.card">
             <Setter Property="Background" Value="#1A808080" />
             <Setter Property="BorderBrush" Value="#33808080" />
@@ -128,41 +163,18 @@
                         <ItemsControl ItemsSource="{Binding TopDistractions}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:UsageRowViewModel">
-                                    <Grid ColumnDefinitions="26,*" Margin="0,0,0,8">
-                                        <!-- The app's or site's icon, or a coloured letter until there is one. -->
-                                        <Panel Width="18" Height="18" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="0,1,0,0">
-                                            <Image Source="{Binding Icon}" IsVisible="{Binding HasIcon}" Width="18" Height="18" />
-                                            <Border IsVisible="{Binding !HasIcon}" Background="{Binding BadgeBrush}" CornerRadius="9">
-                                                <TextBlock Text="{Binding BadgeText}" Foreground="White" FontSize="11" FontWeight="SemiBold"
-                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                            </Border>
-                                        </Panel>
-                                        <StackPanel Grid.Column="1" Spacing="2">
-                                            <Grid ColumnDefinitions="*,Auto,Auto" IsVisible="{Binding !IsEditing}">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock Text="{Binding RealNameHint}" Opacity="0.5" FontSize="11" VerticalAlignment="Center"
-                                                               TextTrimming="CharacterEllipsis" />
-                                                </StackPanel>
-                                                <Button Grid.Column="1" Content="✎" Command="{Binding StartRenameCommand}" ToolTip.Tip="Rename"
-                                                        Background="Transparent" Padding="4,0" Margin="4,0" FontSize="12" Opacity="0.6" />
-                                                <TextBlock Grid.Column="2" Text="{Binding TimeText}" Opacity="0.8" />
-                                            </Grid>
-                                            <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding IsEditing}">
-                                                <TextBox Text="{Binding EditText}" Width="170" />
-                                                <Button Content="Save" Command="{Binding SaveRenameCommand}" Classes="accent" />
-                                                <Button Content="Reset" Command="{Binding ResetNameCommand}" ToolTip.Tip="Back to the real name" />
-                                                <Button Content="✕" Command="{Binding CancelRenameCommand}" ToolTip.Tip="Cancel" />
-                                            </StackPanel>
-                                            <ProgressBar Minimum="0" Maximum="1" Value="{Binding Fraction}" Height="5" MinHeight="5" 
-                                                         Foreground="#E0A030" />
-                                        </StackPanel>
-                                    </Grid>
+                                    <ContentControl Content="{Binding}" ContentTemplate="{StaticResource UsageRow}" />
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <Button Content="{Binding DistractionsToggleText}" Command="{Binding ToggleAllDistractionsCommand}"
-                                IsVisible="{Binding HasMoreDistractions}" HorizontalAlignment="Left" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="{Binding DistractionsToggleText}" Command="{Binding ToggleAllDistractionsCommand}"
+                                    IsVisible="{Binding HasMoreDistractions}" />
+                            <Button DataContext="{Binding HiddenDistractions}" x:DataType="vm:HiddenListViewModel"
+                                    Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" IsVisible="{Binding HasAny}"
+                                    ToolTip.Tip="Hidden from this list" />
+                        </StackPanel>
+                        <ContentControl Content="{Binding HiddenDistractions}" ContentTemplate="{StaticResource HiddenList}" />
                     </StackPanel>
                 </Border>
                 <Border Grid.Column="2" Classes="card">
@@ -196,16 +208,20 @@
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button Content="{Binding OverallToggleText}" Command="{Binding ToggleAllOverallCommand}"
                                     IsVisible="{Binding HasMoreOverall}" />
-                            <Button Content="{Binding HiddenToggleText}" Command="{Binding ToggleHiddenListCommand}"
-                                    IsVisible="{Binding HasHidden}" ToolTip.Tip="Apps and sites hidden from this list" />
+                            <Button DataContext="{Binding HiddenOverall}" x:DataType="vm:HiddenListViewModel"
+                                    Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" IsVisible="{Binding HasAny}"
+                                    ToolTip.Tip="Hidden from this list" />
+                            <Button Content="{Binding DeletedToggleText}" Command="{Binding ToggleDeletedCommand}" IsVisible="{Binding HasDeleted}"
+                                    ToolTip.Tip="Time deleted in this period" />
                         </StackPanel>
-                        <ItemsControl ItemsSource="{Binding HiddenNames}" IsVisible="{Binding ShowHiddenList}">
+                        <ContentControl Content="{Binding HiddenOverall}" ContentTemplate="{StaticResource HiddenList}" />
+                        <ItemsControl ItemsSource="{Binding DeletedRows}" IsVisible="{Binding ShowDeleted}">
                             <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="x:String">
+                                <DataTemplate x:DataType="vm:DeletedRowViewModel">
                                     <Grid ColumnDefinitions="*,Auto" Margin="0,2">
-                                        <TextBlock Text="{Binding}" Opacity="0.75" VerticalAlignment="Center" />
-                                        <Button Grid.Column="1" Content="Show again" FontSize="12" Padding="8,2"
-                                                Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).UnhideCommand}"
+                                        <TextBlock Text="{Binding Text}" Opacity="0.75" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                        <Button Grid.Column="1" Content="Restore" FontSize="12" Padding="8,2"
+                                                Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).RestoreCommand}"
                                                 CommandParameter="{Binding}" />
                                     </Grid>
                                 </DataTemplate>

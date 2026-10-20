@@ -8,7 +8,9 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// One app or site in a History top list, with a bar relative to the list's largest entry, its icon (or a letter
-/// badge), and renaming in place. A browser's row holds its sites: the top few show under it, the rest on request.
+/// badge), and a ⋯ menu: rename, hide from the list (time still counts), or delete from the period shown (time no
+/// longer counts; asks first, can be restored). A browser's row holds its sites: the top few show under it, the rest
+/// on request.
 /// </summary>
 public sealed partial class UsageRowViewModel : ObservableObject
 {
@@ -23,6 +25,8 @@ public sealed partial class UsageRowViewModel : ObservableObject
 
     private readonly Func<UsageRowViewModel, string?, Task> _rename;
     private readonly Func<UsageRowViewModel, Task>? _hide;
+    private readonly Func<Task>? _delete;
+    private readonly string _periodText;
     private readonly IReadOnlyList<UsageRowViewModel> _sites;
 
     /// <param name="realNames">The process names or domains this row adds up (several when they share a display name).</param>
@@ -30,6 +34,9 @@ public sealed partial class UsageRowViewModel : ObservableObject
     /// <param name="rename">Saves a new display name for <paramref name="realNames"/> (null = back to the real name).</param>
     /// <param name="sites">For a browser: its sites, most time first (their bars are relative to the browser's time).</param>
     /// <param name="hide">Hides the row from its list; null when the list can't hide rows.</param>
+    /// <param name="delete">Deletes the row's time in the period shown; null when it can't be deleted.</param>
+    /// <param name="periodText">The period shown, for the delete question (e.g. "today").</param>
+    /// <param name="isDistraction">In "Top distractions" (orange bar).</param>
     public UsageRowViewModel(
         IReadOnlyList<string> realNames,
         string name,
@@ -38,9 +45,15 @@ public sealed partial class UsageRowViewModel : ObservableObject
         Bitmap? icon,
         Func<UsageRowViewModel, string?, Task> rename,
         IReadOnlyList<UsageRowViewModel>? sites = null,
-        Func<UsageRowViewModel, Task>? hide = null)
+        Func<UsageRowViewModel, Task>? hide = null,
+        Func<Task>? delete = null,
+        string periodText = "",
+        bool isDistraction = false)
     {
         _hide = hide;
+        _delete = delete;
+        _periodText = periodText;
+        IsDistraction = isDistraction;
         _sites = sites ?? Array.Empty<UsageRowViewModel>();
         foreach (UsageRowViewModel site in _sites.Take(SitesShown))
         {
@@ -95,6 +108,16 @@ public sealed partial class UsageRowViewModel : ObservableObject
 
     public bool CanHide => _hide is not null;
 
+    public bool CanDelete => _delete is not null;
+
+    public bool IsDistraction { get; }
+
+    /// <summary>E.g. "Delete 1 h 3 min of brave from today?"</summary>
+    public string DeleteQuestion => $"Delete {TimeText} of {Name} from {_periodText}? It won't count anywhere (you can restore it).";
+
+    [ObservableProperty]
+    public partial bool IsConfirmingDelete { get; set; }
+
     public bool HasMoreSites => _sites.Count > SitesShown;
 
     [ObservableProperty]
@@ -119,6 +142,26 @@ public sealed partial class UsageRowViewModel : ObservableObject
         {
             ShownSites.Add(site);
         }
+    }
+
+    [RelayCommand]
+    private void AskDelete()
+    {
+        IsEditing = false;
+        IsConfirmingDelete = true;
+    }
+
+    [RelayCommand]
+    private Task ConfirmDeleteAsync()
+    {
+        IsConfirmingDelete = false;
+        return _delete?.Invoke() ?? Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    private void CancelDelete()
+    {
+        IsConfirmingDelete = false;
     }
 
     [RelayCommand]

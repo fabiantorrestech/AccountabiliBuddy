@@ -247,6 +247,10 @@ public partial class App : Application
         displayNames.LoadBlocking();
         var hiddenUsage = new HiddenUsageService(documents);
         hiddenUsage.LoadBlocking();
+        var hiddenDistractions = new HiddenUsageService(documents, HiddenUsageService.DistractionsKey);
+        hiddenDistractions.LoadBlocking();
+        var deletedUsage = new DeletedUsageService(documents);
+        deletedUsage.LoadBlocking();
         _icons = new AppAndSiteIcons(Path.Combine(dataDirectory, "icons"), new Win32AppIconReader());
         var timelineDay = new DayBarViewModel(
             _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, time, ignoresShowSetting: true);
@@ -295,7 +299,7 @@ public partial class App : Application
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings),
             new ScheduleViewModel(_configuration, _sessions, pendingChanges),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
-            new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, time),
+            new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time),
             setupViewModel,
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
             new SettingsViewModel(

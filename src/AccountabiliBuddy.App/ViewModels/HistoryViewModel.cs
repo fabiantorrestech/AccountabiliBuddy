@@ -15,7 +15,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// through the kept 90 days) — focus time, how much of it was
 /// on track or distracted, the top distractions, the most-used apps and sites, and the sessions with how they ended.
 /// A session can be omitted (e.g. a test): it stays listed, greyed, but its focus time doesn't count.
-/// Apps and sites show their icon (or a letter badge) and can be renamed; names that read the same are added up.
+/// Apps and sites show their icon (or a letter badge), and each has a ⋯ menu: rename, hide from that list, or delete
+/// its time from the period shown (restorable); names that read the same are added up.
 /// Refreshes itself a few seconds after new entries are written (entries are written when an activity ends).
 /// </summary>
 public sealed partial class HistoryViewModel : ObservableObject
@@ -31,6 +32,12 @@ public sealed partial class HistoryViewModel : ObservableObject
     private readonly DisplayNamesService _names;
     private readonly AppAndSiteIcons _icons;
     private readonly HiddenUsageService _hidden;
+    private readonly HiddenUsageService _hiddenDistractions;
+    private readonly DeletedUsageService _deleted;
+
+    // The period shown, for deleting from it.
+    private DateTimeOffset _from;
+    private DateTimeOffset _to;
 
     // The browser's own pages (new tab, settings, extensions, favorites…) share one row under the browser.
     private const string BrowserPagesName = "Browser pages";
@@ -46,10 +53,18 @@ public sealed partial class HistoryViewModel : ObservableObject
         DisplayNamesService names,
         AppAndSiteIcons icons,
         HiddenUsageService hidden,
+        HiddenUsageService hiddenDistractions,
+        DeletedUsageService deleted,
         TimeProvider timeProvider)
     {
         _hidden = hidden;
         _hidden.Changed += (_, _) => _ = RefreshAsync();
+        _hiddenDistractions = hiddenDistractions;
+        _hiddenDistractions.Changed += (_, _) => _ = RefreshAsync();
+        _deleted = deleted;
+        _deleted.Changed += (_, _) => _ = RefreshAsync();
+        HiddenOverall = new HiddenListViewModel(hidden);
+        HiddenDistractions = new HiddenListViewModel(hiddenDistractions);
         _names = names;
         _icons = icons;
         _names.Changed += (_, _) => _ = RefreshAsync();
@@ -150,27 +165,33 @@ public sealed partial class HistoryViewModel : ObservableObject
 
     public string OverallToggleText => ShowAllOverall ? "Show less" : $"Show all ({_allOverall.Count})";
 
-    /// <summary>Apps and sites hidden from "Most used", to show them again.</summary>
-    public IReadOnlyList<string> HiddenNames => _hidden.HiddenNames.Order(StringComparer.OrdinalIgnoreCase).ToList();
+    /// <summary>Apps and sites hidden from "Most used".</summary>
+    public HiddenListViewModel HiddenOverall { get; }
 
-    public bool HasHidden => _hidden.HiddenNames.Count > 0;
+    /// <summary>Apps and sites hidden from "Top distractions".</summary>
+    public HiddenListViewModel HiddenDistractions { get; }
 
-    public string HiddenToggleText => ShowHiddenList ? "Done" : $"{_hidden.HiddenNames.Count} hidden";
+    /// <summary>Deletions that touch the period shown, to restore them.</summary>
+    public ObservableCollection<DeletedRowViewModel> DeletedRows { get; } = new();
+
+    public bool HasDeleted => DeletedRows.Count > 0;
+
+    public string DeletedToggleText => ShowDeleted ? "Done" : $"{DeletedRows.Count} deleted";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HiddenToggleText))]
-    public partial bool ShowHiddenList { get; set; }
+    [NotifyPropertyChangedFor(nameof(DeletedToggleText))]
+    public partial bool ShowDeleted { get; set; }
 
     [RelayCommand]
-    private void ToggleHiddenList()
+    private void ToggleDeleted()
     {
-        ShowHiddenList = !ShowHiddenList;
+        ShowDeleted = !ShowDeleted;
     }
 
     [RelayCommand]
-    private Task UnhideAsync(string name)
+    private Task RestoreAsync(DeletedRowViewModel row)
     {
-        return _hidden.SetHiddenAsync(new[] { name }, hidden: false);
+        return _deleted.RestoreAsync(row.Deletion.Id);
     }
 
     [ObservableProperty]
@@ -282,6 +303,8 @@ public sealed partial class HistoryViewModel : ObservableObject
             HistoryPeriod.Day => (startOfDay, startOfDay.AddDays(1)),
             _ => (startOfToday, startOfToday.AddDays(1)),
         };
+        _from = from;
+        _to = to;
         PeriodLabel = Period switch
         {
             HistoryPeriod.Week => $"{from:ddd d MMM} – today",
@@ -299,7 +322,7 @@ public sealed partial class HistoryViewModel : ObservableObject
                 .Where(record => _omitted.IsOmitted(record.StartedAt))
                 .Select(record => new TimeRange(record.StartedAt, record.EndedAt ?? localNow))
                 .ToList();
-            summary = await _log.GetSummaryAsync(from, to, omitted);
+            summary = await _log.GetSummaryAsync(from, to, omitted, _deleted.Parts);
             ErrorText = null;
         }
         catch (SqliteException ex)
@@ -315,9 +338,19 @@ public sealed partial class HistoryViewModel : ObservableObject
 
         _allDistractions = BuildRows(summary.TopDistractions);
         _allOverall = BuildAppRows(summary.AppsAndSites);
-        OnPropertyChanged(nameof(HiddenNames));
-        OnPropertyChanged(nameof(HasHidden));
-        OnPropertyChanged(nameof(HiddenToggleText));
+        DeletedRows.Clear();
+        foreach (DeletedUsage deletion in _deleted.Overlapping(from, to))
+        {
+            DeletedRows.Add(new DeletedRowViewModel(deletion));
+        }
+
+        if (DeletedRows.Count == 0)
+        {
+            ShowDeleted = false;
+        }
+
+        OnPropertyChanged(nameof(HasDeleted));
+        OnPropertyChanged(nameof(DeletedToggleText));
         Show(TopDistractions, _allDistractions, ShowAllDistractions);
         Show(TopOverall, _allOverall, ShowAllOverall);
         OnPropertyChanged(nameof(HasMoreDistractions));
@@ -389,6 +422,7 @@ public sealed partial class HistoryViewModel : ObservableObject
     private List<UsageRowViewModel> BuildRows(IReadOnlyList<UsageEntry> entries)
     {
         var rows = entries
+            .Where(entry => !_hiddenDistractions.IsHidden(entry.Name))
             .GroupBy(entry => _names.NameFor(entry.Name), StringComparer.OrdinalIgnoreCase)
             .Select(group => (Name: group.Key, RealNames: group.Select(entry => entry.Name).ToList(),
                 Time: group.Aggregate(TimeSpan.Zero, (sum, entry) => sum + entry.Time)))
@@ -402,7 +436,11 @@ public sealed partial class HistoryViewModel : ObservableObject
                 FormatDuration(row.Time),
                 row.Time.TotalSeconds / max,
                 row.RealNames.Select(_icons.Find).FirstOrDefault(found => found is not null),
-                RenameAsync))
+                RenameAsync,
+                hide: shown => _hiddenDistractions.SetHiddenAsync(shown.RealNames, hidden: true),
+                delete: () => DeleteAsync(row.Name, row.RealNames.Select(name => new UsageDeletion(null, name, _from, _to))),
+                periodText: PeriodForQuestion,
+                isDistraction: true))
             .ToList();
     }
 
@@ -435,11 +473,17 @@ public sealed partial class HistoryViewModel : ObservableObject
                     .OrderByDescending(site => site.Time)
                     .Select(site => new UsageRowViewModel(
                         site.RealNames, site.Name, FormatDuration(site.Time), site.Time.TotalSeconds / appSeconds, FindIcon(site.RealNames), RenameAsync,
-                        hide: HideAsync))
+                        hide: HideAsync,
+                        delete: () => DeleteAsync(
+                            $"{site.Name} in {app.Name}",
+                            app.RealNames.SelectMany(appName => site.RealNames.Select(siteName => new UsageDeletion(appName, siteName, _from, _to)))),
+                        periodText: PeriodForQuestion))
                     .ToList();
                 return new UsageRowViewModel(
                     app.RealNames, app.Name, FormatDuration(app.Time), app.Time.TotalSeconds / max, FindIcon(app.RealNames), RenameAsync, sites,
-                    HideAsync);
+                    HideAsync,
+                    delete: () => DeleteAsync(app.Name, app.RealNames.Select(appName => new UsageDeletion(appName, null, _from, _to))),
+                    periodText: PeriodForQuestion);
             })
             .ToList();
     }
@@ -451,6 +495,19 @@ public sealed partial class HistoryViewModel : ObservableObject
     private static bool IsBrowserPage(string site)
     {
         return !site.Contains('.') && !site.Equals("localhost", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>"today", "Sunday 18 October" or "the last 7 days".</summary>
+    private string PeriodForQuestion => Period switch
+    {
+        HistoryPeriod.Week => "the last 7 days",
+        HistoryPeriod.Day when SelectedDay?.Date != Today => $"{SelectedDay:dddd d MMMM}",
+        _ => "today",
+    };
+
+    private Task DeleteAsync(string label, IEnumerable<UsageDeletion> parts)
+    {
+        return _deleted.DeleteAsync(new DeletedUsage(Guid.NewGuid(), label, PeriodLabel, _from, _to, parts.ToList()));
     }
 
     private Task HideAsync(UsageRowViewModel row)

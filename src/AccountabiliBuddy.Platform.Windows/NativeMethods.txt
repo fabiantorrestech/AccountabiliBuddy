@@ -41,6 +41,7 @@ GetClassName
 GetWindowThreadProcessId
 GetWindowLong
 WINDOW_EX_STYLE
+WINDOW_STYLE
 GetWindowRect
 GetAncestor
 DwmGetWindowAttribute

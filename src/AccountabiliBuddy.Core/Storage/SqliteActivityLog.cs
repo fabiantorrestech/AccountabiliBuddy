@@ -109,9 +109,14 @@ public sealed class SqliteActivityLog : IActivityLog
     }
 
     public async Task<UsageSummary> GetSummaryAsync(
-        DateTimeOffset from, DateTimeOffset to, IReadOnlyList<TimeRange>? leaveOut = null, CancellationToken cancellationToken = default)
+        DateTimeOffset from,
+        DateTimeOffset to,
+        IReadOnlyList<TimeRange>? leaveOut = null,
+        IReadOnlyList<UsageDeletion>? deleted = null,
+        CancellationToken cancellationToken = default)
     {
         IReadOnlyList<TimeRange> skipped = leaveOut ?? Array.Empty<TimeRange>();
+        IReadOnlyList<UsageDeletion> removed = deleted ?? Array.Empty<UsageDeletion>();
         await using SqliteConnection connection = await _database.OpenAsync(cancellationToken).ConfigureAwait(false);
 
         TimeSpan focus = TimeSpan.Zero, onTrack = TimeSpan.Zero, distracted = TimeSpan.Zero, unknown = TimeSpan.Zero;
@@ -120,7 +125,7 @@ public sealed class SqliteActivityLog : IActivityLog
             totals.CommandText = $"""
                 SELECT classification, SUM(duration_ms)
                 FROM activity_segments
-                WHERE in_focus = 1 AND started_at >= $from AND started_at < $to{LeaveOutFilter(totals, skipped)}
+                WHERE in_focus = 1 AND started_at >= $from AND started_at < $to{LeaveOutFilter(totals, skipped)}{DeletedFilter(totals, removed)}
                 GROUP BY classification;
                 """;
             AddRange(totals, from, to);
@@ -145,8 +150,8 @@ public sealed class SqliteActivityLog : IActivityLog
         }
 
         IReadOnlyList<UsageEntry> topDistractions = await TopUsageAsync(
-            connection, from, to, "in_focus = 1 AND classification = 'Distracting'", skipped, cancellationToken).ConfigureAwait(false);
-        IReadOnlyList<AppSiteUsage> appsAndSites = await AppsAndSitesAsync(connection, from, to, cancellationToken).ConfigureAwait(false);
+            connection, from, to, "in_focus = 1 AND classification = 'Distracting'", skipped, removed, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<AppSiteUsage> appsAndSites = await AppsAndSitesAsync(connection, from, to, removed, cancellationToken).ConfigureAwait(false);
 
         return new UsageSummary(focus, onTrack, distracted, unknown, topDistractions, appsAndSites);
     }
@@ -352,14 +357,14 @@ public sealed class SqliteActivityLog : IActivityLog
 
     private static async Task<IReadOnlyList<UsageEntry>> TopUsageAsync(
         SqliteConnection connection, DateTimeOffset from, DateTimeOffset to, string filter, IReadOnlyList<TimeRange> leaveOut,
-        CancellationToken cancellationToken)
+        IReadOnlyList<UsageDeletion> deleted, CancellationToken cancellationToken)
     {
         await using SqliteCommand command = connection.CreateCommand();
         // The filter is one of two constant strings above, never user input.
         command.CommandText = $"""
             SELECT COALESCE(domain, process_name) AS name, SUM(duration_ms) AS total
             FROM activity_segments
-            WHERE {filter} AND started_at >= $from AND started_at < $to{LeaveOutFilter(command, leaveOut)}
+            WHERE {filter} AND started_at >= $from AND started_at < $to{LeaveOutFilter(command, leaveOut)}{DeletedFilter(command, deleted)}
             GROUP BY name
             ORDER BY total DESC
             LIMIT {TopEntries};
@@ -377,13 +382,13 @@ public sealed class SqliteActivityLog : IActivityLog
     }
 
     private static async Task<IReadOnlyList<AppSiteUsage>> AppsAndSitesAsync(
-        SqliteConnection connection, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
+        SqliteConnection connection, DateTimeOffset from, DateTimeOffset to, IReadOnlyList<UsageDeletion> deleted, CancellationToken cancellationToken)
     {
         await using SqliteCommand command = connection.CreateCommand();
-        command.CommandText = """
+        command.CommandText = $"""
             SELECT process_name, domain, SUM(duration_ms) AS total
             FROM activity_segments
-            WHERE started_at >= $from AND started_at < $to
+            WHERE started_at >= $from AND started_at < $to{DeletedFilter(command, deleted)}
             GROUP BY process_name, domain
             ORDER BY total DESC;
             """;
@@ -411,6 +416,29 @@ public sealed class SqliteActivityLog : IActivityLog
             filter.Append($" AND NOT (started_at >= $skipFrom{i} AND started_at < $skipTo{i})");
             command.Parameters.AddWithValue($"$skipFrom{i}", Format(leaveOut[i].From));
             command.Parameters.AddWithValue($"$skipTo{i}", Format(leaveOut[i].To));
+        }
+
+        return filter.ToString();
+    }
+
+    /// <summary>" AND NOT (…)" for each deletion (app, site in an app, or name as shown), with its values as parameters.</summary>
+    private static string DeletedFilter(SqliteCommand command, IReadOnlyList<UsageDeletion> deleted)
+    {
+        var filter = new System.Text.StringBuilder();
+        for (int i = 0; i < deleted.Count; i++)
+        {
+            UsageDeletion deletion = deleted[i];
+            string match = (deletion.App, deletion.Site) switch
+            {
+                (not null, null) => $"lower(process_name) = lower($delApp{i})",
+                (not null, not null) => $"lower(process_name) = lower($delApp{i}) AND COALESCE(lower(domain), '') = lower($delSite{i})",
+                _ => $"lower(COALESCE(domain, process_name)) = lower($delSite{i})",
+            };
+            filter.Append($" AND NOT ({match} AND started_at >= $delFrom{i} AND started_at < $delTo{i})");
+            command.Parameters.AddWithValue($"$delApp{i}", (object?)deletion.App ?? DBNull.Value);
+            command.Parameters.AddWithValue($"$delSite{i}", (object?)deletion.Site ?? DBNull.Value);
+            command.Parameters.AddWithValue($"$delFrom{i}", Format(deletion.From));
+            command.Parameters.AddWithValue($"$delTo{i}", Format(deletion.To));
         }
 
         return filter.ToString();
