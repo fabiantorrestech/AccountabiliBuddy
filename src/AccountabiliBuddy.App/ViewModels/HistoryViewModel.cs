@@ -30,6 +30,10 @@ public sealed partial class HistoryViewModel : ObservableObject
     private readonly OmittedSessionsService _omitted;
     private readonly DisplayNamesService _names;
     private readonly AppAndSiteIcons _icons;
+    private readonly HiddenUsageService _hidden;
+
+    // The browser's own pages (new tab, settings, extensions, favorites…) share one row under the browser.
+    private const string BrowserPagesName = "Browser pages";
     private readonly TimeProvider _timeProvider;
     private readonly DispatcherTimer _refreshSoon;
 
@@ -41,8 +45,11 @@ public sealed partial class HistoryViewModel : ObservableObject
         OmittedSessionsService omitted,
         DisplayNamesService names,
         AppAndSiteIcons icons,
+        HiddenUsageService hidden,
         TimeProvider timeProvider)
     {
+        _hidden = hidden;
+        _hidden.Changed += (_, _) => _ = RefreshAsync();
         _names = names;
         _icons = icons;
         _names.Changed += (_, _) => _ = RefreshAsync();
@@ -142,6 +149,29 @@ public sealed partial class HistoryViewModel : ObservableObject
     public string DistractionsToggleText => ShowAllDistractions ? "Show less" : $"Show all ({_allDistractions.Count})";
 
     public string OverallToggleText => ShowAllOverall ? "Show less" : $"Show all ({_allOverall.Count})";
+
+    /// <summary>Apps and sites hidden from "Most used", to show them again.</summary>
+    public IReadOnlyList<string> HiddenNames => _hidden.HiddenNames.Order(StringComparer.OrdinalIgnoreCase).ToList();
+
+    public bool HasHidden => _hidden.HiddenNames.Count > 0;
+
+    public string HiddenToggleText => ShowHiddenList ? "Done" : $"{_hidden.HiddenNames.Count} hidden";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HiddenToggleText))]
+    public partial bool ShowHiddenList { get; set; }
+
+    [RelayCommand]
+    private void ToggleHiddenList()
+    {
+        ShowHiddenList = !ShowHiddenList;
+    }
+
+    [RelayCommand]
+    private Task UnhideAsync(string name)
+    {
+        return _hidden.SetHiddenAsync(new[] { name }, hidden: false);
+    }
 
     [ObservableProperty]
     public partial string PeriodLabel { get; set; }
@@ -284,7 +314,10 @@ public sealed partial class HistoryViewModel : ObservableObject
         UnknownText = FormatDuration(summary.UnknownTime);
 
         _allDistractions = BuildRows(summary.TopDistractions);
-        _allOverall = BuildRows(summary.TopOverall);
+        _allOverall = BuildAppRows(summary.AppsAndSites);
+        OnPropertyChanged(nameof(HiddenNames));
+        OnPropertyChanged(nameof(HasHidden));
+        OnPropertyChanged(nameof(HiddenToggleText));
         Show(TopDistractions, _allDistractions, ShowAllDistractions);
         Show(TopOverall, _allOverall, ShowAllOverall);
         OnPropertyChanged(nameof(HasMoreDistractions));
@@ -373,6 +406,63 @@ public sealed partial class HistoryViewModel : ObservableObject
             .ToList();
     }
 
+    /// <summary>
+    /// One row per app (apps that show the same name added up), most time first; a browser's sites go under it,
+    /// each added up the same way, with bars relative to the browser's time.
+    /// </summary>
+    private List<UsageRowViewModel> BuildAppRows(IReadOnlyList<AppSiteUsage> usage)
+    {
+        var apps = usage
+            .Where(entry => !_hidden.IsHidden(entry.App))
+            .GroupBy(entry => _names.NameFor(entry.App), StringComparer.OrdinalIgnoreCase)
+            .Select(app => (Name: app.Key,
+                RealNames: app.Select(entry => entry.App).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                Time: app.Aggregate(TimeSpan.Zero, (sum, entry) => sum + entry.Time),
+                Sites: app.Where(entry => entry.Site is not null).ToList()))
+            .OrderByDescending(app => app.Time)
+            .ToList();
+
+        double max = apps.Count > 0 ? Math.Max(1, apps[0].Time.TotalSeconds) : 1;
+        return apps.Select(app =>
+            {
+                double appSeconds = Math.Max(1, app.Time.TotalSeconds);
+                List<UsageRowViewModel> sites = app.Sites
+                    .Where(entry => !_hidden.IsHidden(entry.Site!))
+                    .GroupBy(entry => IsBrowserPage(entry.Site!) ? BrowserPagesName : _names.NameFor(entry.Site!), StringComparer.OrdinalIgnoreCase)
+                    .Select(site => (Name: site.Key,
+                        RealNames: site.Select(entry => entry.Site!).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                        Time: site.Aggregate(TimeSpan.Zero, (sum, entry) => sum + entry.Time)))
+                    .OrderByDescending(site => site.Time)
+                    .Select(site => new UsageRowViewModel(
+                        site.RealNames, site.Name, FormatDuration(site.Time), site.Time.TotalSeconds / appSeconds, FindIcon(site.RealNames), RenameAsync,
+                        hide: HideAsync))
+                    .ToList();
+                return new UsageRowViewModel(
+                    app.RealNames, app.Name, FormatDuration(app.Time), app.Time.TotalSeconds / max, FindIcon(app.RealNames), RenameAsync, sites,
+                    HideAsync);
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// A browser's own page rather than a website: its "host" has no dot (newtab, extensions, settings, favorites,
+    /// chrome-extension, file…). localhost is a real site.
+    /// </summary>
+    private static bool IsBrowserPage(string site)
+    {
+        return !site.Contains('.') && !site.Equals("localhost", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private Task HideAsync(UsageRowViewModel row)
+    {
+        return _hidden.SetHiddenAsync(row.RealNames, hidden: true);
+    }
+
+    private Avalonia.Media.Imaging.Bitmap? FindIcon(IEnumerable<string> realNames)
+    {
+        return realNames.Select(_icons.Find).FirstOrDefault(found => found is not null);
+    }
+
     /// <summary>The top 5 rows, or all of them.</summary>
     private static void Show(ObservableCollection<UsageRowViewModel> target, List<UsageRowViewModel> all, bool showAll)
     {
@@ -390,7 +480,7 @@ public sealed partial class HistoryViewModel : ObservableObject
 
     private void RefreshIcons()
     {
-        foreach (UsageRowViewModel row in _allDistractions.Concat(_allOverall))
+        foreach (UsageRowViewModel row in _allDistractions.Concat(_allOverall).Concat(_allOverall.SelectMany(app => app.Sites)))
         {
             row.Icon = row.RealNames.Select(_icons.Find).FirstOrDefault(found => found is not null);
         }

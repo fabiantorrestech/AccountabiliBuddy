@@ -146,10 +146,9 @@ public sealed class SqliteActivityLog : IActivityLog
 
         IReadOnlyList<UsageEntry> topDistractions = await TopUsageAsync(
             connection, from, to, "in_focus = 1 AND classification = 'Distracting'", skipped, cancellationToken).ConfigureAwait(false);
-        IReadOnlyList<UsageEntry> topOverall = await TopUsageAsync(
-            connection, from, to, "1 = 1", Array.Empty<TimeRange>(), cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<AppSiteUsage> appsAndSites = await AppsAndSitesAsync(connection, from, to, cancellationToken).ConfigureAwait(false);
 
-        return new UsageSummary(focus, onTrack, distracted, unknown, topDistractions, topOverall);
+        return new UsageSummary(focus, onTrack, distracted, unknown, topDistractions, appsAndSites);
     }
 
     public async Task<IReadOnlyList<SessionEvent>> GetSessionEventsAsync(
@@ -375,6 +374,32 @@ public sealed class SqliteActivityLog : IActivityLog
         }
 
         return entries;
+    }
+
+    private static async Task<IReadOnlyList<AppSiteUsage>> AppsAndSitesAsync(
+        SqliteConnection connection, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
+    {
+        await using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT process_name, domain, SUM(duration_ms) AS total
+            FROM activity_segments
+            WHERE started_at >= $from AND started_at < $to
+            GROUP BY process_name, domain
+            ORDER BY total DESC;
+            """;
+        AddRange(command, from, to);
+
+        var usage = new List<AppSiteUsage>();
+        await using SqliteDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            usage.Add(new AppSiteUsage(
+                reader.GetString(0),
+                reader.IsDBNull(1) ? null : reader.GetString(1),
+                TimeSpan.FromMilliseconds(reader.GetInt64(2))));
+        }
+
+        return usage;
     }
 
     /// <summary>" AND NOT (…)" for each stretch to leave out, with its times added as parameters.</summary>

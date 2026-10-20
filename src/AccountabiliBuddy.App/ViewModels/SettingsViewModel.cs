@@ -47,6 +47,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Export and import of backups (the Backup section).</summary>
     public BackupViewModel? Backup { get; init; }
 
+    /// <summary>The Updates section.</summary>
+    public UpdatesViewModel? Updates { get; init; }
+
     private readonly GoogleSetupGuide? _googleGuide;
 
     /// <summary>The step-by-step Google Cloud setup (Calendars and Sleep).</summary>

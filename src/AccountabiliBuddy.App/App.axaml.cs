@@ -60,6 +60,7 @@ public partial class App : Application
     private SessionOverlayService? _sessionOverlay;
     private SessionCueService? _sessionCues;
     private AppAndSiteIcons? _icons;
+    private UpdateService? _updates;
     private Win32SoundPlayer? _soundPlayer;
     private DayBarViewModel? _dayBar;
     private PrivateWindowAccessMonitor? _privateAccess;
@@ -215,6 +216,9 @@ public partial class App : Application
         _activityWatcher.ActivityChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => activityViewModel.Apply(snapshot));
 
         var presenter = new EnforcementPresenter(new WindowsEnforcer(), _browserSource, monitorLocator, time);
+        _updates = new UpdateService(
+            new VelopackUpdater(), _sessions, documents, presenter.ShowNotice, () => _mainWindow?.IsVisible == true);
+        _updates.LoadBlocking();
         _enforcement = new EnforcementCoordinator(
             _activityWatcher,
             _browserSource,
@@ -241,6 +245,8 @@ public partial class App : Application
         omittedSessions.LoadBlocking();
         var displayNames = new DisplayNamesService(documents);
         displayNames.LoadBlocking();
+        var hiddenUsage = new HiddenUsageService(documents);
+        hiddenUsage.LoadBlocking();
         _icons = new AppAndSiteIcons(Path.Combine(dataDirectory, "icons"), new Win32AppIconReader());
         var timelineDay = new DayBarViewModel(
             _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, time, ignoresShowSetting: true);
@@ -289,13 +295,14 @@ public partial class App : Application
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings),
             new ScheduleViewModel(_configuration, _sessions, pendingChanges),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
-            new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, time),
+            new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, time),
             setupViewModel,
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
             new SettingsViewModel(
                 _configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, dayBarSettings, overlaySettings, soundSettings, _sessionCues, sleepSettings, database.DatabasePath)
             {
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
+                Updates = new UpdatesViewModel(_updates),
                 GoogleGuide = new GoogleSetupGuide(calendars, _calendarSync, dataProtector, documents, OpenInBrowser),
             },
             activityViewModel,
@@ -306,6 +313,7 @@ public partial class App : Application
         };
 
         _mainWindow = new MainWindow { DataContext = mainViewModel };
+        _mainWindow.Title = $"AccountabiliBuddy {AccountabiliBuddy.App.Services.Backup.BackupService.AppVersion}";
         if (_usesDevData)
         {
             _mainWindow.Title += " (dev data)";
@@ -337,6 +345,7 @@ public partial class App : Application
                 $"AccountabiliBuddy was closed for {DescribeGap(resumed.ClosedFor)}. Your session kept running.");
         }
         _icons.Start(_activityWatcher, _browserSource);
+        _updates.Start();
         _activityWatcher.Start();
         _browserSource.Start();
         _calendarSync.Start();
@@ -617,6 +626,7 @@ public partial class App : Application
         _checkpoints?.Dispose();
         _sessionOverlay?.Dispose();
         _soundPlayer?.Dispose();
+        _updates?.Dispose();
         _dayBar?.Dispose();
         _privateAccess?.Dispose();
         _clockAnchors?.Dispose();
