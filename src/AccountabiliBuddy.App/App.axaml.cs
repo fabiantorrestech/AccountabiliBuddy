@@ -71,6 +71,7 @@ public partial class App : Application
     private WinEventActivityWatcher? _activityWatcher;
     private ProgramPathsService? _programPaths;
     private BedtimeReminderService? _bedtimeReminder;
+    private ColdTurkeyService? _coldTurkey;
     private NamedPipeBrowserSource? _browserSource;
     private Win32GlobalHotkey? _hotkey;
     private QuickSessionService? _quickSession;
@@ -266,7 +267,8 @@ public partial class App : Application
         _soundPlayer = new Win32SoundPlayer();
         _sessionCues = new SessionCueService(_sessions, soundSettings, _soundPlayer);
         _sessionOverlay = new SessionOverlayService(
-            _sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), timelineDay, _sessionCues);
+            _sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), timelineDay, _sessionCues,
+            () => _quickSession?.CountUpProfileId);
         _dayBar = new DayBarViewModel(_configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, time);
         var dataProtector = new DpapiDataProtector();
         _calendarNetwork = new CalendarNetwork();
@@ -296,14 +298,18 @@ public partial class App : Application
             new BackupViewModel(backups, sessions, RestartApp, showExport: false));
         setupViewModel.OpenAssistant = ShowSetupAssistant;
 
+        _coldTurkey = new ColdTurkeyService(new ColdTurkeyBlockReader(), _sessions, documents);
+        _coldTurkey.LoadBlocking();
+
         var mainViewModel = new MainWindowViewModel(
             new SessionViewModel(
                 _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks), _quickSession)
             {
                 TimerToggle = new TimerToggleViewModel(_sessionOverlay),
                 Day = timelineDay,
+                ColdTurkey = new ColdTurkeyStatusViewModel(_coldTurkey, _sessions),
             },
-            new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings),
+            new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey),
             new ScheduleViewModel(_configuration, _sessions, pendingChanges),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
             new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time,
@@ -368,6 +374,8 @@ public partial class App : Application
         _bedtimeReminder.ReminderDue += (_, reminder) =>
             presenter.ShowReminder(reminder.Title, reminder.Message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#6366F1")));
         _bedtimeReminder.Start();
+        _coldTurkey.ExpectedBlocksOff += (_, names) => presenter.ShowNotice("Cold Turkey block off", ColdTurkeyService.Describe(names));
+        _coldTurkey.Start();
         _activityWatcher.ActivityChanged += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(_sessionOverlay.OnActivityChanged);
         _dayBar.Start();
         // The main window's bar redraws only while the window is open; the on-screen timeline has its own copy.
@@ -668,6 +676,7 @@ public partial class App : Application
         _updates?.Dispose();
         _dayBar?.Dispose();
         _privateAccess?.Dispose();
+        _coldTurkey?.Dispose();
         _clockAnchors?.Dispose();
         _unlocks?.Dispose();
         _calendarSync?.Dispose();

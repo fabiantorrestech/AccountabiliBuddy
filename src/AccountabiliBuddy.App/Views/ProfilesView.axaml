@@ -72,6 +72,24 @@
                                     </ComboBox>
                                 </StackPanel>
 
+                                <StackPanel Spacing="4" IsVisible="{Binding HasColdTurkeyBlocks}">
+                                    <TextBlock Text="Cold Turkey blocks this profile expects to be on" FontWeight="SemiBold" />
+                                    <ItemsControl ItemsSource="{Binding ColdTurkeyBlocks}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:ExpectedBlockOption">
+                                                <CheckBox Content="{Binding Name}" IsChecked="{Binding IsExpected}" Margin="0,0,16,0" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Opacity="0.6" FontSize="12" TextWrapping="Wrap"
+                                               Text="This computer only. During this profile's focus you're told when one of them is off; nothing is changed in Cold Turkey." />
+                                </StackPanel>
+
                                 <TextBlock TextWrapping="Wrap" Opacity="0.75"
                                            Text="Rules: when several match, Channel beats Url beats WindowTitle beats ProcessName, a longer pattern beats a shorter one, and Block wins a tie. OcrText rules are only checked when nothing else matched. ProcessName is without .exe (e.g. chrome). Domain matching (Url only) includes subdomains." />
 

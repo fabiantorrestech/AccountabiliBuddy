@@ -42,6 +42,10 @@
                            Opacity="0.75" TextWrapping="Wrap" />
                 <controls:HotkeyBox Text="{Binding HotkeyText}" Width="220" HorizontalAlignment="Left" />
                 <TextBlock Text="{Binding HotkeyStatus}" TextWrapping="Wrap" />
+                <TextBlock Text="Count-up Quick Start profile" FontWeight="SemiBold" Margin="0,8,0,0" />
+                <TextBlock Text="&quot;Count up&quot; in the quick session starts this profile with no set end: the on-screen bar fills each hour and glows every 30 minutes with how long you've been at it (hold Ctrl+Alt to see it any time)."
+                           Opacity="0.75" TextWrapping="Wrap" />
+                <ComboBox ItemsSource="{Binding CountUpChoices}" SelectedItem="{Binding SelectedCountUp}" MinWidth="300" />
             </StackPanel>
 
             <StackPanel Spacing="6">
@@ -194,7 +198,7 @@
                 </ItemsControl>
 
                 <TextBlock Text="On-screen timeline" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,0" />
-                <TextBlock Text="A small copy of the day bar in the same spot as the timer: planned focus, what actually ran and a red line at now, with the next block under it. It shows on days with focus blocks; hold Ctrl+Alt for how much you focused."
+                <TextBlock Text="A small copy of the day bar in the same spot as the timer: your blocks, the focus sessions you started and a red line at now, with the next block under it. It shows on days with blocks; hold Ctrl+Alt for how much you focused."
                            Opacity="0.75" TextWrapping="Wrap" />
                 <CheckBox IsChecked="{Binding ShowTimeline}" Content="Show the timeline on days with focus blocks" />
                 <StackPanel Spacing="6" IsEnabled="{Binding ShowTimeline}">

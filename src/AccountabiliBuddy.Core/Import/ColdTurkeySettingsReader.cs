@@ -20,6 +20,17 @@ public static class ColdTurkeySettingsReader
     /// <summary>Reads a copy of data-app.db (Cold Turkey keeps the original open).</summary>
     public static IReadOnlyList<ImportedBlockList> ReadDatabase(string databasePath)
     {
+        return ParseSettingsJson(Decode(ReadStoredSettings(databasePath)));
+    }
+
+    /// <summary>Whether each block is on, from a copy of data-app.db.</summary>
+    public static ColdTurkeyBlocks ReadBlockStates(string databasePath)
+    {
+        return ParseBlockStates(Decode(ReadStoredSettings(databasePath)));
+    }
+
+    private static string ReadStoredSettings(string databasePath)
+    {
         string? stored;
         try
         {
@@ -45,7 +56,7 @@ public static class ColdTurkeySettingsReader
             throw new FormatException("Cold Turkey has no saved settings.");
         }
 
-        return ParseSettingsJson(Decode(stored));
+        return stored;
     }
 
     /// <summary>
@@ -102,6 +113,63 @@ public static class ColdTurkeySettingsReader
         {
             throw new FormatException("Cold Turkey's settings aren't valid JSON.", ex);
         }
+    }
+
+    /// <summary>
+    /// Each block's "enabled" says whether it's switched on; a "scheduled" block then blocks only during its
+    /// "schedule". "additional.paused" pauses every block.
+    /// </summary>
+    public static ColdTurkeyBlocks ParseBlockStates(string json)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(json);
+            JsonElement root = document.RootElement;
+            if (!root.TryGetProperty("blocks", out JsonElement blocks) || blocks.ValueKind != JsonValueKind.Object)
+            {
+                throw new FormatException("Cold Turkey's settings have no blocks.");
+            }
+
+            bool paused = root.TryGetProperty("additional", out JsonElement additional)
+                          && additional.ValueKind == JsonValueKind.Object
+                          && StringProperty(additional, "paused") == "true";
+            List<ColdTurkeyBlockState> states = blocks.EnumerateObject()
+                .Where(block => block.Value.ValueKind == JsonValueKind.Object)
+                .Select(block => new ColdTurkeyBlockState(
+                    block.Name,
+                    StringProperty(block.Value, "enabled") == "true",
+                    StringProperty(block.Value, "type") == "scheduled",
+                    ReadSchedule(block.Value)))
+                .ToList();
+            return new ColdTurkeyBlocks(paused, states);
+        }
+        catch (JsonException ex)
+        {
+            throw new FormatException("Cold Turkey's settings aren't valid JSON.", ex);
+        }
+    }
+
+    /// <summary>A block's weekly schedule; entries that can't be read are left out.</summary>
+    private static List<WeekRange> ReadSchedule(JsonElement block)
+    {
+        var schedule = new List<WeekRange>();
+        if (!block.TryGetProperty("schedule", out JsonElement entries) || entries.ValueKind != JsonValueKind.Array)
+        {
+            return schedule;
+        }
+
+        foreach (JsonElement entry in entries.EnumerateArray())
+        {
+            int? start = WeekMinute(StringProperty(entry, "startTime"));
+            int? end = WeekMinute(StringProperty(entry, "endTime"));
+            if (start is not null && end is not null)
+            {
+                int endMinute = end.Value <= start.Value ? end.Value + WeekRange.MinutesPerWeek : end.Value;
+                schedule.AddRange(WeekRange.FromWeekMinutes(start.Value, endMinute));
+            }
+        }
+
+        return schedule;
     }
 
     private static ImportedBlockList ReadBlock(string name, JsonElement block)

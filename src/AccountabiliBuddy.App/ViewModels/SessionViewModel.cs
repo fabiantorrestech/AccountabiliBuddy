@@ -78,6 +78,9 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Today's plan, for the "next scheduled" line.</summary>
     public DayBarViewModel? Day { get; init; }
 
+    /// <summary>Which Cold Turkey blocks are on.</summary>
+    public ColdTurkeyStatusViewModel? ColdTurkey { get; init; }
+
     /// <summary>E.g. "Tip: press Ctrl+Alt+F anywhere to start a session from any app."</summary>
     public string HotkeyTip => _quickSession.HotkeyError is null
         ? $"Tip: press {_quickSession.Preferences.Hotkey} anywhere to start a session from any app."

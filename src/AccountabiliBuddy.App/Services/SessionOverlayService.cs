@@ -27,6 +27,9 @@ public sealed class SessionOverlayService : IDisposable
     private readonly DayBarViewModel _day;
     private readonly OnScreenOverlayViewModel _viewModel;
 
+    // The count-up Quick Start profile: its sessions with no set end always show the timer (the bar is the point).
+    private readonly Func<Guid?> _countUpProfileId;
+
     private SessionOverlayWindow? _window;
     private DateTimeOffset _hiddenUntil = DateTimeOffset.MinValue;
 
@@ -48,8 +51,10 @@ public sealed class SessionOverlayService : IDisposable
         OverlaySettingsService settings,
         IOverlayWindowControl control,
         DayBarViewModel timelineDay,
-        SessionCueService cues)
+        SessionCueService cues,
+        Func<Guid?> countUpProfileId)
     {
+        _countUpProfileId = countUpProfileId;
         cues.Cued += (_, cue) => OnCue(cue.Cue, cue.SessionEnded);
         _day = timelineDay;
         _sessions = sessions;
@@ -58,13 +63,23 @@ public sealed class SessionOverlayService : IDisposable
         _control = control;
         _viewModel = new OnScreenOverlayViewModel(_timer, timelineDay, HideBriefly, () => _ = _settings.SavePositionAsync(null, null));
         _viewModel.SetUseDefaultForApp(app => _ = _settings.ForgetAppOffsetAsync(app));
+        _timer.HalfHourMarked += (_, _) => _viewModel.Glow();
     }
 
     /// <summary>True when the timer was hidden for the session that is running now.</summary>
     public bool IsHiddenForSession { get; private set; }
 
-    /// <summary>True while a session runs whose profile has the timer on (shown or hidden for now).</summary>
-    public bool IsOnForSession => _sessions.State.IsActive && _settings.Current.For(_sessions.State.ProfileId).Enabled;
+    /// <summary>
+    /// True while a session runs whose profile has the timer on (shown or hidden for now), or a count-up session of
+    /// the Quick Start profile.
+    /// </summary>
+    public bool IsOnForSession => _sessions.State.IsActive
+                                  && (_settings.Current.For(_sessions.State.ProfileId).Enabled || IsCountUp(_sessions.State));
+
+    private bool IsCountUp(SessionState state)
+    {
+        return state.Mode == SessionMode.Manual && state.PhaseEndsAt is null && state.ProfileId is Guid id && id == _countUpProfileId();
+    }
 
     /// <summary>Raised when the timer is shown, hidden or turned on or off for the session.</summary>
     public event EventHandler? Changed;

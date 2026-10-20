@@ -66,6 +66,11 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
     /// <summary>Ways to lift this profile's blocks after a wait (Session tab → Unlock).</summary>
     public ObservableCollection<UnlockOptionEditorViewModel> UnlockOptions { get; } = new();
 
+    /// <summary>Cold Turkey's blocks, ticked when this profile expects them on during its focus (this computer only).</summary>
+    public ObservableCollection<ExpectedBlockOption> ColdTurkeyBlocks { get; } = new();
+
+    public bool HasColdTurkeyBlocks => ColdTurkeyBlocks.Count > 0;
+
     public static ProfileEditorViewModel FromProfile(FocusProfile profile, ProfileOverlay? overlay = null)
     {
         return new ProfileEditorViewModel(profile, overlay ?? ProfileOverlay.FollowDefault);
@@ -88,6 +93,27 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
     public ProfileOverlay ToOverlay()
     {
         return TimerChoice.ToOverlay(TimerChoiceIndex, TimerColor.Hex);
+    }
+
+    /// <summary>
+    /// Shows Cold Turkey's blocks with the expected ones ticked. An expected block Cold Turkey no longer has stays
+    /// listed, so unticking it is possible.
+    /// </summary>
+    public void ShowColdTurkeyBlocks(IEnumerable<string> available, IReadOnlyCollection<string> expected)
+    {
+        ColdTurkeyBlocks.Clear();
+        foreach (string name in available.Concat(expected).Distinct(StringComparer.Ordinal).Order(StringComparer.CurrentCultureIgnoreCase))
+        {
+            ColdTurkeyBlocks.Add(new ExpectedBlockOption(name, expected.Contains(name)));
+        }
+
+        OnPropertyChanged(nameof(HasColdTurkeyBlocks));
+    }
+
+    /// <summary>The ticked Cold Turkey blocks, saved apart from the profile (they aren't part of the shared schema).</summary>
+    public IReadOnlyList<string> ToExpectedBlocks()
+    {
+        return ColdTurkeyBlocks.Where(option => option.IsExpected).Select(option => option.Name).ToList();
     }
 
     /// <summary>Shows saved timer choices, e.g. after they were changed in the Settings tab.</summary>

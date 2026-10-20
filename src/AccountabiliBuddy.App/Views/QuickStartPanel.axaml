@@ -73,5 +73,10 @@
 
         <Button Content="{Binding StartLabel}" Command="{Binding StartCommand}" Classes="accent"
                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,12" FontSize="16" />
+
+        <!-- No set length: the Quick Start profile (Settings), and the on-screen bar counts up. -->
+        <Button Content="{Binding CountUpLabel}" Command="{Binding CountUpCommand}"
+                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,8"
+                ToolTip.Tip="Starts your Quick Start profile with no set end. The on-screen bar fills each hour and glows every 30 minutes with how long you've been at it; hold Ctrl+Alt to see it any time." />
     </StackPanel>
 </UserControl>

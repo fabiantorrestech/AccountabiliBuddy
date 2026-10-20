@@ -9,7 +9,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>
 /// The on-screen session timer: what's left of the current focus phase or break, in the chosen style. The bar and
 /// ring show the part still to go, so they empty as time passes (or fill up with time passed, if chosen). A session
-/// with no set end shows time since start. Near the end of a focus phase it can turn amber, passing a mark can give
+/// with no set end counts up: the bar fills over each hour and starts over, and every half hour it glows
+/// (<see cref="HalfHourMarked"/>) with the time in shown in the middle for a few seconds. Near the end of a focus phase it can turn amber, passing a mark can give
 /// one soft pulse, and holding Ctrl+Alt shows the details. Size, opacity and the drag outline belong to the window
 /// it shares with the timeline (<see cref="OnScreenOverlayViewModel"/>).
 /// </summary>
@@ -22,12 +23,19 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
     private static readonly TimeSpan WrapUpTime = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan PulseLength = TimeSpan.FromMilliseconds(600);
     private const double PulseBrightness = 0.3;
+    private static readonly TimeSpan HalfHour = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan BadgeHold = TimeSpan.FromSeconds(5);
 
     private readonly DispatcherTimer _pulseTimer;
 
     // The phase the marks were last counted for, and how many marks it had passed.
     private DateTimeOffset? _countedPhaseStart;
     private int _marksPassed;
+
+    // The count-up session the half hours were last counted for, and how many it had passed.
+    private readonly DispatcherTimer _badgeTimer;
+    private DateTimeOffset? _halfHoursStart;
+    private int _halfHoursPassed;
 
     public SessionOverlayViewModel()
     {
@@ -38,7 +46,14 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
             PulseOpacity = 0;
         };
 
-        HeaderLabel = HeaderTime = BigTimeText = EndText = RingText = string.Empty;
+        _badgeTimer = new DispatcherTimer { Interval = BadgeHold };
+        _badgeTimer.Tick += (_, _) =>
+        {
+            _badgeTimer.Stop();
+            ShowsElapsedBadge = false;
+        };
+
+        HeaderLabel = HeaderTime = BigTimeText = EndText = RingText = ElapsedBadge = string.Empty;
         DetailTitle = DetailTimes = DetailProgress = string.Empty;
         AccentBrush = new SolidColorBrush(BreakColor);
     }
@@ -96,6 +111,16 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial double PulseOpacity { get; set; }
 
+    /// <summary>Count-up: the time in (e.g. "1h 30m"), shown in the middle for a few seconds every half hour.</summary>
+    [ObservableProperty]
+    public partial string ElapsedBadge { get; set; }
+
+    [ObservableProperty]
+    public partial bool ShowsElapsedBadge { get; set; }
+
+    /// <summary>Raised when a count-up session passes another half hour (the window glows).</summary>
+    public event EventHandler? HalfHourMarked;
+
     /// <summary>The details below the timer, shown only while Ctrl+Alt is held.</summary>
     [ObservableProperty]
     public partial bool ShowsDetails { get; set; }
@@ -126,7 +151,12 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
         // Part still to go; a session with no set end has nothing to empty (or fill).
         bool hasEnd = end is DateTimeOffset phaseEnd && phaseEnd > start;
         double remaining = hasEnd ? Math.Clamp((end!.Value - now) / (end.Value - start), 0, 1) : 0;
-        double shown = hasEnd && settings.FillUp ? 1 - remaining : remaining;
+
+        // No set end (count-up): the bar fills over each hour and starts over.
+        bool countsUp = end is null && !isBreak;
+        TimeSpan elapsed = now > start ? now - start : TimeSpan.Zero;
+        double shown = countsUp ? elapsed.TotalMinutes % 60 / 60
+            : hasEnd && settings.FillUp ? 1 - remaining : remaining;
         string time = SessionStatusFormatter.FormatDuration(end is DateTimeOffset until ? until - now : now - start);
         string timeText = end is null ? $"{time} in" : $"{time} left";
         string label = isBreak ? "Break" : profileName;
@@ -158,12 +188,17 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
         ShowsEndText = settings.Style == OverlayStyle.BarWithEndTime;
         Divisions = settings.Divisions;
         CountMarks(start, hasEnd ? 1 - remaining : null, settings);
+        if (countsUp)
+        {
+            MarkHalfHours(start, elapsed);
+        }
 
         DetailTitle = isBreak ? $"Break · {profileName}" : profileName;
         DetailTimes = end is DateTimeOffset finish
             ? $"{TimeZoneInfo.ConvertTime(start, zone):t} – {TimeZoneInfo.ConvertTime(finish, zone):t}"
             : $"since {TimeZoneInfo.ConvertTime(start, zone):t}";
-        DetailProgress = !hasEnd ? string.Empty
+        DetailProgress = countsUp ? $"{Elapsed(elapsed)} so far"
+            : !hasEnd ? string.Empty
             : settings.Divisions >= 2 ? $"{_marksPassed} of {settings.Divisions} parts done · {(1 - remaining):0%}"
             : $"{(1 - remaining):0%} done";
     }
@@ -189,6 +224,29 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
 
         _countedPhaseStart = phaseStart;
         _marksPassed = passed;
+    }
+
+    /// <summary>Count-up: glows once for each half hour passed (not right after the window opens) and shows the time in.</summary>
+    private void MarkHalfHours(DateTimeOffset sessionStart, TimeSpan elapsed)
+    {
+        int halfHours = (int)(elapsed / HalfHour);
+        if (_halfHoursStart == sessionStart && halfHours > _halfHoursPassed)
+        {
+            ElapsedBadge = Elapsed(HalfHour * halfHours);
+            ShowsElapsedBadge = true;
+            _badgeTimer.Stop();
+            _badgeTimer.Start();
+            HalfHourMarked?.Invoke(this, EventArgs.Empty);
+        }
+
+        _halfHoursStart = sessionStart;
+        _halfHoursPassed = halfHours;
+    }
+
+    /// <summary>"1h 30m" or "30m".</summary>
+    private static string Elapsed(TimeSpan span)
+    {
+        return span.TotalHours >= 1 ? $"{(int)span.TotalHours}h {span.Minutes:00}m" : $"{span.Minutes}m";
     }
 
     private void Pulse()

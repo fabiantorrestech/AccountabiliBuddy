@@ -14,8 +14,8 @@ using Microsoft.Data.Sqlite;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// The day bar at the top of the main window: today's planned focus (schedule minus time off), the sessions that
-/// actually ran (from the history, plus the running one up to now), calendar events, and a live "now" line.
+/// The day bar at the top of the main window: today's blocks (schedule minus time off), the focus sessions you started
+/// (from the history, plus the running one up to now; scheduled blocks block but aren't focus), calendar events, and a live "now" line.
 /// The on-screen timeline uses its own copy, which draws even when the day bar is hidden. Omitted sessions (e.g.
 /// tests) are left out.
 /// With sleep mode on (and "fit to my day"), the day runs from wake time to bedtime and grows into the night
@@ -123,7 +123,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string StatusText { get; set; }
 
-    /// <summary>E.g. "3h 10m focused of 4h 30m planned".</summary>
+    /// <summary>E.g. "3h 10m focused · 4h 30m of blocks".</summary>
     [ObservableProperty]
     public partial string SummaryText { get; set; }
 
@@ -155,7 +155,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial IBrush SleepBrush { get; set; }
 
-    /// <summary>True when some focus is planned in the day shown (schedule or one-off blocks, minus time off).</summary>
+    /// <summary>True when some blocks are scheduled in the day shown (schedule or one-off blocks, minus time off).</summary>
     [ObservableProperty]
     public partial bool HasPlannedFocus { get; set; }
 
@@ -260,7 +260,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         {
             if (DayTimeline.Clip(focus.Window, range) is LocalWindow window)
             {
-                plannedSpans.Add(ToSpan(window, range, $"{ProfileName(focus.ProfileId)} · planned {Times(window)} · click to open", focus.ProfileId));
+                plannedSpans.Add(ToSpan(window, range, $"{ProfileName(focus.ProfileId)} · blocks {Times(window)} · click to open", focus.ProfileId));
             }
         }
 
@@ -377,6 +377,13 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
                 continue;
             }
 
+            if (record.Mode == SessionMode.Scheduled)
+            {
+                // A scheduled block blocks, but only sessions you start count as focus.
+                runningShown |= i == 0 && state.IsActive && record.EndedAt is null;
+                continue;
+            }
+
             DateTime start = ToLocal(record.StartedAt);
             string profile = ProfileName(record.ProfileId);
 
@@ -395,7 +402,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             // Older sessions without an end stopped when the app did; when isn't known, so they're left out.
         }
 
-        if (state.IsActive && !runningShown)
+        if (state.IsActive && !runningShown && state.Mode != SessionMode.Scheduled)
         {
             // Not in the history (history off, or not written yet): show the current phase.
             DateTime start = state.PhaseStartedAt is DateTimeOffset phaseStart ? ToLocal(phaseStart) : now;
@@ -440,6 +447,11 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         {
             string profile = ProfileName(state.ProfileId);
             string? until = state.PhaseEndsAt is DateTimeOffset end ? $"{ToLocal(end):t}" : null;
+            if (state.Mode == SessionMode.Scheduled)
+            {
+                return until is null ? $"Blocks on · {profile}" : $"Blocks on · {profile} until {until}";
+            }
+
             return state.IsEnforcing
                 ? until is null ? $"In focus · {profile}, no set end" : $"In focus · {profile} until {until}"
                 : until is null ? "On a break" : $"On a break until {until}";
@@ -448,18 +460,18 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         PlannedFocus? current = planned.FirstOrDefault(focus => focus.Window.Contains(now));
         if (current is not null)
         {
-            return $"{ProfileName(current.ProfileId)} planned until {current.Window.End:t} · not running";
+            return $"{ProfileName(current.ProfileId)} blocks until {current.Window.End:t} · not running";
         }
 
         PlannedFocus? next = planned.FirstOrDefault(focus => focus.Window.Start > now && focus.Window.Start < range.End);
         if (next is not null)
         {
-            return $"Next: {ProfileName(next.ProfileId)} at {next.Window.Start:t}";
+            return $"Next block: {ProfileName(next.ProfileId)} at {next.Window.Start:t}";
         }
 
         return planned.Any(focus => DayTimeline.Clip(focus.Window, range) is not null)
-            ? "No more focus planned today"
-            : "No focus blocks today";
+            ? "No more blocks today"
+            : "No blocks today";
     }
 
     private static string Summary(
@@ -468,7 +480,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         TimeSpan plannedTotal = Total(planned.Select(focus => focus.Window), range);
         TimeSpan focusedTotal = Total(actual.Select(item => item.Window), range with { End = now < range.End ? now : range.End });
         return plannedTotal > TimeSpan.Zero
-            ? $"{Duration(focusedTotal)} focused of {Duration(plannedTotal)} planned"
+            ? $"{Duration(focusedTotal)} focused · {Duration(plannedTotal)} of blocks"
             : $"{Duration(focusedTotal)} focused";
     }
 

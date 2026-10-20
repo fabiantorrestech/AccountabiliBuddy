@@ -323,12 +323,17 @@ public sealed partial class HistoryViewModel : ObservableObject
         IReadOnlyList<SessionRecord> records;
         try
         {
-            records = SessionHistoryBuilder.Build(await _log.GetSessionEventsAsync(from, to));
-            List<TimeRange> omitted = records
-                .Where(record => _omitted.IsOmitted(record.StartedAt))
+            // A day earlier, so a session running into the period is found too; the list shows those started in it.
+            IReadOnlyList<SessionRecord> around = SessionHistoryBuilder.Build(await _log.GetSessionEventsAsync(from.AddDays(-1), to));
+            records = around.Where(record => record.StartedAt >= from).ToList();
+
+            // Omitted sessions don't count, and scheduled blocks block but aren't focus: both are left out of the
+            // focus totals and distractions.
+            List<TimeRange> leftOut = around
+                .Where(record => _omitted.IsOmitted(record.StartedAt) || record.Mode == SessionMode.Scheduled)
                 .Select(record => new TimeRange(record.StartedAt, record.EndedAt ?? localNow))
                 .ToList();
-            summary = await _log.GetSummaryAsync(from, to, omitted, _deleted.Parts);
+            summary = await _log.GetSummaryAsync(from, to, leftOut, _deleted.Parts);
             ErrorText = null;
         }
         catch (SqliteException ex)
@@ -392,7 +397,7 @@ public sealed partial class HistoryViewModel : ObservableObject
         string mode = record.Mode switch
         {
             SessionMode.Pomodoro => "Pomodoro",
-            SessionMode.Scheduled => "Scheduled",
+            SessionMode.Scheduled => "Scheduled block (not counted as focus)",
             _ => "Manual",
         };
 

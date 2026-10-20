@@ -19,6 +19,7 @@ namespace AccountabiliBuddy.App.Services;
 public sealed class QuickSessionService
 {
     private const string PreferencesKey = "quickSession";
+    private const string CountUpDefaultName = "Quick Start";
 
     private readonly SessionController _sessions;
     private readonly ConfigurationService _configuration;
@@ -64,6 +65,13 @@ public sealed class QuickSessionService
     }
 
     public QuickSessionPreferences Preferences { get; private set; } = QuickSessionPreferences.Default;
+
+    /// <summary>The profile "Count up" starts: the one chosen in Settings while it exists, else null ("Quick Start", made on first use).</summary>
+    public Guid? CountUpProfileId => Preferences.CountUpProfileId is Guid id && _configuration.Current.Profiles.Any(profile => profile.Id == id)
+        ? id
+        : null;
+
+    public string CountUpProfileName => ProfileOptions.NameOf(_configuration.Current.Profiles, CountUpProfileId) ?? CountUpDefaultName;
 
     /// <summary>Why the global shortcut is not active, or null when it is.</summary>
     public string? HotkeyError { get; private set; }
@@ -115,6 +123,8 @@ public sealed class QuickSessionService
         var viewModel = new QuickSessionViewModel(
             _configuration.Current.Profiles, Preferences, sessionCompleted: false, runningSessionText: null, _sessions.TimeProvider);
         viewModel.StartRequested += async (_, _) => await StartAsync(viewModel, fromPopup: false);
+        viewModel.CountUpLabel = $"Count up · {CountUpProfileName}";
+        viewModel.CountUpRequested += async (_, _) => await StartCountUpAsync();
         return viewModel;
     }
 
@@ -155,6 +165,8 @@ public sealed class QuickSessionService
         var viewModel = new QuickSessionViewModel(
             _configuration.Current.Profiles, Preferences, sessionCompleted, runningText, _sessions.TimeProvider);
         viewModel.StartRequested += async (_, _) => await StartAsync(viewModel, fromPopup: true);
+        viewModel.CountUpLabel = $"Count up · {CountUpProfileName}";
+        viewModel.CountUpRequested += async (_, _) => await StartCountUpAsync();
         viewModel.EndSessionRequested += async (_, _) =>
         {
             CloseAll();
@@ -198,8 +210,66 @@ public sealed class QuickSessionService
         }
 
         _ownsRunningSession = fromPopup;
-        Preferences = viewModel.ToPreferences(Preferences.Hotkey);
+        Preferences = viewModel.ToPreferences(Preferences.Hotkey) with { CountUpProfileId = Preferences.CountUpProfileId };
         await SavePreferencesAsync();
+    }
+
+    /// <summary>Raised when the count-up profile was chosen (Settings) or made on first use.</summary>
+    public event EventHandler? CountUpProfileChanged;
+
+    /// <summary>Settings: the profile "Count up" starts; null = "Quick Start", made on first use.</summary>
+    public async Task SetCountUpProfileAsync(Guid? profileId)
+    {
+        Preferences = Preferences with { CountUpProfileId = profileId };
+        await SavePreferencesAsync();
+        CountUpProfileChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Starts the count-up profile with no set end; the on-screen bar counts up (it never runs out on its own).</summary>
+    private async Task StartCountUpAsync()
+    {
+        CloseAll();
+        if (await EnsureCountUpProfileAsync() is Guid profileId)
+        {
+            _sessions.StartManual(profileId, duration: null);
+        }
+    }
+
+    /// <summary>
+    /// The count-up profile, made on first use when none is chosen: "Quick Start", starting from the rules of the
+    /// profile used last (or the example's), so it blocks what you usually block. Edit it in Profiles.
+    /// </summary>
+    private async Task<Guid?> EnsureCountUpProfileAsync()
+    {
+        if (CountUpProfileId is Guid existing)
+        {
+            return existing;
+        }
+
+        if (_configuration.IsReadOnly)
+        {
+            return null;
+        }
+
+        FocusProfile template = _configuration.Current.Profiles.FirstOrDefault(profile => profile.Id == Preferences.ProfileId)
+            ?? _configuration.Current.Profiles.FirstOrDefault()
+            ?? ExampleProfiles.Coding();
+        FocusProfile quickStart = template with
+        {
+            Id = Guid.NewGuid(),
+            Name = CountUpDefaultName,
+            Rules = template.Rules.Select(rule => rule with { Id = Guid.NewGuid() }).ToList(),
+            UnlockOptions = template.UnlockOptions.Select(option => option with { Id = Guid.NewGuid() }).ToList(),
+        };
+        await _configuration.UpdateAsync(document => document with { Profiles = document.Profiles.Append(quickStart).ToList() });
+        if (_configuration.Current.Profiles.All(profile => profile.Id != quickStart.Id))
+        {
+            // Held back (a looser change waiting): nothing to start yet.
+            return null;
+        }
+
+        await SetCountUpProfileAsync(quickStart.Id);
+        return quickStart.Id;
     }
 
     private void OnSessionCompleted(object? sender, SessionState finished)

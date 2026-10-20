@@ -156,21 +156,21 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
     private fun status(now: LocalDateTime, range: LocalWindow, planned: List<PlannedFocus>, document: ProfileDocument): String {
         val current = planned.firstOrNull { it.window.contains(now) }
         if (current != null) {
-            return "${profileName(document, current.profileId)} until ${clock.time(current.window.end)}"
+            return "Blocks on · ${profileName(document, current.profileId)} until ${clock.time(current.window.end)}"
         }
 
         val next = planned.firstOrNull { it.window.start.isAfter(now) && it.window.start.isBefore(range.end) }
         if (next != null) {
-            return "Next: ${profileName(document, next.profileId)} at ${clock.time(next.window.start)}"
+            return "Next block: ${profileName(document, next.profileId)} at ${clock.time(next.window.start)}"
         }
 
-        return if (planned.any { DayTimeline.clip(it.window, range) != null }) "No more focus planned today" else "No focus blocks today"
+        return if (planned.any { DayTimeline.clip(it.window, range) != null }) "No more blocks today" else "No blocks today"
     }
 
     private fun summary(range: LocalWindow, planned: List<PlannedFocus>): String {
         val total = DayTimeline.union(planned.mapNotNull { DayTimeline.clip(it.window, range) })
             .fold(Duration.ZERO) { sum, window -> sum.plus(Duration.between(window.start, window.end)) }
-        return if (total.isZero) "" else "${duration(total)} planned"
+        return if (total.isZero) "" else "${duration(total)} of blocks"
     }
 
     private fun ticks(range: LocalWindow): List<DayBarTick> {

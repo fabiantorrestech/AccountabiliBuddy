@@ -17,6 +17,7 @@ public sealed partial class ProfilesViewModel : ObservableObject
     private readonly ConfigurationService _configuration;
     private readonly SessionController _sessions;
     private readonly OverlaySettingsService _overlays;
+    private readonly ColdTurkeyService _coldTurkey;
 
     // Every rule id this tab already has an editor for, so rules added elsewhere can be told apart.
     private readonly HashSet<Guid> _knownRuleIds = new();
@@ -28,17 +29,20 @@ public sealed partial class ProfilesViewModel : ObservableObject
         ConfigurationService configuration,
         SessionController sessions,
         PendingChangesViewModel pendingChanges,
-        OverlaySettingsService overlays)
+        OverlaySettingsService overlays,
+        ColdTurkeyService coldTurkey)
     {
         _configuration = configuration;
         _sessions = sessions;
         _overlays = overlays;
+        _coldTurkey = coldTurkey;
         PendingChanges = pendingChanges;
 
         _sessions.StateChanged += (_, _) => IsLocked = _sessions.IsEnforcing;
         IsLocked = _sessions.IsEnforcing;
         _configuration.Changed += OnConfigurationChanged;
         _overlays.Changed += OnOverlayChanged;
+        _coldTurkey.Changed += (_, _) => ShowColdTurkeyBlocks();
         _configuration.PendingCancelled += (_, _) =>
         {
             LoadFromConfiguration();
@@ -130,6 +134,7 @@ public sealed partial class ProfilesViewModel : ObservableObject
         {
             // Display only and this computer's own, so it applies at once even when the profiles wait.
             await _overlays.SaveProfilesAsync(Profiles.ToDictionary(editor => editor.Id, editor => editor.ToOverlay()));
+            await _coldTurkey.SaveExpectedAsync(Profiles.ToDictionary(editor => editor.Id, editor => editor.ToExpectedBlocks()));
         }
 
         StatusMessage = _configuration.IsReadOnly
@@ -152,6 +157,7 @@ public sealed partial class ProfilesViewModel : ObservableObject
 
     private void AddEditor(ProfileEditorViewModel editor)
     {
+        editor.ShowColdTurkeyBlocks(ColdTurkeyBlockNames(), Array.Empty<string>());
         Profiles.Add(editor);
         SelectedProfile = editor;
         StatusMessage = "Press Save to keep the new profile.";
@@ -167,11 +173,33 @@ public sealed partial class ProfilesViewModel : ObservableObject
         foreach (FocusProfile profile in _configuration.Editing.Profiles)
         {
             _knownProfileIds.Add(profile.Id);
-            Profiles.Add(ProfileEditorViewModel.FromProfile(profile, _overlays.Current.SavedFor(profile.Id)));
+            Profiles.Add(CreateEditor(profile));
             _knownRuleIds.UnionWith(profile.Rules.Select(rule => rule.Id));
         }
 
         SelectedProfile = Profiles.FirstOrDefault(editor => editor.Id == selectedId) ?? Profiles.FirstOrDefault();
+    }
+
+    /// <summary>An editor for a saved profile, with this computer's own choices for it (timer, Cold Turkey blocks).</summary>
+    private ProfileEditorViewModel CreateEditor(FocusProfile profile)
+    {
+        ProfileEditorViewModel editor = ProfileEditorViewModel.FromProfile(profile, _overlays.Current.SavedFor(profile.Id));
+        editor.ShowColdTurkeyBlocks(ColdTurkeyBlockNames(), _coldTurkey.ExpectedFor(profile.Id));
+        return editor;
+    }
+
+    private IEnumerable<string> ColdTurkeyBlockNames()
+    {
+        return _coldTurkey.Blocks?.Blocks.Select(block => block.Name) ?? Enumerable.Empty<string>();
+    }
+
+    /// <summary>Cold Turkey's blocks changed (one added or renamed there): list them again, keeping unsaved ticks.</summary>
+    private void ShowColdTurkeyBlocks()
+    {
+        foreach (ProfileEditorViewModel editor in Profiles)
+        {
+            editor.ShowColdTurkeyBlocks(ColdTurkeyBlockNames(), editor.ToExpectedBlocks());
+        }
     }
 
     /// <summary>
@@ -202,7 +230,7 @@ public sealed partial class ProfilesViewModel : ObservableObject
             if (editor is null && _knownProfileIds.Add(profile.Id))
             {
                 // A whole profile added elsewhere (the Session tab's example profile).
-                Profiles.Add(ProfileEditorViewModel.FromProfile(profile, _overlays.Current.SavedFor(profile.Id)));
+                Profiles.Add(CreateEditor(profile));
                 _knownRuleIds.UnionWith(profile.Rules.Select(rule => rule.Id));
                 SelectedProfile ??= Profiles[^1];
                 continue;

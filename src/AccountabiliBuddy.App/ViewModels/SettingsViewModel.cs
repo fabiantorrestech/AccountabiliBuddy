@@ -128,6 +128,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         PendingChanges = pendingChanges;
         HotkeyText = quickSession.Preferences.Hotkey;
         HotkeyStatus = quickSession.HotkeyError ?? $"Press {quickSession.Preferences.Hotkey} anywhere to open the quick session.";
+        LoadCountUpChoices();
         DatabasePath = databasePath;
 
         FocusMinutes = ShortBreakMinutes = LongBreakMinutes = CyclesBeforeLongBreak = string.Empty;
@@ -147,6 +148,8 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         // The per-profile timer list follows the profiles and the Profiles tab's timer choices.
         _configuration.Changed += (_, _) => RefreshTimerProfiles();
+        _configuration.Changed += (_, _) => LoadCountUpChoices(keepSelection: true);
+        _quickSession.CountUpProfileChanged += (_, _) => LoadCountUpChoices();
         _configuration.PendingChanged += (_, _) => RefreshTimerProfiles();
         _overlays.Changed += (_, _) =>
         {
@@ -195,7 +198,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             return;
         }
 
-        bool unsaved = HotkeyChanged || DayBarChanged || SleepChanged || SoundsChanged || TimerChanged || ConfigChanged;
+        bool unsaved = HotkeyChanged || CountUpChanged || DayBarChanged || SleepChanged || SoundsChanged || TimerChanged || ConfigChanged;
         if (unsaved && !HasUnsavedChanges)
         {
             SaveStatus = null; // A new edit: the last save's message is old news.
@@ -208,7 +211,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <returns>True when nothing is left unsaved (except profile-wide settings held back by a focus session).</returns>
     public async Task<bool> SaveAllAsync()
     {
-        bool hotkey = HotkeyChanged, dayBar = DayBarChanged, sleep = SleepChanged, sounds = SoundsChanged, timer = TimerChanged;
+        bool hotkey = HotkeyChanged, countUp = CountUpChanged, dayBar = DayBarChanged, sleep = SleepChanged, sounds = SoundsChanged, timer = TimerChanged;
         bool config = ConfigChanged && !IsLocked;
 
         var problems = new List<string>();
@@ -225,6 +228,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (hotkey && await SaveHotkeyAsync() is string hotkeyError)
         {
             notes.Add(hotkeyError);
+        }
+
+        if (countUp)
+        {
+            await _quickSession.SetCountUpProfileAsync(SelectedCountUp?.ProfileId);
         }
 
         if (dayBarSettings is not null)
@@ -259,7 +267,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         RefreshUnsaved();
         SaveStatus = notes.Count == 0 ? "Saved." : string.Join(" ", notes.Prepend("Saved."));
         // Profile-wide changes held back by a focus session don't keep you on the tab.
-        return !(HotkeyChanged || DayBarChanged || SleepChanged || SoundsChanged || TimerChanged || (ConfigChanged && !IsLocked));
+        return !(HotkeyChanged || CountUpChanged || DayBarChanged || SleepChanged || SoundsChanged || TimerChanged || (ConfigChanged && !IsLocked));
     }
 
     [RelayCommand]
@@ -273,6 +281,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public void Revert()
     {
         HotkeyText = _quickSession.Preferences.Hotkey;
+        LoadCountUpChoices();
         CalendarRefreshMinutes = _calendars.Settings.LinkRefreshMinutes.ToString();
         GoogleClientId = _calendars.Settings.GoogleClientId ?? string.Empty;
         GoogleClientSecret = string.Empty;
@@ -283,6 +292,33 @@ public sealed partial class SettingsViewModel : ObservableObject
         ShowSavedTimerProfiles();
         RefreshUnsaved();
         SaveStatus = "Changes discarded.";
+    }
+
+    private bool CountUpChanged => SelectedCountUp is not null && SelectedCountUp.ProfileId != _quickSession.CountUpProfileId;
+
+    /// <summary>
+    /// The profiles "Count up" can start; while none is chosen (or it was deleted), the first choice is a new
+    /// "Quick Start" profile made on first use.
+    /// </summary>
+    private void LoadCountUpChoices(bool keepSelection = false)
+    {
+        Guid? saved = _quickSession.CountUpProfileId;
+        Guid? wanted = keepSelection && SelectedCountUp is not null ? SelectedCountUp.ProfileId : saved;
+        CountUpChoices.Clear();
+        if (_quickSession.CountUpProfileId is null)
+        {
+            CountUpChoices.Add(new CountUpProfileChoice(null, "Quick Start (a new profile, made on first use)"));
+        }
+
+        foreach (FocusProfile profile in _configuration.Current.Profiles)
+        {
+            CountUpChoices.Add(new CountUpProfileChoice(profile.Id, profile.Name));
+        }
+
+        // An unsaved pick stays while it's still listed; otherwise what's saved.
+        SelectedCountUp = CountUpChoices.FirstOrDefault(choice => choice.ProfileId == wanted)
+            ?? CountUpChoices.FirstOrDefault(choice => choice.ProfileId == saved)
+            ?? CountUpChoices.FirstOrDefault();
     }
 
     private bool HotkeyChanged => !string.Equals(HotkeyText.Trim(), _quickSession.Preferences.Hotkey, StringComparison.OrdinalIgnoreCase);
@@ -616,6 +652,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The quick-session shortcut being edited (recorded by pressing keys).</summary>
     [ObservableProperty]
     public partial string HotkeyText { get; set; }
+
+    public ObservableCollection<CountUpProfileChoice> CountUpChoices { get; } = new();
+
+    /// <summary>The profile the quick session's "Count up" starts.</summary>
+    [ObservableProperty]
+    public partial CountUpProfileChoice? SelectedCountUp { get; set; }
 
     [ObservableProperty]
     public partial string HotkeyStatus { get; set; }

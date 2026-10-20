@@ -83,6 +83,13 @@
                                         <TextBlock Text="{Binding RingText}" Foreground="White" FontSize="13" FontWeight="SemiBold"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                                     </Panel>
+
+                                    <!-- Count-up: every half hour the time in shows in the middle for a few seconds (with the glow).
+                                         Small enough to fit over the bar without changing the window's size. -->
+                                    <Border IsVisible="{Binding ShowsElapsedBadge}" Background="#E60B1220" CornerRadius="6" Padding="6,0"
+                                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding ElapsedBadge}" Foreground="White" FontSize="12" FontWeight="SemiBold" />
+                                    </Border>
                                 </Panel>
                             </StackPanel>
                         </Panel>

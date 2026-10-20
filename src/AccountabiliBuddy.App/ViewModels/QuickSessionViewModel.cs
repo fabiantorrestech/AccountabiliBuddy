@@ -49,6 +49,7 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
     {
         _timeProvider = timeProvider;
         UntilText = string.Empty;
+        CountUpLabel = "Count up";
 
         foreach (FocusProfile profile in profiles)
         {
@@ -197,6 +198,13 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
     /// <summary>Raised when the user starts a session with the current choices.</summary>
     public event EventHandler? StartRequested;
 
+    /// <summary>Raised when the user starts the Quick Start profile with no set end (the on-screen bar counts up).</summary>
+    public event EventHandler? CountUpRequested;
+
+    /// <summary>E.g. "Count up · Quick Start".</summary>
+    [ObservableProperty]
+    public partial string CountUpLabel { get; set; }
+
     /// <summary>Raised when the user wants to end the running session (friction applies).</summary>
     public event EventHandler? EndSessionRequested;
 
@@ -259,6 +267,14 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
     private void Start()
     {
         StartRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private bool CanCountUp => !IsSessionRunning;
+
+    [RelayCommand(CanExecute = nameof(CanCountUp))]
+    private void CountUp()
+    {
+        CountUpRequested?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]

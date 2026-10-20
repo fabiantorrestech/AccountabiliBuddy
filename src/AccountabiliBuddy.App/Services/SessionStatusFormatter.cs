@@ -14,6 +14,8 @@ public static class SessionStatusFormatter
 
         string phase = state.Phase switch
         {
+            // A scheduled block blocks, but only sessions you start count as focus.
+            SessionPhase.Focus when state.Mode == SessionMode.Scheduled => "Blocks on",
             SessionPhase.Focus => "Focus",
             SessionPhase.ShortBreak => "Short break",
             SessionPhase.LongBreak => "Long break",
