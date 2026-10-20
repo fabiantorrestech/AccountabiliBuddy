@@ -73,7 +73,7 @@
             <!-- Linked devices (ADR 14) -->
             <TextBlock Text="Linked devices" Classes="title" Margin="0,8,0,0" />
             <TextBlock Classes="muted"
-                       Text="Lets your phone or tablet (the AccountabiliBuddy companion) show this PC's session and start or end one, with the same wait and reason as here. Only on your home network and encrypted; nothing goes through the internet. Windows Firewall asks once: allow it on private networks." />
+                       Text="Lets your phone or tablet (the AccountabiliBuddy companion) show this PC's session and start or end one, with the same rules for ending as here. Only on your home network and encrypted; nothing goes through the internet. Windows Firewall asks once: allow it on private networks." />
             <Border Classes="card" DataContext="{Binding LinkedDevices}" x:DataType="vm:LinkedDevicesViewModel">
                 <StackPanel Spacing="10">
                     <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">

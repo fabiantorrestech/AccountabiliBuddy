@@ -4,9 +4,8 @@ namespace AccountabiliBuddy.Core.Engine;
 
 /// <summary>
 /// Friction before ending a session early or quitting: the user must wait
-/// <see cref="BypassSettings.WaitDuration"/> after asking, then type a reason.
-/// Ending a scheduled block early waits at least as long as the profile's shortest unlock option
-/// (<see cref="ForSession"/>), so ending the block is never a cheaper way out than unlocking.
+/// <see cref="BypassSettings.WaitDuration"/> after asking, then type a reason. Only a session that counts down to a
+/// set end has it: a scheduled block and a session with no set end end on command (<see cref="EndsOnCommand"/>).
 /// </summary>
 public sealed class BypassPolicy
 {
@@ -18,16 +17,18 @@ public sealed class BypassPolicy
     }
 
     /// <summary>The friction that applies to ending <paramref name="state"/> early.</summary>
-    /// <param name="profile">The session's profile, or null if it no longer exists.</param>
-    public static BypassSettings ForSession(BypassSettings settings, SessionState state, FocusProfile? profile)
+    public static BypassSettings ForSession(BypassSettings settings, SessionState state)
     {
-        if (state.Mode != SessionMode.Scheduled || profile is null || profile.UnlockOptions.Count == 0)
-        {
-            return settings;
-        }
+        return EndsOnCommand(state) ? BypassSettings.None : settings;
+    }
 
-        TimeSpan shortestUnlock = profile.UnlockOptions.Min(option => option.Wait);
-        return shortestUnlock > settings.WaitDuration ? settings with { WaitDuration = shortestUnlock } : settings;
+    /// <summary>
+    /// True for a scheduled block (blockers like Cold Turkey are the guardrails; AccountabiliBuddy doesn't hold the user
+    /// in it) and for a session with no set end (count-up Quick Start, "No set end"): nothing there ends "early".
+    /// </summary>
+    public static bool EndsOnCommand(SessionState state)
+    {
+        return state.Mode == SessionMode.Scheduled || (state.Mode == SessionMode.Manual && state.PhaseEndsAt is null);
     }
 
     public TimeSpan RemainingWait(DateTimeOffset requestedAt, DateTimeOffset now)

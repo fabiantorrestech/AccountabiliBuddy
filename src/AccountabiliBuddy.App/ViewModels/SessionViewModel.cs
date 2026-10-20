@@ -135,7 +135,7 @@ public sealed partial class SessionViewModel : ObservableObject
         _sessions.StartPomodoro(profile.Id, cycles);
     }
 
-    /// <summary>A session with no set end: it runs until ended (with the usual wait and reason).</summary>
+    /// <summary>A session with no set end: it runs until ended, which takes no wait or reason.</summary>
     [RelayCommand]
     private void StartOpenEnded()
     {

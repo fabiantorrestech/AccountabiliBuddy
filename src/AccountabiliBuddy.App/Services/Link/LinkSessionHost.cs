@@ -152,11 +152,15 @@ public sealed class LinkSessionHost : ILinkSessionHost
                 return new LinkEndEarlyTerms(0, 0, now, "On a break: it ends right away.");
             }
 
+            if (_sessions.EndsOnCommand)
+            {
+                return new LinkEndEarlyTerms(0, 0, now, state.Mode == SessionMode.Scheduled
+                    ? "A scheduled block: it ends right away (your blocker still applies its own blocks)."
+                    : "No set end: it ends right away.");
+            }
+
             BypassSettings bypass = _sessions.BypassSettings;
-            string? note = _sessions.EndEarlyWaitMatchesUnlock
-                ? "A scheduled block: the wait matches the profile's shortest unlock option."
-                : null;
-            return new LinkEndEarlyTerms((int)Math.Ceiling(bypass.WaitDuration.TotalSeconds), bypass.MinReasonLength, now + bypass.WaitDuration, note);
+            return new LinkEndEarlyTerms((int)Math.Ceiling(bypass.WaitDuration.TotalSeconds), bypass.MinReasonLength, now + bypass.WaitDuration, null);
         }).GetTask();
     }
 
@@ -170,10 +174,11 @@ public sealed class LinkSessionHost : ILinkSessionHost
             }
 
             bool wasFocus = _sessions.IsEnforcing;
-            _sessions.EndSession(wasFocus ? reason : null);
+            bool onCommand = _sessions.EndsOnCommand;
+            _sessions.EndSession(wasFocus && !onCommand ? reason : null);
             if (wasFocus)
             {
-                EndedFromDevice?.Invoke(this, reason);
+                EndedFromDevice?.Invoke(this, onCommand ? "Ended on command." : reason);
             }
 
             return (string?)null;

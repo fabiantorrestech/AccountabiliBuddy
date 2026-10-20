@@ -26,16 +26,14 @@ public sealed class SessionEndFlow
             return true;
         }
 
-        if (!_sessions.IsEnforcing)
+        // A break, a scheduled block or a session with no set end: nothing to wait for.
+        if (!_sessions.IsEnforcing || _sessions.EndsOnCommand)
         {
             _sessions.EndSession(earlyEndReason: null);
             return true;
         }
 
-        string? note = _sessions.EndEarlyWaitMatchesUnlock
-            ? "This is a scheduled block, so the wait matches the profile's shortest unlock option: ending the block isn't quicker than unlocking."
-            : null;
-        using var viewModel = new EndSessionDialogViewModel(_sessions.BypassSettings, _sessions.TimeProvider, note);
+        using var viewModel = new EndSessionDialogViewModel(_sessions.BypassSettings, _sessions.TimeProvider);
         var dialog = new EndSessionDialog { DataContext = viewModel };
 
         bool confirmed = owner is { IsVisible: true }

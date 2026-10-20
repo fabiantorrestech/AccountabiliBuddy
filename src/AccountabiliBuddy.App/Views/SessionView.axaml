@@ -61,7 +61,7 @@
                         </StackPanel>
                         <StackPanel Spacing="6">
                             <TextBlock Text="No set end" FontWeight="SemiBold" />
-                            <TextBlock Text="Runs until you end it (with the usual wait and reason)." Opacity="0.75" TextWrapping="Wrap" />
+                            <TextBlock Text="Runs until you end it; ending it takes no wait or reason." Opacity="0.75" TextWrapping="Wrap" />
                             <Button Content="Start until I end it" Command="{Binding StartOpenEndedCommand}" />
                         </StackPanel>
                         <TextBlock Text="Uses the profile picked above. Pomodoro lengths are set in Settings." Opacity="0.6" FontSize="12" TextWrapping="Wrap" />
