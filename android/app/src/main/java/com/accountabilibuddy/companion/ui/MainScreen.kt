@@ -28,7 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accountabilibuddy.companion.R
 import com.accountabilibuddy.companion.link.LinkStatus
 
-/** Three tabs: Today, Profiles, Settings; the import password dialog; messages as snackbars. */
+/** The app header, three tabs (Today, Profiles, Settings), the import password dialog, and messages as snackbars. */
 @Composable
 fun MainScreen(
     viewModel: CompanionViewModel,
@@ -64,6 +64,7 @@ fun MainScreen(
     }
 
     Scaffold(
+        topBar = { AppHeader() },
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
             NavigationBar {
