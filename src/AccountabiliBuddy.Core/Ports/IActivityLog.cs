@@ -25,6 +25,19 @@ public interface IActivityLog
         IReadOnlyList<UsageDeletion>? deleted = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Distracting time inside focus sessions, for segments that started in [<paramref name="from"/>,
+    /// <paramref name="to"/>), oldest first. Readable columns only.
+    /// </summary>
+    /// <param name="leaveOut">Stretches whose time doesn't count (omitted sessions).</param>
+    /// <param name="deleted">App or site time the user deleted from History; it counts nowhere.</param>
+    Task<IReadOnlyList<DriftStretch>> GetDriftAsync(
+        DateTimeOffset from,
+        DateTimeOffset to,
+        IReadOnlyList<TimeRange>? leaveOut = null,
+        IReadOnlyList<UsageDeletion>? deleted = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Session events in [<paramref name="from"/>, <paramref name="to"/>), oldest first, reasons decrypted.</summary>
     Task<IReadOnlyList<SessionEvent>> GetSessionEventsAsync(
         DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);

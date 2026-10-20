@@ -132,7 +132,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private readonly DayBarViewModel? _dayBar;
 
-    /// <summary>Today at a glance, above the tabs. Clicking a block there opens its profile.</summary>
+    /// <summary>Today at a glance, above the tabs. Clicking a session opens its profile; a plan part, the Day plan tab.</summary>
     public DayBarViewModel? DayBar
     {
         get => _dayBar;
@@ -146,6 +146,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                     SelectedTab = ProfilesTab;
                     Profiles.Select(profileId);
                 };
+                value.DayPlanRequested += (_, _) => SelectedTab = DayPlanTab;
             }
         }
     }

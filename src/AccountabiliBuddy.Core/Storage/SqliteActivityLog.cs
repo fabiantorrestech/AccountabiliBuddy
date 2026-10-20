@@ -158,6 +158,41 @@ public sealed class SqliteActivityLog : IActivityLog
         return new UsageSummary(focus, onTrack, distracted, unknown, topDistractions, appsAndSites);
     }
 
+    public async Task<IReadOnlyList<DriftStretch>> GetDriftAsync(
+        DateTimeOffset from,
+        DateTimeOffset to,
+        IReadOnlyList<TimeRange>? leaveOut = null,
+        IReadOnlyList<UsageDeletion>? deleted = null,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<TimeRange> skipped = leaveOut ?? Array.Empty<TimeRange>();
+        IReadOnlyList<UsageDeletion> removed = deleted ?? Array.Empty<UsageDeletion>();
+        await using SqliteConnection connection = await _database.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = $"""
+            SELECT started_at, ended_at, process_name, domain, section
+            FROM activity_segments
+            WHERE in_focus = 1 AND classification = $distracting AND started_at >= $from AND started_at < $to{LeaveOutFilter(command, skipped)}{DeletedFilter(command, removed)}
+            ORDER BY started_at, id;
+            """;
+        AddRange(command, from, to);
+        command.Parameters.AddWithValue("$distracting", nameof(Classification.Distracting));
+
+        var drift = new List<DriftStretch>();
+        await using SqliteDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            drift.Add(new DriftStretch(
+                Parse(reader.GetString(0)),
+                Parse(reader.GetString(1)),
+                reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3),
+                reader.IsDBNull(4) ? null : reader.GetString(4)));
+        }
+
+        return drift;
+    }
+
     public async Task<IReadOnlyList<SessionEvent>> GetSessionEventsAsync(
         DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
     {

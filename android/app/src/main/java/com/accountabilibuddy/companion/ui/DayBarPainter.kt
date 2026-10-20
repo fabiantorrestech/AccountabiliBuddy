@@ -8,9 +8,10 @@ import com.accountabilibuddy.companion.engine.DayBarModel
 import com.accountabilibuddy.companion.engine.DayBarSpan
 
 /**
- * Draws the day bar like the Windows app's DayBarControl (same lanes and colours): events on top, planned focus,
- * the actual lane (sleep Health Connect measured), the night and lost sleep shaded, hour ticks and the red now
- * line. One painter for the app, the widget and the notification, so all three look the same.
+ * Draws the day bar like the Windows app's DayBarControl: events on top, the day plan's parts in their category
+ * colours (with their names when there's room, outside compact), the actual lane (sleep Health Connect measured),
+ * the night and lost sleep shaded, hour ticks and the red now line. One painter for the app, the widget and the
+ * notification, so all three look the same.
  */
 object DayBarPainter {
     /** Lane positions in dp. */
@@ -28,6 +29,12 @@ object DayBarPainter {
     private const val NIGHT = 0x474F46E5
     private const val MISSED = 0x59DC2626
     private const val SLEPT = 0xFF6366F1.toInt()
+
+    // Plan parts at 85% like on the PC; on the notification's teal card a light edge keeps teal parts visible.
+    private const val PART_ALPHA = 0xD9000000.toInt()
+    private const val PART_EDGE_ON_ACCENT = 0x80FFFFFF.toInt()
+    private const val MIN_PART_WIDTH_FOR_NAME_DP = 28f
+    private const val PART_TEXT_SP = 10f
 
     fun heightDp(compact: Boolean): Float = (if (compact) small else normal).totalHeight
 
@@ -64,7 +71,10 @@ object DayBarPainter {
         spans(canvas, paint, model.night, NIGHT, width, dp(lanes.plannedTop), dp(nightHeight), dp(3f))
         spans(canvas, paint, model.missed, MISSED, width, dp(lanes.plannedTop), dp(nightHeight), dp(3f))
         spans(canvas, paint, model.events, EVENT, width, 0f, dp(lanes.eventHeight), dp(1f))
-        spans(canvas, paint, model.planned, planned, width, dp(lanes.plannedTop), dp(lanes.plannedHeight), dp(4f))
+        planSpans(canvas, paint, model.planned, planned, width, dp(lanes.plannedTop), dp(lanes.plannedHeight), dp(4f), onAccent)
+        if (!compact) {
+            partNames(canvas, model.planned, width, density, dp(lanes.plannedTop), dp(lanes.plannedHeight))
+        }
         spans(canvas, paint, model.actual, SLEPT, width, dp(lanes.actualTop), dp(lanes.actualHeight), dp(3f))
 
         paint.color = track
@@ -90,6 +100,62 @@ object DayBarPainter {
         paint.color = NOW
         paint.strokeWidth = dp(2f)
         canvas.drawLine(nowX, dp(lanes.plannedTop - lanes.nowOverhang), nowX, dp(lanes.actualTop + lanes.actualHeight + lanes.nowOverhang), paint)
+    }
+
+    /** Each part in its own colour (the lane colour when it has none). */
+    private fun planSpans(
+        canvas: Canvas, paint: Paint, spans: List<DayBarSpan>, fallback: Int, width: Float, top: Float, height: Float, radius: Float,
+        onAccent: Boolean,
+    ) {
+        for (span in spans) {
+            val left = (span.start.coerceIn(0.0, 1.0) * width).toFloat()
+            val right = (span.end.coerceIn(0.0, 1.0) * width).toFloat()
+            if (right - left < 0.5f) {
+                continue
+            }
+
+            val rect = RectF(left, top, right, top + height)
+            paint.style = Paint.Style.FILL
+            paint.color = span.color?.let { (it and 0x00FFFFFF) or PART_ALPHA } ?: fallback
+            canvas.drawRoundRect(rect, radius, radius, paint)
+            if (onAccent && span.color != null) {
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 1f
+                paint.color = PART_EDGE_ON_ACCENT
+                canvas.drawRoundRect(rect, radius, radius, paint)
+                paint.style = Paint.Style.FILL
+            }
+        }
+    }
+
+    /** Names inside parts at least 28 dp wide, cut with "…" to fit. */
+    private fun partNames(canvas: Canvas, spans: List<DayBarSpan>, width: Float, density: Float, top: Float, height: Float) {
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFFFFFF.toInt()
+            textSize = PART_TEXT_SP * density
+        }
+        val padding = 3f * density
+        for (span in spans) {
+            val name = span.name ?: continue
+            val left = (span.start.coerceIn(0.0, 1.0) * width).toFloat()
+            val right = (span.end.coerceIn(0.0, 1.0) * width).toFloat()
+            if (right - left < MIN_PART_WIDTH_FOR_NAME_DP * density) {
+                continue
+            }
+
+            val room = right - left - 2 * padding
+            var shown = name
+            while (shown.isNotEmpty() && textPaint.measureText(if (shown == name) shown else "$shown…") > room) {
+                shown = shown.dropLast(1)
+            }
+            if (shown.isEmpty()) {
+                continue
+            }
+
+            val text = if (shown == name) shown else "$shown…"
+            val baseline = top + (height - textPaint.descent() - textPaint.ascent()) / 2
+            canvas.drawText(text, left + padding, baseline, textPaint)
+        }
     }
 
     private fun spans(canvas: Canvas, paint: Paint, spans: List<DayBarSpan>, color: Int, width: Float, top: Float, height: Float, radius: Float) {

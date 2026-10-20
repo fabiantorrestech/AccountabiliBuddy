@@ -44,9 +44,11 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
 
         val range = if (settings.range == DayBarRange.FullDay) day else DayTimeline.fitTo(day, content, span)
 
-        val plannedSpans = planned.mapNotNull { focus ->
-            DayTimeline.clip(focus.window, range)?.let {
-                toSpan(it, range, "${focus.name} · ${times(it)}")
+        // Every part of the day plan (Rest and Sleep too) in its category's colour; the texts still follow the Watch parts.
+        // A day either side, so a night running past the bar keeps its real times in the label.
+        val plannedSpans = document.dayPlan.partsIn(LocalWindow(span.start.minusDays(1), span.end.plusDays(1))).mapNotNull { part ->
+            DayTimeline.clip(part.window, range)?.let {
+                toSpan(it, range, "${part.name} · ${times(part.window)}").copy(color = part.category.argb.toInt(), name = part.name)
             }
         }
         val actualSpans = slept.mapNotNull { window ->

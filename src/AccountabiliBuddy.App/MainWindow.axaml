@@ -73,7 +73,7 @@
                     <TextBlock Text="{Binding ClockNotice}" TextWrapping="Wrap" />
                 </Border>
 
-                <!-- Today at a glance: planned focus, what actually ran, calendar events and a live "now" line. -->
+                <!-- Today at a glance: the rows chosen in Settings (calendar, plan, focus, blockers) and a live "now" line. -->
                 <Border DockPanel.Dock="Top" DataContext="{Binding DayBar}" x:DataType="vm:DayBarViewModel"
                         IsVisible="{Binding IsVisible, FallbackValue=False}" Padding="12,14,16,4">
                     <StackPanel Spacing="6">
@@ -86,7 +86,7 @@
                             <Ellipse Width="8" Height="8" Fill="{Binding SleepBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding SleepText}" Opacity="0.85" />
                         </StackPanel>
-                        <controls:DayBarControl Layout="{Binding Layout}" OpenProfileCommand="{Binding OpenProfileCommand}" />
+                        <controls:DayBarControl Layout="{Binding Layout}" OpenProfileCommand="{Binding OpenProfileCommand}" OpenDayPlanCommand="{Binding OpenDayPlanCommand}" />
                     </StackPanel>
                 </Border>
 

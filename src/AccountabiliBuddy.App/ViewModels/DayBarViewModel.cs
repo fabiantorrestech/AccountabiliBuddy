@@ -3,6 +3,7 @@ using AccountabiliBuddy.App.Controls;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
+using AccountabiliBuddy.Core.Import;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using Avalonia.Media;
@@ -14,10 +15,12 @@ using Microsoft.Data.Sqlite;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// The day bar at the top of the main window: today's planned work (the day plan's Watch parts), the focus sessions you started
-/// (from the history, plus the running one up to now; scheduled blocks block but aren't focus), calendar events, and a live "now" line.
+/// The day bar at the top of the main window, as rows chosen in Settings (<see cref="TimelineRowsBuilder"/>): events
+/// from the calendars chosen for it, the day plan's parts, the focus sessions you started (from the history, plus the
+/// running one up to now; scheduled blocks block but aren't focus) with drift marks, and Cold Turkey's blocks; all on
+/// one hour axis with a live "now" line. The status and the fit follow the plan's Watch parts (planned work).
 /// The on-screen timeline uses its own copy, which draws even when the day bar is hidden. Omitted sessions (e.g.
-/// tests) are left out.
+/// tests) are left out, with their drift; so is app or site time deleted from History.
 /// With sleep mode on (and "fit to my day"), the day runs from wake time to bedtime and grows into the night
 /// while you're still up; the night is shaded, sleep lost by staying up is shaded red, and from two hours before
 /// bedtime <see cref="SleepText"/> says how much sleep is left if you go to bed now.
@@ -29,6 +32,9 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 
     // Session events are written in the background; reading right after a start or end could miss them.
     private static readonly TimeSpan RecorderDelay = TimeSpan.FromSeconds(2);
+
+    // Coming back to the same site within this long is one visit: one drift mark.
+    private static readonly TimeSpan DriftGap = TimeSpan.FromMinutes(2);
     private static readonly int[] TickSteps = { 1, 2, 3, 4, 6 };
 
     // How much of the night the bar shows past bedtime, and past now when still up later.
@@ -51,12 +57,15 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     private readonly DayBarSettingsService _settings;
     private readonly SleepSettingsService _sleep;
     private readonly OmittedSessionsService _omitted;
+    private readonly ColdTurkeyService _coldTurkey;
+    private readonly DeletedUsageService _deleted;
     private readonly TimeProvider _time;
     private readonly DispatcherTimer _redrawTimer;
     private readonly DispatcherTimer _reloadSoonTimer;
     private readonly bool _ignoresShowSetting;
 
     private IReadOnlyList<SessionRecord> _records = Array.Empty<SessionRecord>();
+    private IReadOnlyList<DriftStretch> _drift = Array.Empty<DriftStretch>();
     private DateTimeOffset _historyLoadedAt = DateTimeOffset.MinValue;
     private LocalWindow _historySpan;
 
@@ -71,10 +80,14 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         DayBarSettingsService settings,
         SleepSettingsService sleep,
         OmittedSessionsService omitted,
+        ColdTurkeyService coldTurkey,
+        DeletedUsageService deleted,
         TimeProvider time,
         bool ignoresShowSetting = false)
     {
         _omitted = omitted;
+        _coldTurkey = coldTurkey;
+        _deleted = deleted;
         _sleep = sleep;
         _ignoresShowSetting = ignoresShowSetting;
         _configuration = configuration;
@@ -101,7 +114,9 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         _calendars.Changed += (_, _) => Redraw();
         _settings.Changed += (_, _) => _ = ReloadHistoryAsync();
         _sleep.Changed += (_, _) => _ = ReloadHistoryAsync();
-        _omitted.Changed += (_, _) => Redraw();
+        _omitted.Changed += (_, _) => _ = ReloadHistoryAsync();
+        _coldTurkey.Changed += (_, _) => Redraw();
+        _deleted.Changed += (_, _) => _ = ReloadHistoryAsync();
         _sessions.StateChanged += (_, _) =>
         {
             Redraw();
@@ -130,13 +145,22 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool IsVisible { get; set; }
 
-    /// <summary>Raised with a profile's id when its block on the bar is clicked.</summary>
+    /// <summary>Raised with a profile's id when one of its sessions on the bar is clicked.</summary>
     public event EventHandler<Guid>? ProfileRequested;
+
+    /// <summary>Raised when a part on the Plan row is clicked.</summary>
+    public event EventHandler? DayPlanRequested;
 
     [RelayCommand]
     private void OpenProfile(Guid profileId)
     {
         ProfileRequested?.Invoke(this, profileId);
+    }
+
+    [RelayCommand]
+    private void OpenDayPlan()
+    {
+        DayPlanRequested?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>True from two hours before bedtime until wake time, with sleep mode on.</summary>
@@ -216,6 +240,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             // A day earlier, so a session that started before the bar and ran into it is included.
             IReadOnlyList<SessionEvent> events = await _log.GetSessionEventsAsync(ToOffset(span.Start.AddDays(-1)), ToOffset(span.End));
             _records = SessionHistoryBuilder.Build(events);
+            _drift = await _log.GetDriftAsync(ToOffset(span.Start), ToOffset(span.End), LeftOut(), _deleted.Parts);
             _historySpan = span;
             _historyLoadedAt = _time.GetUtcNow();
         }
@@ -255,33 +280,50 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 
         LocalWindow range = settings.Range == DayBarRange.FullDay ? day : DayTimeline.FitTo(day, content, span);
 
-        var plannedSpans = new List<DayBarSpan>();
-        foreach (PlannedFocus focus in planned)
-        {
-            if (DayTimeline.Clip(focus.Window, range) is LocalWindow window)
-            {
-                plannedSpans.Add(ToSpan(window, range, $"{focus.Name} · planned {Times(window)}"));
-            }
-        }
-
-        var actualSpans = new List<DayBarSpan>();
-        foreach ((LocalWindow window, string tip, Guid? profileId) in actual)
-        {
-            if (DayTimeline.Clip(window, range) is LocalWindow clipped)
-            {
-                actualSpans.Add(ToSpan(clipped, range, tip, profileId));
-            }
-        }
+        TimeSpan focused = Total(actual.Select(item => item.Window), range with { End = now < range.End ? now : range.End });
+        List<TimelineSession> sessions = actual.Select(item => new TimelineSession(item.Window, item.Tip, item.ProfileId)).ToList();
+        IReadOnlyList<TimelineItem> drift = TimelineRowsBuilder.DriftOnBar(DriftItems(), sessions, range);
+        var timelineDay = new TimelineDay(
+            range,
+            TimelineRowsBuilder.PartsAround(_configuration.Current.DayPlan, span),
+            sessions,
+            drift,
+            EventItems(range, settings),
+            settings.ShowColdTurkey && _coldTurkey.Blocks is ColdTurkeyBlocks blocks ? BlockerTimeline.ColdTurkey(blocks, range) : null,
+            focused);
 
         (List<DayBarSpan> night, List<DayBarSpan> missed) = SleepSpans(now, range);
-        Layout = new DayBarLayout(plannedSpans, actualSpans, EventSpans(range), Ticks(range), Fraction(now, range), night, missed);
+        Layout = new DayBarLayout(TimelineRowsBuilder.Build(timelineDay, settings.RowsInOrder()), Ticks(range), Fraction(now, range), night, missed);
         UpdateSleepLine(now);
-        HasPlannedFocus = plannedSpans.Count > 0;
+        HasPlannedFocus = planned.Any(focus => DayTimeline.Clip(focus.Window, range) is not null);
 
         DateTime date = day.Start.Date;
         DateText = $"{date.ToString("ddd", CultureInfo.CurrentCulture)} ({date:M/d})";
         StatusText = Status(now, range, planned);
-        SummaryText = Summary(now, range, planned, actual);
+        SummaryText = Summary(range, planned, focused, drift.Count);
+    }
+
+    /// <summary>Omitted sessions and old scheduled blocks: their time (and drift) counts nowhere.</summary>
+    private List<TimeRange> LeftOut()
+    {
+        DateTimeOffset now = _time.GetUtcNow();
+        return _records
+            .Where(record => _omitted.IsOmitted(record.StartedAt) || record.Mode == SessionMode.Scheduled)
+            .Select(record => new TimeRange(record.StartedAt, record.EndedAt ?? now))
+            .ToList();
+    }
+
+    /// <summary>One mark per visit to a distracting site (the ones inside the drawn sessions are kept by the caller).</summary>
+    private List<TimelineItem> DriftItems()
+    {
+        var items = new List<TimelineItem>();
+        foreach (DriftStretch mark in DriftMarks.Merge(_drift, DriftGap))
+        {
+            var window = new LocalWindow(ToLocal(mark.Start), ToLocal(mark.End));
+            items.Add(new TimelineItem(window, TimelineRowsBuilder.DriftTip(mark.Site, window), null));
+        }
+
+        return items;
     }
 
     /// <summary>The day the bar shows, and the whole calendar dates it touches.</summary>
@@ -412,16 +454,17 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         return sessions.Where(item => DayTimeline.Clip(item.Window, span) is not null).ToList();
     }
 
-    private List<DayBarSpan> EventSpans(LocalWindow range)
+    /// <summary>Events of the visible calendars chosen for the timeline, in their calendar's colour.</summary>
+    private List<TimelineItem> EventItems(LocalWindow range, DayBarSettings settings)
     {
-        var spans = new List<DayBarSpan>();
+        var items = new List<TimelineItem>();
         var seen = new HashSet<(string, string)>();
         for (DateTime date = range.Start.Date; date < range.End; date = date.AddDays(1))
         {
             foreach (CalendarEntry entry in _calendars.EventsOn(DateOnly.FromDateTime(date)))
             {
                 CalendarEvent calendarEvent = entry.Event;
-                if (!seen.Add((calendarEvent.CalendarId, calendarEvent.Id)))
+                if (!settings.ShowsCalendar(entry.Calendar.Id) || !seen.Add((calendarEvent.CalendarId, calendarEvent.Id)))
                 {
                     continue;
                 }
@@ -429,15 +472,12 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
                 var window = new LocalWindow(calendarEvent.LocalStart, calendarEvent.LocalEnd > calendarEvent.LocalStart
                     ? calendarEvent.LocalEnd
                     : calendarEvent.LocalStart.AddMinutes(1));
-                if (DayTimeline.Clip(window, range) is LocalWindow clipped)
-                {
-                    string when = calendarEvent.IsAllDay ? "all day" : Times(window);
-                    spans.Add(ToSpan(clipped, range, $"{calendarEvent.Title} · {when}"));
-                }
+                string when = calendarEvent.IsAllDay ? "all day" : Times(window);
+                items.Add(new TimelineItem(window, $"{calendarEvent.Title} · {when}", entry.Calendar.Color));
             }
         }
 
-        return spans;
+        return items;
     }
 
     private string Status(DateTime now, LocalWindow range, IReadOnlyList<PlannedFocus> planned)
@@ -474,14 +514,17 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             : "No work planned today";
     }
 
-    private static string Summary(
-        DateTime now, LocalWindow range, IReadOnlyList<PlannedFocus> planned, List<(LocalWindow Window, string Tip, Guid? ProfileId)> actual)
+    /// <summary>E.g. "2h 55m focused · 2 drifts · 7h 00m of work planned".</summary>
+    private static string Summary(LocalWindow range, IReadOnlyList<PlannedFocus> planned, TimeSpan focused, int drifts)
     {
         TimeSpan plannedTotal = Total(planned.Select(focus => focus.Window), range);
-        TimeSpan focusedTotal = Total(actual.Select(item => item.Window), range with { End = now < range.End ? now : range.End });
-        return plannedTotal > TimeSpan.Zero
-            ? $"{Duration(focusedTotal)} focused · {Duration(plannedTotal)} of work planned"
-            : $"{Duration(focusedTotal)} focused";
+        string text = $"{Duration(focused)} focused";
+        if (drifts > 0)
+        {
+            text += drifts == 1 ? " · 1 drift" : $" · {drifts} drifts";
+        }
+
+        return plannedTotal > TimeSpan.Zero ? $"{text} · {Duration(plannedTotal)} of work planned" : text;
     }
 
     private static TimeSpan Total(IEnumerable<LocalWindow> windows, LocalWindow range)
@@ -527,9 +570,9 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         return $"{shown}{(hour < 12 ? "a" : "p")}";
     }
 
-    private static DayBarSpan ToSpan(LocalWindow window, LocalWindow range, string tip, Guid? profileId = null)
+    private static DayBarSpan ToSpan(LocalWindow window, LocalWindow range, string tip)
     {
-        return new DayBarSpan(Fraction(window.Start, range), Fraction(window.End, range), tip, profileId);
+        return new DayBarSpan(Fraction(window.Start, range), Fraction(window.End, range), tip);
     }
 
     private static double Fraction(DateTime time, LocalWindow range)

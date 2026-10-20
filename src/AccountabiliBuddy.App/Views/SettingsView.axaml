@@ -50,7 +50,7 @@
 
             <StackPanel Spacing="6">
                 <TextBlock Text="Day bar" FontSize="16" FontWeight="SemiBold" />
-                <TextBlock Text="The bar above the tabs: planned focus, what actually ran, calendar events and a red line at now. Can be saved during focus too."
+                <TextBlock Text="The bar above the tabs: rows for your calendar, your day plan, the focus sessions you started (with red drift marks) and Cold Turkey's blocks, with a red line at now. The on-screen timeline uses the same rows. Can be saved during focus too."
                            Opacity="0.75" TextWrapping="Wrap" />
                 <CheckBox IsChecked="{Binding ShowDayBar}" Content="Show the day bar" />
                 <RadioButton GroupName="dayRange" IsChecked="{Binding !DayBarFullDay}" Content="Fit to my day (grows when a block falls outside it; with sleep mode on, wake time to bedtime)" />
@@ -61,6 +61,36 @@
                     <TextBlock Grid.Row="1" Text="Day ends at (before the start = after midnight)" VerticalAlignment="Center" TextWrapping="Wrap" />
                     <TimePicker Grid.Row="1" Grid.Column="1" SelectedTime="{Binding DayEnd}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
                 </Grid>
+
+                <TextBlock Text="Rows, top to bottom" FontWeight="SemiBold" Margin="0,8,0,0" />
+                <ItemsControl ItemsSource="{Binding TimelineRows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:TimelineRowSettingViewModel">
+                            <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,1">
+                                <CheckBox IsChecked="{Binding Shown}" Content="{Binding Name}" Width="320" />
+                                <Button Content="↑" Command="{Binding MoveUpCommand}" Padding="10,2" ToolTip.Tip="Move up" />
+                                <Button Content="↓" Command="{Binding MoveDownCommand}" Padding="10,2" ToolTip.Tip="Move down" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="Calendars on the timeline" FontWeight="SemiBold" Margin="0,8,0,0" />
+                <TextBlock Text="No calendars to show yet: add them in the Exceptions tab (hidden calendars aren't listed)."
+                           IsVisible="{Binding !HasTimelineCalendars}" Opacity="0.75" TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding TimelineCalendars}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:TimelineCalendarViewModel">
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,1">
+                                <Ellipse Width="10" Height="10" Fill="{Binding ColorBrush}" VerticalAlignment="Center" />
+                                <CheckBox IsChecked="{Binding OnTimeline}" Content="{Binding Name}" />
+                                <TextBlock Text="{Binding SourceName}" Opacity="0.6" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <CheckBox IsChecked="{Binding ShowColdTurkeyOnTimeline}" Content="Show Cold Turkey's blocks on the Blockers row" Margin="0,4,0,0" />
 
             </StackPanel>
 

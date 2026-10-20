@@ -25,7 +25,7 @@ decision record.
 | # | Part | State |
 |---|---|---|
 | A | End on command | **Built (0.1.41)** |
-| B | Day plan and timeline | B1 built (day plan, editor, one-off days, sleep from the plan, phone reads v5); flexible lunch, B2 timeline and B3 phone screens next |
+| B | Day plan and timeline | B1 built (day plan, editor, one-off days, sleep from the plan, phone reads v5); B2 built (four-row timeline on the PC, plan colours on the phone's header, notification and widget); flexible lunch and B3 phone screens next |
 | C | The buddy: catching drift, can-it-wait, parking, check-ins, blocker hand-off, Blocks tab | Designed |
 | D | Session plan (checklist) and reflection | Designed |
 | E | Progress and targets | Outline |

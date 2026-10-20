@@ -265,8 +265,12 @@ public partial class App : Application
         var desktopShell = new Win32DesktopShell();
         _programPaths = new ProgramPathsService(documents, desktopShell);
         _programPaths.LoadBlocking();
+        // Before the day bars: their Blockers row shows Cold Turkey's blocks.
+        _coldTurkey = new ColdTurkeyService(new ColdTurkeyBlockReader(), _sessions, documents);
+        _coldTurkey.LoadBlocking();
         var timelineDay = new DayBarViewModel(
-            _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, time, ignoresShowSetting: true);
+            _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, _coldTurkey, deletedUsage, time,
+            ignoresShowSetting: true);
         var soundSettings = new SessionSoundSettingsService(documents);
         soundSettings.LoadBlocking();
         _soundPlayer = new Win32SoundPlayer();
@@ -274,7 +278,8 @@ public partial class App : Application
         _sessionOverlay = new SessionOverlayService(
             _sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), timelineDay, _sessionCues,
             () => _quickSession?.CountUpProfileId);
-        _dayBar = new DayBarViewModel(_configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, time);
+        _dayBar = new DayBarViewModel(
+            _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, _coldTurkey, deletedUsage, time);
         _noiseSettings = new NoiseSettingsService(documents);
         _noiseSettings.LoadBlocking();
         _noise = new NoisePlayerService(
@@ -319,9 +324,6 @@ public partial class App : Application
             blockerLocator, configuration, sessions, activityLog, privacy, time, setupViewModel,
             new BackupViewModel(backups, sessions, RestartApp, showExport: false));
         setupViewModel.OpenAssistant = ShowSetupAssistant;
-
-        _coldTurkey = new ColdTurkeyService(new ColdTurkeyBlockReader(), _sessions, documents);
-        _coldTurkey.LoadBlocking();
 
         var mainViewModel = new MainWindowViewModel(
             new SessionViewModel(

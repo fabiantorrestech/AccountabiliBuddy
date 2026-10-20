@@ -176,6 +176,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         _overlays.Changed += (_, _) => RefreshUnsaved();
         _configuration.Changed += (_, _) => RefreshUnsaved();
         _dayBar.Changed += (_, _) => RefreshUnsaved();
+        _calendars.Changed += (_, _) => ShowTimelineCalendars();
+        TimelineRows.CollectionChanged += (_, _) => RefreshUnsaved();
         _sleep.Changed += (_, _) => RefreshUnsaved();
         _ready = true;
         RefreshUnsaved();
@@ -619,6 +621,17 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial string? DayBarStatus { get; set; }
 
+    /// <summary>The timeline's rows top to bottom, each shown or not.</summary>
+    public ObservableCollection<TimelineRowSettingViewModel> TimelineRows { get; } = new();
+
+    /// <summary>The visible calendars, each on the timeline's Calendar row or not.</summary>
+    public ObservableCollection<TimelineCalendarViewModel> TimelineCalendars { get; } = new();
+
+    public bool HasTimelineCalendars => TimelineCalendars.Count > 0;
+
+    [ObservableProperty]
+    public partial bool ShowColdTurkeyOnTimeline { get; set; }
+
     [ObservableProperty]
     public partial int TimerStyleIndex { get; set; }
 
@@ -869,11 +882,61 @@ public sealed partial class SettingsViewModel : ObservableObject
             return null;
         }
 
+        // Calendars not listed here (hidden ones) keep their choice.
+        IEnumerable<string> listedOff = TimelineCalendars.Where(calendar => !calendar.OnTimeline).Select(calendar => calendar.Id);
+        IEnumerable<string> unlistedOff = (_dayBar.Current.CalendarsOff ?? Array.Empty<string>())
+            .Where(id => TimelineCalendars.All(calendar => calendar.Id != id));
         return new DayBarSettings(
             ShowDayBar,
             DayBarFullDay ? DayBarRange.FullDay : DayBarRange.FitToDay,
             TimeOnly.FromTimeSpan(start),
-            TimeOnly.FromTimeSpan(end));
+            TimeOnly.FromTimeSpan(end),
+            TimelineRows.Select(row => row.ToChoice()).ToList(),
+            listedOff.Concat(unlistedOff).Distinct().ToList(),
+            ShowColdTurkeyOnTimeline);
+    }
+
+    private void MoveTimelineRow(TimelineRowSettingViewModel row, int step)
+    {
+        int from = TimelineRows.IndexOf(row);
+        int to = from + step;
+        if (from >= 0 && to >= 0 && to < TimelineRows.Count)
+        {
+            TimelineRows.Move(from, to);
+        }
+    }
+
+    /// <summary>
+    /// Lists the visible calendars with the saved choice, or the one being edited when the list is rebuilt. Left as it
+    /// is when the calendars themselves didn't change (e.g. a sync status update), so ticks and focus stay put.
+    /// </summary>
+    private void ShowTimelineCalendars()
+    {
+        List<(string Id, string Name, string Source, string Color)> visible = _calendars.Sources
+            .SelectMany(source => source.Calendars.Where(calendar => calendar.IsVisible)
+                .Select(calendar => (calendar.Id, calendar.Name, source.Name, calendar.Color)))
+            .ToList();
+        if (visible.SequenceEqual(TimelineCalendars.Select(row => (row.Id, row.Name, row.SourceName, row.Color))))
+        {
+            return;
+        }
+
+        DayBarSettings saved = _dayBar.Current;
+        var edited = TimelineCalendars.ToDictionary(calendar => calendar.Id, calendar => calendar.OnTimeline);
+        TimelineCalendars.Clear();
+        foreach (CalendarSource source in _calendars.Sources)
+        {
+            foreach (CalendarInfo calendar in source.Calendars.Where(calendar => calendar.IsVisible))
+            {
+                bool onTimeline = edited.TryGetValue(calendar.Id, out bool kept) ? kept : saved.ShowsCalendar(calendar.Id);
+                var row = new TimelineCalendarViewModel(calendar.Id, calendar.Name, source.Name, calendar.Color, onTimeline);
+                row.PropertyChanged += (_, _) => RefreshUnsaved();
+                TimelineCalendars.Add(row);
+            }
+        }
+
+        OnPropertyChanged(nameof(HasTimelineCalendars));
+        RefreshUnsaved();
     }
 
     private async Task SaveTimerAsync()
@@ -988,6 +1051,17 @@ public sealed partial class SettingsViewModel : ObservableObject
         DayBarFullDay = dayBar.Range == DayBarRange.FullDay;
         DayStart = dayBar.DayStart.ToTimeSpan();
         DayEnd = dayBar.DayEnd.ToTimeSpan();
+        ShowColdTurkeyOnTimeline = dayBar.ShowColdTurkey;
+        TimelineRows.Clear();
+        foreach (TimelineRowChoice choice in dayBar.RowsInOrder())
+        {
+            var row = new TimelineRowSettingViewModel(choice.Row, choice.Shown, MoveTimelineRow);
+            row.PropertyChanged += (_, _) => RefreshUnsaved();
+            TimelineRows.Add(row);
+        }
+
+        TimelineCalendars.Clear();
+        ShowTimelineCalendars();
 
         OverlaySettings overlay = _overlays.Current;
         TimerStyleIndex = (int)overlay.Style;
