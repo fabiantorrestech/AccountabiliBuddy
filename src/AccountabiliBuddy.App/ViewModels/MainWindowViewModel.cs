@@ -57,8 +57,25 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public ActivityDebugViewModel Activity { get; }
 
-    /// <summary>Today at a glance, above the tabs.</summary>
-    public DayBarViewModel? DayBar { get; init; }
+    private readonly DayBarViewModel? _dayBar;
+
+    /// <summary>Today at a glance, above the tabs. Clicking a block there opens its profile.</summary>
+    public DayBarViewModel? DayBar
+    {
+        get => _dayBar;
+        init
+        {
+            _dayBar = value;
+            if (value is not null)
+            {
+                value.ProfileRequested += (_, profileId) =>
+                {
+                    SelectedTab = ProfilesTab;
+                    Profiles.Select(profileId);
+                };
+            }
+        }
+    }
 
     /// <summary>Shows the Activity (dev) tab. Off unless ACCOUNTABILIBUDDY_DEV_TOOLS=1.</summary>
     public bool ShowDevTools { get; }

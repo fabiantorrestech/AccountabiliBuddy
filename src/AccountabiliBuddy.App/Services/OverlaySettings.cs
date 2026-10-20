@@ -19,6 +19,9 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="TimelineInFocus">Whether the timeline makes room for the session timer.</param>
 /// <param name="TimelineShowsTime">The timeline shows the current time next to the next block.</param>
 /// <param name="QuickHideSeconds">How long the Ctrl+Alt "Hide" button hides the window.</param>
+/// <param name="MoveForMaximizedApps">In its default corner, slide down while a maximized app (title bar, not F11) is
+/// in front on that screen, so the app's top-right buttons stay clickable.</param>
+/// <param name="MaximizedAppDrop">How far it slides down, in display pixels (100% scaling).</param>
 public sealed record OverlaySettings(
     OverlayStyle Style,
     double Opacity,
@@ -35,8 +38,11 @@ public sealed record OverlaySettings(
     bool ShowTimeline = true,
     TimelineInFocus TimelineInFocus = TimelineInFocus.SwapForTimer,
     bool TimelineShowsTime = false,
-    int QuickHideSeconds = 15)
+    int QuickHideSeconds = 15,
+    bool MoveForMaximizedApps = true,
+    int MaximizedAppDrop = 110)
 {
+    public const int MaxMaximizedAppDrop = 600;
     public const double MinOpacity = 0.2;
     public const int MinQuickHideSeconds = 3;
     public const int MaxQuickHideSeconds = 600;

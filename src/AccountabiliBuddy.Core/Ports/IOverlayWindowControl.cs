@@ -1,3 +1,5 @@
+using AccountabiliBuddy.Core.Domain;
+
 namespace AccountabiliBuddy.Core.Ports;
 
 /// <summary>
@@ -24,4 +26,10 @@ public interface IOverlayWindowControl
     /// The desktop and this app's own windows don't count.
     /// </summary>
     bool IsFullscreenAppInFront();
+
+    /// <summary>
+    /// The screen (whole monitor) of another app's maximized window in front, title bar and all (Word, a browser…),
+    /// or null when the window in front isn't maximized. The desktop and this app's own windows don't count.
+    /// </summary>
+    ScreenBox? MaximizedAppScreen();
 }

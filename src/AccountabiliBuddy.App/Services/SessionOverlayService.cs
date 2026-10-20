@@ -182,6 +182,9 @@ public sealed class SessionOverlayService : IDisposable
             _placedAt = (settings.X, settings.Y);
             _window.PlaceAt(settings.X, settings.Y);
         }
+
+        // Keeps a maximized app's top-right buttons (close, tabs, extensions) clickable.
+        _window!.AvoidMaximizedApp(settings.MoveForMaximizedApps ? _control.MaximizedAppScreen() : null, settings.MaximizedAppDrop);
     }
 
     private void Open(OverlaySettings settings)

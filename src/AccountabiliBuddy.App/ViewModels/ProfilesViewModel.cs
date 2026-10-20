@@ -144,6 +144,12 @@ public sealed partial class ProfilesViewModel : ObservableObject
         StatusMessage = "Unsaved changes discarded.";
     }
 
+    /// <summary>Shows this profile's editor (e.g. after clicking its block on the day bar).</summary>
+    public void Select(Guid profileId)
+    {
+        SelectedProfile = Profiles.FirstOrDefault(editor => editor.Id == profileId) ?? SelectedProfile;
+    }
+
     private void AddEditor(ProfileEditorViewModel editor)
     {
         Profiles.Add(editor);

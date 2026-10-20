@@ -100,6 +100,15 @@
                 <CheckBox IsChecked="{Binding TimerPulseAtMarks}" Content="Brighten softly once when passing a mark" />
                 <CheckBox IsChecked="{Binding TimerHideInFullscreen}" Content="Hide while a fullscreen app is in front (videos, presentations, games)" />
                 <CheckBox IsChecked="{Binding TimerFillUp}" Content="Fill up as time passes (instead of counting down from a full bar)" />
+                <Grid ColumnDefinitions="240,Auto" ColumnSpacing="8">
+                    <CheckBox IsChecked="{Binding MoveForMaximizedApps}" VerticalAlignment="Center">
+                        <TextBlock Text="Move down while a maximized app is in front (keeps its top-right buttons clickable)" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" IsEnabled="{Binding MoveForMaximizedApps}" VerticalAlignment="Center">
+                        <NumericUpDown Value="{Binding MaximizedAppDrop}" Minimum="0" Maximum="600" Increment="10" FormatString="0" MinWidth="140" />
+                        <TextBlock Text="px down" VerticalAlignment="Center" Opacity="0.75" />
+                    </StackPanel>
+                </Grid>
                 <Grid ColumnDefinitions="240,Auto">
                     <TextBlock Text="Hide button (hold Ctrl+Alt) hides it for (seconds)" VerticalAlignment="Center" TextWrapping="Wrap" />
                     <NumericUpDown Grid.Column="1" Value="{Binding QuickHideSeconds}" Minimum="3" Maximum="600" Increment="5"

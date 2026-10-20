@@ -67,6 +67,7 @@ public sealed class OverlaySettingsService
             Opacity = Math.Clamp(changed.Opacity, OverlaySettings.MinOpacity, 1),
             Divisions = Math.Max(0, changed.Divisions),
             QuickHideSeconds = Math.Clamp(changed.QuickHideSeconds, OverlaySettings.MinQuickHideSeconds, OverlaySettings.MaxQuickHideSeconds),
+            MaximizedAppDrop = Math.Clamp(changed.MaximizedAppDrop, 0, OverlaySettings.MaxMaximizedAppDrop),
             X = Current.X,
             Y = Current.Y,
             Profiles = Current.Profiles,

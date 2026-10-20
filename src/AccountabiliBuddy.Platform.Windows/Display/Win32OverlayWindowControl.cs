@@ -1,3 +1,4 @@
+using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Ports;
 using Windows.Win32;
 using Windows.Win32.Foundation;
@@ -82,6 +83,32 @@ public sealed class Win32OverlayWindowControl : IOverlayWindowControl
 
         RECT screen = info.rcMonitor;
         return rect.left <= screen.left && rect.top <= screen.top && rect.right >= screen.right && rect.bottom >= screen.bottom;
+    }
+
+    public unsafe ScreenBox? MaximizedAppScreen()
+    {
+        HWND window = PInvoke.GetForegroundWindow();
+        if (window.IsNull || !PInvoke.IsZoomed(window))
+        {
+            return null;
+        }
+
+        uint processId;
+        PInvoke.GetWindowThreadProcessId(window, &processId);
+        if (processId == _ownProcessId || ShellClasses.Contains(ClassNameOf(window)))
+        {
+            return null;
+        }
+
+        HMONITOR monitor = PInvoke.MonitorFromWindow(window, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST);
+        var info = new MONITORINFO { cbSize = (uint)sizeof(MONITORINFO) };
+        if (!PInvoke.GetMonitorInfo(monitor, &info))
+        {
+            return null;
+        }
+
+        RECT screen = info.rcMonitor;
+        return new ScreenBox(screen.left, screen.top, screen.right, screen.bottom);
     }
 
     private static unsafe string ClassNameOf(HWND window)

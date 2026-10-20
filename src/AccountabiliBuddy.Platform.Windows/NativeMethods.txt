@@ -35,6 +35,7 @@ MONITORINFOEXW
 MonitorFromWindow
 IsWindowVisible
 IsIconic
+IsZoomed
 GetWindowTextLength
 GetWindowText
 GetClassName

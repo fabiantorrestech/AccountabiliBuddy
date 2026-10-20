@@ -339,6 +339,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool TimelineShowsTime { get; set; }
 
+    /// <summary>Slide the on-screen window down while a maximized app is in front.</summary>
+    [ObservableProperty]
+    public partial bool MoveForMaximizedApps { get; set; }
+
+    /// <summary>How far, in display pixels.</summary>
+    [ObservableProperty]
+    public partial decimal? MaximizedAppDrop { get; set; }
+
     /// <summary>Seconds the Ctrl+Alt "Hide" button hides the on-screen window.</summary>
     [ObservableProperty]
     public partial decimal? QuickHideSeconds { get; set; }
@@ -524,6 +532,8 @@ public sealed partial class SettingsViewModel : ObservableObject
             TimelineInFocus = TimelineStaysInFocus ? TimelineInFocus.ShowBoth : TimelineInFocus.SwapForTimer,
             TimelineShowsTime = TimelineShowsTime,
             QuickHideSeconds = (int)(QuickHideSeconds ?? OverlaySettings.Default.QuickHideSeconds),
+            MoveForMaximizedApps = MoveForMaximizedApps,
+            MaximizedAppDrop = (int)(MaximizedAppDrop ?? OverlaySettings.Default.MaximizedAppDrop),
         });
         await _overlays.SaveProfilesAsync(profiles);
         TimerStatus = "Saved.";
@@ -593,6 +603,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         TimelineStaysInFocus = overlay.TimelineInFocus == TimelineInFocus.ShowBoth;
         TimelineShowsTime = overlay.TimelineShowsTime;
         QuickHideSeconds = overlay.QuickHideSeconds;
+        MoveForMaximizedApps = overlay.MoveForMaximizedApps;
+        MaximizedAppDrop = overlay.MaximizedAppDrop;
     }
 
     [RelayCommand(CanExecute = nameof(CanEdit))]
