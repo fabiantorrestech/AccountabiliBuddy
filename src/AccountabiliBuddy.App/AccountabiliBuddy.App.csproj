@@ -7,7 +7,7 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon>
     <!-- Bumped by scripts/package.ps1; Velopack needs a higher version for every update. -->
-    <Version>0.1.15</Version>
+    <Version>0.1.16</Version>
   </PropertyGroup>
 
   <ItemGroup>
