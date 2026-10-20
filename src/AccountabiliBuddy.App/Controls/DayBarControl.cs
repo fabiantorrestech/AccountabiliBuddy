@@ -10,7 +10,8 @@ namespace AccountabiliBuddy.App.Controls;
 /// <summary>
 /// One day as a bar, like the calendar widget's Density view: a thin calendar-event band on top, the planned focus
 /// track, a slimmer lane for what actually ran, an hour axis, and a red line at now (pinned to the nearer edge when
-/// now is outside the bar). Hovering a stretch shows what it is. <see cref="Compact"/> draws it smaller for the
+/// now is outside the bar). With sleep mode on, the night is shaded behind the lanes and sleep already lost by
+/// staying up is shaded red. Hovering a stretch shows what it is. <see cref="Compact"/> draws it smaller for the
 /// on-screen timeline, with tick labels that would overlap left out.
 /// </summary>
 public sealed class DayBarControl : Control
@@ -34,6 +35,8 @@ public sealed class DayBarControl : Control
     private static readonly IBrush ActualBrush = new SolidColorBrush(FocusColor);
     private static readonly IBrush EventBrush = new SolidColorBrush(Color.FromRgb(100, 116, 139), 0.85);
     private static readonly IBrush NowBrush = new SolidColorBrush(Color.FromRgb(220, 38, 38));
+    private static readonly IBrush NightBrush = new SolidColorBrush(Color.FromRgb(79, 70, 229), 0.28);
+    private static readonly IBrush MissedBrush = new SolidColorBrush(Color.FromRgb(220, 38, 38), 0.35);
     private static readonly Typeface TextTypeface = new(FontFamily.Default);
 
     static DayBarControl()
@@ -76,6 +79,11 @@ public sealed class DayBarControl : Control
 
         context.DrawRectangle(trackBrush, null, new Rect(0, lanes.PlannedTop, width, lanes.PlannedHeight), 4, 4);
         context.DrawRectangle(trackBrush, null, new Rect(0, lanes.ActualTop, width, lanes.ActualHeight), 3, 3);
+
+        // Night behind the lanes, from the top of the planned track to the bottom of the actual lane.
+        double nightHeight = lanes.ActualTop + lanes.ActualHeight - lanes.PlannedTop;
+        DrawSpans(context, layout.Night ?? Array.Empty<DayBarSpan>(), NightBrush, lanes.PlannedTop, nightHeight, 3);
+        DrawSpans(context, layout.Missed ?? Array.Empty<DayBarSpan>(), MissedBrush, lanes.PlannedTop, nightHeight, 3);
 
         DrawSpans(context, layout.Events, EventBrush, 0, lanes.EventHeight, 1);
         DrawSpans(context, layout.Planned, PlannedBrush, lanes.PlannedTop, lanes.PlannedHeight, 4);
@@ -128,7 +136,8 @@ public sealed class DayBarControl : Control
         IReadOnlyList<DayBarSpan> lane = position.Y < Sizes.PlannedTop ? layout.Events
             : position.Y < Sizes.ActualTop ? layout.Planned
             : layout.Actual;
-        List<string> tips = lane.Where(span => at >= span.Start && at <= span.End).Select(span => span.Tip).ToList();
+        IEnumerable<DayBarSpan> sleep = (layout.Night ?? Array.Empty<DayBarSpan>()).Concat(layout.Missed ?? Array.Empty<DayBarSpan>());
+        List<string> tips = lane.Concat(sleep).Where(span => at >= span.Start && at <= span.End).Select(span => span.Tip).ToList();
         return tips.Count == 0 ? null : string.Join(Environment.NewLine, tips);
     }
 

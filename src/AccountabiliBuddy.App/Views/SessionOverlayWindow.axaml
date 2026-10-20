@@ -23,6 +23,11 @@
             <Border Margin="2" CornerRadius="10" Padding="10,7" Background="#FF15191E"
                     BorderBrush="{Binding OutlineBrush}" BorderThickness="1.5" Opacity="{Binding PanelOpacity}">
                 <StackPanel Spacing="8">
+                    <!-- Sleep mode, in the evening: sleep left if you go to bed now. -->
+                    <TextBlock Text="{Binding Day.SleepText}" IsVisible="{Binding ShowsSleep}" Foreground="{Binding Day.SleepBrush}"
+                               Width="{x:Static vm:SessionOverlayViewModel.BarLength}" FontSize="12" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" />
+
                     <!-- All-day timeline: a small copy of the day bar, with the next block under it. -->
                     <StackPanel Spacing="2" IsVisible="{Binding ShowsTimeline}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
                         <controls:DayBarControl Layout="{Binding Day.Layout}" Compact="True" />

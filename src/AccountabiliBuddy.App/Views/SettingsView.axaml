@@ -29,7 +29,7 @@
                 <TextBlock Text="The bar above the tabs: planned focus, what actually ran, calendar events and a red line at now. Changes apply right away, also during focus."
                            Opacity="0.75" TextWrapping="Wrap" />
                 <CheckBox IsChecked="{Binding ShowDayBar}" Content="Show the day bar" />
-                <RadioButton GroupName="dayRange" IsChecked="{Binding !DayBarFullDay}" Content="Fit to my day (grows when a block falls outside it)" />
+                <RadioButton GroupName="dayRange" IsChecked="{Binding !DayBarFullDay}" Content="Fit to my day (grows when a block falls outside it; with sleep mode on, wake time to bedtime)" />
                 <RadioButton GroupName="dayRange" IsChecked="{Binding DayBarFullDay}" Content="Always the whole 24 hours" />
                 <Grid ColumnDefinitions="240,Auto" RowDefinitions="Auto,Auto" RowSpacing="6" IsEnabled="{Binding !DayBarFullDay}">
                     <TextBlock Grid.Row="0" Text="Day starts at" VerticalAlignment="Center" />
@@ -40,6 +40,34 @@
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button Content="Apply" Command="{Binding ApplyDayBarCommand}" />
                     <TextBlock Text="{Binding DayBarStatus}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+                <TextBlock Text="Sleep" FontSize="16" FontWeight="SemiBold" />
+                <TextBlock Text="Your bedtime and wake time. The day bar runs from wake time to bedtime and shades the night; staying up past bedtime shades the lost sleep red. From two hours before bedtime a line on screen says how much sleep you'll get if you go to bed now (green from 7 hours, yellow from 5, red below). Changes apply right away, also during focus."
+                           Opacity="0.75" TextWrapping="Wrap" />
+                <CheckBox IsChecked="{Binding SleepEnabled}" Content="Use sleep mode" />
+                <StackPanel Spacing="6" IsEnabled="{Binding SleepEnabled}">
+                    <RadioButton GroupName="sleepNights" IsChecked="{Binding !SleepSameEveryNight}" Content="Weeknights and weekends (Friday and Saturday nights)" />
+                    <RadioButton GroupName="sleepNights" IsChecked="{Binding SleepSameEveryNight}" Content="Same every night" />
+                    <Grid ColumnDefinitions="240,Auto,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="12">
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="Bedtime" Opacity="0.75" />
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Wake up" Opacity="0.75" />
+                        <TextBlock Grid.Row="1" Text="Every night" IsVisible="{Binding SleepSameEveryNight}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Row="1" Text="Weeknights (Sun–Thu)" IsVisible="{Binding !SleepSameEveryNight}" VerticalAlignment="Center" />
+                        <TimePicker Grid.Row="1" Grid.Column="1" SelectedTime="{Binding WeeknightBedtime}" MinuteIncrement="15" />
+                        <TimePicker Grid.Row="1" Grid.Column="2" SelectedTime="{Binding WeeknightWake}" MinuteIncrement="15" />
+                        <TextBlock Grid.Row="2" Text="Weekend nights (Fri–Sat)" IsVisible="{Binding !SleepSameEveryNight}" VerticalAlignment="Center" />
+                        <TimePicker Grid.Row="2" Grid.Column="1" SelectedTime="{Binding WeekendBedtime}" MinuteIncrement="15"
+                                    IsVisible="{Binding !SleepSameEveryNight}" />
+                        <TimePicker Grid.Row="2" Grid.Column="2" SelectedTime="{Binding WeekendWake}" MinuteIncrement="15"
+                                    IsVisible="{Binding !SleepSameEveryNight}" />
+                    </Grid>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Apply" Command="{Binding ApplySleepCommand}" />
+                    <TextBlock Text="{Binding SleepStatus}" VerticalAlignment="Center" TextWrapping="Wrap" />
                 </StackPanel>
             </StackPanel>
 

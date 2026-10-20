@@ -1,0 +1,78 @@
+using AccountabiliBuddy.Core.Domain;
+
+namespace AccountabiliBuddy.Core.Engine;
+
+/// <summary>
+/// Bedtime and wake time worked out for actual dates. A night is named by the date of its evening: the night of
+/// Friday the 23rd runs from Friday's bedtime to Saturday's wake time. Friday and Saturday nights use the weekend
+/// times. All times are local wall-clock times.
+/// </summary>
+public sealed class SleepSchedule
+{
+    public static readonly TimeSpan GoodSleep = TimeSpan.FromHours(7);
+    public static readonly TimeSpan OkaySleep = TimeSpan.FromHours(5);
+
+    // A bedtime before noon belongs to the early hours after the evening.
+    private static readonly TimeOnly Noon = new(12, 0);
+
+    private readonly SleepTimes _weeknights;
+    private readonly SleepTimes _weekends;
+
+    public SleepSchedule(SleepTimes weeknights, SleepTimes weekends)
+    {
+        _weeknights = weeknights;
+        _weekends = weekends;
+    }
+
+    public static bool IsWeekendNight(DateOnly evening)
+    {
+        return evening.DayOfWeek is DayOfWeek.Friday or DayOfWeek.Saturday;
+    }
+
+    public static SleepAmount Rate(TimeSpan sleep)
+    {
+        return sleep >= GoodSleep ? SleepAmount.Good : sleep >= OkaySleep ? SleepAmount.Okay : SleepAmount.Short;
+    }
+
+    /// <summary>From bedtime to wake time of the night starting on <paramref name="evening"/>.</summary>
+    public LocalWindow Night(DateOnly evening)
+    {
+        SleepTimes times = IsWeekendNight(evening) ? _weekends : _weeknights;
+        DateTime date = evening.ToDateTime(TimeOnly.MinValue);
+        DateTime bed = date + times.Bedtime.ToTimeSpan();
+        if (times.Bedtime < Noon)
+        {
+            bed = bed.AddDays(1);
+        }
+
+        DateTime wake = date.AddDays(1) + times.Wake.ToTimeSpan();
+        return new LocalWindow(bed, wake > bed ? wake : bed);
+    }
+
+    /// <summary>
+    /// The night ahead of <paramref name="now"/>, or the one it is in: last night until its wake time, then
+    /// tonight.
+    /// </summary>
+    public LocalWindow NightAround(DateTime now)
+    {
+        DateOnly today = DateOnly.FromDateTime(now);
+        LocalWindow lastNight = Night(today.AddDays(-1));
+        return now < lastNight.End ? lastNight : Night(today);
+    }
+
+    /// <summary>The waking day <paramref name="now"/> belongs to: from the last wake time to the next bedtime.</summary>
+    public LocalWindow DayAround(DateTime now)
+    {
+        LocalWindow night = NightAround(now);
+        DateOnly evening = DateOnly.FromDateTime(night.Start.TimeOfDay < Noon.ToTimeSpan() ? night.Start.AddDays(-1) : night.Start);
+        LocalWindow nightBefore = Night(evening.AddDays(-1));
+        return new LocalWindow(nightBefore.End, night.Start);
+    }
+
+    /// <summary>How long the sleep would be when going to bed at <paramref name="now"/> (or at bedtime, if earlier).</summary>
+    public static TimeSpan SleepIfBedAt(DateTime now, LocalWindow night)
+    {
+        DateTime asleep = now > night.Start ? now : night.Start;
+        return asleep < night.End ? night.End - asleep : TimeSpan.Zero;
+    }
+}

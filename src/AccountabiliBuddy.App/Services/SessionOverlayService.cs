@@ -10,7 +10,8 @@ namespace AccountabiliBuddy.App.Services;
 /// <summary>
 /// Runs the small on-screen window. The session timer shows while a session runs (focus and breaks) for a profile
 /// that has it on (its own choice or the default); it can be hidden for the rest of the current session (Session
-/// tab), which resets when the session ends. The all-day timeline shows on days with focus blocks; while the timer
+/// tab), which resets when the session ends. In the evening (sleep mode) a sleep line shows on its own or on top.
+/// The all-day timeline shows on days with focus blocks; while the timer
 /// shows it steps aside or stays above it (<see cref="OverlaySettings.TimelineInFocus"/>). With
 /// <see cref="OverlaySettings.HideInFullscreen"/> the window also steps aside while a fullscreen app is in front
 /// (checked every tick), and the Ctrl+Alt "Hide" button hides it for a few seconds. When time is up it glows (sounds:
@@ -79,7 +80,7 @@ public sealed class SessionOverlayService : IDisposable
         _configuration.Changed += (_, _) => Update();
         _day.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(DayBarViewModel.HasPlannedFocus))
+            if (e.PropertyName is nameof(DayBarViewModel.HasPlannedFocus) or nameof(DayBarViewModel.ShowsSleep))
             {
                 Update();
             }
@@ -152,7 +153,8 @@ public sealed class SessionOverlayService : IDisposable
         bool fullscreenInFront = settings.HideInFullscreen && _control.IsFullscreenAppInFront();
         bool hiddenBriefly = _sessions.Now < _hiddenUntil;
         string? doneText = _sessions.Now < _doneUntil ? _doneText : null;
-        if ((!showsTimer && !showsTimeline && doneText is null) || fullscreenInFront || hiddenBriefly)
+        bool showsSleep = _day.ShowsSleep;
+        if ((!showsTimer && !showsTimeline && !showsSleep && doneText is null) || fullscreenInFront || hiddenBriefly)
         {
             _window?.Close();
             _window = null;
@@ -167,7 +169,7 @@ public sealed class SessionOverlayService : IDisposable
         }
 
         DateTime localNow = TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime;
-        _viewModel.Update(showsTimer, showsTimeline, doneText, localNow, settings);
+        _viewModel.Update(showsTimer, showsTimeline, showsSleep, doneText, localNow, settings);
         _lastShownAt = _sessions.Now;
 
         if (_window is null)

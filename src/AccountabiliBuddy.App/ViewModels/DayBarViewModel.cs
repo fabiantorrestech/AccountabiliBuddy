@@ -5,6 +5,7 @@ using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
+using Avalonia.Media;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Data.Sqlite;
@@ -15,6 +16,9 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// The day bar at the top of the main window: today's planned focus (schedule minus time off), the sessions that
 /// actually ran (from the history, plus the running one up to now), calendar events, and a live "now" line.
 /// The on-screen timeline uses its own copy, which draws even when the day bar is hidden.
+/// With sleep mode on (and "fit to my day"), the day runs from wake time to bedtime and grows into the night
+/// while you're still up; the night is shaded, sleep lost by staying up is shaded red, and from two hours before
+/// bedtime <see cref="SleepText"/> says how much sleep is left if you go to bed now.
 /// </summary>
 public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 {
@@ -24,6 +28,18 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     // Session events are written in the background; reading right after a start or end could miss them.
     private static readonly TimeSpan RecorderDelay = TimeSpan.FromSeconds(2);
     private static readonly int[] TickSteps = { 1, 2, 3, 4, 6 };
+
+    // How much of the night the bar shows past bedtime, and past now when still up later.
+    private static readonly TimeSpan NightShown = TimeSpan.FromHours(1);
+    private static readonly TimeSpan NightAfterNow = TimeSpan.FromMinutes(30);
+
+    // The sleep line shows from this long before bedtime until wake time.
+    private static readonly TimeSpan SleepLineLead = TimeSpan.FromHours(2);
+
+    // Soft green, yellow and red: readable on the dark on-screen window, and as a dot in the main window.
+    private static readonly IBrush GoodSleepBrush = new SolidColorBrush(Color.FromRgb(134, 239, 172));
+    private static readonly IBrush OkaySleepBrush = new SolidColorBrush(Color.FromRgb(253, 230, 138));
+    private static readonly IBrush ShortSleepBrush = new SolidColorBrush(Color.FromRgb(252, 165, 165));
     private const int MaxTicks = 8;
 
     private readonly ConfigurationService _configuration;
@@ -31,6 +47,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     private readonly CalendarService _calendars;
     private readonly IActivityLog _log;
     private readonly DayBarSettingsService _settings;
+    private readonly SleepSettingsService _sleep;
     private readonly TimeProvider _time;
     private readonly DispatcherTimer _redrawTimer;
     private readonly DispatcherTimer _reloadSoonTimer;
@@ -46,9 +63,11 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         CalendarService calendars,
         IActivityLog log,
         DayBarSettingsService settings,
+        SleepSettingsService sleep,
         TimeProvider time,
         bool ignoresShowSetting = false)
     {
+        _sleep = sleep;
         _ignoresShowSetting = ignoresShowSetting;
         _configuration = configuration;
         _sessions = sessions;
@@ -58,7 +77,8 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         _time = time;
 
         Layout = DayBarLayout.Empty;
-        DateText = StatusText = SummaryText = string.Empty;
+        DateText = StatusText = SummaryText = SleepText = string.Empty;
+        SleepBrush = GoodSleepBrush;
 
         _redrawTimer = new DispatcherTimer { Interval = RedrawInterval };
         _redrawTimer.Tick += (_, _) => OnRedrawTick();
@@ -72,6 +92,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         _configuration.Changed += (_, _) => Redraw();
         _calendars.Changed += (_, _) => Redraw();
         _settings.Changed += (_, _) => _ = ReloadHistoryAsync();
+        _sleep.Changed += (_, _) => _ = ReloadHistoryAsync();
         _sessions.StateChanged += (_, _) =>
         {
             Redraw();
@@ -99,6 +120,22 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     public partial bool IsVisible { get; set; }
+
+    /// <summary>True from two hours before bedtime until wake time, with sleep mode on.</summary>
+    [ObservableProperty]
+    public partial bool ShowsSleep { get; set; }
+
+    /// <summary>E.g. "Bedtime 10:00 PM · 8h of sleep" or "Sleep if you go now: 6h 40m".</summary>
+    [ObservableProperty]
+    public partial string SleepText { get; set; }
+
+    /// <summary>How the sleep in <see cref="SleepText"/> rates.</summary>
+    [ObservableProperty]
+    public partial SleepAmount SleepAmount { get; set; }
+
+    /// <summary>Green from 7 hours of sleep, yellow from 5, red below.</summary>
+    [ObservableProperty]
+    public partial IBrush SleepBrush { get; set; }
 
     /// <summary>True when some focus is planned in the day shown (schedule or one-off blocks, minus time off).</summary>
     [ObservableProperty]
@@ -162,9 +199,14 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         IReadOnlyList<PlannedFocus> planned = DayTimeline.Planned(_configuration.Current.Schedule, span);
         List<(LocalWindow Window, string Tip)> actual = ActualSessions(now, span);
 
-        LocalWindow range = settings.Range == DayBarRange.FullDay
-            ? day
-            : DayTimeline.FitTo(day, planned.Select(focus => focus.Window).Concat(actual.Select(item => item.Window)), span);
+        IEnumerable<LocalWindow> content = planned.Select(focus => focus.Window).Concat(actual.Select(item => item.Window));
+        if (_sleep.Current.Enabled)
+        {
+            // The calendar dates also hold tomorrow's early blocks; only blocks touching this waking day stretch it.
+            content = content.Where(window => DayTimeline.Clip(window, day) is not null);
+        }
+
+        LocalWindow range = settings.Range == DayBarRange.FullDay ? day : DayTimeline.FitTo(day, content, span);
 
         var plannedSpans = new List<DayBarSpan>();
         foreach (PlannedFocus focus in planned)
@@ -184,7 +226,9 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             }
         }
 
-        Layout = new DayBarLayout(plannedSpans, actualSpans, EventSpans(range), Ticks(range), Fraction(now, range));
+        (List<DayBarSpan> night, List<DayBarSpan> missed) = SleepSpans(now, range);
+        Layout = new DayBarLayout(plannedSpans, actualSpans, EventSpans(range), Ticks(range), Fraction(now, range), night, missed);
+        UpdateSleepLine(now);
         HasPlannedFocus = plannedSpans.Count > 0;
 
         DateTime date = day.Start.Date;
@@ -198,10 +242,76 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     {
         DayBarSettings settings = _settings.Current;
         DateTime now = LocalNow();
-        LocalWindow day = settings.Range == DayBarRange.FullDay
-            ? DayTimeline.FullDay(now)
+        LocalWindow day = settings.Range == DayBarRange.FullDay ? DayTimeline.FullDay(now)
+            : _sleep.Current.Enabled ? WakingDay(now)
             : DayTimeline.DayContaining(now, settings.DayStart, settings.DayEnd);
         return (day, DayTimeline.CalendarSpan(day));
+    }
+
+    /// <summary>Wake time to bedtime, plus a little of the night (more while still up, until wake time).</summary>
+    private LocalWindow WakingDay(DateTime now)
+    {
+        SleepSchedule schedule = _sleep.Current.ToSchedule();
+        LocalWindow waking = schedule.DayAround(now);
+        LocalWindow night = schedule.NightAround(now);
+        DateTime shownUntil = night.Start + NightShown > now + NightAfterNow ? night.Start + NightShown : now + NightAfterNow;
+        return new LocalWindow(waking.Start, shownUntil < night.End ? shownUntil : night.End);
+    }
+
+    /// <summary>The nights inside the bar, and the part of the current night already lost to staying up.</summary>
+    private (List<DayBarSpan> Night, List<DayBarSpan> Missed) SleepSpans(DateTime now, LocalWindow range)
+    {
+        var nights = new List<DayBarSpan>();
+        var missed = new List<DayBarSpan>();
+        if (!_sleep.Current.Enabled)
+        {
+            return (nights, missed);
+        }
+
+        SleepSchedule schedule = _sleep.Current.ToSchedule();
+        for (DateTime evening = range.Start.Date.AddDays(-1); evening <= range.End.Date; evening = evening.AddDays(1))
+        {
+            LocalWindow night = schedule.Night(DateOnly.FromDateTime(evening));
+            if (DayTimeline.Clip(night, range) is LocalWindow shown)
+            {
+                nights.Add(ToSpan(shown, range, $"Sleep {Times(night)} ({Duration(night.End - night.Start)})"));
+            }
+        }
+
+        LocalWindow current = schedule.NightAround(now);
+        if (now > current.Start)
+        {
+            var lost = new LocalWindow(current.Start, now < current.End ? now : current.End);
+            if (DayTimeline.Clip(lost, range) is LocalWindow shownLost)
+            {
+                missed.Add(ToSpan(shownLost, range, $"Up past bedtime: {Duration(lost.End - lost.Start)} less sleep"));
+            }
+        }
+
+        return (nights, missed);
+    }
+
+    private void UpdateSleepLine(DateTime now)
+    {
+        SleepSchedule schedule = _sleep.Current.ToSchedule();
+        LocalWindow night = schedule.NightAround(now);
+        ShowsSleep = _sleep.Current.Enabled && now >= night.Start - SleepLineLead && now < night.End;
+        if (!ShowsSleep)
+        {
+            return;
+        }
+
+        TimeSpan sleep = SleepSchedule.SleepIfBedAt(now, night);
+        SleepAmount = SleepSchedule.Rate(sleep);
+        SleepBrush = SleepAmount switch
+        {
+            SleepAmount.Good => GoodSleepBrush,
+            SleepAmount.Okay => OkaySleepBrush,
+            _ => ShortSleepBrush,
+        };
+        SleepText = now < night.Start
+            ? $"Bedtime {night.Start:t} · {Duration(sleep)} of sleep"
+            : $"Sleep if you go now: {Duration(sleep)}";
     }
 
     private List<(LocalWindow Window, string Tip)> ActualSessions(DateTime now, LocalWindow span)

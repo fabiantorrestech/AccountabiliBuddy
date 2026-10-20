@@ -225,14 +225,17 @@ public partial class App : Application
         dayBarSettings.LoadBlocking();
         var overlaySettings = new OverlaySettingsService(documents);
         overlaySettings.LoadBlocking();
-        var timelineDay = new DayBarViewModel(_configuration, _sessions, calendars, activityLog, dayBarSettings, time, ignoresShowSetting: true);
+        var sleepSettings = new SleepSettingsService(documents);
+        sleepSettings.LoadBlocking();
+        var timelineDay = new DayBarViewModel(
+            _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, time, ignoresShowSetting: true);
         var soundSettings = new SessionSoundSettingsService(documents);
         soundSettings.LoadBlocking();
         _soundPlayer = new Win32SoundPlayer();
         _sessionCues = new SessionCueService(_sessions, soundSettings, _soundPlayer);
         _sessionOverlay = new SessionOverlayService(
             _sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), timelineDay, _sessionCues);
-        _dayBar = new DayBarViewModel(_configuration, _sessions, calendars, activityLog, dayBarSettings, time);
+        _dayBar = new DayBarViewModel(_configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, time);
         var dataProtector = new DpapiDataProtector();
         _calendarNetwork = new CalendarNetwork();
         _calendarSync = new CalendarSyncService(
@@ -275,7 +278,7 @@ public partial class App : Application
             setupViewModel,
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
             new SettingsViewModel(
-                _configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, dayBarSettings, overlaySettings, soundSettings, _sessionCues, database.DatabasePath)
+                _configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, dayBarSettings, overlaySettings, soundSettings, _sessionCues, sleepSettings, database.DatabasePath)
             {
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
             },

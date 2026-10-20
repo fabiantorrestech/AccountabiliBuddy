@@ -11,7 +11,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// Settings tab: quick-session shortcut, Pomodoro defaults, escalation timings, friction, unlock relocking and how
-/// long looser changes wait, calendars (link check interval, Google client), the day bar, the on-screen timer (look, default, which profiles show it), the on-screen timeline and the sounds when time is up.
+/// long looser changes wait, calendars (link check interval, Google client), the day bar, the on-screen timer (look, default, which profiles show it), the on-screen timeline, the sounds when time is up and sleep mode.
 /// (Start with Windows lives in the Setup tab.)
 /// Saving is locked during a focus phase so friction cannot be turned off mid-session; looser values count down
 /// first and the tab shows them as saved (see <see cref="PendingChangesViewModel"/>).
@@ -27,6 +27,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly OverlaySettingsService _overlays;
     private readonly SessionSoundSettingsService _sounds;
     private readonly SessionCueService _cues;
+    private readonly SleepSettingsService _sleep;
 
     /// <summary>Choices for the on-screen timer, in <see cref="OverlayStyle"/> order.</summary>
     public static IReadOnlyList<string> TimerStyleNames { get; } = new[]
@@ -57,8 +58,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         OverlaySettingsService overlays,
         SessionSoundSettingsService sounds,
         SessionCueService cues,
+        SleepSettingsService sleep,
         string databasePath)
     {
+        _sleep = sleep;
         _sounds = sounds;
         _cues = cues;
         _dayBar = dayBar;
@@ -96,7 +99,60 @@ public sealed partial class SettingsViewModel : ObservableObject
         LoadFromConfiguration();
         LoadDisplaySettings();
         LoadSoundSettings();
+        LoadSleepSettings();
         RefreshTimerProfiles();
+    }
+
+    [ObservableProperty]
+    public partial bool SleepEnabled { get; set; }
+
+    /// <summary>True = the weeknight times every night.</summary>
+    [ObservableProperty]
+    public partial bool SleepSameEveryNight { get; set; }
+
+    [ObservableProperty]
+    public partial TimeSpan? WeeknightBedtime { get; set; }
+
+    [ObservableProperty]
+    public partial TimeSpan? WeeknightWake { get; set; }
+
+    [ObservableProperty]
+    public partial TimeSpan? WeekendBedtime { get; set; }
+
+    [ObservableProperty]
+    public partial TimeSpan? WeekendWake { get; set; }
+
+    [ObservableProperty]
+    public partial string? SleepStatus { get; set; }
+
+    // Not locked during focus: sleep mode is display only.
+    [RelayCommand]
+    private async Task ApplySleepAsync()
+    {
+        if (WeeknightBedtime is not TimeSpan weeknightBed || WeeknightWake is not TimeSpan weeknightWake
+            || WeekendBedtime is not TimeSpan weekendBed || WeekendWake is not TimeSpan weekendWake)
+        {
+            SleepStatus = "Not saved: pick every bedtime and wake time.";
+            return;
+        }
+
+        await _sleep.SaveAsync(new SleepSettings(
+            SleepEnabled,
+            SleepSameEveryNight,
+            new SleepTimes(TimeOnly.FromTimeSpan(weeknightBed), TimeOnly.FromTimeSpan(weeknightWake)),
+            new SleepTimes(TimeOnly.FromTimeSpan(weekendBed), TimeOnly.FromTimeSpan(weekendWake))));
+        SleepStatus = "Saved.";
+    }
+
+    private void LoadSleepSettings()
+    {
+        SleepSettings sleep = _sleep.Current;
+        SleepEnabled = sleep.Enabled;
+        SleepSameEveryNight = sleep.SameEveryNight;
+        WeeknightBedtime = sleep.Weeknights.Bedtime.ToTimeSpan();
+        WeeknightWake = sleep.Weeknights.Wake.ToTimeSpan();
+        WeekendBedtime = sleep.Weekends.Bedtime.ToTimeSpan();
+        WeekendWake = sleep.Weekends.Wake.ToTimeSpan();
     }
 
     /// <summary>Set by the view: asks for a .wav file, null when cancelled.</summary>

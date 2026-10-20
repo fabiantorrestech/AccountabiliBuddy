@@ -9,7 +9,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>
 /// The small on-screen window: the all-day timeline on top and the session timer under it, either or both shown.
 /// They share one spot, size, opacity and Ctrl+Alt drag. While Ctrl+Alt is held a button hides it for a moment.
-/// When time is up it glows white for about three seconds.
+/// When time is up it glows white for about three seconds. In the evening (sleep mode) a line on top says how
+/// much sleep is left if you go to bed now: green from 7 hours, yellow from 5, red below.
 /// </summary>
 public sealed partial class OnScreenOverlayViewModel : ObservableObject
 {
@@ -87,6 +88,10 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial string DoneText { get; set; }
 
+    /// <summary>The sleep line (text and colour from <see cref="Day"/>).</summary>
+    [ObservableProperty]
+    public partial bool ShowsSleep { get; set; }
+
     /// <summary>E.g. "Hide 15s".</summary>
     [ObservableProperty]
     public partial string HideButtonText { get; set; }
@@ -125,10 +130,11 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     }
 
     /// <param name="doneText">Shown when neither the timer nor the timeline shows; null = nothing to say.</param>
-    public void Update(bool showsTimer, bool showsTimeline, string? doneText, DateTime localNow, OverlaySettings settings)
+    public void Update(bool showsTimer, bool showsTimeline, bool showsSleep, string? doneText, DateTime localNow, OverlaySettings settings)
     {
         ShowsTimer = showsTimer;
         ShowsTimeline = showsTimeline;
+        ShowsSleep = showsSleep;
         ShowsDone = !showsTimer && !showsTimeline && doneText is not null;
         DoneText = doneText ?? string.Empty;
         ShowsTimelineTime = settings.TimelineShowsTime;
