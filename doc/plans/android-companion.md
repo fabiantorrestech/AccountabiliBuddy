@@ -37,7 +37,10 @@ Status: **in progress**: A, B and C working on the emulator; D partly (phone use
 - Accessibility service (opt-in, explained first) for the app in front and the address in browsers, matched against the imported profiles: drift is *tracked* during focus blocks. Blocking is decided later.
 - Curbox: import its exported block lists into a phone profile; detect it and keep working alongside it.
 
-### E. PC remote (design: [ADR 14](../adr/0014-pair-the-phone-with-the-pc-over-the-local-network.md), Proposed)
+### E. PC remote → linked devices
+
+Superseded by **[linked-devices.md](linked-devices.md)** (2026-10-20): pairing, remote, settings sync, shared usage, awareness during focus, phone sites, Cold Turkey status. The original remote sketch below is kept for history.
+
 - **Pairing:** PC Setup tab → "Pair a phone" shows a QR code with an `accountabilibuddy://pair?h=<ip>&p=<port>&f=<cert sha-256>&c=<one-time code>` link. The Pixel camera opens it in the companion (no camera code in the app); the values can also be typed in.
 - **Transport:** TLS to the PC with its self-signed certificate pinned by fingerprint; private-network addresses only; off by default.
 - **Trust:** the one-time code (a few minutes, rate-limited) is traded for a random device token. The PC keeps a token per device (DPAPI); the phone keeps it with the Android Keystore. Unpair on either side revokes it.

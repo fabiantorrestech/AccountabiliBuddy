@@ -1,6 +1,6 @@
 # Device sync (V3): plan
 
-Status: **draft for later**, not started. Decisions here become ADRs when we begin (see "ADRs needed").
+Status: **draft for later**, not started. Decisions here become ADRs when we begin (see "ADRs needed"). Its first, smaller step (one PC as hub, Android devices linked over the LAN, shared usage) is planned in [linked-devices.md](linked-devices.md) with ADRs 14–16.
 
 ## Goal
 
