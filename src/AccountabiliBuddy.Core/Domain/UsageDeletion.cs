@@ -9,4 +9,5 @@ namespace AccountabiliBuddy.Core.Domain;
 /// Domain: with an <paramref name="App"/>, that site in that browser only; without one, the name as History shows it
 /// (the site, or the app for time with no site).
 /// </param>
-public sealed record UsageDeletion(string? App, string? Site, DateTimeOffset From, DateTimeOffset To);
+/// <param name="Section">With a <paramref name="Site"/>, only that subreddit, channel or repository of it (ADR 17).</param>
+public sealed record UsageDeletion(string? App, string? Site, DateTimeOffset From, DateTimeOffset To, string? Section = null);

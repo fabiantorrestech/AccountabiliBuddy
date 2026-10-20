@@ -208,6 +208,7 @@ public partial class App : Application
         var ocrReader = new WindowsOcrReader();
         var activityLog = new SqliteActivityLog(database, new DpapiDataProtector());
         _recorder = new ActivityRecorder(activityLog, privacy, _sessions, new Win32UserIdleDetector(), time);
+        _ = FillHistorySectionsOnceAsync(documents, activityLog);
 
         var quickLaunch = new StartMenuQuickLaunchShortcut(AppPaths.LaunchPath, StartupOptions.QuickSessionArgument);
         // Only the installed app repoints registrations to itself; a dev build or test copy must not take over the
@@ -426,6 +427,28 @@ public partial class App : Application
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Once ("history.sectionsFilled"): gives history recorded before sections were kept its subreddits and repos
+    /// (ADR 17), in the background. If it fails it's tried again at the next start.
+    /// </summary>
+    private static async Task FillHistorySectionsOnceAsync(SqliteJsonDocumentStore documents, SqliteActivityLog log)
+    {
+        const string DoneKey = "history.sectionsFilled";
+        try
+        {
+            if (await documents.LoadAsync<bool>(DoneKey))
+            {
+                return;
+            }
+
+            await Task.Run(() => log.FillMissingSectionsAsync());
+            await documents.SaveAsync(DoneKey, true);
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException)
+        {
+        }
     }
 
     /// <summary>

@@ -96,10 +96,15 @@ public sealed class ActivitySegmentTracker
 
         public void Update(ObservedActivity observation)
         {
-            // Screen text can arrive a little after the segment opened; keep the newest.
-            if (observation.Snapshot.OcrText is not null)
+            // Screen text and a video's channel can arrive a little after the segment opened; keep the newest of each.
+            ActivitySnapshot latest = _latest.Snapshot;
+            ActivitySnapshot next = observation.Snapshot;
+            if (next.OcrText is not null || (next.Channel is not null && latest.Channel is null))
             {
-                _latest = observation;
+                _latest = observation with
+                {
+                    Snapshot = next with { OcrText = next.OcrText ?? latest.OcrText, Channel = next.Channel ?? latest.Channel },
+                };
             }
         }
 
@@ -116,7 +121,8 @@ public sealed class ActivitySegmentTracker
                 _latest.Classification,
                 _latest.ProfileId,
                 _latest.InFocusSession,
-                snapshot.OcrText);
+                snapshot.OcrText,
+                snapshot.Channel);
         }
     }
 }

@@ -439,8 +439,9 @@ public sealed partial class HistoryViewModel : ObservableObject
         var rows = entries
             .Where(entry => !_hiddenDistractions.IsHidden(entry.Name))
             .GroupBy(entry => _names.NameFor(entry.Name), StringComparer.OrdinalIgnoreCase)
-            .Select(group => (Name: group.Key, RealNames: group.Select(entry => entry.Name).ToList(),
-                Time: group.Aggregate(TimeSpan.Zero, (sum, entry) => sum + entry.Time)))
+            .Select(group => (Name: group.Key, RealNames: group.Select(entry => entry.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                Time: group.Aggregate(TimeSpan.Zero, (sum, entry) => sum + entry.Time),
+                Sections: group.Where(entry => entry.Section is not null).Select(entry => (Section: entry.Section!, entry.Time)).ToList()))
             .OrderByDescending(row => row.Time)
             .ToList();
 
@@ -457,8 +458,49 @@ public sealed partial class HistoryViewModel : ObservableObject
                 periodText: PeriodForQuestion,
                 isDistraction: true,
                 showFile: row.RealNames.Any(siteNames.Contains) ? null : ShowFileFor(row.RealNames),
-                openSite: row.RealNames.Any(siteNames.Contains) ? OpenSiteFor(row.RealNames) : null))
+                openSite: row.RealNames.Any(siteNames.Contains) ? OpenSiteFor(row.RealNames) : null,
+                sites: BuildSectionRows(
+                    row.Sections, row.Time, row.Name, _hiddenDistractions, isDistraction: true,
+                    sections => row.RealNames.SelectMany(name => sections.Select(section => new UsageDeletion(null, name, _from, _to, section)))),
+                childNoun: NounFor(row.RealNames)))
             .ToList();
+    }
+
+    /// <summary>
+    /// A site's subreddits, channels or repos (ADR 17), added up by shown name like sites, most time first, with bars
+    /// relative to the site's time.
+    /// </summary>
+    /// <param name="hidden">The list's hidden names (a hidden section's time still counts in its site).</param>
+    /// <param name="deletionsFor">The deletions for these real section names in the period shown.</param>
+    private List<UsageRowViewModel> BuildSectionRows(
+        IReadOnlyList<(string Section, TimeSpan Time)> sections,
+        TimeSpan siteTime,
+        string siteName,
+        HiddenUsageService hidden,
+        bool isDistraction,
+        Func<IReadOnlyList<string>, IEnumerable<UsageDeletion>> deletionsFor)
+    {
+        double siteSeconds = Math.Max(1, siteTime.TotalSeconds);
+        return sections
+            .Where(section => !hidden.IsHidden(section.Section))
+            .GroupBy(section => _names.NameFor(section.Section), StringComparer.OrdinalIgnoreCase)
+            .Select(group => (Name: group.Key,
+                RealNames: group.Select(section => section.Section).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                Time: group.Aggregate(TimeSpan.Zero, (sum, section) => sum + section.Time)))
+            .OrderByDescending(section => section.Time)
+            .Select(section => new UsageRowViewModel(
+                section.RealNames, section.Name, FormatDuration(section.Time), section.Time.TotalSeconds / siteSeconds, icon: null, RenameAsync,
+                hide: shown => hidden.SetHiddenAsync(shown.RealNames, hidden: true),
+                delete: () => DeleteAsync($"{section.Name} on {siteName}", deletionsFor(section.RealNames)),
+                periodText: PeriodForQuestion,
+                isDistraction: isDistraction))
+            .ToList();
+    }
+
+    /// <summary>"subreddit(s)", "channel(s)" or "repo(s)" for the first of these sites that has sections; null otherwise.</summary>
+    private static (string One, string Many)? NounFor(IEnumerable<string> realNames)
+    {
+        return realNames.Select(SiteSections.NounFor).FirstOrDefault(noun => noun is not null);
     }
 
     /// <summary>
@@ -486,16 +528,22 @@ public sealed partial class HistoryViewModel : ObservableObject
                     .GroupBy(entry => IsBrowserPage(entry.Site!) ? BrowserPagesName : _names.NameFor(entry.Site!), StringComparer.OrdinalIgnoreCase)
                     .Select(site => (Name: site.Key,
                         RealNames: site.Select(entry => entry.Site!).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
-                        Time: site.Aggregate(TimeSpan.Zero, (sum, entry) => sum + entry.Time)))
+                        Time: site.Aggregate(TimeSpan.Zero, (sum, entry) => sum + entry.Time),
+                        Sections: site.Where(entry => entry.Section is not null).Select(entry => (Section: entry.Section!, entry.Time)).ToList()))
                     .OrderByDescending(site => site.Time)
                     .Select(site => new UsageRowViewModel(
                         site.RealNames, site.Name, FormatDuration(site.Time), site.Time.TotalSeconds / appSeconds, FindIcon(site.RealNames), RenameAsync,
+                        sites: BuildSectionRows(
+                            site.Sections, site.Time, site.Name, _hidden, isDistraction: false,
+                            sections => app.RealNames.SelectMany(appName => site.RealNames.SelectMany(siteName =>
+                                sections.Select(section => new UsageDeletion(appName, siteName, _from, _to, section))))),
                         hide: HideAsync,
                         delete: () => DeleteAsync(
                             $"{site.Name} in {app.Name}",
                             app.RealNames.SelectMany(appName => site.RealNames.Select(siteName => new UsageDeletion(appName, siteName, _from, _to)))),
                         periodText: PeriodForQuestion,
-                        openSite: OpenSiteFor(site.RealNames)))
+                        openSite: OpenSiteFor(site.RealNames),
+                        childNoun: NounFor(site.RealNames)))
                     .ToList();
                 return new UsageRowViewModel(
                     app.RealNames, app.Name, FormatDuration(app.Time), app.Time.TotalSeconds / max, FindIcon(app.RealNames), RenameAsync, sites,

@@ -61,6 +61,27 @@
             </Grid>
         </DataTemplate>
 
+        <!-- A site and, for Reddit, YouTube and GitHub, its subreddits, channels or repos under it (ADR 17): the top few, then "+N more". -->
+        <DataTemplate x:Key="SiteRow" x:DataType="vm:UsageRowViewModel">
+            <StackPanel>
+                <ContentControl Content="{Binding}" ContentTemplate="{StaticResource UsageRow}" />
+                <Border BorderBrush="#33808080" BorderThickness="1,0,0,0" Margin="8,-4,0,8" Padding="12,0,0,0"
+                        IsVisible="{Binding HasSites}">
+                    <StackPanel>
+                        <ItemsControl ItemsSource="{Binding ShownSites}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:UsageRowViewModel">
+                                    <ContentControl Content="{Binding}" ContentTemplate="{StaticResource UsageRow}" FontSize="12" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Content="{Binding SitesToggleText}" Command="{Binding ToggleSitesCommand}" IsVisible="{Binding HasMoreSites}"
+                                Background="Transparent" Padding="0,0,0,4" FontSize="12" Opacity="0.75" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </DataTemplate>
+
         <!-- The names hidden from a list, each with Show again (open from the "N hidden" button). -->
         <DataTemplate x:Key="HiddenList" x:DataType="vm:HiddenListViewModel">
             <ItemsControl ItemsSource="{Binding Names}" IsVisible="{Binding IsOpen}">
@@ -167,7 +188,7 @@
                         <ItemsControl ItemsSource="{Binding TopDistractions}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:UsageRowViewModel">
-                                    <ContentControl Content="{Binding}" ContentTemplate="{StaticResource UsageRow}" />
+                                    <ContentControl Content="{Binding}" ContentTemplate="{StaticResource SiteRow}" />
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -197,7 +218,7 @@
                                                 <ItemsControl ItemsSource="{Binding ShownSites}">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate x:DataType="vm:UsageRowViewModel">
-                                                            <ContentControl Content="{Binding}" ContentTemplate="{StaticResource UsageRow}" FontSize="13" />
+                                                            <ContentControl Content="{Binding}" ContentTemplate="{StaticResource SiteRow}" FontSize="13" />
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>

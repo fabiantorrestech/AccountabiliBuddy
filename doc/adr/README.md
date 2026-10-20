@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0017](0017-keep-the-section-of-a-site-readable-in-activity-history.md) | Keep the section of a site readable in activity history | Accepted | — |
 | [0016](0016-read-browser-addresses-on-android-with-an-accessibility-service.md) | Read browser addresses on Android with an accessibility service | Accepted | — |
 | [0015](0015-share-activity-history-between-paired-devices.md) | Share activity history between paired devices | Accepted | — |
 | [0014](0014-pair-the-phone-with-the-pc-over-the-local-network.md) | Pair the phone with the PC over the local network | Accepted | — |

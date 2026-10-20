@@ -10,7 +10,7 @@ namespace AccountabiliBuddy.Core.Storage;
 /// </summary>
 public sealed class LocalDatabase
 {
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = 4;
 
     private const string FileName = "accountabilibuddy.db";
     private const int KeptBackups = 10;
@@ -161,7 +161,14 @@ public sealed class LocalDatabase
                     """, cancellationToken).ConfigureAwait(false);
             }
 
-            // Future migrations: if (version < 4) { ... }
+            if (version < 4)
+            {
+                // ADR 17: the section of a site (subreddit, YouTube channel, GitHub repository), readable.
+                await ExecuteAsync(connection, "ALTER TABLE activity_segments ADD COLUMN section TEXT;", cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            // Future migrations: if (version < 5) { ... }
 
             if (version < CurrentSchemaVersion)
             {

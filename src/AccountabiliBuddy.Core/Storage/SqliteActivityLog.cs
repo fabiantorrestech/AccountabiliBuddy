@@ -9,7 +9,8 @@ namespace AccountabiliBuddy.Core.Storage;
 
 /// <summary>
 /// The activity log in the local database (tables created by migration v2, ADR 8).
-/// Readable columns: times, monitor, app (process name), site (domain), classification, profile, session context.
+/// Readable columns: times, monitor, app (process name), site (domain), the site's section (ADR 17: subreddit, YouTube
+/// channel, GitHub repository), classification, profile, session context.
 /// Encrypted with <see cref="IDataProtector"/>: window titles, full addresses, screen text, early-end reasons and
 /// classify-prompt reasons.
 /// Thread-safe: every call opens its own connection.
@@ -45,10 +46,10 @@ public sealed class SqliteActivityLog : IActivityLog
         await using SqliteCommand command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO activity_segments
-                (started_at, ended_at, duration_ms, monitor_id, process_name, domain, classification, profile_id,
+                (started_at, ended_at, duration_ms, monitor_id, process_name, domain, section, classification, profile_id,
                  in_focus, title_protected, url_protected, ocr_protected)
             VALUES
-                ($start, $end, $duration, $monitor, $process, $domain, $classification, $profile,
+                ($start, $end, $duration, $monitor, $process, $domain, $section, $classification, $profile,
                  $focus, $title, $url, $ocr);
             """;
         command.Parameters.AddWithValue("$start", Format(segment.Start));
@@ -57,6 +58,7 @@ public sealed class SqliteActivityLog : IActivityLog
         command.Parameters.AddWithValue("$monitor", segment.MonitorId);
         command.Parameters.AddWithValue("$process", segment.ProcessName);
         command.Parameters.AddWithValue("$domain", DbValue(DomainOf(segment.Url)));
+        command.Parameters.AddWithValue("$section", DbValue(SiteSections.SectionOf(segment.Url, segment.Channel)));
         command.Parameters.AddWithValue("$classification", segment.Classification.ToString());
         command.Parameters.AddWithValue("$profile", DbValue(segment.ProfileId?.ToString()));
         command.Parameters.AddWithValue("$focus", segment.InFocusSession ? 1 : 0);
@@ -336,7 +338,72 @@ public sealed class SqliteActivityLog : IActivityLog
         }
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+        // A backup from before sections were kept (ADR 17) brings rows without them.
+        await FillMissingSectionsAsync(cancellationToken).ConfigureAwait(false);
         return added;
+    }
+
+    /// <summary>
+    /// Gives entries recorded before sections were kept (ADR 17) their subreddit or repository, read from their
+    /// encrypted address. YouTube channels weren't recorded, so those stay without. Entries that can't be decrypted on
+    /// this computer are skipped.
+    /// </summary>
+    /// <returns>The number of entries that got a section.</returns>
+    public async Task<int> FillMissingSectionsAsync(CancellationToken cancellationToken = default)
+    {
+        await using SqliteConnection connection = await _database.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var found = new List<(long Id, string Section)>();
+        await using (SqliteCommand select = connection.CreateCommand())
+        {
+            select.CommandText = """
+                SELECT id, url_protected
+                FROM activity_segments
+                WHERE section IS NULL AND url_protected IS NOT NULL
+                  AND (domain = 'reddit.com' OR domain LIKE '%.reddit.com' OR domain = 'github.com');
+                """;
+            await using SqliteDataReader reader = await select.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                string? url;
+                try
+                {
+                    url = _protector.Unprotect((byte[])reader.GetValue(1));
+                }
+                catch (System.Security.Cryptography.CryptographicException)
+                {
+                    continue;
+                }
+
+                if (SiteSections.SectionOf(url, channel: null) is string section)
+                {
+                    found.Add((reader.GetInt64(0), section));
+                }
+            }
+        }
+
+        if (found.Count == 0)
+        {
+            return 0;
+        }
+
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await using (SqliteCommand update = connection.CreateCommand())
+        {
+            update.Transaction = transaction;
+            update.CommandText = "UPDATE activity_segments SET section = $section WHERE id = $id;";
+            SqliteParameter sectionParameter = update.Parameters.Add("$section", SqliteType.Text);
+            SqliteParameter idParameter = update.Parameters.Add("$id", SqliteType.Integer);
+            foreach ((long id, string section) in found)
+            {
+                sectionParameter.Value = section;
+                idParameter.Value = id;
+                await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return found.Count;
     }
 
     private static async Task<HashSet<string>> ColumnsOfAsync(
@@ -362,10 +429,10 @@ public sealed class SqliteActivityLog : IActivityLog
         await using SqliteCommand command = connection.CreateCommand();
         // The filter is one of two constant strings above, never user input.
         command.CommandText = $"""
-            SELECT COALESCE(domain, process_name) AS name, SUM(duration_ms) AS total
+            SELECT COALESCE(domain, process_name) AS name, section, SUM(duration_ms) AS total
             FROM activity_segments
             WHERE {filter} AND started_at >= $from AND started_at < $to{LeaveOutFilter(command, leaveOut)}{DeletedFilter(command, deleted)}
-            GROUP BY name
+            GROUP BY name, section
             ORDER BY total DESC
             LIMIT {TopEntries};
             """;
@@ -375,7 +442,10 @@ public sealed class SqliteActivityLog : IActivityLog
         await using SqliteDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            entries.Add(new UsageEntry(reader.GetString(0), TimeSpan.FromMilliseconds(reader.GetInt64(1))));
+            entries.Add(new UsageEntry(
+                reader.GetString(0),
+                TimeSpan.FromMilliseconds(reader.GetInt64(2)),
+                reader.IsDBNull(1) ? null : reader.GetString(1)));
         }
 
         return entries;
@@ -386,10 +456,10 @@ public sealed class SqliteActivityLog : IActivityLog
     {
         await using SqliteCommand command = connection.CreateCommand();
         command.CommandText = $"""
-            SELECT process_name, domain, SUM(duration_ms) AS total
+            SELECT process_name, domain, section, SUM(duration_ms) AS total
             FROM activity_segments
             WHERE started_at >= $from AND started_at < $to{DeletedFilter(command, deleted)}
-            GROUP BY process_name, domain
+            GROUP BY process_name, domain, section
             ORDER BY total DESC;
             """;
         AddRange(command, from, to);
@@ -401,7 +471,8 @@ public sealed class SqliteActivityLog : IActivityLog
             usage.Add(new AppSiteUsage(
                 reader.GetString(0),
                 reader.IsDBNull(1) ? null : reader.GetString(1),
-                TimeSpan.FromMilliseconds(reader.GetInt64(2))));
+                TimeSpan.FromMilliseconds(reader.GetInt64(3)),
+                reader.IsDBNull(2) ? null : reader.GetString(2)));
         }
 
         return usage;
@@ -421,7 +492,10 @@ public sealed class SqliteActivityLog : IActivityLog
         return filter.ToString();
     }
 
-    /// <summary>" AND NOT (…)" for each deletion (app, site in an app, or name as shown), with its values as parameters.</summary>
+    /// <summary>
+    /// " AND NOT (…)" for each deletion (app, site in an app, or name as shown; optionally one section of the site), with
+    /// its values as parameters.
+    /// </summary>
     private static string DeletedFilter(SqliteCommand command, IReadOnlyList<UsageDeletion> deleted)
     {
         var filter = new System.Text.StringBuilder();
@@ -434,7 +508,10 @@ public sealed class SqliteActivityLog : IActivityLog
                 (not null, not null) => $"lower(process_name) = lower($delApp{i}) AND COALESCE(lower(domain), '') = lower($delSite{i})",
                 _ => $"lower(COALESCE(domain, process_name)) = lower($delSite{i})",
             };
-            filter.Append($" AND NOT ({match} AND started_at >= $delFrom{i} AND started_at < $delTo{i})");
+            // COALESCE: a NULL comparison would make NOT (…) NULL and drop the site's time outside any section too.
+            string section = deletion.Section is null ? string.Empty : $" AND COALESCE(lower(section), '') = lower($delSection{i})";
+            filter.Append($" AND NOT ({match}{section} AND started_at >= $delFrom{i} AND started_at < $delTo{i})");
+            command.Parameters.AddWithValue($"$delSection{i}", (object?)deletion.Section ?? DBNull.Value);
             command.Parameters.AddWithValue($"$delApp{i}", (object?)deletion.App ?? DBNull.Value);
             command.Parameters.AddWithValue($"$delSite{i}", (object?)deletion.Site ?? DBNull.Value);
             command.Parameters.AddWithValue($"$delFrom{i}", Format(deletion.From));
