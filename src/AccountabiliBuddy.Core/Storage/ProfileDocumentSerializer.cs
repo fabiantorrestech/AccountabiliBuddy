@@ -1,3 +1,4 @@
+using AccountabiliBuddy.Core.Domain;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -50,6 +51,29 @@ public static class ProfileDocumentSerializer
         return version < ProfileDocument.CurrentSchemaVersion
             ? document with { SchemaVersion = ProfileDocument.CurrentSchemaVersion }
             : document;
+    }
+
+    /// <summary>
+    /// The day plan alone, in exactly the shape it has inside the document (the same options), e.g. to send to a paired
+    /// device or receive one back (ADR 19).
+    /// </summary>
+    public static JsonElement SerializeDayPlan(DayPlan plan)
+    {
+        return JsonSerializer.SerializeToElement(plan, Options);
+    }
+
+    /// <exception cref="JsonException">The JSON isn't a complete day plan.</exception>
+    public static DayPlan DeserializeDayPlan(JsonElement json)
+    {
+        DayPlan plan = json.Deserialize<DayPlan>(Options) ?? throw new JsonException("The day plan is empty.");
+        // Missing lists come through as null from the record's constructor; a plan needs all of them.
+        if (plan.Categories is null || plan.Workdays is null || plan.Workday?.Parts is null || plan.OtherDay?.Parts is null
+            || plan.OneOffDays is null || plan.OneOffDays.Any(day => day?.Template?.Parts is null))
+        {
+            throw new JsonException("The day plan is incomplete.");
+        }
+
+        return plan;
     }
 
     /// <summary>False for a document from before day plans (v4 and older): it gets the starting plan when read.</summary>

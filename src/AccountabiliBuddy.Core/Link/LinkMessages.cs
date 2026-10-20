@@ -28,6 +28,9 @@ public static class LinkMessages
     /// <summary>No body: the device forgets this PC; the PC removes it too.</summary>
     public const string Unpair = "unpair";
 
+    /// <summary><see cref="LinkDayPlanEdit"/>: the device changed the day plan (ADR 19); the PC answers with <see cref="DayPlanAnswer"/>.</summary>
+    public const string DayPlanEdit = "dayPlanEdit";
+
     // PC → device.
 
     /// <summary><see cref="LinkPaired"/>: the device's id and token.</summary>
@@ -50,6 +53,9 @@ public static class LinkMessages
 
     /// <summary><see cref="LinkResult"/>: how a request went.</summary>
     public const string Result = "result";
+
+    /// <summary><see cref="LinkDayPlanAnswer"/>: how the PC took a <see cref="DayPlanEdit"/>.</summary>
+    public const string DayPlanAnswer = "dayPlanAnswer";
 
     /// <summary><see cref="LinkResult"/>: the connection is refused (bad code or token, unpaired); the PC closes it.</summary>
     public const string Refused = "refused";

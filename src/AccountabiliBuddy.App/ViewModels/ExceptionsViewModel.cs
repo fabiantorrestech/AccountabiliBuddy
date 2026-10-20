@@ -207,6 +207,14 @@ public sealed partial class ExceptionsViewModel : ObservableObject
         Refresh();
     }
 
+    /// <summary>Shows the month of <paramref name="date"/> with that day selected (e.g. opened from search).</summary>
+    public void ShowDate(DateOnly date)
+    {
+        Month = new DateOnly(date.Year, date.Month, 1);
+        SelectedDate = date;
+        Refresh();
+    }
+
     /// <summary>Starts editing the selected date's own plan, from its one-off day or its usual template.</summary>
     [RelayCommand(CanExecute = nameof(CanEditPlan))]
     private void PlanSelectedDay()

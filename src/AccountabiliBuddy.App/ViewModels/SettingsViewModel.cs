@@ -179,6 +179,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _calendars.Changed += (_, _) => ShowTimelineCalendars();
         TimelineRows.CollectionChanged += (_, _) => RefreshUnsaved();
         _sleep.Changed += (_, _) => RefreshUnsaved();
+        SelectedGroupIndex = 0;
         _ready = true;
         RefreshUnsaved();
     }
@@ -620,6 +621,27 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string? DayBarStatus { get; set; }
+
+    /// <summary>The side list's groups; the one at <see cref="SelectedGroupIndex"/> shows on the right.</summary>
+    public IReadOnlyList<SettingsGroupViewModel> Groups { get; } = new[]
+    {
+        new SettingsGroupViewModel("Focus sessions", new[] { "Quick session shortcut", "Pomodoro defaults", "Escalation", "Ending a focus session early", "Unlocks", "Looser changes" }),
+        new SettingsGroupViewModel("Your day", new[] { "Day bar", "Sleep", "Calendars" }),
+        new SettingsGroupViewModel("On screen & sound", new[] { "On-screen timer", "On-screen timeline", "Sounds when time is up", "Noise player" }),
+        new SettingsGroupViewModel("App & data", new[] { "Updates", "Backup", "Data" }),
+    };
+
+    /// <summary>Which group shows; switching groups changes no setting.</summary>
+    [ObservableProperty]
+    public partial int SelectedGroupIndex { get; set; } = -1;
+
+    partial void OnSelectedGroupIndexChanged(int value)
+    {
+        for (int i = 0; i < Groups.Count; i++)
+        {
+            Groups[i].IsSelected = i == value;
+        }
+    }
 
     /// <summary>The timeline's rows top to bottom, each shown or not.</summary>
     public ObservableCollection<TimelineRowSettingViewModel> TimelineRows { get; } = new();

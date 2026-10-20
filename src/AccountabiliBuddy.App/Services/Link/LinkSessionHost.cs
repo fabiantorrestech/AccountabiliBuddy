@@ -2,6 +2,7 @@ using System.Text.Json;
 using AccountabiliBuddy.App.Services.Backup;
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Link;
 using AccountabiliBuddy.Core.Storage;
 using Avalonia.Threading;
@@ -29,6 +30,7 @@ public sealed class LinkSessionHost : ILinkSessionHost
     private readonly QuickSessionService _quickSession;
     private readonly SqliteJsonDocumentStore _documents;
     private readonly CalendarService _calendars;
+    private readonly DayPlanEditTimeService _planEditTime;
 
     public LinkSessionHost(
         SessionController sessions,
@@ -44,6 +46,9 @@ public sealed class LinkSessionHost : ILinkSessionHost
         _quickSession = quickSession;
         _documents = documents;
         _calendars = calendars;
+        // Here rather than in the app: only the link needs when the plan last changed (ADR 19).
+        _planEditTime = new DayPlanEditTimeService(configuration, documents, () => _sessions.Now);
+        _planEditTime.LoadBlocking();
 
         _sessions.StateChanged += (_, _) => StateChanged?.Invoke(this, EventArgs.Empty);
         _configuration.Changed += (_, _) => StateChanged?.Invoke(this, EventArgs.Empty);
@@ -104,7 +109,16 @@ public sealed class LinkSessionHost : ILinkSessionHost
             }
         }
 
-        var content = new { profiles, settings, calendarEvents = events, appVersion = BackupService.AppVersion };
+        var content = new
+        {
+            profiles,
+            settings,
+            calendarEvents = events,
+            appVersion = BackupService.AppVersion,
+            // ADR 19: what a phone's day plan edit is based on, and when the PC's plan last changed.
+            dayPlanVersion = DayPlanVersion.Of(_configuration.Current.DayPlan),
+            dayPlanEditedAt = _planEditTime.Current,
+        };
         return JsonSerializer.SerializeToElement(content, LinkFraming.JsonOptions);
     }
 
@@ -162,6 +176,22 @@ public sealed class LinkSessionHost : ILinkSessionHost
             BypassSettings bypass = _sessions.BypassSettings;
             return new LinkEndEarlyTerms((int)Math.Ceiling(bypass.WaitDuration.TotalSeconds), bypass.MinReasonLength, now + bypass.WaitDuration, null);
         }).GetTask();
+    }
+
+    public Task<LinkDayPlanAnswer> ApplyDayPlanAsync(LinkDayPlanEdit edit)
+    {
+        return Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            (LinkDayPlanAnswer answer, DayPlan? toSave) = DayPlanEditDecision.Decide(
+                _configuration.Current.DayPlan, _planEditTime.Current, edit, locked: _sessions.IsEnforcing);
+            if (toSave is not null)
+            {
+                _planEditTime.ExpectEdit(edit.EditedAt);
+                await _configuration.UpdateAsync(document => document with { DayPlan = toSave });
+            }
+
+            return answer;
+        });
     }
 
     public Task<string?> EndEarlyAsync(string reason)

@@ -1,5 +1,6 @@
 using AccountabiliBuddy.App.DevTools;
 using AccountabiliBuddy.App.Services;
+using AccountabiliBuddy.App.Services.Search;
 using AccountabiliBuddy.App.Services.Backup;
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.App.Views;
@@ -325,6 +326,47 @@ public partial class App : Application
             new BackupViewModel(backups, sessions, RestartApp, showExport: false));
         setupViewModel.OpenAssistant = ShowSetupAssistant;
 
+        // Search reads the user's things when asked: History's apps and sites (last 90 days, re-read at most once a minute),
+        // the calendar's events around today, profiles and the day plan.
+        IReadOnlyList<AppSiteUsage> searchUsage = Array.Empty<AppSiteUsage>();
+        DateTimeOffset searchUsageReadAt = DateTimeOffset.MinValue;
+        async Task<IReadOnlyList<SearchEntry>> SearchDataAsync()
+        {
+            DateTimeOffset now = time.GetUtcNow();
+            if (now - searchUsageReadAt > TimeSpan.FromMinutes(1))
+            {
+                try
+                {
+                    // Off the UI thread: Microsoft.Data.Sqlite's async calls run synchronously, and 90 days is a big read.
+                    IReadOnlyList<UsageDeletion> deletions = deletedUsage.Parts.ToList();
+                    searchUsage = (await Task.Run(() => activityLog.GetSummaryAsync(now.AddDays(-90), now, null, deletions))).AppsAndSites;
+                    searchUsageReadAt = now;
+                }
+                catch (Microsoft.Data.Sqlite.SqliteException)
+                {
+                    // Keep the last list; the next search tries again.
+                }
+            }
+
+            DateOnly today = DateOnly.FromDateTime(time.GetLocalNow().DateTime);
+            var events = new List<CalendarEvent>();
+            var seenEvents = new HashSet<(string, string)>();
+            for (int day = -60; day <= 120; day++)
+            {
+                foreach (CalendarEntry entry in calendars.EventsOn(today.AddDays(day)))
+                {
+                    if (seenEvents.Add((entry.Event.CalendarId, entry.Event.Id)))
+                    {
+                        events.Add(entry.Event);
+                    }
+                }
+            }
+
+            var shownNames = searchUsage.Select(usage => usage.Site ?? usage.App).Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(name => name, displayNames.NameFor, StringComparer.OrdinalIgnoreCase);
+            return DataSearchSource.Entries(_configuration!.Current, events, searchUsage, shownNames);
+        }
+
         var mainViewModel = new MainWindowViewModel(
             new SessionViewModel(
                 _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks), _quickSession)
@@ -353,6 +395,7 @@ public partial class App : Application
             _configuration.LoadError)
         {
             DayBar = _dayBar,
+            Search = new SearchViewModel(SearchDataAsync),
         };
 
         mainViewModel.NoisePlayer = noisePlayer;

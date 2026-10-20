@@ -34,6 +34,9 @@ public interface ILinkSessionHost
     /// <returns>What ending the running session early takes, or null when no session runs.</returns>
     Task<LinkEndEarlyTerms?> GetEndEarlyTermsAsync();
 
+    /// <summary>Takes a day plan edit from the device (ADR 19) by the PC's own rules, saving it when it applies.</summary>
+    Task<LinkDayPlanAnswer> ApplyDayPlanAsync(LinkDayPlanEdit edit);
+
     /// <summary>Ends the running session with this reason; the link has already checked the wait and the length.</summary>
     /// <returns>Null when it ended, otherwise why not.</returns>
     Task<string?> EndEarlyAsync(string reason);

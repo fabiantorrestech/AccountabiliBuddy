@@ -130,6 +130,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public ActivityDebugViewModel Activity { get; }
 
+    /// <summary>The search box in the top right; null hides it.</summary>
+    public SearchViewModel? Search { get; init; }
+
     private readonly DayBarViewModel? _dayBar;
 
     /// <summary>Today at a glance, above the tabs. Clicking a session opens its profile; a plan part, the Day plan tab.</summary>

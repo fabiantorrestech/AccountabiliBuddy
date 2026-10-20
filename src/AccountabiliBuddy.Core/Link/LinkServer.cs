@@ -325,6 +325,13 @@ public sealed class LinkServer : IAsyncDisposable
                 await _devices.RemoveAsync(device.Id).ConfigureAwait(false);
                 return false;
 
+            case LinkMessages.DayPlanEdit:
+                LinkDayPlanAnswer answer = request.BodyAs<LinkDayPlanEdit>() is { } edit
+                    ? await _host.ApplyDayPlanAsync(edit).ConfigureAwait(false)
+                    : new LinkDayPlanAnswer(LinkDayPlanStatus.Invalid, "The request was empty.");
+                await connection.SendAsync(LinkEnvelope.Of(LinkMessages.DayPlanAnswer, answer), stopping).ConfigureAwait(false);
+                return true;
+
             default:
                 await connection.SendAsync(ResultOf($"Unknown request '{request.Type}'.", string.Empty), stopping).ConfigureAwait(false);
                 return true;

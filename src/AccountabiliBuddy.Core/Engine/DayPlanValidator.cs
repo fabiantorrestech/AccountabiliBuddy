@@ -45,9 +45,24 @@ public static class DayPlanValidator
             return "Keep at least one category.";
         }
 
+        if (plan.Categories.Any(category => string.IsNullOrWhiteSpace(category.Name)))
+        {
+            return "Every category needs a name.";
+        }
+
         if (plan.Categories.GroupBy(category => category.Name.Trim(), StringComparer.OrdinalIgnoreCase).Any(group => group.Count() > 1))
         {
             return "Two categories have the same name.";
+        }
+
+        if (plan.Categories.GroupBy(category => category.Id).Any(group => group.Count() > 1))
+        {
+            return "Two categories have the same id.";
+        }
+
+        if (plan.Categories.FirstOrDefault(category => !IsColor(category.Color)) is DayCategory badColor)
+        {
+            return $"{badColor.Name} has a colour that isn't #RRGGBB.";
         }
 
         if (plan.OneOffDays.GroupBy(day => day.Date).Any(group => group.Count() > 1))
@@ -59,6 +74,11 @@ public static class DayPlanValidator
             : Validate(plan.OtherDay, plan.Categories) is string other ? $"Other days: {other}"
             : plan.OneOffDays.Select(day => Validate(day.Template, plan.Categories) is string problem ? $"{day.Date:ddd d MMM}: {problem}" : null)
                 .FirstOrDefault(problem => problem is not null);
+    }
+
+    private static bool IsColor(string? color)
+    {
+        return color is { Length: 7 } && color[0] == '#' && color.Skip(1).All(Uri.IsHexDigit);
     }
 
     private static TimeSpan Length(PlanPart part)

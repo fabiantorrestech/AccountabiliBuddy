@@ -62,8 +62,13 @@
                 </TabControl>
             </DockPanel>
 
-            <!-- Right-hand pane: banners, today's bar, then the selected page. -->
+            <!-- Right-hand pane: search, banners, today's bar, then the selected page. -->
             <DockPanel>
+                <!-- Search the page showing (highlighted as you type) or the whole app (Ctrl+F). -->
+                <Border DockPanel.Dock="Top" Padding="12,10,16,0">
+                    <views:SearchBox x:Name="Search" DataContext="{Binding Search}" HorizontalAlignment="Right"
+                                     IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).Search, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                </Border>
                 <Border DockPanel.Dock="Top" IsVisible="{Binding HasLoadError}"
                         Background="#33D13438" Padding="16,10">
                     <TextBlock Text="{Binding LoadError}" TextWrapping="Wrap" />
@@ -90,7 +95,8 @@
                     </StackPanel>
                 </Border>
 
-                <Panel x:Name="Pages" Margin="12,8,8,8">
+                <Grid Margin="12,8,8,8">
+                <Panel x:Name="Pages">
                     <views:SessionView DataContext="{Binding Session}" />
                     <views:ProfilesView DataContext="{Binding Profiles}" IsVisible="False" />
                     <views:DayPlanView DataContext="{Binding DayPlan}" IsVisible="False" />
@@ -101,6 +107,9 @@
                     <views:SettingsView DataContext="{Binding Settings}" IsVisible="False" />
                     <views:ActivityView DataContext="{Binding Activity}" IsVisible="False" />
                 </Panel>
+                <!-- Search matches on the page showing, drawn over it without taking clicks. -->
+                <controls:SearchHighlightLayer x:Name="Highlights" />
+                </Grid>
             </DockPanel>
         </DockPanel>
 

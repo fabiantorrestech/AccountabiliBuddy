@@ -25,6 +25,9 @@ public sealed partial class DayPlanViewModel : ObservableObject
     private readonly ConfigurationService _configuration;
     private readonly SessionController _sessions;
 
+    // The version of the saved plan the tab last showed; a different one arriving means it changed elsewhere.
+    private string? _shownVersion;
+
     public DayPlanViewModel(ConfigurationService configuration, SessionController sessions)
     {
         _configuration = configuration;
@@ -36,12 +39,22 @@ public sealed partial class DayPlanViewModel : ObservableObject
         OtherDay.Changed += (_, _) => RefreshUnsaved();
         Load(plan);
 
-        // Saved elsewhere (sleep times seeded at start, a restored backup): show it unless something is being edited.
+        // Saved elsewhere (sleep times seeded at start, a restored backup, a paired phone): show it unless something is
+        // being edited; then keep the edits and say so, instead of replacing them silently.
         _configuration.Changed += (_, document) =>
         {
             if (!HasUnsavedChanges)
             {
                 Load(document.DayPlan);
+                return;
+            }
+
+            string version = DayPlanVersion.Of(document.DayPlan);
+            if (version != _shownVersion)
+            {
+                _shownVersion = version;
+                StatusMessage = "The plan was changed elsewhere (e.g. from your phone). Your unsaved edits are kept: Save replaces it, Revert shows the new one.";
+                RefreshUnsaved();
             }
         };
         _sessions.StateChanged += (_, _) => IsLocked = _sessions.IsEnforcing;
@@ -60,6 +73,10 @@ public sealed partial class DayPlanViewModel : ObservableObject
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand), nameof(RevertCommand), nameof(AddCategoryCommand))]
     public partial bool IsLocked { get; set; }
+
+    /// <summary>The inner tab showing: 0 = Workdays, 1 = Other days (search can switch it).</summary>
+    [ObservableProperty]
+    public partial int SelectedTemplateIndex { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand), nameof(RevertCommand))]
@@ -137,6 +154,7 @@ public sealed partial class DayPlanViewModel : ObservableObject
 
     private void Load(DayPlan plan)
     {
+        _shownVersion = DayPlanVersion.Of(plan);
         foreach (CategoryRowViewModel row in Categories)
         {
             row.PropertyChanged -= OnCategoryRowChanged;

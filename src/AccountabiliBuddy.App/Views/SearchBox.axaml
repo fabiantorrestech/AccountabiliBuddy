@@ -1,0 +1,74 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.SearchBox"
+             x:DataType="vm:SearchViewModel">
+    <UserControl.Styles>
+        <Style Selector="Button.searchItem">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="CornerRadius" Value="6" />
+            <!-- The box keeps the keyboard focus while the dropdown is used. -->
+            <Setter Property="Focusable" Value="False" />
+        </Style>
+        <Style Selector="Button.searchItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#1F808080" />
+        </Style>
+    </UserControl.Styles>
+    <Panel>
+        <TextBox x:Name="Box" Text="{Binding Query}" Watermark="Search… (Ctrl+F)" Width="300" KeyDown="OnBoxKeyDown" LostFocus="OnBoxLostFocus" />
+        <!-- Under the box: the next match on this page, or every match in the app grouped by tab. Not light-dismissed (that
+             would eat the first click on the page and the mouse wheel): Esc, opening a result or leaving the box closes it. -->
+        <Popup x:Name="Dropdown" PlacementTarget="{Binding #Box}" Placement="BottomEdgeAlignedRight" IsOpen="{Binding IsOpen, Mode=TwoWay}"
+               IsLightDismissEnabled="False" VerticalOffset="4">
+            <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}" BorderBrush="#55808080" BorderThickness="1"
+                    CornerRadius="8" Padding="6" Width="440">
+                <StackPanel Spacing="2">
+                    <Button Classes="searchItem" Command="{Binding NextCommand}" IsVisible="{Binding HasPageMatches}">
+                        <TextBlock Text="{Binding PageText}" />
+                    </Button>
+                    <Button Classes="searchItem" Command="{Binding SearchAllCommand}" IsVisible="{Binding !ShowsAll}">
+                        <TextBlock Text="{Binding AllText}" FontWeight="SemiBold" Foreground="#14B8A6" />
+                    </Button>
+                    <TextBlock Text="Nothing found." Opacity="0.7" Margin="10,6" IsVisible="{Binding ShowsNothingFound}" />
+                    <ScrollViewer IsVisible="{Binding ShowsAll}" MaxHeight="460">
+                        <ItemsControl ItemsSource="{Binding Results}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SearchResultGroup">
+                                    <StackPanel Spacing="1" Margin="0,4,0,2">
+                                        <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold" Foreground="#14B8A6" Margin="10,2" />
+                                        <ItemsControl ItemsSource="{Binding Rows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:SearchResultRow">
+                                                    <Button Classes="searchItem" CommandParameter="{Binding}"
+                                                            Command="{Binding $parent[UserControl].((vm:SearchViewModel)DataContext).OpenCommand}">
+                                                        <Grid ColumnDefinitions="*,Auto">
+                                                            <StackPanel>
+                                                                <TextBlock TextTrimming="CharacterEllipsis">
+                                                                    <Run Text="{Binding Before}" />
+                                                                    <Run Text="{Binding Match}" Background="#80FACC15" FontWeight="SemiBold" />
+                                                                    <Run Text="{Binding After}" />
+                                                                </TextBlock>
+                                                                <TextBlock Text="{Binding Path}" FontSize="11" Opacity="0.65" TextTrimming="CharacterEllipsis" />
+                                                            </StackPanel>
+                                                            <Border Grid.Column="1" BorderBrush="#55808080" BorderThickness="1" CornerRadius="9"
+                                                                    Padding="7,1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding Kind}" FontSize="10" Opacity="0.75" />
+                                                            </Border>
+                                                        </Grid>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </StackPanel>
+            </Border>
+        </Popup>
+    </Panel>
+</UserControl>

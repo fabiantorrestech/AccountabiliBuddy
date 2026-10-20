@@ -38,7 +38,7 @@
                     </ItemsControl>
                 </StackPanel>
 
-                <TabControl>
+                <TabControl SelectedIndex="{Binding SelectedTemplateIndex}">
                     <TabItem Header="Workdays">
                         <views:DayPlanEditorView DataContext="{Binding Workday}" Margin="0,8,0,0" />
                     </TabItem>

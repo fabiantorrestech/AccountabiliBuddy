@@ -1,5 +1,10 @@
+using AccountabiliBuddy.App.Controls;
+using AccountabiliBuddy.App.Services.Search;
 using AccountabiliBuddy.App.ViewModels;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.LogicalTree;
+using Avalonia.Media;
 using Avalonia.Threading;
 
 namespace AccountabiliBuddy.App;
@@ -8,6 +13,10 @@ public partial class MainWindow : Window
 {
     // Pause between warming two pages, so clicks and typing stay responsive meanwhile.
     private static readonly TimeSpan WarmUpGap = TimeSpan.FromMilliseconds(300);
+
+    // How long a found section's card stays outlined.
+    private static readonly TimeSpan FlashTime = TimeSpan.FromMilliseconds(1400);
+    private static readonly IBrush FoundBrush = new SolidColorBrush(Color.FromRgb(250, 204, 21));
 
     private bool _warmedUp;
 
@@ -22,8 +31,96 @@ public partial class MainWindow : Window
             if (DataContext is MainWindowViewModel viewModel)
             {
                 viewModel.HideRequested += (_, _) => Hide();
+                ConnectSearch(viewModel);
             }
         };
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Key == Key.F && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            Search.FocusBox();
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// Wires the search box to the pages: highlights on the page showing, its words for "Search All Results…", and
+    /// opening a result (the tab, then the profile, date or Settings group, then the control, whose card flashes).
+    /// </summary>
+    private void ConnectSearch(MainWindowViewModel viewModel)
+    {
+        if (viewModel.Search is not SearchViewModel search)
+        {
+            return;
+        }
+
+        Highlights.Page = Pages.Children[Math.Max(0, Tabs.SelectedIndex)];
+        search.UiEntries = SearchPages;
+        search.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SearchViewModel.Query))
+            {
+                Highlights.Query = search.Query;
+            }
+        };
+        Highlights.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == SearchHighlightLayer.MatchCountProperty)
+            {
+                search.PageCount = Highlights.MatchCount;
+            }
+        };
+        search.NextRequested += (_, _) => Highlights.Next();
+
+        var navigator = new SearchNavigator(
+            tab => viewModel.SelectedTab = tab,
+            profileId => viewModel.Profiles.Select(profileId),
+            date => viewModel.Exceptions.ShowDate(date),
+            group => viewModel.Settings.SelectedGroupIndex = group,
+            template => viewModel.DayPlan.SelectedTemplateIndex = template,
+            control => Dispatcher.UIThread.Post(() => RevealFound(control as Control), DispatcherPriority.Background));
+        search.OpenRequested += (_, target) =>
+        {
+            navigator.Open(target);
+            // Data results have no control: the page's own matches show once it's laid out.
+            Dispatcher.UIThread.Post(Highlights.RecountNow, DispatcherPriority.Background);
+        };
+    }
+
+    /// <summary>Every page's words (the dev tab left out), with its tab name.</summary>
+    private IReadOnlyList<SearchEntry> SearchPages()
+    {
+        var pages = new List<(int Tab, string TabName, Control Page)>();
+        for (int i = 0; i <= SearchTabs.Settings && i < Pages.Children.Count; i++)
+        {
+            if (Tabs.Items[i] is TabItem { Header: string name })
+            {
+                pages.Add((i, name, Pages.Children[i]));
+            }
+        }
+
+        return UiSearchSource.Entries(pages);
+    }
+
+    /// <summary>Brings a found control into view and flashes the card it sits in.</summary>
+    private void RevealFound(Control? control)
+    {
+        if (control is null)
+        {
+            return;
+        }
+
+        control.BringIntoView();
+        if (control.GetLogicalAncestors().OfType<Border>().FirstOrDefault(border => SearchArea.GetName(border) is not null) is Border card)
+        {
+            card.BorderBrush = FoundBrush;
+            DispatcherTimer.RunOnce(() => card.ClearValue(Border.BorderBrushProperty), FlashTime);
+        }
+
+        Highlights.RecountNow();
     }
 
     private void OnTabChanged(object? sender, SelectionChangedEventArgs e)
@@ -48,6 +145,10 @@ public partial class MainWindow : Window
         {
             Pages.Children[i].IsVisible = i == Tabs.SelectedIndex;
         }
+
+        // Search highlights follow the page showing.
+        Highlights.Page = Pages.Children[_shownTab];
+        Dispatcher.UIThread.Post(Highlights.RecountNow, DispatcherPriority.Background);
     }
 
     /// <summary>
