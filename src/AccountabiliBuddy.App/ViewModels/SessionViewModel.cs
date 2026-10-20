@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Storage;
@@ -8,42 +7,67 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace AccountabiliBuddy.App.ViewModels;
 
-/// <summary>Session tab: current status with countdown, and controls to start manual or Pomodoro sessions.</summary>
+/// <summary>
+/// Session tab. Idle: the same start controls as the quick-session popup (profile, length, optional break,
+/// Start), sharing its remembered choices, plus Pomodoro and "until I end it" under "More ways to start".
+/// With no profiles yet it offers the example profile. Running: the status with countdown, End session, the
+/// on-screen timer toggle, and Unlock folded away.
+/// </summary>
 public sealed partial class SessionViewModel : ObservableObject
 {
     private readonly SessionController _sessions;
     private readonly ConfigurationService _configuration;
     private readonly SessionEndFlow _endFlow;
     private readonly Func<Window?> _ownerWindow;
+    private readonly QuickSessionService _quickSession;
 
     public SessionViewModel(
         SessionController sessions,
         ConfigurationService configuration,
         SessionEndFlow endFlow,
         Func<Window?> ownerWindow,
-        UnlockViewModel unlock)
+        UnlockViewModel unlock,
+        QuickSessionService quickSession)
     {
         Unlock = unlock;
         _sessions = sessions;
         _configuration = configuration;
         _endFlow = endFlow;
         _ownerWindow = ownerWindow;
+        _quickSession = quickSession;
 
-        ManualMinutes = "50";
         PomodoroCycles = "4";
         StatusTitle = string.Empty;
         StatusDetail = string.Empty;
         PomodoroSummary = string.Empty;
+        QuickStart = _quickSession.CreateStartControls();
 
-        _sessions.StateChanged += (_, _) => RefreshStatus();
+        _sessions.StateChanged += (_, state) =>
+        {
+            RefreshStatus();
+            if (!state.IsActive)
+            {
+                // Fresh controls with the choices just remembered.
+                RenewStartControls();
+            }
+        };
         _sessions.Ticked += (_, _) => RefreshStatus();
-        _configuration.Changed += (_, document) => RefreshFromConfiguration(document);
+        _configuration.Changed += (_, document) =>
+        {
+            RefreshFromConfiguration(document);
+            RenewStartControls();
+        };
 
         RefreshFromConfiguration(_configuration.Current);
         RefreshStatus();
     }
 
-    public ObservableCollection<ProfileOption> Profiles { get; } = new();
+    /// <summary>Raised when the user asks to see the Profiles tab.</summary>
+    public event EventHandler? OpenProfilesRequested;
+
+    /// <summary>The start controls (shared with the quick-session popup).</summary>
+    [ObservableProperty]
+    public partial QuickSessionViewModel QuickStart { get; set; }
 
     /// <summary>The Unlock card.</summary>
     public UnlockViewModel Unlock { get; }
@@ -51,14 +75,13 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Hide or show the on-screen timer for the running session.</summary>
     public TimerToggleViewModel? TimerToggle { get; init; }
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(StartManualCommand))]
-    [NotifyCanExecuteChangedFor(nameof(StartPomodoroCommand))]
-    public partial ProfileOption? SelectedProfile { get; set; }
+    /// <summary>Today's plan, for the "next scheduled" line.</summary>
+    public DayBarViewModel? Day { get; init; }
 
-    /// <summary>Blank = runs until stopped.</summary>
-    [ObservableProperty]
-    public partial string ManualMinutes { get; set; }
+    /// <summary>E.g. "Tip: press Ctrl+Alt+F anywhere to start a session from any app."</summary>
+    public string HotkeyTip => _quickSession.HotkeyError is null
+        ? $"Tip: press {_quickSession.Preferences.Hotkey} anywhere to start a session from any app."
+        : string.Empty;
 
     /// <summary>Blank = runs until stopped.</summary>
     [ObservableProperty]
@@ -77,33 +100,28 @@ public sealed partial class SessionViewModel : ObservableObject
     public partial string? ErrorMessage { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsStart), nameof(ShowsWelcome))]
     public partial bool HasNoProfiles { get; set; }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(StartManualCommand))]
-    [NotifyCanExecuteChangedFor(nameof(StartPomodoroCommand))]
+    [NotifyPropertyChangedFor(nameof(ShowsStart), nameof(ShowsWelcome))]
     [NotifyCanExecuteChangedFor(nameof(EndSessionCommand))]
     public partial bool IsSessionActive { get; set; }
 
-    private bool CanStart => SelectedProfile is not null && !IsSessionActive;
+    /// <summary>The start controls show when nothing runs and there is a profile to start with.</summary>
+    public bool ShowsStart => !IsSessionActive && !HasNoProfiles;
 
-    [RelayCommand(CanExecute = nameof(CanStart))]
-    private void StartManual()
+    /// <summary>True when nothing runs and there are no profiles yet: the welcome card shows instead.</summary>
+    public bool ShowsWelcome => !IsSessionActive && HasNoProfiles;
+
+    [RelayCommand]
+    private void StartPomodoro()
     {
-        if (!TryParseOptionalPositive(ManualMinutes, out int? minutes))
+        if (QuickStart.SelectedProfile is not { } profile || IsSessionActive)
         {
-            ErrorMessage = "Minutes must be a whole number above 0, or blank to run until you stop it.";
             return;
         }
 
-        ErrorMessage = null;
-        TimeSpan? duration = minutes is int value ? TimeSpan.FromMinutes(value) : null;
-        _sessions.StartManual(SelectedProfile!.Id, duration);
-    }
-
-    [RelayCommand(CanExecute = nameof(CanStart))]
-    private void StartPomodoro()
-    {
         if (!TryParseOptionalPositive(PomodoroCycles, out int? cycles))
         {
             ErrorMessage = "Cycles must be a whole number above 0, or blank to run until you stop it.";
@@ -111,7 +129,20 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         ErrorMessage = null;
-        _sessions.StartPomodoro(SelectedProfile!.Id, cycles);
+        _sessions.StartPomodoro(profile.Id, cycles);
+    }
+
+    /// <summary>A session with no set end: it runs until ended (with the usual wait and reason).</summary>
+    [RelayCommand]
+    private void StartOpenEnded()
+    {
+        if (QuickStart.SelectedProfile is not { } profile || IsSessionActive)
+        {
+            return;
+        }
+
+        ErrorMessage = null;
+        _sessions.StartManual(profile.Id, null);
     }
 
     [RelayCommand(CanExecute = nameof(IsSessionActive))]
@@ -120,10 +151,31 @@ public sealed partial class SessionViewModel : ObservableObject
         await _endFlow.TryEndSessionAsync(_ownerWindow());
     }
 
+    /// <summary>Adds the example "Coding" profile (blocks common distracting sites), ready to start with.</summary>
+    [RelayCommand]
+    private async Task AddExampleProfileAsync()
+    {
+        FocusProfile example = ExampleProfiles.Coding();
+        await _configuration.UpdateAsync(document => document with { Profiles = document.Profiles.Append(example).ToList() });
+        ErrorMessage = _configuration.IsReadOnly ? "Not added: settings are read-only (see banner)." : null;
+    }
+
+    [RelayCommand]
+    private void OpenProfiles()
+    {
+        OpenProfilesRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RenewStartControls()
+    {
+        QuickSessionViewModel old = QuickStart;
+        QuickStart = _quickSession.CreateStartControls();
+        old.Dispose();
+    }
+
     private void RefreshFromConfiguration(ProfileDocument document)
     {
-        SelectedProfile = ProfileOptions.Refresh(Profiles, document.Profiles, SelectedProfile?.Id);
-        HasNoProfiles = Profiles.Count == 0;
+        HasNoProfiles = document.Profiles.Count == 0;
 
         PomodoroSettings pomodoro = document.PomodoroDefaults;
         PomodoroSummary =

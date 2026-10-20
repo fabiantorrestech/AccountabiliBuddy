@@ -21,6 +21,9 @@ public sealed partial class ProfilesViewModel : ObservableObject
     // Every rule id this tab already has an editor for, so rules added elsewhere can be told apart.
     private readonly HashSet<Guid> _knownRuleIds = new();
 
+    // Every saved profile this tab has seen, so a profile added elsewhere can be told from one deleted here.
+    private readonly HashSet<Guid> _knownProfileIds = new();
+
     public ProfilesViewModel(
         ConfigurationService configuration,
         SessionController sessions,
@@ -121,6 +124,7 @@ public sealed partial class ProfilesViewModel : ObservableObject
         }
 
         _knownRuleIds.UnionWith(built.SelectMany(profile => profile.Rules).Select(rule => rule.Id));
+        _knownProfileIds.UnionWith(built.Select(profile => profile.Id));
         PendingChanges? waiting = await _configuration.UpdateAsync(document => document with { Profiles = built });
         if (!_configuration.IsReadOnly)
         {
@@ -153,8 +157,10 @@ public sealed partial class ProfilesViewModel : ObservableObject
 
         Profiles.Clear();
         _knownRuleIds.Clear();
+        _knownProfileIds.Clear();
         foreach (FocusProfile profile in _configuration.Editing.Profiles)
         {
+            _knownProfileIds.Add(profile.Id);
             Profiles.Add(ProfileEditorViewModel.FromProfile(profile, _overlays.Current.SavedFor(profile.Id)));
             _knownRuleIds.UnionWith(profile.Rules.Select(rule => rule.Id));
         }
@@ -187,6 +193,15 @@ public sealed partial class ProfilesViewModel : ObservableObject
         foreach (FocusProfile profile in _configuration.Editing.Profiles)
         {
             ProfileEditorViewModel? editor = Profiles.FirstOrDefault(candidate => candidate.Id == profile.Id);
+            if (editor is null && _knownProfileIds.Add(profile.Id))
+            {
+                // A whole profile added elsewhere (the Session tab's example profile).
+                Profiles.Add(ProfileEditorViewModel.FromProfile(profile, _overlays.Current.SavedFor(profile.Id)));
+                _knownRuleIds.UnionWith(profile.Rules.Select(rule => rule.Id));
+                SelectedProfile ??= Profiles[^1];
+                continue;
+            }
+
             foreach (Rule rule in profile.Rules.Where(rule => _knownRuleIds.Add(rule.Id)))
             {
                 editor?.AddSavedRule(rule);

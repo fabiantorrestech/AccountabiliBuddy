@@ -1,17 +1,20 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.SessionView"
              x:DataType="vm:SessionViewModel">
     <ScrollViewer>
-        <StackPanel Margin="16" Spacing="20" MaxWidth="640" HorizontalAlignment="Left">
+        <StackPanel Margin="16" Spacing="16" Width="560" HorizontalAlignment="Left">
 
-            <Border Padding="20" CornerRadius="8" Background="#220F766E" BorderBrush="#550F766E" BorderThickness="1">
+            <!-- Running: what's going on, and the ways out. -->
+            <Border IsVisible="{Binding IsSessionActive}" Padding="20" CornerRadius="10"
+                    Background="#220F766E" BorderBrush="#550F766E" BorderThickness="1">
                 <StackPanel Spacing="6">
-                    <TextBlock Text="{Binding StatusTitle}" FontSize="24" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding StatusTitle}" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding StatusDetail}" FontSize="16" />
                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-                        <Button Content="End session…" Command="{Binding EndSessionCommand}" IsVisible="{Binding IsSessionActive}" />
+                        <Button Content="End session…" Command="{Binding EndSessionCommand}" />
                         <Button DataContext="{Binding TimerToggle}" x:DataType="vm:TimerToggleViewModel"
                                 Content="{Binding ButtonText}" Command="{Binding ToggleCommand}"
                                 IsVisible="{Binding IsVisible, FallbackValue=False}" />
@@ -19,16 +22,63 @@
                 </StackPanel>
             </Border>
 
-            <!-- Unlock: lift the blocks after a wait (options are set per profile). -->
-            <Border DataContext="{Binding Unlock}" IsVisible="{Binding IsVisible}" Padding="16,12" CornerRadius="8"
+            <!-- New here: no profiles yet. -->
+            <Border IsVisible="{Binding ShowsWelcome}" Padding="20" CornerRadius="10"
                     Background="#1A808080" BorderBrush="#33808080" BorderThickness="1">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Welcome! Let's set up your first focus profile" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock TextWrapping="Wrap" Opacity="0.85"
+                               Text="A profile says what counts as distracting while you focus (sites and apps to block). Start with the example, which blocks common time-wasters like YouTube, Reddit and social media; you can change it any time." />
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                        <Button Content="Add the example profile" Command="{Binding AddExampleProfileCommand}" Classes="accent" />
+                        <Button Content="Make my own in Profiles" Command="{Binding OpenProfilesCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Idle: start a session. -->
+            <StackPanel Spacing="16" IsVisible="{Binding ShowsStart}">
+                <Border Padding="20" CornerRadius="10" Background="#1A808080" BorderBrush="#33808080" BorderThickness="1">
+                    <StackPanel Spacing="14">
+                        <TextBlock Text="Start focusing" FontSize="22" FontWeight="SemiBold" />
+                        <views:QuickStartPanel DataContext="{Binding QuickStart}" />
+                        <TextBlock DataContext="{Binding Day}" x:DataType="vm:DayBarViewModel"
+                                   Text="{Binding StatusText, FallbackValue=''}" Opacity="0.75" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding HotkeyTip}" Opacity="0.6" FontSize="12" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <Expander Header="More ways to start" HorizontalAlignment="Stretch">
+                    <StackPanel Spacing="16">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Pomodoro" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding PomodoroSummary}" Opacity="0.75" TextWrapping="Wrap" />
+                            <TextBlock Text="Focus cycles (blank = until you stop it)" Opacity="0.75" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBox Text="{Binding PomodoroCycles}" Width="120" />
+                                <Button Content="Start Pomodoro" Command="{Binding StartPomodoroCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="No set end" FontWeight="SemiBold" />
+                            <TextBlock Text="Runs until you end it (with the usual wait and reason)." Opacity="0.75" TextWrapping="Wrap" />
+                            <Button Content="Start until I end it" Command="{Binding StartOpenEndedCommand}" />
+                        </StackPanel>
+                        <TextBlock Text="Uses the profile picked above. Pomodoro lengths are set in Settings." Opacity="0.6" FontSize="12" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Expander>
+            </StackPanel>
+
+            <!-- Unlock: lift the blocks after a wait (options are set per profile). Folded away unless it's in progress. -->
+            <Expander DataContext="{Binding Unlock}" x:DataType="vm:UnlockViewModel" IsVisible="{Binding IsVisible}"
+                      IsExpanded="{Binding !IsFormVisible, Mode=OneWay}" HorizontalAlignment="Stretch"
+                      Header="Unlock (lift the blocks after a wait)">
                 <StackPanel Spacing="8">
-                    <TextBlock Text="Unlock" FontSize="16" FontWeight="SemiBold" />
                     <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
                     <StackPanel Spacing="8" IsVisible="{Binding IsFormVisible}">
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" MinWidth="240" />
-                            <ComboBox ItemsSource="{Binding RelockChoices}" SelectedItem="{Binding SelectedRelock}" MinWidth="200" />
+                            <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" MinWidth="220" />
+                            <ComboBox ItemsSource="{Binding RelockChoices}" SelectedItem="{Binding SelectedRelock}" MinWidth="180" />
                             <TextBox Text="{Binding RelockTimeText}" IsVisible="{Binding IsRelockTimeVisible}"
                                      PlaceholderText="e.g. 6pm" Width="100" />
                         </StackPanel>
@@ -40,36 +90,7 @@
                             IsVisible="{Binding IsUnlocked}" />
                     <TextBlock Text="{Binding ErrorMessage}" Foreground="#E5484D" TextWrapping="Wrap" />
                 </StackPanel>
-            </Border>
-
-            <StackPanel Spacing="20" IsVisible="{Binding !IsSessionActive}">
-                <StackPanel Spacing="6">
-                    <TextBlock Text="Profile" FontWeight="SemiBold" />
-                    <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}"
-                              MinWidth="260" PlaceholderText="Choose a profile" />
-                    <TextBlock IsVisible="{Binding HasNoProfiles}" Opacity="0.75" TextWrapping="Wrap"
-                               Text="No profiles yet. Open the Profiles tab and add one (or the example profile)." />
-                </StackPanel>
-
-                <StackPanel Spacing="6">
-                    <TextBlock Text="Manual session" FontSize="16" FontWeight="SemiBold" />
-                    <TextBlock Text="Minutes (leave blank to run until you stop it)" Opacity="0.75" />
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBox Text="{Binding ManualMinutes}" Width="120" />
-                        <Button Content="Start manual session" Command="{Binding StartManualCommand}" />
-                    </StackPanel>
-                </StackPanel>
-
-                <StackPanel Spacing="6">
-                    <TextBlock Text="Pomodoro" FontSize="16" FontWeight="SemiBold" />
-                    <TextBlock Text="{Binding PomodoroSummary}" Opacity="0.75" TextWrapping="Wrap" />
-                    <TextBlock Text="Focus cycles (leave blank to run until you stop it)" Opacity="0.75" />
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBox Text="{Binding PomodoroCycles}" Width="120" />
-                        <Button Content="Start Pomodoro" Command="{Binding StartPomodoroCommand}" />
-                    </StackPanel>
-                </StackPanel>
-            </StackPanel>
+            </Expander>
 
             <TextBlock Text="{Binding ErrorMessage}" Foreground="#E5484D" TextWrapping="Wrap" />
         </StackPanel>

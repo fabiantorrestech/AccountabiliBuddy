@@ -30,7 +30,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Activity = activity;
         ShowDevTools = showDevTools;
         LoadError = loadError;
+        session.OpenProfilesRequested += (_, _) => SelectedTab = ProfilesTab;
     }
+
+    private const int ProfilesTab = 1;
+
+    /// <summary>Index of the tab shown, in sidebar order (Session, Profiles, Schedule, …).</summary>
+    [ObservableProperty]
+    public partial int SelectedTab { get; set; }
 
     public SessionViewModel Session { get; }
 

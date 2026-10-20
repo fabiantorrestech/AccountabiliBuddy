@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        xmlns:views="using:AccountabiliBuddy.App.Views"
         x:Class="AccountabiliBuddy.App.Views.QuickSessionWindow"
         x:DataType="vm:QuickSessionViewModel"
         Title="Quick focus"
@@ -37,74 +38,7 @@
 
             <!-- Start controls -->
             <StackPanel Spacing="16" IsVisible="{Binding CanChoose}">
-                <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding HasProfiles}">
-                    <TextBlock Text="Profile" VerticalAlignment="Center" Margin="0,0,12,0" Opacity="0.8" />
-                    <ComboBox x:Name="ProfileBox" Grid.Column="1" ItemsSource="{Binding ProfileOptions}"
-                              SelectedItem="{Binding SelectedProfile}" HorizontalAlignment="Stretch" />
-                </Grid>
-
-                <StackPanel Spacing="8">
-                    <TextBlock Text="Focus" Opacity="0.8" />
-                    <ItemsControl ItemsSource="{Binding Presets}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <UniformGrid Rows="1" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:DurationPresetViewModel">
-                                <Button Content="{Binding Label}" ToolTip.Tip="{Binding ToolTip}"
-                                        Classes.accent="{Binding IsSelected}"
-                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                                        Margin="3,0" Padding="0,8" FontSize="16"
-                                        Command="{Binding $parent[ItemsControl].((vm:QuickSessionViewModel)DataContext).SelectPresetCommand}"
-                                        CommandParameter="{Binding}" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <!-- 5-minute steps; 1-minute while Shift is held. -->
-                    <Grid ColumnDefinitions="*,Auto">
-                        <Slider Minimum="5" Maximum="180" TickFrequency="{Binding SliderStep}" IsSnapToTickEnabled="True"
-                                SmallChange="{Binding SliderStep}" LargeChange="15" Value="{Binding SliderMinutes}"
-                                ToolTip.Tip="Hold Shift for 1-minute steps" />
-                        <TextBlock Grid.Column="1" Text="{Binding FocusLabel}" FontSize="16" FontWeight="SemiBold"
-                                   MinWidth="70" Margin="12,0,0,0" TextAlignment="Right"
-                                   VerticalAlignment="Center" HorizontalAlignment="Right" />
-                    </Grid>
-
-                    <!-- End time: click to choose one. -->
-                    <Button x:Name="EndTimeButton" Command="{Binding BeginEditUntilCommand}"
-                            IsVisible="{Binding !IsEditingUntil}" HorizontalAlignment="Right"
-                            Background="Transparent" BorderThickness="0" Padding="2,0" Cursor="Hand"
-                            ToolTip.Tip="Click to choose when the session should end">
-                        <TextBlock Text="{Binding EndTimeText}" FontSize="13" Opacity="0.75" TextDecorations="Underline" />
-                    </Button>
-                    <StackPanel Spacing="6" IsVisible="{Binding IsEditingUntil}" HorizontalAlignment="Right">
-                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
-                            <TextBlock Text="Run until" VerticalAlignment="Center" Opacity="0.8" />
-                            <TextBox x:Name="UntilBox" Text="{Binding UntilText}" Width="120" PlaceholderText="6:30pm" />
-                            <Button Content="Set" Command="{Binding ApplyUntilCommand}" Classes="accent" />
-                            <Button Content="✕" Command="{Binding CancelEditUntilCommand}" ToolTip.Tip="Cancel (Esc)" />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
-                            <TextBlock Text="or pick" VerticalAlignment="Center" Opacity="0.6" FontSize="12" />
-                            <TimePicker x:Name="UntilPicker" SelectedTime="{Binding PickerTime}" MinuteIncrement="5" />
-                        </StackPanel>
-                        <TextBlock Text="{Binding UntilError}" IsVisible="{Binding HasUntilError}" Foreground="#E76F51"
-                                   HorizontalAlignment="Right" TextWrapping="Wrap" />
-                    </StackPanel>
-                </StackPanel>
-
-                <Grid ColumnDefinitions="Auto,*,70">
-                    <CheckBox Content="Break after" IsChecked="{Binding BreakEnabled}" Margin="0,0,12,0" />
-                    <Slider Grid.Column="1" Minimum="1" Maximum="30" TickFrequency="1" IsSnapToTickEnabled="True"
-                            Value="{Binding BreakMinutes}" IsEnabled="{Binding BreakEnabled}" />
-                    <TextBlock Grid.Column="2" Text="{Binding BreakLabel}" FontSize="16" VerticalAlignment="Center"
-                               HorizontalAlignment="Right" Opacity="{Binding BreakLabelOpacity}" />
-                </Grid>
-
-                <Button Content="{Binding StartLabel}" Command="{Binding StartCommand}" Classes="accent"
-                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,12" FontSize="16" />
+                <views:QuickStartPanel x:Name="StartPanel" />
 
                 <TextBlock Text="Enter start · Esc close · 1–5 presets · ← → ±5 min (Shift ±1) · B break · click the time to set an end"
                            FontSize="12" Opacity="0.55" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />

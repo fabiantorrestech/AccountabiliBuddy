@@ -1,10 +1,8 @@
-using System.ComponentModel;
 using AccountabiliBuddy.App.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media.Transformation;
-using Avalonia.Threading;
 
 namespace AccountabiliBuddy.App.Views;
 
@@ -12,12 +10,10 @@ namespace AccountabiliBuddy.App.Views;
 /// The quick-session card. Keyboard first: Enter starts, Esc closes, 1–5 pick a preset, ←/→ change the length
 /// by 5 minutes (Shift: 1 minute), B toggles the break. Holding Shift also makes the slider move in 1-minute steps.
 /// While the end-time editor is open, Enter applies the time and Esc cancels the edit.
-/// Clicking anywhere else closes the card.
+/// Clicking anywhere else closes the card. The controls themselves are <see cref="QuickStartPanel"/>.
 /// </summary>
 public partial class QuickSessionWindow : Window
 {
-    private QuickSessionViewModel? _subscribed;
-
     public QuickSessionWindow()
     {
         InitializeComponent();
@@ -37,7 +33,6 @@ public partial class QuickSessionWindow : Window
         AddHandler(PointerMovedEvent, OnPreviewPointer, RoutingStrategies.Tunnel);
         AddHandler(PointerPressedEvent, OnPreviewPointer, RoutingStrategies.Tunnel);
         Deactivated += OnDeactivated;
-        DataContextChanged += (_, _) => SubscribeToViewModel();
     }
 
     /// <summary>Raised when the popup loses focus to another window (a click elsewhere).</summary>
@@ -45,46 +40,12 @@ public partial class QuickSessionWindow : Window
 
     private QuickSessionViewModel? ViewModel => DataContext as QuickSessionViewModel;
 
-    private void SubscribeToViewModel()
-    {
-        if (_subscribed is not null)
-        {
-            _subscribed.PropertyChanged -= OnViewModelPropertyChanged;
-        }
-
-        _subscribed = ViewModel;
-        if (_subscribed is not null)
-        {
-            _subscribed.PropertyChanged += OnViewModelPropertyChanged;
-        }
-    }
-
-    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(QuickSessionViewModel.IsEditingUntil))
-        {
-            // Put the cursor in the time box when the editor opens; back on the card when it closes.
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (ViewModel?.IsEditingUntil == true)
-                {
-                    UntilBox.Focus();
-                    UntilBox.SelectAll();
-                }
-                else
-                {
-                    Focus();
-                }
-            });
-        }
-    }
-
     private void OnDeactivated(object? sender, EventArgs e)
     {
         // Drop-downs (profile list, time picker) open in their own popups; that must not count as clicking away.
         // The time picker cannot report whether it is open, so the card stays while the end-time editor is open;
         // the blurred backdrop and Esc still close it.
-        if (ProfileBox?.IsDropDownOpen != true && ViewModel?.IsEditingUntil != true)
+        if (!StartPanel.IsProfileDropDownOpen && ViewModel?.IsEditingUntil != true)
         {
             FocusLost?.Invoke(this, EventArgs.Empty);
         }
@@ -109,7 +70,7 @@ public partial class QuickSessionWindow : Window
     private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
     {
         QuickSessionViewModel? viewModel = ViewModel;
-        if (viewModel is null || ProfileBox?.IsDropDownOpen == true)
+        if (viewModel is null || StartPanel.IsProfileDropDownOpen)
         {
             return;
         }

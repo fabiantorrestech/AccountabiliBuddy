@@ -263,9 +263,10 @@ public partial class App : Application
 
         var mainViewModel = new MainWindowViewModel(
             new SessionViewModel(
-                _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks))
+                _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks), _quickSession)
             {
                 TimerToggle = new TimerToggleViewModel(_sessionOverlay),
+                Day = timelineDay,
             },
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings),
             new ScheduleViewModel(_configuration, _sessions, pendingChanges),

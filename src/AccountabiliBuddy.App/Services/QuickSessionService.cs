@@ -13,7 +13,8 @@ namespace AccountabiliBuddy.App.Services;
 /// The quick-session popup: opened by the global shortcut, the Start menu shortcut or the tray.
 /// Shows a blurred snapshot of the monitor under the cursor with the popup centred on it, starts the chosen
 /// session, remembers the choices for next time, and reopens ("start another?") when a session it started
-/// finishes on its own. Use from the UI thread only (the hotkey event is marshalled here).
+/// finishes on its own. The Session tab uses the same start controls (<see cref="CreateStartControls"/>) and
+/// shares the remembered choices. Use from the UI thread only (the hotkey event is marshalled here).
 /// </summary>
 public sealed class QuickSessionService
 {
@@ -108,6 +109,15 @@ public sealed class QuickSessionService
         Show(sessionCompleted: false);
     }
 
+    /// <summary>Start controls for the Session tab, with the last choices; Start starts the session there.</summary>
+    public QuickSessionViewModel CreateStartControls()
+    {
+        var viewModel = new QuickSessionViewModel(
+            _configuration.Current.Profiles, Preferences, sessionCompleted: false, runningSessionText: null, _sessions.TimeProvider);
+        viewModel.StartRequested += async (_, _) => await StartAsync(viewModel, fromPopup: false);
+        return viewModel;
+    }
+
     /// <summary>Shortcut pressed: open the popup, or close it if it is already open.</summary>
     public void Toggle()
     {
@@ -144,7 +154,7 @@ public sealed class QuickSessionService
 
         var viewModel = new QuickSessionViewModel(
             _configuration.Current.Profiles, Preferences, sessionCompleted, runningText, _sessions.TimeProvider);
-        viewModel.StartRequested += async (_, _) => await StartAsync(viewModel);
+        viewModel.StartRequested += async (_, _) => await StartAsync(viewModel, fromPopup: true);
         viewModel.EndSessionRequested += async (_, _) =>
         {
             CloseAll();
@@ -167,7 +177,8 @@ public sealed class QuickSessionService
         _window.Show();
     }
 
-    private async Task StartAsync(QuickSessionViewModel viewModel)
+    /// <param name="fromPopup">Only a session started from the popup reopens it ("start another?") when it ends.</param>
+    private async Task StartAsync(QuickSessionViewModel viewModel, bool fromPopup)
     {
         if (viewModel.SelectedProfile is not { } profile)
         {
@@ -186,7 +197,7 @@ public sealed class QuickSessionService
             return;
         }
 
-        _ownsRunningSession = true;
+        _ownsRunningSession = fromPopup;
         Preferences = viewModel.ToPreferences(Preferences.Hotkey);
         await SavePreferencesAsync();
     }
