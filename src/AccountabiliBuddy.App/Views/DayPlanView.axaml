@@ -1,0 +1,78 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             xmlns:domain="using:AccountabiliBuddy.Core.Domain"
+             x:Class="AccountabiliBuddy.App.Views.DayPlanView"
+             x:DataType="vm:DayPlanViewModel">
+    <DockPanel Margin="12">
+        <Border DockPanel.Dock="Top" IsVisible="{Binding IsLocked}" Background="#33F59E0B"
+                Padding="12,8" Margin="0,0,0,12" CornerRadius="6">
+            <TextBlock Text="The day plan is locked while a focus session you started is running." />
+        </Border>
+
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
+            <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" />
+            <Button Content="Revert" Command="{Binding RevertCommand}" />
+            <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Margin="8,0,0,0" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <ScrollViewer>
+            <StackPanel Spacing="18" MaxWidth="1000" HorizontalAlignment="Left" IsEnabled="{Binding !IsLocked}">
+                <TextBlock TextWrapping="Wrap" Opacity="0.75"
+                           Text="How your days are meant to go. Watch parts are when the buddy asks about new sites and counts drift, Rest parts are breaks, and Sleep sets bedtime and wake time. A part that crosses midnight is the night before the day it ends on. Single dates are changed in Exceptions." />
+
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Workdays" FontSize="16" FontWeight="SemiBold" />
+                    <ItemsControl ItemsSource="{Binding Days}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="4" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:WorkdayChip">
+                                <ToggleButton Content="{Binding Label}" IsChecked="{Binding IsOn}" MinWidth="48" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <TabControl>
+                    <TabItem Header="Workdays">
+                        <views:DayPlanEditorView DataContext="{Binding Workday}" Margin="0,8,0,0" />
+                    </TabItem>
+                    <TabItem Header="Other days">
+                        <views:DayPlanEditorView DataContext="{Binding OtherDay}" Margin="0,8,0,0" />
+                    </TabItem>
+                </TabControl>
+
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Categories" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="Watch: the buddy asks about new sites and counts drift · Rest: no asking; parked Today items come up · Sleep: bedtime reminder and the shaded night."
+                               Opacity="0.75" TextWrapping="Wrap" />
+                    <ItemsControl ItemsSource="{Binding Categories}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:CategoryRowViewModel">
+                                <Grid ColumnDefinitions="200,90,120,Auto" ColumnSpacing="8" Margin="0,2">
+                                    <TextBox Text="{Binding Name}" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding Colors}" SelectedItem="{Binding SelectedColor}" HorizontalAlignment="Stretch">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:ColorChoice">
+                                                <Border Width="40" Height="14" CornerRadius="3" Background="{Binding Brush}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <ComboBox Grid.Column="2" ItemsSource="{x:Static vm:CategoryRowViewModel.Behaviors}" SelectedItem="{Binding Behavior}"
+                                              HorizontalAlignment="Stretch" />
+                                    <Button Grid.Column="3" Content="Delete" Command="{Binding DeleteCommand}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button Content="Add a category" Command="{Binding AddCategoryCommand}" />
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

@@ -20,6 +20,7 @@ public sealed class BedtimeReminderService : IDisposable
 
     private static readonly TimeSpan CheckInterval = TimeSpan.FromSeconds(30);
 
+    private readonly Func<DayPlan> _plan;
     private readonly SleepSettingsService _sleep;
     private readonly SqliteJsonDocumentStore _store;
     private readonly TimeProvider _time;
@@ -28,8 +29,10 @@ public sealed class BedtimeReminderService : IDisposable
     // The bedtime of the last night reminded about.
     private DateTime? _lastReminded;
 
-    public BedtimeReminderService(SleepSettingsService sleep, SqliteJsonDocumentStore store, TimeProvider time)
+    /// <param name="plan">The current day plan, which sets each night's bedtime.</param>
+    public BedtimeReminderService(SleepSettingsService sleep, SqliteJsonDocumentStore store, TimeProvider time, Func<DayPlan> plan)
     {
+        _plan = plan;
         _sleep = sleep;
         _store = store;
         _time = time;
@@ -73,7 +76,7 @@ public sealed class BedtimeReminderService : IDisposable
         }
 
         DateTime now = TimeZoneInfo.ConvertTime(_time.GetUtcNow(), _time.LocalTimeZone).DateTime;
-        LocalWindow night = settings.ToSchedule().NightAround(now);
+        LocalWindow night = settings.ToSchedule(_plan()).NightAround(now);
         TimeSpan untilBed = night.Start - now;
         if (night.End <= night.Start || untilBed <= TimeSpan.Zero || untilBed > Lead || _lastReminded == night.Start)
         {

@@ -13,8 +13,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>
 /// The setup assistant: welcome → bring your blocks (other blockers found on this PC, a LeechBlock file, or a pasted
 /// list) → your usage (suggestions from Cold Turkey's statistics, optional copy into History) → review (profiles and
-/// weekly blocks to create) → browsers → basics → done. The import is saved when leaving the review page, in one
-/// change through <see cref="ConfigurationService"/>; it only adds profiles and blocks. Importing is locked during a
+/// their rules) → browsers → basics → done. The import is saved when leaving the review page, in one
+/// change through <see cref="ConfigurationService"/>; it only adds profiles. Importing is locked during a
 /// focus session.
 /// </summary>
 public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposable
@@ -304,7 +304,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AddSource(new DetectedImport(ImportSource.Pasted, name, new[] { list }, $"{entries.Count} site(s)/app(s), started by hand", null));
         PasteText = string.Empty;
         PasteName = "Pasted list";
-        StatusMessage = $"Added '{name}'. You can give it times in the Schedule tab after importing.";
+        StatusMessage = $"Added '{name}'.";
     }
 
     private async Task ScanAsync()
@@ -436,7 +436,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         PlannedProfiles.Clear();
         foreach (PlannedProfile planned in _plan.Profiles)
         {
-            var row = new PlannedProfileRowViewModel(planned, _plan.Blocks.Count(block => block.ProfileId == planned.Profile.Id));
+            var row = new PlannedProfileRowViewModel(planned);
             row.PropertyChanged += OnPlannedProfileChanged;
             PlannedProfiles.Add(row);
         }
@@ -461,27 +461,10 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         NextCommand.NotifyCanExecuteChanged();
     }
 
-    /// <summary>One line per day with imported weekly blocks, Monday first.</summary>
+    /// <summary>Imported schedules aren't copied (ADR 18): the blocker they came from keeps enforcing them.</summary>
     private void RefreshWeekPreview()
     {
-        Dictionary<Guid, PlannedProfileRowViewModel> included = PlannedProfiles.Where(row => row.IsIncluded)
-            .ToDictionary(row => row.Planned.Profile.Id);
-        var lines = new List<string>();
-        CultureInfo culture = CultureInfo.CurrentCulture;
-        foreach (DayOfWeek day in new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday })
-        {
-            List<string> parts = _plan.Blocks
-                .Where(block => block.Day == day && included.ContainsKey(block.ProfileId))
-                .OrderBy(block => block.Start)
-                .Select(block => $"{block.Start:HH\\:mm}–{block.End:HH\\:mm} {included[block.ProfileId].Name}")
-                .ToList();
-            if (parts.Count > 0)
-            {
-                lines.Add($"{culture.DateTimeFormat.GetAbbreviatedDayName(day)}:  {string.Join("  ·  ", parts)}");
-            }
-        }
-
-        WeekPreview = lines.Count == 0 ? "No weekly blocks: the imported profiles are started by hand." : string.Join("\n", lines);
+        WeekPreview = "Schedules stay with the blocker they came from, which keeps enforcing them. Plan your days in the Day plan tab.";
     }
 
     private async Task ImportAsync()
@@ -499,14 +482,13 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         {
             if (included.Count > 0)
             {
-                HashSet<Guid> ids = included.Select(row => row.Planned.Profile.Id).ToHashSet();
                 List<PlannedProfile> profiles = included
                     .Select(row => row.Planned with { Profile = row.Planned.Profile with { Name = NameOf(row) } })
                     .ToList();
-                var plan = new ImportPlan(profiles, _plan.Blocks.Where(block => ids.Contains(block.ProfileId)).ToList(), _plan.Notes);
+                var plan = new ImportPlan(profiles, _plan.Notes);
                 PendingChanges? pending = await _configuration.UpdateAsync(document => plan.ApplyTo(document));
                 _hasImported = true;
-                summary.Add($"Imported {profiles.Count} profile(s) and {plan.Blocks.Count} weekly block(s).");
+                summary.Add($"Imported {profiles.Count} profile(s).");
                 if (pending is not null)
                 {
                     summary.Add("Some of it loosens your setup, so it takes effect after the countdown (see the Profiles tab).");

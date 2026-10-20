@@ -181,7 +181,7 @@ public sealed partial class SetupViewModel : ObservableObject
         IsStartupGranted = _startup.IsEnabled;
         StartupStatus = IsStartupGranted
             ? "Starts in the tray when you sign in to Windows."
-            : "Does not start with Windows. Scheduled blocks only run while the app is open.";
+            : "Does not start with Windows. The buddy only watches while the app is open.";
     }
 
     private void RefreshBrowsers()

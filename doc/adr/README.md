@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0018](0018-leave-enforcement-to-the-blockers.md) | Leave enforcement to the blockers | Accepted | — |
 | [0017](0017-keep-the-section-of-a-site-readable-in-activity-history.md) | Keep the section of a site readable in activity history | Accepted | — |
 | [0016](0016-read-browser-addresses-on-android-with-an-accessibility-service.md) | Read browser addresses on Android with an accessibility service | Accepted | — |
 | [0015](0015-share-activity-history-between-paired-devices.md) | Share activity history between paired devices | Accepted | — |

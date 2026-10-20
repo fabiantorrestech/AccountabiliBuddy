@@ -190,7 +190,7 @@ public partial class App : Application
         var browserSetup = new WindowsBrowserSetup(AppPaths.NativeHostPath, AppPaths.BundledExtensionFolder, dataDirectory);
         _checkpoints = new SessionCheckpointService(_sessions, documents);
         SavedSession? savedSession = _checkpoints.LoadBlocking();
-        // Loaded before the sessions start, so an unlock in effect keeps scheduled blocks from starting at launch.
+        // Loaded before the sessions start, so an unlock in effect is known at launch.
         _unlocks = new UnlockService(_sessions, documents);
         _unlocks.LoadBlocking();
         _watchedBrowsers = new WatchedBrowsersService(_browserSource, documents);
@@ -248,7 +248,8 @@ public partial class App : Application
         overlaySettings.LoadBlocking();
         var sleepSettings = new SleepSettingsService(documents);
         sleepSettings.LoadBlocking();
-        _bedtimeReminder = new BedtimeReminderService(sleepSettings, documents, time);
+        _ = FollowPlanForSleepAsync(documents, sleepSettings);
+        _bedtimeReminder = new BedtimeReminderService(sleepSettings, documents, time, () => _configuration!.Current.DayPlan);
         _bedtimeReminder.LoadBlocking();
         var omittedSessions = new OmittedSessionsService(documents);
         omittedSessions.LoadBlocking();
@@ -331,7 +332,7 @@ public partial class App : Application
                 ColdTurkey = new ColdTurkeyStatusViewModel(_coldTurkey, _sessions),
             },
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, _link),
-            new ScheduleViewModel(_configuration, _sessions, pendingChanges),
+            new DayPlanViewModel(_configuration, _sessions),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
             new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time,
                 _programPaths, desktopShell),
@@ -353,6 +354,7 @@ public partial class App : Application
         };
 
         mainViewModel.NoisePlayer = noisePlayer;
+        mainViewModel.Settings.OpenDayPlan = () => mainViewModel.SelectedTab = MainWindowViewModel.DayPlanTab;
         _mainWindow = new MainWindow { DataContext = mainViewModel };
         _mainWindow.Title = $"AccountabiliBuddy {AccountabiliBuddy.App.Services.Backup.BackupService.AppVersion}";
         if (_usesDevData)
@@ -438,6 +440,35 @@ public partial class App : Application
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Sleep mode's times come from the day plan's Sleep parts (ADR 18). Once ("dayplan.sleepSeeded"), the plan takes
+    /// the sleep times set before the day plan existed; from then on the sleep settings follow the plan.
+    /// </summary>
+    private async Task FollowPlanForSleepAsync(SqliteJsonDocumentStore documents, SleepSettingsService sleep)
+    {
+        const string SeededKey = "dayplan.sleepSeeded";
+        ConfigurationService configuration = _configuration!;
+        try
+        {
+            if (!await documents.LoadAsync<bool>(SeededKey))
+            {
+                SleepSettings before = sleep.Current;
+                DayPlan seeded = DayPlanSleep.WithSleep(
+                    configuration.Current.DayPlan, before.Weeknights, before.SameEveryNight ? before.Weeknights : before.Weekends);
+                await configuration.UpdateAsync(document => document with { DayPlan = seeded });
+                await documents.SaveAsync(SeededKey, true);
+            }
+
+            await sleep.SaveFromPlanAsync(configuration.Current.DayPlan);
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException)
+        {
+            // Tried again at the next start; the sleep settings keep their last times meanwhile.
+        }
+
+        configuration.Changed += (_, document) => _ = sleep.SaveFromPlanAsync(document.DayPlan);
     }
 
     /// <summary>

@@ -3,8 +3,8 @@ using AccountabiliBuddy.Core.Domain;
 namespace AccountabiliBuddy.Core.Engine;
 
 /// <summary>
-/// Works out one day at a glance for the day bar: which stretch of time "today" covers and the focus time the
-/// schedule plans in it. All times are local wall-clock times.
+/// Works out one day at a glance for the day bar: which stretch of time "today" covers and the work the day plan
+/// has in it. All times are local wall-clock times.
 /// </summary>
 public static class DayTimeline
 {
@@ -64,33 +64,12 @@ public static class DayTimeline
         return new LocalWindow(Max(start, limit.Start), Min(end, limit.End));
     }
 
-    /// <summary>
-    /// Every planned focus window overlapping <paramref name="range"/>, cut to it, with time off taken out,
-    /// earliest first. Overlapping blocks stay separate entries (see <see cref="Union"/> for the merged time).
-    /// </summary>
-    public static IReadOnlyList<PlannedFocus> Planned(WeeklySchedule schedule, LocalWindow range)
+    /// <summary>The day plan's Watch parts (Work, Extra Work…) overlapping <paramref name="range"/>, cut to it, earliest first.</summary>
+    public static IReadOnlyList<PlannedFocus> Planned(DayPlan plan, LocalWindow range)
     {
-        var occurrences = new List<PlannedFocus>();
-
-        // Start a day early so a block crossing midnight into the range is included.
-        for (DateTime date = range.Start.Date.AddDays(-1); date < range.End; date = date.AddDays(1))
-        {
-            foreach (ScheduleBlock block in schedule.Blocks.Where(block => block.Day == date.DayOfWeek))
-            {
-                DateTime start = date + block.Start.ToTimeSpan();
-                DateTime end = date + block.End.ToTimeSpan();
-                occurrences.Add(new PlannedFocus(block.ProfileId, new LocalWindow(start, block.CrossesMidnight ? end.AddDays(1) : end)));
-            }
-        }
-
-        occurrences.AddRange(schedule.OneOffBlocks.Select(block => new PlannedFocus(block.ProfileId, block.GetWindow())));
-
-        List<LocalWindow> timeOff = schedule.TimeOff.Select(off => off.GetWindow()).ToList();
-        return occurrences
-            .SelectMany(focus => Subtract(focus.Window, timeOff).Select(window => focus with { Window = window }))
-            .Select(focus => Clip(focus.Window, range) is LocalWindow clipped ? focus with { Window = clipped } : null)
-            .OfType<PlannedFocus>()
-            .OrderBy(focus => focus.Window.Start)
+        return plan.PartsIn(range)
+            .Where(part => part.Category.Behavior == CategoryBehavior.Watch)
+            .Select(part => new PlannedFocus(part.Name, part.Category.Color, part.Window))
             .ToList();
     }
 
@@ -120,24 +99,6 @@ public static class DayTimeline
         DateTime start = Max(window.Start, range.Start);
         DateTime end = Min(window.End, range.End);
         return end > start ? new LocalWindow(start, end) : null;
-    }
-
-    private static IEnumerable<LocalWindow> Subtract(LocalWindow window, IReadOnlyList<LocalWindow> holes)
-    {
-        var pieces = new List<LocalWindow> { window };
-        foreach (LocalWindow hole in holes)
-        {
-            pieces = pieces
-                .SelectMany(piece => new[]
-                {
-                    new LocalWindow(piece.Start, Min(piece.End, hole.Start)),
-                    new LocalWindow(Max(piece.Start, hole.End), piece.End),
-                })
-                .Where(piece => piece.End > piece.Start)
-                .ToList();
-        }
-
-        return pieces;
     }
 
     private static DateTime FloorToHour(DateTime time)

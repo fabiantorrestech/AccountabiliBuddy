@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Storage;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -10,20 +11,16 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// Exceptions tab: a month calendar of the weekly schedule, your calendar events (for planning; see
-/// <see cref="CalendarService"/>), and the exceptions to the schedule on single dates.
-/// <list type="bullet">
-/// <item>Time off (all day or certain hours): no scheduled block runs then. Looser, so it waits for the countdown
-/// (see <see cref="PendingChangesViewModel"/>) and the end of any running session.</item>
-/// <item>One-off blocks: extra blocked time on one date. Stricter, so they apply at once.</item>
-/// </list>
-/// Never locked during focus: every change goes through the same stricter-now, looser-later rule.
+/// Exceptions tab: a month calendar with your calendar events (for planning; see <see cref="CalendarService"/>) and
+/// the dates planned differently from the day plan. A one-off day (a day off, a half day) gets its own plan, edited
+/// with the same bar and list as the Day plan tab, starting from that date's usual plan. Applies at once (ADR 18);
+/// locked during a focus session the user started, like the Day plan tab.
 /// </summary>
 public sealed partial class ExceptionsViewModel : ObservableObject
 {
     public const int MaxLinesPerDay = 3;
 
-    private static readonly IBrush TimeOffBrush = new SolidColorBrush(Color.FromRgb(42, 157, 143));
+    private static readonly IBrush OneOffBrush = new SolidColorBrush(Color.FromRgb(42, 157, 143));
 
     private readonly ConfigurationService _configuration;
     private readonly SessionController _sessions;
@@ -53,17 +50,16 @@ public sealed partial class ExceptionsViewModel : ObservableObject
         Days = Array.Empty<CalendarDayViewModel>();
         MonthTitle = string.Empty;
         SelectedDateTitle = string.Empty;
-        NewTimeOffAllDay = true;
-        NewTimeOffStart = TimeSpan.FromHours(12);
-        NewTimeOffEnd = TimeSpan.FromHours(14);
-        NewBlockStart = TimeSpan.FromHours(9);
-        NewBlockEnd = TimeSpan.FromHours(12);
+        SelectedDayPlanText = string.Empty;
+        EditingDateTitle = string.Empty;
         NewEventStart = TimeSpan.FromHours(9);
         NewEventEnd = TimeSpan.FromHours(10);
 
         _configuration.Changed += (_, _) => Refresh();
         _configuration.PendingChanged += (_, _) => Refresh();
         _calendars.Changed += (_, _) => Refresh();
+        _sessions.StateChanged += (_, _) => IsLocked = _sessions.IsEnforcing;
+        IsLocked = _sessions.IsEnforcing;
         Refresh();
     }
 
@@ -72,11 +68,38 @@ public sealed partial class ExceptionsViewModel : ObservableObject
 
     public PendingChangesViewModel PendingChanges { get; }
 
-    public ObservableCollection<ProfileOption> Profiles { get; } = new();
+    /// <summary>Every one-off day, by date; days that have passed are greyed out.</summary>
+    public ObservableCollection<OneOffDayRowViewModel> OneOffDays { get; } = new();
 
-    public ObservableCollection<TimeOffRowViewModel> SelectedTimeOff { get; } = new();
+    /// <summary>E.g. "Follows your Workdays plan" or "Own plan: Free time 10:00–18:00".</summary>
+    [ObservableProperty]
+    public partial string SelectedDayPlanText { get; set; }
 
-    public ObservableCollection<OneOffBlockRowViewModel> SelectedOneOffBlocks { get; } = new();
+    [ObservableProperty]
+    public partial bool SelectedHasOwnPlan { get; set; }
+
+    /// <summary>The one-off day being edited; null when none is.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEditingOneOff))]
+    public partial DayPlanEditorViewModel? OneOffEditor { get; set; }
+
+    public bool IsEditingOneOff => OneOffEditor is not null;
+
+    [ObservableProperty]
+    public partial string EditingDateTitle { get; set; }
+
+    [ObservableProperty]
+    public partial string? OneOffNote { get; set; }
+
+    /// <summary>A focus session the user started is running: one-off days can't be changed.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(PlanSelectedDayCommand), nameof(SaveOneOffDayCommand), nameof(ClearSelectedDayCommand))]
+    public partial bool IsLocked { get; set; }
+
+    private bool CanEditPlan => !IsLocked;
+
+    // The date being edited, which stays put while another day is selected.
+    private DateOnly _editingDate;
 
     public ObservableCollection<EventRowViewModel> SelectedEvents { get; } = new();
 
@@ -141,27 +164,6 @@ public sealed partial class ExceptionsViewModel : ObservableObject
     public partial string SelectedDateTitle { get; set; }
 
     [ObservableProperty]
-    public partial bool NewTimeOffAllDay { get; set; }
-
-    [ObservableProperty]
-    public partial TimeSpan? NewTimeOffStart { get; set; }
-
-    [ObservableProperty]
-    public partial TimeSpan? NewTimeOffEnd { get; set; }
-
-    [ObservableProperty]
-    public partial string? NewTimeOffNote { get; set; }
-
-    [ObservableProperty]
-    public partial TimeSpan? NewBlockStart { get; set; }
-
-    [ObservableProperty]
-    public partial TimeSpan? NewBlockEnd { get; set; }
-
-    [ObservableProperty]
-    public partial ProfileOption? NewBlockProfile { get; set; }
-
-    [ObservableProperty]
     public partial string? StatusMessage { get; set; }
 
     private DateOnly Today => DateOnly.FromDateTime(
@@ -205,105 +207,55 @@ public sealed partial class ExceptionsViewModel : ObservableObject
         Refresh();
     }
 
-    [RelayCommand]
-    private async Task AddTimeOffAsync()
+    /// <summary>Starts editing the selected date's own plan, from its one-off day or its usual template.</summary>
+    [RelayCommand(CanExecute = nameof(CanEditPlan))]
+    private void PlanSelectedDay()
     {
-        if (SelectedDate < Today)
-        {
-            StatusMessage = "That day is already over.";
-            return;
-        }
-
-        TimeOff timeOff;
-        if (NewTimeOffAllDay)
-        {
-            timeOff = new TimeOff(Guid.NewGuid(), SelectedDate, Note: Trimmed(NewTimeOffNote));
-        }
-        else
-        {
-            if (NewTimeOffStart is not TimeSpan start || NewTimeOffEnd is not TimeSpan end || start == end)
-            {
-                StatusMessage = "Choose a start and an end time (different from each other).";
-                return;
-            }
-
-            timeOff = new TimeOff(Guid.NewGuid(), SelectedDate, TimeOnly.FromTimeSpan(start), TimeOnly.FromTimeSpan(end),
-                Trimmed(NewTimeOffNote));
-        }
-
-        if (timeOff.GetWindow().End <= LocalNow)
-        {
-            StatusMessage = "That time is already over.";
-            return;
-        }
-
-        PendingChanges? waiting = await _configuration.UpdateAsync(document => document with
-        {
-            Schedule = document.Schedule with { TimeOff = document.Schedule.TimeOff.Append(timeOff).ToList() },
-        });
-        NewTimeOffNote = null;
-        StatusMessage = waiting is null
-            ? "Time off added."
-            : "Time off added. It's a looser change: it takes effect after the countdown above, and never during a session.";
+        StartEditing(SelectedDate, note: null);
     }
 
-    [RelayCommand]
-    private async Task RemoveTimeOffAsync(TimeOffRowViewModel row)
+    [RelayCommand(CanExecute = nameof(CanEditPlan))]
+    private async Task SaveOneOffDayAsync()
     {
-        // Removing time off only makes the schedule stricter, so it applies at once.
+        if (OneOffEditor is not { } editor)
+        {
+            return;
+        }
+
+        DayPlan plan = _configuration.Current.DayPlan;
+        string? problem = editor.ProblemNow();
+        if (problem is not null)
+        {
+            StatusMessage = $"Not saved: {problem}";
+            return;
+        }
+
+        DateOnly date = _editingDate;
+        Guid id = plan.OneOffDays.FirstOrDefault(day => day.Date == date)?.Id ?? Guid.NewGuid();
+        var day = new OneOffDay(id, date, editor.ToTemplate(), Trimmed(OneOffNote));
         await _configuration.UpdateAsync(document => document with
         {
-            Schedule = document.Schedule with
+            DayPlan = document.DayPlan with
             {
-                TimeOff = document.Schedule.TimeOff.Where(off => off.Id != row.TimeOff.Id).ToList(),
+                OneOffDays = document.DayPlan.OneOffDays.Where(other => other.Date != date).Append(day).OrderBy(other => other.Date).ToList(),
             },
         });
-        StatusMessage = "Time off removed.";
+        OneOffEditor = null;
+        StatusMessage = $"{date:ddd d MMM} has its own plan.";
     }
 
     [RelayCommand]
-    private async Task AddOneOffBlockAsync()
+    private void CancelOneOffDay()
     {
-        if (NewBlockProfile is null)
-        {
-            StatusMessage = "Create a profile in the Profiles tab first.";
-            return;
-        }
-
-        if (NewBlockStart is not TimeSpan start || NewBlockEnd is not TimeSpan end || start == end)
-        {
-            StatusMessage = "Choose a start and an end time (different from each other). An end earlier than the start runs past midnight.";
-            return;
-        }
-
-        var block = new OneOffBlock(Guid.NewGuid(), SelectedDate, TimeOnly.FromTimeSpan(start), TimeOnly.FromTimeSpan(end),
-            NewBlockProfile.Id);
-        if (block.GetWindow().End <= LocalNow)
-        {
-            StatusMessage = "That time is already over.";
-            return;
-        }
-
-        await _configuration.UpdateAsync(document => document with
-        {
-            Schedule = document.Schedule with { OneOffBlocks = document.Schedule.OneOffBlocks.Append(block).ToList() },
-        });
-        StatusMessage = "One-off block added.";
+        OneOffEditor = null;
+        StatusMessage = null;
     }
 
-    [RelayCommand]
-    private async Task RemoveOneOffBlockAsync(OneOffBlockRowViewModel row)
+    /// <summary>The selected date goes back to its usual plan.</summary>
+    [RelayCommand(CanExecute = nameof(CanEditPlan))]
+    private Task ClearSelectedDayAsync()
     {
-        PendingChanges? waiting = await _configuration.UpdateAsync(document => document with
-        {
-            Schedule = document.Schedule with
-            {
-                OneOffBlocks = document.Schedule.OneOffBlocks.Where(block => block.Id != row.Block.Id).ToList(),
-            },
-        });
-        StatusMessage = waiting is null
-            ? "One-off block removed."
-            : "One-off block removed. It's a looser change: it takes effect after the countdown above.";
+        return RemoveOneOffDayAsync(SelectedDate);
     }
 
     /// <summary>Fetches every event of every connected calendar now, hidden ones included.</summary>
@@ -460,28 +412,72 @@ public sealed partial class ExceptionsViewModel : ObservableObject
         }
     }
 
-    /// <summary>Fills in the time off form from an event; the user checks it and presses Add time off.</summary>
+    /// <summary>Starts planning the event's day differently, with the event as the note.</summary>
     [RelayCommand]
-    private void TimeOffForEvent(EventRowViewModel row)
+    private void PlanDayForEvent(EventRowViewModel row)
     {
-        CalendarEvent calendarEvent = row.Entry.Event;
-        bool sameDay = DateOnly.FromDateTime(calendarEvent.LocalStart) == SelectedDate
-                       && calendarEvent.LocalEnd <= SelectedDate.ToDateTime(TimeOnly.MinValue).AddDays(1);
-        NewTimeOffAllDay = calendarEvent.IsAllDay || !sameDay;
-        if (!NewTimeOffAllDay)
+        if (IsLocked)
         {
-            NewTimeOffStart = calendarEvent.LocalStart.TimeOfDay;
-            NewTimeOffEnd = calendarEvent.LocalEnd.TimeOfDay;
+            return;
         }
 
-        NewTimeOffNote = calendarEvent.Title;
-        StatusMessage = $"Time off filled in from '{calendarEvent.Title}'. Check it, then press Add time off.";
+        DateOnly date = DateOnly.FromDateTime(row.Entry.Event.LocalStart);
+        StartEditing(date, row.Entry.Event.Title);
+    }
+
+    private void StartEditing(DateOnly date, string? note)
+    {
+        DayPlan plan = _configuration.Current.DayPlan;
+        OneOffDay? existing = plan.OneOffDays.FirstOrDefault(day => day.Date == date);
+        _editingDate = date;
+        EditingDateTitle = $"Plan for {date.ToString("dddd d MMMM", CultureInfo.CurrentCulture)}";
+        OneOffNote = existing?.Note ?? note;
+        OneOffEditor = new DayPlanEditorViewModel(plan.TemplateFor(date), plan.Categories);
+        StatusMessage = existing is null
+            ? "Starts from the usual plan for that day. Change it, then Save."
+            : null;
+    }
+
+    private void EditOneOffDay(OneOffDayRowViewModel row)
+    {
+        if (IsLocked)
+        {
+            return;
+        }
+
+        SelectedDate = row.Day.Date;
+        Month = new DateOnly(row.Day.Date.Year, row.Day.Date.Month, 1);
+        StartEditing(row.Day.Date, null);
+        Refresh();
+    }
+
+    private async Task RemoveOneOffDayAsync(DateOnly date)
+    {
+        // The list's ✕ has no command guard of its own; a focus session the user started locks one-off days.
+        if (IsLocked)
+        {
+            StatusMessage = "One-off days are locked while a focus session you started is running.";
+            return;
+        }
+
+        await _configuration.UpdateAsync(document => document with
+        {
+            DayPlan = document.DayPlan with
+            {
+                OneOffDays = document.DayPlan.OneOffDays.Where(day => day.Date != date).ToList(),
+            },
+        });
+        if (OneOffEditor is not null && _editingDate == date)
+        {
+            OneOffEditor = null;
+        }
+
+        StatusMessage = $"{date:ddd d MMM} follows the usual plan again.";
     }
 
     private void Refresh()
     {
         ProfileDocument document = _configuration.Editing;
-        NewBlockProfile = ProfileOptions.Refresh(Profiles, document.Profiles, NewBlockProfile?.Id);
 
         MonthTitle = Month.ToString("MMMM yyyy", CultureInfo.CurrentCulture);
         SelectedDateTitle = SelectedDate.ToString("dddd d MMMM yyyy", CultureInfo.CurrentCulture);
@@ -505,11 +501,18 @@ public sealed partial class ExceptionsViewModel : ObservableObject
 
         Days = days;
 
-        SelectedTimeOff.Clear();
-        foreach (TimeOff timeOff in document.Schedule.TimeOff.Where(off => off.Date == SelectedDate)
-                     .OrderBy(off => off.GetWindow().Start))
+        DayPlan plan = document.DayPlan;
+        OneOffDay? own = plan.OneOffDays.FirstOrDefault(day => day.Date == SelectedDate);
+        SelectedHasOwnPlan = own is not null;
+        SelectedDayPlanText = own is not null
+            ? $"Own plan: {new OneOffDayRowViewModel(own, plan, today, _ => { }, _ => { }).PartsText}"
+            : plan.Workdays.Contains(SelectedDate.DayOfWeek) ? "Follows your Workdays plan." : "Follows your Other days plan.";
+        OneOffDays.Clear();
+        foreach (OneOffDay day in plan.OneOffDays.OrderBy(day => day.Date))
         {
-            SelectedTimeOff.Add(new TimeOffRowViewModel(timeOff));
+            OneOffDays.Add(new OneOffDayRowViewModel(day, plan, today,
+                EditOneOffDay,
+                row => _ = RemoveOneOffDayAsync(row.Day.Date)));
         }
 
         SelectedEvents.Clear();
@@ -528,45 +531,20 @@ public sealed partial class ExceptionsViewModel : ObservableObject
                 source.Calendars.Select(calendar => new CalendarRowViewModel(_calendars, source, calendar)).ToList(),
                 _sessions.TimeProvider.LocalTimeZone));
         }
-
-        SelectedOneOffBlocks.Clear();
-        foreach (OneOffBlock block in document.Schedule.OneOffBlocks.Where(block => block.Date == SelectedDate)
-                     .OrderBy(block => block.Start))
-        {
-            SelectedOneOffBlocks.Add(new OneOffBlockRowViewModel(
-                block, ProfileOptions.NameOf(document.Profiles, block.ProfileId) ?? "(deleted profile)"));
-        }
     }
 
     private static IReadOnlyList<CalendarDayLine> LinesFor(ProfileDocument document, IReadOnlyList<CalendarEntry> events, DateOnly date)
     {
         var lines = new List<CalendarDayLine>();
-
-        foreach (TimeOff timeOff in document.Schedule.TimeOff.Where(off => off.Date == date).OrderBy(off => off.GetWindow().Start))
+        if (document.DayPlan.OneOffDays.FirstOrDefault(day => day.Date == date) is { } own)
         {
-            string text = timeOff.IsAllDay ? "Off all day" : $"Off {timeOff.Start:HH\\:mm}–{timeOff.End:HH\\:mm}";
-            lines.Add(new CalendarDayLine(text, TimeOffBrush));
+            lines.Add(new CalendarDayLine(string.IsNullOrWhiteSpace(own.Note) ? "Own plan" : own.Note, OneOffBrush));
         }
 
         foreach (CalendarEntry entry in events)
         {
             string text = entry.Event.IsAllDay ? entry.Event.Title : $"{entry.Event.LocalStart:HH\\:mm} {entry.Event.Title}";
             lines.Add(new CalendarDayLine(text, new SolidColorBrush(Color.Parse(entry.Calendar.Color))));
-        }
-
-        var blocks = document.Schedule.Blocks
-            .Where(block => block.Day == date.DayOfWeek)
-            .Select(block => (block.Start, block.End, block.ProfileId, Prefix: string.Empty))
-            .Concat(document.Schedule.OneOffBlocks
-                .Where(block => block.Date == date)
-                .Select(block => (block.Start, block.End, block.ProfileId, Prefix: "+ ")))
-            .OrderBy(block => block.Start);
-        foreach ((TimeOnly start, TimeOnly end, Guid profileId, string prefix) in blocks)
-        {
-            string profile = ProfileOptions.NameOf(document.Profiles, profileId) ?? "deleted profile";
-            lines.Add(new CalendarDayLine(
-                $"{prefix}{start:HH\\:mm}–{end:HH\\:mm} {profile}",
-                new SolidColorBrush(ProfileColors.For(profileId))));
         }
 
         return lines;

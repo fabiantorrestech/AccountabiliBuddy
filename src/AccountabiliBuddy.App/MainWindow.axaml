@@ -52,7 +52,7 @@
                     <!-- Same order as Pages below. -->
                     <TabItem Header="Session" />
                     <TabItem Header="Profiles" />
-                    <TabItem Header="Schedule" />
+                    <TabItem Header="Day plan" />
                     <TabItem Header="Exceptions" />
                     <TabItem Header="History" />
                     <TabItem Header="Setup" />
@@ -93,7 +93,7 @@
                 <Panel x:Name="Pages" Margin="12,8,8,8">
                     <views:SessionView DataContext="{Binding Session}" />
                     <views:ProfilesView DataContext="{Binding Profiles}" IsVisible="False" />
-                    <views:ScheduleView DataContext="{Binding Schedule}" IsVisible="False" />
+                    <views:DayPlanView DataContext="{Binding DayPlan}" IsVisible="False" />
                     <views:ExceptionsView DataContext="{Binding Exceptions}" IsVisible="False" />
                     <views:HistoryView DataContext="{Binding History}" IsVisible="False" />
                     <views:SetupView DataContext="{Binding Setup}" IsVisible="False" />

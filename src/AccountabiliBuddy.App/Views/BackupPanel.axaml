@@ -8,7 +8,7 @@
         <StackPanel Spacing="6" IsVisible="{Binding ShowExport}">
             <TextBlock Text="Export" FontWeight="SemiBold" />
             <WrapPanel>
-                <CheckBox Content="Profiles, rules and schedule" IsChecked="{Binding ExportProfiles}" Margin="0,0,16,0" />
+                <CheckBox Content="Profiles, rules and day plan" IsChecked="{Binding ExportProfiles}" Margin="0,0,16,0" />
                 <CheckBox Content="App settings" IsChecked="{Binding ExportSettings}" Margin="0,0,16,0" />
                 <CheckBox Content="Calendars" IsChecked="{Binding ExportCalendars}" Margin="0,0,16,0" />
                 <CheckBox Content="Activity history" IsChecked="{Binding ExportHistory}" />
@@ -44,7 +44,7 @@
             <StackPanel IsVisible="{Binding IsOpened}" Spacing="6">
                 <TextBlock Text="{Binding OpenedSummary}" TextWrapping="Wrap" />
                 <WrapPanel>
-                    <CheckBox Content="Profiles, rules and schedule" IsChecked="{Binding RestoreProfiles}" IsVisible="{Binding HasProfilesPart}" Margin="0,0,16,0" />
+                    <CheckBox Content="Profiles, rules and day plan" IsChecked="{Binding RestoreProfiles}" IsVisible="{Binding HasProfilesPart}" Margin="0,0,16,0" />
                     <CheckBox Content="App settings" IsChecked="{Binding RestoreSettings}" IsVisible="{Binding HasSettingsPart}" Margin="0,0,16,0" />
                     <CheckBox Content="Calendars" IsChecked="{Binding RestoreCalendars}" IsVisible="{Binding HasCalendarsPart}" Margin="0,0,16,0" />
                     <CheckBox Content="Activity history" IsChecked="{Binding RestoreHistory}" IsVisible="{Binding HasHistoryPart}" />

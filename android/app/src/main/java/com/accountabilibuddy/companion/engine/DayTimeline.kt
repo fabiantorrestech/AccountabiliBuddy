@@ -2,13 +2,14 @@ package com.accountabilibuddy.companion.engine
 
 import com.accountabilibuddy.companion.model.LocalWindow
 import com.accountabilibuddy.companion.model.PlannedFocus
-import com.accountabilibuddy.companion.model.WeeklySchedule
+import com.accountabilibuddy.companion.model.CategoryBehavior
+import com.accountabilibuddy.companion.model.DayPlan
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 
 /**
- * One day at a glance: which stretch of time "today" covers and the focus time the schedule plans in it.
+ * One day at a glance: which stretch of time "today" covers and the work the day plan has in it.
  * A port of the Windows Core's DayTimeline (ADR 13: same behaviour, kept in step by hand). Local wall-clock times.
  */
 object DayTimeline {
@@ -58,30 +59,11 @@ object DayTimeline {
         return LocalWindow(maxOf(start, limit.start), minOf(end, limit.end))
     }
 
-    /** Every planned focus window overlapping [range], cut to it, with time off taken out, earliest first. */
-    fun planned(schedule: WeeklySchedule, range: LocalWindow): List<PlannedFocus> {
-        val occurrences = mutableListOf<PlannedFocus>()
-
-        // Start a day early so a block crossing midnight into the range is included.
-        var date = range.start.toLocalDate().minusDays(1)
-        while (date.atStartOfDay().isBefore(range.end)) {
-            for (block in schedule.blocks.filter { it.day == date.dayOfWeek }) {
-                val start = date.atTime(block.start)
-                val end = date.atTime(block.end)
-                occurrences.add(PlannedFocus(block.profileId, LocalWindow(start, if (block.crossesMidnight) end.plusDays(1) else end)))
-            }
-
-            date = date.plusDays(1)
-        }
-
-        schedule.oneOffBlocks.forEach { occurrences.add(PlannedFocus(it.profileId, it.window())) }
-
-        val timeOff = schedule.timeOff.map { it.window() }
-        return occurrences
-            .flatMap { focus -> subtract(focus.window, timeOff).map { focus.copy(window = it) } }
-            .mapNotNull { focus -> clip(focus.window, range)?.let { focus.copy(window = it) } }
-            .sortedBy { it.window.start }
-    }
+    /** The day plan's Watch parts (Work, Extra Work…) overlapping [range], cut to it, earliest first. */
+    fun planned(plan: DayPlan, range: LocalWindow): List<PlannedFocus> =
+        plan.partsIn(range)
+            .filter { it.category.behavior == CategoryBehavior.Watch }
+            .map { PlannedFocus(it.name, it.category.argb, it.window) }
 
     /** Merges overlapping and touching windows, earliest first. */
     fun union(windows: Iterable<LocalWindow>): List<LocalWindow> {
@@ -103,22 +85,6 @@ object DayTimeline {
         val start = maxOf(window.start, range.start)
         val end = minOf(window.end, range.end)
         return if (end.isAfter(start)) LocalWindow(start, end) else null
-    }
-
-    private fun subtract(window: LocalWindow, holes: List<LocalWindow>): List<LocalWindow> {
-        var pieces = listOf(window)
-        for (hole in holes) {
-            pieces = pieces
-                .flatMap { piece ->
-                    listOf(
-                        LocalWindow(piece.start, minOf(piece.end, hole.start)),
-                        LocalWindow(maxOf(piece.start, hole.end), piece.end),
-                    )
-                }
-                .filter { it.end.isAfter(it.start) }
-        }
-
-        return pieces
     }
 
     private fun ceilingToHour(time: LocalDateTime): LocalDateTime {

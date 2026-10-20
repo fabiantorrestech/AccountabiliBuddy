@@ -35,11 +35,9 @@ import com.accountabilibuddy.companion.engine.ProfileColors
 import com.accountabilibuddy.companion.model.FocusProfile
 import com.accountabilibuddy.companion.model.MatchTarget
 import com.accountabilibuddy.companion.model.RuleVerdict
-import java.time.format.TextStyle
-import java.util.Locale
 
 /**
- * The PC's profiles (read only for now): colour, rules and when each one is scheduled. Tap to see the rules. Once a PC
+ * The PC's profiles (read only for now): colour and rules. Tap to see the rules. Once a PC
  * is linked they're grouped by device: the PC (profile count, what it's running, when they synced), then this phone,
  * which uses the PC's profiles for now.
  */
@@ -118,8 +116,6 @@ private fun DeviceRow(title: String, detail: String, expanded: Boolean, onToggle
 @Composable
 private fun ProfileCard(profile: FocusProfile, state: CompanionState, clock: ClockFormat) {
     var expanded by remember { mutableStateOf(false) }
-    val blocks = state.document.schedule.blocks.filter { it.profileId == profile.id }
-        .sortedWith(compareBy({ (it.day.value % 7) }, { it.start }))
     val blocked = profile.rules.count { it.verdict == RuleVerdict.Block }
     val allowed = profile.rules.size - blocked
 
@@ -131,17 +127,6 @@ private fun ProfileCard(profile: FocusProfile, state: CompanionState, clock: Clo
                 Text(profile.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             }
             Text("$blocked blocked · $allowed allowed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (blocks.isNotEmpty()) {
-                val byDay = blocks.groupBy { it.day }
-                Text(
-                    byDay.entries.joinToString("\n") { (day, dayBlocks) ->
-                        "${day.getDisplayName(TextStyle.SHORT, Locale.getDefault())}: " + dayBlocks.joinToString(", ") {
-                            "${clock.time(java.time.LocalDate.now().atTime(it.start))}–${clock.time(java.time.LocalDate.now().atTime(it.end))}"
-                        }
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
             if (expanded) {
                 profile.rules.forEach { rule ->
                     Row {

@@ -13,7 +13,9 @@ data class SleepSettings(
     val weeknights: SleepTimes,
     val weekends: SleepTimes,
 ) {
-    fun toSchedule(): SleepSchedule = SleepSchedule(weeknights, if (sameEveryNight) weeknights else weekends)
+    /** [plan] sets each night (workdays and one-off days included); these times are the fallback. */
+    fun toSchedule(plan: DayPlan? = null): SleepSchedule =
+        SleepSchedule(weeknights, if (sameEveryNight) weeknights else weekends, plan?.let { p -> { day: java.time.LocalDate -> p.nightBefore(day) } })
 
     companion object {
         val Default = SleepSettings(

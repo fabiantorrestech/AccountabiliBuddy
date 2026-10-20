@@ -6,9 +6,9 @@ namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
 /// Runs unlocks (documents key "unlock"): after the chosen option's wait, the running session ends (logged as ended
-/// early with the reason) and scheduled blocks are held until the relock time, or until "Lock again" when there is
-/// none. Kept on disk, so restarting the app neither skips nor resets the wait. Sessions the user starts during an
-/// unlock run normally. Use from the UI thread only.
+/// early with the reason) until the relock time, or until "Lock again" when there is none. Kept on disk, so
+/// restarting the app neither skips nor resets the wait. Sessions the user starts during an unlock run normally. Use
+/// from the UI thread only.
 /// </summary>
 public sealed class UnlockService : IDisposable
 {
@@ -35,7 +35,7 @@ public sealed class UnlockService : IDisposable
     /// <summary>Raised when an unlock is requested, cancelled, takes effect or relocks.</summary>
     public event EventHandler? Changed;
 
-    /// <summary>Loads a saved unlock and holds the schedule if it is in effect. Call before the sessions start.</summary>
+    /// <summary>Loads a saved unlock. Call before the sessions start.</summary>
     public void LoadBlocking()
     {
         try
@@ -51,8 +51,6 @@ public sealed class UnlockService : IDisposable
         {
             SetCurrent(null);
         }
-
-        ApplyHold();
     }
 
     /// <param name="relockAt">When the blocks come back; null keeps them lifted until <see cref="LockAgain"/>.</param>
@@ -81,13 +79,12 @@ public sealed class UnlockService : IDisposable
         }
     }
 
-    /// <summary>Ends an unlock that is in effect: scheduled blocks can start again.</summary>
+    /// <summary>Ends an unlock that is in effect: the profile's blocks apply again.</summary>
     public void LockAgain()
     {
         if (Status == UnlockStatus.Unlocked)
         {
             SetCurrent(null);
-            ApplyHold();
         }
     }
 
@@ -112,11 +109,10 @@ public sealed class UnlockService : IDisposable
         {
             case UnlockStatus.Unlocked when !unlock.Activated:
                 SetCurrent(unlock with { Activated = true });
-                ApplyHold();
                 if (_sessions.State.IsActive)
                 {
-                    // The hold decides when scheduled blocks come back, so "Lock again" restores them at once.
-                    _sessions.EndSession($"Unlocked ({unlock.OptionName}): {unlock.Reason}", suppressSchedule: false);
+                    // The unlock lifts the blocks by ending the session it was asked in.
+                    _sessions.EndSession($"Unlocked ({unlock.OptionName}): {unlock.Reason}");
                 }
 
                 break;
@@ -124,17 +120,8 @@ public sealed class UnlockService : IDisposable
             case UnlockStatus.None:
                 // Relock time reached.
                 SetCurrent(null);
-                ApplyHold();
                 break;
         }
-    }
-
-    private void ApplyHold()
-    {
-        DateTimeOffset? holdUntil = Current is { } unlock && Status == UnlockStatus.Unlocked
-            ? unlock.RelockAt ?? DateTimeOffset.MaxValue
-            : null;
-        _sessions.HoldSchedule(holdUntil);
     }
 
     private void SetCurrent(Unlock? unlock)

@@ -4,8 +4,9 @@ namespace AccountabiliBuddy.Core.Engine;
 
 /// <summary>
 /// Bedtime and wake time worked out for actual dates. A night is named by the date of its evening: the night of
-/// Friday the 23rd runs from Friday's bedtime to Saturday's wake time. Friday and Saturday nights use the weekend
-/// times. All times are local wall-clock times.
+/// Friday the 23rd runs from Friday's bedtime to Saturday's wake time. With the day plan, each night's times come from
+/// the plan for the day the night leads into (its workdays and one-off days included); otherwise, and for a day whose
+/// plan has no night, Friday and Saturday nights use the weekend times. All times are local wall-clock times.
 /// </summary>
 public sealed class SleepSchedule
 {
@@ -17,11 +18,14 @@ public sealed class SleepSchedule
 
     private readonly SleepTimes _weeknights;
     private readonly SleepTimes _weekends;
+    private readonly Func<DateOnly, SleepTimes?>? _nightBefore;
 
-    public SleepSchedule(SleepTimes weeknights, SleepTimes weekends)
+    /// <param name="nightBefore">The times of the night before a day, from the day plan; null when it has none.</param>
+    public SleepSchedule(SleepTimes weeknights, SleepTimes weekends, Func<DateOnly, SleepTimes?>? nightBefore = null)
     {
         _weeknights = weeknights;
         _weekends = weekends;
+        _nightBefore = nightBefore;
     }
 
     public static bool IsWeekendNight(DateOnly evening)
@@ -37,7 +41,7 @@ public sealed class SleepSchedule
     /// <summary>From bedtime to wake time of the night starting on <paramref name="evening"/>.</summary>
     public LocalWindow Night(DateOnly evening)
     {
-        SleepTimes times = IsWeekendNight(evening) ? _weekends : _weeknights;
+        SleepTimes times = _nightBefore?.Invoke(evening.AddDays(1)) ?? (IsWeekendNight(evening) ? _weekends : _weeknights);
         DateTime date = evening.ToDateTime(TimeOnly.MinValue);
         DateTime bed = date + times.Bedtime.ToTimeSpan();
         if (times.Bedtime < Noon)

@@ -38,10 +38,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly SessionCueService _cues;
     private readonly SleepSettingsService _sleep;
 
-    // Shortest and longest night that can be saved: anything outside is almost surely an AM/PM slip.
-    private static readonly TimeSpan ShortestNight = TimeSpan.FromHours(3);
-    private static readonly TimeSpan LongestNight = TimeSpan.FromHours(16);
-
     // Set once everything is loaded, so loading doesn't count as changes.
     private bool _ready;
 
@@ -118,6 +114,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         NoisePlayerService? noise = null)
     {
         _noise = noise;
+        // The plan's Sleep parts change the times; the on/off switch stays as edited.
+        sleep.Changed += (_, _) => ShowSleepTimes();
         if (_noise is not null)
         {
             _noise.Changed += (_, _) => ShowNoiseFolder();
@@ -226,7 +224,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         var problems = new List<string>();
         DayBarSettings? dayBarSettings = dayBar ? BuildDayBar(problems) : null;
-        SleepSettings? sleepSettings = sleep ? BuildSleep(problems) : null;
+        SleepSettings? sleepSettings = sleep ? BuildSleep() : null;
         ConfigValues? configValues = config ? BuildConfig(problems) : null;
         if (problems.Count > 0)
         {
@@ -345,7 +343,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     private bool DayBarChanged => BuildDayBar(null) is not DayBarSettings built || built != _dayBar.Current;
 
-    private bool SleepChanged => BuildSleep(null) is not SleepSettings built || built != _sleep.Current;
+    private bool SleepChanged => BuildSleep() != _sleep.Current;
 
     private bool SoundsChanged => _sounds.Current != BuildSounds();
 
@@ -399,62 +397,27 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool SleepEnabled { get; set; }
 
-    /// <summary>True = the weeknight times every night.</summary>
+    /// <summary>E.g. "11:45 PM – 6:45 AM · 7 h of sleep"; set with the Sleep parts in the Day plan tab.</summary>
     [ObservableProperty]
-    public partial bool SleepSameEveryNight { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(WeeknightSleepText))]
-    public partial TimeSpan? WeeknightBedtime { get; set; }
+    public partial string WeeknightSleepText { get; set; } = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(WeeknightSleepText))]
-    public partial TimeSpan? WeeknightWake { get; set; }
+    public partial string WeekendSleepText { get; set; } = string.Empty;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(WeekendSleepText))]
-    public partial TimeSpan? WeekendBedtime { get; set; }
+    /// <summary>Opens the Day plan tab, where the sleep times are set; set by the main window.</summary>
+    public Action? OpenDayPlan { get; set; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(WeekendSleepText))]
-    public partial TimeSpan? WeekendWake { get; set; }
-
-    /// <summary>E.g. "7 h 30 min of sleep", or a warning when the night looks wrong (AM/PM).</summary>
-    public string WeeknightSleepText => NightText(WeeknightBedtime, WeeknightWake);
-
-    public string WeekendSleepText => NightText(WeekendBedtime, WeekendWake);
-
-    // Sleep mode is display only, so it can be saved during focus too.
-    private SleepSettings? BuildSleep(List<string>? problems)
+    [RelayCommand]
+    private void EditSleepTimes()
     {
-        if (WeeknightBedtime is not TimeSpan weeknightBed || WeeknightWake is not TimeSpan weeknightWake
-            || WeekendBedtime is not TimeSpan weekendBed || WeekendWake is not TimeSpan weekendWake)
-        {
-            problems?.Add("Sleep: pick every bedtime and wake time.");
-            return null;
-        }
-
-        var weeknights = new SleepTimes(TimeOnly.FromTimeSpan(weeknightBed), TimeOnly.FromTimeSpan(weeknightWake));
-        var weekends = new SleepTimes(TimeOnly.FromTimeSpan(weekendBed), TimeOnly.FromTimeSpan(weekendWake));
-        if (SleepEnabled)
-        {
-            CheckNight(weeknights, SleepSameEveryNight ? "Every night" : "Weeknights", problems);
-            if (!SleepSameEveryNight)
-            {
-                CheckNight(weekends, "Weekend nights", problems);
-            }
-        }
-
-        return problems is { Count: > 0 } ? null : new SleepSettings(SleepEnabled, SleepSameEveryNight, weeknights, weekends);
+        OpenDayPlan?.Invoke();
     }
 
-    private static void CheckNight(SleepTimes times, string label, List<string>? problems)
+    // Only the on/off switch is edited here: the times come from the day plan's Sleep parts. Display only, so it
+    // can be saved during focus too.
+    private SleepSettings BuildSleep()
     {
-        TimeSpan length = NightLength(times);
-        if (length < ShortestNight || length > LongestNight)
-        {
-            problems?.Add($"Sleep: {label} from {times.Bedtime:t} to {times.Wake:t} is {Hours(length)}; check AM/PM.");
-        }
+        return _sleep.Current with { Enabled = SleepEnabled };
     }
 
     /// <summary>How long a night with these times is (a bedtime before noon counts as after midnight).</summary>
@@ -464,15 +427,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         return night.End - night.Start;
     }
 
-    private static string NightText(TimeSpan? bedtime, TimeSpan? wake)
+    private static string NightText(SleepTimes times)
     {
-        if (bedtime is not TimeSpan bed || wake is not TimeSpan up)
-        {
-            return string.Empty;
-        }
-
-        TimeSpan length = NightLength(new SleepTimes(TimeOnly.FromTimeSpan(bed), TimeOnly.FromTimeSpan(up)));
-        return length < ShortestNight || length > LongestNight ? $"⚠ {Hours(length)}: check AM/PM" : $"{Hours(length)} of sleep";
+        return $"{times.Bedtime:t} – {times.Wake:t} · {Hours(NightLength(times))} of sleep";
     }
 
     private static string Hours(TimeSpan length)
@@ -482,13 +439,14 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     private void LoadSleepSettings()
     {
-        SleepSettings sleep = _sleep.Current;
-        SleepEnabled = sleep.Enabled;
-        SleepSameEveryNight = sleep.SameEveryNight;
-        WeeknightBedtime = sleep.Weeknights.Bedtime.ToTimeSpan();
-        WeeknightWake = sleep.Weeknights.Wake.ToTimeSpan();
-        WeekendBedtime = sleep.Weekends.Bedtime.ToTimeSpan();
-        WeekendWake = sleep.Weekends.Wake.ToTimeSpan();
+        SleepEnabled = _sleep.Current.Enabled;
+        ShowSleepTimes();
+    }
+
+    private void ShowSleepTimes()
+    {
+        WeeknightSleepText = NightText(_sleep.Current.Weeknights);
+        WeekendSleepText = NightText(_sleep.Current.Weekends);
     }
 
     /// <summary>Set by the view: asks for a .wav file, null when cancelled.</summary>

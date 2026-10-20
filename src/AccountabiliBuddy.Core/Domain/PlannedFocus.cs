@@ -1,7 +1,6 @@
 namespace AccountabiliBuddy.Core.Domain;
 
-/// <summary>
-/// Focus time the schedule plans: one occurrence of a weekly or one-off block, with time off already taken out
-/// (so a block cut by time off becomes two).
-/// </summary>
-public sealed record PlannedFocus(Guid ProfileId, LocalWindow Window);
+/// <summary>Time the day plan watches for drift: one Watch part (Work, Extra Work…) on a real date.</summary>
+/// <param name="Name">The part's label or its category's name.</param>
+/// <param name="Color">The category's colour, "#RRGGBB".</param>
+public sealed record PlannedFocus(string Name, string Color, LocalWindow Window);

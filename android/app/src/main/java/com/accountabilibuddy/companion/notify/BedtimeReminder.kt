@@ -26,7 +26,7 @@ object BedtimeReminder {
             return
         }
 
-        val night = state.sleep.toSchedule().nightAround(now)
+        val night = state.sleep.toSchedule(state.document.dayPlan).nightAround(now)
         val untilBed = Duration.between(now, night.start)
         val key = night.start.toString()
         if (!night.end.isAfter(night.start) || untilBed.isNegative || untilBed.isZero || untilBed > LEAD || state.lastReminderNight == key) {

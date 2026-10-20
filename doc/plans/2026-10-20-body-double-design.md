@@ -25,7 +25,7 @@ decision record.
 | # | Part | State |
 |---|---|---|
 | A | End on command | **Built (0.1.41)** |
-| B | Day plan and timeline | Designed in outline; needs a round of questions and mockups |
+| B | Day plan and timeline | B1 built (day plan, editor, one-off days, sleep from the plan, phone reads v5); flexible lunch, B2 timeline and B3 phone screens next |
 | C | The buddy: catching drift, can-it-wait, parking, check-ins, blocker hand-off, Blocks tab | Designed |
 | D | Session plan (checklist) and reflection | Designed |
 | E | Progress and targets | Outline |
@@ -58,8 +58,15 @@ with no wait or reason, also from the phone and when quitting *(user)*. `BypassP
   select it) and, under it, the selected part's name, kind and exact times (all parts listed when none is selected).
   Bar and list stay in sync.
 - **One-off days** *(user)*: a single day's plan (a day off, a half day) is edited in the Exceptions tab with the same
-  editor, starting from that day's usual plan. *(my call)*: today's "time off" and one-off blocks become these
-  one-off day plans when the grid goes away.
+  editor, starting from that day's usual plan. *(my call, as built in B1)*: the old time off and one-off blocks
+  are dropped with the grid at the v5 migration, not converted (blocking is the blockers' job, ADR 18).
+- **Flexible lunch** *(user, 2026-10-20; next after B1)*: lunch often moves with medication hyperfocus, so Lunch is
+  a flexible break rather than fixed hours: a "Start lunch" button (any time, on the PC or the phone) starts a timer,
+  1 hour by default, kept in sync between PC and phone; when it's over the PC rings once and pops up "Lunch over!",
+  and the phone notifies the same. If lunch hasn't started by 1 PM, AccountabiliBuddy hints to take it. Its usual
+  window is 11 AM–3 PM: the buddy and anything tied to the blocks plan around lunch falling in that window, but it
+  can be started any time. *(my calls, to confirm)*: in the plan a flexible break has a window, a length and a hint
+  time instead of fixed hours; until it starts, that time counts as the surrounding Watch part.
 - **Replaces the weekly grid of profiles** *(user)*. What blockers enforce is shown from the blockers themselves:
   toggles lay Cold Turkey's block schedule and/or Curbox's (phone) blocks over the day plan *(user)*.
 - **Timeline** *(user)*: today it shows the profiles' blocks (from Cold Turkey); it should show the day plan for the

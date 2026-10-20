@@ -16,8 +16,13 @@ public sealed record SleepSettings(bool Enabled, bool SameEveryNight, SleepTimes
         Weeknights: new SleepTimes(new TimeOnly(22, 0), new TimeOnly(6, 0)),
         Weekends: new SleepTimes(new TimeOnly(23, 30), new TimeOnly(7, 30)));
 
-    public SleepSchedule ToSchedule()
+    /// <param name="plan">The day plan, which sets each night (its workdays and one-off days included); these
+    /// settings' times are the fallback for a day whose plan has no night.</param>
+    public SleepSchedule ToSchedule(DayPlan? plan = null)
     {
-        return new SleepSchedule(Weeknights, SameEveryNight ? Weeknights : Weekends);
+        return new SleepSchedule(
+            Weeknights,
+            SameEveryNight ? Weeknights : Weekends,
+            plan is null ? null : day => DayPlanSleep.NightBefore(plan, day));
     }
 }

@@ -4,7 +4,7 @@ using Avalonia.Media;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>A colour choice for a profile's on-screen timer.</summary>
-/// <param name="Hex">"#RRGGBB"; null = the profile's own colour on the Schedule grid.</param>
+/// <param name="Hex">"#RRGGBB"; null = the profile's own colour.</param>
 public sealed record TimerColorOption(string Name, string? Hex, IBrush Swatch)
 {
     private static readonly (string Name, string Hex)[] Fixed =

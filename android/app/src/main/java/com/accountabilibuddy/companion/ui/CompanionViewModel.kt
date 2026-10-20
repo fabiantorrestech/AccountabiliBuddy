@@ -192,8 +192,8 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
             }
 
             val state = store.state.value
-            val day = builder.dayAt(LocalDateTime.now(), state.dayBar, state.sleep)
-            val focus = DayTimeline.planned(state.document.schedule, day).map { it.window }
+            val day = builder.dayAt(LocalDateTime.now(), state.dayBar, state.sleep, state.document.dayPlan)
+            val focus = DayTimeline.planned(state.document.dayPlan, day).map { it.window }
             phoneUsage.value = runCatching { withContext(Dispatchers.IO) { usageReader.read(day, focus) } }.getOrNull()
         }
     }
@@ -219,7 +219,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
                 val data = withContext(Dispatchers.Default) { Importer.read(text, password) }
                 store.import(data)
                 passwordRequest.value = null
-                message.value = "Imported ${data.document.profiles.size} profiles and ${data.document.schedule.blocks.size} weekly blocks" +
+                message.value = "Imported ${data.document.profiles.size} profiles and the day plan" +
                     (if (data.sleep != null) ", sleep times" else "") +
                     (if (data.events.isNotEmpty()) " and ${data.events.size} events" else "") + "."
                 refreshOutside()

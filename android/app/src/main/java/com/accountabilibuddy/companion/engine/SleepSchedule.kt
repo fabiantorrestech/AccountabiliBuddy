@@ -11,12 +11,18 @@ import java.time.LocalTime
 
 /**
  * Bedtime and wake time worked out for actual dates (port of the Windows Core's SleepSchedule). A night is named
- * by the date of its evening; Friday and Saturday nights use the weekend times.
+ * by the date of its evening. With the day plan ([nightBefore]), each night's times come from the plan for the day
+ * the night leads into; otherwise, and for a day whose plan has no night, Friday and Saturday nights use the weekend
+ * times.
  */
-class SleepSchedule(private val weeknights: SleepTimes, private val weekends: SleepTimes) {
+class SleepSchedule(
+    private val weeknights: SleepTimes,
+    private val weekends: SleepTimes,
+    private val nightBefore: ((LocalDate) -> SleepTimes?)? = null,
+) {
     /** From bedtime to wake time of the night starting on [evening]. */
     fun night(evening: LocalDate): LocalWindow {
-        val times = if (isWeekendNight(evening)) weekends else weeknights
+        val times = nightBefore?.invoke(evening.plusDays(1)) ?: if (isWeekendNight(evening)) weekends else weeknights
         var bed = evening.atTime(times.bedtime)
         if (times.bedtime.isBefore(NOON)) {
             bed = bed.plusDays(1)

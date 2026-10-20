@@ -5,17 +5,19 @@ import com.accountabilibuddy.companion.data.JsonValues.int
 import com.accountabilibuddy.companion.data.JsonValues.obj
 import com.accountabilibuddy.companion.data.JsonValues.requireString
 import com.accountabilibuddy.companion.data.JsonValues.string
+import com.accountabilibuddy.companion.model.CategoryBehavior
+import com.accountabilibuddy.companion.model.DayCategory
+import com.accountabilibuddy.companion.model.DayPlan
+import com.accountabilibuddy.companion.model.DayTemplate
 import com.accountabilibuddy.companion.model.FocusProfile
 import com.accountabilibuddy.companion.model.MatchKind
 import com.accountabilibuddy.companion.model.MatchTarget
-import com.accountabilibuddy.companion.model.OneOffBlock
+import com.accountabilibuddy.companion.model.OneOffDay
+import com.accountabilibuddy.companion.model.PlanPart
 import com.accountabilibuddy.companion.model.ProfileDocument
 import com.accountabilibuddy.companion.model.Rule
 import com.accountabilibuddy.companion.model.RuleVerdict
-import com.accountabilibuddy.companion.model.ScheduleBlock
-import com.accountabilibuddy.companion.model.TimeOff
 import com.accountabilibuddy.companion.model.UnlockOption
-import com.accountabilibuddy.companion.model.WeeklySchedule
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -25,12 +27,12 @@ import java.time.Duration
 import java.util.UUID
 
 /**
- * Reads the Windows app's profile document (ADR 7), like its ProfileDocumentSerializer: versions 2 and 3 are
- * migrated (off days become all-day time off), a newer version is refused, and fields the phone doesn't use are
- * skipped.
+ * Reads the Windows app's profile document (ADR 7), like its ProfileDocumentSerializer: a document from before
+ * schema 5 gets the starting day plan (its weekly schedule is gone, ADR 18), a newer version is refused, and fields
+ * the phone doesn't use are skipped.
  */
 object ProfileDocumentParser {
-    private const val TIME_OFF_SCHEMA_VERSION = 4
+    private const val DAY_PLAN_SCHEMA_VERSION = 5
 
     fun parse(json: String): ProfileDocument {
         val root = try {
@@ -49,8 +51,8 @@ object ProfileDocumentParser {
         }
 
         val profiles = (root["profiles"] as? JsonArray).orEmpty().map { profile(it.jsonObject) }
-        val schedule = schedule(root.obj("schedule"), version)
-        return ProfileDocument(ProfileDocument.CURRENT_SCHEMA_VERSION, profiles, schedule)
+        val plan = if (version < DAY_PLAN_SCHEMA_VERSION) DayPlan.Default else root.obj("dayPlan")?.let(::dayPlan) ?: DayPlan.Default
+        return ProfileDocument(ProfileDocument.CURRENT_SCHEMA_VERSION, profiles, plan)
     }
 
     private fun profile(json: JsonObject): FocusProfile = FocusProfile(
@@ -74,49 +76,40 @@ object ProfileDocumentParser {
         note = json.string("note"),
     )
 
-    private fun schedule(json: JsonObject?, version: Int): WeeklySchedule {
-        if (json == null) {
-            return WeeklySchedule()
-        }
-
-        val blocks = (json["blocks"] as? JsonArray).orEmpty().map {
-            val b = it.jsonObject
-            ScheduleBlock(
-                id = JsonValues.uuid(b.requireString("id")),
-                day = JsonValues.dayOfWeek(b.requireString("day")),
-                start = JsonValues.time(b.requireString("start")),
-                end = JsonValues.time(b.requireString("end")),
-                profileId = JsonValues.uuid(b.requireString("profileId")),
+    private fun dayPlan(json: JsonObject): DayPlan = DayPlan(
+        categories = (json["categories"] as? JsonArray).orEmpty().map {
+            val c = it.jsonObject
+            DayCategory(
+                id = JsonValues.uuid(c.requireString("id")),
+                name = c.requireString("name"),
+                color = c.requireString("color"),
+                behavior = JsonValues.enumValue<CategoryBehavior>(c["behavior"], "category behaviour"),
             )
-        }
-
-        val timeOff = if (version < TIME_OFF_SCHEMA_VERSION) {
-            // v2/v3: "offDays": ["2026-10-20"] are all-day time off.
-            (json["offDays"] as? JsonArray).orEmpty().map { TimeOff(UUID.randomUUID(), JsonValues.date(it.jsonPrimitive.content)) }
-        } else {
-            (json["timeOff"] as? JsonArray).orEmpty().map {
-                val t = it.jsonObject
-                TimeOff(
-                    id = JsonValues.uuid(t.requireString("id")),
-                    date = JsonValues.date(t.requireString("date")),
-                    start = t.string("start")?.let(JsonValues::time),
-                    end = t.string("end")?.let(JsonValues::time),
-                    note = t.string("note"),
-                )
-            }
-        }
-
-        val oneOff = (json["oneOffBlocks"] as? JsonArray).orEmpty().map {
-            val o = it.jsonObject
-            OneOffBlock(
-                id = JsonValues.uuid(o.requireString("id")),
-                date = JsonValues.date(o.requireString("date")),
-                start = JsonValues.time(o.requireString("start")),
-                end = JsonValues.time(o.requireString("end")),
-                profileId = JsonValues.uuid(o.requireString("profileId")),
+        },
+        workdays = (json["workdays"] as? JsonArray).orEmpty().map { JsonValues.dayOfWeek(it.jsonPrimitive.content) }.toSet(),
+        workday = template(json.obj("workday")),
+        otherDay = template(json.obj("otherDay")),
+        oneOffDays = (json["oneOffDays"] as? JsonArray).orEmpty().map {
+            val d = it.jsonObject
+            OneOffDay(
+                id = JsonValues.uuid(d.requireString("id")),
+                date = JsonValues.date(d.requireString("date")),
+                template = template(d.obj("template")),
+                note = d.string("note"),
             )
-        }
+        },
+    )
 
-        return WeeklySchedule(blocks, timeOff, oneOff)
-    }
+    private fun template(json: JsonObject?): DayTemplate = DayTemplate(
+        (json?.get("parts") as? JsonArray).orEmpty().map {
+            val p = it.jsonObject
+            PlanPart(
+                id = JsonValues.uuid(p.requireString("id")),
+                categoryId = JsonValues.uuid(p.requireString("categoryId")),
+                start = JsonValues.time(p.requireString("start")),
+                end = JsonValues.time(p.requireString("end")),
+                label = p.string("label"),
+            )
+        },
+    )
 }

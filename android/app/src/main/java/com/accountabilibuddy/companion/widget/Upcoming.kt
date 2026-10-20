@@ -13,9 +13,9 @@ object Upcoming {
 
     fun items(now: LocalDateTime, state: CompanionState, clock: ClockFormat): List<String> {
         val window = LocalWindow(now, now.plusHours(24))
-        val blocks = DayTimeline.planned(state.document.schedule, LocalWindow(now.minusDays(1), window.end))
+        val blocks = DayTimeline.planned(state.document.dayPlan, LocalWindow(now.minusDays(1), window.end))
             .filter { it.window.end.isAfter(now) }
-            .map { it.window.start to "${state.document.profile(it.profileId)?.name ?: "(deleted profile)"}${if (it.window.contains(now)) " · now" else ""}" }
+            .map { it.window.start to "${it.name}${if (it.window.contains(now)) " · now" else ""}" }
         val events = state.events
             .filter { DayTimeline.clip(LocalWindow(it.localStart, maxOf(it.localEnd, it.localStart.plusMinutes(1))), window) != null }
             .map { it.localStart to it.title }

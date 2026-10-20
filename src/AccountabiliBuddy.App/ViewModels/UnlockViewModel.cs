@@ -9,7 +9,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// The Unlock card on the Session tab. During a session it offers the session profile's unlock options; otherwise
-/// every profile's (an unlock then just pauses scheduled blocks). Asking needs a reason; then the option's wait
+/// every profile's. Asking needs a reason; then the option's wait
 /// counts down, after which the session ends and the blocks stay lifted until the relock.
 /// </summary>
 public sealed partial class UnlockViewModel : ObservableObject
@@ -206,11 +206,10 @@ public sealed partial class UnlockViewModel : ObservableObject
                 $"Unlocking “{unlock.OptionName}” in {FormatCountdown(unlock.ReadyAt - now)}. "
                 + "Everything stays locked until then.",
             { RelockAt: DateTimeOffset relock } unlock when Status == UnlockStatus.Unlocked =>
-                $"Unlocked (“{unlock.OptionName}”) until {DescribeRelock(relock, now, timeZone)}. "
-                + "Scheduled blocks won't start before then.",
+                $"Unlocked (“{unlock.OptionName}”) until {DescribeRelock(relock, now, timeZone)}.",
             { } unlock when Status == UnlockStatus.Unlocked =>
-                $"Unlocked (“{unlock.OptionName}”) until you lock again. Scheduled blocks won't start.",
-            _ => "Lifts the blocks after a wait: when it ends, this session ends and scheduled blocks pause until it relocks.",
+                $"Unlocked (“{unlock.OptionName}”) until you lock again.",
+            _ => "Lifts the blocks after a wait: when it ends, this session ends until it relocks.",
         };
     }
 

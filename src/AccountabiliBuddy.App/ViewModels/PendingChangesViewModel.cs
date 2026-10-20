@@ -5,7 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// Banner shown on the Profiles, Schedule and Settings tabs while looser changes count down: what they are, when
+/// Banner shown on the Profiles, Exceptions and Settings tabs while looser changes count down: what they are, when
 /// they take effect, and Cancel. There is deliberately no "apply now". One instance is shared by the three tabs.
 /// </summary>
 public sealed partial class PendingChangesViewModel : ObservableObject

@@ -22,10 +22,34 @@
     <DockPanel Margin="12">
         <views:PendingChangesBanner DockPanel.Dock="Top" DataContext="{Binding PendingChanges}" Margin="0,0,0,12" />
         <TextBlock DockPanel.Dock="Top" Opacity="0.75" TextWrapping="Wrap" Margin="0,0,0,8"
-                   Text="Exceptions to the weekly schedule on single dates. Time off (all day or certain hours) pauses scheduled blocks; it's a looser change, so it waits for the countdown and never starts during a session. One-off blocks add blocked time and apply at once." />
+                   Text="Single dates planned differently from your day plan: a day off, a half day. Pick a date, then Plan this day differently; it starts from that day's usual plan and applies as soon as it's saved." />
+        <Border DockPanel.Dock="Top" IsVisible="{Binding IsLocked}" Background="#33F59E0B" Padding="12,8" Margin="0,0,0,12" CornerRadius="6">
+            <TextBlock Text="One-off days are locked while a focus session you started is running." />
+        </Border>
 
         <Grid ColumnDefinitions="*,16,320">
             <DockPanel Grid.Column="0">
+                <!-- The one-off day being edited, under the calendar where the bar has room. -->
+                <Border DockPanel.Dock="Bottom" IsVisible="{Binding IsEditingOneOff}" Padding="12" Margin="0,12,0,0" CornerRadius="6"
+                        Background="#0F808080">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="{Binding EditingDateTitle}" FontSize="16" FontWeight="SemiBold" />
+                        <TextBlock Text="A part that crosses midnight (Sleep) is the night before this day; its piece at the right end of the bar starts the evening before."
+                                   FontSize="11" Opacity="0.7" TextWrapping="Wrap" />
+                        <ContentControl Content="{Binding OneOffEditor}">
+                            <ContentControl.ContentTemplate>
+                                <DataTemplate x:DataType="vm:DayPlanEditorViewModel">
+                                    <views:DayPlanEditorView />
+                                </DataTemplate>
+                            </ContentControl.ContentTemplate>
+                        </ContentControl>
+                        <TextBox Text="{Binding OneOffNote}" PlaceholderText="Note (optional), e.g. dentist, half day" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Save" Classes="accent" Command="{Binding SaveOneOffDayCommand}" />
+                            <Button Content="Cancel" Command="{Binding CancelOneOffDayCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
                 <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,*" Margin="0,0,0,6">
                     <Button Grid.Column="0" Content="◀" Command="{Binding PreviousMonthCommand}" ToolTip.Tip="Previous month" />
                     <Button Grid.Column="1" Content="Today" Command="{Binding GoToTodayCommand}" Margin="6,0" />
@@ -166,8 +190,8 @@
                                         <TextBlock Text="{Binding When}" FontSize="12" />
                                         <TextBlock Text="{Binding CalendarName}" FontSize="11" Opacity="0.7" TextTrimming="CharacterEllipsis" />
                                         <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
-                                            <Button Content="Time off for this" FontSize="12" Padding="6,2"
-                                                    Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).TimeOffForEventCommand}"
+                                            <Button Content="Plan this day around it" FontSize="12" Padding="6,2"
+                                                    Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).PlanDayForEventCommand}"
                                                     CommandParameter="{Binding}" />
                                             <Button Content="Edit" FontSize="12" Padding="6,2" IsVisible="{Binding IsEditable}"
                                                     AutomationProperties.Name="Edit event"
@@ -197,51 +221,33 @@
                                 AutomationProperties.Name="Cancel event edit" />
                     </StackPanel>
 
-                    <TextBlock Text="Time off" FontWeight="SemiBold" Margin="0,6,0,0" />
-                    <ItemsControl ItemsSource="{Binding SelectedTimeOff}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:TimeOffRowViewModel">
-                                <Grid ColumnDefinitions="*,Auto" Margin="0,2">
-                                    <TextBlock Text="{Binding Text}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                    <Button Grid.Column="1" Content="✕" ToolTip.Tip="Remove time off"
-                                            Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).RemoveTimeOffCommand}"
-                                            CommandParameter="{Binding}" />
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <CheckBox Content="All day" IsChecked="{Binding NewTimeOffAllDay}" AutomationProperties.Name="Time off all day" />
-                    <Grid ColumnDefinitions="44,*" RowDefinitions="Auto,Auto" RowSpacing="6" IsVisible="{Binding !NewTimeOffAllDay}">
-                        <TextBlock Text="From" VerticalAlignment="Center" />
-                        <TimePicker Grid.Column="1" SelectedTime="{Binding NewTimeOffStart}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
-                        <TextBlock Grid.Row="1" Text="To" VerticalAlignment="Center" />
-                        <TimePicker Grid.Row="1" Grid.Column="1" SelectedTime="{Binding NewTimeOffEnd}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
-                    </Grid>
-                    <TextBox Text="{Binding NewTimeOffNote}" PlaceholderText="Note (optional), e.g. dentist" AutomationProperties.Name="Time off note" />
-                    <Button Content="Add time off" Command="{Binding AddTimeOffCommand}" />
+                    <TextBlock Text="This day's plan" FontWeight="SemiBold" Margin="0,6,0,0" />
+                    <TextBlock Text="{Binding SelectedDayPlanText}" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Content="Plan this day differently" Command="{Binding PlanSelectedDayCommand}" IsVisible="{Binding !SelectedHasOwnPlan}" />
+                        <Button Content="Edit its plan" Command="{Binding PlanSelectedDayCommand}" IsVisible="{Binding SelectedHasOwnPlan}" />
+                        <Button Content="Back to the usual plan" Command="{Binding ClearSelectedDayCommand}" IsVisible="{Binding SelectedHasOwnPlan}" />
+                    </StackPanel>
 
-                    <TextBlock Text="One-off blocks" FontWeight="SemiBold" Margin="0,12,0,0" />
-                    <ItemsControl ItemsSource="{Binding SelectedOneOffBlocks}">
+                    <TextBlock Text="One-off days" FontWeight="SemiBold" Margin="0,12,0,0" />
+                    <TextBlock Text="None yet." Opacity="0.6" IsVisible="{Binding !OneOffDays.Count}" />
+                    <ItemsControl ItemsSource="{Binding OneOffDays}">
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:OneOffBlockRowViewModel">
-                                <Grid ColumnDefinitions="*,Auto" Margin="0,2">
-                                    <TextBlock Text="{Binding Text}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                    <Button Grid.Column="1" Content="✕" ToolTip.Tip="Remove one-off block"
-                                            Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).RemoveOneOffBlockCommand}"
-                                            CommandParameter="{Binding}" />
+                            <DataTemplate x:DataType="vm:OneOffDayRowViewModel">
+                                <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3" Opacity="{Binding IsPast, Converter={x:Static vm:PastOpacityConverter.Instance}}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding DateText}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding PartsText}" FontSize="12" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Note}" FontSize="11" Opacity="0.7" IsVisible="{Binding HasNote}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="Edit" Command="{Binding EditCommand}" VerticalAlignment="Top" Margin="4,0"
+                                            IsEnabled="{Binding !$parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).IsLocked}" />
+                                    <Button Grid.Column="2" Content="✕" ToolTip.Tip="Back to the usual plan" Command="{Binding DeleteCommand}" VerticalAlignment="Top"
+                                            IsEnabled="{Binding !$parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).IsLocked}" />
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <Grid ColumnDefinitions="44,*" RowDefinitions="Auto,Auto" RowSpacing="6">
-                        <TextBlock Text="From" VerticalAlignment="Center" />
-                        <TimePicker Grid.Column="1" SelectedTime="{Binding NewBlockStart}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
-                        <TextBlock Grid.Row="1" Text="To" VerticalAlignment="Center" />
-                        <TimePicker Grid.Row="1" Grid.Column="1" SelectedTime="{Binding NewBlockEnd}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
-                    </Grid>
-                    <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding NewBlockProfile}"
-                              HorizontalAlignment="Stretch" PlaceholderText="Choose a profile" />
-                    <Button Content="Add one-off block" Command="{Binding AddOneOffBlockCommand}" />
 
                     <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" />
                 </StackPanel>

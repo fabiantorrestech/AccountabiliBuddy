@@ -8,6 +8,6 @@ public enum UnlockStatus
     /// <summary>Counting down; the blocks still apply.</summary>
     Waiting,
 
-    /// <summary>The blocks are lifted: no scheduled blocks start and nothing is locked.</summary>
+    /// <summary>The blocks are lifted and nothing is locked.</summary>
     Unlocked,
 }

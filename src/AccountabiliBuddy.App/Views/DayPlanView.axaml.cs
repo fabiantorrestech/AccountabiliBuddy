@@ -2,9 +2,9 @@ using Avalonia.Controls;
 
 namespace AccountabiliBuddy.App.Views;
 
-public partial class ScheduleView : UserControl
+public partial class DayPlanView : UserControl
 {
-    public ScheduleView()
+    public DayPlanView()
     {
         InitializeComponent();
     }

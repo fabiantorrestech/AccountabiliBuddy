@@ -10,7 +10,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public MainWindowViewModel(
         SessionViewModel session,
         ProfilesViewModel profiles,
-        ScheduleViewModel schedule,
+        DayPlanViewModel dayPlan,
         ExceptionsViewModel exceptions,
         HistoryViewModel history,
         SetupViewModel setup,
@@ -22,7 +22,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         Session = session;
         Profiles = profiles;
-        Schedule = schedule;
+        DayPlan = dayPlan;
         Exceptions = exceptions;
         History = history;
         Setup = setup;
@@ -35,6 +35,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     }
 
     private const int ProfilesTab = 1;
+    public const int DayPlanTab = 2;
     public const int SettingsTab = 7;
 
     // Where the user was going when Settings had unsaved changes: a tab, or null = hiding the window.
@@ -104,7 +105,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _leaveTarget = null;
     }
 
-    /// <summary>Index of the tab shown, in sidebar order (Session, Profiles, Schedule, …).</summary>
+    /// <summary>Index of the tab shown, in sidebar order (Session, Profiles, Day plan, …).</summary>
     [ObservableProperty]
     public partial int SelectedTab { get; set; }
 
@@ -112,7 +113,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public ProfilesViewModel Profiles { get; }
 
-    public ScheduleViewModel Schedule { get; }
+    public DayPlanViewModel DayPlan { get; }
 
     public ExceptionsViewModel Exceptions { get; }
 

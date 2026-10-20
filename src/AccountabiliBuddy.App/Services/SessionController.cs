@@ -6,8 +6,8 @@ using Avalonia.Threading;
 namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
-/// Drives the <see cref="SessionEngine"/> once a second on the UI thread and keeps its schedule
-/// in sync with the configuration. Views and the tray read session state from here.
+/// Drives the <see cref="SessionEngine"/> once a second on the UI thread and keeps it in step with the
+/// configuration. Views and the tray read session state from here.
 /// </summary>
 public sealed class SessionController : IDisposable
 {
@@ -24,8 +24,6 @@ public sealed class SessionController : IDisposable
         _configuration = configuration;
         _timeProvider = timeProvider;
 
-        _engine.SetSchedule(configuration.Current.Schedule);
-        _configuration.Changed += OnConfigurationChanged;
         _engine.StateChanged += (_, state) => StateChanged?.Invoke(this, state);
         _engine.SessionCompleted += (_, state) => SessionCompleted?.Invoke(this, state);
 
@@ -73,17 +71,13 @@ public sealed class SessionController : IDisposable
 
     public SessionCheckpoint CreateCheckpoint() => _engine.CreateCheckpoint();
 
-    /// <summary>Keeps scheduled blocks from starting before <paramref name="until"/> (an unlock); null lifts the hold.</summary>
-    public void HoldSchedule(DateTimeOffset? until) => _engine.HoldSchedule(until);
-
     /// <param name="saved">The session saved before the app last stopped, if any; a running one is resumed.</param>
     /// <returns>The resumed session, or null when nothing was resumed.</returns>
     public SessionResume? Start(SavedSession? saved)
     {
         SessionResume? resume = saved is null ? null : TryResume(saved);
 
-        // Tick immediately so a scheduled block that is already running starts at launch,
-        // and a resumed session catches up on phases that ran out while the app was closed.
+        // Tick immediately so a resumed session catches up on phases that ran out while the app was closed.
         _engine.Tick();
         _timer.Start();
         return resume;
@@ -109,8 +103,7 @@ public sealed class SessionController : IDisposable
     }
 
     /// <param name="earlyEndReason">The reason typed in the friction dialog, if one was required.</param>
-    /// <param name="suppressSchedule">See <see cref="SessionEngine.EndSession"/>.</param>
-    public void EndSession(string? earlyEndReason, bool suppressSchedule = true)
+    public void EndSession(string? earlyEndReason)
     {
         if (earlyEndReason is not null)
         {
@@ -118,7 +111,7 @@ public sealed class SessionController : IDisposable
         }
 
         SessionState ending = _engine.State;
-        _engine.EndSession(suppressSchedule);
+        _engine.EndSession();
         if (ending.IsActive)
         {
             SessionEnded?.Invoke(this, new SessionEnd(ending, earlyEndReason));
@@ -128,7 +121,6 @@ public sealed class SessionController : IDisposable
     public void Dispose()
     {
         _timer.Stop();
-        _configuration.Changed -= OnConfigurationChanged;
     }
 
     private SessionResume? TryResume(SavedSession saved)
@@ -146,17 +138,18 @@ public sealed class SessionController : IDisposable
 
         if (!restored)
         {
+            // A scheduled block saved before the update (ADR 18) isn't resumed; close it in the history.
+            if (saved.Checkpoint.State is { IsActive: true, Mode: SessionMode.Scheduled } scheduled)
+            {
+                SessionEnded?.Invoke(this, new SessionEnd(scheduled, null));
+            }
+
             return null;
         }
 
         var resume = new SessionResume(saved.Checkpoint.State, saved.LastAliveAt, Now);
         SessionResumed?.Invoke(this, resume);
         return resume;
-    }
-
-    private void OnConfigurationChanged(object? sender, ProfileDocument document)
-    {
-        _engine.SetSchedule(document.Schedule);
     }
 
     private void OnTick(object? sender, EventArgs e)

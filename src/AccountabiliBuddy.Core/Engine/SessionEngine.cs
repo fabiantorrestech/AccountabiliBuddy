@@ -3,26 +3,19 @@ using AccountabiliBuddy.Core.Domain;
 namespace AccountabiliBuddy.Core.Engine;
 
 /// <summary>
-/// State machine for focus sessions: Manual, Pomodoro and Scheduled.
+/// State machine for the focus sessions the user starts: Manual and Pomodoro. Nothing starts by itself: the weekly
+/// schedule of profiles is gone (ADR 18), and Scheduled sessions exist only in history from before.
 /// Time only moves forward when <see cref="Tick"/> is called (e.g. once a second from a timer),
 /// so tests can drive it with a fake <see cref="TimeProvider"/>.
-/// Only one session runs at a time; a scheduled block starts only when no session is active.
-/// Not thread-safe: call from a single thread.
+/// Only one session runs at a time. Not thread-safe: call from a single thread.
 /// </summary>
 public sealed class SessionEngine
 {
     private readonly TimeProvider _timeProvider;
-    private WeeklySchedule _schedule = WeeklySchedule.Empty;
     private PomodoroSettings? _pomodoroSettings;
 
     // When set, the last focus cycle is followed by its break before the session ends.
     private bool _breakAfterLastCycle;
-
-    // Set when a scheduled session is ended early, so the next Tick does not restart it.
-    private DateTimeOffset? _scheduleSuppressedUntil;
-
-    // Set while an unlock is in effect: no scheduled block starts before this.
-    private DateTimeOffset? _scheduleHeldUntil;
 
     public SessionEngine(TimeProvider timeProvider)
     {
@@ -35,26 +28,11 @@ public sealed class SessionEngine
 
     /// <summary>
     /// Raised (with the state it ended from) when a session runs out on its own: a timed manual session or a
-    /// Pomodoro with a cycle limit reached its end, or a scheduled block finished. Not raised by <see cref="EndSession"/>.
+    /// Pomodoro with a cycle limit reached its end. Not raised by <see cref="EndSession"/>.
     /// </summary>
     public event EventHandler<SessionState>? SessionCompleted;
 
     private DateTimeOffset Now => _timeProvider.GetUtcNow();
-
-    /// <summary>Replaces the weekly schedule. Takes effect on the next <see cref="Tick"/>.</summary>
-    public void SetSchedule(WeeklySchedule schedule)
-    {
-        _schedule = schedule;
-    }
-
-    /// <summary>
-    /// Stops scheduled blocks from starting before <paramref name="until"/> (an unlock); null lifts the hold.
-    /// Does not end a running session. Takes effect on the next <see cref="Tick"/>.
-    /// </summary>
-    public void HoldSchedule(DateTimeOffset? until)
-    {
-        _scheduleHeldUntil = until;
-    }
 
     /// <param name="duration">Null runs until <see cref="EndSession"/> is called.</param>
     /// <returns>False if a session is already running.</returns>
@@ -110,18 +88,11 @@ public sealed class SessionEngine
     /// Ends the current session immediately. Callers must apply <see cref="BypassPolicy"/> first
     /// when the user is ending a focus phase early.
     /// </summary>
-    /// <param name="suppressSchedule">For a scheduled session: keep its block from restarting until the block ends.
-    /// False when an unlock's hold (<see cref="HoldSchedule"/>) already decides when blocks start again.</param>
-    public void EndSession(bool suppressSchedule = true)
+    public void EndSession()
     {
         if (!State.IsActive)
         {
             return;
-        }
-
-        if (State.Mode == SessionMode.Scheduled && suppressSchedule)
-        {
-            _scheduleSuppressedUntil = State.PhaseEndsAt;
         }
 
         SetState(SessionState.Idle);
@@ -130,15 +101,15 @@ public sealed class SessionEngine
     /// <summary>Everything needed to carry on with the current session after the app restarts.</summary>
     public SessionCheckpoint CreateCheckpoint()
     {
-        return new SessionCheckpoint(State, _pomodoroSettings, _breakAfterLastCycle, _scheduleSuppressedUntil);
+        return new SessionCheckpoint(State, _pomodoroSettings, _breakAfterLastCycle);
     }
 
     /// <summary>
     /// Puts back a session saved with <see cref="CreateCheckpoint"/>, e.g. after a crash or restart.
     /// Call <see cref="Tick"/> afterwards to catch up on phases that ran out while the app was closed.
     /// </summary>
-    /// <returns>True if a session is running again; false if the checkpoint had none, was invalid,
-    /// or a session is already running.</returns>
+    /// <returns>True if a session is running again; false if the checkpoint had none, was invalid, was a scheduled
+    /// block (from before schema v5; never resumed), or a session is already running.</returns>
     public bool Restore(SessionCheckpoint checkpoint)
     {
         if (State.IsActive)
@@ -146,11 +117,8 @@ public sealed class SessionEngine
             return false;
         }
 
-        // Kept even without a session, so a scheduled block ended early does not restart.
-        _scheduleSuppressedUntil = checkpoint.ScheduleSuppressedUntil;
-
         SessionState saved = checkpoint.State;
-        if (!saved.IsActive || saved.PhaseStartedAt is null)
+        if (!saved.IsActive || saved.PhaseStartedAt is null || saved.Mode == SessionMode.Scheduled)
         {
             return false;
         }
@@ -170,7 +138,7 @@ public sealed class SessionEngine
         return true;
     }
 
-    /// <summary>Advances phases that have run out and starts scheduled blocks that have begun.</summary>
+    /// <summary>Advances phases that have run out.</summary>
     public void Tick()
     {
         DateTimeOffset now = Now;
@@ -179,7 +147,6 @@ public sealed class SessionEngine
         switch (State.Mode)
         {
             case SessionMode.Manual:
-            case SessionMode.Scheduled:
                 if (State.PhaseEndsAt is DateTimeOffset end && now >= end)
                 {
                     SetState(SessionState.Idle);
@@ -194,11 +161,6 @@ public sealed class SessionEngine
         if (before.IsActive && !State.IsActive)
         {
             SessionCompleted?.Invoke(this, before);
-        }
-
-        if (!State.IsActive)
-        {
-            TryStartScheduled(now);
         }
     }
 
@@ -257,41 +219,6 @@ public sealed class SessionEngine
         };
     }
 
-    private void TryStartScheduled(DateTimeOffset now)
-    {
-        if (_scheduleHeldUntil is DateTimeOffset heldUntil && now < heldUntil)
-        {
-            return;
-        }
-
-        if (_scheduleSuppressedUntil is DateTimeOffset suppressedUntil)
-        {
-            if (now < suppressedUntil)
-            {
-                return;
-            }
-
-            _scheduleSuppressedUntil = null;
-        }
-
-        TimeZoneInfo timeZone = _timeProvider.LocalTimeZone;
-        DateTime localNow = TimeZoneInfo.ConvertTime(now, timeZone).DateTime;
-
-        ActiveScheduleBlock? active = _schedule.FindActive(localNow);
-        if (active is null)
-        {
-            return;
-        }
-
-        SetState(new SessionState(
-            SessionMode.Scheduled,
-            SessionPhase.Focus,
-            active.Block.ProfileId,
-            PhaseStartedAt: ToOffset(active.LocalStart, timeZone),
-            PhaseEndsAt: ToOffset(active.LocalEnd, timeZone),
-            CompletedFocusCycles: 0));
-    }
-
     private void SetState(SessionState newState)
     {
         if (newState == State)
@@ -306,11 +233,6 @@ public sealed class SessionEngine
         }
 
         StateChanged?.Invoke(this, newState);
-    }
-
-    private static DateTimeOffset ToOffset(DateTime localTime, TimeZoneInfo timeZone)
-    {
-        return new DateTimeOffset(localTime, timeZone.GetUtcOffset(localTime));
     }
 
     private static bool IsValidPomodoro(PomodoroSettings settings)

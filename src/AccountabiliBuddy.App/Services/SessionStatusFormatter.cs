@@ -29,7 +29,7 @@ public static class SessionStatusFormatter
     {
         if (!state.IsActive)
         {
-            return "Start a session below, or wait for a scheduled block.";
+            return "Start a session below.";
         }
 
         string mode = state.Mode switch

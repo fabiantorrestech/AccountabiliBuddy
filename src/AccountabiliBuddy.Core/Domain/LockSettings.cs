@@ -9,7 +9,7 @@ public sealed record LockSettings(bool RelockAtMidnight)
     public static LockSettings Default { get; } = new(RelockAtMidnight: true);
 
     /// <summary>
-    /// How long a looser change (e.g. deleting a scheduled block) waits before it takes effect (schema v3).
+    /// How long a looser change (e.g. removing a block rule) waits before it takes effect (schema v3).
     /// Stricter changes take effect at once.
     /// </summary>
     public TimeSpan LooseningDelay { get; init; } = DefaultLooseningDelay;

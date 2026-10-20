@@ -6,9 +6,7 @@ namespace AccountabiliBuddy.Core.Domain;
 /// </summary>
 /// <param name="Pomodoro">The running Pomodoro's settings; null for other modes.</param>
 /// <param name="BreakAfterLastCycle">Whether the Pomodoro also runs the break after its last focus cycle.</param>
-/// <param name="ScheduleSuppressedUntil">Set when a scheduled block was ended early, so it does not restart.</param>
 public sealed record SessionCheckpoint(
     SessionState State,
     PomodoroSettings? Pomodoro,
-    bool BreakAfterLastCycle,
-    DateTimeOffset? ScheduleSuppressedUntil);
+    bool BreakAfterLastCycle);

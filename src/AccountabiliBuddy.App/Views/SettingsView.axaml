@@ -66,28 +66,17 @@
 
             <StackPanel Spacing="6">
                 <TextBlock Text="Sleep" FontSize="16" FontWeight="SemiBold" />
-                <TextBlock Text="Your bedtime and wake time. The day bar runs from wake time to bedtime and shades the night; staying up past bedtime shades the lost sleep red. From two hours before bedtime a line on screen says how much sleep you'll get if you go to bed now (green from 7 hours, yellow from 5, red below), and a reminder pops up once. Can be saved during focus too."
+                <TextBlock Text="Your bedtime and wake time. The day bar runs from wake time to bedtime and shades the night; staying up past bedtime shades the lost sleep red. From two hours before bedtime a line on screen says how much sleep you'll get if you go to bed now (green from 7 hours, yellow from 5, red below), and a reminder pops up once. The times are the Sleep parts of your day plan. Can be turned on or off during focus too."
                            Opacity="0.75" TextWrapping="Wrap" />
                 <CheckBox IsChecked="{Binding SleepEnabled}" Content="Use sleep mode" />
                 <StackPanel Spacing="6" IsEnabled="{Binding SleepEnabled}">
-                    <RadioButton GroupName="sleepNights" IsChecked="{Binding !SleepSameEveryNight}" Content="Weeknights and weekends (Friday and Saturday nights)" />
-                    <RadioButton GroupName="sleepNights" IsChecked="{Binding SleepSameEveryNight}" Content="Same every night" />
-                    <Grid ColumnDefinitions="240,Auto,Auto,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="12">
-                        <TextBlock Grid.Row="0" Grid.Column="1" Text="Bedtime" Opacity="0.75" />
-                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Wake up" Opacity="0.75" />
-                        <TextBlock Grid.Row="1" Text="Every night" IsVisible="{Binding SleepSameEveryNight}" VerticalAlignment="Center" />
-                        <TextBlock Grid.Row="1" Text="Weeknights (Sun–Thu)" IsVisible="{Binding !SleepSameEveryNight}" VerticalAlignment="Center" />
-                        <TimePicker Grid.Row="1" Grid.Column="1" SelectedTime="{Binding WeeknightBedtime}" MinuteIncrement="15" />
-                        <TimePicker Grid.Row="1" Grid.Column="2" SelectedTime="{Binding WeeknightWake}" MinuteIncrement="15" />
-                        <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding WeeknightSleepText}" Opacity="0.8" VerticalAlignment="Center" />
-                        <TextBlock Grid.Row="2" Text="Weekend nights (Fri–Sat)" IsVisible="{Binding !SleepSameEveryNight}" VerticalAlignment="Center" />
-                        <TimePicker Grid.Row="2" Grid.Column="1" SelectedTime="{Binding WeekendBedtime}" MinuteIncrement="15"
-                                    IsVisible="{Binding !SleepSameEveryNight}" />
-                        <TimePicker Grid.Row="2" Grid.Column="2" SelectedTime="{Binding WeekendWake}" MinuteIncrement="15"
-                                    IsVisible="{Binding !SleepSameEveryNight}" />
-                        <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding WeekendSleepText}" Opacity="0.8" VerticalAlignment="Center"
-                                   IsVisible="{Binding !SleepSameEveryNight}" />
+                    <Grid ColumnDefinitions="240,Auto" RowDefinitions="Auto,Auto" RowSpacing="6" ColumnSpacing="12">
+                        <TextBlock Text="Nights before workdays" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding WeeknightSleepText}" Opacity="0.8" VerticalAlignment="Center" />
+                        <TextBlock Grid.Row="1" Text="Other nights" VerticalAlignment="Center" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding WeekendSleepText}" Opacity="0.8" VerticalAlignment="Center" />
                     </Grid>
+                    <Button Content="Edit sleep times in the Day plan" Command="{Binding EditSleepTimesCommand}" />
                 </StackPanel>
                 <StackPanel Spacing="4" Margin="0,4,0,0">
                     <TextBlock Text="Real sleep from a Fitbit or Pixel Watch (coming next): prepare your Google project now." Opacity="0.75" TextWrapping="Wrap" />
@@ -341,7 +330,7 @@
                     <TextBox Grid.Column="1" Text="{Binding LooseningDelayMinutes}" />
                 </Grid>
                 <TextBlock Opacity="0.75" TextWrapping="Wrap"
-                           Text="Deleting a scheduled block, removing a block rule, adding an allow rule, time off or an unlock option, or lowering any wait counts down this long first, and never takes effect during a session. Stricter changes apply at once. Shortening this wait counts down too." />
+                           Text="Removing a block rule, adding an allow rule or an unlock option, or lowering any wait counts down this long first, and never takes effect during a session. Stricter changes apply at once. Shortening this wait counts down too." />
             </StackPanel>
 
             <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"

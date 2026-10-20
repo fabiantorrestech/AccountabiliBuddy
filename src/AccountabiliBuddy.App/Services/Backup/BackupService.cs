@@ -139,7 +139,12 @@ public sealed class BackupService
         if (parts.HasFlag(BackupParts.Profiles) && content.Profiles is not null)
         {
             ProfileDocument incoming = ProfileDocumentSerializer.Deserialize(content.Profiles);
-            PendingChanges? pending = await _configuration.UpdateAsync(current => overwrite ? incoming : MergeProfiles(current, incoming));
+            // A backup from before day plans has none of its own (it would get the starting plan): keep this one's.
+            bool hasDayPlan = ProfileDocumentSerializer.HasDayPlan(content.Profiles);
+            PendingChanges? pending = await _configuration.UpdateAsync(current =>
+                !overwrite ? MergeProfiles(current, incoming)
+                : hasDayPlan ? incoming
+                : incoming with { DayPlan = current.DayPlan });
             summary.Add($"Profiles restored ({incoming.Profiles.Count} in the backup)"
                         + (pending is not null ? "; the looser parts take effect after the countdown." : "."));
         }
@@ -211,8 +216,10 @@ public sealed class BackupService
         return new BackupContent(_time.GetUtcNow(), AppVersion, includeSecrets, profiles, settings, googleClientSecret, sources, events, history);
     }
 
-    /// <summary>Adds the backup's profiles, weekly blocks, time off and one-off blocks that aren't here yet (by id).
-    /// Everything else (schedule order, Pomodoro, escalation, locks) stays as it is.</summary>
+    /// <summary>
+    /// Adds the backup's profiles that aren't here yet (by id) and its one-off days on dates that have none here (when
+    /// their categories exist here). Everything else (the day plan's templates, Pomodoro, escalation, locks) stays as it is.
+    /// </summary>
     private static ProfileDocument MergeProfiles(ProfileDocument current, ProfileDocument incoming)
     {
         HashSet<Guid> profileIds = current.Profiles.Select(profile => profile.Id).ToHashSet();
@@ -223,23 +230,17 @@ public sealed class BackupService
             .ToList();
         profileIds.UnionWith(added.Select(profile => profile.Id));
 
-        HashSet<Guid> blockIds = current.Schedule.Blocks.Select(block => block.Id).ToHashSet();
-        HashSet<Guid> timeOffIds = current.Schedule.TimeOff.Select(timeOff => timeOff.Id).ToHashSet();
-        HashSet<Guid> oneOffIds = current.Schedule.OneOffBlocks.Select(block => block.Id).ToHashSet();
+        HashSet<DateOnly> plannedDates = current.DayPlan.OneOffDays.Select(day => day.Date).ToHashSet();
+        HashSet<Guid> categoryIds = current.DayPlan.Categories.Select(category => category.Id).ToHashSet();
+        List<OneOffDay> addedDays = incoming.DayPlan.OneOffDays
+            .Where(day => !plannedDates.Contains(day.Date) && day.Template.Parts.All(part => categoryIds.Contains(part.CategoryId)))
+            .ToList();
         return current with
         {
             Profiles = current.Profiles.Concat(added).ToList(),
-            Schedule = current.Schedule with
+            DayPlan = current.DayPlan with
             {
-                Blocks = current.Schedule.Blocks
-                    .Concat(incoming.Schedule.Blocks.Where(block => !blockIds.Contains(block.Id) && profileIds.Contains(block.ProfileId)))
-                    .ToList(),
-                TimeOff = current.Schedule.TimeOff
-                    .Concat(incoming.Schedule.TimeOff.Where(timeOff => !timeOffIds.Contains(timeOff.Id)))
-                    .ToList(),
-                OneOffBlocks = current.Schedule.OneOffBlocks
-                    .Concat(incoming.Schedule.OneOffBlocks.Where(block => !oneOffIds.Contains(block.Id) && profileIds.Contains(block.ProfileId)))
-                    .ToList(),
+                OneOffDays = current.DayPlan.OneOffDays.Concat(addedDays).OrderBy(day => day.Date).ToList(),
             },
         };
     }

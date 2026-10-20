@@ -14,7 +14,7 @@ using Microsoft.Data.Sqlite;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// The day bar at the top of the main window: today's blocks (schedule minus time off), the focus sessions you started
+/// The day bar at the top of the main window: today's planned work (the day plan's Watch parts), the focus sessions you started
 /// (from the history, plus the running one up to now; scheduled blocks block but aren't focus), calendar events, and a live "now" line.
 /// The on-screen timeline uses its own copy, which draws even when the day bar is hidden. Omitted sessions (e.g.
 /// tests) are left out.
@@ -123,7 +123,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string StatusText { get; set; }
 
-    /// <summary>E.g. "3h 10m focused · 4h 30m of blocks".</summary>
+    /// <summary>E.g. "3h 10m focused · 4h 30m of work planned".</summary>
     [ObservableProperty]
     public partial string SummaryText { get; set; }
 
@@ -155,7 +155,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial IBrush SleepBrush { get; set; }
 
-    /// <summary>True when some blocks are scheduled in the day shown (schedule or one-off blocks, minus time off).</summary>
+    /// <summary>True when the day shown has planned work (Watch parts of the day plan).</summary>
     [ObservableProperty]
     public partial bool HasPlannedFocus { get; set; }
 
@@ -243,13 +243,13 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 
         DateTime now = LocalNow();
         (LocalWindow day, LocalWindow span) = CurrentDay();
-        IReadOnlyList<PlannedFocus> planned = DayTimeline.Planned(_configuration.Current.Schedule, span);
+        IReadOnlyList<PlannedFocus> planned = DayTimeline.Planned(_configuration.Current.DayPlan, span);
         List<(LocalWindow Window, string Tip, Guid? ProfileId)> actual = ActualSessions(now, span);
 
         IEnumerable<LocalWindow> content = planned.Select(focus => focus.Window).Concat(actual.Select(item => item.Window));
         if (_sleep.Current.Enabled)
         {
-            // The calendar dates also hold tomorrow's early blocks; only blocks touching this waking day stretch it.
+            // The calendar dates also hold tomorrow's early parts; only parts touching this waking day stretch it.
             content = content.Where(window => DayTimeline.Clip(window, day) is not null);
         }
 
@@ -260,7 +260,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         {
             if (DayTimeline.Clip(focus.Window, range) is LocalWindow window)
             {
-                plannedSpans.Add(ToSpan(window, range, $"{ProfileName(focus.ProfileId)} · blocks {Times(window)} · click to open", focus.ProfileId));
+                plannedSpans.Add(ToSpan(window, range, $"{focus.Name} · planned {Times(window)}"));
             }
         }
 
@@ -298,7 +298,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     /// <summary>Wake time to bedtime, plus a little of the night (more while still up, until wake time).</summary>
     private LocalWindow WakingDay(DateTime now)
     {
-        SleepSchedule schedule = _sleep.Current.ToSchedule();
+        SleepSchedule schedule = _sleep.Current.ToSchedule(_configuration.Current.DayPlan);
         LocalWindow waking = schedule.DayAround(now);
         LocalWindow night = schedule.NightAround(now);
         DateTime shownUntil = night.Start + NightShown > now + NightAfterNow ? night.Start + NightShown : now + NightAfterNow;
@@ -315,7 +315,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             return (nights, missed);
         }
 
-        SleepSchedule schedule = _sleep.Current.ToSchedule();
+        SleepSchedule schedule = _sleep.Current.ToSchedule(_configuration.Current.DayPlan);
         for (DateTime evening = range.Start.Date.AddDays(-1); evening <= range.End.Date; evening = evening.AddDays(1))
         {
             LocalWindow night = schedule.Night(DateOnly.FromDateTime(evening));
@@ -340,7 +340,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 
     private void UpdateSleepLine(DateTime now)
     {
-        SleepSchedule schedule = _sleep.Current.ToSchedule();
+        SleepSchedule schedule = _sleep.Current.ToSchedule(_configuration.Current.DayPlan);
         LocalWindow night = schedule.NightAround(now);
         ShowsSleep = _sleep.Current.Enabled && now >= night.Start - SleepLineLead && now < night.End;
         if (!ShowsSleep)
@@ -460,18 +460,18 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         PlannedFocus? current = planned.FirstOrDefault(focus => focus.Window.Contains(now));
         if (current is not null)
         {
-            return $"{ProfileName(current.ProfileId)} blocks until {current.Window.End:t} · not running";
+            return $"{current.Name} until {current.Window.End:t} · no focus session running";
         }
 
         PlannedFocus? next = planned.FirstOrDefault(focus => focus.Window.Start > now && focus.Window.Start < range.End);
         if (next is not null)
         {
-            return $"Next block: {ProfileName(next.ProfileId)} at {next.Window.Start:t}";
+            return $"Next: {next.Name} at {next.Window.Start:t}";
         }
 
         return planned.Any(focus => DayTimeline.Clip(focus.Window, range) is not null)
-            ? "No more blocks today"
-            : "No blocks today";
+            ? "No more work planned today"
+            : "No work planned today";
     }
 
     private static string Summary(
@@ -480,7 +480,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         TimeSpan plannedTotal = Total(planned.Select(focus => focus.Window), range);
         TimeSpan focusedTotal = Total(actual.Select(item => item.Window), range with { End = now < range.End ? now : range.End });
         return plannedTotal > TimeSpan.Zero
-            ? $"{Duration(focusedTotal)} focused · {Duration(plannedTotal)} of blocks"
+            ? $"{Duration(focusedTotal)} focused · {Duration(plannedTotal)} of work planned"
             : $"{Duration(focusedTotal)} focused";
     }
 

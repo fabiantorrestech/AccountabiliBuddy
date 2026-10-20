@@ -3,6 +3,7 @@ package com.accountabilibuddy.companion.engine
 import com.accountabilibuddy.companion.model.CalendarEvent
 import com.accountabilibuddy.companion.model.DayBarRange
 import com.accountabilibuddy.companion.model.DayBarSettings
+import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.companion.model.LocalWindow
 import com.accountabilibuddy.companion.model.PlannedFocus
 import com.accountabilibuddy.companion.model.ProfileDocument
@@ -31,13 +32,13 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
         sleep: SleepSettings,
         slept: List<LocalWindow> = emptyList(),
     ): DayBarModel {
-        val day = dayAt(now, settings, sleep)
+        val day = dayAt(now, settings, sleep, document.dayPlan)
         val span = DayTimeline.calendarSpan(day)
-        val planned = DayTimeline.planned(document.schedule, span)
+        val planned = DayTimeline.planned(document.dayPlan, span)
 
         var content: List<LocalWindow> = planned.map { it.window }
         if (sleep.enabled) {
-            // The calendar dates also hold tomorrow's early blocks; only blocks touching this waking day stretch it.
+            // The calendar dates also hold tomorrow's early parts; only parts touching this waking day stretch it.
             content = content.filter { DayTimeline.clip(it, day) != null }
         }
 
@@ -45,13 +46,13 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
 
         val plannedSpans = planned.mapNotNull { focus ->
             DayTimeline.clip(focus.window, range)?.let {
-                toSpan(it, range, "${profileName(document, focus.profileId)} · ${times(it)}", focus.profileId)
+                toSpan(it, range, "${focus.name} · ${times(it)}")
             }
         }
         val actualSpans = slept.mapNotNull { window ->
             DayTimeline.clip(window, range)?.let { toSpan(it, range, "Slept ${times(window)} (${duration(Duration.between(window.start, window.end))})") }
         }
-        val (night, missed) = sleepSpans(now, range, sleep)
+        val (night, missed) = sleepSpans(now, range, sleep, document.dayPlan)
 
         return DayBarModel(
             day = day,
@@ -65,27 +66,27 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
             missed = missed,
             ticks = ticks(range),
             now = fraction(now, range),
-            sleepLine = sleepLine(now, sleep),
+            sleepLine = sleepLine(now, sleep, document.dayPlan),
         )
     }
 
     /** The day the bar is about at [now], before it grows to fit the blocks; the lists under the bar follow it. */
-    fun dayAt(now: LocalDateTime, settings: DayBarSettings, sleep: SleepSettings): LocalWindow = when {
+    fun dayAt(now: LocalDateTime, settings: DayBarSettings, sleep: SleepSettings, plan: DayPlan): LocalWindow = when {
         settings.range == DayBarRange.FullDay -> DayTimeline.fullDay(now)
-        sleep.enabled -> wakingDay(now, sleep)
+        sleep.enabled -> wakingDay(now, sleep, plan)
         else -> DayTimeline.dayContaining(now, settings.dayStart, settings.dayEnd)
     }
 
-    /** What comes next, for the widget and the notification: the running block's end or the next block's start. */
+    /** What comes next, for the widget and the notification: the current work's end or the next work's start. */
     fun nextChange(now: LocalDateTime, document: ProfileDocument): LocalDateTime? {
-        val planned = DayTimeline.planned(document.schedule, LocalWindow(now.minusDays(1), now.plusDays(2)))
+        val planned = DayTimeline.planned(document.dayPlan, LocalWindow(now.minusDays(1), now.plusDays(2)))
         val current = planned.firstOrNull { it.window.contains(now) }
         return current?.window?.end ?: planned.firstOrNull { it.window.start.isAfter(now) }?.window?.start
     }
 
     /** Wake time to bedtime, plus a little of the night (more while still up, until wake time). */
-    private fun wakingDay(now: LocalDateTime, sleep: SleepSettings): LocalWindow {
-        val schedule = sleep.toSchedule()
+    private fun wakingDay(now: LocalDateTime, sleep: SleepSettings, plan: DayPlan): LocalWindow {
+        val schedule = sleep.toSchedule(plan)
         val waking = schedule.dayAround(now)
         val night = schedule.nightAround(now)
         val afterBed = night.start.plus(NIGHT_SHOWN)
@@ -94,12 +95,12 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
         return LocalWindow(waking.start, if (shownUntil.isBefore(night.end)) shownUntil else night.end)
     }
 
-    private fun sleepSpans(now: LocalDateTime, range: LocalWindow, sleep: SleepSettings): Pair<List<DayBarSpan>, List<DayBarSpan>> {
+    private fun sleepSpans(now: LocalDateTime, range: LocalWindow, sleep: SleepSettings, plan: DayPlan): Pair<List<DayBarSpan>, List<DayBarSpan>> {
         if (!sleep.enabled) {
             return emptyList<DayBarSpan>() to emptyList()
         }
 
-        val schedule = sleep.toSchedule()
+        val schedule = sleep.toSchedule(plan)
         val nights = mutableListOf<DayBarSpan>()
         var evening = range.start.toLocalDate().minusDays(1)
         while (evening.atStartOfDay().isBefore(range.end)) {
@@ -124,12 +125,12 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
     }
 
     /** From two hours before bedtime until wake time. */
-    fun sleepLine(now: LocalDateTime, sleep: SleepSettings): SleepLine? {
+    fun sleepLine(now: LocalDateTime, sleep: SleepSettings, plan: DayPlan): SleepLine? {
         if (!sleep.enabled) {
             return null
         }
 
-        val night = sleep.toSchedule().nightAround(now)
+        val night = sleep.toSchedule(plan).nightAround(now)
         if (!night.end.isAfter(night.start) || now.isBefore(night.start.minus(SLEEP_LINE_LEAD)) || !now.isBefore(night.end)) {
             return null
         }
@@ -156,21 +157,21 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
     private fun status(now: LocalDateTime, range: LocalWindow, planned: List<PlannedFocus>, document: ProfileDocument): String {
         val current = planned.firstOrNull { it.window.contains(now) }
         if (current != null) {
-            return "Blocks on · ${profileName(document, current.profileId)} until ${clock.time(current.window.end)}"
+            return "${current.name} until ${clock.time(current.window.end)}"
         }
 
         val next = planned.firstOrNull { it.window.start.isAfter(now) && it.window.start.isBefore(range.end) }
         if (next != null) {
-            return "Next block: ${profileName(document, next.profileId)} at ${clock.time(next.window.start)}"
+            return "Next: ${next.name} at ${clock.time(next.window.start)}"
         }
 
-        return if (planned.any { DayTimeline.clip(it.window, range) != null }) "No more blocks today" else "No blocks today"
+        return if (planned.any { DayTimeline.clip(it.window, range) != null }) "No more work planned today" else "No work planned today"
     }
 
     private fun summary(range: LocalWindow, planned: List<PlannedFocus>): String {
         val total = DayTimeline.union(planned.mapNotNull { DayTimeline.clip(it.window, range) })
             .fold(Duration.ZERO) { sum, window -> sum.plus(Duration.between(window.start, window.end)) }
-        return if (total.isZero) "" else "${duration(total)} of blocks"
+        return if (total.isZero) "" else "${duration(total)} of work planned"
     }
 
     private fun ticks(range: LocalWindow): List<DayBarTick> {
@@ -197,8 +198,6 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
         DayBarSpan(fraction(window.start, range), fraction(window.end, range), label, profileId)
 
     private fun times(window: LocalWindow) = "${clock.time(window.start)} – ${clock.time(window.end)}"
-
-    private fun profileName(document: ProfileDocument, id: UUID) = document.profile(id)?.name ?: "(deleted profile)"
 
     companion object {
         private val TICK_STEPS = intArrayOf(1, 2, 3, 4, 6)

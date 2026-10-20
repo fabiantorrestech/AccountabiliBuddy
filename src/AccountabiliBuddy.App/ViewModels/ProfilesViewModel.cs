@@ -136,15 +136,6 @@ public sealed partial class ProfilesViewModel : ObservableObject
     private void DeleteProfile()
     {
         ProfileEditorViewModel profile = SelectedProfile!;
-
-        int scheduledBlocks = _configuration.Editing.Schedule.Blocks.Count(block => block.ProfileId == profile.Id)
-            + _configuration.Editing.Schedule.OneOffBlocks.Count(block => block.ProfileId == profile.Id);
-        if (scheduledBlocks > 0)
-        {
-            StatusMessage = $"'{profile.Name}' is used by {scheduledBlocks} schedule block(s). Remove those first.";
-            return;
-        }
-
         if (_sessions.State.ProfileId == profile.Id)
         {
             StatusMessage = $"'{profile.Name}' is used by the running session.";

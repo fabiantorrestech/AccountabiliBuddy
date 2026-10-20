@@ -7,7 +7,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>A profile on the assistant's review page: rename it or untick it to leave it (and its times) out.</summary>
 public sealed partial class PlannedProfileRowViewModel : ObservableObject
 {
-    public PlannedProfileRowViewModel(PlannedProfile planned, int scheduledBlocks)
+    public PlannedProfileRowViewModel(PlannedProfile planned)
     {
         Planned = planned;
         Name = planned.Profile.Name;
@@ -16,11 +16,10 @@ public sealed partial class PlannedProfileRowViewModel : ObservableObject
         int blocks = planned.Profile.Rules.Count(rule => rule.Verdict == RuleVerdict.Block);
         int allows = planned.Profile.Rules.Count(rule => rule.Verdict == RuleVerdict.Allow
                                                          && rule.Note is not (ImportPlanner.AllowOtherAppsNote or ImportPlanner.AllowOtherSitesNote));
-        string when = scheduledBlocks == 0 ? "start it yourself" : $"{scheduledBlocks} weekly block(s)";
         string unlock = planned.Profile.UnlockOptions.Count == 0
             ? "no unlock option"
             : string.Join(", ", planned.Profile.UnlockOptions.Select(option => $"unlock after {option.Wait.TotalMinutes:0} min"));
-        Details = $"Blocks {blocks} site(s)/app(s)" + (allows > 0 ? $", allows {allows}" : string.Empty) + $" · {when} · {unlock}";
+        Details = $"Blocks {blocks} site(s)/app(s)" + (allows > 0 ? $", allows {allows}" : string.Empty) + $" · {unlock}";
         Origin = planned.IsCombined ? $"Where {string.Join(" and ", planned.SourceNames)} overlap" : null;
         Skipped = planned.SkippedLines.Count == 0
             ? null

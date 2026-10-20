@@ -31,7 +31,6 @@ import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.engine.DayBarBuilder
 import com.accountabilibuddy.companion.engine.DayBarModel
 import com.accountabilibuddy.companion.engine.DayTimeline
-import com.accountabilibuddy.companion.engine.ProfileColors
 import com.accountabilibuddy.companion.model.CalendarEvent
 import com.accountabilibuddy.companion.model.LocalWindow
 import com.accountabilibuddy.companion.model.PlannedFocus
@@ -138,7 +137,7 @@ private val TOMORROW_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EE
 
 private fun blocksTouching(document: ProfileDocument, window: LocalWindow): List<PlannedFocus> {
     val around = LocalWindow(window.start.minusDays(1), window.end.plusDays(1))
-    return DayTimeline.planned(document.schedule, around).filter { DayTimeline.clip(it.window, window) != null }
+    return DayTimeline.planned(document.dayPlan, around).filter { DayTimeline.clip(it.window, window) != null }
 }
 
 private fun eventsIn(events: List<CalendarEvent>, window: LocalWindow): List<CalendarEvent> =
@@ -151,11 +150,11 @@ private fun BlockRow(state: CompanionState, focus: PlannedFocus, clock: ClockFor
     val past = !focus.window.end.isAfter(now)
     val color = if (past) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Box(Modifier.size(10.dp).background(Color(ProfileColors.argbFor(focus.profileId)), CircleShape))
+        Box(Modifier.size(10.dp).background(Color(focus.argb), CircleShape))
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                state.document.profile(focus.profileId)?.name ?: "(deleted profile)",
+                focus.name,
                 fontWeight = if (running) FontWeight.SemiBold else FontWeight.Normal,
                 color = color,
             )
@@ -236,7 +235,7 @@ private fun SleepCard(state: CompanionState, clock: ClockFormat, health: HealthS
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Sleep", style = MaterialTheme.typography.titleMedium)
-            val night = state.sleep.toSchedule().nightAround(LocalDateTime.now())
+            val night = state.sleep.toSchedule(state.document.dayPlan).nightAround(LocalDateTime.now())
             if (state.sleep.enabled) {
                 Text(
                     "Planned: ${clock.time(night.start)} – ${clock.time(night.end)} (${DayBarBuilder.duration(Duration.between(night.start, night.end))})",

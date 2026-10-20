@@ -2,7 +2,7 @@ using Avalonia.Media;
 
 namespace AccountabiliBuddy.App.Services;
 
-/// <summary>Stable color per profile, used by the schedule grid. Mid-tone colors so white text stays readable.</summary>
+/// <summary>Stable color per profile, used by the on-screen timer. Mid-tone colors so white text stays readable.</summary>
 public static class ProfileColors
 {
     private static readonly Color[] Palette =

@@ -11,7 +11,7 @@ namespace AccountabiliBuddy.Core.Storage;
 public static class ProfileDocumentSerializer
 {
     private const string SchemaVersionProperty = "schemaVersion";
-    private const int TimeOffSchemaVersion = 4;
+    private const int DayPlanSchemaVersion = 5;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -35,45 +35,43 @@ public static class ProfileDocumentSerializer
             throw new UnsupportedSchemaVersionException(version, ProfileDocument.CurrentSchemaVersion);
         }
 
-        if (version < TimeOffSchemaVersion)
+        if (version < DayPlanSchemaVersion)
         {
-            json = MigrateOffDaysToTimeOff(json);
+            // Off days (v2/v3) became time off in v4, and all of the v4 schedule goes in v5; nothing to carry over.
+            json = MigrateScheduleToDayPlan(json);
         }
 
         ProfileDocument document = JsonSerializer.Deserialize<ProfileDocument>(json, Options)
             ?? throw new JsonException("Profile document is empty.");
 
-        // Older versions: the fields added since are absent and take their defaults (v2: no unlock options, no off
-        // days, relock at midnight; v3: looser changes wait 10 minutes, ask about unlisted sites; v4: no time off or
-        // one-off blocks beyond the migrated off days); the document is written back in the current version on the
-        // next save.
+        // Older versions: the fields added since are absent and take their defaults (v2: no unlock options, relock at
+        // midnight; v3: looser changes wait 10 minutes, ask about unlisted sites; v5: the starting day plan); the
+        // document is written back in the current version on the next save.
         return version < ProfileDocument.CurrentSchemaVersion
             ? document with { SchemaVersion = ProfileDocument.CurrentSchemaVersion }
             : document;
     }
 
-    /// <summary>v2/v3 → v4: every off day ("schedule.offDays": ["2026-10-20"]) becomes all-day time off.</summary>
-    private static string MigrateOffDaysToTimeOff(string json)
+    /// <summary>False for a document from before day plans (v4 and older): it gets the starting plan when read.</summary>
+    /// <exception cref="JsonException">The JSON is malformed or has no schema version.</exception>
+    public static bool HasDayPlan(string json)
+    {
+        return ReadSchemaVersion(json) >= DayPlanSchemaVersion;
+    }
+
+    /// <summary>
+    /// v4 → v5 (ADR 18): the weekly schedule of profiles, its time off and one-off blocks are dropped (blockers such as
+    /// Cold Turkey keep their own schedules); the document gets the starting day plan, its default.
+    /// </summary>
+    private static string MigrateScheduleToDayPlan(string json)
     {
         JsonNode? root = JsonNode.Parse(json);
-        if (root?["schedule"] is not JsonObject schedule || schedule["offDays"] is not JsonArray offDays)
+        if (root is not JsonObject document || !document.Remove("schedule"))
         {
             return json;
         }
 
-        var timeOff = new JsonArray();
-        foreach (JsonNode? day in offDays)
-        {
-            timeOff.Add(new JsonObject
-            {
-                ["id"] = Guid.NewGuid().ToString(),
-                ["date"] = day?.GetValue<string>(),
-            });
-        }
-
-        schedule.Remove("offDays");
-        schedule["timeOff"] = timeOff;
-        return root.ToJsonString();
+        return document.ToJsonString();
     }
 
     private static int ReadSchemaVersion(string json)

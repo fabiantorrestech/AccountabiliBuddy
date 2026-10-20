@@ -6,7 +6,7 @@ public enum BackupParts
 {
     None = 0,
 
-    /// <summary>Profiles, rules, the weekly schedule, time off, one-off blocks, unlock and lock settings.</summary>
+    /// <summary>Profiles, rules, the day plan (one-off days included), unlock and lock settings.</summary>
     Profiles = 1,
 
     /// <summary>Quick session, privacy choices, watched browsers, Cold Turkey sightings, calendar settings.</summary>

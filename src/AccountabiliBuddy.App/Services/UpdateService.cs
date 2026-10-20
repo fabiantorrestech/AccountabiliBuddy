@@ -169,7 +169,7 @@ public sealed class UpdateService : IDisposable
 
         if (_sessions.State.IsActive)
         {
-            // A scheduled block started while downloading.
+            // A session started while downloading.
             SetState($"Version {AvailableVersion} is downloaded and installs when the session ends.", busy: false);
             return;
         }
