@@ -31,6 +31,8 @@ public sealed class BackupService
     public static readonly IReadOnlyList<string> SettingsKeys = new[]
     {
         "quickSession", "privacy", "integrations.browsers.watched", "integrations.coldTurkey.sightings", CalendarSettingsKey,
+        // Also read by the Android companion when it imports a backup.
+        "sleep", "daybar",
     };
 
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };

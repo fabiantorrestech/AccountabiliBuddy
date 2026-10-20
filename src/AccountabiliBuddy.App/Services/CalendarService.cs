@@ -34,8 +34,15 @@ public sealed class CalendarService
 
     private readonly SqliteJsonDocumentStore _store;
 
+    // A check that only moved "last checked" (nothing new, no new error) saves the cache at most this often: the cache
+    // holds every fetched event, and Google is checked every 30 seconds.
+    private static readonly TimeSpan CheckTimesSaveInterval = TimeSpan.FromMinutes(10);
+
     // Saves run one after another so an older state never overwrites a newer one.
     private Task _pendingSave = Task.CompletedTask;
+
+    // The check time of the last status that was saved (by the fetch's own clock).
+    private DateTimeOffset? _checkTimesSavedAt;
 
     public CalendarService(SqliteJsonDocumentStore store)
     {
@@ -232,8 +239,21 @@ public sealed class CalendarService
 
     public void SetStatus(string sourceId, CalendarSourceStatus status)
     {
+        CalendarSourceStatus previous = StatusOf(sourceId);
         var bySource = new Dictionary<string, CalendarSourceStatus>(Cache.StatusBySource) { [sourceId] = status };
         Cache = Cache with { StatusBySource = bySource };
+
+        // Only the check times moved: shown at once, written now and then. After a restart an older "last checked"
+        // only means the first check asks for a few more changes.
+        bool onlyCheckTimesMoved = status with { LastAttemptAt = previous.LastAttemptAt, LastSuccessAt = previous.LastSuccessAt } == previous;
+        DateTimeOffset checkedAt = status.LastAttemptAt ?? DateTimeOffset.MinValue;
+        if (onlyCheckTimesMoved && _checkTimesSavedAt is DateTimeOffset savedAt && checkedAt - savedAt < CheckTimesSaveInterval)
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        _checkTimesSavedAt = checkedAt;
         Save(CacheKey, Cache);
     }
 

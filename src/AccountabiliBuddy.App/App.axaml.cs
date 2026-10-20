@@ -370,6 +370,28 @@ public partial class App : Application
         _bedtimeReminder.Start();
         _activityWatcher.ActivityChanged += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(_sessionOverlay.OnActivityChanged);
         _dayBar.Start();
+        // The main window's bar redraws only while the window is open; the on-screen timeline has its own copy.
+        MainWindow mainWindow = _mainWindow;
+        DayBarViewModel mainDayBar = _dayBar;
+        mainWindow.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == Visual.IsVisibleProperty)
+            {
+                if (mainWindow.IsVisible)
+                {
+                    mainDayBar.Resume();
+                }
+                else
+                {
+                    mainDayBar.Pause();
+                }
+            }
+        };
+        if (!mainWindow.IsVisible)
+        {
+            mainDayBar.Pause();
+        }
+
         PrivateWindowAccessMonitor privateAccess = _privateAccess;
         privateAccess.NagRequested += (_, _) => ShowPrivateWindowsNag(privateAccess, browserSetup);
         privateAccess.Start();

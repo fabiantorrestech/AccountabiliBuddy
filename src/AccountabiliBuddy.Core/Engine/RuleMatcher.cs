@@ -15,6 +15,14 @@ public sealed class RuleMatcher
     // Null value = pattern failed to compile; cached so it is not recompiled on every snapshot.
     private readonly ConcurrentDictionary<string, Regex?> _regexCache = new(StringComparer.Ordinal);
 
+    // URL patterns, worked out once: a domain rule's host (null = not a URL), an Exact or Prefix rule's normal form.
+    private readonly ConcurrentDictionary<string, string?> _patternHosts = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, string> _normalizedPatterns = new(StringComparer.Ordinal);
+
+    // A profile's rules are tried one after another against the same snapshot (once a second during focus), so the
+    // snapshot's URL is taken apart once, not once per rule.
+    private ParsedUrl? _lastUrl;
+
     public bool Matches(Rule rule, ActivitySnapshot snapshot)
     {
         if (string.IsNullOrWhiteSpace(rule.Pattern))
@@ -49,20 +57,32 @@ public sealed class RuleMatcher
 
     private bool MatchesUrl(Rule rule, string url)
     {
+        ParsedUrl parsed = Parse(url);
         if (rule.Kind == MatchKind.Domain)
         {
-            return MatchesDomain(UrlNormalizer.GetHost(url), UrlNormalizer.GetHost(rule.Pattern));
+            return MatchesDomain(parsed.Host, _patternHosts.GetOrAdd(rule.Pattern, UrlNormalizer.GetHost));
         }
-
-        string normalizedUrl = UrlNormalizer.Normalize(url);
 
         // Exact and Prefix patterns are whole URLs, so normalize them the same way.
         // Contains and Regex patterns are fragments and are used as written.
         string pattern = rule.Kind is MatchKind.Exact or MatchKind.Prefix
-            ? UrlNormalizer.Normalize(rule.Pattern)
+            ? _normalizedPatterns.GetOrAdd(rule.Pattern, UrlNormalizer.Normalize)
             : rule.Pattern;
 
-        return MatchesText(rule.Kind, normalizedUrl, pattern);
+        return MatchesText(rule.Kind, parsed.Normalized, pattern);
+    }
+
+    private ParsedUrl Parse(string url)
+    {
+        ParsedUrl? last = _lastUrl;
+        if (last is not null && string.Equals(last.Url, url, StringComparison.Ordinal))
+        {
+            return last;
+        }
+
+        var parsed = new ParsedUrl(url, UrlNormalizer.GetHost(url), UrlNormalizer.Normalize(url));
+        _lastUrl = parsed;
+        return parsed;
     }
 
     private static bool MatchesDomain(string? host, string? domain)
@@ -72,7 +92,11 @@ public sealed class RuleMatcher
             return false;
         }
 
-        return host == domain || host.EndsWith("." + domain, StringComparison.Ordinal);
+        // host == domain, or host ends with "." + domain (checked without building that string).
+        return host == domain
+               || (host.Length > domain.Length
+                   && host.EndsWith(domain, StringComparison.Ordinal)
+                   && host[host.Length - domain.Length - 1] == '.');
     }
 
     private bool MatchesRegex(string input, string pattern)
@@ -111,4 +135,7 @@ public sealed class RuleMatcher
             ? processName[..^ExeSuffix.Length]
             : processName;
     }
+
+    /// <summary>A snapshot's URL with its host (null when it isn't a URL) and normal form.</summary>
+    private sealed record ParsedUrl(string Url, string? Host, string Normalized);
 }

@@ -101,3 +101,7 @@ GetObject
 BITMAP
 // On-screen window: stay above a revealed taskbar
 FindWindow
+// Window watcher: process names keyed by id and start time (ids get reused)
+OpenProcess
+GetProcessTimes
+QueryFullProcessImageName

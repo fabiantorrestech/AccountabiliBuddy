@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using AccountabiliBuddy.Core.Browser;
 using AccountabiliBuddy.Core.Ports;
@@ -13,11 +14,15 @@ namespace AccountabiliBuddy.Platform.Windows.Browser;
 /// permissions; extensions.json says whether it's installed.</item>
 /// </list>
 /// The files are opened read-only with full sharing; these formats are the browsers' internal ones, so anything
-/// unexpected reads as <see cref="PrivateWindowAccess.Unknown"/>.
+/// unexpected reads as <see cref="PrivateWindowAccess.Unknown"/>. They are large (hundreds of KB) and checked every
+/// minute while a browser is closed, so each profile's answer is kept until one of its files changes.
 /// </summary>
 public sealed class WindowsPrivateWindowAccessReader : IPrivateWindowAccessReader
 {
     private const string FirefoxPrivatePermission = "internal:privateBrowsingAllowed";
+
+    private static readonly string[] ChromiumFiles = { "Secure Preferences", "Preferences" };
+    private static readonly string[] FirefoxFiles = { "extensions.json", "extension-preferences.json" };
 
     private static readonly Dictionary<BrowserKind, string> ChromiumUserData = new()
     {
@@ -26,23 +31,46 @@ public sealed class WindowsPrivateWindowAccessReader : IPrivateWindowAccessReade
         [BrowserKind.Brave] = @"%LOCALAPPDATA%\BraveSoftware\Brave-Browser\User Data",
     };
 
+    // Profile folder → its files' write times and sizes when read, and the answer they gave.
+    private readonly ConcurrentDictionary<string, (string Stamp, PrivateWindowAccess Access)> _byProfile =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public PrivateWindowAccess Read(BrowserKind browser)
     {
         try
         {
             if (browser == BrowserKind.Firefox)
             {
-                return Combine(FirefoxProfiles().Select(ReadFirefoxProfile));
+                return Combine(FirefoxProfiles().Select(profile => ReadCached(profile, FirefoxFiles, ReadFirefoxProfile)));
             }
 
             return ChromiumUserData.TryGetValue(browser, out string? root)
-                ? Combine(ChromiumProfiles(Environment.ExpandEnvironmentVariables(root)).Select(ReadChromiumProfile))
+                ? Combine(ChromiumProfiles(Environment.ExpandEnvironmentVariables(root))
+                    .Select(profile => ReadCached(profile, ChromiumFiles, ReadChromiumProfile)))
                 : PrivateWindowAccess.Unknown;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return PrivateWindowAccess.Unknown;
         }
+    }
+
+    /// <summary>The profile's answer from last time if none of its files changed since; otherwise read again.</summary>
+    private PrivateWindowAccess ReadCached(string profile, string[] files, Func<string, PrivateWindowAccess> read)
+    {
+        string stamp = string.Join('|', files.Select(file =>
+        {
+            var info = new FileInfo(Path.Combine(profile, file));
+            return info.Exists ? $"{info.LastWriteTimeUtc.Ticks}:{info.Length}" : "-";
+        }));
+        if (_byProfile.TryGetValue(profile, out (string Stamp, PrivateWindowAccess Access) cached) && cached.Stamp == stamp)
+        {
+            return cached.Access;
+        }
+
+        PrivateWindowAccess access = read(profile);
+        _byProfile[profile] = (stamp, access);
+        return access;
     }
 
     /// <summary>Not allowed in any profile wins, then allowed, then unknown; no profile with the extension = not installed.</summary>
@@ -73,7 +101,7 @@ public sealed class WindowsPrivateWindowAccessReader : IPrivateWindowAccessReade
     private static PrivateWindowAccess ReadChromiumProfile(string profile)
     {
         PrivateWindowAccess result = PrivateWindowAccess.NotInstalled;
-        foreach (string file in new[] { "Secure Preferences", "Preferences" })
+        foreach (string file in ChromiumFiles)
         {
             using JsonDocument? preferences = ReadJson(Path.Combine(profile, file));
             if (preferences is null)

@@ -60,6 +60,9 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     private DateTimeOffset _historyLoadedAt = DateTimeOffset.MinValue;
     private LocalWindow _historySpan;
 
+    // Nothing shows this copy right now (the main window is closed to the tray): no redraws, no history reads.
+    private bool _paused;
+
     public DayBarViewModel(
         ConfigurationService configuration,
         SessionController sessions,
@@ -162,6 +165,25 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         _ = ReloadHistoryAsync();
     }
 
+    /// <summary>Stops redrawing while nothing shows the bar; <see cref="Resume"/> catches up at once.</summary>
+    public void Pause()
+    {
+        _paused = true;
+        _redrawTimer.Stop();
+        _reloadSoonTimer.Stop();
+    }
+
+    public void Resume()
+    {
+        if (!_paused)
+        {
+            return;
+        }
+
+        _paused = false;
+        Start();
+    }
+
     public void Dispose()
     {
         _redrawTimer.Stop();
@@ -183,6 +205,11 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 
     private async Task ReloadHistoryAsync()
     {
+        if (_paused)
+        {
+            return;
+        }
+
         LocalWindow span = CurrentDay().Span;
         try
         {
@@ -202,6 +229,11 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 
     private void Redraw()
     {
+        if (_paused)
+        {
+            return;
+        }
+
         DayBarSettings settings = _settings.Current;
         IsVisible = settings.Show;
         if (!settings.Show && !_ignoresShowSetting)
