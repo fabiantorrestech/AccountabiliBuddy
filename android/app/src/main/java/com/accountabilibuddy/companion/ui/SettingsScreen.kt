@@ -1,0 +1,247 @@
+package com.accountabilibuddy.companion.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.curbox.CurboxStatus
+import com.accountabilibuddy.companion.data.CompanionState
+import com.accountabilibuddy.companion.engine.ClockFormat
+import com.accountabilibuddy.companion.engine.DayBarBuilder
+import com.accountabilibuddy.companion.engine.SleepSchedule
+import com.accountabilibuddy.companion.model.SleepSettings
+import com.accountabilibuddy.companion.model.SleepTimes
+import java.time.Duration
+import java.time.LocalDate
+import java.time.LocalTime
+
+/** Import from the PC, sleep times, the timeline notification and bedtime reminder, Health Connect. */
+@Composable
+fun SettingsScreen(
+    state: CompanionState,
+    clock: ClockFormat,
+    health: HealthStatus,
+    importing: Boolean,
+    onImport: () -> Unit,
+    onClearImport: () -> Unit,
+    onSaveSleep: (SleepSettings) -> Unit,
+    onTimelineNotification: (Boolean) -> Unit,
+    onBedtimeReminder: (Boolean) -> Unit,
+    onConnectHealth: () -> Unit,
+    onAddWidget: () -> Unit,
+    curbox: CurboxStatus,
+    onConnectCurbox: () -> Unit,
+) {
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item {
+            Section("Profiles from the PC") {
+                Text(
+                    if (state.hasImport) "${state.importedFrom}; imported ${state.importedAt}." else "Nothing imported yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    "On the PC: Settings → Backup → Export, without secrets or with a password. Open the .abbackup file here. The phone keeps it to itself.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onImport, enabled = !importing) { Text(if (importing) "Importing…" else "Import backup file") }
+                    if (state.hasImport) {
+                        OutlinedButton(onClick = onClearImport) { Text("Remove") }
+                    }
+                }
+            }
+        }
+
+        item { HorizontalDivider() }
+        item { SleepSection(state.sleep, clock, onSaveSleep) }
+        item { HorizontalDivider() }
+
+        item {
+            Section("On the phone") {
+                ToggleRow("Timeline notification", "Always on, silent, pinned near the top", state.timelineNotificationOn, onTimelineNotification)
+                ToggleRow("Bedtime reminder", "Once a night, two hours before bedtime", state.bedtimeReminderOn, onBedtimeReminder)
+                OutlinedButton(onClick = onAddWidget) { Text("Add timeline widget to home screen") }
+                Text(
+                    when (health) {
+                        HealthStatus.Connected -> "Health Connect: reading sleep."
+                        HealthStatus.NeedsPermission -> "Health Connect: not connected."
+                        HealthStatus.NotAvailable -> "Health Connect isn't available on this phone."
+                        HealthStatus.Checking -> "Health Connect: checking…"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (health == HealthStatus.NeedsPermission) {
+                    OutlinedButton(onClick = onConnectHealth) { Text("Connect Health Connect") }
+                }
+            }
+        }
+
+        item { HorizontalDivider() }
+        item { CurboxSection(curbox, onConnectCurbox) }
+
+        item { HorizontalDivider() }
+        item {
+            Text(
+                "Local only: this app has no internet access. Everything stays on the phone.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CurboxSection(curbox: CurboxStatus, onConnect: () -> Unit) {
+    Section("Curbox") {
+        when {
+            !curbox.installed -> Text(
+                "Curbox isn't installed (or is too old for its API). AccountabiliBuddy works alongside it when it is.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            !curbox.granted -> {
+                Text(
+                    "Curbox is installed. Allow AccountabiliBuddy in Curbox to show its status and groups here (read only for now).",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedButton(onClick = onConnect) { Text("Connect to Curbox") }
+            }
+            else -> {
+                Text(
+                    if (curbox.focusActive) "Focus running: ${curbox.focusGroup ?: ""}${curbox.focusRemainingMinutes?.let { ", $it min left" } ?: ""}" else "No Curbox focus running.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                curbox.screenTimeMinutes?.let { Text("Screen time today (Curbox): ${it / 60}h ${it % 60}m", style = MaterialTheme.typography.bodySmall) }
+                curbox.groups.forEach { group ->
+                    Text(
+                        "${group.kind}: ${group.name} · ${group.count} items${if (group.active == false) " · off" else ""}",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Text(
+                    "Importing the groups' apps and sites needs Curbox's API to share them; today it only shares counts.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        curbox.error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Color(0xFFFCA5A5)) }
+    }
+}
+
+@Composable
+private fun Section(title: String, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium)
+        content()
+    }
+}
+
+@Composable
+private fun ToggleRow(title: String, detail: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
+/** Which time the picker is editing. */
+private enum class SleepField { WeeknightBed, WeeknightWake, WeekendBed, WeekendWake }
+
+@Composable
+private fun SleepSection(saved: SleepSettings, clock: ClockFormat, onSave: (SleepSettings) -> Unit) {
+    var editing by remember { mutableStateOf<SleepField?>(null) }
+
+    Section("Sleep") {
+        Text(
+            "The bar runs from wake time to bedtime and shades the night; from two hours before bedtime it says how much sleep you'll get if you go now. Imported from the PC when the backup has it.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        ToggleRow("Sleep mode", "Bedtime and wake time on the timeline", saved.enabled) { onSave(saved.copy(enabled = it)) }
+        ToggleRow("Same every night", "Off: Friday and Saturday nights use the weekend times", saved.sameEveryNight) { onSave(saved.copy(sameEveryNight = it)) }
+        NightRow(if (saved.sameEveryNight) "Every night" else "Weeknights (Sun–Thu)", saved.weeknights, clock,
+            onBed = { editing = SleepField.WeeknightBed }, onWake = { editing = SleepField.WeeknightWake })
+        if (!saved.sameEveryNight) {
+            NightRow("Weekend nights (Fri–Sat)", saved.weekends, clock,
+                onBed = { editing = SleepField.WeekendBed }, onWake = { editing = SleepField.WeekendWake })
+        }
+    }
+
+    editing?.let { field ->
+        val initial = when (field) {
+            SleepField.WeeknightBed -> saved.weeknights.bedtime
+            SleepField.WeeknightWake -> saved.weeknights.wake
+            SleepField.WeekendBed -> saved.weekends.bedtime
+            SleepField.WeekendWake -> saved.weekends.wake
+        }
+        TimeDialog(initial, clock.is24Hour, onDismiss = { editing = null }) { picked ->
+            editing = null
+            onSave(
+                when (field) {
+                    SleepField.WeeknightBed -> saved.copy(weeknights = saved.weeknights.copy(bedtime = picked))
+                    SleepField.WeeknightWake -> saved.copy(weeknights = saved.weeknights.copy(wake = picked))
+                    SleepField.WeekendBed -> saved.copy(weekends = saved.weekends.copy(bedtime = picked))
+                    SleepField.WeekendWake -> saved.copy(weekends = saved.weekends.copy(wake = picked))
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun NightRow(label: String, times: SleepTimes, clock: ClockFormat, onBed: () -> Unit, onWake: () -> Unit) {
+    val night = SleepSchedule(times, times).night(LocalDate.of(2026, 1, 5))
+    val length = Duration.between(night.start, night.end)
+    val suspicious = length < Duration.ofHours(3) || length > Duration.ofHours(16)
+    Column {
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedButton(onClick = onBed) { Text("Bed ${clock.time(LocalDate.now().atTime(times.bedtime))}") }
+            Spacer(Modifier.width(8.dp))
+            OutlinedButton(onClick = onWake) { Text("Up ${clock.time(LocalDate.now().atTime(times.wake))}") }
+            Spacer(Modifier.width(10.dp))
+            Text(
+                if (suspicious) "⚠ ${DayBarBuilder.duration(length)}: check AM/PM" else "${DayBarBuilder.duration(length)} of sleep",
+                color = if (suspicious) Color(0xFFFCA5A5) else MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimeDialog(initial: LocalTime, is24Hour: Boolean, onDismiss: () -> Unit, onPick: (LocalTime) -> Unit) {
+    val picker = rememberTimePickerState(initialHour = initial.hour, initialMinute = initial.minute, is24Hour = is24Hour)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = { onPick(LocalTime.of(picker.hour, picker.minute)) }) { Text("OK") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        text = { TimePicker(state = picker) },
+    )
+}

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: writes a sample night into Health Connect to test reading it on an emulator. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.health.WRITE_SLEEP" />
+
+    <application>
+        <receiver
+            android:name=".debug.SampleSleepReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.accountabilibuddy.companion.debug.SAMPLE_SLEEP" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

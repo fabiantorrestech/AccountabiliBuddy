@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Expanded: date, status, the full bar with hour labels, and the sleep line in the evening. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="6dp">
+
+    <TextView
+        android:id="@+id/timeline_title"
+        style="@style/TextAppearance.Compat.Notification.Title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="18sp"
+        android:maxLines="1" />
+
+    <TextView
+        android:id="@+id/timeline_status"
+        style="@style/TextAppearance.Compat.Notification"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxLines="2"
+        android:ellipsize="end" />
+
+    <ImageView
+        android:id="@+id/timeline_bar"
+        android:layout_width="match_parent"
+        android:layout_height="54dp"
+        android:layout_marginTop="6dp"
+        android:scaleType="fitXY"
+        android:contentDescription="@string/timeline_description" />
+
+    <TextView
+        android:id="@+id/timeline_sleep"
+        style="@style/TextAppearance.Compat.Notification"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textStyle="bold"
+        android:maxLines="1"
+        android:visibility="gone" />
+</LinearLayout>

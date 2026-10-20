@@ -5,6 +5,8 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0014](0014-pair-the-phone-with-the-pc-over-the-local-network.md) | Pair the phone with the PC over the local network | Proposed | — |
+| [0013](0013-build-the-android-companion-with-kotlin-and-jetpack-compose.md) | Build the Android companion with Kotlin and Jetpack Compose | Accepted | — |
 | [0012](0012-check-for-updates-on-a-public-github-releases-repo.md) | Check for updates on a public GitHub releases repo | Accepted | — |
 | [0011](0011-allow-read-only-google-health-sleep-data.md) | Allow read-only Google Health sleep data | Proposed | — |
 | [0010](0010-package-with-velopack.md) | Package with Velopack | Accepted | — |

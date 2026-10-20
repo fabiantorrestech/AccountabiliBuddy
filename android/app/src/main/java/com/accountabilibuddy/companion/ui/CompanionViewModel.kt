@@ -1,0 +1,202 @@
+package com.accountabilibuddy.companion.ui
+
+import android.app.Application
+import android.net.Uri
+import android.text.format.DateFormat
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.companion.data.CompanionState
+import com.accountabilibuddy.companion.data.ImportException
+import com.accountabilibuddy.companion.data.Importer
+import com.accountabilibuddy.companion.engine.ClockFormat
+import com.accountabilibuddy.companion.engine.DayBarBuilder
+import com.accountabilibuddy.companion.engine.DayBarModel
+import com.accountabilibuddy.companion.curbox.CurboxClient
+import com.accountabilibuddy.companion.curbox.CurboxStatus
+import com.accountabilibuddy.companion.engine.DayTimeline
+import com.accountabilibuddy.companion.health.SleepReader
+import com.accountabilibuddy.companion.usage.PhoneUsage
+import com.accountabilibuddy.companion.usage.PhoneUsageReader
+import com.accountabilibuddy.companion.model.SleepSettings
+import com.accountabilibuddy.companion.notify.Refresher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.LocalDateTime
+
+/** The app's screens: the store's state, today's bar (redrawn every 30 seconds while on screen), importing and Health Connect. */
+class CompanionViewModel(application: Application) : AndroidViewModel(application) {
+    private val store = (application as CompanionApp).store
+    private val sleepReader = SleepReader(application)
+    private val usageReader = PhoneUsageReader(application)
+    val curboxClient = CurboxClient(application)
+    private val now = MutableStateFlow(LocalDateTime.now())
+
+    /** Runs only while the app is on screen; the notification and widget have their own refresh. */
+    private var ticker: Job? = null
+
+    val clock = ClockFormat(DateFormat.is24HourFormat(application))
+    private val builder = DayBarBuilder(clock)
+    val state: StateFlow<CompanionState> = store.state
+
+    val model: StateFlow<DayBarModel> = combine(store.state, now) { state, time -> build(state, time) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, build(store.state.value, now.value))
+
+    /** A message after an import or another action, shown once. */
+    val message = MutableStateFlow<String?>(null)
+    val passwordRequest = MutableStateFlow<PasswordRequest?>(null)
+    val importing = MutableStateFlow(false)
+    val health = MutableStateFlow(HealthStatus.Checking)
+
+    /** Null while usage access isn't granted. */
+    val phoneUsage = MutableStateFlow<PhoneUsage?>(null)
+    val curbox = MutableStateFlow(CurboxStatus())
+
+    val healthPermissions: Set<String> get() = sleepReader.permissions
+
+    /**
+     * The app came on screen: catch up, then keep the bar's now line (every 30 s) and phone use (every 5 min)
+     * current until [onStop]. Curbox is asked only when Settings shows it.
+     */
+    fun onStart() {
+        now.value = LocalDateTime.now()
+        checkHealth()
+        refreshPhoneUsage()
+        ticker?.cancel()
+        ticker = viewModelScope.launch {
+            var ticks = 0
+            while (true) {
+                delay(30_000)
+                now.value = LocalDateTime.now()
+                if (++ticks % 10 == 0) {
+                    refreshPhoneUsage()
+                }
+            }
+        }
+    }
+
+    fun onStop() {
+        ticker?.cancel()
+        ticker = null
+    }
+
+    /** Today's phone use and the part of it inside planned focus (the bar's day). */
+    fun refreshPhoneUsage() {
+        viewModelScope.launch {
+            if (!usageReader.hasAccess()) {
+                phoneUsage.value = null
+                return@launch
+            }
+
+            val state = store.state.value
+            val day = builder.dayAt(LocalDateTime.now(), state.dayBar, state.sleep)
+            val focus = DayTimeline.planned(state.document.schedule, day).map { it.window }
+            phoneUsage.value = runCatching { withContext(Dispatchers.IO) { usageReader.read(day, focus) } }.getOrNull()
+        }
+    }
+
+    fun refreshCurbox() {
+        viewModelScope.launch { curbox.value = curboxClient.read() }
+    }
+
+    fun import(uri: Uri, password: String? = null) {
+        viewModelScope.launch {
+            importing.value = true
+            try {
+                val text = withContext(Dispatchers.IO) {
+                    getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+                } ?: throw ImportException("The file couldn't be read.")
+
+                if (password == null && Importer.needsPassword(text)) {
+                    passwordRequest.value = PasswordRequest(uri)
+                    return@launch
+                }
+
+                // PBKDF2 with 600,000 rounds takes a few seconds on a phone.
+                val data = withContext(Dispatchers.Default) { Importer.read(text, password) }
+                store.import(data)
+                passwordRequest.value = null
+                message.value = "Imported ${data.document.profiles.size} profiles and ${data.document.schedule.blocks.size} weekly blocks" +
+                    (if (data.sleep != null) ", sleep times" else "") +
+                    (if (data.events.isNotEmpty()) " and ${data.events.size} events" else "") + "."
+                refreshOutside()
+            } catch (e: ImportException) {
+                if (password != null && e.message?.startsWith("Wrong password") == true) {
+                    passwordRequest.value = PasswordRequest(uri, wrongPassword = true)
+                } else {
+                    passwordRequest.value = null
+                    message.value = e.message
+                }
+            } finally {
+                importing.value = false
+            }
+        }
+    }
+
+    fun cancelPassword() {
+        passwordRequest.value = null
+    }
+
+    fun saveSleep(settings: SleepSettings) {
+        store.saveSleep(settings)
+        refreshOutside()
+    }
+
+    fun setTimelineNotification(on: Boolean) {
+        store.setTimelineNotification(on)
+        refreshOutside()
+    }
+
+    fun setBedtimeReminder(on: Boolean) {
+        store.setBedtimeReminder(on)
+    }
+
+    fun clearImport() {
+        store.clearImport()
+        message.value = "Imported data removed."
+        refreshOutside()
+    }
+
+    fun onHealthPermissionResult() {
+        checkHealth(readAfter = true)
+    }
+
+    /** Reads last night's sleep again (when connected). */
+    fun refreshSleep() = checkHealth(readAfter = true)
+
+    fun refreshOutside() {
+        viewModelScope.launch(Dispatchers.Default) { Refresher.refresh(getApplication()) }
+    }
+
+    private fun checkHealth(readAfter: Boolean = true) {
+        viewModelScope.launch {
+            health.value = when {
+                !sleepReader.isAvailable() -> HealthStatus.NotAvailable
+                runCatching { sleepReader.hasPermission() }.getOrDefault(false) -> HealthStatus.Connected
+                else -> HealthStatus.NeedsPermission
+            }
+            if (readAfter && health.value == HealthStatus.Connected) {
+                runCatching { withContext(Dispatchers.IO) { sleepReader.recentSleep() } }
+                    .onSuccess { slept ->
+                        // Saved, and drawn on the card and widget, only when Health Connect has something new.
+                        if (slept != store.state.value.slept) {
+                            store.setSlept(slept)
+                            refreshOutside()
+                        }
+                    }
+                    .onFailure { message.value = "Couldn't read sleep: ${it.message}" }
+            }
+        }
+    }
+
+    private fun build(state: CompanionState, time: LocalDateTime): DayBarModel =
+        builder.build(time, state.document, state.events, state.dayBar, state.sleep, state.slept)
+}
