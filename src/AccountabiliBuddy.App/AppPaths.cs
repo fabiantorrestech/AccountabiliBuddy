@@ -31,6 +31,21 @@ public static class AppPaths
         }
     }
 
+    /// <summary>
+    /// True when running from a Velopack install (installer or portable zip): "...\current\" with Update.exe one folder up.
+    /// </summary>
+    public static bool IsInstalled
+    {
+        get
+        {
+            string? folder = Path.GetDirectoryName(Environment.ProcessPath ?? string.Empty);
+            string? root = folder is null ? null : Path.GetDirectoryName(folder);
+            return folder is not null && root is not null
+                && string.Equals(Path.GetFileName(folder), VelopackCurrentFolder, StringComparison.OrdinalIgnoreCase)
+                && File.Exists(Path.Combine(root, VelopackUpdater));
+        }
+    }
+
     public static string NativeHostPath => Path.Combine(AppContext.BaseDirectory, "AccountabiliBuddy.NativeHost.exe");
 
     public static string BundledExtensionFolder => Path.Combine(AppContext.BaseDirectory, "browser-extension");

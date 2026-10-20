@@ -16,7 +16,9 @@ public interface IActivityLog
     Task RecordSessionEventAsync(SessionEvent sessionEvent, CancellationToken cancellationToken = default);
 
     /// <summary>Totals for segments that started in [<paramref name="from"/>, <paramref name="to"/>).</summary>
-    Task<UsageSummary> GetSummaryAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
+    /// <param name="leaveOut">Stretches whose focus time doesn't count (sessions marked as not real).</param>
+    Task<UsageSummary> GetSummaryAsync(
+        DateTimeOffset from, DateTimeOffset to, IReadOnlyList<TimeRange>? leaveOut = null, CancellationToken cancellationToken = default);
 
     /// <summary>Session events in [<paramref name="from"/>, <paramref name="to"/>), oldest first, reasons decrypted.</summary>
     Task<IReadOnlyList<SessionEvent>> GetSessionEventsAsync(

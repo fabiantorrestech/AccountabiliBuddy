@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0011](0011-allow-read-only-google-health-sleep-data.md) | Allow read-only Google Health sleep data | Proposed | — |
 | [0010](0010-package-with-velopack.md) | Package with Velopack | Accepted | — |
 | [0009](0009-allow-read-only-calendar-connections.md) | Allow read-only calendar connections | Accepted | [2](0002-process-all-activity-data-locally.md) |
 | [0008](0008-store-activity-history-with-readable-totals-and-encrypted-details.md) | Store activity history with readable totals and encrypted details | Accepted | — |

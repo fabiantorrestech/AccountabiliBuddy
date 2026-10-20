@@ -13,6 +13,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>
 /// History tab: a summary of the local activity log for today or the last 7 days — focus time, how much of it was
 /// on track or distracted, the top distractions, the most-used apps and sites, and the sessions with how they ended.
+/// A session can be marked as not real (a test): it stays listed, greyed, but its focus time doesn't count.
 /// Refreshes itself a few seconds after new entries are written (entries are written when an activity ends).
 /// </summary>
 public sealed partial class HistoryViewModel : ObservableObject
@@ -23,6 +24,7 @@ public sealed partial class HistoryViewModel : ObservableObject
     private readonly IActivityLog _log;
     private readonly ConfigurationService _configuration;
     private readonly PrivacySettingsService _privacy;
+    private readonly NotRealSessionsService _notReal;
     private readonly TimeProvider _timeProvider;
     private readonly DispatcherTimer _refreshSoon;
 
@@ -31,8 +33,11 @@ public sealed partial class HistoryViewModel : ObservableObject
         ActivityRecorder recorder,
         ConfigurationService configuration,
         PrivacySettingsService privacy,
+        NotRealSessionsService notReal,
         TimeProvider timeProvider)
     {
+        _notReal = notReal;
+        _notReal.Changed += (_, _) => _ = RefreshAsync();
         _log = log;
         _configuration = configuration;
         _privacy = privacy;
@@ -116,11 +121,15 @@ public sealed partial class HistoryViewModel : ObservableObject
         PeriodLabel = ShowWeek ? $"{from:ddd d MMM} – today" : $"Today, {localNow:dddd d MMMM}";
 
         UsageSummary summary;
-        IReadOnlyList<SessionEvent> events;
+        IReadOnlyList<SessionRecord> records;
         try
         {
-            summary = await _log.GetSummaryAsync(from, to);
-            events = await _log.GetSessionEventsAsync(from, to);
+            records = SessionHistoryBuilder.Build(await _log.GetSessionEventsAsync(from, to));
+            List<TimeRange> notReal = records
+                .Where(record => _notReal.IsNotReal(record.StartedAt))
+                .Select(record => new TimeRange(record.StartedAt, record.EndedAt ?? localNow))
+                .ToList();
+            summary = await _log.GetSummaryAsync(from, to, notReal);
             ErrorText = null;
         }
         catch (SqliteException ex)
@@ -140,7 +149,7 @@ public sealed partial class HistoryViewModel : ObservableObject
         HasNoUsage = TopOverall.Count == 0;
 
         Sessions.Clear();
-        foreach (SessionRecord record in SessionHistoryBuilder.Build(events))
+        foreach (SessionRecord record in records)
         {
             Sessions.Add(ToRow(record, startOfToday));
         }
@@ -174,7 +183,19 @@ public sealed partial class HistoryViewModel : ObservableObject
             outcome += $" · app closed {FormatDuration(record.AppClosedFor)}, resumed";
         }
 
-        return new SessionRowViewModel(when, $"{profile} · {mode}", length, outcome, record.Reason);
+        bool notReal = _notReal.IsNotReal(record.StartedAt);
+        if (notReal)
+        {
+            outcome = "Not real · " + outcome;
+        }
+
+        return new SessionRowViewModel(when, $"{profile} · {mode}", length, outcome, record.Reason, record.StartedAt, notReal);
+    }
+
+    [RelayCommand]
+    private async Task ToggleNotRealAsync(SessionRowViewModel row)
+    {
+        await _notReal.SetNotRealAsync(row.StartedAt, !row.IsNotReal);
     }
 
     private static void Fill(ObservableCollection<UsageRowViewModel> target, IReadOnlyList<UsageEntry> entries)

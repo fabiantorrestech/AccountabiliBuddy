@@ -32,6 +32,10 @@ namespace AccountabiliBuddy.App;
 public partial class App : Application
 {
     private const string DataDirectoryVariable = "ACCOUNTABILIBUDDY_DATA_DIR";
+    private const string DevDataSuffix = "-Dev";
+
+    // True when this build isn't the installed app and so uses the separate "-Dev" data folder.
+    private bool _usesDevData;
 
     // Test runs point Google sign-in and the Calendar API at a local stand-in (e.g. http://127.0.0.1:5199/).
     private const string GoogleTestBaseVariable = "ACCOUNTABILIBUDDY_GOOGLE_TEST_BASE";
@@ -149,8 +153,11 @@ public partial class App : Application
         // Changing the Windows clock can't move sessions, waits or countdowns (see TrustedClock).
         var time = new TrustedClock(TimeProvider.System, () => Environment.TickCount64, new RegistryBootIdProvider().GetBootId());
 
-        // Override lets test runs use a throwaway database instead of the real one.
-        string dataDirectory = Environment.GetEnvironmentVariable(DataDirectoryVariable) ?? LocalDatabase.DefaultDirectory();
+        // Override lets test runs use a throwaway database instead of the real one. A build that isn't the installed
+        // app (dotnet run, a test copy) keeps its own data, so trying things out never mixes with real sessions.
+        string? dataOverride = Environment.GetEnvironmentVariable(DataDirectoryVariable);
+        _usesDevData = dataOverride is null && !AppPaths.IsInstalled;
+        string dataDirectory = dataOverride ?? (_usesDevData ? LocalDatabase.DefaultDirectory() + DevDataSuffix : LocalDatabase.DefaultDirectory());
         var database = new LocalDatabase(dataDirectory);
         string? problem = UpgradeSafety.CheckBlocking(database);
         if (problem is not null)
@@ -227,15 +234,17 @@ public partial class App : Application
         overlaySettings.LoadBlocking();
         var sleepSettings = new SleepSettingsService(documents);
         sleepSettings.LoadBlocking();
+        var notRealSessions = new NotRealSessionsService(documents);
+        notRealSessions.LoadBlocking();
         var timelineDay = new DayBarViewModel(
-            _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, time, ignoresShowSetting: true);
+            _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, notRealSessions, time, ignoresShowSetting: true);
         var soundSettings = new SessionSoundSettingsService(documents);
         soundSettings.LoadBlocking();
         _soundPlayer = new Win32SoundPlayer();
         _sessionCues = new SessionCueService(_sessions, soundSettings, _soundPlayer);
         _sessionOverlay = new SessionOverlayService(
             _sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), timelineDay, _sessionCues);
-        _dayBar = new DayBarViewModel(_configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, time);
+        _dayBar = new DayBarViewModel(_configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, notRealSessions, time);
         var dataProtector = new DpapiDataProtector();
         _calendarNetwork = new CalendarNetwork();
         _calendarSync = new CalendarSyncService(
@@ -274,13 +283,14 @@ public partial class App : Application
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings),
             new ScheduleViewModel(_configuration, _sessions, pendingChanges),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
-            new HistoryViewModel(activityLog, _recorder, _configuration, privacy, time),
+            new HistoryViewModel(activityLog, _recorder, _configuration, privacy, notRealSessions, time),
             setupViewModel,
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
             new SettingsViewModel(
                 _configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, dayBarSettings, overlaySettings, soundSettings, _sessionCues, sleepSettings, database.DatabasePath)
             {
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
+                GoogleGuide = new GoogleSetupGuide(calendars, _calendarSync, dataProtector, documents, OpenInBrowser),
             },
             activityViewModel,
             Environment.GetEnvironmentVariable(DevToolsVariable) == "1",
@@ -290,6 +300,10 @@ public partial class App : Application
         };
 
         _mainWindow = new MainWindow { DataContext = mainViewModel };
+        if (_usesDevData)
+        {
+            _mainWindow.Title += " (dev data)";
+        }
 
         mainViewModel.ShowSystemClockOffset(time.SystemClockOffset);
         time.SystemClockOffsetChanged += (_, offset) => Dispatcher.UIThread.Post(() =>

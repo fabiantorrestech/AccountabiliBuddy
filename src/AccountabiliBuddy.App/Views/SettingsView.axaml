@@ -65,6 +65,10 @@
                                     IsVisible="{Binding !SleepSameEveryNight}" />
                     </Grid>
                 </StackPanel>
+                <StackPanel Spacing="4" Margin="0,4,0,0">
+                    <TextBlock Text="Real sleep from a Fitbit or Pixel Watch (coming next): prepare your Google project now." Opacity="0.75" TextWrapping="Wrap" />
+                    <Button Content="Set up sleep tracking with Google…" Command="{Binding OpenSleepGuideCommand}" />
+                </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button Content="Apply" Command="{Binding ApplySleepCommand}" />
                     <TextBlock Text="{Binding SleepStatus}" VerticalAlignment="Center" TextWrapping="Wrap" />
@@ -245,7 +249,10 @@
                 </Grid>
                 <TextBlock Opacity="0.75" TextWrapping="Wrap"
                            Text="5 minutes or more. Links are also checked when you press Refresh calendars and when the window opens. Google accounts check for changes every 30 seconds." />
-                <TextBlock Text="Google client (for Connect Google account)" Margin="0,6,0,0" />
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+                    <TextBlock Text="Google client (for Connect Google account)" VerticalAlignment="Center" />
+                    <Button Content="Set up Google step by step…" Command="{Binding OpenGoogleGuideCommand}" />
+                </StackPanel>
                 <TextBox Text="{Binding GoogleClientId}" PlaceholderText="Client ID (…apps.googleusercontent.com)" />
                 <TextBox Text="{Binding GoogleClientSecret}" PasswordChar="•" PlaceholderText="{Binding GoogleClientSecretHint}" />
                 <TextBlock Opacity="0.75" TextWrapping="Wrap"

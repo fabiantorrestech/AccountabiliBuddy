@@ -123,7 +123,7 @@
                     <ItemsControl ItemsSource="{Binding Sessions}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:SessionRowViewModel">
-                                <Grid ColumnDefinitions="130,*,90,170" Margin="0,4">
+                                <Grid ColumnDefinitions="130,*,90,200,Auto" Margin="0,4" Opacity="{Binding RowOpacity}">
                                     <TextBlock Text="{Binding WhenText}" Opacity="0.8" />
                                     <StackPanel Grid.Column="1" Spacing="2">
                                         <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
@@ -131,7 +131,12 @@
                                                    FontSize="12" Opacity="0.7" TextWrapping="Wrap" FontStyle="Italic" />
                                     </StackPanel>
                                     <TextBlock Grid.Column="2" Text="{Binding LengthText}" HorizontalAlignment="Right" />
-                                    <TextBlock Grid.Column="3" Text="{Binding OutcomeText}" HorizontalAlignment="Right" Opacity="0.8" />
+                                    <TextBlock Grid.Column="3" Text="{Binding OutcomeText}" HorizontalAlignment="Right" Opacity="0.8"
+                                               TextWrapping="Wrap" TextAlignment="Right" />
+                                    <Button Grid.Column="4" Content="{Binding MarkButtonText}" ToolTip.Tip="{Binding MarkButtonTip}"
+                                            Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).ToggleNotRealCommand}"
+                                            CommandParameter="{Binding}" Margin="12,0,0,0" Padding="8,2" FontSize="12"
+                                            VerticalAlignment="Center" />
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

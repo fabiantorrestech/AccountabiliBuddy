@@ -108,17 +108,18 @@ public sealed class SqliteActivityLog : IActivityLog
     }
 
     public async Task<UsageSummary> GetSummaryAsync(
-        DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
+        DateTimeOffset from, DateTimeOffset to, IReadOnlyList<TimeRange>? leaveOut = null, CancellationToken cancellationToken = default)
     {
+        IReadOnlyList<TimeRange> skipped = leaveOut ?? Array.Empty<TimeRange>();
         await using SqliteConnection connection = await _database.OpenAsync(cancellationToken).ConfigureAwait(false);
 
         TimeSpan focus = TimeSpan.Zero, onTrack = TimeSpan.Zero, distracted = TimeSpan.Zero, unknown = TimeSpan.Zero;
         await using (SqliteCommand totals = connection.CreateCommand())
         {
-            totals.CommandText = """
+            totals.CommandText = $"""
                 SELECT classification, SUM(duration_ms)
                 FROM activity_segments
-                WHERE in_focus = 1 AND started_at >= $from AND started_at < $to
+                WHERE in_focus = 1 AND started_at >= $from AND started_at < $to{LeaveOutFilter(totals, skipped)}
                 GROUP BY classification;
                 """;
             AddRange(totals, from, to);
@@ -143,9 +144,9 @@ public sealed class SqliteActivityLog : IActivityLog
         }
 
         IReadOnlyList<UsageEntry> topDistractions = await TopUsageAsync(
-            connection, from, to, "in_focus = 1 AND classification = 'Distracting'", cancellationToken).ConfigureAwait(false);
+            connection, from, to, "in_focus = 1 AND classification = 'Distracting'", skipped, cancellationToken).ConfigureAwait(false);
         IReadOnlyList<UsageEntry> topOverall = await TopUsageAsync(
-            connection, from, to, "1 = 1", cancellationToken).ConfigureAwait(false);
+            connection, from, to, "1 = 1", Array.Empty<TimeRange>(), cancellationToken).ConfigureAwait(false);
 
         return new UsageSummary(focus, onTrack, distracted, unknown, topDistractions, topOverall);
     }
@@ -350,14 +351,15 @@ public sealed class SqliteActivityLog : IActivityLog
     }
 
     private static async Task<IReadOnlyList<UsageEntry>> TopUsageAsync(
-        SqliteConnection connection, DateTimeOffset from, DateTimeOffset to, string filter, CancellationToken cancellationToken)
+        SqliteConnection connection, DateTimeOffset from, DateTimeOffset to, string filter, IReadOnlyList<TimeRange> leaveOut,
+        CancellationToken cancellationToken)
     {
         await using SqliteCommand command = connection.CreateCommand();
         // The filter is one of two constant strings above, never user input.
         command.CommandText = $"""
             SELECT COALESCE(domain, process_name) AS name, SUM(duration_ms) AS total
             FROM activity_segments
-            WHERE {filter} AND started_at >= $from AND started_at < $to
+            WHERE {filter} AND started_at >= $from AND started_at < $to{LeaveOutFilter(command, leaveOut)}
             GROUP BY name
             ORDER BY total DESC
             LIMIT {TopEntries};
@@ -372,6 +374,20 @@ public sealed class SqliteActivityLog : IActivityLog
         }
 
         return entries;
+    }
+
+    /// <summary>" AND NOT (…)" for each stretch to leave out, with its times added as parameters.</summary>
+    private static string LeaveOutFilter(SqliteCommand command, IReadOnlyList<TimeRange> leaveOut)
+    {
+        var filter = new System.Text.StringBuilder();
+        for (int i = 0; i < leaveOut.Count; i++)
+        {
+            filter.Append($" AND NOT (started_at >= $skipFrom{i} AND started_at < $skipTo{i})");
+            command.Parameters.AddWithValue($"$skipFrom{i}", Format(leaveOut[i].From));
+            command.Parameters.AddWithValue($"$skipTo{i}", Format(leaveOut[i].To));
+        }
+
+        return filter.ToString();
     }
 
     private static void AddRange(SqliteCommand command, DateTimeOffset from, DateTimeOffset to)

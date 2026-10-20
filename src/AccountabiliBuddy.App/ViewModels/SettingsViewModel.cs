@@ -47,6 +47,39 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Export and import of backups (the Backup section).</summary>
     public BackupViewModel? Backup { get; init; }
 
+    private readonly GoogleSetupGuide? _googleGuide;
+
+    /// <summary>The step-by-step Google Cloud setup (Calendars and Sleep).</summary>
+    public GoogleSetupGuide? GoogleGuide
+    {
+        get => _googleGuide;
+        init
+        {
+            _googleGuide = value;
+            if (value is not null)
+            {
+                value.ClientSaved += (_, _) =>
+                {
+                    GoogleClientId = _calendars.Settings.GoogleClientId ?? string.Empty;
+                    OnPropertyChanged(nameof(GoogleClientSecretHint));
+                };
+            }
+        }
+    }
+
+    // Not locked during focus: the guide only explains and saves the Google client.
+    [RelayCommand]
+    private void OpenGoogleGuide()
+    {
+        _googleGuide?.Show(includeSleep: false);
+    }
+
+    [RelayCommand]
+    private void OpenSleepGuide()
+    {
+        _googleGuide?.Show(includeSleep: true);
+    }
+
     public SettingsViewModel(
         ConfigurationService configuration,
         SessionController sessions,

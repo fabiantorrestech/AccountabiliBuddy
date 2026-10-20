@@ -1,0 +1,100 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        xmlns:services="using:AccountabiliBuddy.App.Services"
+        x:Class="AccountabiliBuddy.App.Views.GoogleSetupWindow"
+        x:DataType="vm:GoogleSetupViewModel"
+        Title="Set up Google"
+        Icon="/Assets/app-icon.png"
+        Width="860" Height="560" MinWidth="720" MinHeight="460"
+        WindowStartupLocation="CenterScreen">
+    <DockPanel>
+        <!-- Steps on the left. -->
+        <Border DockPanel.Dock="Left" Width="270" Background="#0F808080" Padding="12,16">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Spacing="4" Margin="6,0,6,12">
+                    <TextBlock Text="Set up Google" FontSize="20" FontWeight="SemiBold" />
+                    <TextBlock Text="Your own Google Cloud project, so the app can read your calendar (and sleep) without anyone else in between."
+                               TextWrapping="Wrap" Opacity="0.7" FontSize="12" />
+                    <CheckBox IsChecked="{Binding IncludeSleep}" Content="Also set up sleep tracking" Margin="0,6,0,0" />
+                </StackPanel>
+                <TextBlock DockPanel.Dock="Bottom" Text="{Binding DoneSummary}" Opacity="0.6" Margin="6,8,0,0" />
+                <ItemsControl ItemsSource="{Binding Steps}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:GoogleSetupStepViewModel">
+                            <Button Command="{Binding $parent[ItemsControl].((vm:GoogleSetupViewModel)DataContext).SelectCommand}"
+                                    CommandParameter="{Binding}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                    Background="Transparent" Padding="6,7" Margin="0,1"
+                                    Classes.current="{Binding IsCurrent}">
+                                <Grid ColumnDefinitions="22,*">
+                                    <TextBlock Text="{Binding Mark}" Foreground="#16A34A" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Label}" TextWrapping="Wrap" />
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                    <ItemsControl.Styles>
+                        <Style Selector="Button.current">
+                            <Setter Property="Background" Value="#1F808080" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Style>
+                    </ItemsControl.Styles>
+                </ItemsControl>
+            </DockPanel>
+        </Border>
+
+        <!-- The current step. -->
+        <DockPanel Margin="24,20,24,16">
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button Content="Back" Command="{Binding BackCommand}" IsEnabled="{Binding !IsFirst}" />
+                <Button Content="{Binding NextLabel}" Command="{Binding NextCommand}" Classes="accent" />
+            </StackPanel>
+
+            <ScrollViewer>
+                <StackPanel Spacing="14">
+                    <TextBlock Text="{Binding PositionText}" Opacity="0.6" />
+                    <TextBlock Text="{Binding Heading}" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+
+                    <ItemsControl ItemsSource="{Binding Instructions}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <Grid ColumnDefinitions="18,*" Margin="0,3">
+                                    <TextBlock Text="•" Opacity="0.6" />
+                                    <TextBlock Grid.Column="1" Text="{Binding}" TextWrapping="Wrap" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Button Content="Open this page in the browser ↗" Command="{Binding OpenPageCommand}"
+                            IsVisible="{Binding HasPage}" Classes="accent" />
+
+                    <ItemsControl ItemsSource="{Binding CopyValues}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="services:GoogleSetupCopyValue">
+                                <Grid ColumnDefinitions="150,*,Auto" ColumnSpacing="8" Margin="0,3">
+                                    <TextBlock Text="{Binding Label}" VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
+                                    <SelectableTextBlock Grid.Column="1" Text="{Binding Value}" VerticalAlignment="Center"
+                                                         FontFamily="Consolas,monospace" TextWrapping="Wrap" />
+                                    <Button Grid.Column="2" Content="Copy" Click="OnCopyClick" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <StackPanel Spacing="8" IsVisible="{Binding IsClientStep}">
+                        <TextBox Text="{Binding ClientId}" PlaceholderText="Client ID (…apps.googleusercontent.com)" />
+                        <TextBox Text="{Binding ClientSecret}" PasswordChar="•" PlaceholderText="{Binding SecretHint}" />
+                        <Button Content="Save" Command="{Binding SaveClientCommand}" HorizontalAlignment="Left" />
+                    </StackPanel>
+
+                    <Button Content="Connect Google Calendar" Command="{Binding ConnectCommand}"
+                            IsVisible="{Binding IsTestStep}" Classes="accent" />
+
+                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontWeight="SemiBold"
+                               IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+            </ScrollViewer>
+        </DockPanel>
+    </DockPanel>
+</Window>
