@@ -43,15 +43,34 @@ with no wait or reason, also from the phone and when quitting *(user)*. `BypassP
   as Work (asks about new sites, counts toward targets) *(user)*.
 - **Workdays vs other days** *(user)*: one plan for workdays and one for the other days; which days are workdays is
   configurable (Mon–Fri by default, *my call*).
-- **What a part means** *(my call)*: each part has a kind that sets the buddy's behaviour: *Work* (catches drift,
-  asks about new sites, counts toward targets), *Break* (Lunch: no asking, parked "Today" items come up), *Free*
-  (evenings not planned as work), *Sleep* (folds in today's sleep mode: bedtime reminder and the shaded night on the
-  day bar).
+- **Categories** *(user: add your own)*: each part of the day belongs to a category with a name and a colour, e.g.
+  **Work** (the day job) and **Extra Work** (your own time: side projects, coding, resume, home cleanup, chores). How
+  a category behaves *(user)*: each one acts like one of three behaviours:
+  - **Watch**: the buddy asks about new sites and counts drift (Work, Extra Work).
+  - **Rest**: no asking; parked "Today" items come up (Lunch, Evenings, Free time).
+  - **Sleep**: bedtime reminder and the shaded night; folds in today's sleep mode.
+  Starting set: Work and Extra Work (Watch), Lunch, Evenings and Free time (Rest), Sleep (Sleep); you add, rename,
+  recolour and delete your own.
+
+**Status: approved by the user 2026-10-20.** Next: the four ADRs, then the build plan, starting with part B.
+- **Editing the plan** *(user, from mockups)*: tabs for Workdays and Other days, day chips (Mon–Sun) for which days
+  are workdays, a 24-hour bar whose parts you drag (snaps to 15 min; click empty space to add, click a part to
+  select it) and, under it, the selected part's name, kind and exact times (all parts listed when none is selected).
+  Bar and list stay in sync.
+- **One-off days** *(user)*: a single day's plan (a day off, a half day) is edited in the Exceptions tab with the same
+  editor, starting from that day's usual plan. *(my call)*: today's "time off" and one-off blocks become these
+  one-off day plans when the grid goes away.
 - **Replaces the weekly grid of profiles** *(user)*. What blockers enforce is shown from the blockers themselves:
   toggles lay Cold Turkey's block schedule and/or Curbox's (phone) blocks over the day plan *(user)*.
 - **Timeline** *(user)*: today it shows the profiles' blocks (from Cold Turkey); it should show the day plan for the
-  day. *(my call)*: the plan's parts as the backdrop, focus sessions you started on top, drift as marks, blocker
-  blocks only when toggled on. Details after mockups.
+  day. Layout *(user, from mockups)*: **separate labelled rows**, since one shared bar gets cluttered: **Calendar**
+  (events from the linked calendars you choose for it *(user)*; titles on hover, *my call*), **Plan** (the day's
+  parts), **Focus** (sessions you started, with drift marks and the focused total), and **Blockers** (Cold Turkey's
+  blocks and/or Curbox's, each toggled on or off). That order is the default; Settings lets you reorder the rows top
+  to bottom. All rows share one hour axis and the now line.
+- **On-screen window** *(user)*: its all-day timeline uses the same four rows.
+- **Phone** *(my call)*: Today shows the same rows; the pinned notification and the widget keep one slim bar (Plan
+  with Focus on it), since they have no room for four.
 - **Shared with the phone**: the plan travels with the PC's settings over the link (L2), so the phone's timeline
   and notifications follow it. If it lives in the shared profile document, that is a schema bump (v5) with a
   migration (ADR 7) *(my call: put it there, since the phone needs it)*.
@@ -162,7 +181,9 @@ it; new otherwise. Today's AB profile rules become that allow/watch list.
 
 ## Also decided *(user)*
 
-- Cold Turkey's command line gets one test on a throwaway "AB test" block before the hand-off is built.
+- Cold Turkey's command line was tested on a throwaway "AB Test" block (2026-10-20): `-add "AB Test" -web
+  "example.com"` reached the running Cold Turkey at once and it saved its settings within ~2 s; no restart needed.
+  The command line still can't remove sites, create blocks or set schedules.
 - The session checklist, pinned item and check-ins also show on the phone during a PC session.
 
 ## Open

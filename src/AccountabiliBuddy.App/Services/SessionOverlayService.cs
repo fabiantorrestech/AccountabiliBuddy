@@ -118,6 +118,12 @@ public sealed class SessionOverlayService : IDisposable
         }
     }
 
+    /// <summary>Shows the noise player's play/pause and volume while Ctrl+Alt is held.</summary>
+    public void SetNoisePlayer(NoisePlayerViewModel noise)
+    {
+        _viewModel.Noise = noise;
+    }
+
     public void SetHiddenForSession(bool hidden)
     {
         IsHiddenForSession = hidden && _sessions.State.IsActive;

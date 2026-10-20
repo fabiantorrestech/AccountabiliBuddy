@@ -58,6 +58,8 @@ public partial class App : Application
     private WatchedBrowsersService? _watchedBrowsers;
     private UnlockService? _unlocks;
     private SessionOverlayService? _sessionOverlay;
+    private NoisePlayerService? _noise;
+    private NoiseSettingsService? _noiseSettings;
     private SessionCueService? _sessionCues;
     private AppAndSiteIcons? _icons;
     private UpdateService? _updates;
@@ -272,6 +274,13 @@ public partial class App : Application
             _sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), timelineDay, _sessionCues,
             () => _quickSession?.CountUpProfileId);
         _dayBar = new DayBarViewModel(_configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, time);
+        _noiseSettings = new NoiseSettingsService(documents);
+        _noiseSettings.LoadBlocking();
+        _noise = new NoisePlayerService(
+            () => new AccountabiliBuddy.Platform.Windows.Audio.WindowsNoisePlayer(), _noiseSettings, () => new Win32GlobalHotkey());
+        _noise.Start();
+        var noisePlayer = new NoisePlayerViewModel(_noise);
+        _sessionOverlay.SetNoisePlayer(noisePlayer);
         var dataProtector = new DpapiDataProtector();
         _calendarNetwork = new CalendarNetwork();
         _calendarSync = new CalendarSyncService(
@@ -329,7 +338,8 @@ public partial class App : Application
             setupViewModel,
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
             new SettingsViewModel(
-                _configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, dayBarSettings, overlaySettings, soundSettings, _sessionCues, sleepSettings, database.DatabasePath)
+                _configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, dayBarSettings, overlaySettings, soundSettings, _sessionCues, sleepSettings, database.DatabasePath,
+                _noise)
             {
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
                 Updates = new UpdatesViewModel(_updates),
@@ -342,6 +352,7 @@ public partial class App : Application
             DayBar = _dayBar,
         };
 
+        mainViewModel.NoisePlayer = noisePlayer;
         _mainWindow = new MainWindow { DataContext = mainViewModel };
         _mainWindow.Title = $"AccountabiliBuddy {AccountabiliBuddy.App.Services.Backup.BackupService.AppVersion}";
         if (_usesDevData)
@@ -690,6 +701,11 @@ public partial class App : Application
             return;
         }
 
+        if (_noiseSettings is not null)
+        {
+            await _noiseSettings.FlushAsync();
+        }
+
         if (_mainWindow is not null)
         {
             _mainWindow.AllowClose = true;
@@ -709,6 +725,7 @@ public partial class App : Application
         _activityWatcher?.Dispose();
         _checkpoints?.Dispose();
         _sessionOverlay?.Dispose();
+        _noise?.Dispose();
         _soundPlayer?.Dispose();
         _updates?.Dispose();
         _dayBar?.Dispose();

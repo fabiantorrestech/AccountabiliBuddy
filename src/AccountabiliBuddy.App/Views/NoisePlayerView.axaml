@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.NoisePlayerView"
+             x:DataType="vm:NoisePlayerViewModel">
+    <!-- The noise player at the bottom of the sidebar: file name, ⏮ ⏯ ⏭ and repeat, then its own volume. -->
+    <UserControl.Styles>
+        <Style Selector="Button.icon, ToggleButton.icon">
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons,Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+    </UserControl.Styles>
+    <Border Padding="10,8" CornerRadius="8" Background="#14808080">
+        <StackPanel Spacing="4">
+            <!-- The name (its own name for it, if renamed) with a pencil; the folder is chosen in Settings. -->
+            <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding !IsRenaming}">
+                <TextBlock Text="{Binding TrackText}" ToolTip.Tip="{Binding TrackText}" FontSize="12" Opacity="0.85"
+                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Classes="icon" Content="&#xE70F;" Command="{Binding StartRenameCommand}" IsVisible="{Binding HasFiles}"
+                        ToolTip.Tip="Rename (only how it's shown here)" Padding="6,2" FontSize="12" />
+            </Grid>
+            <Grid ColumnDefinitions="*,Auto,Auto" IsVisible="{Binding IsRenaming}" ColumnSpacing="2">
+                <TextBox Text="{Binding RenameText}" FontSize="12" MinHeight="26" Padding="6,2">
+                    <TextBox.KeyBindings>
+                        <KeyBinding Gesture="Enter" Command="{Binding SaveRenameCommand}" />
+                        <KeyBinding Gesture="Escape" Command="{Binding CancelRenameCommand}" />
+                    </TextBox.KeyBindings>
+                </TextBox>
+                <Button Grid.Column="1" Classes="icon" Content="&#xE73E;" Command="{Binding SaveRenameCommand}" ToolTip.Tip="Save"
+                        Padding="6,2" FontSize="12" />
+                <Button Grid.Column="2" Classes="icon" Content="&#xE711;" Command="{Binding CancelRenameCommand}" ToolTip.Tip="Cancel"
+                        Padding="6,2" FontSize="12" />
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="2" HorizontalAlignment="Center" IsEnabled="{Binding HasFiles}">
+                <Button Classes="icon" Content="&#xE892;" Command="{Binding PreviousCommand}" ToolTip.Tip="Back to the start, or the previous file" />
+                <Button Classes="icon" Content="{Binding PlayGlyph}" Command="{Binding PlayPauseCommand}" ToolTip.Tip="{Binding PlayTip}"
+                        FontSize="18" />
+                <Button Classes="icon" Content="&#xE893;" Command="{Binding NextCommand}" ToolTip.Tip="Next file" />
+                <ToggleButton Classes="icon" Content="&#xE8EE;" IsChecked="{Binding Repeat}" ToolTip.Tip="Repeat the folder" />
+            </StackPanel>
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                <TextBlock Text="&#xE767;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="12" Opacity="0.7"
+                           VerticalAlignment="Center" />
+                <Slider Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Volume}" TickFrequency="1"
+                        IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="0,-8" ToolTip.Tip="Noise volume (its own)" />
+                <TextBlock Grid.Column="2" Text="{Binding VolumeText}" FontSize="11" Opacity="0.7" MinWidth="30"
+                           VerticalAlignment="Center" TextAlignment="Right" />
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

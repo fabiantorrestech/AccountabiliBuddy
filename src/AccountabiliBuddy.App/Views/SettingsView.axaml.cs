@@ -16,6 +16,7 @@ public partial class SettingsView : UserControl
             if (DataContext is SettingsViewModel viewModel)
             {
                 viewModel.PickSoundFile = PickSoundFileAsync;
+                viewModel.PickNoiseFolder = PickNoiseFolderAsync;
             }
         };
     }
@@ -35,5 +36,17 @@ public partial class SettingsView : UserControl
             FileTypeFilter = new[] { WaveFiles },
         });
         return files.Count > 0 ? files[0].TryGetLocalPath() : null;
+    }
+
+    private async Task<string?> PickNoiseFolderAsync()
+    {
+        if (TopLevel.GetTopLevel(this) is not { } topLevel)
+        {
+            return null;
+        }
+
+        IReadOnlyList<IStorageFolder> folders = await topLevel.StorageProvider.OpenFolderPickerAsync(
+            new FolderPickerOpenOptions { Title = "Folder of noise sounds", AllowMultiple = false });
+        return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
     }
 }

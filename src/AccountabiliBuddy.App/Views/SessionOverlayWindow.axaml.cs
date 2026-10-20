@@ -359,7 +359,10 @@ public partial class SessionOverlayWindow : Window
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        if (_dragKeysHeld && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        // A press on the noise volume slider (or another control) works that control instead of moving the window.
+        bool onControl = e.Source is Avalonia.Visual visual
+                         && Avalonia.VisualTree.VisualExtensions.FindAncestorOfType<Slider>(visual, includeSelf: true) is not null;
+        if (_dragKeysHeld && !onControl && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
             _movedByUser = true;
             BeginMoveDrag(e);

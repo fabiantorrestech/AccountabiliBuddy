@@ -22,6 +22,12 @@
                     <Image Source="/Assets/app-icon.png" Width="26" Height="26" />
                     <TextBlock Text="AccountabiliBuddy" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
+                <!-- The noise player, always at the bottom of the sidebar. -->
+                <!-- Takes the sidebar's width without widening it (a long file name is cut with "…"). -->
+                <controls:FillWidthDecorator DockPanel.Dock="Bottom" Margin="12,0,12,12"
+                                             IsVisible="{Binding NoisePlayer, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <views:NoisePlayerView DataContext="{Binding NoisePlayer}" />
+                </controls:FillWidthDecorator>
                 <TabControl x:Name="Tabs" TabStripPlacement="Left" Margin="0,4,0,8" SelectionChanged="OnTabChanged"
                             SelectedIndex="{Binding SelectedTab}">
                     <TabControl.Styles>

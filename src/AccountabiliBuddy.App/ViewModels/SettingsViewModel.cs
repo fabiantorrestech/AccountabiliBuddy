@@ -34,6 +34,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly DayBarSettingsService _dayBar;
     private readonly OverlaySettingsService _overlays;
     private readonly SessionSoundSettingsService _sounds;
+    private readonly NoisePlayerService? _noise;
     private readonly SessionCueService _cues;
     private readonly SleepSettingsService _sleep;
 
@@ -113,8 +114,15 @@ public sealed partial class SettingsViewModel : ObservableObject
         SessionSoundSettingsService sounds,
         SessionCueService cues,
         SleepSettingsService sleep,
-        string databasePath)
+        string databasePath,
+        NoisePlayerService? noise = null)
     {
+        _noise = noise;
+        if (_noise is not null)
+        {
+            _noise.Changed += (_, _) => ShowNoiseFolder();
+        }
+
         _sleep = sleep;
         _sounds = sounds;
         _cues = cues;
@@ -160,6 +168,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         LoadFromConfiguration();
         LoadDisplaySettings();
         LoadSoundSettings();
+        LoadNoiseSettings();
         LoadSleepSettings();
         RefreshTimerProfiles();
         TimerProfiles.CollectionChanged += (_, _) => RefreshUnsaved();
@@ -198,7 +207,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             return;
         }
 
-        bool unsaved = HotkeyChanged || CountUpChanged || DayBarChanged || SleepChanged || SoundsChanged || TimerChanged || ConfigChanged;
+        bool unsaved = HotkeyChanged || CountUpChanged || DayBarChanged || SleepChanged || SoundsChanged || NoiseChanged || TimerChanged || ConfigChanged;
         if (unsaved && !HasUnsavedChanges)
         {
             SaveStatus = null; // A new edit: the last save's message is old news.
@@ -212,6 +221,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public async Task<bool> SaveAllAsync()
     {
         bool hotkey = HotkeyChanged, countUp = CountUpChanged, dayBar = DayBarChanged, sleep = SleepChanged, sounds = SoundsChanged, timer = TimerChanged;
+        bool noise = NoiseChanged;
         bool config = ConfigChanged && !IsLocked;
 
         var problems = new List<string>();
@@ -250,6 +260,15 @@ public sealed partial class SettingsViewModel : ObservableObject
             await _sounds.SaveAsync(BuildSounds());
         }
 
+        if (noise && _noise is not null)
+        {
+            NoiseKeysStatus = await _noise.SaveKeysAsync(NoiseMediaKeys, NoisePlayPauseKey, NoiseVolumeUpKey, NoiseVolumeDownKey);
+            if (NoiseKeysStatus is not null)
+            {
+                notes.Add(NoiseKeysStatus);
+            }
+        }
+
         if (timer)
         {
             await SaveTimerAsync();
@@ -267,7 +286,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         RefreshUnsaved();
         SaveStatus = notes.Count == 0 ? "Saved." : string.Join(" ", notes.Prepend("Saved."));
         // Profile-wide changes held back by a focus session don't keep you on the tab.
-        return !(HotkeyChanged || CountUpChanged || DayBarChanged || SleepChanged || SoundsChanged || TimerChanged || (ConfigChanged && !IsLocked));
+        return !(HotkeyChanged || CountUpChanged || DayBarChanged || SleepChanged || SoundsChanged || NoiseChanged || TimerChanged || (ConfigChanged && !IsLocked));
     }
 
     [RelayCommand]
@@ -288,6 +307,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         LoadFromConfiguration();
         LoadDisplaySettings();
         LoadSoundSettings();
+        LoadNoiseSettings();
         LoadSleepSettings();
         ShowSavedTimerProfiles();
         RefreshUnsaved();
@@ -328,6 +348,18 @@ public sealed partial class SettingsViewModel : ObservableObject
     private bool SleepChanged => BuildSleep(null) is not SleepSettings built || built != _sleep.Current;
 
     private bool SoundsChanged => _sounds.Current != BuildSounds();
+
+    // Only the parts edited here; volume, repeat and folder change from the player itself.
+    private bool NoiseChanged => _noise is not null
+        && (_noise.Settings.UsesMediaKeys != NoiseMediaKeys
+            || !SameKey(_noise.Settings.PlayPauseKey, NoisePlayPauseKey)
+            || !SameKey(_noise.Settings.VolumeUpKey, NoiseVolumeUpKey)
+            || !SameKey(_noise.Settings.VolumeDownKey, NoiseVolumeDownKey));
+
+    private static bool SameKey(string saved, string edited)
+    {
+        return string.Equals(saved.Trim(), edited.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
 
     private bool TimerChanged => TimerProfiles.Any(row => row.IsChanged)
                                  || LookKey(_overlays.Normalized(BuildTimerLook(_overlays.Current))) != LookKey(_overlays.Normalized(_overlays.Current));
@@ -524,6 +556,78 @@ public sealed partial class SettingsViewModel : ObservableObject
         FocusEndSound = SoundChoices.First(choice => choice.Id == SoundChoice.FilePrefix + path);
         BreakEndSound = SoundChoices.FirstOrDefault(choice => choice.Id == breakId) ?? SoundChoices[0];
         SoundStatus = $"Added {Path.GetFileName(path)}. Pick it for either moment, then Save.";
+    }
+
+    /// <summary>The keyboard's media keys and Windows' media pop-up also control the noise player.</summary>
+    [ObservableProperty]
+    public partial bool NoiseMediaKeys { get; set; }
+
+    [ObservableProperty]
+    public partial string NoisePlayPauseKey { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string NoiseVolumeUpKey { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string NoiseVolumeDownKey { get; set; } = string.Empty;
+
+    /// <summary>A shortcut that couldn't be set up, or null.</summary>
+    [ObservableProperty]
+    public partial string? NoiseKeysStatus { get; set; }
+
+    /// <summary>The folder the noise player plays, and how many sound files are in it.</summary>
+    [ObservableProperty]
+    public partial string NoiseFolderText { get; set; } = string.Empty;
+
+    /// <summary>Opens a folder picker; set by the view. Null result = cancelled.</summary>
+    public Func<Task<string?>>? PickNoiseFolder { get; set; }
+
+    // The folder applies at once (like adding a sound file), not with Save.
+    [RelayCommand]
+    private async Task ChooseNoiseFolderAsync()
+    {
+        if (_noise is not null && PickNoiseFolder is not null && await PickNoiseFolder() is string folder)
+        {
+            await _noise.ChooseFolderAsync(folder);
+        }
+    }
+
+    [RelayCommand]
+    private Task UseMusicNoiseFolderAsync()
+    {
+        return _noise?.ChooseFolderAsync(null) ?? Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    private void RescanNoiseFolder()
+    {
+        _noise?.Rescan();
+    }
+
+    private void ShowNoiseFolder()
+    {
+        if (_noise is not null)
+        {
+            NoiseFolderText = $"{_noise.Settings.EffectiveFolder} ({_noise.FileCount} sound file{(_noise.FileCount == 1 ? "" : "s")})";
+        }
+    }
+
+    public bool HasNoisePlayer => _noise is not null;
+
+    private void LoadNoiseSettings()
+    {
+        if (_noise is null)
+        {
+            return;
+        }
+
+        NoiseSettings noise = _noise.Settings;
+        NoiseMediaKeys = noise.UsesMediaKeys;
+        NoisePlayPauseKey = noise.PlayPauseKey;
+        NoiseVolumeUpKey = noise.VolumeUpKey;
+        NoiseVolumeDownKey = noise.VolumeDownKey;
+        NoiseKeysStatus = _noise.ShortcutError;
+        ShowNoiseFolder();
     }
 
     [MemberNotNull(nameof(SoundChoices))]

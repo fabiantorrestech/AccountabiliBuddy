@@ -80,6 +80,10 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ShowsDetails { get; set; }
 
+    /// <summary>The noise player's play/pause and volume, shown with the details.</summary>
+    [ObservableProperty]
+    public partial NoisePlayerViewModel? Noise { get; set; }
+
     [ObservableProperty]
     public partial double PanelOpacity { get; set; }
 

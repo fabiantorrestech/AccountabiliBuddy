@@ -248,6 +248,31 @@
                 </StackPanel>
             </StackPanel>
 
+            <StackPanel Spacing="6" IsVisible="{Binding HasNoisePlayer}">
+                <TextBlock Text="Noise player" FontSize="16" FontWeight="SemiBold" />
+                <TextBlock Text="The player at the bottom left plays the sound files of this folder in name order (mp3, wav, m4a, aac, flac, wma). Folder changes apply at once."
+                           Opacity="0.75" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding NoiseFolderText}" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Choose folder…" Command="{Binding ChooseNoiseFolderCommand}" />
+                    <Button Content="Use Music\Noise" Command="{Binding UseMusicNoiseFolderCommand}" />
+                    <Button Content="Look for new files" Command="{Binding RescanNoiseFolderCommand}" />
+                </StackPanel>
+                <TextBlock Text="Shortcuts work anywhere: click a box and press the keys (Ctrl, Alt or Win plus a letter, number, F-key, Space, an arrow or Page Up/Down); Backspace clears it."
+                           Opacity="0.75" TextWrapping="Wrap" Margin="0,6,0,0" />
+                <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="6">
+                    <TextBlock Text="Play / pause" VerticalAlignment="Center" />
+                    <controls:HotkeyBox Grid.Column="1" Text="{Binding NoisePlayPauseKey}" Width="220" />
+                    <TextBlock Grid.Row="1" Text="Volume up 10%" VerticalAlignment="Center" />
+                    <controls:HotkeyBox Grid.Row="1" Grid.Column="1" Text="{Binding NoiseVolumeUpKey}" Width="220" />
+                    <TextBlock Grid.Row="2" Text="Volume down 10%" VerticalAlignment="Center" />
+                    <controls:HotkeyBox Grid.Row="2" Grid.Column="1" Text="{Binding NoiseVolumeDownKey}" Width="220" />
+                </Grid>
+                <CheckBox Content="The keyboard's media keys and Windows' media pop-up also control the noise" IsChecked="{Binding NoiseMediaKeys}" />
+                <TextBlock Text="{Binding NoiseKeysStatus}" TextWrapping="Wrap"
+                           IsVisible="{Binding NoiseKeysStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+
             <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
                 <TextBlock Text="Pomodoro defaults" FontSize="16" FontWeight="SemiBold" />
                 <Grid ColumnDefinitions="240,120" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6">

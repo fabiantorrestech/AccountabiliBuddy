@@ -65,6 +65,12 @@ public sealed class HotkeyBox : TextBox
             >= Key.D0 and <= Key.D9 => ((int)(key - Key.D0)).ToString(),
             >= Key.F1 and <= Key.F24 => key.ToString(),
             Key.Space => "Space",
+            Key.Up => "Up",
+            Key.Down => "Down",
+            Key.Left => "Left",
+            Key.Right => "Right",
+            Key.PageUp => "PageUp",
+            Key.PageDown => "PageDown",
             _ => null,
         };
     }

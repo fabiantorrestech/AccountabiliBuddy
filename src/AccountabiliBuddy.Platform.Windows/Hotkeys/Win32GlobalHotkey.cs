@@ -153,6 +153,22 @@ public sealed class Win32GlobalHotkey : IGlobalHotkey, IDisposable
             return true;
         }
 
+        uint? named = key switch
+        {
+            "PageUp" => 0x21, // VK_PRIOR
+            "PageDown" => 0x22, // VK_NEXT
+            "Left" => 0x25,
+            "Up" => 0x26,
+            "Right" => 0x27,
+            "Down" => 0x28,
+            _ => null,
+        };
+        if (named is uint namedKey)
+        {
+            virtualKey = namedKey;
+            return true;
+        }
+
         if (key.Length == 1 && (char.IsAsciiLetterUpper(key[0]) || char.IsAsciiDigit(key[0])))
         {
             virtualKey = key[0]; // VK codes for A–Z and 0–9 equal their ASCII codes.

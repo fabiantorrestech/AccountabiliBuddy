@@ -4,7 +4,7 @@ namespace AccountabiliBuddy.Core.Domain;
 
 /// <summary>
 /// A global keyboard shortcut such as "Ctrl+Alt+F". At least one modifier is required so a plain key press
-/// is never swallowed system-wide. Keys: A–Z, 0–9, F1–F24 and Space.
+/// is never swallowed system-wide. Keys: A–Z, 0–9, F1–F24, Space, the arrow keys and Page Up/Down.
 /// </summary>
 public sealed record HotkeyChord(HotkeyModifiers Modifiers, string Key)
 {
@@ -44,7 +44,7 @@ public sealed record HotkeyChord(HotkeyModifiers Modifiers, string Key)
         string key = NormalizeKey(parts[^1]);
         if (!IsSupportedKey(key))
         {
-            error = $"'{parts[^1]}' is not a supported key (A–Z, 0–9, F1–F24 or Space).";
+            error = $"'{parts[^1]}' is not a supported key (A–Z, 0–9, F1–F24, Space, arrows or Page Up/Down).";
             return false;
         }
 
@@ -74,14 +74,16 @@ public sealed record HotkeyChord(HotkeyModifiers Modifiers, string Key)
         return string.Join("+", parts);
     }
 
+    private static readonly string[] NamedKeys = { "Space", "Up", "Down", "Left", "Right", "PageUp", "PageDown" };
+
     private static string NormalizeKey(string key)
     {
-        return key.Equals("space", StringComparison.OrdinalIgnoreCase) ? "Space" : key.ToUpperInvariant();
+        return NamedKeys.FirstOrDefault(named => named.Equals(key, StringComparison.OrdinalIgnoreCase)) ?? key.ToUpperInvariant();
     }
 
     private static bool IsSupportedKey(string key)
     {
-        if (key == "Space")
+        if (NamedKeys.Contains(key))
         {
             return true;
         }

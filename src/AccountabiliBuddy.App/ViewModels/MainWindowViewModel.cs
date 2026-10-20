@@ -124,6 +124,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public SettingsViewModel Settings { get; }
 
+    /// <summary>The noise player at the bottom of the sidebar.</summary>
+    public NoisePlayerViewModel? NoisePlayer { get; set; }
+
     public ActivityDebugViewModel Activity { get; }
 
     private readonly DayBarViewModel? _dayBar;
