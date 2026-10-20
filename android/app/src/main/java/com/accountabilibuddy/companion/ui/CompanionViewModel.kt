@@ -47,6 +47,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     /** The linked PC (ADR 14) and its session. */
     val linkStatus: StateFlow<LinkStatus> = link.status
     val pairedPc: StateFlow<LinkedPc?> = link.pairedPc
+    val deviceName: String = (application as CompanionApp).deviceName
 
     /** A pairing link opened from the PC's QR code, waiting for the user to compare the code and confirm. */
     val pairingOffer = MutableStateFlow<PairingLink?>(null)

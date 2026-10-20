@@ -105,3 +105,13 @@ FindWindow
 OpenProcess
 GetProcessTimes
 QueryFullProcessImageName
+
+// Linked devices: listen only on networks Windows marks Private (ADR 14)
+NetworkListManager
+INetworkListManager
+INetwork
+IEnumNetworks
+INetworkConnection
+IEnumNetworkConnections
+NLM_ENUM_NETWORK
+NLM_NETWORK_CATEGORY

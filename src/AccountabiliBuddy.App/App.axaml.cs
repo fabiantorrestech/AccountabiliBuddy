@@ -282,7 +282,8 @@ public partial class App : Application
         // Linked devices (ADR 14): off until turned on in Setup.
         var linkHost = new AccountabiliBuddy.App.Services.Link.LinkSessionHost(
             _sessions, _configuration, _quickSession, documents, calendars, sleepSettings, dayBarSettings);
-        _link = new AccountabiliBuddy.App.Services.Link.LinkService(documents, new DpapiDataProtector(), linkHost, _sessions);
+        _link = new AccountabiliBuddy.App.Services.Link.LinkService(
+            documents, new DpapiDataProtector(), linkHost, _sessions, new AccountabiliBuddy.Platform.Windows.Network.WindowsNetworkTrust());
         _link.LoadBlocking();
 
         var setupViewModel = new SetupViewModel(
@@ -319,7 +320,7 @@ public partial class App : Application
                 Day = timelineDay,
                 ColdTurkey = new ColdTurkeyStatusViewModel(_coldTurkey, _sessions),
             },
-            new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey),
+            new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, _link),
             new ScheduleViewModel(_configuration, _sessions, pendingChanges),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
             new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time,

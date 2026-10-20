@@ -24,13 +24,54 @@
                     <Button Content="Add example profile" Command="{Binding AddExampleProfileCommand}" HorizontalAlignment="Stretch" />
                     <Button Content="Delete profile" Command="{Binding DeleteProfileCommand}" HorizontalAlignment="Stretch" />
                 </StackPanel>
-                <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="vm:ProfileEditorViewModel">
-                            <TextBlock Text="{Binding Name}" />
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                <ScrollViewer>
+                    <StackPanel Spacing="4">
+                        <!-- Grouped by device once a phone or tablet is linked: this PC first, then each linked device. -->
+                        <Button IsVisible="{Binding HasLinkedDevices}" Command="{Binding ToggleThisDeviceCommand}"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Background="Transparent" Padding="4,6">
+                            <StackPanel>
+                                <TextBlock FontWeight="SemiBold" TextWrapping="Wrap">
+                                    <Run Text="{Binding ThisDeviceArrow}" />
+                                    <Run Text="{Binding ThisDeviceTitle}" />
+                                </TextBlock>
+                                <TextBlock Text="{Binding ThisDeviceDetail}" Opacity="0.7" FontSize="12" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Button>
+                        <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" IsVisible="{Binding ShowsProfileList}"
+                                 Margin="{Binding HasLinkedDevices, Converter={x:Static vm:IndentConverter.Instance}}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ProfileEditorViewModel">
+                                    <TextBlock Text="{Binding Name}" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <ItemsControl ItemsSource="{Binding LinkedDevices}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:DeviceProfilesRowViewModel">
+                                    <StackPanel>
+                                        <Button Command="{Binding ToggleCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                Background="Transparent" Padding="4,6">
+                                            <StackPanel>
+                                                <TextBlock FontWeight="SemiBold" TextWrapping="Wrap">
+                                                    <Run Text="{Binding Arrow}" />
+                                                    <Run Text="{Binding Name}" />
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding Detail}" Opacity="0.7" FontSize="12" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Button>
+                                        <ItemsControl ItemsSource="{Binding ProfileNames}" IsVisible="{Binding IsExpanded}" Margin="20,0,0,6">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="x:String">
+                                                    <TextBlock Text="{Binding}" Opacity="0.75" Margin="0,2" TextWrapping="Wrap" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
             </DockPanel>
 
             <ScrollViewer Grid.Column="2">

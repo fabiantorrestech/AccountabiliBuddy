@@ -26,6 +26,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accountabilibuddy.companion.R
+import com.accountabilibuddy.companion.link.LinkStatus
 
 /** Three tabs: Today, Profiles, Settings; the import password dialog; messages as snackbars. */
 @Composable
@@ -94,7 +95,13 @@ fun MainScreen(
                         )
                     },
                 )
-                1 -> ProfilesScreen(state, viewModel.clock)
+                1 -> ProfilesScreen(
+                    state,
+                    viewModel.clock,
+                    pcName = pairedPc?.pcName,
+                    pcState = (linkStatus as? LinkStatus.Connected)?.state,
+                    deviceName = viewModel.deviceName,
+                )
                 else -> {
                     // Curbox's status shows only here: ask it when Settings opens, or the app comes back to it.
                     LifecycleStartEffect(Unit) {

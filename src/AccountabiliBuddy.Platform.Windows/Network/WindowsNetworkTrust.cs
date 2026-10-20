@@ -1,0 +1,85 @@
+using System.Net.NetworkInformation;
+using System.Runtime.InteropServices;
+using AccountabiliBuddy.Core.Ports;
+using Windows.Win32.Networking.NetworkListManager;
+
+namespace AccountabiliBuddy.Platform.Windows.Network;
+
+/// <summary>
+/// Asks Windows' network list which category each connected network has (Public, Private, Domain), counting only
+/// networks on real Wi-Fi or Ethernet adapters, so a virtual switch's "Unidentified network" (Hyper-V, WSL) doesn't
+/// keep linking off.
+/// </summary>
+public sealed class WindowsNetworkTrust : INetworkTrust
+{
+    public bool IsOnPrivateNetwork()
+    {
+        HashSet<Guid> physicalAdapters = NetworkInterface.GetAllNetworkInterfaces()
+            .Where(adapter => adapter.OperationalStatus == OperationalStatus.Up
+                              && adapter.NetworkInterfaceType is NetworkInterfaceType.Wireless80211 or NetworkInterfaceType.Ethernet
+                              && !adapter.Description.Contains("Virtual", StringComparison.OrdinalIgnoreCase)
+                              && !adapter.Description.Contains("Hyper-V", StringComparison.OrdinalIgnoreCase))
+            .Select(adapter => Guid.TryParse(adapter.Id, out Guid id) ? id : Guid.Empty)
+            .Where(id => id != Guid.Empty)
+            .ToHashSet();
+        if (physicalAdapters.Count == 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            var manager = (INetworkListManager)new NetworkListManager();
+            IEnumNetworks networks = manager.GetNetworks(NLM_ENUM_NETWORK.NLM_ENUM_NETWORK_CONNECTED);
+            bool any = false;
+            while (Next(networks) is INetwork network)
+            {
+                if (!AdaptersOf(network).Any(physicalAdapters.Contains))
+                {
+                    continue;
+                }
+
+                any = true;
+                if (network.GetCategory() == NLM_NETWORK_CATEGORY.NLM_NETWORK_CATEGORY_PUBLIC)
+                {
+                    return false;
+                }
+            }
+
+            return any;
+        }
+        catch (COMException)
+        {
+            // Can't tell: treat as not private, so the link stays off rather than open on an unknown network.
+            return false;
+        }
+    }
+
+    private static List<Guid> AdaptersOf(INetwork network)
+    {
+        var adapters = new List<Guid>();
+        IEnumNetworkConnections connections = network.GetNetworkConnections();
+        while (Next(connections) is INetworkConnection connection)
+        {
+            adapters.Add(connection.GetAdapterId());
+        }
+
+        return adapters;
+    }
+
+    private static unsafe INetwork? Next(IEnumNetworks networks)
+    {
+        var one = new INetwork[1];
+        uint fetched = 0;
+        networks.Next(1, one, &fetched);
+        return fetched == 1 ? one[0] : null;
+    }
+
+    private static unsafe INetworkConnection? Next(IEnumNetworkConnections connections)
+    {
+        var one = new INetworkConnection[1];
+        uint fetched = 0;
+        connections.Next(1, one, &fetched);
+        return fetched == 1 ? one[0] : null;
+    }
+}

@@ -18,6 +18,7 @@ public sealed partial class ProfilesViewModel : ObservableObject
     private readonly SessionController _sessions;
     private readonly OverlaySettingsService _overlays;
     private readonly ColdTurkeyService _coldTurkey;
+    private readonly AccountabiliBuddy.App.Services.Link.LinkService? _link;
 
     // Every rule id this tab already has an editor for, so rules added elsewhere can be told apart.
     private readonly HashSet<Guid> _knownRuleIds = new();
@@ -30,8 +31,10 @@ public sealed partial class ProfilesViewModel : ObservableObject
         SessionController sessions,
         PendingChangesViewModel pendingChanges,
         OverlaySettingsService overlays,
-        ColdTurkeyService coldTurkey)
+        ColdTurkeyService coldTurkey,
+        AccountabiliBuddy.App.Services.Link.LinkService? link = null)
     {
+        _link = link;
         _configuration = configuration;
         _sessions = sessions;
         _overlays = overlays;
@@ -43,6 +46,15 @@ public sealed partial class ProfilesViewModel : ObservableObject
         _configuration.Changed += OnConfigurationChanged;
         _overlays.Changed += OnOverlayChanged;
         _coldTurkey.Changed += (_, _) => ShowColdTurkeyBlocks();
+
+        // Grouped by device once a phone or tablet is linked.
+        if (_link is not null)
+        {
+            _link.Changed += (_, _) => RefreshDevices();
+        }
+
+        _sessions.StateChanged += (_, _) => RefreshDevices();
+        Profiles.CollectionChanged += (_, _) => RefreshDevices();
         _configuration.PendingCancelled += (_, _) =>
         {
             LoadFromConfiguration();
@@ -55,6 +67,39 @@ public sealed partial class ProfilesViewModel : ObservableObject
     public PendingChangesViewModel PendingChanges { get; }
 
     public ObservableCollection<ProfileEditorViewModel> Profiles { get; } = new();
+
+    /// <summary>Linked phones and tablets, each with the profiles it has.</summary>
+    public ObservableCollection<DeviceProfilesRowViewModel> LinkedDevices { get; } = new();
+
+    /// <summary>True once a phone or tablet is linked: the list is then grouped by device, this PC first.</summary>
+    [ObservableProperty]
+    public partial bool HasLinkedDevices { get; set; }
+
+    public string ThisDeviceTitle => $"{Environment.MachineName} (this PC)";
+
+    /// <summary>E.g. "6 profiles · running: Coding".</summary>
+    [ObservableProperty]
+    public partial string ThisDeviceDetail { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ThisDeviceArrow), nameof(ShowsProfileList))]
+    public partial bool IsThisDeviceExpanded { get; set; } = true;
+
+    public string ThisDeviceArrow => IsThisDeviceExpanded ? "▾" : "▸";
+
+    /// <summary>The editable list shows when not grouped, or while this PC's group is open.</summary>
+    public bool ShowsProfileList => !HasLinkedDevices || IsThisDeviceExpanded;
+
+    partial void OnHasLinkedDevicesChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowsProfileList));
+    }
+
+    [RelayCommand]
+    private void ToggleThisDevice()
+    {
+        IsThisDeviceExpanded = !IsThisDeviceExpanded;
+    }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(DeleteProfileCommand))]
@@ -178,6 +223,35 @@ public sealed partial class ProfilesViewModel : ObservableObject
         }
 
         SelectedProfile = Profiles.FirstOrDefault(editor => editor.Id == selectedId) ?? Profiles.FirstOrDefault();
+    }
+
+    /// <summary>The device rows: this PC's profile count and running profile, and each linked device (using this PC's profiles for now).</summary>
+    private void RefreshDevices()
+    {
+        IReadOnlyList<AccountabiliBuddy.Core.Link.PairedDevice> devices = _link?.Devices ?? Array.Empty<AccountabiliBuddy.Core.Link.PairedDevice>();
+        HasLinkedDevices = devices.Count > 0;
+
+        // A scheduled block isn't a focus session you started, so it reads "blocks on", not "running".
+        string? running = _sessions.State.IsActive ? ProfileOptions.NameOf(_configuration.Current.Profiles, _sessions.State.ProfileId) : null;
+        string now = running is null ? "nothing running"
+            : _sessions.State.Mode == SessionMode.Scheduled ? $"blocks on: {running}"
+            : $"running: {running}";
+        ThisDeviceDetail = $"{Profiles.Count} profile{(Profiles.Count == 1 ? "" : "s")} · {now}";
+
+        IReadOnlyCollection<Guid> connected = _link?.ConnectedDeviceIds ?? Array.Empty<Guid>();
+        var expanded = LinkedDevices.Where(row => row.IsExpanded).Select(row => row.Id).ToHashSet();
+        List<string> names = Profiles.Select(editor => editor.Name).ToList();
+        LinkedDevices.Clear();
+        foreach (AccountabiliBuddy.Core.Link.PairedDevice device in devices.OrderBy(device => device.PairedAt))
+        {
+            string seen = connected.Contains(device.Id) ? "connected now"
+                : device.LastSeenAt is DateTimeOffset at ? $"last seen {at.ToLocalTime():ddd d MMM, t}"
+                : "not seen yet";
+            LinkedDevices.Add(new DeviceProfilesRowViewModel(device.Id, device.Name, $"{names.Count} profiles (this PC's, synced) · {seen}", names)
+            {
+                IsExpanded = expanded.Contains(device.Id),
+            });
+        }
     }
 
     /// <summary>An editor for a saved profile, with this computer's own choices for it (timer, Cold Turkey blocks).</summary>

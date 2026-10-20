@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.link.PcState
 import com.accountabilibuddy.companion.data.CompanionState
 import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.engine.ProfileColors
@@ -37,22 +38,80 @@ import com.accountabilibuddy.companion.model.RuleVerdict
 import java.time.format.TextStyle
 import java.util.Locale
 
-/** The imported profiles (read only for now): colour, rules and when each one is scheduled. Tap to see the rules. */
+/**
+ * The PC's profiles (read only for now): colour, rules and when each one is scheduled. Tap to see the rules. Once a PC
+ * is linked they're grouped by device: the PC (profile count, what it's running, when they synced), then this phone,
+ * which uses the PC's profiles for now.
+ */
 @Composable
-fun ProfilesScreen(state: CompanionState, clock: ClockFormat) {
+fun ProfilesScreen(state: CompanionState, clock: ClockFormat, pcName: String? = null, pcState: PcState? = null, deviceName: String = "This phone") {
     if (state.document.profiles.isEmpty()) {
-        Text("No profiles yet. Import a backup from the PC in Settings.", modifier = Modifier.padding(16.dp))
+        Text("No profiles yet. Link the PC or import a backup from it in Settings.", modifier = Modifier.padding(16.dp))
         return
     }
 
+    var pcExpanded by remember { mutableStateOf(true) }
+    var phoneExpanded by remember { mutableStateOf(false) }
+    val profiles = state.document.profiles
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (pcName == null) {
+            item {
+                Text(
+                    "${state.importedFrom ?: "From the PC"}; imported ${state.importedAt ?: ""}. Edit profiles on the PC and import again.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            items(profiles, key = { it.id }) { profile -> ProfileCard(profile, state, clock) }
+            return@LazyColumn
+        }
+
+        val running = when {
+            pcState == null -> "not connected right now"
+            pcState.isScheduledBlock -> "blocks on: ${pcState.profileName ?: "a profile"}"
+            pcState.isActive -> "running: ${pcState.profileName ?: "a profile"}"
+            else -> "nothing running"
+        }
         item {
-            Text(
-                "${state.importedFrom ?: "From the PC"}; imported ${state.importedAt ?: ""}. Edit profiles on the PC and import again.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            DeviceRow(
+                title = pcName,
+                detail = "${profiles.size} profile${if (profiles.size == 1) "" else "s"} · $running · synced ${state.importedAt ?: "not yet"}",
+                expanded = pcExpanded,
+                onToggle = { pcExpanded = !pcExpanded },
             )
         }
-        items(state.document.profiles, key = { it.id }) { profile -> ProfileCard(profile, state, clock) }
+        if (pcExpanded) {
+            items(profiles, key = { it.id }) { profile ->
+                Column(Modifier.padding(start = 16.dp)) { ProfileCard(profile, state, clock) }
+            }
+        }
+
+        item {
+            DeviceRow(
+                title = "$deviceName (this phone)",
+                detail = "uses $pcName's profiles",
+                expanded = phoneExpanded,
+                onToggle = { phoneExpanded = !phoneExpanded },
+            )
+        }
+        if (phoneExpanded) {
+            items(profiles, key = { "phone-${it.id}" }) { profile ->
+                Text(
+                    profile.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 28.dp),
+                )
+            }
+        }
+    }
+}
+
+/** A device's row: ▾/▸, its name, and a line about its profiles; tap to open or close. */
+@Composable
+private fun DeviceRow(title: String, detail: String, expanded: Boolean, onToggle: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 4.dp)) {
+        Text("${if (expanded) "▾" else "▸"} $title", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 18.dp))
     }
 }
 

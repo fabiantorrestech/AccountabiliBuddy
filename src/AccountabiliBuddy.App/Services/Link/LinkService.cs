@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -12,24 +13,40 @@ namespace AccountabiliBuddy.App.Services.Link;
 
 /// <summary>
 /// Turns the link with phones and tablets (ADR 14) on and off as the Setup tab says (off by default), owns its server,
-/// certificate and paired devices, and offers pairing codes. Turning it off and unpairing count as Revokes, so they
-/// are locked during focus. Use from the UI thread; its events are raised there.
+/// certificate and paired devices, and offers pairing codes. It listens only while Windows marks the networks this
+/// PC is on as Private: on a Public one it pauses, and it resumes by itself (checked when the network changes and
+/// every few minutes). Turning it off and unpairing count as Revokes, so they are locked during focus. Use from the
+/// UI thread; its events are raised there.
 /// </summary>
 public sealed class LinkService : IAsyncDisposable
 {
+    private static readonly TimeSpan NetworkRecheckInterval = TimeSpan.FromMinutes(2);
+
     private readonly LinkDeviceStore _devices;
     private readonly ILinkSessionHost _host;
     private readonly SessionController _sessions;
+    private readonly INetworkTrust _networkTrust;
+    private readonly DispatcherTimer _networkRecheck;
+
+    // Network changes come in bursts; one check at a time, so two can't both start a server.
+    private readonly SemaphoreSlim _following = new(1, 1);
 
     private LinkServer? _server;
     private X509Certificate2? _certificate;
 
-    public LinkService(SqliteJsonDocumentStore store, IDataProtector protector, ILinkSessionHost host, SessionController sessions)
+    public LinkService(
+        SqliteJsonDocumentStore store, IDataProtector protector, ILinkSessionHost host, SessionController sessions, INetworkTrust networkTrust)
     {
         _devices = new LinkDeviceStore(store, protector);
         _host = host;
         _sessions = sessions;
+        _networkTrust = networkTrust;
         _devices.Changed += (_, _) => Dispatcher.UIThread.Post(() => Changed?.Invoke(this, EventArgs.Empty));
+
+        // A switch between Public and Private changes no address, hence the slow recheck as well.
+        _networkRecheck = new DispatcherTimer { Interval = NetworkRecheckInterval };
+        _networkRecheck.Tick += (_, _) => _ = FollowNetworkAsync();
+        NetworkChange.NetworkAddressChanged += (_, _) => Dispatcher.UIThread.Post(() => _ = FollowNetworkAsync());
     }
 
     public bool IsEnabled => _devices.Settings.Enabled;
@@ -67,7 +84,8 @@ public sealed class LinkService : IAsyncDisposable
     {
         if (IsEnabled)
         {
-            await StartServerAsync();
+            _networkRecheck.Start();
+            await FollowNetworkAsync();
         }
     }
 
@@ -82,11 +100,14 @@ public sealed class LinkService : IAsyncDisposable
         await _devices.SaveSettingsAsync(_devices.Settings with { Enabled = enabled });
         if (enabled)
         {
-            await StartServerAsync();
+            _networkRecheck.Start();
+            await FollowNetworkAsync();
         }
         else
         {
+            _networkRecheck.Stop();
             await StopServerAsync();
+            Problem = null;
         }
 
         Changed?.Invoke(this, EventArgs.Empty);
@@ -132,8 +153,51 @@ public sealed class LinkService : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _networkRecheck.Stop();
         await StopServerAsync();
         _certificate?.Dispose();
+    }
+
+    /// <summary>Listens on a Private network, pauses on a Public one (ADR 14: never listen on public networks).</summary>
+    private async Task FollowNetworkAsync()
+    {
+        await _following.WaitAsync();
+        try
+        {
+            await FollowNetworkOnceAsync();
+        }
+        finally
+        {
+            _following.Release();
+        }
+    }
+
+    private async Task FollowNetworkOnceAsync()
+    {
+        if (!IsEnabled)
+        {
+            return;
+        }
+
+        if (_networkTrust.IsOnPrivateNetwork())
+        {
+            if (_server is null)
+            {
+                await StartServerAsync();
+                Changed?.Invoke(this, EventArgs.Empty);
+            }
+
+            return;
+        }
+
+        if (_server is not null)
+        {
+            await StopServerAsync();
+        }
+
+        Problem = "Paused: Windows marks this network as Public. Linking works on networks set to Private "
+                  + "(Settings → Network & internet → your Wi-Fi or Ethernet → Private network).";
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     private async Task StartServerAsync()

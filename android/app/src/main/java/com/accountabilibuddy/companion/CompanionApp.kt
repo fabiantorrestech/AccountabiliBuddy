@@ -25,14 +25,19 @@ class CompanionApp : Application() {
     lateinit var link: LinkClient
         private set
 
+    /** This phone's name as the PC shows it (e.g. "Pixel 7"). */
+    lateinit var deviceName: String
+        private set
+
     // Lives as long as the app; the link reads from the PC here.
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
         super.onCreate()
         store = CompanionStore(File(filesDir, "companion"))
+        deviceName = readDeviceName()
         link = LinkClient(
-            LinkStore(File(filesDir, "companion/link.json")), deviceName(), deviceKind(), appScope, LinkDiscovery(this), ::applyPcSettings,
+            LinkStore(File(filesDir, "companion/link.json")), deviceName, deviceKind(), appScope, LinkDiscovery(this), ::applyPcSettings,
         )
         Refresher.start(this)
     }
@@ -51,7 +56,7 @@ class CompanionApp : Application() {
     }
 
     /** E.g. "Fabian's Pixel 7" (the name set in Android's settings), else the model. */
-    private fun deviceName(): String =
+    private fun readDeviceName(): String =
         Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)?.takeIf { it.isNotBlank() } ?: Build.MODEL
 
     private fun deviceKind(): String = if (resources.configuration.smallestScreenWidthDp >= 600) "tablet" else "phone"
