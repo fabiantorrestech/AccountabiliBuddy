@@ -2,6 +2,7 @@ using System.IO.Pipes;
 using System.Security.Principal;
 using System.Text.Json;
 using AccountabiliBuddy.Core.Browser;
+using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Ports;
 
 namespace AccountabiliBuddy.Platform.Windows.Browser;
@@ -11,7 +12,8 @@ namespace AccountabiliBuddy.Platform.Windows.Browser;
 /// Each connected native host (one per browser running the extension) gets its own pipe instance.
 /// Messages from the extension:
 /// <c>{"type":"hello","browser":"chrome","version":"0.2.0","privateAllowed":true}</c> and
-/// <c>{"type":"tabs","tabs":[{"tabId":12,"title":"…","url":"…","channel":null}]}</c> (the active tab of every window).
+/// <c>{"type":"tabs","tabs":[{"tabId":12,"title":"…","url":"…","channel":null}]}</c> (the active tab of every window),
+/// and from extension 0.3.0 <c>{"type":"icon","url":"…","data":"&lt;base64 PNG&gt;"}</c> (a site's icon from the browser's cache).
 /// Messages to the extension: <c>{"type":"redirect","tabId":12,"reason":"…"}</c>.
 /// Events are raised on background threads.
 /// </summary>
@@ -201,6 +203,12 @@ public sealed class NamedPipeBrowserSource : IBrowserActivitySource, IDisposable
                 return false;
             }
 
+            if (type.GetString() == "icon")
+            {
+                RaiseSiteIcon(root);
+                return false;
+            }
+
             DateTimeOffset now = _timeProvider.GetUtcNow();
             lock (_lock)
             {
@@ -225,6 +233,34 @@ public sealed class NamedPipeBrowserSource : IBrowserActivitySource, IDisposable
                         return false;
                 }
             }
+        }
+    }
+
+    // Site icons are small (32 px); anything much bigger isn't one.
+    private const int MaxIconBytes = 64 * 1024;
+
+    public event EventHandler<SiteIcon>? SiteIconReceived;
+
+    private void RaiseSiteIcon(JsonElement root)
+    {
+        string? url = ReadString(root, "url");
+        string? data = ReadString(root, "data");
+        if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(data) || data.Length > MaxIconBytes * 4 / 3 + 4)
+        {
+            return;
+        }
+
+        try
+        {
+            byte[] image = Convert.FromBase64String(data);
+            if (image.Length > 0 && image.Length <= MaxIconBytes)
+            {
+                SiteIconReceived?.Invoke(this, new SiteIcon(url, image));
+            }
+        }
+        catch (FormatException)
+        {
+            // Not base64; ignore.
         }
     }
 

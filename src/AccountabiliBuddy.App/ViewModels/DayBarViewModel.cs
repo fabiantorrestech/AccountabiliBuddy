@@ -15,8 +15,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>
 /// The day bar at the top of the main window: today's planned focus (schedule minus time off), the sessions that
 /// actually ran (from the history, plus the running one up to now), calendar events, and a live "now" line.
-/// The on-screen timeline uses its own copy, which draws even when the day bar is hidden. Sessions marked as not
-/// real (tests) are left out.
+/// The on-screen timeline uses its own copy, which draws even when the day bar is hidden. Omitted sessions (e.g.
+/// tests) are left out.
 /// With sleep mode on (and "fit to my day"), the day runs from wake time to bedtime and grows into the night
 /// while you're still up; the night is shaded, sleep lost by staying up is shaded red, and from two hours before
 /// bedtime <see cref="SleepText"/> says how much sleep is left if you go to bed now.
@@ -49,7 +49,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     private readonly IActivityLog _log;
     private readonly DayBarSettingsService _settings;
     private readonly SleepSettingsService _sleep;
-    private readonly NotRealSessionsService _notReal;
+    private readonly OmittedSessionsService _omitted;
     private readonly TimeProvider _time;
     private readonly DispatcherTimer _redrawTimer;
     private readonly DispatcherTimer _reloadSoonTimer;
@@ -66,11 +66,11 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         IActivityLog log,
         DayBarSettingsService settings,
         SleepSettingsService sleep,
-        NotRealSessionsService notReal,
+        OmittedSessionsService omitted,
         TimeProvider time,
         bool ignoresShowSetting = false)
     {
-        _notReal = notReal;
+        _omitted = omitted;
         _sleep = sleep;
         _ignoresShowSetting = ignoresShowSetting;
         _configuration = configuration;
@@ -97,7 +97,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         _calendars.Changed += (_, _) => Redraw();
         _settings.Changed += (_, _) => _ = ReloadHistoryAsync();
         _sleep.Changed += (_, _) => _ = ReloadHistoryAsync();
-        _notReal.Changed += (_, _) => Redraw();
+        _omitted.Changed += (_, _) => Redraw();
         _sessions.StateChanged += (_, _) =>
         {
             Redraw();
@@ -328,9 +328,9 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         for (int i = 0; i < _records.Count; i++)
         {
             SessionRecord record = _records[i];
-            if (_notReal.IsNotReal(record.StartedAt))
+            if (_omitted.IsOmitted(record.StartedAt))
             {
-                // Marked as a test: it doesn't count (the running one is also left out).
+                // Omitted (e.g. a test): it doesn't count (the running one is also left out).
                 runningShown |= i == 0 && state.IsActive && record.EndedAt is null;
                 continue;
             }

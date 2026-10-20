@@ -1,3 +1,5 @@
+using AccountabiliBuddy.Core.Domain;
+
 namespace AccountabiliBuddy.Core.Ports;
 
 /// <summary>
@@ -8,6 +10,9 @@ public interface IBrowserActivitySource
 {
     /// <summary>Raised when a browser connects, disconnects or reports new tabs. May be raised on any thread.</summary>
     event EventHandler? ConnectionsChanged;
+
+    /// <summary>Raised when the extension sends a site's icon (once per site per browser start). May be raised on any thread.</summary>
+    event EventHandler<SiteIcon>? SiteIconReceived;
 
     /// <summary>Currently connected browsers.</summary>
     IReadOnlyList<BrowserConnection> Connections { get; }

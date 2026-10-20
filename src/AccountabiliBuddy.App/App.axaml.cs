@@ -59,6 +59,7 @@ public partial class App : Application
     private UnlockService? _unlocks;
     private SessionOverlayService? _sessionOverlay;
     private SessionCueService? _sessionCues;
+    private AppAndSiteIcons? _icons;
     private Win32SoundPlayer? _soundPlayer;
     private DayBarViewModel? _dayBar;
     private PrivateWindowAccessMonitor? _privateAccess;
@@ -204,7 +205,9 @@ public partial class App : Application
         _recorder = new ActivityRecorder(activityLog, privacy, _sessions, new Win32UserIdleDetector(), time);
 
         var quickLaunch = new StartMenuQuickLaunchShortcut(AppPaths.LaunchPath, StartupOptions.QuickSessionArgument);
-        bool extensionUpdated = RepairRegistrations(startupRegistrar, quickLaunch, browserSetup);
+        // Only the installed app repoints registrations to itself; a dev build or test copy must not take over the
+        // installed app's start with Windows, Start menu shortcut or browser host.
+        bool extensionUpdated = AppPaths.IsInstalled && RepairRegistrations(startupRegistrar, quickLaunch, browserSetup);
 
         var activityViewModel = new ActivityDebugViewModel();
         _activityWatcher = new WinEventActivityWatcher(time);
@@ -234,17 +237,20 @@ public partial class App : Application
         overlaySettings.LoadBlocking();
         var sleepSettings = new SleepSettingsService(documents);
         sleepSettings.LoadBlocking();
-        var notRealSessions = new NotRealSessionsService(documents);
-        notRealSessions.LoadBlocking();
+        var omittedSessions = new OmittedSessionsService(documents);
+        omittedSessions.LoadBlocking();
+        var displayNames = new DisplayNamesService(documents);
+        displayNames.LoadBlocking();
+        _icons = new AppAndSiteIcons(Path.Combine(dataDirectory, "icons"), new Win32AppIconReader());
         var timelineDay = new DayBarViewModel(
-            _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, notRealSessions, time, ignoresShowSetting: true);
+            _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, time, ignoresShowSetting: true);
         var soundSettings = new SessionSoundSettingsService(documents);
         soundSettings.LoadBlocking();
         _soundPlayer = new Win32SoundPlayer();
         _sessionCues = new SessionCueService(_sessions, soundSettings, _soundPlayer);
         _sessionOverlay = new SessionOverlayService(
             _sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), timelineDay, _sessionCues);
-        _dayBar = new DayBarViewModel(_configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, notRealSessions, time);
+        _dayBar = new DayBarViewModel(_configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, time);
         var dataProtector = new DpapiDataProtector();
         _calendarNetwork = new CalendarNetwork();
         _calendarSync = new CalendarSyncService(
@@ -283,7 +289,7 @@ public partial class App : Application
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings),
             new ScheduleViewModel(_configuration, _sessions, pendingChanges),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
-            new HistoryViewModel(activityLog, _recorder, _configuration, privacy, notRealSessions, time),
+            new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, time),
             setupViewModel,
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
             new SettingsViewModel(
@@ -330,6 +336,7 @@ public partial class App : Application
                 "Session resumed",
                 $"AccountabiliBuddy was closed for {DescribeGap(resumed.ClosedFor)}. Your session kept running.");
         }
+        _icons.Start(_activityWatcher, _browserSource);
         _activityWatcher.Start();
         _browserSource.Start();
         _calendarSync.Start();

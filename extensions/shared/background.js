@@ -1,5 +1,6 @@
 // AccountabiliBuddy extension: reports the active tab of every window to the desktop app and
 // sends a tab to the block page when the app asks. Talks only to the local native messaging host (ADR 5).
+// Also sends each site's icon once (from the browser's own icon cache, never downloaded) for the app's History.
 // Runs as a service worker in Chromium browsers and as an event page in Firefox.
 
 const api = globalThis.browser ?? globalThis.chrome;
@@ -7,6 +8,8 @@ const api = globalThis.browser ?? globalThis.chrome;
 const HOST_NAME = "com.accountabilibuddy.host";
 const RECONNECT_DELAY_MS = 5000;
 const SEND_DEBOUNCE_MS = 150;
+const ICON_SIZE = 32;
+const MAX_ICON_BYTES = 64 * 1024;
 
 let port = null;
 let appConnected = false;
@@ -14,6 +17,9 @@ let sendTimer = null;
 
 // Channel name per tab, reported by the YouTube content script.
 const channelByTab = new Map();
+
+// Sites whose icon was already sent since the browser started.
+const iconSentFor = new Set();
 
 async function detectBrowser() {
   if (api.runtime.getBrowserInfo) {
@@ -105,6 +111,58 @@ async function sendTabs() {
       channel: channelByTab.get(tab.id) ?? null,
     })),
   });
+
+  for (const tab of tabs) {
+    await sendIcon(tab);
+  }
+}
+
+// Chromium: the browser's favicon cache (needs the "favicon" permission). Firefox: the tab's icon when it is
+// already a data: URL. Nothing is fetched from the internet.
+async function sendIcon(tab) {
+  let host;
+  try {
+    const url = new URL(tab.url ?? "");
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return;
+    }
+    host = url.hostname;
+  } catch {
+    return;
+  }
+  if (iconSentFor.has(host)) {
+    return;
+  }
+
+  let data = null;
+  try {
+    if (api.runtime.getBrowserInfo) {
+      const icon = tab.favIconUrl ?? "";
+      const match = /^data:image\/[a-z+.-]+;base64,(.+)$/i.exec(icon);
+      data = match ? match[1] : null;
+    } else {
+      const faviconUrl = new URL(api.runtime.getURL("/_favicon/"));
+      faviconUrl.searchParams.set("pageUrl", tab.url);
+      faviconUrl.searchParams.set("size", String(ICON_SIZE));
+      const response = await fetch(faviconUrl.toString());
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (response.ok && bytes.length > 0 && bytes.length <= MAX_ICON_BYTES) {
+        let binary = "";
+        for (const byte of bytes) {
+          binary += String.fromCharCode(byte);
+        }
+        data = btoa(binary);
+      }
+    }
+  } catch {
+    data = null;
+  }
+
+  // Firefox fills favIconUrl once the page has loaded; try again on a later report.
+  if (data) {
+    iconSentFor.add(host);
+    post({ type: "icon", url: tab.url, data });
+  }
 }
 
 async function redirectToBlockPage(tabId, reason) {

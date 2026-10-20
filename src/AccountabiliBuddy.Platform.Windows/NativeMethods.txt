@@ -90,3 +90,10 @@ GetForegroundWindow
 GetCursorPos
 // Session cues: chime when focus or a break is up
 PlaySound
+// History: app icons
+ExtractIconEx
+DestroyIcon
+GetIconInfo
+ICONINFO
+GetObject
+BITMAP

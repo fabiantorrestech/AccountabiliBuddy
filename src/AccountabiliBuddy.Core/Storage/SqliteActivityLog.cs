@@ -16,7 +16,8 @@ namespace AccountabiliBuddy.Core.Storage;
 /// </summary>
 public sealed class SqliteActivityLog : IActivityLog
 {
-    private const int TopEntries = 5;
+    // History shows the top 5 and can expand to the rest; this only caps a pathological day.
+    private const int TopEntries = 200;
     private const string ProtectedSuffix = "_protected";
 
     private static readonly string[] HistoryTables = { "activity_segments", "activity_labels", "session_events" };
