@@ -72,6 +72,7 @@ public partial class App : Application
     private ProgramPathsService? _programPaths;
     private BedtimeReminderService? _bedtimeReminder;
     private ColdTurkeyService? _coldTurkey;
+    private AccountabiliBuddy.App.Services.Link.LinkService? _link;
     private NamedPipeBrowserSource? _browserSource;
     private Win32GlobalHotkey? _hotkey;
     private QuickSessionService? _quickSession;
@@ -278,6 +279,11 @@ public partial class App : Application
             new GoogleCalendarClient(_calendarNetwork, GoogleEndpointsFromEnvironment(), time),
             dataProtector,
             time);
+        // Linked devices (ADR 14): off until turned on in Setup.
+        var linkHost = new AccountabiliBuddy.App.Services.Link.LinkSessionHost(_sessions, _configuration, _quickSession);
+        _link = new AccountabiliBuddy.App.Services.Link.LinkService(documents, new DpapiDataProtector(), linkHost, _sessions);
+        _link.LoadBlocking();
+
         var setupViewModel = new SetupViewModel(
             startupRegistrar,
             quickLaunch,
@@ -286,7 +292,10 @@ public partial class App : Application
             new PrivacySetupViewModel(privacy, _recorder, ocrReader.IsAvailable),
             _sessions,
             _watchedBrowsers,
-            _privateAccess);
+            _privateAccess)
+        {
+            LinkedDevices = new LinkedDevicesViewModel(_link, _sessions),
+        };
         _setupAssistant = new SetupAssistantService(documents, time);
         _setupAssistant.LoadBlocking();
         var blockerLocator = new WindowsBlockerSourceLocator();
@@ -376,6 +385,9 @@ public partial class App : Application
         _bedtimeReminder.Start();
         _coldTurkey.ExpectedBlocksOff += (_, names) => presenter.ShowNotice("Cold Turkey block off", ColdTurkeyService.Describe(names));
         _coldTurkey.Start();
+        linkHost.EndedFromDevice += (_, reason) => presenter.ShowNotice("Session ended from your phone", reason);
+        _link.DevicePaired += (_, device) => presenter.ShowNotice("Device linked", $"{device.Name} is linked to this PC.");
+        _ = _link.StartIfEnabledAsync();
         _activityWatcher.ActivityChanged += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(_sessionOverlay.OnActivityChanged);
         _dayBar.Start();
         // The main window's bar redraws only while the window is open; the on-screen timeline has its own copy.
@@ -677,6 +689,7 @@ public partial class App : Application
         _dayBar?.Dispose();
         _privateAccess?.Dispose();
         _coldTurkey?.Dispose();
+        _link?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
         _clockAnchors?.Dispose();
         _unlocks?.Dispose();
         _calendarSync?.Dispose();

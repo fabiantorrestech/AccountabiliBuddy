@@ -226,13 +226,11 @@ public sealed class QuickSessionService
     }
 
     /// <summary>Starts the count-up profile with no set end; the on-screen bar counts up (it never runs out on its own).</summary>
-    private async Task StartCountUpAsync()
+    /// <returns>True when it started (also used by linked devices).</returns>
+    public async Task<bool> StartCountUpAsync()
     {
         CloseAll();
-        if (await EnsureCountUpProfileAsync() is Guid profileId)
-        {
-            _sessions.StartManual(profileId, duration: null);
-        }
+        return await EnsureCountUpProfileAsync() is Guid profileId && _sessions.StartManual(profileId, duration: null);
     }
 
     /// <summary>

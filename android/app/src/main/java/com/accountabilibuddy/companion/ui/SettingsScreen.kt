@@ -15,6 +15,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,6 +35,8 @@ import com.accountabilibuddy.companion.data.CompanionState
 import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.engine.DayBarBuilder
 import com.accountabilibuddy.companion.engine.SleepSchedule
+import com.accountabilibuddy.companion.link.LinkStatus
+import com.accountabilibuddy.companion.link.LinkedPc
 import com.accountabilibuddy.companion.model.SleepSettings
 import com.accountabilibuddy.companion.model.SleepTimes
 import java.time.Duration
@@ -56,6 +59,10 @@ fun SettingsScreen(
     onAddWidget: () -> Unit,
     curbox: CurboxStatus,
     onConnectCurbox: () -> Unit,
+    pcStatus: LinkStatus = LinkStatus.Unlinked,
+    pairedPc: LinkedPc? = null,
+    onPastePairingLink: (String) -> Boolean = { false },
+    onUnpairPc: () -> Unit = {},
 ) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
@@ -102,12 +109,15 @@ fun SettingsScreen(
         }
 
         item { HorizontalDivider() }
+        item { PcSection(pcStatus, pairedPc, onPastePairingLink, onUnpairPc) }
+
+        item { HorizontalDivider() }
         item { CurboxSection(curbox, onConnectCurbox) }
 
         item { HorizontalDivider() }
         item {
             Text(
-                "Local only: this app has no internet access. Everything stays on the phone.",
+                "Local only: the app talks only to your linked PC, on your own network and encrypted. Nothing goes to the internet.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -148,6 +158,50 @@ private fun CurboxSection(curbox: CurboxStatus, onConnect: () -> Unit) {
             }
         }
         curbox.error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Color(0xFFFCA5A5)) }
+    }
+}
+
+@Composable
+private fun PcSection(status: LinkStatus, pc: LinkedPc?, onPaste: (String) -> Boolean, onUnpair: () -> Unit) {
+    Section("PC") {
+        if (pc == null) {
+            Text(
+                "Not linked. On the PC: Setup → Linked devices → Turn on → Pair a phone or tablet, then scan the QR code " +
+                    "with this phone's camera. If the camera only shows the link as text, copy it and paste it here.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            var pasted by remember { mutableStateOf("") }
+            var wrong by remember { mutableStateOf(false) }
+            OutlinedTextField(
+                value = pasted,
+                onValueChange = {
+                    pasted = it
+                    wrong = false
+                },
+                label = { Text("Pairing link (accountabilibuddy://pair…)") },
+                singleLine = true,
+                isError = wrong,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedButton(onClick = { wrong = !onPaste(pasted) }, enabled = pasted.isNotBlank()) { Text("Use this link") }
+            if (wrong) {
+                Text("That isn't a pairing link from the PC.", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFCA5A5))
+            }
+            return@Section
+        }
+
+        val state = when (status) {
+            is LinkStatus.Connected -> "connected"
+            is LinkStatus.Offline -> "can't be reached right now"
+            LinkStatus.Connecting -> "connecting…"
+            else -> "connects while this app is open"
+        }
+        Text("Linked to ${pc.pcName} (${pc.host}) · $state", style = MaterialTheme.typography.bodyMedium)
+        Text(
+            "The PC's session shows on Today, where you can start one or end it early with the PC's own wait and reason.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedButton(onClick = onUnpair) { Text("Unpair") }
     }
 }
 

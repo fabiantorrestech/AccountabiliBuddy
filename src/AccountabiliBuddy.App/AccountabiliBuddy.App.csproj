@@ -7,7 +7,7 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon>
     <!-- Bumped by scripts/package.ps1; Velopack needs a higher version for every update. -->
-    <Version>0.1.35</Version>
+    <Version>0.1.36</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,6 +19,7 @@
     <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="QRCoder" Version="1.8.0" />
     <!-- Installer, updates and uninstall hooks (ADR 10). -->
     <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>

@@ -15,6 +15,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.health.connect.client.PermissionController
+import com.accountabilibuddy.companion.link.PairingLink
 import com.accountabilibuddy.companion.notify.TimelineNotifier
 import com.accountabilibuddy.companion.ui.CompanionTheme
 import com.accountabilibuddy.companion.ui.CompanionViewModel
@@ -68,6 +69,20 @@ class MainActivity : ComponentActivity() {
         if (viewModel.state.value.timelineNotificationOn) {
             askForNotifications()
         }
+
+        if (savedInstanceState == null) {
+            offerPairingFrom(intent)
+        }
+    }
+
+    /** The PC's QR code opened the app again while it was open. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        offerPairingFrom(intent)
+    }
+
+    private fun offerPairingFrom(intent: Intent?) {
+        intent?.data?.let { PairingLink.parse(it) }?.let(viewModel::offerPairing)
     }
 
     override fun onStart() {

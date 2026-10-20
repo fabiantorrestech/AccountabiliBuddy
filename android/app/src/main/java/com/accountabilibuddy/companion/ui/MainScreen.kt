@@ -46,6 +46,12 @@ fun MainScreen(
     val importing by viewModel.importing.collectAsStateWithLifecycle()
     val phoneUsage by viewModel.phoneUsage.collectAsStateWithLifecycle()
     val curbox by viewModel.curbox.collectAsStateWithLifecycle()
+    val linkStatus by viewModel.linkStatus.collectAsStateWithLifecycle()
+    val pairedPc by viewModel.pairedPc.collectAsStateWithLifecycle()
+    val pairingOffer by viewModel.pairingOffer.collectAsStateWithLifecycle()
+    val pairing by viewModel.pairing.collectAsStateWithLifecycle()
+    val pcBusy by viewModel.pcBusy.collectAsStateWithLifecycle()
+    val endEarlyTerms by viewModel.endEarlyTerms.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val snackbar = remember { SnackbarHostState() }
 
@@ -74,7 +80,20 @@ fun MainScreen(
     ) { padding ->
         Column(Modifier.padding(padding)) {
             when (tab) {
-                0 -> TodayScreen(state, model, viewModel.clock, health, onPickFile, onConnectHealth, viewModel::refreshSleep, phoneUsage, onAllowUsage)
+                0 -> TodayScreen(
+                    state, model, viewModel.clock, health, onPickFile, onConnectHealth, viewModel::refreshSleep, phoneUsage, onAllowUsage,
+                    showsPcCard = pairedPc != null,
+                    pcCard = {
+                        PcCard(
+                            status = linkStatus,
+                            clock = viewModel.clock,
+                            busy = pcBusy,
+                            onStart = viewModel::startOnPc,
+                            onEndEarly = viewModel::beginEndEarly,
+                            onRetry = viewModel::retryPc,
+                        )
+                    },
+                )
                 1 -> ProfilesScreen(state, viewModel.clock)
                 else -> {
                     // Curbox's status shows only here: ask it when Settings opens, or the app comes back to it.
@@ -93,10 +112,22 @@ fun MainScreen(
                         onAddWidget = onAddWidget,
                         curbox = curbox,
                         onConnectCurbox = onConnectCurbox,
+                        pcStatus = linkStatus,
+                        pairedPc = pairedPc,
+                        onPastePairingLink = viewModel::pastePairingLink,
+                        onUnpairPc = viewModel::unpairPc,
                     )
                 }
             }
         }
+    }
+
+    pairingOffer?.let { offer ->
+        PairingDialog(offer, busy = pairing, onPair = viewModel::confirmPairing, onCancel = viewModel::cancelPairing)
+    }
+
+    endEarlyTerms?.let { terms ->
+        EndEarlyDialog(terms, onEnd = viewModel::finishEndEarly, onCancel = viewModel::cancelEndEarly)
     }
 
     passwordRequest?.let { request ->

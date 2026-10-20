@@ -95,7 +95,37 @@ Switching devices is the easiest way out of a focus session: the PC is locked do
 
 Order: L5 first (quick, PC only), then L1 → L4, then L6.
 
-Progress: **L5 built 2026-10-20** (block states parsed from Cold Turkey's settings copy, Session tab card, per-profile expected blocks, notice at focus start / when one turns off; checks pass on the user's real file and made-up "on" cases; screens not seen yet, needs an install).
+Progress: **L1 built 2026-10-20** (Core `Link/` 22/22 loopback checks; Setup → Linked devices with QR code; Android pairing, PC card, start, end early, unpair verified emulator ↔ test server. Still to try: the real Pixel over Wi-Fi with the camera scanning the QR code, and the Windows Firewall prompt). **L5 built 2026-10-20** (block states parsed from Cold Turkey's settings copy, Session tab card, per-profile expected blocks, notice at focus start / when one turns off; checks pass on the user's real file and made-up "on" cases; screens not seen yet, needs an install).
+
+## L1 build notes
+
+- **Core `Link/`** (plain .NET, no OS code, so Linux can reuse it):
+  - framing: a 4-byte length, then UTF-8 JSON, at most 1 MB;
+  - message records: `{type, body}` envelopes;
+  - pairing codes and token hashes;
+  - `LinkServer`: TLS over `SslStream`, answers private addresses only, pairing, auth, push;
+  - it talks to the app through `ILinkSessionHost` (state, start, end-early terms, end), so a test harness can host it without the whole app.
+- **Certificate:** ECDSA P-256, self-signed, created once. Stored as PFX in documents "devices.identity", DPAPI-protected through `IDataProtector`. Its fingerprint is SHA-256 of the DER.
+- **Port:** a fixed 47821, so the firewall rule stays put.
+- **Ending early from the phone:**
+  1. The phone asks.
+  2. The PC answers with its wait and minimum reason length (`SessionController.BypassSettings`) and notes the time.
+  3. After the wait, the phone sends the reason.
+  4. The PC checks both against its own clock and ends the session with that reason, the same way as from its window.
+- **Starting from the phone:** a profile and a length, or count-up (the Quick Start profile). Refused while a session runs.
+- **Setup tab, "Linked devices":**
+  - an on/off switch (documents "devices.settings");
+  - "Pair a phone", which shows the QR code (QRCoder 1.8.0), the code and its countdown;
+  - the paired devices with when each was last seen;
+  - Unpair, locked during focus.
+- **Android:**
+  - INTERNET permission, and a network security config with no cleartext;
+  - the deep link `accountabilibuddy://pair`;
+  - `link/`: link parsing, a pinned `SSLSocket` client, framing, the paired-PC store with the token sealed by an Android Keystore AES-GCM key;
+  - it connects while the app is open, for now;
+  - a PC card on Today (status, Start, End early with the countdown and reason);
+  - a PC section in Settings (paired PC, Unpair).
+- **Testing:** the emulator reaches the PC at 10.0.2.2, which arrives as loopback (allowed for testing). A harness hosts `LinkServer` with a fake session host, so the installed app is never disturbed. The Pixel 7 is tried at the end, after Windows Firewall has asked.
 
 ## After L4: fill Cold Turkey and Curbox lists from AB (decided 2026-10-20)
 

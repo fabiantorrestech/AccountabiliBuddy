@@ -59,6 +59,9 @@ public sealed partial class SetupViewModel : ObservableObject
 
     public PrivacySetupViewModel Privacy { get; }
 
+    /// <summary>Phones and tablets linked to this PC (ADR 14).</summary>
+    public LinkedDevicesViewModel? LinkedDevices { get; init; }
+
     /// <summary>True during a focus phase: revoking and deleting are disabled.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RevokeStartupCommand), nameof(RevokeQuickLaunchCommand), nameof(RunAssistantCommand))]

@@ -70,6 +70,54 @@
                        Text="Lets AccountabiliBuddy see the address of the active tab (and the YouTube channel) and send a tab to its block page. It talks only to this app; nothing leaves the computer." />
             <views:BrowserSetupList />
 
+            <!-- Linked devices (ADR 14) -->
+            <TextBlock Text="Linked devices" Classes="title" Margin="0,8,0,0" />
+            <TextBlock Classes="muted"
+                       Text="Lets your phone or tablet (the AccountabiliBuddy companion) show this PC's session and start or end one, with the same wait and reason as here. Only on your home network and encrypted; nothing goes through the internet. Windows Firewall asks once: allow it on private networks." />
+            <Border Classes="card" DataContext="{Binding LinkedDevices}" x:DataType="vm:LinkedDevicesViewModel">
+                <StackPanel Spacing="10">
+                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                        <TextBlock Text="Let phones and tablets link to this PC" Classes="title" />
+                        <TextBlock Grid.Row="1" Text="{Binding Status}" Classes="muted" />
+                        <StackPanel Grid.RowSpan="2" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Button Content="Turn on" Command="{Binding TurnOnCommand}" Classes="accent" />
+                            <Button Content="Turn off" Command="{Binding TurnOffCommand}" />
+                        </StackPanel>
+                    </Grid>
+                    <Button Content="Pair a phone or tablet…" Command="{Binding PairCommand}" IsVisible="{Binding IsEnabled}" />
+                    <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding IsPairing}">
+                        <Border Background="White" Padding="8" CornerRadius="6" VerticalAlignment="Top">
+                            <Image Source="{Binding QrImage}" Width="220" Height="220" RenderOptions.BitmapInterpolationMode="None" />
+                        </Border>
+                        <StackPanel Spacing="6" VerticalAlignment="Center" MaxWidth="340">
+                            <TextBlock Text="Scan it with your phone's camera" FontWeight="SemiBold" />
+                            <TextBlock Classes="muted"
+                                       Text="The link opens the AccountabiliBuddy companion, which shows this code to compare before pairing:" />
+                            <TextBlock Text="{Binding PairingCode}" FontSize="24" FontWeight="SemiBold" FontFamily="Consolas, Courier New, monospace" />
+                            <TextBlock Text="{Binding PairingDetail}" Classes="muted" />
+                            <Button Content="Cancel" Command="{Binding CancelPairingCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding Devices}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LinkedDeviceRowViewModel">
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,4">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Detail}" Classes="muted" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="Unpair" VerticalAlignment="Center"
+                                            Command="{Binding $parent[ItemsControl].((vm:LinkedDevicesViewModel)DataContext).UnpairCommand}"
+                                            CommandParameter="{Binding}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap"
+                               IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+            </Border>
+
             <!-- Data permissions -->
             <TextBlock Text="Your data" Classes="title" Margin="0,8,0,0" />
             <TextBlock Classes="muted" Text="Everything stays on this computer." />

@@ -54,6 +54,8 @@ fun TodayScreen(
     onRefreshSleep: () -> Unit,
     phoneUsage: PhoneUsage?,
     onAllowUsage: () -> Unit,
+    showsPcCard: Boolean = false,
+    pcCard: @Composable () -> Unit = {},
 ) {
     val dark = isSystemInDarkTheme()
     val now = LocalDateTime.now()
@@ -104,6 +106,9 @@ fun TodayScreen(
             }
         }
 
+        if (showsPcCard) {
+            item { pcCard() }
+        }
         item { SleepCard(state, clock, health, onConnectHealth, onRefreshSleep) }
         item { PhoneCard(phoneUsage, onAllowUsage) }
 

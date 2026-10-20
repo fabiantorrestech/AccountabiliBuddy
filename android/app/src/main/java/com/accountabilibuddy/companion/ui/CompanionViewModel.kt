@@ -30,6 +30,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.accountabilibuddy.companion.link.EndEarlyTerms
+import com.accountabilibuddy.companion.link.LinkStatus
+import com.accountabilibuddy.companion.link.LinkedPc
+import com.accountabilibuddy.companion.link.PairingLink
 import java.time.LocalDateTime
 
 /** The app's screens: the store's state, today's bar (redrawn every 30 seconds while on screen), importing and Health Connect. */
@@ -38,6 +42,21 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     private val sleepReader = SleepReader(application)
     private val usageReader = PhoneUsageReader(application)
     val curboxClient = CurboxClient(application)
+    private val link = (application as CompanionApp).link
+
+    /** The linked PC (ADR 14) and its session. */
+    val linkStatus: StateFlow<LinkStatus> = link.status
+    val pairedPc: StateFlow<LinkedPc?> = link.pairedPc
+
+    /** A pairing link opened from the PC's QR code, waiting for the user to compare the code and confirm. */
+    val pairingOffer = MutableStateFlow<PairingLink?>(null)
+    val pairing = MutableStateFlow(false)
+
+    /** While a request to the PC runs (start, end early). */
+    val pcBusy = MutableStateFlow(false)
+
+    /** Ending the PC's session early: the PC's terms while the dialog is open. */
+    val endEarlyTerms = MutableStateFlow<EndEarlyTerms?>(null)
     private val now = MutableStateFlow(LocalDateTime.now())
 
     /** Runs only while the app is on screen; the notification and widget have their own refresh. */
@@ -70,6 +89,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         now.value = LocalDateTime.now()
         checkHealth()
         refreshPhoneUsage()
+        link.connect()
         ticker?.cancel()
         ticker = viewModelScope.launch {
             var ticks = 0
@@ -86,6 +106,80 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     fun onStop() {
         ticker?.cancel()
         ticker = null
+        link.disconnect()
+    }
+
+    fun offerPairing(offer: PairingLink) {
+        pairingOffer.value = offer
+    }
+
+    /** A pairing link pasted as text (when the camera only shows it). False when it isn't one. */
+    fun pastePairingLink(text: String): Boolean {
+        val offer = PairingLink.parse(text) ?: return false
+        offerPairing(offer)
+        return true
+    }
+
+    fun cancelPairing() {
+        pairingOffer.value = null
+    }
+
+    fun confirmPairing() {
+        val offer = pairingOffer.value ?: return
+        viewModelScope.launch {
+            pairing.value = true
+            val error = link.pair(offer)
+            pairing.value = false
+            pairingOffer.value = null
+            message.value = error ?: "Linked to ${offer.pcName}."
+        }
+    }
+
+    fun retryPc() {
+        link.connect()
+    }
+
+    fun startOnPc(profileId: String?, minutes: Int?, countUp: Boolean) {
+        viewModelScope.launch {
+            pcBusy.value = true
+            message.value = link.start(profileId, minutes, countUp) ?: "Started on the PC."
+            pcBusy.value = false
+        }
+    }
+
+    fun beginEndEarly() {
+        viewModelScope.launch {
+            pcBusy.value = true
+            link.beginEndEarly()
+                .onSuccess { endEarlyTerms.value = it }
+                .onFailure { message.value = it.message }
+            pcBusy.value = false
+        }
+    }
+
+    fun cancelEndEarly() {
+        endEarlyTerms.value = null
+    }
+
+    fun finishEndEarly(reason: String) {
+        viewModelScope.launch {
+            pcBusy.value = true
+            val error = link.endEarly(reason)
+            pcBusy.value = false
+            if (error == null) {
+                endEarlyTerms.value = null
+                message.value = "The PC's session ended."
+            } else {
+                message.value = error
+            }
+        }
+    }
+
+    fun unpairPc() {
+        viewModelScope.launch {
+            link.unpair()
+            message.value = "Unpaired. The PC no longer knows this phone."
+        }
     }
 
     /** Today's phone use and the part of it inside planned focus (the bar's day). */
