@@ -282,7 +282,7 @@ public sealed partial class BackupViewModel : ObservableObject, IDisposable
             NeedsPassword = false;
             ImportPassword = string.Empty;
             IsOpened = true;
-            OpenedSummary = $"Backup from {content.CreatedAt.ToLocalTime():d MMM yyyy HH:mm} (version {content.AppVersion}), "
+            OpenedSummary = $"Backup from {content.CreatedAt.ToLocalTime():d MMM yyyy} {content.CreatedAt.ToLocalTime():t} (version {content.AppVersion}), "
                             + (content.IncludesSecrets ? "with secrets." : "without secrets.");
             ImportStatus = HasExistingData
                 ? "This app already has settings. Overwrite replaces the ticked parts (a backup of the current state is saved first); Merge adds what's new and keeps your current settings."

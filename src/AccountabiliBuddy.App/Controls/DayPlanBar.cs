@@ -196,7 +196,7 @@ public sealed class DayPlanBar : Control
             return piece.Row.Name;
         }
 
-        string times = $"{part.Start.ToString("HH:mm")}–{part.End.ToString("HH:mm")}";
+        string times = $"{part.Start.ToString("t")} – {part.End.ToString("t")}";
         return part.CrossesMidnight
             ? $"{piece.Row.Name} {times} · the night before this day (it starts the evening before)"
             : $"{piece.Row.Name} {times}";

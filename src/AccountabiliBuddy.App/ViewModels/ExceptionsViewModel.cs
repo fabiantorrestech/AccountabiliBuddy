@@ -583,7 +583,7 @@ public sealed partial class ExceptionsViewModel : ObservableObject
 
         foreach (CalendarEntry entry in events)
         {
-            string text = entry.Event.IsAllDay ? entry.Event.Title : $"{entry.Event.LocalStart:HH\\:mm} {entry.Event.Title}";
+            string text = entry.Event.IsAllDay ? entry.Event.Title : $"{entry.Event.LocalStart:t} {entry.Event.Title}";
             lines.Add(new CalendarDayLine(text, new SolidColorBrush(Color.Parse(entry.Calendar.Color))));
         }
 

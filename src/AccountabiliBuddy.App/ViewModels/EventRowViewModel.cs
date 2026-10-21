@@ -10,7 +10,7 @@ public sealed record EventRowViewModel(CalendarEntry Entry)
 
     public string When => Entry.Event.IsAllDay
         ? "All day"
-        : $"{Entry.Event.LocalStart:HH\\:mm}–{Entry.Event.LocalEnd:HH\\:mm}";
+        : $"{Entry.Event.LocalStart:t} – {Entry.Event.LocalEnd:t}";
 
     public string CalendarName => $"{Entry.Calendar.Name} · {Entry.Source.Name}";
 

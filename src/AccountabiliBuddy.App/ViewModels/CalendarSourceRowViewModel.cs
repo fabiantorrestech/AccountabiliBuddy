@@ -53,8 +53,8 @@ public sealed class CalendarSourceRowViewModel
         {
             DateTime local = TimeZoneInfo.ConvertTime(success, zone).DateTime;
             string when = local.Date == TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, zone).Date
-                ? local.ToString("HH:mm", CultureInfo.CurrentCulture)
-                : local.ToString("d MMM HH:mm", CultureInfo.CurrentCulture);
+                ? local.ToString("t", CultureInfo.CurrentCulture)
+                : $"{local.ToString("d MMM", CultureInfo.CurrentCulture)} {local.ToString("t", CultureInfo.CurrentCulture)}";
             return $"Updated {when}";
         }
 

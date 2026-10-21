@@ -181,9 +181,9 @@
                         <RadioButton GroupName="dayRange" IsChecked="{Binding DayBarFullDay}" Content="Always the whole 24 hours" />
                         <Grid ColumnDefinitions="240,Auto" RowDefinitions="Auto,Auto" RowSpacing="6" IsEnabled="{Binding !DayBarFullDay}">
                             <TextBlock Grid.Row="0" Text="Day starts at" VerticalAlignment="Center" />
-                            <TimePicker Grid.Row="0" Grid.Column="1" SelectedTime="{Binding DayStart}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
+                            <TimePicker Grid.Row="0" Grid.Column="1" SelectedTime="{Binding DayStart}" MinuteIncrement="15" ClockIdentifier="12HourClock" />
                             <TextBlock Grid.Row="1" Text="Day ends at (before the start = after midnight)" VerticalAlignment="Center" TextWrapping="Wrap" />
-                            <TimePicker Grid.Row="1" Grid.Column="1" SelectedTime="{Binding DayEnd}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
+                            <TimePicker Grid.Row="1" Grid.Column="1" SelectedTime="{Binding DayEnd}" MinuteIncrement="15" ClockIdentifier="12HourClock" />
                         </Grid>
 
                         <TextBlock Text="Rows, top to bottom" FontWeight="SemiBold" Margin="0,8,0,0" />

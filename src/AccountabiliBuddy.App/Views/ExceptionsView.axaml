@@ -229,9 +229,9 @@
                     <CheckBox Content="All day" IsChecked="{Binding NewEventAllDay}" AutomationProperties.Name="Event all day" />
                     <Grid ColumnDefinitions="44,*" RowDefinitions="Auto,Auto" RowSpacing="6" IsVisible="{Binding !NewEventAllDay}">
                         <TextBlock Text="From" VerticalAlignment="Center" />
-                        <TimePicker Grid.Column="1" SelectedTime="{Binding NewEventStart}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
+                        <TimePicker Grid.Column="1" SelectedTime="{Binding NewEventStart}" MinuteIncrement="15" ClockIdentifier="12HourClock" />
                         <TextBlock Grid.Row="1" Text="To" VerticalAlignment="Center" />
-                        <TimePicker Grid.Row="1" Grid.Column="1" SelectedTime="{Binding NewEventEnd}" MinuteIncrement="15" ClockIdentifier="24HourClock" />
+                        <TimePicker Grid.Row="1" Grid.Column="1" SelectedTime="{Binding NewEventEnd}" MinuteIncrement="15" ClockIdentifier="12HourClock" />
                     </Grid>
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <Button Content="{Binding EventButtonText}" Command="{Binding AddEventCommand}" />

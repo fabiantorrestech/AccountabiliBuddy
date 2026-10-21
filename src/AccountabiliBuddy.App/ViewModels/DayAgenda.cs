@@ -45,10 +45,10 @@ public static class DayAgenda
         return Keys(first).SequenceEqual(Keys(second));
     }
 
-    // Clipped to the day: last night's sleep shows from 00:00, tonight's until 24:00.
+    // Clipped to the day, in the app's time format: last night's sleep shows from 12:00 AM, tonight's until midnight.
     private static string Times(LocalWindow window, LocalWindow day)
     {
-        string end = window.End >= day.End ? "24:00" : window.End.ToString("HH:mm");
-        return $"{window.Start:HH\\:mm} – {end}";
+        string end = window.End >= day.End ? "midnight" : window.End.ToString("t");
+        return $"{window.Start:t} – {end}";
     }
 }
