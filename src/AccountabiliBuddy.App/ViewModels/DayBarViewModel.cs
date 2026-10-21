@@ -543,7 +543,10 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             : "No work planned today";
     }
 
-    /// <summary>E.g. "2h 55m focused · 2 drifts · 7h 00m of work planned".</summary>
+    /// <summary>
+    /// E.g. "2h 55m focused · 2 drifts · 9h 00m of work planned (Work 7h 00m · Extra Work 2h 00m)"; the breakdown
+    /// shows when the work has more than one name.
+    /// </summary>
     private static string Summary(LocalWindow range, IReadOnlyList<PlannedFocus> planned, TimeSpan focused, int drifts)
     {
         TimeSpan plannedTotal = Total(planned.Select(focus => focus.Window), range);
@@ -553,7 +556,16 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             text += drifts == 1 ? " · 1 drift" : $" · {drifts} drifts";
         }
 
-        return plannedTotal > TimeSpan.Zero ? $"{text} · {Duration(plannedTotal)} of work planned" : text;
+        if (plannedTotal <= TimeSpan.Zero)
+        {
+            return text;
+        }
+
+        text += $" · {Duration(plannedTotal)} of work planned";
+        IReadOnlyList<(string Name, TimeSpan Length)> byName = DayTimeline.PlannedByName(planned, range);
+        return byName.Count > 1
+            ? $"{text} ({string.Join(" · ", byName.Select(entry => $"{entry.Name} {Duration(entry.Length)}"))})"
+            : text;
     }
 
     private static TimeSpan Total(IEnumerable<LocalWindow> windows, LocalWindow range)

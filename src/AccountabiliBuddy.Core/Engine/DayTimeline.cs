@@ -73,6 +73,20 @@ public static class DayTimeline
             .ToList();
     }
 
+    /// <summary>
+    /// How the planned work in <paramref name="range"/> splits by part name (a part's own name, else its category's,
+    /// e.g. Work 7h, Extra Work 2h), in the order each name first comes in the day.
+    /// </summary>
+    public static IReadOnlyList<(string Name, TimeSpan Length)> PlannedByName(IReadOnlyList<PlannedFocus> planned, LocalWindow range)
+    {
+        return planned
+            .GroupBy(focus => focus.Name)
+            .Select(group => (group.Key, Union(group.Select(focus => Clip(focus.Window, range)).OfType<LocalWindow>())
+                .Aggregate(TimeSpan.Zero, (sum, window) => sum + (window.End - window.Start))))
+            .Where(entry => entry.Item2 > TimeSpan.Zero)
+            .ToList();
+    }
+
     /// <summary>Merges overlapping and touching windows, earliest first.</summary>
     public static IReadOnlyList<LocalWindow> Union(IEnumerable<LocalWindow> windows)
     {
