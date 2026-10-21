@@ -94,7 +94,7 @@ public partial class MainWindow : Window
     private IReadOnlyList<SearchEntry> SearchPages()
     {
         var pages = new List<(int Tab, string TabName, Control Page)>();
-        for (int i = 0; i <= SearchTabs.Settings && i < Pages.Children.Count; i++)
+        for (int i = 0; i <= SearchTabs.About && i < Pages.Children.Count; i++)
         {
             if (Tabs.Items[i] is TabItem { Header: string name })
             {

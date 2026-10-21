@@ -452,21 +452,6 @@
                 <StackPanel Spacing="16" IsVisible="{Binding Groups[3].IsSelected}"
                             search:SearchArea.Name="App &amp; data" search:SearchArea.SettingsGroup="3">
                     <TextBlock Text="App &amp; data" Classes="groupTitle" />
-                    <Border Classes="card" search:SearchArea.Name="Updates">
-                    <StackPanel Spacing="6" DataContext="{Binding Updates}" x:DataType="vm:UpdatesViewModel">
-                        <TextBlock Text="Updates" Classes="sectionTitle" />
-                        <TextBlock Text="New versions come from the public AccountabiliBuddy releases page on GitHub. By default the app tells you when one is ready and you choose when to install; it never installs during a session."
-                                   Opacity="0.75" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding VersionText}" />
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Check now" Command="{Binding CheckCommand}" />
-                            <Button Content="{Binding InstallText}" Command="{Binding InstallCommand}" Classes="accent" IsVisible="{Binding HasUpdate}" />
-                            <TextBlock Text="{Binding Status}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        </StackPanel>
-                        <CheckBox IsChecked="{Binding AutoInstall}" IsEnabled="{Binding CanUpdate}"
-                                  Content="Install updates automatically (when no session is running; the app restarts by itself)" />
-                    </StackPanel>
-                    </Border>
                     <Border Classes="card" search:SearchArea.Name="Backup">
                     <StackPanel Spacing="6">
                         <TextBlock Text="Backup" Classes="sectionTitle" />

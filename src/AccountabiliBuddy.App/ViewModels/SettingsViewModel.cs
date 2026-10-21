@@ -628,7 +628,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         new SettingsGroupViewModel("Focus sessions", new[] { "Quick session shortcut", "Pomodoro defaults", "Escalation", "Ending a focus session early", "Unlocks", "Looser changes" }),
         new SettingsGroupViewModel("Your day", new[] { "Day bar", "Sleep", "Calendars" }),
         new SettingsGroupViewModel("On screen & sound", new[] { "On-screen timer", "On-screen timeline", "Sounds when time is up", "Noise player" }),
-        new SettingsGroupViewModel("App & data", new[] { "Updates", "Backup", "Data" }),
+        new SettingsGroupViewModel("App & data", new[] { "Backup", "Data" }),
     };
 
     /// <summary>Which group shows; switching groups changes no setting.</summary>

@@ -58,6 +58,7 @@
                     <TabItem Header="Setup" />
                     <TabItem Header="Integrations" />
                     <TabItem Header="Settings" />
+                    <TabItem Header="About" />
                     <TabItem Header="Activity (dev)" IsVisible="{Binding ShowDevTools}" />
                 </TabControl>
             </DockPanel>
@@ -105,6 +106,7 @@
                     <views:SetupView DataContext="{Binding Setup}" IsVisible="False" />
                     <views:IntegrationsView DataContext="{Binding Integrations}" IsVisible="False" />
                     <views:SettingsView DataContext="{Binding Settings}" IsVisible="False" />
+                    <views:AboutView DataContext="{Binding Settings.Updates}" IsVisible="False" />
                     <views:ActivityView DataContext="{Binding Activity}" IsVisible="False" />
                 </Panel>
                 <!-- Search matches on the page showing, drawn over it without taking clicks. -->

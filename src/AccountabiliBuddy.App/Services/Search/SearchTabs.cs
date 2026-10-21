@@ -11,4 +11,5 @@ public static class SearchTabs
     public const int Setup = 5;
     public const int Integrations = 6;
     public const int Settings = 7;
+    public const int About = 8;
 }

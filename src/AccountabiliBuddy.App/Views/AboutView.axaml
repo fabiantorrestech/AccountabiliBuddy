@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:search="using:AccountabiliBuddy.App.Services.Search"
+             x:Class="AccountabiliBuddy.App.Views.AboutView"
+             x:DataType="vm:UpdatesViewModel">
+    <!-- The app, its version and updates, with the camp quote in the middle. -->
+    <ScrollViewer>
+        <StackPanel Margin="24" Spacing="20" MaxWidth="640" HorizontalAlignment="Center">
+            <StackPanel Spacing="8" HorizontalAlignment="Center" Margin="0,24,0,0">
+                <Image Source="/Assets/app-icon.png" Width="96" Height="96" HorizontalAlignment="Center" />
+                <TextBlock Text="AccountabiliBuddy" FontSize="28" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                <TextBlock Text="{Binding VersionText}" Opacity="0.75" HorizontalAlignment="Center" />
+            </StackPanel>
+
+            <Border Padding="24,20" Margin="0,8">
+                <TextBlock Text="&quot;Now just to make sure you don't slip up while in camp we assign every camper an accountability buddy...&quot;"
+                           FontSize="20" FontStyle="Italic" TextWrapping="Wrap" TextAlignment="Center" LineHeight="30" />
+            </Border>
+
+            <Border Background="#0F808080" BorderBrush="#26808080" BorderThickness="1" CornerRadius="10" Padding="18,16"
+                    search:SearchArea.Name="Updates">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Updates" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Text="New versions come from the public AccountabiliBuddy releases page on GitHub. By default the app tells you when one is ready and you choose when to install; it never installs during a session."
+                               Opacity="0.75" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Check now" Command="{Binding CheckCommand}" />
+                        <Button Content="{Binding InstallText}" Command="{Binding InstallCommand}" Classes="accent" IsVisible="{Binding HasUpdate}" />
+                        <TextBlock Text="{Binding Status}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <CheckBox IsChecked="{Binding AutoInstall}" IsEnabled="{Binding CanUpdate}"
+                              Content="Install updates automatically (when no session is running; the app restarts by itself)" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
