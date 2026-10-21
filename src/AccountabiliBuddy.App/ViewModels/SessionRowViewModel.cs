@@ -4,6 +4,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="Reason">The early-end reason, if the session was ended early.</param>
 /// <param name="StartedAt">Identifies the session (for omitting it).</param>
 /// <param name="IsOmitted">Omitted: shown greyed, left out of totals and the day bar.</param>
+/// <param name="ConfirmingDelete">An added session whose Delete was clicked: the row asks before deleting.</param>
 public sealed record SessionRowViewModel(
     string WhenText,
     string Title,
@@ -11,8 +12,17 @@ public sealed record SessionRowViewModel(
     string OutcomeText,
     string? Reason,
     DateTimeOffset StartedAt,
-    bool IsOmitted)
+    bool IsOmitted,
+    bool IsAdded = false,
+    DateTimeOffset? EndedAt = null,
+    bool ConfirmingDelete = false)
 {
+    /// <summary>Added by hand (ADR 20): edited or deleted here instead of omitted.</summary>
+    public bool ShowsMarkButton => !IsAdded;
+
+    /// <summary>Edit and Delete show for an added session until Delete asks to be confirmed.</summary>
+    public bool ShowsAddedButtons => IsAdded && !ConfirmingDelete;
+
     public bool HasReason => Reason is not null;
 
     public string ReasonText => Reason is null ? string.Empty : $"“{Reason}”";

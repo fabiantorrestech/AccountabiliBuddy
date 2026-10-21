@@ -193,6 +193,62 @@ public sealed class SqliteActivityLog : IActivityLog
         return drift;
     }
 
+    public async Task AddSessionAsync(DateTimeOffset start, DateTimeOffset end, string? note, CancellationToken cancellationToken = default)
+    {
+        await using SqliteConnection connection = await _database.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await InsertAddedAsync(connection, transaction, start, end, note, cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task ReplaceAddedSessionAsync(
+        DateTimeOffset oldStart, DateTimeOffset start, DateTimeOffset end, string? note, CancellationToken cancellationToken = default)
+    {
+        await using SqliteConnection connection = await _database.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await DeleteAddedAsync(connection, transaction, oldStart, cancellationToken).ConfigureAwait(false);
+        await InsertAddedAsync(connection, transaction, start, end, note, cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task DeleteAddedSessionAsync(DateTimeOffset start, CancellationToken cancellationToken = default)
+    {
+        await using SqliteConnection connection = await _database.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await DeleteAddedAsync(connection, transaction, start, cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task InsertAddedAsync(
+        SqliteConnection connection, SqliteTransaction transaction, DateTimeOffset start, DateTimeOffset end, string? note, CancellationToken cancellationToken)
+    {
+        await using SqliteCommand command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            INSERT INTO session_events (at, kind, mode, profile_id, planned_end, reason_protected)
+            VALUES ($start, 'Started', 'Added', NULL, $end, NULL), ($end, 'Completed', 'Added', NULL, NULL, $note);
+            """;
+        command.Parameters.AddWithValue("$start", Format(start));
+        command.Parameters.AddWithValue("$end", Format(end));
+        command.Parameters.AddWithValue("$note", ProtectOrNull(note));
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>The added session's two events: its start, and the first added end after it. Only mode Added rows.</summary>
+    private static async Task DeleteAddedAsync(SqliteConnection connection, SqliteTransaction transaction, DateTimeOffset start, CancellationToken cancellationToken)
+    {
+        await using SqliteCommand command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            DELETE FROM session_events
+            WHERE mode = 'Added' AND (
+                (kind = 'Started' AND at = $start)
+                OR (kind <> 'Started' AND at = (SELECT MIN(at) FROM session_events WHERE mode = 'Added' AND kind <> 'Started' AND at > $start)));
+            """;
+        command.Parameters.AddWithValue("$start", Format(start));
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<IReadOnlyList<SessionEvent>> GetSessionEventsAsync(
         DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
     {
@@ -213,7 +269,8 @@ public sealed class SqliteActivityLog : IActivityLog
             events.Add(new SessionEvent(
                 Parse(reader.GetString(0)),
                 Enum.Parse<SessionEventKind>(reader.GetString(1)),
-                reader.IsDBNull(2) ? null : Enum.Parse<SessionMode>(reader.GetString(2)),
+                // A mode from a newer app version reads as unknown instead of failing (ADR 20).
+                reader.IsDBNull(2) || !Enum.TryParse(reader.GetString(2), out SessionMode mode) ? null : mode,
                 reader.IsDBNull(3) ? null : Guid.Parse(reader.GetString(3)),
                 reader.IsDBNull(4) ? null : Parse(reader.GetString(4)),
                 reader.IsDBNull(5) ? null : _protector.Unprotect((byte[])reader.GetValue(5))));

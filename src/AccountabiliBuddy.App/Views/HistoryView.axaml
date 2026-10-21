@@ -103,6 +103,17 @@
         <Style Selector="ProgressBar.distraction">
             <Setter Property="Foreground" Value="#E0A030" />
         </Style>
+        <!-- A focus session added by hand (ADR 20): a lighter, striped teal row. -->
+        <Style Selector="Grid.added">
+            <Setter Property="Background">
+                <LinearGradientBrush StartPoint="0,0" EndPoint="10,10" SpreadMethod="Repeat">
+                    <GradientStop Offset="0" Color="#2214B8A6" />
+                    <GradientStop Offset="0.5" Color="#2214B8A6" />
+                    <GradientStop Offset="0.5" Color="#0A14B8A6" />
+                    <GradientStop Offset="1" Color="#0A14B8A6" />
+                </LinearGradientBrush>
+            </Setter>
+        </Style>
         <Style Selector="Border.card">
             <Setter Property="Background" Value="#1A808080" />
             <Setter Property="BorderBrush" Value="#33808080" />
@@ -259,12 +270,46 @@
             <!-- Sessions -->
             <Border Classes="card">
                 <StackPanel Spacing="8">
-                    <TextBlock Text="Sessions" Classes="title" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="Sessions" Classes="title" />
+                        <Button Grid.Column="1" Content="Add a past session…" Command="{Binding OpenAddFormCommand}"
+                                IsVisible="{Binding !IsAddFormOpen}" Padding="10,3" />
+                    </Grid>
+
+                    <!-- A focus session done away from the app, added by hand (ADR 20); it counts like a recorded one. -->
+                    <Border x:Name="AddForm" IsVisible="{Binding IsAddFormOpen}" Background="#0F808080" BorderBrush="#26808080" BorderThickness="1"
+                            CornerRadius="8" Padding="14,12">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding FormTitle}" FontWeight="SemiBold" FontSize="15" />
+                            <WrapPanel>
+                                <StackPanel Spacing="2" Margin="0,0,12,6">
+                                    <TextBlock Text="Date" FontSize="12" Opacity="0.75" />
+                                    <DatePicker SelectedDate="{Binding FormDate}" />
+                                </StackPanel>
+                                <StackPanel Spacing="2" Margin="0,0,12,6">
+                                    <TextBlock Text="Start" FontSize="12" Opacity="0.75" />
+                                    <TimePicker SelectedTime="{Binding FormStart}" MinuteIncrement="5" />
+                                </StackPanel>
+                                <StackPanel Spacing="2" Margin="0,0,12,6">
+                                    <TextBlock Text="End (before the start = the next day)" FontSize="12" Opacity="0.75" />
+                                    <TimePicker SelectedTime="{Binding FormEnd}" MinuteIncrement="5" />
+                                </StackPanel>
+                            </WrapPanel>
+                            <TextBox Text="{Binding FormNote}" Watermark="Note (optional), e.g. Read the design doc at the library" />
+                            <TextBlock Text="{Binding FormError}" IsVisible="{Binding HasFormError}" Foreground="#E5484D" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Save" Command="{Binding SaveAddedCommand}" Classes="accent" />
+                                <Button Content="Cancel" Command="{Binding CancelAddedCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
                     <TextBlock Text="No sessions in this period." Classes="muted" IsVisible="{Binding HasNoSessions}" />
                     <ItemsControl ItemsSource="{Binding Sessions}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:SessionRowViewModel">
-                                <Grid ColumnDefinitions="130,*,90,200,Auto" Margin="0,4" Opacity="{Binding RowOpacity}">
+                                <Grid ColumnDefinitions="130,*,90,200,Auto" Margin="0,4" Opacity="{Binding RowOpacity}"
+                                      Classes.added="{Binding IsAdded}">
                                     <TextBlock Text="{Binding WhenText}" Opacity="0.8" />
                                     <StackPanel Grid.Column="1" Spacing="2">
                                         <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
@@ -277,7 +322,27 @@
                                     <Button Grid.Column="4" Content="{Binding MarkButtonText}" ToolTip.Tip="{Binding MarkButtonTip}"
                                             Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).ToggleOmittedCommand}"
                                             CommandParameter="{Binding}" Margin="12,0,0,0" Padding="8,2" FontSize="12"
-                                            VerticalAlignment="Center" />
+                                            VerticalAlignment="Center" IsVisible="{Binding ShowsMarkButton}" />
+                                    <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0" IsVisible="{Binding ShowsAddedButtons}"
+                                                VerticalAlignment="Center">
+                                        <Button Content="Edit" Padding="8,2" FontSize="12"
+                                                Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).EditAddedCommand}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Content="Delete" Padding="8,2" FontSize="12"
+                                                Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).AskDeleteAddedCommand}"
+                                                CommandParameter="{Binding}" />
+                                    </StackPanel>
+                                    <!-- Delete asks first: the session and its note can't be brought back. -->
+                                    <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0" IsVisible="{Binding ConfirmingDelete}"
+                                                VerticalAlignment="Center">
+                                        <TextBlock Text="Delete it and its note?" FontSize="12" VerticalAlignment="Center" />
+                                        <Button Content="Delete" Padding="8,2" FontSize="12"
+                                                Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).DeleteAddedCommand}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Content="Keep" Padding="8,2" FontSize="12"
+                                                Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).KeepAddedCommand}"
+                                                CommandParameter="{Binding}" />
+                                    </StackPanel>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

@@ -28,6 +28,9 @@ public sealed class DayBarControl : Control
     public static readonly StyledProperty<System.Windows.Input.ICommand?> OpenDayPlanCommandProperty =
         AvaloniaProperty.Register<DayBarControl, System.Windows.Input.ICommand?>(nameof(OpenDayPlanCommand));
 
+    public static readonly StyledProperty<System.Windows.Input.ICommand?> AddSessionCommandProperty =
+        AvaloniaProperty.Register<DayBarControl, System.Windows.Input.ICommand?>(nameof(AddSessionCommand));
+
     public static readonly StyledProperty<bool> CompactProperty =
         AvaloniaProperty.Register<DayBarControl, bool>(nameof(Compact));
 
@@ -46,6 +49,8 @@ public sealed class DayBarControl : Control
     private static readonly IBrush CalendarBrush = new SolidColorBrush(Color.FromRgb(100, 116, 139), 0.85);
     private static readonly IBrush DriftBrush = new SolidColorBrush(Color.FromRgb(239, 68, 68));
     private static readonly IPen StripePen = new Pen(new SolidColorBrush(Color.FromRgb(180, 83, 9), 0.85), 2);
+    private static readonly IBrush AddedBrush = new SolidColorBrush(FocusColor, 0.45);
+    private static readonly IPen AddedStripePen = new Pen(new SolidColorBrush(Color.FromRgb(45, 212, 191), 0.55), 2);
     private static readonly IBrush NowBrush = new SolidColorBrush(Color.FromRgb(220, 38, 38));
     private static readonly IBrush NightBrush = new SolidColorBrush(Color.FromRgb(79, 70, 229), 0.28);
     private static readonly IBrush MissedBrush = new SolidColorBrush(Color.FromRgb(220, 38, 38), 0.35);
@@ -82,6 +87,13 @@ public sealed class DayBarControl : Control
     {
         get => GetValue(OpenDayPlanCommandProperty);
         set => SetValue(OpenDayPlanCommandProperty, value);
+    }
+
+    /// <summary>Run with the local time when empty time on the Focus row is clicked: add a past session there (ADR 20).</summary>
+    public System.Windows.Input.ICommand? AddSessionCommand
+    {
+        get => GetValue(AddSessionCommandProperty);
+        set => SetValue(AddSessionCommandProperty, value);
     }
 
     public bool Compact
@@ -174,7 +186,19 @@ public sealed class DayBarControl : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || ClickableAt(e.GetPosition(this)) is not (DayBarRow row, DayBarSpan span))
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        if (EmptyFocusTimeAt(e.GetPosition(this)) is DateTime at && AddSessionCommand?.CanExecute(at) == true)
+        {
+            AddSessionCommand.Execute(at);
+            e.Handled = true;
+            return;
+        }
+
+        if (ClickableAt(e.GetPosition(this)) is not (DayBarRow row, DayBarSpan span))
         {
             return;
         }
@@ -196,12 +220,17 @@ public sealed class DayBarControl : Control
         foreach (DayBarSpan span in row.Spans)
         {
             Rect box = SpanRect(size, span, top);
-            IBrush brush = BrushFor(span.Color) ?? DefaultBrush(row.Kind);
+            IBrush brush = span.Hatched ? AddedBrush : BrushFor(span.Color) ?? DefaultBrush(row.Kind);
             context.DrawRectangle(brush, null, box, 3, 3);
 
             if (row.Kind == TimelineRow.Blockers)
             {
-                DrawStripes(context, box);
+                DrawStripes(context, box, StripePen);
+            }
+            else if (span.Hatched)
+            {
+                // Added by hand (ADR 20): lighter, with stripes.
+                DrawStripes(context, box, AddedStripePen);
             }
 
             if (span.Label is string name && size.PartTextSize > 0 && box.Width >= MinPartWidthForName)
@@ -228,15 +257,33 @@ public sealed class DayBarControl : Control
         }
     }
 
-    private static void DrawStripes(DrawingContext context, Rect box)
+    private static void DrawStripes(DrawingContext context, Rect box, IPen pen)
     {
         using (context.PushClip(box))
         {
             for (double x = box.Left - box.Height; x < box.Right; x += StripeSpacing)
             {
-                context.DrawLine(StripePen, new Point(x, box.Bottom), new Point(x + box.Height, box.Top));
+                context.DrawLine(pen, new Point(x, box.Bottom), new Point(x + box.Height, box.Top));
             }
         }
+    }
+
+    /// <summary>The local time under the pointer when it's on empty time in the Focus row (no session there); else null.</summary>
+    private DateTime? EmptyFocusTimeAt(Point position)
+    {
+        DayBarLayout layout = Layout ?? DayBarLayout.Empty;
+        if (AddSessionCommand is null || layout.RangeStart is not DateTime start || layout.RangeEnd is not DateTime end
+            || RowAt(position) is not { Kind: TimelineRow.Focus } row || FractionAt(position) is not double at || at < 0 || at > 1)
+        {
+            return null;
+        }
+
+        if (row.Spans.Any(span => at >= span.Start && at <= span.End))
+        {
+            return null;
+        }
+
+        return start + ((end - start) * at);
     }
 
     /// <summary>Draws the merged spans, so overlapping ones don't show darker (night and lost sleep).</summary>
@@ -305,6 +352,12 @@ public sealed class DayBarControl : Control
 
     private string? TipAt(Point position)
     {
+        if (EmptyFocusTimeAt(position) is DateTime emptyTime && RowAt(position) is DayBarRow focusRow
+            && DayBarHitTest.MarksAt(focusRow.Marks, position.X, BarLeft(Size), BarWidth(Size)).Count == 0)
+        {
+            return $"Click to add a past focus session at {emptyTime:t}";
+        }
+
         DayBarLayout layout = Layout ?? DayBarLayout.Empty;
         if (FractionAt(position) is not double at)
         {

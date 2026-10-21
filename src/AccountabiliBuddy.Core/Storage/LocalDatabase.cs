@@ -10,7 +10,7 @@ namespace AccountabiliBuddy.Core.Storage;
 /// </summary>
 public sealed class LocalDatabase
 {
-    public const int CurrentSchemaVersion = 4;
+    public const int CurrentSchemaVersion = 5;
 
     private const string FileName = "accountabilibuddy.db";
     private const int KeptBackups = 10;
@@ -168,7 +168,10 @@ public sealed class LocalDatabase
                     .ConfigureAwait(false);
             }
 
-            // Future migrations: if (version < 5) { ... }
+            // v5 (ADR 20): session events may have the mode "Added" (focus sessions added by hand). No table changes; the
+            // version step makes an older app refuse this database instead of failing on the new mode.
+
+            // Future migrations: if (version < 6) { ... }
 
             if (version < CurrentSchemaVersion)
             {

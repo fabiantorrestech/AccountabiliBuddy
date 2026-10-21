@@ -379,7 +379,7 @@ public partial class App : Application
             new DayPlanViewModel(_configuration, _sessions),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
             new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time,
-                _programPaths, desktopShell),
+                _programPaths, desktopShell, isSessionRunning: () => _sessions!.State.IsActive),
             setupViewModel,
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
             new SettingsViewModel(
@@ -396,6 +396,14 @@ public partial class App : Application
         {
             DayBar = _dayBar,
             Search = new SearchViewModel(SearchDataAsync),
+        };
+
+        // A session added, edited or deleted by hand (ADR 20): both day bars read the history again.
+        DayBarViewModel addedSessionsBar = _dayBar;
+        mainViewModel.History.AddedSessionsChanged += (_, _) =>
+        {
+            addedSessionsBar.ReloadHistory();
+            timelineDay.ReloadHistory();
         };
 
         mainViewModel.NoisePlayer = noisePlayer;

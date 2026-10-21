@@ -38,6 +38,15 @@ public interface IActivityLog
         IReadOnlyList<UsageDeletion>? deleted = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Adds a past focus session by hand (ADR 20): a started and a completed event of mode Added; the note is encrypted.</summary>
+    Task AddSessionAsync(DateTimeOffset start, DateTimeOffset end, string? note, CancellationToken cancellationToken = default);
+
+    /// <summary>Replaces the added session that starts at <paramref name="oldStart"/>; recorded sessions are never touched.</summary>
+    Task ReplaceAddedSessionAsync(DateTimeOffset oldStart, DateTimeOffset start, DateTimeOffset end, string? note, CancellationToken cancellationToken = default);
+
+    /// <summary>Deletes the added session that starts at <paramref name="start"/>; recorded sessions are never touched.</summary>
+    Task DeleteAddedSessionAsync(DateTimeOffset start, CancellationToken cancellationToken = default);
+
     /// <summary>Session events in [<paramref name="from"/>, <paramref name="to"/>), oldest first, reasons decrypted.</summary>
     Task<IReadOnlyList<SessionEvent>> GetSessionEventsAsync(
         DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);

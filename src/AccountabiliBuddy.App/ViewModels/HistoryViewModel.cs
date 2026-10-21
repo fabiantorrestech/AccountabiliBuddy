@@ -46,6 +46,11 @@ public sealed partial class HistoryViewModel : ObservableObject
     private readonly TimeProvider _timeProvider;
     private readonly DispatcherTimer _refreshSoon;
 
+    // The added session being edited (its start); null while adding a new one.
+    private DateTimeOffset? _editingStart;
+    // Whether a focus session runs now: nothing can be added from its start on (ADR 20).
+    private readonly Func<bool> _isSessionRunning;
+
     public HistoryViewModel(
         IActivityLog log,
         ActivityRecorder recorder,
@@ -59,8 +64,10 @@ public sealed partial class HistoryViewModel : ObservableObject
         DeletedUsageService deleted,
         TimeProvider timeProvider,
         ProgramPathsService? programs = null,
-        IDesktopShell? shell = null)
+        IDesktopShell? shell = null,
+        Func<bool>? isSessionRunning = null)
     {
+        _isSessionRunning = isSessionRunning ?? (() => false);
         _programs = programs;
         _shell = shell;
         _hidden = hidden;
@@ -321,11 +328,12 @@ public sealed partial class HistoryViewModel : ObservableObject
 
         UsageSummary summary;
         IReadOnlyList<SessionRecord> records;
+        IReadOnlyList<SessionRecord> around;
         try
         {
-            // A day earlier, so a session running into the period is found too; the list shows those started in it.
-            IReadOnlyList<SessionRecord> around = SessionHistoryBuilder.Build(await _log.GetSessionEventsAsync(from.AddDays(-1), to));
-            records = around.Where(record => record.StartedAt >= from).ToList();
+            // A day either side, so a session running into or out of the period is whole; the list shows those started in it.
+            around = SessionHistoryBuilder.Build(await _log.GetSessionEventsAsync(from.AddDays(-1), to.AddDays(1)));
+            records = around.Where(record => record.StartedAt >= from && record.StartedAt < to).ToList();
 
             // Omitted sessions don't count, and scheduled blocks block but aren't focus: both are left out of the
             // focus totals and distractions.
@@ -342,7 +350,13 @@ public sealed partial class HistoryViewModel : ObservableObject
             return;
         }
 
-        FocusTimeText = FormatDuration(summary.FocusTime);
+        // Added sessions count for their part inside the period (one across midnight counts on both days).
+        TimeSpan addedTime = around
+            .Where(record => record.Mode == SessionMode.Added && record.EndedAt is not null && !_omitted.IsOmitted(record.StartedAt))
+            .Select(record => (record.EndedAt!.Value < to ? record.EndedAt.Value : to) - (record.StartedAt > from ? record.StartedAt : from))
+            .Where(length => length > TimeSpan.Zero)
+            .Aggregate(TimeSpan.Zero, (sum, length) => sum + length);
+        FocusTimeText = FormatDuration(summary.FocusTime + addedTime);
         OnTrackText = $"{FormatDuration(summary.OnTrackTime)} ({Percent(summary.OnTrackTime, summary.FocusTime)})";
         DistractedText = $"{FormatDuration(summary.DistractedTime)} ({Percent(summary.DistractedTime, summary.FocusTime)})";
         UnknownText = FormatDuration(summary.UnknownTime);
@@ -400,6 +414,12 @@ public sealed partial class HistoryViewModel : ObservableObject
             SessionMode.Scheduled => "Scheduled block (not counted as focus)",
             _ => "Manual",
         };
+        if (record.Mode == SessionMode.Added)
+        {
+            string addedLength = record.Length is TimeSpan addedDuration ? FormatDuration(addedDuration) : "—";
+            return new SessionRowViewModel(when, "Added by hand", addedLength, "Added in History", record.Reason, record.StartedAt,
+                _omitted.IsOmitted(record.StartedAt), IsAdded: true, EndedAt: record.EndedAt);
+        }
 
         string length = record.Length is TimeSpan duration ? FormatDuration(duration) : "—";
         string outcome = record.Outcome switch
@@ -421,6 +441,255 @@ public sealed partial class HistoryViewModel : ObservableObject
         }
 
         return new SessionRowViewModel(when, $"{profile} · {mode}", length, outcome, record.Reason, record.StartedAt, omitted);
+    }
+
+    /// <summary>Raised after a session was added, edited or deleted by hand, so the day bar reloads.</summary>
+    public event EventHandler? AddedSessionsChanged;
+
+    /// <summary>The add/edit form for a past focus session (ADR 20).</summary>
+    [ObservableProperty]
+    public partial bool IsAddFormOpen { get; set; }
+
+    [ObservableProperty]
+    public partial string FormTitle { get; set; } = "Add a past focus session";
+
+    [ObservableProperty]
+    public partial DateTimeOffset? FormDate { get; set; }
+
+    [ObservableProperty]
+    public partial TimeSpan? FormStart { get; set; }
+
+    /// <summary>An end earlier than the start is the next day (e.g. 23:00 to 01:00).</summary>
+    [ObservableProperty]
+    public partial TimeSpan? FormEnd { get; set; }
+
+    [ObservableProperty]
+    public partial string FormNote { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFormError))]
+    public partial string? FormError { get; set; }
+
+    public bool HasFormError => FormError is not null;
+
+    /// <summary>Opens the form for the last hour (on the day shown when it's a past day).</summary>
+    [RelayCommand]
+    private void OpenAddForm()
+    {
+        DateTime now = _timeProvider.GetLocalNow().DateTime;
+        DateTime end = new(now.Year, now.Month, now.Day, now.Hour, now.Minute / 15 * 15, 0);
+        if (Period == HistoryPeriod.Day && SelectedDay is DateTime day && day.Date < now.Date)
+        {
+            end = day.Date.AddHours(12);
+        }
+
+        OpenForm("Add a past focus session", end.AddHours(-1), end, note: string.Empty, editingStart: null);
+    }
+
+    /// <summary>
+    /// Opens the form at a clicked time (e.g. empty time on the day bar's Focus row): up to 30 minutes, on 5-minute
+    /// steps like the time pickers, starting after the session before it and ending before the next one.
+    /// </summary>
+    public async Task OpenAddFormAtAsync(DateTime localStart)
+    {
+        DateTime start = new(localStart.Year, localStart.Month, localStart.Day, localStart.Hour, localStart.Minute / 5 * 5, 0);
+        DateTime end = start.AddMinutes(30);
+        try
+        {
+            List<(DateTime Start, DateTime End)> taken = SessionHistoryBuilder
+                .Build(await _log.GetSessionEventsAsync(ToOffset(start.AddDays(-1)), ToOffset(start.AddDays(1))))
+                .Where(record => record.EndedAt is not null)
+                .Select(record => (record.StartedAt.LocalDateTime, record.EndedAt!.Value.LocalDateTime))
+                .OrderBy(window => window.Item1)
+                .ToList();
+            foreach ((DateTime takenStart, DateTime takenEnd) in taken)
+            {
+                if (takenStart <= start && start < takenEnd)
+                {
+                    start = RoundUpToFive(takenEnd);
+                }
+            }
+
+            end = start.AddMinutes(30);
+            foreach ((DateTime takenStart, _) in taken)
+            {
+                if (takenStart > start && takenStart < end)
+                {
+                    end = takenStart;
+                }
+            }
+        }
+        catch (SqliteException)
+        {
+            // Open it at the clicked time anyway; saving checks for overlaps.
+        }
+
+        OpenForm("Add a past focus session", start, end, note: string.Empty, editingStart: null);
+    }
+
+    private static DateTime RoundUpToFive(DateTime time)
+    {
+        DateTime minute = new(time.Year, time.Month, time.Day, time.Hour, time.Minute, 0);
+        if (minute < time)
+        {
+            minute = minute.AddMinutes(1);
+        }
+
+        return minute.AddMinutes((5 - (minute.Minute % 5)) % 5);
+    }
+
+    [RelayCommand]
+    private void EditAdded(SessionRowViewModel? row)
+    {
+        if (row is not { IsAdded: true, EndedAt: DateTimeOffset ended })
+        {
+            return;
+        }
+
+        OpenForm("Edit the added session", row.StartedAt.LocalDateTime, ended.LocalDateTime, row.Reason ?? string.Empty, row.StartedAt);
+    }
+
+    /// <summary>Delete was clicked on an added session: its row asks "Delete it and its note?" first.</summary>
+    [RelayCommand]
+    private void AskDeleteAdded(SessionRowViewModel? row)
+    {
+        if (row is not { IsAdded: true })
+        {
+            return;
+        }
+
+        for (int i = 0; i < Sessions.Count; i++)
+        {
+            SessionRowViewModel shown = Sessions[i];
+            if (shown.StartedAt == row.StartedAt && shown.IsAdded)
+            {
+                Sessions[i] = shown with { ConfirmingDelete = true };
+            }
+            else if (shown.ConfirmingDelete)
+            {
+                Sessions[i] = shown with { ConfirmingDelete = false };
+            }
+        }
+    }
+
+    [RelayCommand]
+    private void KeepAdded(SessionRowViewModel? row)
+    {
+        int index = row is null ? -1 : Sessions.IndexOf(row);
+        if (index >= 0)
+        {
+            Sessions[index] = row! with { ConfirmingDelete = false };
+        }
+    }
+
+    [RelayCommand]
+    private async Task DeleteAddedAsync(SessionRowViewModel? row)
+    {
+        if (row is not { IsAdded: true })
+        {
+            return;
+        }
+
+        try
+        {
+            await _log.DeleteAddedSessionAsync(row.StartedAt);
+        }
+        catch (SqliteException ex)
+        {
+            ErrorText = $"The session couldn't be deleted ({ex.Message}).";
+            return;
+        }
+
+        AddedSessionsChanged?.Invoke(this, EventArgs.Empty);
+        await RefreshAsync();
+    }
+
+    [RelayCommand]
+    private void CancelAdded()
+    {
+        IsAddFormOpen = false;
+        FormError = null;
+        _editingStart = null;
+    }
+
+    /// <summary>Checks the form (no overlaps, 1 minute to 24 hours) and saves it as an added session.</summary>
+    [RelayCommand]
+    private async Task SaveAddedAsync()
+    {
+        if (FormDate is not DateTimeOffset date || FormStart is not TimeSpan startTime || FormEnd is not TimeSpan endTime)
+        {
+            FormError = "Pick a date, a start and an end.";
+            return;
+        }
+
+        DateTime startLocal = date.Date + startTime;
+        DateTime endLocal = date.Date + endTime;
+        if (endLocal == startLocal)
+        {
+            FormError = "The start and end are the same time.";
+            return;
+        }
+
+        if (endLocal < startLocal)
+        {
+            // An end before the start is the next day (e.g. 11 PM to 1 AM).
+            endLocal = endLocal.AddDays(1);
+        }
+
+        DateTimeOffset start = ToOffset(startLocal);
+        DateTimeOffset end = ToOffset(endLocal);
+        string? note = string.IsNullOrWhiteSpace(FormNote) ? null : FormNote.Trim();
+        try
+        {
+            IReadOnlyList<SessionRecord> around = SessionHistoryBuilder.Build(await _log.GetSessionEventsAsync(start.AddDays(-1), end.AddDays(1)));
+            if (AddedSessionRules.Validate(start, end, around, _editingStart, _isSessionRunning()) is string problem)
+            {
+                FormError = problem;
+                return;
+            }
+
+            if (_editingStart is DateTimeOffset oldStart)
+            {
+                await _log.ReplaceAddedSessionAsync(oldStart, start, end, note);
+            }
+            else
+            {
+                await _log.AddSessionAsync(start, end, note);
+            }
+        }
+        catch (SqliteException ex)
+        {
+            FormError = $"It couldn't be saved ({ex.Message}).";
+            return;
+        }
+
+        CancelAdded();
+        AddedSessionsChanged?.Invoke(this, EventArgs.Empty);
+        if (start < _from || start >= _to)
+        {
+            // Saved on a day not shown: show that day, so it's seen (refreshes from OnSelectedDayChanged).
+            SelectedDay = startLocal.Date;
+            return;
+        }
+
+        await RefreshAsync();
+    }
+
+    private void OpenForm(string title, DateTime start, DateTime end, string note, DateTimeOffset? editingStart)
+    {
+        FormTitle = title;
+        FormDate = new DateTimeOffset(start.Date);
+        FormStart = start.TimeOfDay;
+        FormEnd = end.TimeOfDay;
+        FormNote = note;
+        FormError = null;
+        _editingStart = editingStart;
+        IsAddFormOpen = true;
+    }
+
+    private DateTimeOffset ToOffset(DateTime local)
+    {
+        return new DateTimeOffset(local, _timeProvider.LocalTimeZone.GetUtcOffset(local));
     }
 
     [RelayCommand]

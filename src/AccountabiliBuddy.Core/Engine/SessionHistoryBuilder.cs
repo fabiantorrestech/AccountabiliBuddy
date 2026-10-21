@@ -5,13 +5,23 @@ namespace AccountabiliBuddy.Core.Engine;
 /// <summary>
 /// Pairs session start and end events into <see cref="SessionRecord"/>s for the History list. A start followed by
 /// another start (the app was closed mid-session and did not resume) becomes a record without an end.
-/// Interrupted/Resumed pairs inside a session add up to <see cref="SessionRecord.AppClosedFor"/>.
+/// Interrupted/Resumed pairs inside a session add up to <see cref="SessionRecord.AppClosedFor"/>. Sessions added by hand
+/// (ADR 20) are paired on their own, so one placed inside a recorded session never cuts it.
 /// </summary>
 public static class SessionHistoryBuilder
 {
     /// <param name="events">Events oldest first.</param>
     /// <returns>Sessions newest first.</returns>
     public static IReadOnlyList<SessionRecord> Build(IEnumerable<SessionEvent> events)
+    {
+        List<SessionEvent> all = events.ToList();
+        List<SessionRecord> records = Pair(all.Where(sessionEvent => sessionEvent.Mode != SessionMode.Added));
+        records.AddRange(Pair(all.Where(sessionEvent => sessionEvent.Mode == SessionMode.Added)));
+        return records.OrderByDescending(record => record.StartedAt).ToList();
+    }
+
+    /// <summary>Pairs one stream of events, oldest first, into sessions oldest first.</summary>
+    private static List<SessionRecord> Pair(IEnumerable<SessionEvent> events)
     {
         var records = new List<SessionRecord>();
         SessionEvent? open = null;
@@ -63,7 +73,6 @@ public static class SessionHistoryBuilder
             records.Add(new SessionRecord(open.At, open.Mode, open.ProfileId, null, null, null, closedFor));
         }
 
-        records.Reverse();
         return records;
     }
 }

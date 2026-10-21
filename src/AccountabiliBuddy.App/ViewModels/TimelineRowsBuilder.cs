@@ -91,7 +91,7 @@ public static class TimelineRowsBuilder
         {
             if (DayTimeline.Clip(session.Window, day.Range) is LocalWindow shown)
             {
-                spans.Add(ToSpan(shown, day.Range, session.Tip) with { ProfileId = session.ProfileId });
+                spans.Add(ToSpan(shown, day.Range, session.Tip) with { ProfileId = session.ProfileId, Hatched = session.Added });
             }
         }
 

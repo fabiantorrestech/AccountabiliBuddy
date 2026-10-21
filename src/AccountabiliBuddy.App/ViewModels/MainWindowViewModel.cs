@@ -36,6 +36,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private const int ProfilesTab = 1;
     public const int DayPlanTab = 2;
+    public const int HistoryTab = 4;
     public const int SettingsTab = 7;
 
     // Where the user was going when Settings had unsaved changes: a tab, or null = hiding the window.
@@ -150,6 +151,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
                     Profiles.Select(profileId);
                 };
                 value.DayPlanRequested += (_, _) => SelectedTab = DayPlanTab;
+                // Empty Focus-row time clicked: add a past session there, in History (ADR 20).
+                value.AddSessionRequested += (_, at) =>
+                {
+                    SelectedTab = HistoryTab;
+                    _ = History.OpenAddFormAtAsync(at);
+                };
             }
         }
     }

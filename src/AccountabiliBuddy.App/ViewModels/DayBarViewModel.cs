@@ -151,6 +151,21 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     /// <summary>Raised when a part on the Plan row is clicked.</summary>
     public event EventHandler? DayPlanRequested;
 
+    /// <summary>Raised with the local time clicked on empty Focus-row time: add a past session there (ADR 20).</summary>
+    public event EventHandler<DateTime>? AddSessionRequested;
+
+    [RelayCommand]
+    private void AddSession(DateTime at)
+    {
+        AddSessionRequested?.Invoke(this, at);
+    }
+
+    /// <summary>Reads the history again soon (e.g. after a session was added by hand).</summary>
+    public void ReloadHistory()
+    {
+        _ = ReloadHistoryAsync();
+    }
+
     [RelayCommand]
     private void OpenProfile(Guid profileId)
     {
@@ -237,8 +252,8 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         LocalWindow span = CurrentDay().Span;
         try
         {
-            // A day earlier, so a session that started before the bar and ran into it is included.
-            IReadOnlyList<SessionEvent> events = await _log.GetSessionEventsAsync(ToOffset(span.Start.AddDays(-1)), ToOffset(span.End));
+            // A day either side, so a session that ran into or out of the bar has both its start and end.
+            IReadOnlyList<SessionEvent> events = await _log.GetSessionEventsAsync(ToOffset(span.Start.AddDays(-1)), ToOffset(span.End.AddDays(1)));
             _records = SessionHistoryBuilder.Build(events);
             _drift = await _log.GetDriftAsync(ToOffset(span.Start), ToOffset(span.End), LeftOut(), _deleted.Parts);
             _historySpan = span;
@@ -269,7 +284,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         DateTime now = LocalNow();
         (LocalWindow day, LocalWindow span) = CurrentDay();
         IReadOnlyList<PlannedFocus> planned = DayTimeline.Planned(_configuration.Current.DayPlan, span);
-        List<(LocalWindow Window, string Tip, Guid? ProfileId)> actual = ActualSessions(now, span);
+        List<(LocalWindow Window, string Tip, Guid? ProfileId, bool Added)> actual = ActualSessions(now, span);
 
         IEnumerable<LocalWindow> content = planned.Select(focus => focus.Window).Concat(actual.Select(item => item.Window));
         if (_sleep.Current.Enabled)
@@ -281,7 +296,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         LocalWindow range = settings.Range == DayBarRange.FullDay ? day : DayTimeline.FitTo(day, content, span);
 
         TimeSpan focused = Total(actual.Select(item => item.Window), range with { End = now < range.End ? now : range.End });
-        List<TimelineSession> sessions = actual.Select(item => new TimelineSession(item.Window, item.Tip, item.ProfileId)).ToList();
+        List<TimelineSession> sessions = actual.Select(item => new TimelineSession(item.Window, item.Tip, item.ProfileId, item.Added)).ToList();
         IReadOnlyList<TimelineItem> drift = TimelineRowsBuilder.DriftOnBar(DriftItems(), sessions, range);
         var timelineDay = new TimelineDay(
             range,
@@ -293,7 +308,8 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             focused);
 
         (List<DayBarSpan> night, List<DayBarSpan> missed) = SleepSpans(now, range);
-        Layout = new DayBarLayout(TimelineRowsBuilder.Build(timelineDay, settings.RowsInOrder()), Ticks(range), Fraction(now, range), night, missed);
+        Layout = new DayBarLayout(
+            TimelineRowsBuilder.Build(timelineDay, settings.RowsInOrder()), Ticks(range), Fraction(now, range), night, missed, range.Start, range.End);
         UpdateSleepLine(now);
         HasPlannedFocus = planned.Any(focus => DayTimeline.Clip(focus.Window, range) is not null);
 
@@ -403,11 +419,17 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             : $"Sleep if you go now: {Duration(sleep)}";
     }
 
-    private List<(LocalWindow Window, string Tip, Guid? ProfileId)> ActualSessions(DateTime now, LocalWindow span)
+    private List<(LocalWindow Window, string Tip, Guid? ProfileId, bool Added)> ActualSessions(DateTime now, LocalWindow span)
     {
-        var sessions = new List<(LocalWindow Window, string Tip, Guid? ProfileId)>();
+        var sessions = new List<(LocalWindow Window, string Tip, Guid? ProfileId, bool Added)>();
         SessionState state = _sessions.State;
         bool runningShown = false;
+        // The session running now is the newest one the app recorded (an added one never runs).
+        int newestRecorded = -1;
+        for (int i = 0; i < _records.Count && newestRecorded < 0; i++)
+        {
+            newestRecorded = _records[i].Mode == SessionMode.Added ? -1 : i;
+        }
 
         for (int i = 0; i < _records.Count; i++)
         {
@@ -415,29 +437,36 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             if (_omitted.IsOmitted(record.StartedAt))
             {
                 // Omitted (e.g. a test): it doesn't count (the running one is also left out).
-                runningShown |= i == 0 && state.IsActive && record.EndedAt is null;
+                runningShown |= i == newestRecorded && state.IsActive && record.EndedAt is null;
                 continue;
             }
 
             if (record.Mode == SessionMode.Scheduled)
             {
                 // A scheduled block blocks, but only sessions you start count as focus.
-                runningShown |= i == 0 && state.IsActive && record.EndedAt is null;
+                runningShown |= i == newestRecorded && state.IsActive && record.EndedAt is null;
                 continue;
             }
 
             DateTime start = ToLocal(record.StartedAt);
             string profile = ProfileName(record.ProfileId);
 
-            if (record.EndedAt is DateTimeOffset ended)
+            if (record.Mode == SessionMode.Added && record.EndedAt is DateTimeOffset addedEnd)
+            {
+                // Added by hand in History (ADR 20): counted like the others, drawn striped, no profile to open.
+                var window = new LocalWindow(start, ToLocal(addedEnd));
+                string note = record.Reason is null ? string.Empty : $" · “{record.Reason}”";
+                sessions.Add((window, $"Added by hand · {Times(window)}{note}", null, true));
+            }
+            else if (record.EndedAt is DateTimeOffset ended)
             {
                 var window = new LocalWindow(start, ToLocal(ended));
-                sessions.Add((window, $"{profile} · ran {Times(window)}", record.ProfileId));
+                sessions.Add((window, $"{profile} · ran {Times(window)}", record.ProfileId, false));
             }
-            else if (i == 0 && state.IsActive)
+            else if (i == newestRecorded && state.IsActive)
             {
                 // The newest session without an end is the one running now.
-                sessions.Add((new LocalWindow(start, now), $"{profile} · running since {start:t}", record.ProfileId));
+                sessions.Add((new LocalWindow(start, now), $"{profile} · running since {start:t}", record.ProfileId, false));
                 runningShown = true;
             }
 
@@ -448,7 +477,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         {
             // Not in the history (history off, or not written yet): show the current phase.
             DateTime start = state.PhaseStartedAt is DateTimeOffset phaseStart ? ToLocal(phaseStart) : now;
-            sessions.Add((new LocalWindow(start, now), $"{ProfileName(state.ProfileId)} · running since {start:t}", state.ProfileId));
+            sessions.Add((new LocalWindow(start, now), $"{ProfileName(state.ProfileId)} · running since {start:t}", state.ProfileId, false));
         }
 
         return sessions.Where(item => DayTimeline.Clip(item.Window, span) is not null).ToList();

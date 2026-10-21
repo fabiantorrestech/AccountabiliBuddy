@@ -92,7 +92,8 @@
                             <Ellipse Width="8" Height="8" Fill="{Binding SleepBrush}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding SleepText}" Opacity="0.85" />
                         </StackPanel>
-                        <controls:DayBarControl Layout="{Binding Layout}" OpenProfileCommand="{Binding OpenProfileCommand}" OpenDayPlanCommand="{Binding OpenDayPlanCommand}" />
+                        <controls:DayBarControl Layout="{Binding Layout}" OpenProfileCommand="{Binding OpenProfileCommand}" OpenDayPlanCommand="{Binding OpenDayPlanCommand}"
+                                                AddSessionCommand="{Binding AddSessionCommand}" />
                     </StackPanel>
                 </Border>
 
