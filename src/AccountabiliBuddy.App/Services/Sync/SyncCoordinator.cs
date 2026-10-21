@@ -19,8 +19,9 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// (<see cref="ReceivedDevicesService"/>). Its day plan goes through the clash rule (<see cref="DayPlanClash"/>): taken or
 /// kept without asking when only one side edited, else <see cref="ClashRaised"/>; a plan arriving during a focus session
 /// waits until it ends, since the plan is locked then. Its settings apply when they were edited later than this PC's, by
-/// this PC's own rules: profiles through <see cref="ConfigurationService.UpdateAsync"/>, so a looser change waits its
-/// delay. The public calls move to the UI thread themselves.
+/// this PC's own rules: profiles through <see cref="ConfigurationService.UpdateAsync"/>, so a looser change (or a profile
+/// deleted there) waits its delay; settings arriving during a focus session wait until it ends, as they are locked
+/// then too. The public calls move to the UI thread themselves.
 /// </summary>
 public sealed class SyncCoordinator
 {
@@ -54,6 +55,9 @@ public sealed class SyncCoordinator
 
     // Plans that arrived during a focus session, by sender, considered when it ends.
     private readonly Dictionary<Guid, WaitingPlan> _waitingPlans = [];
+
+    // Settings that arrived during a focus session, the newest of each, applied when it ends.
+    private readonly Dictionary<string, SyncDocument> _waitingDocuments = [];
 
     private PlanState? _plan;
     private DayPlanClashRequest? _pendingClash;
@@ -239,7 +243,7 @@ public sealed class SyncCoordinator
             await ConsiderPlanAsync(plan, sender.DeviceId, sender.Name);
         }
 
-        await ApplyDocumentsAsync(file.Documents);
+        await ReceiveDocumentsAsync(file.Documents);
         return null;
     }
 
@@ -332,9 +336,13 @@ public sealed class SyncCoordinator
             return;
         }
 
-        // Stamped first, so the change below isn't taken for an edit made here.
+        // Stamped first, so the change below isn't taken for an edit made here. Nor is anything that follows the plan
+        // (sleep's times): taking another device's plan edits no setting of this PC's.
         SetPlanState(incoming.Shared());
-        await _configuration.UpdateAsync(document => document with { DayPlan = plan });
+        using (_editTimes.SuppressStamping())
+        {
+            await _configuration.UpdateAsync(document => document with { DayPlan = plan });
+        }
     }
 
     /// <returns>The plan in <paramref name="incoming"/>, or null when it can't be read, isn't the version it says or breaks the plan's rules.</returns>
@@ -360,13 +368,13 @@ public sealed class SyncCoordinator
             RaiseOwnDataChanged();
         }
 
-        if (!_sessions.IsEnforcing && (_takeAfterFocus is not null || _waitingPlans.Count > 0))
+        if (!_sessions.IsEnforcing && (_takeAfterFocus is not null || _waitingPlans.Count > 0 || _waitingDocuments.Count > 0))
         {
-            _ = ConsiderWaitingPlansAsync();
+            _ = ConsiderWaitingAsync();
         }
     }
 
-    private async Task ConsiderWaitingPlansAsync()
+    private async Task ConsiderWaitingAsync()
     {
         if (_takeAfterFocus is SyncDayPlan chosen)
         {
@@ -380,6 +388,10 @@ public sealed class SyncCoordinator
         {
             await ConsiderPlanAsync(plan.Plan, fromId, plan.FromName);
         }
+
+        List<SyncDocument> documents = _waitingDocuments.Values.ToList();
+        _waitingDocuments.Clear();
+        await ReceiveDocumentsAsync(documents);
     }
 
     private void OnConfigurationChanged()
@@ -426,6 +438,27 @@ public sealed class SyncCoordinator
             TaskScheduler.Default).Unwrap();
     }
 
+    /// <summary>
+    /// Applies received settings, or keeps them until the focus session ends: like the Profiles tab and Settings,
+    /// they are locked then (the newest of each is kept).
+    /// </summary>
+    private async Task ReceiveDocumentsAsync(IReadOnlyList<SyncDocument> documents)
+    {
+        if (!_sessions.IsEnforcing)
+        {
+            await ApplyDocumentsAsync(documents);
+            return;
+        }
+
+        foreach (SyncDocument document in documents)
+        {
+            if (!_waitingDocuments.TryGetValue(document.Key, out SyncDocument? held) || document.EditedAt > held.EditedAt)
+            {
+                _waitingDocuments[document.Key] = document;
+            }
+        }
+    }
+
     /// <summary>Applies each received setting edited later than this PC's own, by this PC's rules.</summary>
     private async Task ApplyDocumentsAsync(IReadOnlyList<SyncDocument> documents)
     {
@@ -438,16 +471,16 @@ public sealed class SyncCoordinator
 
             try
             {
-                bool applied = document.Key switch
+                DateTimeOffset? editedAt = document.Key switch
                 {
-                    SyncDocument.ProfilesKey => await ApplyProfilesAsync(document.Json),
-                    SyncDocument.SleepKey => await ApplySleepAsync(document.Json),
-                    SyncDocument.DayBarKey => await ApplyDayBarAsync(document.Json),
-                    _ => false,
+                    SyncDocument.ProfilesKey => await ApplyProfilesAsync(document),
+                    SyncDocument.SleepKey => await ApplySleepAsync(document.Json) ? document.EditedAt : null,
+                    SyncDocument.DayBarKey => await ApplyDayBarAsync(document.Json) ? document.EditedAt : null,
+                    _ => null,
                 };
-                if (applied)
+                if (editedAt is DateTimeOffset adopted)
                 {
-                    _editTimes.Adopt(document.Key, document.EditedAt);
+                    _editTimes.Adopt(document.Key, adopted);
                 }
             }
             catch (Exception ex) when (ex is JsonException or UnsupportedSchemaVersionException)
@@ -457,13 +490,33 @@ public sealed class SyncCoordinator
         }
     }
 
-    /// <summary>Through the same guard as an edit here: stricter parts now, looser ones after this PC's delay, never during a session.</summary>
-    private async Task<bool> ApplyProfilesAsync(string json)
+    /// <summary>
+    /// Through the same guard as an edit here: stricter parts now, looser ones after this PC's delay, never during a
+    /// session, and a profile deleted there waits the same way. Profiles this PC never shared (it has no profiles edit
+    /// time yet, so they never left it) join the received ones: the other device can't have deleted them.
+    /// </summary>
+    /// <returns>The edit time this PC's profiles take: the received one, or a later one when its own joined them; null when not applied.</returns>
+    private async Task<DateTimeOffset?> ApplyProfilesAsync(SyncDocument document)
     {
-        ProfileDocument received = ProfileDocumentSerializer.Deserialize(json);
+        ProfileDocument received = ProfileDocumentSerializer.Deserialize(document.Json);
         if (_configuration.IsReadOnly)
         {
-            return false;
+            return null;
+        }
+
+        DateTimeOffset editedAt = document.EditedAt;
+        if (_editTimes.EditedAt(SyncDocument.ProfilesKey) is null)
+        {
+            List<FocusProfile> neverShared = _configuration.Editing.Profiles
+                .Where(own => received.Profiles.All(other => other.Id != own.Id))
+                .ToList();
+            if (neverShared.Count > 0)
+            {
+                // Both sets together are newer than either, so they travel back to the sender (whose clock may run ahead).
+                received = received with { Profiles = [.. received.Profiles, .. neverShared] };
+                DateTimeOffset now = _sessions.Now;
+                editedAt = now > document.EditedAt ? now : document.EditedAt.AddTicks(1);
+            }
         }
 
         if (WithoutDayPlan(received) != WithoutDayPlan(_configuration.Editing))
@@ -471,11 +524,11 @@ public sealed class SyncCoordinator
             // The plan travels on its own (the clash rule); a received change gets no edit time of this PC's.
             using (_editTimes.SuppressStamping())
             {
-                await _configuration.UpdateAsync(document => received with { DayPlan = document.DayPlan });
+                await _configuration.UpdateAsync(current => received with { DayPlan = current.DayPlan }, fromAnotherDevice: true);
             }
         }
 
-        return true;
+        return editedAt;
     }
 
     /// <summary>On/off, the goal and tonight's one-off wake time; the times follow this PC's day plan.</summary>
@@ -577,10 +630,11 @@ public sealed class SyncCoordinator
         return _received.Devices.ToDictionary(device => device.File.Device.DeviceId, device => device.File.Device.WrittenAt);
     }
 
-    /// <summary>A new group or none: plans from the old one are no longer this PC's to take.</summary>
+    /// <summary>A new group or none: plans and settings from the old one are no longer this PC's to take.</summary>
     private void ForgetGroupWork()
     {
         _waitingPlans.Clear();
+        _waitingDocuments.Clear();
         _takeAfterFocus = null;
         _pendingClash = null;
     }

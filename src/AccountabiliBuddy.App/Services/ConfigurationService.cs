@@ -92,17 +92,26 @@ public sealed class ConfigurationService
     /// Changes the configuration the editors show. Stricter parts take effect now; looser parts wait, and any
     /// looser change than what was already waiting restarts the countdown.
     /// </summary>
+    /// <param name="fromAnotherDevice">A change received from another device (ADR 22): the profiles it deletes wait
+    /// like looser changes too. Deletions already waiting keep waiting through any change; others take effect at once.</param>
     /// <returns>The changes still waiting, or null when everything took effect.</returns>
-    public async Task<PendingChanges?> UpdateAsync(Func<ProfileDocument, ProfileDocument> change)
+    public async Task<PendingChanges?> UpdateAsync(Func<ProfileDocument, ProfileDocument> change, bool fromAnotherDevice = false)
     {
         ProfileDocument proposed = change(Editing);
-        ConfigurationSplit split = ConfigurationChangeGuard.Split(Current, proposed);
+        // A deletion waiting here is missing from the editors already, so an edit made meanwhile doesn't confirm it.
+        HashSet<Guid> deletionsThatWait = Current.Profiles
+            .Where(profile => fromAnotherDevice || Editing.Profiles.All(editing => editing.Id != profile.Id))
+            .Select(profile => profile.Id)
+            .ToHashSet();
+        ConfigurationSplit split = ConfigurationChangeGuard.Split(Current, proposed, deletionsThatWait);
 
         PendingChanges? next = null;
         if (split.HasWaitingChanges)
         {
             PendingChanges? previous = Pending;
-            bool looserThanBefore = previous is null || LooseningDetector.Find(previous.Document, proposed).Count > 0;
+            bool looserThanBefore = previous is null
+                || LooseningDetector.Find(previous.Document, proposed).Count > 0
+                || (fromAnotherDevice && ConfigurationChangeGuard.DeletionsWaiting(previous.Document, proposed).Count > 0);
             DateTimeOffset readyAt = looserThanBefore
                 ? _timeProvider.GetUtcNow() + Current.Locks.LooseningDelay
                 : previous!.ReadyAt;
@@ -209,10 +218,14 @@ public sealed class ConfigurationService
         }
     }
 
-    /// <summary>Re-describes what is still looser than <paramref name="current"/>; null when nothing is.</summary>
+    /// <summary>Re-describes what is still looser than <paramref name="current"/> (or deleted on another device); null when nothing is.</summary>
     private static PendingChanges? Recheck(PendingChanges pending, ProfileDocument current)
     {
-        IReadOnlyList<string> changes = LooseningDetector.Find(current, pending.Document);
+        List<string> changes =
+        [
+            .. LooseningDetector.Find(current, pending.Document),
+            .. ConfigurationChangeGuard.DeletionsWaiting(current, pending.Document),
+        ];
         return changes.Count == 0 ? null : pending with { Changes = changes };
     }
 

@@ -12,7 +12,8 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// (<see cref="SuppressStamping"/>). Profiles are stamped when what the editors show
 /// (<see cref="ConfigurationService.Editing"/>) changes: a looser edit when it's made, not when it takes effect after
 /// its delay, and a pending change taking effect later (also a received one) isn't stamped again.
-/// A day-plan-only change isn't a profiles edit: the plan has its own edit time.
+/// A day-plan-only change isn't a profiles edit, and sleep is stamped only when a part it shares changes (on/off, the
+/// goal, tonight's wake time): its times follow the plan, which has its own edit time.
 /// Kept in the documents table ("sync.editedAt"). Use from the UI thread only.
 /// </summary>
 public sealed class SyncEditTimesService
@@ -24,6 +25,7 @@ public sealed class SyncEditTimesService
     private readonly TimeProvider _time;
     private Dictionary<string, DateTimeOffset> _editedAt = [];
     private string _profilesJson;
+    private SharedSleep _sleepShared;
     private int _suppressed;
 
     // Saves run one after another so an older set of stamps never overwrites a newer one.
@@ -36,12 +38,13 @@ public sealed class SyncEditTimesService
         _store = store;
         _time = time;
         _profilesJson = WithoutDayPlan(configuration.Editing);
+        _sleepShared = SharedSleep.Of(sleep.Current);
 
         // Changed is raised last in every change (Pending is already set then); PendingChanged isn't watched because
         // applying the pending changes raises it before Current is set, when Editing briefly shows the old Current.
         configuration.Changed += (_, _) => OnProfilesChanged();
         configuration.PendingCancelled += (_, _) => OnProfilesChanged();
-        sleep.Changed += (_, _) => Stamp(SyncDocument.SleepKey);
+        sleep.Changed += (_, settings) => OnSleepChanged(settings);
         dayBar.Changed += (_, _) => Stamp(SyncDocument.DayBarKey);
     }
 
@@ -79,6 +82,18 @@ public sealed class SyncEditTimesService
         if (edited)
         {
             Stamp(SyncDocument.ProfilesKey);
+        }
+    }
+
+    private void OnSleepChanged(SleepSettings settings)
+    {
+        // A plan change moves sleep's times (App.FollowPlanForSleepAsync): no sleep edit, since the times don't travel.
+        SharedSleep shared = SharedSleep.Of(settings);
+        bool edited = shared != _sleepShared;
+        _sleepShared = shared;
+        if (edited)
+        {
+            Stamp(SyncDocument.SleepKey);
         }
     }
 
@@ -123,6 +138,12 @@ public sealed class SyncEditTimesService
                 }
             },
             TaskScheduler.Default).Unwrap();
+    }
+
+    /// <summary>The parts of <see cref="SleepSettings"/> other devices take (SyncCoordinator's ApplySleepAsync).</summary>
+    private sealed record SharedSleep(bool Enabled, double GoalHours, WakeOnce? WakeOnce)
+    {
+        public static SharedSleep Of(SleepSettings settings) => new(settings.Enabled, settings.GoalHours, settings.WakeOnce);
     }
 
     private sealed class SuppressionScope(SyncEditTimesService owner) : IDisposable
