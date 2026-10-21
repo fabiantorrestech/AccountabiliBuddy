@@ -59,4 +59,10 @@ public interface IActivityLog
 
     /// <summary>"Delete my data": removes every entry and compacts the database file.</summary>
     Task DeleteAllAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Raised once <see cref="DeleteAllAsync"/> removed every entry, so what was built from the history is built again;
+    /// on the thread that finished the deletion, which may not be the UI thread.
+    /// </summary>
+    event EventHandler? AllDeleted;
 }

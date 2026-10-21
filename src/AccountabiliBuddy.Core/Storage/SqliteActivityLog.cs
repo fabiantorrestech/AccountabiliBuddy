@@ -40,6 +40,8 @@ public sealed class SqliteActivityLog : IActivityLog
         _protector = protector;
     }
 
+    public event EventHandler? AllDeleted;
+
     public async Task RecordSegmentAsync(ActivitySegment segment, CancellationToken cancellationToken = default)
     {
         await using SqliteConnection connection = await _database.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -318,10 +320,18 @@ public sealed class SqliteActivityLog : IActivityLog
             await delete.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        // Rewrites the file so deleted rows do not linger in free pages.
-        await using SqliteCommand vacuum = connection.CreateCommand();
-        vacuum.CommandText = "VACUUM;";
-        await vacuum.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            // Rewrites the file so deleted rows do not linger in free pages.
+            await using SqliteCommand vacuum = connection.CreateCommand();
+            vacuum.CommandText = "VACUUM;";
+            await vacuum.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            // The entries are gone even when compacting fails.
+            AllDeleted?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>

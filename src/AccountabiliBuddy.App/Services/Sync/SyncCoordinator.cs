@@ -108,6 +108,8 @@ public sealed class SyncCoordinator
         privacy.Changed += (_, _) => RaiseOwnDataChanged();
         omitted.Changed += (_, _) => RaiseOwnDataChanged();
         deleted.Changed += (_, _) => RaiseOwnDataChanged();
+        // "Delete my data" (raised off the UI thread): the file then holds no sessions or drift.
+        log.AllDeleted += (_, _) => Dispatcher.UIThread.Post(RaiseOwnDataChanged);
         identity.Changed += (_, _) => ForgetGroupWork();
     }
 
@@ -116,7 +118,8 @@ public sealed class SyncCoordinator
 
     /// <summary>
     /// This PC's own data changed: a session started or ended, the history changed, the plan or a shared setting was
-    /// edited. Not raised for files received from other devices, so two devices never answer each other forever.
+    /// edited. A received file raises it only when it changed what this PC's own file says (a plan or setting taken, the
+    /// plan now shared, an edit time adopted), never merely for arriving, so two devices never answer each other forever.
     /// </summary>
     public event EventHandler? OwnDataChanged;
 
@@ -147,7 +150,7 @@ public sealed class SyncCoordinator
         SavePlanState();
     }
 
-    /// <summary>The history changed by hand: a session added, edited or deleted (ADR 20), or "Delete my data".</summary>
+    /// <summary>The history changed by hand: a session added, edited or deleted (ADR 20). "Delete my data" comes through <see cref="IActivityLog.AllDeleted"/>.</summary>
     public void NotifyHistoryChanged()
     {
         RaiseOwnDataChanged();
@@ -274,7 +277,9 @@ public sealed class SyncCoordinator
             case DayPlanSyncDecision.Same:
                 if (local.HasLocalEdits())
                 {
+                    // Its file now says the plan is shared (once: it has no local edits after this).
                     SetPlanState(local.Shared());
+                    RaiseOwnDataChanged();
                 }
 
                 break;
@@ -462,6 +467,7 @@ public sealed class SyncCoordinator
     /// <summary>Applies each received setting edited later than this PC's own, by this PC's rules.</summary>
     private async Task ApplyDocumentsAsync(IReadOnlyList<SyncDocument> documents)
     {
+        bool adoptedAny = false;
         foreach (SyncDocument document in documents)
         {
             if (_editTimes.EditedAt(document.Key) is DateTimeOffset localEdit && document.EditedAt <= localEdit)
@@ -481,12 +487,20 @@ public sealed class SyncCoordinator
                 if (editedAt is DateTimeOffset adopted)
                 {
                     _editTimes.Adopt(document.Key, adopted);
+                    adoptedAny = true;
                 }
             }
             catch (Exception ex) when (ex is JsonException or UnsupportedSchemaVersionException)
             {
                 // A setting this version can't read stays as it is here.
             }
+        }
+
+        if (adoptedAny)
+        {
+            // Its file carries the adopted edit times, also when the setting itself was the same here already. The two
+            // devices still settle: once one adopted the other's edit time, the file back holds nothing newer for it.
+            RaiseOwnDataChanged();
         }
     }
 

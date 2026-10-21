@@ -230,12 +230,12 @@ public sealed class LinkSessionHost : ILinkSessionHost
         _received = received;
         _identity = identity;
         _syncSettings = settings;
-        // This PC's own data, a new group (another key) or the switch: its own file is sealed again.
+        // This PC's own data (also "Delete my data"), a new group (another key) or the switch: its own file is sealed again.
         coordinator.OwnDataChanged += (_, _) => OnSyncDataChanged();
         identity.Changed += (_, _) => OnSyncDataChanged();
         settings.Changed += (_, _) => OnSyncDataChanged();
-        // A newer file to pass on. Its own file isn't sealed again for it (as OwnDataChanged isn't raised for received
-        // files), so a phone and this PC never answer each other's "seen" times forever.
+        // A newer file to pass on. Its own file isn't sealed again just for it (OwnDataChanged comes only when the file
+        // changed what this PC's own says), so a phone and this PC never answer each other's "seen" times forever.
         received.Changed += (_, _) => SyncFilesChanged?.Invoke(this, EventArgs.Empty);
     }
 
