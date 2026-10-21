@@ -305,6 +305,15 @@ public partial class App : Application
         _link = new AccountabiliBuddy.App.Services.Link.LinkService(
             documents, new DpapiDataProtector(), linkHost, _sessions, new AccountabiliBuddy.Platform.Windows.Network.WindowsNetworkTrust());
         _link.LoadBlocking();
+        // Sharing progress between the user's own devices (ADR 22): every method but the link is off until turned on.
+        var syncSettings = new AccountabiliBuddy.App.Services.Sync.SyncSettingsService(documents);
+        syncSettings.LoadBlocking();
+        var receivedDevices = new AccountabiliBuddy.App.Services.Sync.ReceivedDevicesService(documents, time);
+        receivedDevices.LoadBlocking();
+        var syncIdentity = new AccountabiliBuddy.App.Services.Sync.SyncIdentityService(documents, dataProtector, receivedDevices);
+        syncIdentity.LoadBlocking();
+        var syncEditTimes = new AccountabiliBuddy.App.Services.Sync.SyncEditTimesService(_configuration, sleepSettings, dayBarSettings, documents, time);
+        syncEditTimes.LoadBlocking();
 
         var setupViewModel = new SetupViewModel(
             startupRegistrar,
