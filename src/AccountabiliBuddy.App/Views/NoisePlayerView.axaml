@@ -34,13 +34,17 @@
                 <Button Grid.Column="2" Classes="icon" Content="&#xE711;" Command="{Binding CancelRenameCommand}" ToolTip.Tip="Cancel"
                         Padding="6,2" FontSize="12" />
             </Grid>
-            <StackPanel Orientation="Horizontal" Spacing="2" HorizontalAlignment="Center" IsEnabled="{Binding HasFiles}">
-                <Button Classes="icon" Content="&#xE892;" Command="{Binding PreviousCommand}" ToolTip.Tip="Back to the start, or the previous file" />
-                <Button Classes="icon" Content="{Binding PlayGlyph}" Command="{Binding PlayPauseCommand}" ToolTip.Tip="{Binding PlayTip}"
-                        FontSize="18" />
-                <Button Classes="icon" Content="&#xE893;" Command="{Binding NextCommand}" ToolTip.Tip="Next file" />
-                <ToggleButton Classes="icon" Content="&#xE8EE;" IsChecked="{Binding Repeat}" ToolTip.Tip="Repeat the folder" />
-            </StackPanel>
+            <!-- ⏮ ⏯ ⏭ centred on their own; repeat sits at the right edge so it doesn't push them off-centre. -->
+            <Grid ColumnDefinitions="*,Auto,*" IsEnabled="{Binding HasFiles}">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+                    <Button Classes="icon" Content="&#xE892;" Command="{Binding PreviousCommand}" ToolTip.Tip="Back to the start, or the previous file" />
+                    <Button Classes="icon" Content="{Binding PlayGlyph}" Command="{Binding PlayPauseCommand}" ToolTip.Tip="{Binding PlayTip}"
+                            FontSize="18" />
+                    <Button Classes="icon" Content="&#xE893;" Command="{Binding NextCommand}" ToolTip.Tip="Next file" />
+                </StackPanel>
+                <ToggleButton Grid.Column="2" Classes="icon" Content="&#xE8EE;" IsChecked="{Binding Repeat}" ToolTip.Tip="Repeat the folder"
+                              HorizontalAlignment="Right" />
+            </Grid>
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
                 <TextBlock Text="&#xE767;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="12" Opacity="0.7"
                            VerticalAlignment="Center" />

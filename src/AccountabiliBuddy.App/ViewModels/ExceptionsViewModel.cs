@@ -71,9 +71,13 @@ public sealed partial class ExceptionsViewModel : ObservableObject
     /// <summary>Every one-off day, by date; days that have passed are greyed out.</summary>
     public ObservableCollection<OneOffDayRowViewModel> OneOffDays { get; } = new();
 
-    /// <summary>E.g. "Follows your Workdays plan." or "Planned differently from the default day plan."</summary>
+    /// <summary>E.g. "Default day plan (Workdays)" or "Adjusted plan for this day".</summary>
     [ObservableProperty]
     public partial string SelectedDayPlanText { get; set; }
+
+    /// <summary>The selected date has its own plan, different from the default it would follow.</summary>
+    [ObservableProperty]
+    public partial bool SelectedIsAdjusted { get; set; }
 
     /// <summary>The selected date's plan, one part per row in time order (its own plan or the default it follows).</summary>
     public ObservableCollection<AgendaRow> SelectedDayAgenda { get; } = new();
@@ -242,8 +246,25 @@ public sealed partial class ExceptionsViewModel : ObservableObject
         }
 
         DateOnly date = _editingDate;
+        DayTemplate template = editor.ToTemplate();
+        string? note = Trimmed(OneOffNote);
+        if (note is null && DayAgenda.SameParts(template, DayAgenda.DefaultFor(plan, date)))
+        {
+            // Planned just like its default: it stays a normal day (no one-off day, nothing on the calendar).
+            await _configuration.UpdateAsync(document => document with
+            {
+                DayPlan = document.DayPlan with
+                {
+                    OneOffDays = document.DayPlan.OneOffDays.Where(other => other.Date != date).ToList(),
+                },
+            });
+            OneOffEditor = null;
+            StatusMessage = $"Same as the default day plan, so {date:ddd d MMM} stays a normal day.";
+            return;
+        }
+
         Guid id = plan.OneOffDays.FirstOrDefault(day => day.Date == date)?.Id ?? Guid.NewGuid();
-        var day = new OneOffDay(id, date, editor.ToTemplate(), Trimmed(OneOffNote));
+        var day = new OneOffDay(id, date, template, note);
         await _configuration.UpdateAsync(document => document with
         {
             DayPlan = document.DayPlan with
@@ -486,25 +507,6 @@ public sealed partial class ExceptionsViewModel : ObservableObject
         StatusMessage = $"{date:ddd d MMM} follows the default day plan again.";
     }
 
-    // Like a calendar's agenda: each part on its own row in time order (parts from the night before first), with its
-    // name, times and category colour.
-    private static List<AgendaRow> AgendaOf(DayTemplate template, DayPlan plan)
-    {
-        return template.Parts
-            .OrderBy(part => part.CrossesMidnight ? -1 : part.Start.ToTimeSpan().TotalMinutes)
-            .Select(part =>
-            {
-                DayCategory? category = plan.Category(part.CategoryId);
-                Color color = category is not null && Color.TryParse(category.Color, out Color parsed) ? parsed : Colors.Gray;
-                return new AgendaRow(
-                    part.Label ?? category?.Name ?? "?",
-                    $"{part.Start:HH\\:mm} – {part.End:HH\\:mm}",
-                    new SolidColorBrush(color),
-                    new SolidColorBrush(color, 0.18));
-            })
-            .ToList();
-    }
-
     private void Refresh()
     {
         ProfileDocument document = _configuration.Editing;
@@ -525,6 +527,7 @@ public sealed partial class ExceptionsViewModel : ObservableObject
                 IsInMonth: date.Month == Month.Month,
                 IsToday: date == today,
                 IsSelected: date == SelectedDate,
+                IsAdjusted: IsAdjusted(document.DayPlan, date),
                 lines.Take(MaxLinesPerDay).ToList(),
                 lines.Count > MaxLinesPerDay ? $"+{lines.Count - MaxLinesPerDay} more" : null));
         }
@@ -534,11 +537,11 @@ public sealed partial class ExceptionsViewModel : ObservableObject
         DayPlan plan = document.DayPlan;
         OneOffDay? own = plan.OneOffDays.FirstOrDefault(day => day.Date == SelectedDate);
         SelectedHasOwnPlan = own is not null;
-        SelectedDayPlanText = own is not null
-            ? "Planned differently from the default day plan."
-            : plan.Workdays.Contains(SelectedDate.DayOfWeek) ? "Follows your Workdays plan." : "Follows your Other days plan.";
+        SelectedIsAdjusted = IsAdjusted(plan, SelectedDate);
+        string usual = plan.Workdays.Contains(SelectedDate.DayOfWeek) ? "Workdays" : "Other days";
+        SelectedDayPlanText = SelectedIsAdjusted ? "Adjusted plan for this day" : $"Default day plan ({usual})";
         SelectedDayAgenda.Clear();
-        foreach (AgendaRow row in AgendaOf(plan.TemplateFor(SelectedDate), plan))
+        foreach (AgendaRow row in DayAgenda.For(plan, SelectedDate))
         {
             SelectedDayAgenda.Add(row);
         }
@@ -571,7 +574,9 @@ public sealed partial class ExceptionsViewModel : ObservableObject
     private static IReadOnlyList<CalendarDayLine> LinesFor(ProfileDocument document, IReadOnlyList<CalendarEntry> events, DateOnly date)
     {
         var lines = new List<CalendarDayLine>();
-        if (document.DayPlan.OneOffDays.FirstOrDefault(day => day.Date == date) is { } own)
+        // A day planned like its default shows no "Own plan" (only its note, if it has one).
+        if (document.DayPlan.OneOffDays.FirstOrDefault(day => day.Date == date) is { } own
+            && (DayAgenda.DiffersFromDefault(document.DayPlan, own) || !string.IsNullOrWhiteSpace(own.Note)))
         {
             lines.Add(new CalendarDayLine(string.IsNullOrWhiteSpace(own.Note) ? "Own plan" : own.Note, OneOffBrush));
         }
@@ -583,6 +588,12 @@ public sealed partial class ExceptionsViewModel : ObservableObject
         }
 
         return lines;
+    }
+
+    /// <summary>The date has a one-off day whose parts differ from its default plan.</summary>
+    private static bool IsAdjusted(DayPlan plan, DateOnly date)
+    {
+        return plan.OneOffDays.FirstOrDefault(day => day.Date == date) is { } own && DayAgenda.DiffersFromDefault(plan, own);
     }
 
     private static string? Trimmed(string? text)

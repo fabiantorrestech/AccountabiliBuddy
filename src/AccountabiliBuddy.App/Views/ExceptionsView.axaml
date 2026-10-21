@@ -18,6 +18,20 @@
             <Setter Property="BorderBrush" Value="Transparent" />
         </Style>
     </UserControl.Styles>
+    <UserControl.Resources>
+        <!-- Like a calendar's agenda: one row per part in time order, tinted in its category's colour. -->
+        <DataTemplate x:Key="AgendaRowTemplate" x:DataType="vm:AgendaRow">
+            <Border Background="{Binding Tint}" CornerRadius="6" Margin="0,2" ClipToBounds="True">
+                <Grid ColumnDefinitions="4,*">
+                    <Border Background="{Binding Brush}" />
+                    <StackPanel Grid.Column="1" Margin="10,5,8,6" Spacing="1">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Times}" FontSize="12" Opacity="0.8" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
 
     <DockPanel Margin="12">
         <views:PendingChangesBanner DockPanel.Dock="Top" DataContext="{Binding PendingChanges}" Margin="0,0,0,12" />
@@ -81,10 +95,14 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:CalendarDayViewModel">
                             <Button Classes="day" Classes.selected="{Binding IsSelected}" Classes.today="{Binding IsToday}"
-                                    Opacity="{Binding Opacity}"
+                                    Classes.adjusted="{Binding IsAdjusted}" Opacity="{Binding Opacity}"
                                     Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).SelectDayCommand}"
                                     CommandParameter="{Binding}">
                                 <Button.Styles>
+                                    <!-- A day planned differently from its default: lighter, in the one-off colour. -->
+                                    <Style Selector="Button.adjusted">
+                                        <Setter Property="Background" Value="#402A9D8F" />
+                                    </Style>
                                     <Style Selector="Button.selected">
                                         <Setter Property="BorderBrush" Value="#2A9D8F" />
                                         <Setter Property="Background" Value="#262A9D8F" />
@@ -222,24 +240,15 @@
                     </StackPanel>
 
                     <TextBlock Text="This day's plan" FontWeight="SemiBold" Margin="0,6,0,0" />
-                    <TextBlock Text="{Binding SelectedDayPlanText}" TextWrapping="Wrap" Opacity="0.8" />
-                    <!-- Like a calendar's agenda: one row per part in time order, tinted in its category's colour. -->
+                    <!-- At a glance: adjusted (in the one-off colour, like the calendar) or the default plan. -->
+                    <Border CornerRadius="6" Padding="8,4" HorizontalAlignment="Left" Background="#402A9D8F" IsVisible="{Binding SelectedIsAdjusted}">
+                        <TextBlock Text="{Binding SelectedDayPlanText}" FontWeight="SemiBold" />
+                    </Border>
+                    <Border CornerRadius="6" Padding="8,4" HorizontalAlignment="Left" Background="#1F808080" IsVisible="{Binding !SelectedIsAdjusted}">
+                        <TextBlock Text="{Binding SelectedDayPlanText}" Opacity="0.85" />
+                    </Border>
                     <TextBlock Text="Nothing planned." Opacity="0.6" IsVisible="{Binding !SelectedDayAgenda.Count}" />
-                    <ItemsControl ItemsSource="{Binding SelectedDayAgenda}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:AgendaRow">
-                                <Border Background="{Binding Tint}" CornerRadius="6" Margin="0,2" ClipToBounds="True">
-                                    <Grid ColumnDefinitions="4,*">
-                                        <Border Background="{Binding Brush}" />
-                                        <StackPanel Grid.Column="1" Margin="10,5,8,6" Spacing="1">
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Text="{Binding Times}" FontSize="12" Opacity="0.8" />
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <ItemsControl ItemsSource="{Binding SelectedDayAgenda}" ItemTemplate="{StaticResource AgendaRowTemplate}" />
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <Button Content="Plan this day differently" Command="{Binding PlanSelectedDayCommand}" IsVisible="{Binding !SelectedHasOwnPlan}" />
                         <Button Content="Edit" Command="{Binding PlanSelectedDayCommand}" IsVisible="{Binding SelectedHasOwnPlan}" />
@@ -255,8 +264,10 @@
                                 <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3" Opacity="{Binding IsPast, Converter={x:Static vm:PastOpacityConverter.Instance}}">
                                     <StackPanel>
                                         <TextBlock Text="{Binding DateText}" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding PartsText}" FontSize="12" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding Note}" FontSize="11" Opacity="0.7" IsVisible="{Binding HasNote}" TextWrapping="Wrap" />
+                                        <TextBlock Text="Same as the default day plan" FontSize="11" Opacity="0.7" IsVisible="{Binding IsSameAsDefault}" />
+                                        <TextBlock Text="Nothing planned" FontSize="12" Opacity="0.6" IsVisible="{Binding HasNothingPlanned}" />
+                                        <ItemsControl ItemsSource="{Binding Agenda}" ItemTemplate="{StaticResource AgendaRowTemplate}" Margin="0,2,0,0" />
                                     </StackPanel>
                                     <Button Grid.Column="1" Content="Edit" Command="{Binding EditCommand}" VerticalAlignment="Top" Margin="4,0"
                                             IsEnabled="{Binding !$parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).IsLocked}" />

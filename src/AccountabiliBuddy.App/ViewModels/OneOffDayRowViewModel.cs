@@ -17,18 +17,21 @@ public sealed partial class OneOffDayRowViewModel
         _delete = delete;
         DateText = day.Date.ToString("ddd d MMM yyyy");
         IsPast = day.Date < today;
-        PartsText = day.Template.Parts.Count == 0
-            ? "Nothing planned"
-            : string.Join(" · ", day.Template.Parts
-                .OrderBy(part => part.CrossesMidnight ? -1 : part.Start.ToTimeSpan().TotalMinutes)
-                .Select(part => $"{part.Label ?? plan.Category(part.CategoryId)?.Name ?? "?"} {part.Start:HH\\:mm}–{part.End:HH\\:mm}"));
+        Agenda = DayAgenda.For(plan, day.Date);
+        IsSameAsDefault = !DayAgenda.DiffersFromDefault(plan, day);
     }
 
     public OneOffDay Day { get; }
 
     public string DateText { get; }
 
-    public string PartsText { get; }
+    /// <summary>The day as it runs, one part per row (see <see cref="DayAgenda"/>).</summary>
+    public IReadOnlyList<AgendaRow> Agenda { get; }
+
+    public bool HasNothingPlanned => Agenda.Count == 0;
+
+    /// <summary>Its parts are the default plan's (saved before such days stopped being kept).</summary>
+    public bool IsSameAsDefault { get; }
 
     public string? Note => Day.Note;
 

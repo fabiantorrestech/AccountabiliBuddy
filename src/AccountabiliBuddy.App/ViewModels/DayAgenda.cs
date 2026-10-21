@@ -1,0 +1,54 @@
+using AccountabiliBuddy.Core.Domain;
+using Avalonia.Media;
+
+namespace AccountabiliBuddy.App.ViewModels;
+
+/// <summary>
+/// A date's plan as agenda rows in the Exceptions tab, as the day really runs: last night's sleep up to the morning
+/// comes first (from 00:00), tonight's sleep, which belongs to tomorrow's plan, comes last (until 24:00), and each part
+/// is in its category's colour.
+/// </summary>
+public static class DayAgenda
+{
+    public static IReadOnlyList<AgendaRow> For(DayPlan plan, DateOnly date)
+    {
+        var day = new LocalWindow(date.ToDateTime(TimeOnly.MinValue), date.AddDays(1).ToDateTime(TimeOnly.MinValue));
+        return plan.PartsIn(day)
+            .Select(part =>
+            {
+                Color color = Color.TryParse(part.Category.Color, out Color parsed) ? parsed : Colors.Gray;
+                return new AgendaRow(part.Name, Times(part.Window, day), new SolidColorBrush(color), new SolidColorBrush(color, 0.18));
+            })
+            .ToList();
+    }
+
+    /// <summary>The plan a date follows when it has no one-off day: Workdays on a workday, else Other days.</summary>
+    public static DayTemplate DefaultFor(DayPlan plan, DateOnly date)
+    {
+        return plan.Workdays.Contains(date.DayOfWeek) ? plan.Workday : plan.OtherDay;
+    }
+
+    /// <summary>True when a one-off day's parts differ from the default plan its date would follow.</summary>
+    public static bool DiffersFromDefault(DayPlan plan, OneOffDay day)
+    {
+        return !SameParts(day.Template, DefaultFor(plan, day.Date));
+    }
+
+    /// <summary>The same parts (category, times and label), whatever their ids and order.</summary>
+    public static bool SameParts(DayTemplate first, DayTemplate second)
+    {
+        static IEnumerable<(Guid CategoryId, TimeOnly Start, TimeOnly End, string? Label)> Keys(DayTemplate template) =>
+            template.Parts
+                .Select(part => (part.CategoryId, part.Start, part.End, part.Label))
+                .OrderBy(key => key.Start).ThenBy(key => key.End).ThenBy(key => key.CategoryId);
+
+        return Keys(first).SequenceEqual(Keys(second));
+    }
+
+    // Clipped to the day: last night's sleep shows from 00:00, tonight's until 24:00.
+    private static string Times(LocalWindow window, LocalWindow day)
+    {
+        string end = window.End >= day.End ? "24:00" : window.End.ToString("HH:mm");
+        return $"{window.Start:HH\\:mm} – {end}";
+    }
+}
