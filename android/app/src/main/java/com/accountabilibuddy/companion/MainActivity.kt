@@ -1,6 +1,7 @@
 package com.accountabilibuddy.companion
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.appwidget.AppWidgetManager
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
@@ -22,6 +23,9 @@ import com.accountabilibuddy.companion.ui.CompanionViewModel
 import com.accountabilibuddy.companion.ui.MainScreen
 import com.accountabilibuddy.companion.widget.TimelineWidgetReceiver
 
+// Play services (the watch link, ADR 21) brings an old androidx.fragment, which lint takes as this activity's; but this
+// is a ComponentActivity, not a FragmentActivity, so the old Fragment bug with activity results can't happen here.
+@SuppressLint("InvalidFragmentVersionForActivityResult")
 class MainActivity : ComponentActivity() {
     private val viewModel: CompanionViewModel by viewModels()
 
