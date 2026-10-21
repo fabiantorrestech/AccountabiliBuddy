@@ -96,7 +96,8 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         _time = time;
 
         Layout = DayBarLayout.Empty;
-        DateText = StatusText = SummaryText = SleepText = string.Empty;
+        DateText = StatusText = SummaryText = SleepText = FocusTotalText = string.Empty;
+        PlanTotals = Array.Empty<PlanTotal>();
         SleepBrush = GoodSleepBrush;
 
         _redrawTimer = new DispatcherTimer { Interval = RedrawInterval };
@@ -195,6 +196,22 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     /// <summary>True when the day shown has planned work (Watch parts of the day plan).</summary>
     [ObservableProperty]
     public partial bool HasPlannedFocus { get; set; }
+
+    /// <summary>Under the bar: the planned work by kind, e.g. "Work 7h 00m", "Extra Work 2h 00m", in their colours.</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<PlanTotal> PlanTotals { get; set; }
+
+    /// <summary>True while the Plan row shows and the day has planned work.</summary>
+    [ObservableProperty]
+    public partial bool ShowsPlanTotals { get; set; }
+
+    /// <summary>Under the bar, e.g. "3h 10m focused".</summary>
+    [ObservableProperty]
+    public partial string FocusTotalText { get; set; }
+
+    /// <summary>True while the Focus row shows.</summary>
+    [ObservableProperty]
+    public partial bool ShowsFocusTotal { get; set; }
 
     public void Start()
     {
@@ -306,8 +323,9 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             focused);
 
         (List<DayBarSpan> night, List<DayBarSpan> missed) = SleepSpans(now, range);
+        IReadOnlyList<TimelineRowChoice> rows = settings.RowsInOrder();
         Layout = new DayBarLayout(
-            TimelineRowsBuilder.Build(timelineDay, settings.RowsInOrder()), Ticks(range), Fraction(now, range), night, missed, range.Start, range.End);
+            TimelineRowsBuilder.Build(timelineDay, rows), Ticks(range), Fraction(now, range), night, missed, range.Start, range.End);
         UpdateSleepLine(now);
         HasPlannedFocus = planned.Any(focus => DayTimeline.Clip(focus.Window, range) is not null);
 
@@ -315,6 +333,31 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         DateText = $"{date.ToString("ddd", CultureInfo.CurrentCulture)} ({date:M/d})";
         StatusText = Status(now, range, planned);
         SummaryText = Summary(range, planned, focused, drift.Count);
+        UpdateLegend(range, planned, focused, rows);
+    }
+
+    // The legend under the bar, lined up with its row labels: planned work by kind, and the focus so far.
+    private void UpdateLegend(LocalWindow range, IReadOnlyList<PlannedFocus> planned, TimeSpan focused, IReadOnlyList<TimelineRowChoice> rows)
+    {
+        List<PlanTotal> totals = DayTimeline.PlannedByName(planned, range)
+            .Select(entry => new PlanTotal($"{entry.Name} {Duration(entry.Length)}", BrushOf(planned.First(focus => focus.Name == entry.Name).Color)))
+            .ToList();
+        // Redrawn every few seconds: only replace the list when a name, time or colour changed, so the legend isn't
+        // rebuilt each time.
+        static string KeyOf(PlanTotal total) => $"{total.Text}|{(total.Brush as ISolidColorBrush)?.Color}";
+        if (!totals.Select(KeyOf).SequenceEqual(PlanTotals.Select(KeyOf)))
+        {
+            PlanTotals = totals;
+        }
+
+        ShowsPlanTotals = totals.Count > 0 && rows.Any(row => row.Row == TimelineRow.Plan && row.Shown);
+        FocusTotalText = $"{Duration(focused)} focused";
+        ShowsFocusTotal = rows.Any(row => row.Row == TimelineRow.Focus && row.Shown);
+    }
+
+    private static IBrush BrushOf(string color)
+    {
+        return Color.TryParse(color, out Color parsed) ? new SolidColorBrush(parsed) : DayBarControl.FocusBrush;
     }
 
     /// <summary>Omitted sessions and old scheduled blocks: their time (and drift) counts nowhere.</summary>
@@ -541,10 +584,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             : "No work planned today";
     }
 
-    /// <summary>
-    /// E.g. "2h 55m focused · 2 drifts · 9h 00m of work planned (Work 7h 00m · Extra Work 2h 00m)"; the breakdown
-    /// shows when the work has more than one name.
-    /// </summary>
+    /// <summary>E.g. "2h 55m focused · 2 drifts · 9h 00m of work planned"; the breakdown by kind is under the bar.</summary>
     private static string Summary(LocalWindow range, IReadOnlyList<PlannedFocus> planned, TimeSpan focused, int drifts)
     {
         TimeSpan plannedTotal = Total(planned.Select(focus => focus.Window), range);
@@ -559,11 +599,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             return text;
         }
 
-        text += $" · {Duration(plannedTotal)} of work planned";
-        IReadOnlyList<(string Name, TimeSpan Length)> byName = DayTimeline.PlannedByName(planned, range);
-        return byName.Count > 1
-            ? $"{text} ({string.Join(" · ", byName.Select(entry => $"{entry.Name} {Duration(entry.Length)}"))})"
-            : text;
+        return text + $" · {Duration(plannedTotal)} of work planned";
     }
 
     private static TimeSpan Total(IEnumerable<LocalWindow> windows, LocalWindow range)

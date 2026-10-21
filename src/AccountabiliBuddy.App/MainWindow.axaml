@@ -94,6 +94,30 @@
                         </StackPanel>
                         <controls:DayBarControl Layout="{Binding Layout}" OpenProfileCommand="{Binding OpenProfileCommand}" OpenDayPlanCommand="{Binding OpenDayPlanCommand}"
                                                 AddSessionCommand="{Binding AddSessionCommand}" />
+                        <!-- Under the bar, lined up with its row labels: planned work by kind in its colours, and the focus so far. -->
+                        <Grid ColumnDefinitions="84,*" RowDefinitions="Auto,Auto">
+                            <TextBlock Text="Plan" FontSize="11" Opacity="0.75" VerticalAlignment="Center" IsVisible="{Binding ShowsPlanTotals}" />
+                            <ItemsControl Grid.Column="1" ItemsSource="{Binding PlanTotals}" IsVisible="{Binding ShowsPlanTotals}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:PlanTotal">
+                                        <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,1,16,1">
+                                            <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Text}" FontSize="12" Opacity="0.85" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Grid.Row="1" Text="Focus" FontSize="11" Opacity="0.75" VerticalAlignment="Center" IsVisible="{Binding ShowsFocusTotal}" />
+                            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="5" Margin="0,1" IsVisible="{Binding ShowsFocusTotal}">
+                                <Ellipse Width="8" Height="8" Fill="{x:Static controls:DayBarControl.FocusBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding FocusTotalText}" FontSize="12" Opacity="0.85" />
+                            </StackPanel>
+                        </Grid>
                     </StackPanel>
                 </Border>
 

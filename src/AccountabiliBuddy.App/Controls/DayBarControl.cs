@@ -45,7 +45,8 @@ public sealed class DayBarControl : Control
     private const double StripeSpacing = 6;
 
     private static readonly Color FocusColor = Color.FromRgb(15, 118, 110);
-    private static readonly IBrush FocusBrush = new SolidColorBrush(FocusColor);
+    /// <summary>The Focus row's colour, also used by the legend under the day bar.</summary>
+    public static readonly IBrush FocusBrush = new SolidColorBrush(FocusColor);
     private static readonly IBrush CalendarBrush = new SolidColorBrush(Color.FromRgb(100, 116, 139), 0.85);
     private static readonly IBrush DriftBrush = new SolidColorBrush(Color.FromRgb(239, 68, 68));
     private static readonly IPen StripePen = new Pen(new SolidColorBrush(Color.FromRgb(180, 83, 9), 0.85), 2);
