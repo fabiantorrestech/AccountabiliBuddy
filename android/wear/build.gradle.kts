@@ -56,5 +56,9 @@ dependencies {
     // Compose for Wear OS: round screens, the pager, the time at the top.
     implementation(libs.wear.compose.material3)
     implementation(libs.wear.compose.foundation)
+    // The Tile (ProtoLayout Material 3) and the watch-face complication.
+    implementation(libs.wear.tiles)
+    implementation(libs.wear.protolayout.material3)
+    implementation(libs.wear.complications.data.source.ktx)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

@@ -12,7 +12,8 @@ import java.io.File
 
 /**
  * The last snapshot from the phone (ADR 21), kept as a file in the app's private folder so the watch shows it after a
- * restart, and as a flow for the screens. Cleared when the phone says the watch isn't linked.
+ * restart, and as a flow for the screens. Cleared when the phone says the watch isn't linked. Each change redraws the
+ * Tile and the complication.
  */
 object SnapshotStore {
     private const val FILE = "snapshot.json"
@@ -37,12 +38,14 @@ object SnapshotStore {
 
         loaded = true
         _snapshot.value = snapshot
+        Surfaces.refresh(context)
     }
 
     fun clear(context: Context) = synchronized(lock) {
         File(context.filesDir, FILE).delete()
         loaded = true
         _snapshot.value = null
+        Surfaces.refresh(context)
     }
 
     private fun load(context: Context) = synchronized(lock) {
