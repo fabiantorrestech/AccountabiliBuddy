@@ -59,5 +59,7 @@ dependencies {
     implementation(libs.androidx.health.connect)
     // Not used directly: Glance asks for WorkManager 2.7.1 (2021); this keeps it on a current version.
     implementation(libs.androidx.work.runtime.ktx)
+    // The watch link (ADR 21): Wearable Data Layer messages to the paired Pixel Watch.
+    implementation(libs.play.services.wearable)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

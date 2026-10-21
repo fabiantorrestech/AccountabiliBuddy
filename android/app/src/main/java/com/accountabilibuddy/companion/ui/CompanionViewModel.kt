@@ -1,5 +1,7 @@
 package com.accountabilibuddy.companion.ui
 
+import com.accountabilibuddy.shared.WatchLinkSettings
+import com.accountabilibuddy.shared.WatchNode
 import android.app.Application
 import android.net.Uri
 import android.text.format.DateFormat
@@ -48,6 +50,11 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     private val usageReader = PhoneUsageReader(application)
     val curboxClient = CurboxClient(application)
     private val link = (application as CompanionApp).link
+    private val watchBridge = (application as CompanionApp).watchBridge
+
+    /** The Pixel Watch link (ADR 21): its settings and the watches found with the app. */
+    val watchSettings: StateFlow<WatchLinkSettings> = watchBridge.settings
+    val detectedWatches: StateFlow<List<WatchNode>> = watchBridge.detected
 
     /** The linked PC (ADR 14) and its session. */
     val linkStatus: StateFlow<LinkStatus> = link.status
@@ -95,6 +102,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
      * current until [onStop]. Curbox is asked only when Settings shows it.
      */
     fun onStart() {
+        (getApplication<CompanionApp>()).appOnScreen = true
         now.value = LocalDateTime.now()
         checkHealth()
         refreshPhoneUsage()
@@ -113,6 +121,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun onStop() {
+        (getApplication<CompanionApp>()).appOnScreen = false
         ticker?.cancel()
         ticker = null
         link.disconnect()
@@ -143,6 +152,21 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
             message.value = error ?: "Linked to ${offer.pcName}."
         }
     }
+
+    fun findWatches() = watchBridge.findWatches()
+
+    fun linkWatch(watch: WatchNode) {
+        watchBridge.linkWatch(watch)
+        message.value = "Linked ${watch.name}. Open AccountabiliBuddy on the watch."
+    }
+
+    fun unlinkWatch() = watchBridge.unlinkWatch()
+
+    fun setWatchDataLayer(on: Boolean) = watchBridge.setDataLayer(on)
+
+    fun setWatchRelay(on: Boolean) = watchBridge.setRelay(on)
+
+    fun setWatchWifi(on: Boolean) = watchBridge.setWifiFallback(on)
 
     fun retryPc() {
         link.connect()

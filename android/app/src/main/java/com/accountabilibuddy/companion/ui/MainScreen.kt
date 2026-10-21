@@ -49,6 +49,8 @@ fun MainScreen(
     val curbox by viewModel.curbox.collectAsStateWithLifecycle()
     val linkStatus by viewModel.linkStatus.collectAsStateWithLifecycle()
     val pairedPc by viewModel.pairedPc.collectAsStateWithLifecycle()
+    val watchSettings by viewModel.watchSettings.collectAsStateWithLifecycle()
+    val detectedWatches by viewModel.detectedWatches.collectAsStateWithLifecycle()
     val pairingOffer by viewModel.pairingOffer.collectAsStateWithLifecycle()
     val pairing by viewModel.pairing.collectAsStateWithLifecycle()
     val pcBusy by viewModel.pcBusy.collectAsStateWithLifecycle()
@@ -147,6 +149,15 @@ fun MainScreen(
                         pairedPc = pairedPc,
                         onPastePairingLink = viewModel::pastePairingLink,
                         onUnpairPc = viewModel::unpairPc,
+                        watch = WatchSectionState(watchSettings, detectedWatches),
+                        watchActions = WatchSectionActions(
+                            onFind = viewModel::findWatches,
+                            onLink = viewModel::linkWatch,
+                            onUnlink = viewModel::unlinkWatch,
+                            onDataLayer = viewModel::setWatchDataLayer,
+                            onRelay = viewModel::setWatchRelay,
+                            onWifi = viewModel::setWatchWifi,
+                        ),
                     )
                 }
                 else -> AboutScreen(pcName = pairedPc?.pcName)

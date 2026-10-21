@@ -45,6 +45,9 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":shared"))
+    // The phone link (ADR 21): Wearable Data Layer messages from the phone app.
+    implementation(libs.play.services.wearable)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))

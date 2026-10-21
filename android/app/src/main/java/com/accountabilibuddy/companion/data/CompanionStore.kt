@@ -17,6 +17,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
@@ -83,10 +84,10 @@ class CompanionStore(private val folder: File) {
         _state.update { it.copy(sleep = settings) }
     }
 
-    /** Today's focus from the linked PC (ADR 21); kept as a file so the watch has it after a restart. */
-    fun saveFocusDay(day: FocusDay) = synchronized(lock) {
-        write(FOCUS_DAY, FocusDayJson.write(day))
-        _state.update { it.copy(focusDay = day) }
+    /** Today's focus from the linked PC (ADR 21), which arrived [at]; kept as a file so the watch has it after a restart. */
+    fun saveFocusDay(day: FocusDay, at: Instant = Instant.now()) = synchronized(lock) {
+        write(FOCUS_DAY, JsonObject(FocusDayJson.write(day) + ("receivedAt" to JsonPrimitive(at.toString()))))
+        _state.update { it.copy(focusDay = day, focusDayAt = at) }
     }
 
     fun setTimelineNotification(on: Boolean) = updatePhone { it.copy(timelineNotificationOn = on) }
@@ -227,7 +228,11 @@ class CompanionStore(private val folder: File) {
         read(SLEEP)?.let { json -> runCatching { SettingsJson.sleep(json.jsonObject) }.onSuccess { state = state.copy(sleep = it) } }
         read(DAY_BAR)?.let { json -> runCatching { SettingsJson.dayBar(json.jsonObject) }.onSuccess { state = state.copy(dayBar = it) } }
         read(EVENTS)?.let { json -> (json as? JsonArray)?.let { state = state.copy(events = SettingsJson.events(it)) } }
-        (read(FOCUS_DAY) as? JsonObject)?.let(FocusDayJson::read)?.let { state = state.copy(focusDay = it) }
+        (read(FOCUS_DAY) as? JsonObject)?.let { json ->
+            FocusDayJson.read(json)?.let { day ->
+                state = state.copy(focusDay = day, focusDayAt = json.string("receivedAt")?.let { runCatching { Instant.parse(it) }.getOrNull() })
+            }
+        }
         (read(PHONE) as? JsonObject)?.let { phone ->
             state = state.copy(
                 importedFrom = phone.string("importedFrom"),

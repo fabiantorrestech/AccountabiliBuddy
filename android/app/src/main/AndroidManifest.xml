@@ -99,6 +99,16 @@
                 android:value="Keeps the user's day-at-a-glance timeline notification pinned above other notifications" />
         </service>
 
+        <!-- The watch app asks for news (ADR 21): wakes the app to answer over the Wearable Data Layer. -->
+        <service
+            android:name=".watch.PhoneWearService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/hello" />
+            </intent-filter>
+        </service>
+
         <receiver
             android:name=".widget.TimelineWidgetReceiver"
             android:exported="true">

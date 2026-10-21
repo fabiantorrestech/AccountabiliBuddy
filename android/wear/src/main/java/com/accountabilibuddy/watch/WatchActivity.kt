@@ -26,12 +26,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
+import com.accountabilibuddy.watch.link.PhoneLink
 import com.accountabilibuddy.watch.model.SampleData
 import com.accountabilibuddy.watch.ui.SessionPage
 import com.accountabilibuddy.watch.ui.TodayPage
 import com.accountabilibuddy.watch.ui.WeekPage
 import com.accountabilibuddy.watch.ui.use24HourClock
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 
 /** The watch app (mockup): swipe between today's rings, the running session and the week. Sample data for now. */
@@ -44,6 +47,12 @@ class WatchActivity : ComponentActivity() {
                 WatchApp()
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Each time the app comes up, ask the phone for news (it answers over the Data Layer, ADR 21).
+        lifecycleScope.launch { PhoneLink.askForNews(this@WatchActivity) }
     }
 }
 

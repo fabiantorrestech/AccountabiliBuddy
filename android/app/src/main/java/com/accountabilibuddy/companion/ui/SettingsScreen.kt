@@ -22,6 +22,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +40,8 @@ import com.accountabilibuddy.companion.link.LinkStatus
 import com.accountabilibuddy.companion.link.LinkedPc
 import com.accountabilibuddy.companion.model.SleepSettings
 import com.accountabilibuddy.companion.model.SleepTimes
+import com.accountabilibuddy.shared.WatchLinkSettings
+import com.accountabilibuddy.shared.WatchNode
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
@@ -63,6 +66,8 @@ fun SettingsScreen(
     pairedPc: LinkedPc? = null,
     onPastePairingLink: (String) -> Boolean = { false },
     onUnpairPc: () -> Unit = {},
+    watch: WatchSectionState = WatchSectionState(),
+    watchActions: WatchSectionActions = WatchSectionActions(),
 ) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
@@ -90,8 +95,8 @@ fun SettingsScreen(
 
         item {
             Section("On the phone") {
-                ToggleRow("Timeline notification", "Always on, silent, pinned near the top", state.timelineNotificationOn, onTimelineNotification)
-                ToggleRow("Bedtime reminder", "Once a night, two hours before bedtime", state.bedtimeReminderOn, onBedtimeReminder)
+                ToggleRow("Timeline notification", "Always on, silent, pinned near the top", state.timelineNotificationOn, onChange = onTimelineNotification)
+                ToggleRow("Bedtime reminder", "Once a night, two hours before bedtime", state.bedtimeReminderOn, onChange = onBedtimeReminder)
                 OutlinedButton(onClick = onAddWidget) { Text("Add timeline widget to home screen") }
                 Text(
                     when (health) {
@@ -112,12 +117,16 @@ fun SettingsScreen(
         item { PcSection(pcStatus, pairedPc, onPastePairingLink, onUnpairPc) }
 
         item { HorizontalDivider() }
+        item { WatchSection(watch, watchActions) }
+
+        item { HorizontalDivider() }
         item { CurboxSection(curbox, onConnectCurbox) }
 
         item { HorizontalDivider() }
         item {
             Text(
-                "Local only: the app talks only to your linked PC, on your own network and encrypted. Nothing goes to the internet.",
+                "Local only: the app talks only to your linked PC, on your own network and encrypted, and to your linked watch " +
+                    "(through Google's encrypted relay only if you allow it above). Nothing else goes to the internet.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -205,6 +214,72 @@ private fun PcSection(status: LinkStatus, pc: LinkedPc?, onPaste: (String) -> Bo
     }
 }
 
+/** The Pixel Watch link (ADR 21) as Settings shows it. */
+data class WatchSectionState(val settings: WatchLinkSettings = WatchLinkSettings(), val detected: List<WatchNode> = emptyList())
+
+data class WatchSectionActions(
+    val onFind: () -> Unit = {},
+    val onLink: (WatchNode) -> Unit = {},
+    val onUnlink: () -> Unit = {},
+    val onDataLayer: (Boolean) -> Unit = {},
+    val onRelay: (Boolean) -> Unit = {},
+    val onWifi: (Boolean) -> Unit = {},
+)
+
+@Composable
+private fun WatchSection(watch: WatchSectionState, actions: WatchSectionActions) {
+    val settings = watch.settings
+    LaunchedEffect(Unit) { actions.onFind() }
+
+    Section("Pixel Watch") {
+        val linkedName = settings.linkedName
+        if (settings.linkedNodeId != null && linkedName != null) {
+            Text("Linked: $linkedName. It shows today's plan, focus and the week as rings.", style = MaterialTheme.typography.bodyMedium)
+            OutlinedButton(onClick = actions.onUnlink) { Text("Unlink") }
+        } else if (watch.detected.isEmpty()) {
+            Text(
+                "No watch with AccountabiliBuddy found. Install the watch app, keep the watch connected to this phone, then check again.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            OutlinedButton(onClick = actions.onFind) { Text("Check again") }
+        } else {
+            watch.detected.forEach { found ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.weight(1f)) {
+                        Text(found.name, style = MaterialTheme.typography.bodyLarge)
+                        Text(if (found.isNearby) "Nearby" else "Not nearby right now", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Button(onClick = { actions.onLink(found) }) { Text("Link this watch") }
+                }
+            }
+        }
+
+        Text(
+            "Nothing goes to a watch until you link it. Choose how it may get there, before linking or any time after:",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        ToggleRow("Through this phone", "Over the watch's own connection to the phone (Wear OS Data Layer).", settings.dataLayerOn, onChange = actions.onDataLayer)
+        ToggleRow(
+            "Google's encrypted relay",
+            "When the watch is away from the phone's Bluetooth, Google's servers pass it along, end-to-end encrypted so Google can't " +
+                "read it. Off: only while the watch is near the phone.",
+            settings.relayOn && settings.dataLayerOn, enabled = settings.dataLayerOn, onChange = actions.onRelay,
+        )
+        ToggleRow(
+            "Wi-Fi straight to the PC",
+            "When the phone can't be reached, the watch asks the PC itself on your Wi-Fi (pair it from the PC's QR code with " +
+                "\"Pair my watch\").",
+            settings.wifiFallbackOn, onChange = actions.onWifi,
+        )
+        Text(
+            "The watch gets plan parts, focus session times and profile names, drift times and totals. Never page titles, " +
+                "addresses, reasons or notes.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -214,13 +289,13 @@ private fun Section(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun ToggleRow(title: String, detail: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun ToggleRow(title: String, detail: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(checked = checked, onCheckedChange = onChange)
+        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
     }
 }
 

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- A Wear OS app; no network permission: its data will come from the phone (ADR 21, Proposed). -->
+    <!-- A Wear OS app; its data comes from the phone over the Wearable Data Layer (ADR 21). -->
     <uses-feature android:name="android.hardware.type.watch" />
 
     <application
@@ -13,6 +13,17 @@
         <meta-data
             android:name="com.google.android.wearable.standalone"
             android:value="false" />
+
+        <!-- The phone's messages: a snapshot to show, or "not linked". -->
+        <service
+            android:name=".link.WatchListenerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/snapshot" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/unlink" />
+            </intent-filter>
+        </service>
 
         <activity
             android:name=".WatchActivity"

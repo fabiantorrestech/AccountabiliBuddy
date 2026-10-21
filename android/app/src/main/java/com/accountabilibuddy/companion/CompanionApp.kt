@@ -11,6 +11,8 @@ import com.accountabilibuddy.companion.link.LinkClient
 import com.accountabilibuddy.companion.link.LinkDiscovery
 import com.accountabilibuddy.companion.link.LinkStore
 import com.accountabilibuddy.companion.notify.Refresher
+import com.accountabilibuddy.companion.watch.WatchBridge
+import com.accountabilibuddy.companion.watch.WatchLinkStore
 import com.accountabilibuddy.shared.FocusDayJson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,7 +21,10 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import java.io.File
 
-/** The app's single store, the link to the PC (ADR 14), and the refresh loop for the notification, widget and bedtime reminder. */
+/**
+ * The app's single store, the link to the PC (ADR 14), the link to the watch (ADR 21), and the refresh loop for the
+ * notification, widget and bedtime reminder.
+ */
 class CompanionApp : Application() {
     lateinit var store: CompanionStore
         private set
@@ -35,6 +40,14 @@ class CompanionApp : Application() {
     lateinit var planSync: DayPlanSync
         private set
 
+    /** Sends the linked Pixel Watch its snapshot (ADR 21). */
+    lateinit var watchBridge: WatchBridge
+        private set
+
+    /** True while a screen of the app is showing (set by the screens' view model). */
+    @Volatile
+    var appOnScreen: Boolean = false
+
     // Lives as long as the app; the link reads from the PC here.
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -49,6 +62,8 @@ class CompanionApp : Application() {
             applyFocusDay = { content -> FocusDayJson.read(content)?.let(store::saveFocusDay) },
         )
         planSync = DayPlanSync(store, link, appScope).also { it.start() }
+        watchBridge = WatchBridge(this, store, link, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope) { appOnScreen }
+            .also { it.start() }
         Refresher.start(this)
     }
 
