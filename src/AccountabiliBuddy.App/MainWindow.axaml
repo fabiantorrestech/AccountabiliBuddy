@@ -83,10 +83,10 @@
                 <Border DockPanel.Dock="Top" DataContext="{Binding DayBar}" x:DataType="vm:DayBarViewModel"
                         IsVisible="{Binding IsVisible, FallbackValue=False}" Padding="12,14,16,4">
                     <StackPanel Spacing="6">
-                        <Grid ColumnDefinitions="Auto,*,Auto">
+                        <!-- The day's numbers are in the legend under the bar. -->
+                        <Grid ColumnDefinitions="Auto,*">
                             <TextBlock Text="{Binding DateText}" FontWeight="SemiBold" Margin="0,0,10,0" />
                             <TextBlock Grid.Column="1" Text="{Binding StatusText}" Opacity="0.85" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Grid.Column="2" Text="{Binding SummaryText}" Opacity="0.75" Margin="10,0,0,0" />
                         </Grid>
                         <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsSleep}">
                             <Ellipse Width="8" Height="8" Fill="{Binding SleepBrush}" VerticalAlignment="Center" />
@@ -94,7 +94,15 @@
                         </StackPanel>
                         <controls:DayBarControl Layout="{Binding Layout}" OpenProfileCommand="{Binding OpenProfileCommand}" OpenDayPlanCommand="{Binding OpenDayPlanCommand}"
                                                 AddSessionCommand="{Binding AddSessionCommand}" />
-                        <!-- Under the bar, lined up with its row labels: planned work by kind in its colours, and the focus so far. -->
+                        <!-- Under the bar, lined up with its row labels: planned work by kind in its colours, and the focus so far,
+                             on a faint panel (the negative margin keeps the columns under the row labels). -->
+                        <Border Background="#1F808080" CornerRadius="6" Padding="6,4" Margin="-6,0">
+                            <Border.IsVisible>
+                                <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                                    <Binding Path="ShowsPlanTotals" />
+                                    <Binding Path="ShowsFocusTotal" />
+                                </MultiBinding>
+                            </Border.IsVisible>
                         <Grid ColumnDefinitions="84,*" RowDefinitions="Auto,Auto">
                             <TextBlock Text="Plan" FontSize="11" Opacity="0.75" VerticalAlignment="Center" IsVisible="{Binding ShowsPlanTotals}" />
                             <ItemsControl Grid.Column="1" ItemsSource="{Binding PlanTotals}" IsVisible="{Binding ShowsPlanTotals}">
@@ -118,6 +126,7 @@
                                 <TextBlock Text="{Binding FocusTotalText}" FontSize="12" Opacity="0.85" />
                             </StackPanel>
                         </Grid>
+                        </Border>
                     </StackPanel>
                 </Border>
 

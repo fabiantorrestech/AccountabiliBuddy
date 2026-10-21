@@ -205,7 +205,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool ShowsPlanTotals { get; set; }
 
-    /// <summary>Under the bar, e.g. "3h 10m focused".</summary>
+    /// <summary>Under the bar, e.g. "3h 10m focused · 2 drifts".</summary>
     [ObservableProperty]
     public partial string FocusTotalText { get; set; }
 
@@ -333,11 +333,12 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         DateText = $"{date.ToString("ddd", CultureInfo.CurrentCulture)} ({date:M/d})";
         StatusText = Status(now, range, planned);
         SummaryText = Summary(range, planned, focused, drift.Count);
-        UpdateLegend(range, planned, focused, rows);
+        UpdateLegend(range, planned, focused, drift.Count, rows);
     }
 
     // The legend under the bar, lined up with its row labels: planned work by kind, and the focus so far.
-    private void UpdateLegend(LocalWindow range, IReadOnlyList<PlannedFocus> planned, TimeSpan focused, IReadOnlyList<TimelineRowChoice> rows)
+    private void UpdateLegend(LocalWindow range, IReadOnlyList<PlannedFocus> planned, TimeSpan focused, int drifts,
+        IReadOnlyList<TimelineRowChoice> rows)
     {
         List<PlanTotal> totals = DayTimeline.PlannedByName(planned, range)
             .Select(entry => new PlanTotal($"{entry.Name} {Duration(entry.Length)}", BrushOf(planned.First(focus => focus.Name == entry.Name).Color)))
@@ -351,7 +352,12 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         }
 
         ShowsPlanTotals = totals.Count > 0 && rows.Any(row => row.Row == TimelineRow.Plan && row.Shown);
-        FocusTotalText = $"{Duration(focused)} focused";
+        FocusTotalText = drifts switch
+        {
+            0 => $"{Duration(focused)} focused",
+            1 => $"{Duration(focused)} focused · 1 drift",
+            _ => $"{Duration(focused)} focused · {drifts} drifts",
+        };
         ShowsFocusTotal = rows.Any(row => row.Row == TimelineRow.Focus && row.Shown);
     }
 
