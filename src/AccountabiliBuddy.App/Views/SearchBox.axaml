@@ -16,9 +16,22 @@
         <Style Selector="Button.searchItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="#1F808080" />
         </Style>
+        <Style Selector="TextBox#Box">
+            <Setter Property="Width" Value="170" />
+        </Style>
+        <Style Selector="TextBox#Box:focus-within">
+            <Setter Property="Width" Value="320" />
+        </Style>
     </UserControl.Styles>
     <Panel>
-        <TextBox x:Name="Box" Text="{Binding Query}" Watermark="Search… (Ctrl+F)" Width="300" KeyDown="OnBoxKeyDown" LostFocus="OnBoxLostFocus" />
+        <!-- Small until clicked (or Ctrl+F); then it grows to the left, and shrinks back once the focus leaves it. -->
+        <TextBox x:Name="Box" Text="{Binding Query}" Watermark="Search… (Ctrl+F)" KeyDown="OnBoxKeyDown" LostFocus="OnBoxLostFocus">
+            <TextBox.Transitions>
+                <Transitions>
+                    <DoubleTransition Property="Width" Duration="0:0:0.22" Easing="CubicEaseOut" />
+                </Transitions>
+            </TextBox.Transitions>
+        </TextBox>
         <!-- Under the box: the next match on this page, or every match in the app grouped by tab. Not light-dismissed (that
              would eat the first click on the page and the mouse wheel): Esc, opening a result or leaving the box closes it. -->
         <Popup x:Name="Dropdown" PlacementTarget="{Binding #Box}" Placement="BottomEdgeAlignedRight" IsOpen="{Binding IsOpen, Mode=TwoWay}"

@@ -11,9 +11,38 @@ namespace AccountabiliBuddy.App.Views;
 /// <summary>The search box: Enter goes to the next match (or all results), Esc clears it.</summary>
 public partial class SearchBox : UserControl
 {
+    private TopLevel? _topLevel;
+
     public SearchBox()
     {
         InitializeComponent();
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _topLevel = TopLevel.GetTopLevel(this);
+        _topLevel?.AddHandler(PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _topLevel?.RemoveHandler(PointerPressedEvent, OnWindowPointerPressed);
+        _topLevel = null;
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    // A click anywhere else in the window takes the focus out of the box, so it shrinks (and its dropdown closes) even
+    // when the click lands on something that can't take the focus itself, like a page's background. The dropdown is its
+    // own popup window, so clicks in it never get here.
+    private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!Box.IsKeyboardFocusWithin || e.Source is not Visual clicked || ReferenceEquals(clicked, this) || this.IsVisualAncestorOf(clicked))
+        {
+            return;
+        }
+
+        _topLevel?.FocusManager?.Focus(null);
     }
 
     /// <summary>Puts the cursor in the box with its text selected (Ctrl+F).</summary>
