@@ -16,11 +16,22 @@
         <Style Selector="Button.searchItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="#1F808080" />
         </Style>
-        <Style Selector="Button.searchItem.arrow">
-            <Setter Property="Padding" Value="9,6" />
+        <Style Selector="Button.findArrow">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="MinWidth" Value="0" />
             <Setter Property="FontSize" Value="10" />
-            <Setter Property="VerticalAlignment" Value="Stretch" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <!-- The box keeps the keyboard focus while stepping. -->
+            <Setter Property="Focusable" Value="False" />
+        </Style>
+        <Style Selector="Button.findArrow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#1F808080" />
+        </Style>
+        <!-- The counter and arrows show only while the box has the focus (it's small otherwise). -->
+        <Style Selector="TextBox#Box:not(:focus-within) Panel.findNav">
+            <Setter Property="IsVisible" Value="False" />
         </Style>
         <Style Selector="TextBox#Box">
             <Setter Property="Width" Value="170" />
@@ -37,6 +48,22 @@
                     <DoubleTransition Property="Width" Duration="0:0:0.22" Easing="CubicEaseOut" />
                 </Transitions>
             </TextBox.Transitions>
+            <!-- Like a browser's find bar: "2/5" on this page, and ▲ ▼ to step through (also ↑ ↓, Shift+Enter / Enter). -->
+            <TextBox.InnerRightContent>
+                <Panel Classes="findNav">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,4,0" IsVisible="{Binding HasQuery}">
+                        <TextBlock Text="{Binding PageCounterText}" FontSize="12" Opacity="0.7" VerticalAlignment="Center" Margin="4,0,6,0" />
+                        <Button Classes="findArrow" Command="{Binding PreviousCommand}" IsEnabled="{Binding HasPageMatches}"
+                                ToolTip.Tip="Previous match (↑ or Shift+Enter)">
+                            <TextBlock Text="▲" />
+                        </Button>
+                        <Button Classes="findArrow" Command="{Binding NextCommand}" IsEnabled="{Binding HasPageMatches}"
+                                ToolTip.Tip="Next match (↓ or Enter)">
+                            <TextBlock Text="▼" />
+                        </Button>
+                    </StackPanel>
+                </Panel>
+            </TextBox.InnerRightContent>
         </TextBox>
         <!-- Under the box: the next match on this page, or every match in the app grouped by tab. Not light-dismissed (that
              would eat the first click on the page and the mouse wheel): Esc, opening a result or leaving the box closes it. -->
@@ -45,20 +72,9 @@
             <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}" BorderBrush="#55808080" BorderThickness="1"
                     CornerRadius="8" Padding="6" Width="440">
                 <StackPanel Spacing="2">
-                    <!-- Matches on this page: the text goes to the next one; the arrows step either way. -->
-                    <Grid ColumnDefinitions="*,Auto,Auto" IsVisible="{Binding HasPageMatches}">
-                        <Button Classes="searchItem" Command="{Binding NextCommand}">
-                            <TextBlock Text="{Binding PageText}" />
-                        </Button>
-                        <Button Grid.Column="1" Classes="searchItem arrow" Command="{Binding PreviousCommand}"
-                                ToolTip.Tip="Previous match (↑ or Shift+Enter)">
-                            <TextBlock Text="▲" />
-                        </Button>
-                        <Button Grid.Column="2" Classes="searchItem arrow" Command="{Binding NextCommand}"
-                                ToolTip.Tip="Next match (↓ or Enter)">
-                            <TextBlock Text="▼" />
-                        </Button>
-                    </Grid>
+                    <Button Classes="searchItem" Command="{Binding NextCommand}" IsVisible="{Binding HasPageMatches}">
+                        <TextBlock Text="{Binding PageText}" />
+                    </Button>
                     <Button Classes="searchItem" Command="{Binding SearchAllCommand}" IsVisible="{Binding !ShowsAll}">
                         <TextBlock Text="{Binding AllText}" FontWeight="SemiBold" Foreground="#14B8A6" />
                     </Button>

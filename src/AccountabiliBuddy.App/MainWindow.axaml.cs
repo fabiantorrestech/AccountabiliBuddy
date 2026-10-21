@@ -72,6 +72,10 @@ public partial class MainWindow : Window
             {
                 search.PageCount = Highlights.MatchCount;
             }
+            else if (e.Property == SearchHighlightLayer.CurrentIndexProperty)
+            {
+                search.PageIndex = Highlights.CurrentIndex;
+            }
         };
         search.NextRequested += (_, _) => Highlights.Next();
         search.PreviousRequested += (_, _) => Highlights.Previous();

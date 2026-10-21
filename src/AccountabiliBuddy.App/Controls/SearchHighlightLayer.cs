@@ -27,6 +27,9 @@ public sealed class SearchHighlightLayer : Control
     public static readonly DirectProperty<SearchHighlightLayer, int> MatchCountProperty =
         AvaloniaProperty.RegisterDirect<SearchHighlightLayer, int>(nameof(MatchCount), layer => layer.MatchCount);
 
+    public static readonly DirectProperty<SearchHighlightLayer, int> CurrentIndexProperty =
+        AvaloniaProperty.RegisterDirect<SearchHighlightLayer, int>(nameof(CurrentIndex), layer => layer.CurrentIndex);
+
     private static readonly TimeSpan RecountDelay = TimeSpan.FromMilliseconds(120);
     private static readonly IBrush MatchBrush = new SolidColorBrush(Color.FromArgb(0x70, 0xFA, 0xCC, 0x15));
     private static readonly IBrush CurrentBrush = new SolidColorBrush(Color.FromArgb(0x99, 0xFB, 0x92, 0x3C));
@@ -34,6 +37,7 @@ public sealed class SearchHighlightLayer : Control
     private readonly DispatcherTimer _recount;
     private List<Match> _matches = new();
     private int _matchCount;
+    private int _currentIndex;
 
     public SearchHighlightLayer()
     {
@@ -68,7 +72,11 @@ public sealed class SearchHighlightLayer : Control
     }
 
     /// <summary>The highlighted match (orange), counted from 0.</summary>
-    public int CurrentIndex { get; private set; }
+    public int CurrentIndex
+    {
+        get => _currentIndex;
+        private set => SetAndRaise(CurrentIndexProperty, ref _currentIndex, value);
+    }
 
     /// <summary>Moves to the next match (back to the first after the last) and brings it into view.</summary>
     public void Next()

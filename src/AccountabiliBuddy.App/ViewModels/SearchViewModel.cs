@@ -34,12 +34,23 @@ public sealed partial class SearchViewModel : ObservableObject
     public Func<IReadOnlyList<SearchEntry>> UiEntries { get; set; } = () => Array.Empty<SearchEntry>();
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasQuery))]
     public partial string Query { get; set; } = string.Empty;
 
     /// <summary>Matches on the page showing, counted by the window's highlight layer.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasPageMatches), nameof(PageText))]
+    [NotifyPropertyChangedFor(nameof(HasPageMatches), nameof(PageText), nameof(PageCounterText))]
     public partial int PageCount { get; set; }
+
+    /// <summary>The current (orange) match on the page, counted from 0, from the window's highlight layer.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PageCounterText))]
+    public partial int PageIndex { get; set; }
+
+    public bool HasQuery => !string.IsNullOrWhiteSpace(Query);
+
+    /// <summary>In the box, like a browser's find bar: "2/5", or "0/0" when the page has no match.</summary>
+    public string PageCounterText => PageCount == 0 ? "0/0" : $"{Math.Min(PageIndex, PageCount - 1) + 1}/{PageCount}";
 
     /// <summary>Matches in the whole app; -1 while not counted yet.</summary>
     [ObservableProperty]
