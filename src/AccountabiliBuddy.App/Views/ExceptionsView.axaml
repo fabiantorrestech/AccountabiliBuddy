@@ -22,7 +22,7 @@
     <DockPanel Margin="12">
         <views:PendingChangesBanner DockPanel.Dock="Top" DataContext="{Binding PendingChanges}" Margin="0,0,0,12" />
         <TextBlock DockPanel.Dock="Top" Opacity="0.75" TextWrapping="Wrap" Margin="0,0,0,8"
-                   Text="Single dates planned differently from your day plan: a day off, a half day. Pick a date, then Plan this day differently; it starts from that day's usual plan and applies as soon as it's saved." />
+                   Text="Single dates planned differently from your day plan: a day off, a half day. Pick a date, then Plan this day differently; it starts from that day's default day plan and applies as soon as it's saved." />
         <Border DockPanel.Dock="Top" IsVisible="{Binding IsLocked}" Background="#33F59E0B" Padding="12,8" Margin="0,0,0,12" CornerRadius="6">
             <TextBlock Text="One-off days are locked while a focus session you started is running." />
         </Border>
@@ -222,11 +222,29 @@
                     </StackPanel>
 
                     <TextBlock Text="This day's plan" FontWeight="SemiBold" Margin="0,6,0,0" />
-                    <TextBlock Text="{Binding SelectedDayPlanText}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding SelectedDayPlanText}" TextWrapping="Wrap" Opacity="0.8" />
+                    <!-- Like a calendar's agenda: one row per part in time order, tinted in its category's colour. -->
+                    <TextBlock Text="Nothing planned." Opacity="0.6" IsVisible="{Binding !SelectedDayAgenda.Count}" />
+                    <ItemsControl ItemsSource="{Binding SelectedDayAgenda}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:AgendaRow">
+                                <Border Background="{Binding Tint}" CornerRadius="6" Margin="0,2" ClipToBounds="True">
+                                    <Grid ColumnDefinitions="4,*">
+                                        <Border Background="{Binding Brush}" />
+                                        <StackPanel Grid.Column="1" Margin="10,5,8,6" Spacing="1">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Times}" FontSize="12" Opacity="0.8" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <Button Content="Plan this day differently" Command="{Binding PlanSelectedDayCommand}" IsVisible="{Binding !SelectedHasOwnPlan}" />
-                        <Button Content="Edit its plan" Command="{Binding PlanSelectedDayCommand}" IsVisible="{Binding SelectedHasOwnPlan}" />
-                        <Button Content="Back to the usual plan" Command="{Binding ClearSelectedDayCommand}" IsVisible="{Binding SelectedHasOwnPlan}" />
+                        <Button Content="Edit" Command="{Binding PlanSelectedDayCommand}" IsVisible="{Binding SelectedHasOwnPlan}" />
+                        <Button Content="Default Day Plan" Command="{Binding ClearSelectedDayCommand}" IsVisible="{Binding SelectedHasOwnPlan}"
+                                ToolTip.Tip="Go back to the default day plan for this date" />
                     </StackPanel>
 
                     <TextBlock Text="One-off days" FontWeight="SemiBold" Margin="0,12,0,0" />
@@ -242,7 +260,7 @@
                                     </StackPanel>
                                     <Button Grid.Column="1" Content="Edit" Command="{Binding EditCommand}" VerticalAlignment="Top" Margin="4,0"
                                             IsEnabled="{Binding !$parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).IsLocked}" />
-                                    <Button Grid.Column="2" Content="✕" ToolTip.Tip="Back to the usual plan" Command="{Binding DeleteCommand}" VerticalAlignment="Top"
+                                    <Button Grid.Column="2" Content="✕" ToolTip.Tip="Back to the default day plan" Command="{Binding DeleteCommand}" VerticalAlignment="Top"
                                             IsEnabled="{Binding !$parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).IsLocked}" />
                                 </Grid>
                             </DataTemplate>

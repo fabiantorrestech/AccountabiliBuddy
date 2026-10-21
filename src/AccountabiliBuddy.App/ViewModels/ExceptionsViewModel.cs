@@ -71,9 +71,12 @@ public sealed partial class ExceptionsViewModel : ObservableObject
     /// <summary>Every one-off day, by date; days that have passed are greyed out.</summary>
     public ObservableCollection<OneOffDayRowViewModel> OneOffDays { get; } = new();
 
-    /// <summary>E.g. "Follows your Workdays plan" or "Own plan: Free time 10:00–18:00".</summary>
+    /// <summary>E.g. "Follows your Workdays plan." or "Planned differently from the default day plan."</summary>
     [ObservableProperty]
     public partial string SelectedDayPlanText { get; set; }
+
+    /// <summary>The selected date's plan, one part per row in time order (its own plan or the default it follows).</summary>
+    public ObservableCollection<AgendaRow> SelectedDayAgenda { get; } = new();
 
     [ObservableProperty]
     public partial bool SelectedHasOwnPlan { get; set; }
@@ -442,7 +445,7 @@ public sealed partial class ExceptionsViewModel : ObservableObject
         OneOffNote = existing?.Note ?? note;
         OneOffEditor = new DayPlanEditorViewModel(plan.TemplateFor(date), plan.Categories);
         StatusMessage = existing is null
-            ? "Starts from the usual plan for that day. Change it, then Save."
+            ? "Starts from the default day plan for that day. Change it, then Save."
             : null;
     }
 
@@ -480,7 +483,26 @@ public sealed partial class ExceptionsViewModel : ObservableObject
             OneOffEditor = null;
         }
 
-        StatusMessage = $"{date:ddd d MMM} follows the usual plan again.";
+        StatusMessage = $"{date:ddd d MMM} follows the default day plan again.";
+    }
+
+    // Like a calendar's agenda: each part on its own row in time order (parts from the night before first), with its
+    // name, times and category colour.
+    private static List<AgendaRow> AgendaOf(DayTemplate template, DayPlan plan)
+    {
+        return template.Parts
+            .OrderBy(part => part.CrossesMidnight ? -1 : part.Start.ToTimeSpan().TotalMinutes)
+            .Select(part =>
+            {
+                DayCategory? category = plan.Category(part.CategoryId);
+                Color color = category is not null && Color.TryParse(category.Color, out Color parsed) ? parsed : Colors.Gray;
+                return new AgendaRow(
+                    part.Label ?? category?.Name ?? "?",
+                    $"{part.Start:HH\\:mm} – {part.End:HH\\:mm}",
+                    new SolidColorBrush(color),
+                    new SolidColorBrush(color, 0.18));
+            })
+            .ToList();
     }
 
     private void Refresh()
@@ -513,8 +535,13 @@ public sealed partial class ExceptionsViewModel : ObservableObject
         OneOffDay? own = plan.OneOffDays.FirstOrDefault(day => day.Date == SelectedDate);
         SelectedHasOwnPlan = own is not null;
         SelectedDayPlanText = own is not null
-            ? $"Own plan: {new OneOffDayRowViewModel(own, plan, today, _ => { }, _ => { }).PartsText}"
+            ? "Planned differently from the default day plan."
             : plan.Workdays.Contains(SelectedDate.DayOfWeek) ? "Follows your Workdays plan." : "Follows your Other days plan.";
+        SelectedDayAgenda.Clear();
+        foreach (AgendaRow row in AgendaOf(plan.TemplateFor(SelectedDate), plan))
+        {
+            SelectedDayAgenda.Add(row);
+        }
         OneOffDays.Clear();
         foreach (OneOffDay day in plan.OneOffDays.OrderBy(day => day.Date))
         {
