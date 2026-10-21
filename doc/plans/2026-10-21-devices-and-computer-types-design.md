@@ -43,6 +43,11 @@ The user wants to install AccountabiliBuddy on a work desktop without granting m
 
 **Running log:** History on every device lists all devices' sessions with a device tag and a "This device / All devices" filter (default All). Totals everywhere add up across devices.
 
+**The phone's watch on the PC** *(user, 2026-10-21)*:
+- The PC's Devices tab shows the phone's linked watch **indented under the phone**, display only: pairing and unpairing the watch stays on the phone.
+- Every time the phone writes its sync file (each connection to the PC, both ways, and each watch link change), it first checks that its watch link is still valid. The PC therefore always shows the current state, and an unlinked watch disappears at the next sync.
+- A watch also paired with the PC over Wi-Fi shows once, under the phone, with "also paired with this PC" (my call).
+
 ## Part 2: computer types in the setup assistant
 
 **New first steps:** Welcome → **Link to your other devices?** → **What kind of computer is this?** → the existing steps (bring your blocks, usage, review, browsers, basics) → done.

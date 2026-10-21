@@ -58,6 +58,8 @@
 | PC Devices tab | 11 | Tasks 4, 5, 7 |
 | Computer types | 12 (any time) → 13 | Tasks 4, 5 for 13 |
 | Watch Tile | 16 | Nothing (independent) |
+| On-screen window | 17 | Nothing (independent) |
+| The phone's watch on the PC | 18 | Tasks 9 and 11 |
 | With the user | 14 (phone ↔ Drive spike), library OKs for 7 and 10 | The user present |
 | Ship | 15 | Everything else |
 
@@ -540,6 +542,69 @@ The user asked for this on 2026-10-21: the Tile shows how far along the workday 
 - [ ] **Step 2:** Run. RED.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** Run ktcheck and `:wear:assembleRelease`. Pass. With the user's OK, install on the watch and add the Tile.
+- [ ] **Step 5:** Commit.
+
+### Task 17: Ctrl+Alt + double-click on the on-screen window opens the app (independent of Tasks 0–16)
+
+The user asked for this on 2026-10-21. While Ctrl+Alt is held, double-clicking an empty spot of the on-screen window (the timer or timeline, not a button or slider) opens and focuses the main window, also when it's only in the tray. An "Open AccountabiliBuddy" button sits next to Hide in the Ctrl+Alt details. Without Ctrl+Alt the window stays click-through, as today.
+
+**Files:**
+- Create: `src/AccountabiliBuddy.App/Services/DoubleClickDetector.cs` (pure).
+- Modify: `Views/SessionOverlayWindow.axaml.cs`, `Views/SessionOverlayWindow.axaml`, `ViewModels/OnScreenOverlayViewModel.cs`, `Services/SessionOverlayService.cs`, `App.axaml.cs` (subscribe → the existing `ShowMainWindow()`).
+- Check: `%TEMP%\ab-sync-checks\syncapp\Checks\Task17Checks.cs`.
+
+**Interfaces:**
+- **`DoubleClickDetector(TimeSpan maxGap, double maxDistance)`:**
+  - `bool Press(TimeSpan at, Point position)` returns true for a second press within `maxGap` and within `maxDistance` pixels of the first;
+  - `Reset()`.
+- **Values:** the gap is Windows' double-click time (`GetDoubleClickTime`, read once through `IOverlayInput` or a small Platform helper; 500 ms if unknown). The distance is 4 px.
+- **The drag starts when the mouse moves** more than 4 px with the button down, not on the press (my call). This is because `BeginMoveDrag` on the first press can swallow the second click on Windows. The implementer confirms the drag still feels the same.
+- **The event path:**
+  - `SessionOverlayService.OpenAppRequested` (EventHandler), raised by the window's double-click and by `OnScreenOverlayViewModel.OpenAppCommand` (the new button);
+  - `App.axaml.cs` calls `ShowMainWindow()`.
+
+- [ ] **Step 1:** Failing checks in Task17Checks:
+  - two presses 200 ms and 2 px apart → true;
+  - 700 ms apart with a 500 ms gap → false;
+  - 10 px apart → false;
+  - a third press after a double-click starts over;
+  - `OpenAppCommand` raises `OpenAppRequested` once.
+- [ ] **Step 2:** Run. RED.
+- [ ] **Step 3:** Implement.
+- [ ] **Step 4:** Run run-all and build the app. Then try it by hand once in a dev build: Ctrl+Alt-drag still moves the window, Ctrl+Alt + double-click opens the app, and plain clicks still pass through.
+- [ ] **Step 5:** Commit.
+
+### Task 18: The phone's linked watch on the PC's Devices tab (after Tasks 9 and 11)
+
+The user asked for this on 2026-10-21. The PC's Devices tab shows the phone's linked watch indented under the phone. It is display only: pairing and unpairing the watch stays on the phone. It's kept current: every time the phone writes its sync file (on each connection to the PC, both ways, and whenever its watch link changes), it first checks that the watch link is still valid.
+
+**Files:**
+- Create: `src/AccountabiliBuddy.Core/Sync/SyncCompanion.cs`; the Kotlin `SyncCompanion` goes in `android/shared/.../sync/SyncFile.kt`.
+- Modify: `SyncDeviceCard` in both languages, `SyncFileCodec`/`SyncFileJson` (read and write), `app/.../sync/SyncCoordinator.kt` (the phone's own file), `app/.../watch/WatchBridge.kt` (link changes raise a resync), `ViewModels/DevicesViewModel.cs` and `Views/DevicesView.axaml` (the indented row).
+- Checks: `synccore/Checks/Task18Checks.cs`, `ktcheck/src/main/kotlin/SyncT18Checks.kt` (both already wired into their runners), and `syncapp/Checks/Task11Checks.cs` (extend).
+
+**Interfaces:**
+- **`SyncCompanion(string Name, string Kind, bool Linked, DateTimeOffset? LastHeard)`**, where `Kind` is `"watch"`.
+- **`SyncDeviceCard` gains `IReadOnlyList<SyncCompanion> Companions`**, last, defaulting to empty.
+  - JSON key `companions`, **optional**: a file without it reads as empty, and `FormatVersion` stays 1.
+  - Older apps ignore the key. Check that the PC's reader and Task 2's Kotlin reader both accept an unknown key, and change them if not, with a Ruling.
+- **The phone's own file:** `companions` holds the linked watch when `WatchLinkSettings.linkedNodeId` is set. `Linked` is true while that node is still among the Data Layer's known watches (`CapabilityClient.FILTER_ALL` for `accountabilibuddy_watch`). `LastHeard` is the newest of the watch's last "/hello" and the last delivered snapshot.
+  - Unlinked on the phone → no companion. The PC's row disappears at the next sync.
+  - The capability check lives in an Android-only helper. The pure rule `companionsFor(settings, knownWatchIds, lastHeard)` lives in `shared` and is checked in ktcheck.
+- **The PC row:**
+  - under its phone, indented: "⌚ <watch name> · linked to <phone name> · last update <age>", with "Pair or unpair on the phone" as its detail;
+  - `Linked = false` shows "not found on the phone — open AccountabiliBuddy on the watch";
+  - **one row per watch:** if a `PairedDevice` of kind `"watch"` (Wi-Fi fallback) has the same name, it isn't listed separately. The indented row adds "also paired with this PC" and the PC-side Unpair (my call; names match exactly).
+
+- [ ] **Step 1:** Failing checks:
+  - a card with two companions round-trips in C# and in Kotlin, and across languages (extend the samples);
+  - a file without `companions` reads as empty in both;
+  - `companionsFor` with no linked node → empty; with a linked node that isn't known → `Linked = false`;
+  - the PC rows: the phone's watch appears indented under the phone and not on its own;
+  - a Wi-Fi-paired watch with the same name merges into that row.
+- [ ] **Step 2:** Run. RED.
+- [ ] **Step 3:** Implement.
+- [ ] **Step 4:** run-all, `assembleDebug`, the PC build. Pass.
 - [ ] **Step 5:** Commit.
 
 ### Task 15: Docs, version and ship
