@@ -8,25 +8,26 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// The search box in the main window's top right. Typing highlights matches on the page showing (the window counts them
-/// into <see cref="PageCount"/>); the dropdown offers the next match and "Search All Results…", which lists every match
-/// in the app (the user's own things and the app's words) grouped by tab. Opening one hands its target to the window.
+/// into <see cref="PageCount"/>); a moment after typing stops, the dropdown lists every match in the app (the user's own
+/// things and the app's words) grouped by tab, under the line for this page's matches. Opening one hands its target to
+/// the window.
 /// </summary>
 public sealed partial class SearchViewModel : ObservableObject
 {
-    private static readonly TimeSpan CountDelay = TimeSpan.FromMilliseconds(300);
+    private static readonly TimeSpan SearchDelay = TimeSpan.FromMilliseconds(250);
 
     private readonly Func<Task<IReadOnlyList<SearchEntry>>> _dataEntries;
-    private readonly DispatcherTimer _countTimer;
+    private readonly DispatcherTimer _searchTimer;
 
     /// <param name="dataEntries">The user's own things as entries, built when asked (see <see cref="DataSearchSource"/>).</param>
     public SearchViewModel(Func<Task<IReadOnlyList<SearchEntry>>> dataEntries)
     {
         _dataEntries = dataEntries;
-        _countTimer = new DispatcherTimer { Interval = CountDelay };
-        _countTimer.Tick += (_, _) =>
+        _searchTimer = new DispatcherTimer { Interval = SearchDelay };
+        _searchTimer.Tick += (_, _) =>
         {
-            _countTimer.Stop();
-            _ = CountAllAsync();
+            _searchTimer.Stop();
+            _ = FillResultsAsync();
         };
     }
 
@@ -107,14 +108,17 @@ public sealed partial class SearchViewModel : ObservableObject
     partial void OnQueryChanged(string value)
     {
         IsOpen = !string.IsNullOrWhiteSpace(value);
+        _searchTimer.Stop();
+        if (IsOpen)
+        {
+            // The results follow as you type; the last ones stay up until the new ones are in, so the list doesn't flicker.
+            _searchTimer.Start();
+            return;
+        }
+
         ShowsAll = false;
         Results.Clear();
         AllCount = -1;
-        _countTimer.Stop();
-        if (IsOpen)
-        {
-            _countTimer.Start();
-        }
     }
 
     [RelayCommand]
@@ -138,11 +142,21 @@ public sealed partial class SearchViewModel : ObservableObject
     [RelayCommand]
     private async Task SearchAllAsync()
     {
+        if (await FillResultsAsync())
+        {
+            IsOpen = true;
+        }
+    }
+
+    // Lists every match in the app for the query; false when the query changed meanwhile. Doesn't open the dropdown:
+    // after typing, a box that lost the focus in the meantime stays closed.
+    private async Task<bool> FillResultsAsync()
+    {
         string query = Query;
         IReadOnlyList<SearchEntry> found = await FindAllAsync(query);
         if (query != Query)
         {
-            return;
+            return false;
         }
 
         Results.Clear();
@@ -153,8 +167,8 @@ public sealed partial class SearchViewModel : ObservableObject
 
         AllCount = found.Count;
         ShowsAll = true;
-        IsOpen = true;
         OnPropertyChanged(nameof(ShowsNothingFound));
+        return true;
     }
 
     [RelayCommand]
@@ -167,16 +181,6 @@ public sealed partial class SearchViewModel : ObservableObject
 
         IsOpen = false;
         OpenRequested?.Invoke(this, row.Target);
-    }
-
-    private async Task CountAllAsync()
-    {
-        string query = Query;
-        IReadOnlyList<SearchEntry> found = await FindAllAsync(query);
-        if (query == Query)
-        {
-            AllCount = found.Count;
-        }
     }
 
     /// <summary>The user's things first, then the app's words; at most the cap in total.</summary>
