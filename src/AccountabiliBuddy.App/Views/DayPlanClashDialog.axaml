@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.DayPlanClashDialog"
+        x:DataType="vm:DayPlanClashViewModel"
+        Title="The day plan changed in two places"
+        Icon="/Assets/app-icon.png"
+        Width="520" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner">
+    <StackPanel Margin="20" Spacing="12">
+        <TextBlock Text="The day plan changed in two places" FontSize="18" FontWeight="SemiBold" />
+        <TextBlock Text="Pick the one to keep; the other is dropped. Closing this uses the latest edit."
+                   TextWrapping="Wrap" Opacity="0.85" />
+        <Grid ColumnDefinitions="*,12,*">
+            <Border Grid.Column="0" BorderBrush="#55808080" BorderThickness="1" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding LocalTitle}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LocalEdited}" Opacity="0.75" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="2" BorderBrush="#55808080" BorderThickness="1" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding IncomingTitle}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding IncomingEdited}" Opacity="0.75" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </Grid>
+        <TextBlock Text="{Binding ChangesTitle}" FontWeight="SemiBold" TextWrapping="Wrap" />
+        <ScrollViewer MaxHeight="260">
+            <ItemsControl ItemsSource="{Binding Changes}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                        <TextBlock Text="{Binding StringFormat='• {0}'}" TextWrapping="Wrap" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="Keep the one I was using" Command="{Binding KeepMineCommand}" />
+            <Button Content="Use the latest" Command="{Binding UseLatestCommand}" Classes="accent" IsDefault="True" />
+        </StackPanel>
+    </StackPanel>
+</Window>

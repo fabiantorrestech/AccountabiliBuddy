@@ -1,0 +1,613 @@
+using System.Text.Json;
+using AccountabiliBuddy.App.Services.Backup;
+using AccountabiliBuddy.App.ViewModels;
+using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Engine;
+using AccountabiliBuddy.Core.Link;
+using AccountabiliBuddy.Core.Ports;
+using AccountabiliBuddy.Core.Storage;
+using AccountabiliBuddy.Core.Sync;
+using Avalonia.Threading;
+using Microsoft.Data.Sqlite;
+
+namespace AccountabiliBuddy.App.Services.Sync;
+
+/// <summary>
+/// The PC's side of sharing progress between the user's own devices (ADR 22), whatever method carries the files: it
+/// builds this PC's sync file (its last 14 days of counted sessions and drift, its day plan and shared settings; only
+/// readable fields) and takes in files other devices sealed. A received file is kept per device
+/// (<see cref="ReceivedDevicesService"/>). Its day plan goes through the clash rule (<see cref="DayPlanClash"/>): taken or
+/// kept without asking when only one side edited, else <see cref="ClashRaised"/>; a plan arriving during a focus session
+/// waits until it ends, since the plan is locked then. Its settings apply when they were edited later than this PC's, by
+/// this PC's own rules: profiles through <see cref="ConfigurationService.UpdateAsync"/>, so a looser change waits its
+/// delay. The public calls move to the UI thread themselves.
+/// </summary>
+public sealed class SyncCoordinator
+{
+    /// <summary>Why a file was refused when it doesn't open with this group's key (another group's, or damaged).</summary>
+    public const string CannotReadReason = "This file can't be read: it's from another device group, or it's damaged.";
+
+    /// <summary>Why a file was refused when it is this PC's own.</summary>
+    public const string OwnFileReason = "This is this PC's own sync file.";
+
+    private const string NotInGroupReason = "This PC isn't linked to your other devices yet.";
+
+    // The plan's sync state: its version, when it was last edited, and the newest version it shares with the others.
+    private const string PlanStateKey = "sync.dayplan";
+
+    // When the plan last changed, kept for the phone's prompt (DayPlanEditTimeService); read once for a plan edited earlier.
+    private const string PlanEditTimeKey = "dayplan.editedAt";
+
+    private readonly SessionController _sessions;
+    private readonly ConfigurationService _configuration;
+    private readonly IActivityLog _log;
+    private readonly OmittedSessionsService _omitted;
+    private readonly DeletedUsageService _deleted;
+    private readonly PrivacySettingsService _privacy;
+    private readonly SleepSettingsService _sleep;
+    private readonly DayBarSettingsService _dayBar;
+    private readonly SqliteJsonDocumentStore _documents;
+    private readonly SyncSettingsService _settings;
+    private readonly SyncIdentityService _identity;
+    private readonly ReceivedDevicesService _received;
+    private readonly SyncEditTimesService _editTimes;
+
+    // Plans that arrived during a focus session, by sender, considered when it ends.
+    private readonly Dictionary<Guid, WaitingPlan> _waitingPlans = [];
+
+    private PlanState? _plan;
+    private DayPlanClashRequest? _pendingClash;
+    private Guid _pendingClashDevice;
+
+    // An incoming plan chosen in the clash prompt during a focus session: taken when it ends.
+    private SyncDayPlan? _takeAfterFocus;
+    private bool _sessionActive;
+
+    // Saves of the plan state run one after another so an older state never overwrites a newer one.
+    private Task _saving = Task.CompletedTask;
+
+    public SyncCoordinator(
+        SessionController sessions,
+        ConfigurationService configuration,
+        IActivityLog log,
+        OmittedSessionsService omitted,
+        DeletedUsageService deleted,
+        PrivacySettingsService privacy,
+        SleepSettingsService sleep,
+        DayBarSettingsService dayBar,
+        SqliteJsonDocumentStore documents,
+        SyncSettingsService settings,
+        SyncIdentityService identity,
+        ReceivedDevicesService received,
+        SyncEditTimesService editTimes)
+    {
+        _sessions = sessions;
+        _configuration = configuration;
+        _log = log;
+        _omitted = omitted;
+        _deleted = deleted;
+        _privacy = privacy;
+        _sleep = sleep;
+        _dayBar = dayBar;
+        _documents = documents;
+        _settings = settings;
+        _identity = identity;
+        _received = received;
+        _editTimes = editTimes;
+        _sessionActive = sessions.State.IsActive;
+
+        configuration.Changed += (_, _) => OnConfigurationChanged();
+        configuration.PendingCancelled += (_, _) => RaiseOwnDataChanged();
+        sessions.StateChanged += (_, state) => OnSessionStateChanged(state);
+        sleep.Changed += (_, _) => RaiseOwnDataChanged();
+        dayBar.Changed += (_, _) => RaiseOwnDataChanged();
+        privacy.Changed += (_, _) => RaiseOwnDataChanged();
+        omitted.Changed += (_, _) => RaiseOwnDataChanged();
+        deleted.Changed += (_, _) => RaiseOwnDataChanged();
+        identity.Changed += (_, _) => ForgetGroupWork();
+    }
+
+    /// <summary>The day plan was changed here and on another device before they synced: ask which to keep.</summary>
+    public event EventHandler<DayPlanClashRequest>? ClashRaised;
+
+    /// <summary>
+    /// This PC's own data changed: a session started or ended, the history changed, the plan or a shared setting was
+    /// edited. Not raised for files received from other devices, so two devices never answer each other forever.
+    /// </summary>
+    public event EventHandler? OwnDataChanged;
+
+    /// <summary>Loads the plan's sync state, before the first file is built or received.</summary>
+    public void LoadBlocking()
+    {
+        string version = DayPlanVersion.Of(_configuration.Current.DayPlan);
+        PlanState? stored = LoadBlocking<PlanState>(PlanStateKey);
+        if (stored is not null && stored.Version == version)
+        {
+            _plan = stored;
+            return;
+        }
+
+        if (stored is null && version == DayPlanVersion.Of(DayPlan.Default))
+        {
+            // Nobody edited it (a new device): it gives way to any edited plan.
+            _plan = new PlanState(version, DateTimeOffset.UnixEpoch, version);
+        }
+        else
+        {
+            // Edited where this wasn't watching (before this PC shared, or a restore): an edit of what it shared before.
+            PlanEditTime? editTime = LoadBlocking<PlanEditTime>(PlanEditTimeKey);
+            DateTimeOffset editedAt = editTime?.Version == version && editTime.EditedAt is DateTimeOffset known ? known : _sessions.Now;
+            _plan = new PlanState(version, editedAt, stored?.BasedOn);
+        }
+
+        SavePlanState();
+    }
+
+    /// <summary>The history changed by hand: a session added, edited or deleted (ADR 20), or "Delete my data".</summary>
+    public void NotifyHistoryChanged()
+    {
+        RaiseOwnDataChanged();
+    }
+
+    /// <summary>
+    /// This PC's sync file as of now: its card, the counted sessions and drift of the last 14 days (none while Activity
+    /// history is off, ADR 15), the plan and the shared settings that have an edit time.
+    /// </summary>
+    /// <exception cref="SqliteException">The history can't be read right now.</exception>
+    public Task<SyncFile> BuildOwnFileAsync()
+    {
+        return Dispatcher.UIThread.InvokeAsync(BuildOwnFileOnUiThreadAsync);
+    }
+
+    /// <summary>Takes in a file another device sealed, carried by <paramref name="method"/> (see <see cref="SyncDeviceCard"/>).</summary>
+    /// <returns>Null when accepted (or already held); otherwise why not, e.g. <see cref="CannotReadReason"/>.</returns>
+    public Task<string?> AcceptSealedAsync(byte[] sealedBytes, string method)
+    {
+        return Dispatcher.UIThread.InvokeAsync(() => AcceptOnUiThreadAsync(sealedBytes, method));
+    }
+
+    /// <summary>
+    /// The user's answer to <paramref name="request"/>: "Keep the one I was using" keeps this PC's plan (the other
+    /// device then takes it); "Use the latest" takes the plan edited last. A request that was replaced or already
+    /// answered changes nothing. A plan to take during a focus session is taken when it ends.
+    /// </summary>
+    public Task ResolveClashAsync(DayPlanClashRequest request, DayPlanClashChoice choice)
+    {
+        return Dispatcher.UIThread.InvokeAsync(() => ResolveOnUiThreadAsync(request, choice));
+    }
+
+    private async Task<SyncFile> BuildOwnFileOnUiThreadAsync()
+    {
+        TimeZoneInfo zone = _sessions.TimeProvider.LocalTimeZone;
+        DateTimeOffset now = _sessions.Now;
+        bool historyOff = !_privacy.Current.ActivityLogEnabled;
+        var card = new SyncDeviceCard(
+            _identity.DeviceId, _identity.DeviceName, SyncDeviceCard.KindPc, BackupService.AppVersion, now, Methods(), historyOff, Seen());
+
+        IReadOnlyList<SessionRecord> records = [];
+        IReadOnlyList<DriftStretch> drift = [];
+        DateTimeOffset? oldestSessionStart = null;
+        if (!historyOff)
+        {
+            // The 14 days and the day before them (DST included), and everything kept, to know whether anything older is.
+            DateTimeOffset from = now - SyncMerge.FileSpan - TimeSpan.FromDays(2);
+            DateTimeOffset to = now + TimeSpan.FromDays(1);
+            // Off the UI thread: Microsoft.Data.Sqlite's async calls run synchronously.
+            IReadOnlyList<SessionEvent> events = await Task.Run(() => _log.GetSessionEventsAsync(now - SyncMerge.KeptFor - TimeSpan.FromDays(1), to));
+            oldestSessionStart = events.Count > 0 ? events[0].At : null;
+            records = SessionHistoryBuilder.Build(events.Where(sessionEvent => sessionEvent.At >= from));
+            List<TimeRange> leftOut = records
+                .Where(record => _omitted.IsOmitted(record.StartedAt) || record.Mode == SessionMode.Scheduled)
+                .Select(record => new TimeRange(record.StartedAt, record.EndedAt ?? now))
+                .ToList();
+            IReadOnlyList<UsageDeletion> deletions = _deleted.Parts;
+            drift = await Task.Run(() => _log.GetDriftAsync(from, to, leftOut, deletions));
+        }
+
+        IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
+        return SyncFileBuilder.Build(card, records, drift, _omitted.IsOmitted, id => ProfileOptions.NameOf(profiles, id),
+            _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart);
+    }
+
+    private async Task<string?> AcceptOnUiThreadAsync(byte[] sealedBytes, string method)
+    {
+        if (_identity.Key is not SyncKey key)
+        {
+            return NotInGroupReason;
+        }
+
+        if (SyncFileCodec.Open(sealedBytes, key) is not SyncFile file)
+        {
+            return CannotReadReason;
+        }
+
+        SyncDeviceCard sender = file.Device;
+        if (sender.DeviceId == _identity.DeviceId)
+        {
+            return OwnFileReason;
+        }
+
+        ReceivedDevice? stored = _received.Devices.FirstOrDefault(device => device.File.Device.DeviceId == sender.DeviceId);
+        if (stored is not null && sender.WrittenAt < stored.File.Device.WrittenAt)
+        {
+            return $"This PC already has newer data from {sender.Name}.";
+        }
+
+        await _received.AcceptAsync(file, method, sealedBytes);
+        if (file.DayPlan is SyncDayPlan plan)
+        {
+            await ConsiderPlanAsync(plan, sender.DeviceId, sender.Name);
+        }
+
+        await ApplyDocumentsAsync(file.Documents);
+        return null;
+    }
+
+    private async Task ConsiderPlanAsync(SyncDayPlan incoming, Guid fromId, string fromName)
+    {
+        // The plan is locked during focus: it waits until the session ends.
+        if (_sessions.IsEnforcing)
+        {
+            _waitingPlans[fromId] = new WaitingPlan(incoming, fromName);
+            return;
+        }
+
+        if (ReadPlan(incoming) is not DayPlan incomingPlan)
+        {
+            return;
+        }
+
+        SyncDayPlan local = OwnPlan();
+        DayPlanSyncDecision decision = DayPlanClash.Decide(local, incoming);
+        if (decision != DayPlanSyncDecision.Ask && _pendingClash is not null && _pendingClashDevice == fromId)
+        {
+            // A newer file from that device settled it.
+            _pendingClash = null;
+        }
+
+        switch (decision)
+        {
+            case DayPlanSyncDecision.Same:
+                if (local.HasLocalEdits())
+                {
+                    SetPlanState(local.Shared());
+                }
+
+                break;
+            case DayPlanSyncDecision.TakeIncoming:
+                await TakePlanAsync(incoming);
+                break;
+            case DayPlanSyncDecision.Ask:
+                Ask(local, incoming, incomingPlan, fromId, fromName);
+                break;
+            case DayPlanSyncDecision.KeepLocal:
+            default:
+                break;
+        }
+    }
+
+    private void Ask(SyncDayPlan local, SyncDayPlan incoming, DayPlan incomingPlan, Guid fromId, string fromName)
+    {
+        if (_pendingClash is { } pending && pending.Incoming.Version == incoming.Version && pending.Local.Version == local.Version)
+        {
+            return;
+        }
+
+        var request = new DayPlanClashRequest(local, incoming, fromName, DayPlanChanges.Describe(_configuration.Current.DayPlan, incomingPlan));
+        _pendingClash = request;
+        _pendingClashDevice = fromId;
+        ClashRaised?.Invoke(this, request);
+    }
+
+    private async Task ResolveOnUiThreadAsync(DayPlanClashRequest request, DayPlanClashChoice choice)
+    {
+        if (!ReferenceEquals(request, _pendingClash))
+        {
+            return;
+        }
+
+        _pendingClash = null;
+        SyncDayPlan local = OwnPlan();
+        if (choice == DayPlanClashChoice.UseLatest && ReferenceEquals(DayPlanClash.Latest(local, request.Incoming), request.Incoming))
+        {
+            await TakePlanAsync(request.Incoming);
+            return;
+        }
+
+        // Kept: it reads as an edit of the other plan, so the other device takes it without asking.
+        SetPlanState(local.KeptOver(request.Incoming));
+        RaiseOwnDataChanged();
+    }
+
+    private async Task TakePlanAsync(SyncDayPlan incoming)
+    {
+        if (_sessions.IsEnforcing)
+        {
+            _takeAfterFocus = incoming;
+            return;
+        }
+
+        if (_configuration.IsReadOnly || ReadPlan(incoming) is not DayPlan plan)
+        {
+            return;
+        }
+
+        // Stamped first, so the change below isn't taken for an edit made here.
+        SetPlanState(incoming.Shared());
+        await _configuration.UpdateAsync(document => document with { DayPlan = plan });
+    }
+
+    /// <returns>The plan in <paramref name="incoming"/>, or null when it can't be read, isn't the version it says or breaks the plan's rules.</returns>
+    private static DayPlan? ReadPlan(SyncDayPlan incoming)
+    {
+        try
+        {
+            using JsonDocument json = JsonDocument.Parse(incoming.PlanJson);
+            DayPlan plan = ProfileDocumentSerializer.DeserializeDayPlan(json.RootElement);
+            return DayPlanVersion.Of(plan) == incoming.Version && DayPlanValidator.Validate(plan) is null ? plan : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private void OnSessionStateChanged(SessionState state)
+    {
+        if (state.IsActive != _sessionActive)
+        {
+            _sessionActive = state.IsActive;
+            RaiseOwnDataChanged();
+        }
+
+        if (!_sessions.IsEnforcing && (_takeAfterFocus is not null || _waitingPlans.Count > 0))
+        {
+            _ = ConsiderWaitingPlansAsync();
+        }
+    }
+
+    private async Task ConsiderWaitingPlansAsync()
+    {
+        if (_takeAfterFocus is SyncDayPlan chosen)
+        {
+            _takeAfterFocus = null;
+            await TakePlanAsync(chosen);
+        }
+
+        List<KeyValuePair<Guid, WaitingPlan>> waiting = _waitingPlans.ToList();
+        _waitingPlans.Clear();
+        foreach ((Guid fromId, WaitingPlan plan) in waiting)
+        {
+            await ConsiderPlanAsync(plan.Plan, fromId, plan.FromName);
+        }
+    }
+
+    private void OnConfigurationChanged()
+    {
+        string version = DayPlanVersion.Of(_configuration.Current.DayPlan);
+        if (_plan is not null && version != _plan.Version)
+        {
+            // Edited here (the Day plan tab, Exceptions, a paired phone): it stays based on what this PC last shared.
+            SetPlanState(OwnPlan().Edited(ProfileDocumentSerializer.SerializeDayPlan(_configuration.Current.DayPlan).GetRawText(), version, _sessions.Now));
+        }
+
+        RaiseOwnDataChanged();
+    }
+
+    /// <summary>The plan in effect, with its sync state.</summary>
+    private SyncDayPlan OwnPlan()
+    {
+        DayPlan plan = _configuration.Current.DayPlan;
+        PlanState state = _plan ?? new PlanState(DayPlanVersion.Of(plan), DateTimeOffset.UnixEpoch, null);
+        return new SyncDayPlan(ProfileDocumentSerializer.SerializeDayPlan(plan).GetRawText(), state.Version, state.EditedAt, state.BasedOn);
+    }
+
+    private void SetPlanState(SyncDayPlan plan)
+    {
+        _plan = new PlanState(plan.Version, plan.EditedAt, plan.BasedOn);
+        SavePlanState();
+    }
+
+    private void SavePlanState()
+    {
+        PlanState? toSave = _plan;
+        _saving = _saving.ContinueWith(
+            async _ =>
+            {
+                try
+                {
+                    await _documents.SaveAsync(PlanStateKey, toSave).ConfigureAwait(false);
+                }
+                catch (SqliteException)
+                {
+                    // Kept in memory; the next change saves again.
+                }
+            },
+            TaskScheduler.Default).Unwrap();
+    }
+
+    /// <summary>Applies each received setting edited later than this PC's own, by this PC's rules.</summary>
+    private async Task ApplyDocumentsAsync(IReadOnlyList<SyncDocument> documents)
+    {
+        foreach (SyncDocument document in documents)
+        {
+            if (_editTimes.EditedAt(document.Key) is DateTimeOffset localEdit && document.EditedAt <= localEdit)
+            {
+                continue;
+            }
+
+            try
+            {
+                bool applied = document.Key switch
+                {
+                    SyncDocument.ProfilesKey => await ApplyProfilesAsync(document.Json),
+                    SyncDocument.SleepKey => await ApplySleepAsync(document.Json),
+                    SyncDocument.DayBarKey => await ApplyDayBarAsync(document.Json),
+                    _ => false,
+                };
+                if (applied)
+                {
+                    _editTimes.Adopt(document.Key, document.EditedAt);
+                }
+            }
+            catch (Exception ex) when (ex is JsonException or UnsupportedSchemaVersionException)
+            {
+                // A setting this version can't read stays as it is here.
+            }
+        }
+    }
+
+    /// <summary>Through the same guard as an edit here: stricter parts now, looser ones after this PC's delay, never during a session.</summary>
+    private async Task<bool> ApplyProfilesAsync(string json)
+    {
+        ProfileDocument received = ProfileDocumentSerializer.Deserialize(json);
+        if (_configuration.IsReadOnly)
+        {
+            return false;
+        }
+
+        if (WithoutDayPlan(received) != WithoutDayPlan(_configuration.Editing))
+        {
+            // The plan travels on its own (the clash rule); a received change gets no edit time of this PC's.
+            using (_editTimes.SuppressStamping())
+            {
+                await _configuration.UpdateAsync(document => received with { DayPlan = document.DayPlan });
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>On/off, the goal and tonight's one-off wake time; the times follow this PC's day plan.</summary>
+    private async Task<bool> ApplySleepAsync(string json)
+    {
+        if (JsonSerializer.Deserialize<SleepSettings>(json, LinkFraming.JsonOptions) is not SleepSettings received)
+        {
+            return false;
+        }
+
+        SleepSettings current = _sleep.Current;
+        SleepSettings updated = current with { Enabled = received.Enabled, GoalHours = received.GoalHours, WakeOnce = received.WakeOnce };
+        if (updated != current)
+        {
+            using (_editTimes.SuppressStamping())
+            {
+                await _sleep.SaveAsync(updated);
+            }
+        }
+
+        return true;
+    }
+
+    private async Task<bool> ApplyDayBarAsync(string json)
+    {
+        if (JsonSerializer.Deserialize<DayBarSettings>(json, LinkFraming.JsonOptions) is not DayBarSettings received)
+        {
+            return false;
+        }
+
+        if (JsonSerializer.Serialize(received, LinkFraming.JsonOptions) != JsonSerializer.Serialize(_dayBar.Current, LinkFraming.JsonOptions))
+        {
+            using (_editTimes.SuppressStamping())
+            {
+                await _dayBar.SaveAsync(received);
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// The shared settings with an edit time: the profiles as the editors show them (a looser edit still waiting here
+    /// travels, and waits its delay on each receiver too), sleep and the day bar. A setting never edited since this PC
+    /// started keeping track has no edit time and stays here, so a new device's defaults never replace edited settings.
+    /// </summary>
+    private List<SyncDocument> SharedDocuments()
+    {
+        var documents = new List<SyncDocument>();
+        Add(SyncDocument.ProfilesKey, WithoutDayPlan(_configuration.Editing));
+        Add(SyncDocument.SleepKey, JsonSerializer.Serialize(_sleep.Current, LinkFraming.JsonOptions));
+        Add(SyncDocument.DayBarKey, JsonSerializer.Serialize(_dayBar.Current, LinkFraming.JsonOptions));
+        return documents;
+
+        void Add(string key, string json)
+        {
+            if (_editTimes.EditedAt(key) is DateTimeOffset editedAt)
+            {
+                documents.Add(new SyncDocument(key, json, editedAt));
+            }
+        }
+    }
+
+    /// <summary>The profile document without its plan (the starting plan in its place): the plan travels on its own.</summary>
+    private static string WithoutDayPlan(ProfileDocument document)
+    {
+        return ProfileDocumentSerializer.Serialize(document with { DayPlan = DayPlan.Default });
+    }
+
+    private List<string> Methods()
+    {
+        SyncSettings settings = _settings.Current;
+        var methods = new List<string>();
+        if (settings.LinkOn)
+        {
+            methods.Add(SyncDeviceCard.MethodLink);
+        }
+
+        if (settings.FolderOn)
+        {
+            methods.Add(SyncDeviceCard.MethodFolder);
+        }
+
+        if (settings.QrOn)
+        {
+            methods.Add(SyncDeviceCard.MethodQr);
+        }
+
+        if (settings.FileShareOn)
+        {
+            methods.Add(SyncDeviceCard.MethodFile);
+        }
+
+        return methods;
+    }
+
+    private Dictionary<Guid, DateTimeOffset> Seen()
+    {
+        return _received.Devices.ToDictionary(device => device.File.Device.DeviceId, device => device.File.Device.WrittenAt);
+    }
+
+    /// <summary>A new group or none: plans from the old one are no longer this PC's to take.</summary>
+    private void ForgetGroupWork()
+    {
+        _waitingPlans.Clear();
+        _takeAfterFocus = null;
+        _pendingClash = null;
+    }
+
+    private void RaiseOwnDataChanged()
+    {
+        OwnDataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private T? LoadBlocking<T>(string key)
+        where T : class
+    {
+        try
+        {
+            return Task.Run(() => _documents.LoadAsync<T>(key)).GetAwaiter().GetResult();
+        }
+        catch (Exception ex) when (ex is SqliteException or JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <param name="BasedOn">See <see cref="SyncDayPlan.BasedOn"/>.</param>
+    private sealed record PlanState(string Version, DateTimeOffset EditedAt, string? BasedOn);
+
+    /// <summary>The shape DayPlanEditTimeService saves ("dayplan.editedAt").</summary>
+    private sealed record PlanEditTime(string Version, DateTimeOffset? EditedAt);
+
+    private sealed record WaitingPlan(SyncDayPlan Plan, string FromName);
+}

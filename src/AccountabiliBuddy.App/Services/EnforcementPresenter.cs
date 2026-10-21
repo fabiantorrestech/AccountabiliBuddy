@@ -100,6 +100,37 @@ public sealed class EnforcementPresenter
         toast.Show();
     }
 
+    /// <summary>
+    /// Shows a notice with an action on the monitor under the mouse cursor that stays until answered (e.g. the day plan
+    /// changed on two devices). <paramref name="onIgnored"/> runs when it's dismissed without the action, or can't be shown.
+    /// </summary>
+    public void ShowChoice(string title, string message, string actionLabel, Action onAction, Action onIgnored)
+    {
+        MonitorArea? area = _monitors.Find(_monitors.FindMonitorUnderCursor());
+        if (area is null)
+        {
+            onIgnored();
+            return;
+        }
+
+        bool acted = false;
+        var viewModel = new NudgeToastViewModel(title, message, actionLabel, () =>
+        {
+            acted = true;
+            onAction();
+        }, staysOpen: true);
+        var toast = new NudgeToast { DataContext = viewModel };
+        toast.Closed += (_, _) =>
+        {
+            if (!acted)
+            {
+                onIgnored();
+            }
+        };
+        MonitorPlacement.PlaceInCorner(toast, area, MonitorPlacement.Corner.TopRight);
+        toast.Show();
+    }
+
     public void CloseAll()
     {
         foreach (MonitorPresentation presentation in _presentationByMonitor.Values)

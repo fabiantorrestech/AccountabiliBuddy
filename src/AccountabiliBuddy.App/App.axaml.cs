@@ -76,6 +76,7 @@ public partial class App : Application
     private BedtimeReminderService? _bedtimeReminder;
     private ColdTurkeyService? _coldTurkey;
     private AccountabiliBuddy.App.Services.Link.LinkService? _link;
+    private AccountabiliBuddy.App.Services.Sync.SyncFolderService? _syncFolder;
     private NamedPipeBrowserSource? _browserSource;
     private Win32GlobalHotkey? _hotkey;
     private QuickSessionService? _quickSession;
@@ -314,6 +315,11 @@ public partial class App : Application
         syncIdentity.LoadBlocking();
         var syncEditTimes = new AccountabiliBuddy.App.Services.Sync.SyncEditTimesService(_configuration, sleepSettings, dayBarSettings, documents, time);
         syncEditTimes.LoadBlocking();
+        var syncCoordinator = new AccountabiliBuddy.App.Services.Sync.SyncCoordinator(
+            _sessions, _configuration, activityLog, omittedSessions, deletedUsage, privacy, sleepSettings, dayBarSettings, documents, syncSettings,
+            syncIdentity, receivedDevices, syncEditTimes);
+        syncCoordinator.LoadBlocking();
+        _syncFolder = new AccountabiliBuddy.App.Services.Sync.SyncFolderService(syncCoordinator, syncSettings, syncIdentity, receivedDevices, _sessions);
 
         var setupViewModel = new SetupViewModel(
             startupRegistrar,
@@ -417,6 +423,7 @@ public partial class App : Application
             addedSessionsBar.ReloadHistory();
             timelineDay.ReloadHistory();
             linkHost.NotifyHistoryChanged();
+            syncCoordinator.NotifyHistoryChanged();
         };
 
         mainViewModel.NoisePlayer = noisePlayer;
@@ -470,6 +477,8 @@ public partial class App : Application
         linkHost.EndedFromDevice += (_, reason) => presenter.ShowNotice("Session ended from your phone", reason);
         _link.DevicePaired += (_, device) => presenter.ShowNotice("Device linked", $"{device.Name} is linked to this PC.");
         _ = _link.StartIfEnabledAsync();
+        syncCoordinator.ClashRaised += (_, request) => ShowDayPlanClash(syncCoordinator, request, presenter, time);
+        _syncFolder.Start();
         _activityWatcher.ActivityChanged += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(_sessionOverlay.OnActivityChanged);
         _dayBar.Start();
         // The main window's bar redraws only while the window is open; the on-screen timeline has its own copy.
@@ -685,6 +694,52 @@ public partial class App : Application
         _privateWindowsNag.Show();
     }
 
+    /// <summary>
+    /// The day plan changed here and on another device (ADR 22): the dialog over the main window when it's open, else a
+    /// notice that opens it. Closing the dialog or dismissing the notice uses the latest edit.
+    /// </summary>
+    private void ShowDayPlanClash(
+        AccountabiliBuddy.App.Services.Sync.SyncCoordinator coordinator,
+        AccountabiliBuddy.App.Services.Sync.DayPlanClashRequest request,
+        EnforcementPresenter presenter,
+        TimeProvider time)
+    {
+        if (_mainWindow is { IsVisible: true })
+        {
+            ShowDayPlanClashDialog(coordinator, request, time);
+            return;
+        }
+
+        presenter.ShowChoice(
+            "Day plan changed on two devices",
+            $"It was changed here and on {request.FromDevice}. Choose which to keep, or the latest edit is used.",
+            "Choose…",
+            () =>
+            {
+                ShowMainWindow();
+                ShowDayPlanClashDialog(coordinator, request, time);
+            },
+            () => _ = coordinator.ResolveClashAsync(request, AccountabiliBuddy.App.Services.Sync.DayPlanClashChoice.UseLatest));
+    }
+
+    private void ShowDayPlanClashDialog(
+        AccountabiliBuddy.App.Services.Sync.SyncCoordinator coordinator, AccountabiliBuddy.App.Services.Sync.DayPlanClashRequest request, TimeProvider time)
+    {
+        var viewModel = new DayPlanClashViewModel(request, time, choice => _ = coordinator.ResolveClashAsync(request, choice));
+        var dialog = new DayPlanClashDialog { DataContext = viewModel };
+        if (_mainWindow is { IsVisible: true })
+        {
+            dialog.Show(_mainWindow);
+        }
+        else
+        {
+            dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            dialog.Show();
+        }
+
+        dialog.Activate();
+    }
+
     /// <summary>Starts a new copy (which waits for this one to exit) and quits, e.g. to load restored settings.</summary>
     private void RestartApp()
     {
@@ -829,6 +884,7 @@ public partial class App : Application
         _privateAccess?.Dispose();
         _coldTurkey?.Dispose();
         _link?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
+        _syncFolder?.Dispose();
         _clockAnchors?.Dispose();
         _unlocks?.Dispose();
         _calendarSync?.Dispose();

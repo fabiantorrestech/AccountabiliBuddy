@@ -87,6 +87,15 @@ public sealed class SyncEditTimesService
         return ProfileDocumentSerializer.Serialize(document with { DayPlan = DayPlan.Default });
     }
 
+    /// <summary>
+    /// Takes a received setting's edit time as this PC's: the setting now holds that edit, so it travels on with its own
+    /// time and an older copy of it never wins again.
+    /// </summary>
+    public void Adopt(string key, DateTimeOffset editedAt)
+    {
+        SetEditedAt(key, editedAt);
+    }
+
     private void Stamp(string key)
     {
         if (_suppressed > 0)
@@ -94,7 +103,12 @@ public sealed class SyncEditTimesService
             return;
         }
 
-        _editedAt = new Dictionary<string, DateTimeOffset>(_editedAt) { [key] = _time.GetUtcNow() };
+        SetEditedAt(key, _time.GetUtcNow());
+    }
+
+    private void SetEditedAt(string key, DateTimeOffset editedAt)
+    {
+        _editedAt = new Dictionary<string, DateTimeOffset>(_editedAt) { [key] = editedAt };
         Dictionary<string, DateTimeOffset> toSave = _editedAt;
         _saving = _saving.ContinueWith(
             async _ =>
