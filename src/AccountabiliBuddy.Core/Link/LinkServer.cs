@@ -14,8 +14,9 @@ namespace AccountabiliBuddy.Core.Link;
 /// certificate and answers private-network addresses only. A connection first pairs (the one-time code from
 /// <see cref="BeginPairing"/>: five minutes, five tries) or signs in with a device token; after that the device can
 /// start a session or end one early by the app's own rules (<see cref="ILinkSessionHost"/>), and every session change
-/// is pushed to it, as are the settings and today's focus when they change. A watch (ADR 21) gets the session and
-/// today's focus only, never the settings, and can't start, end or change anything. A device that is unpaired is
+/// is pushed to it, as are the settings and today's focus when they change, and the sync files (ADR 22) each once per
+/// connection; a phone can send the sync files it carries. A watch (ADR 21) gets the session and today's focus only,
+/// never the settings or sync files, and can't start, end, change or send anything. A device that is unpaired is
 /// disconnected at once.
 /// </summary>
 public sealed class LinkServer : IAsyncDisposable
@@ -83,6 +84,7 @@ public sealed class LinkServer : IAsyncDisposable
         _host.StateChanged += OnStateChanged;
         _host.SettingsChanged += OnSettingsChanged;
         _host.FocusDayChanged += OnFocusDayChanged;
+        _host.SyncFilesChanged += OnSyncFilesChanged;
         _acceptLoop = AcceptLoopAsync(listener, _stopping.Token);
 
         // "Where is the PC?" on the same port number over UDP; without it devices need the remembered address.
@@ -100,6 +102,7 @@ public sealed class LinkServer : IAsyncDisposable
         _host.StateChanged -= OnStateChanged;
         _host.SettingsChanged -= OnSettingsChanged;
         _host.FocusDayChanged -= OnFocusDayChanged;
+        _host.SyncFilesChanged -= OnSyncFilesChanged;
         _discovery?.Dispose();
         _discovery = null;
         _stopping.Cancel();
@@ -242,6 +245,11 @@ public sealed class LinkServer : IAsyncDisposable
                     await SendFocusDayIfChangedAsync(connection, focusDay, stopping).ConfigureAwait(false);
                 }
 
+                if (!connection.IsWatch && await SyncFilesAsync().ConfigureAwait(false) is { } syncFiles)
+                {
+                    await SendNewSyncFilesAsync(connection, syncFiles, stopping).ConfigureAwait(false);
+                }
+
                 while (await LinkFraming.ReadAsync(tls, stopping).ConfigureAwait(false) is LinkEnvelope request)
                 {
                     if (!await HandleAsync(connection, device, request, stopping).ConfigureAwait(false))
@@ -320,7 +328,7 @@ public sealed class LinkServer : IAsyncDisposable
     {
         if (connection.IsWatch && request.Type != LinkMessages.Unpair)
         {
-            // A watch only shows (ADR 21): starting, ending and plan edits stay with the PC and the phone.
+            // A watch only shows (ADR 21): starting, ending, plan edits and sync files stay with the PC and the phone.
             await connection.SendAsync(ResultOf("A watch can only show the session, not start, end or change it.", string.Empty), stopping)
                 .ConfigureAwait(false);
             return true;
@@ -359,6 +367,11 @@ public sealed class LinkServer : IAsyncDisposable
                 await connection.SendAsync(LinkEnvelope.Of(LinkMessages.DayPlanAnswer, answer), stopping).ConfigureAwait(false);
                 return true;
 
+            case LinkMessages.SyncFile:
+                string? syncError = await AcceptSyncFileAsync(connection, request.BodyAs<LinkSyncFile>()).ConfigureAwait(false);
+                await connection.SendAsync(ResultOf(syncError, "Synced."), stopping).ConfigureAwait(false);
+                return true;
+
             default:
                 await connection.SendAsync(ResultOf($"Unknown request '{request.Type}'.", string.Empty), stopping).ConfigureAwait(false);
                 return true;
@@ -388,6 +401,28 @@ public sealed class LinkServer : IAsyncDisposable
 
         connection.EndEarlyTerms = null;
         return await _host.EndEarlyAsync(reason).ConfigureAwait(false);
+    }
+
+    /// <summary>Hands a file the phone carried to the host; the phone has it, so it is never sent back on this connection.</summary>
+    private async Task<string?> AcceptSyncFileAsync(Connection connection, LinkSyncFile? request)
+    {
+        byte[] sealedBytes;
+        try
+        {
+            sealedBytes = Convert.FromBase64String(request?.Data ?? string.Empty);
+        }
+        catch (FormatException)
+        {
+            return "The sync file isn't readable.";
+        }
+
+        if (sealedBytes.Length == 0)
+        {
+            return "The sync file was empty.";
+        }
+
+        connection.MarkSyncFile(HashOf(sealedBytes));
+        return await _host.AcceptSyncFileAsync(sealedBytes).ConfigureAwait(false);
     }
 
     private static LinkEnvelope ResultOf(string? error, string success)
@@ -533,6 +568,75 @@ public sealed class LinkServer : IAsyncDisposable
         return new VersionedFocusDay(version, day);
     }
 
+    private void OnSyncFilesChanged(object? sender, EventArgs e)
+    {
+        _ = PushSyncFilesAsync();
+    }
+
+    /// <summary>Sends every phone the sync files it hasn't had on its connection (a raise without a change sends nothing).</summary>
+    private async Task PushSyncFilesAsync()
+    {
+        if (_connections.IsEmpty || await SyncFilesAsync().ConfigureAwait(false) is not { } files)
+        {
+            return;
+        }
+
+        foreach (Connection connection in _connections.Keys.Where(connection => !connection.IsWatch))
+        {
+            try
+            {
+                await SendNewSyncFilesAsync(connection, files, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
+            {
+                connection.Close();
+            }
+        }
+    }
+
+    /// <summary>Sends each file whose hash this connection hasn't sent or received yet, so an unchanged file goes once.</summary>
+    private static async Task SendNewSyncFilesAsync(Connection connection, IReadOnlyList<byte[]> files, CancellationToken cancellationToken)
+    {
+        foreach (byte[] file in files)
+        {
+            if (!connection.MarkSyncFile(HashOf(file)))
+            {
+                continue;
+            }
+
+            try
+            {
+                await connection.SendAsync(LinkEnvelope.Of(LinkMessages.SyncFile, new LinkSyncFile(Convert.ToBase64String(file))), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (InvalidDataException)
+            {
+                // Too large for one message: it still travels by the other methods.
+            }
+        }
+    }
+
+    /// <summary>
+    /// The host's sync files; null when they couldn't be had: nothing is sent then, and signing in and the requests
+    /// after it never depend on them.
+    /// </summary>
+    private async Task<IReadOnlyList<byte[]>?> SyncFilesAsync()
+    {
+        try
+        {
+            return await _host.GetSyncFilesAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return null;
+        }
+    }
+
+    private static string HashOf(byte[] bytes)
+    {
+        return Convert.ToHexString(SHA256.HashData(bytes));
+    }
+
     private sealed record PairingWindow(string Code, DateTimeOffset ExpiresAt, int AttemptsLeft);
 
     private sealed record VersionedFocusDay(string Version, LinkFocusDay Day);
@@ -545,6 +649,9 @@ public sealed class LinkServer : IAsyncDisposable
         private LinkEndEarlyTerms? _endEarlyTerms;
         private string? _settingsVersion;
         private string? _focusDayVersion;
+
+        // Hashes of the sync files sent on this connection or received on it.
+        private readonly HashSet<string> _syncFiles = [];
 
         public Connection(Stream stream)
         {
@@ -568,6 +675,16 @@ public sealed class LinkServer : IAsyncDisposable
         {
             get => Volatile.Read(ref _focusDayVersion);
             set => Volatile.Write(ref _focusDayVersion, value);
+        }
+
+        /// <summary>Notes that the device has this sync file (by its hash): sent to it, or received from it.</summary>
+        /// <returns>True when it is new on this connection.</returns>
+        public bool MarkSyncFile(string hash)
+        {
+            lock (_syncFiles)
+            {
+                return _syncFiles.Add(hash);
+            }
         }
 
         /// <summary>The terms given for ending early, until used or the session changes.</summary>

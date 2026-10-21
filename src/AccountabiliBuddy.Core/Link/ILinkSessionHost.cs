@@ -46,4 +46,18 @@ public interface ILinkSessionHost
     /// <summary>Ends the running session with this reason; the link has already checked the wait and the length.</summary>
     /// <returns>Null when it ended, otherwise why not.</returns>
     Task<string?> EndEarlyAsync(string reason);
+
+    /// <summary>Raised when what <see cref="GetSyncFilesAsync"/> returns may have changed.</summary>
+    event EventHandler? SyncFilesChanged;
+
+    /// <summary>
+    /// The sealed sync files (ADR 22) paired phones get: this PC's own and the last one received from each other device,
+    /// as it arrived. The same bytes until a file changes, since the link sends each file once per connection. Empty
+    /// outside a device group or while sharing over the link is off.
+    /// </summary>
+    Task<IReadOnlyList<byte[]>> GetSyncFilesAsync();
+
+    /// <summary>Takes a sealed sync file a phone carried (ADR 22) by the PC's own rules.</summary>
+    /// <returns>Null when it was taken, otherwise why not (e.g. this PC isn't in a device group).</returns>
+    Task<string?> AcceptSyncFileAsync(byte[] sealedBytes);
 }

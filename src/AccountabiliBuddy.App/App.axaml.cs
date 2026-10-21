@@ -319,6 +319,7 @@ public partial class App : Application
             _sessions, _configuration, activityLog, omittedSessions, deletedUsage, privacy, sleepSettings, dayBarSettings, documents, syncSettings,
             syncIdentity, receivedDevices, syncEditTimes);
         syncCoordinator.LoadBlocking();
+        linkHost.UseSync(syncCoordinator, receivedDevices, syncIdentity, syncSettings);
         _syncFolder = new AccountabiliBuddy.App.Services.Sync.SyncFolderService(syncCoordinator, syncSettings, syncIdentity, receivedDevices, _sessions);
 
         var setupViewModel = new SetupViewModel(

@@ -65,4 +65,13 @@ public static class LinkMessages
 
     /// <summary><see cref="LinkResult"/>: the connection is refused (bad code or token, unpaired); the PC closes it.</summary>
     public const string Refused = "refused";
+
+    // Both ways.
+
+    /// <summary>
+    /// <see cref="LinkSyncFile"/>: a sealed sync file (ADR 22). The PC sends its own and each one it received, after
+    /// sign-in and when they change, each once per connection; a phone sends the files it carries, and the PC answers
+    /// each with <see cref="Result"/>. A watch gets none and can't send one.
+    /// </summary>
+    public const string SyncFile = "syncFile";
 }

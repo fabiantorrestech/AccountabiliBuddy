@@ -1,20 +1,23 @@
 using System.Text.Json;
 using AccountabiliBuddy.App.Services.Backup;
+using AccountabiliBuddy.App.Services.Sync;
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Link;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
+using AccountabiliBuddy.Core.Sync;
 using Avalonia.Threading;
+using Microsoft.Data.Sqlite;
 
 namespace AccountabiliBuddy.App.Services.Link;
 
 /// <summary>
 /// The app's side of the link (<see cref="ILinkSessionHost"/>): the running session, the profiles and the count-up
 /// profile, starting a session, ending one early by the same rules as the End session dialog, and the settings the
-/// device shows (profiles, sleep, day bar, upcoming events; L2) and today's focus (ADR 21). Every call runs on the UI
-/// thread, where the session lives.
+/// device shows (profiles, sleep, day bar, upcoming events; L2), today's focus (ADR 21) and the sync files (ADR 22,
+/// once <see cref="UseSync"/> is called). Every call runs on the UI thread, where the session lives.
 /// </summary>
 public sealed class LinkSessionHost : ILinkSessionHost
 {
@@ -41,6 +44,16 @@ public sealed class LinkSessionHost : ILinkSessionHost
     private readonly PrivacySettingsService _privacy;
     private readonly DispatcherTimer _focusDayTimer;
     private DateOnly _focusDayDate;
+
+    // Device sync (ADR 22), set by UseSync.
+    private SyncCoordinator? _sync;
+    private ReceivedDevicesService? _received;
+    private SyncIdentityService? _identity;
+    private SyncSettingsService? _syncSettings;
+
+    // This PC's own sealed file, kept until its data changes: the link sends a file again only when its bytes change.
+    private byte[]? _ownSyncFile;
+    private int _ownSyncFileGeneration;
 
     public LinkSessionHost(
         SessionController sessions,
@@ -99,6 +112,8 @@ public sealed class LinkSessionHost : ILinkSessionHost
     public event EventHandler? SettingsChanged;
 
     public event EventHandler? FocusDayChanged;
+
+    public event EventHandler? SyncFilesChanged;
 
     /// <summary>Raised (on the UI thread) with the reason when a linked device ended the session early.</summary>
     public event EventHandler<string>? EndedFromDevice;
@@ -200,7 +215,92 @@ public sealed class LinkSessionHost : ILinkSessionHost
         {
             _focusDayDate = today;
             FocusDayChanged?.Invoke(this, EventArgs.Empty);
+            // The running session's file grows with it too.
+            OnSyncDataChanged();
         }
+    }
+
+    /// <summary>
+    /// Lets the link carry sync files (ADR 22): this PC's own and the last one received from each other device, and
+    /// files a phone carried. The sync services are built after the link, so they are passed here, once.
+    /// </summary>
+    public void UseSync(SyncCoordinator coordinator, ReceivedDevicesService received, SyncIdentityService identity, SyncSettingsService settings)
+    {
+        _sync = coordinator;
+        _received = received;
+        _identity = identity;
+        _syncSettings = settings;
+        // This PC's own data, a new group (another key) or the switch: its own file is sealed again.
+        coordinator.OwnDataChanged += (_, _) => OnSyncDataChanged();
+        identity.Changed += (_, _) => OnSyncDataChanged();
+        settings.Changed += (_, _) => OnSyncDataChanged();
+        // A newer file to pass on. Its own file isn't sealed again for it (as OwnDataChanged isn't raised for received
+        // files), so a phone and this PC never answer each other's "seen" times forever.
+        received.Changed += (_, _) => SyncFilesChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public Task<IReadOnlyList<byte[]>> GetSyncFilesAsync()
+    {
+        return Dispatcher.UIThread.InvokeAsync(BuildSyncFilesAsync);
+    }
+
+    /// <summary>
+    /// This PC's own file (sealed again only after its data changed) and each received one as it arrived: a merged copy
+    /// is never re-sealed and passed on. Without its own file while the history can't be read.
+    /// </summary>
+    private async Task<IReadOnlyList<byte[]>> BuildSyncFilesAsync()
+    {
+        if (_sync is null || _received is null || _identity?.Key is not SyncKey key || _syncSettings?.Current.LinkOn != true)
+        {
+            return Array.Empty<byte[]>();
+        }
+
+        if (_ownSyncFile is null)
+        {
+            int generation = _ownSyncFileGeneration;
+            try
+            {
+                SyncFile own = await _sync.BuildOwnFileAsync();
+                // Kept only when nothing changed while it was built (a change has already asked for a new one).
+                if (generation == _ownSyncFileGeneration)
+                {
+                    _ownSyncFile = SyncFileCodec.Seal(own, key);
+                }
+            }
+            catch (SqliteException)
+            {
+                // The history can't be read right now; the next change tries again.
+            }
+        }
+
+        var files = new List<byte[]>();
+        if (_ownSyncFile is not null)
+        {
+            files.Add(_ownSyncFile);
+        }
+
+        files.AddRange(_received.Devices.Select(device => device.Sealed));
+        return files;
+    }
+
+    public Task<string?> AcceptSyncFileAsync(byte[] sealedBytes)
+    {
+        return Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            if (_sync is null || _syncSettings?.Current.LinkOn != true)
+            {
+                return "Sharing progress over the network link is off on this PC.";
+            }
+
+            return await _sync.AcceptSealedAsync(sealedBytes, SyncDeviceCard.MethodLink);
+        });
+    }
+
+    private void OnSyncDataChanged()
+    {
+        _ownSyncFile = null;
+        _ownSyncFileGeneration++;
+        SyncFilesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private DateOnly Today()
