@@ -16,3 +16,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "AccountabiliBuddy"
 include(":app")
+// The Pixel Watch companion (ADR 21, Proposed; mockup on sample data).
+include(":wear")

@@ -29,6 +29,7 @@ src/AccountabiliBuddy.App/               Avalonia tray app
 src/AccountabiliBuddy.NativeHost/        browser native messaging host
 extensions/                              browser extension (shared + per-browser manifests)
 android/                                 Android companion (Kotlin, Compose; doc/plans/android-companion.md)
+android/wear/                            Pixel Watch companion (mockup on sample data; ADR 21 Proposed)
 doc/adr/                                 architecture decision records
 handoffContext/                          agent handoff (gitignored)
 ```
@@ -40,6 +41,7 @@ dotnet run --project src/AccountabiliBuddy.App   # uses %LocalAppData%\Accountab
 pwsh scripts/package.ps1 [-Version x.y.z] [-Publish]   # installer + portable zip in releases/; -Publish uploads them to the public releases repo (needs vpk 1.2.161 and gh auth login)
 cd android && JAVA_HOME="C:/Program Files/Android/Android Studio/jbr" ./gradlew assembleDebug   # Android companion APK (app/build/outputs/apk/debug)
 cd android && JAVA_HOME="C:/Program Files/Android/Android Studio/jbr" ./gradlew assembleRelease   # small R8 build (~2.5 MB), signed with this PC's debug key so it installs over the debug build
+cd android && JAVA_HOME="C:/Program Files/Android/Android Studio/jbr" ./gradlew :wear:assembleDebug   # the watch app (wear/build/outputs/apk/debug); same app id as the phone app
 ```
 
 ## Roadmap
