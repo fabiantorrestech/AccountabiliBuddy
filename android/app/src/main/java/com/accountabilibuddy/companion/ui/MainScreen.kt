@@ -71,7 +71,10 @@ fun MainScreen(
         bottomBar = {
             // Hidden while the day plan editor is open: its own Save and Cancel lead out.
             if (planDraft == null) NavigationBar {
-                listOf("Today" to R.drawable.ic_tab_today, "Profiles" to R.drawable.ic_tab_profiles, "Settings" to R.drawable.ic_tab_settings)
+                listOf(
+                    "Today" to R.drawable.ic_tab_today, "Profiles" to R.drawable.ic_tab_profiles,
+                    "Settings" to R.drawable.ic_tab_settings, "About" to R.drawable.ic_tab_about,
+                )
                     .forEachIndexed { index, (label, icon) ->
                         NavigationBarItem(
                             selected = tab == index,
@@ -123,7 +126,7 @@ fun MainScreen(
                     pcState = (linkStatus as? LinkStatus.Connected)?.state,
                     deviceName = viewModel.deviceName,
                 )
-                else -> {
+                2 -> {
                     // Curbox's status shows only here: ask it when Settings opens, or the app comes back to it.
                     LifecycleStartEffect(Unit) {
                         viewModel.refreshCurbox()
@@ -146,6 +149,7 @@ fun MainScreen(
                         onUnpairPc = viewModel::unpairPc,
                     )
                 }
+                else -> AboutScreen(pcName = pairedPc?.pcName)
             }
         }
     }
