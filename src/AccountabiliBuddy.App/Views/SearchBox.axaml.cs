@@ -33,16 +33,23 @@ public partial class SearchBox : UserControl
     }
 
     // A click anywhere else in the window takes the focus out of the box, so it shrinks (and its dropdown closes) even
-    // when the click lands on something that can't take the focus itself, like a page's background. The dropdown is its
-    // own popup window, so clicks in it never get here.
+    // when the click lands on something that can't take the focus itself, like a page's background. Clicks in the
+    // dropdown route through the window too (its popup's events go through the box), and those must reach the result.
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (!Box.IsKeyboardFocusWithin || e.Source is not Visual clicked || ReferenceEquals(clicked, this) || this.IsVisualAncestorOf(clicked))
+        if (!Box.IsKeyboardFocusWithin || e.Source is not Visual clicked || ReferenceEquals(clicked, this)
+            || this.IsVisualAncestorOf(clicked) || IsInDropdown(clicked))
         {
             return;
         }
 
         _topLevel?.FocusManager?.Focus(null);
+    }
+
+    private bool IsInDropdown(Visual visual)
+    {
+        return Dropdown.Child is Visual content
+               && (ReferenceEquals(visual, content) || visual.IsVisualAncestorOf(content) || content.IsVisualAncestorOf(visual));
     }
 
     /// <summary>Puts the cursor in the box with its text selected (Ctrl+F).</summary>
@@ -63,9 +70,7 @@ public partial class SearchBox : UserControl
             }
 
             object? focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
-            bool insideDropdown = focused is Visual visual && Dropdown.Child is Visual content
-                                  && (ReferenceEquals(visual, content) || visual.IsVisualAncestorOf(content) || content.IsVisualAncestorOf(visual));
-            if (!insideDropdown)
+            if (focused is not Visual visual || !IsInDropdown(visual))
             {
                 search.IsOpen = false;
             }
