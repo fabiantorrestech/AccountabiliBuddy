@@ -26,7 +26,7 @@ public static class SyncFileCodec
 
     public static byte[] Seal(SyncFile file, SyncKey key)
     {
-        byte[] compressed = Deflate(JsonSerializer.SerializeToUtf8Bytes(file, LinkFraming.JsonOptions));
+        byte[] compressed = Compress(file);
         byte[] output = new byte[HeaderBytes + compressed.Length + TagBytes];
         Magic.CopyTo(output, 0);
         Convert.FromHexString(key.GroupId).CopyTo(output, MagicBytes);
@@ -36,6 +36,12 @@ public static class SyncFileCodec
         using var aes = new AesGcm(key.Key, TagBytes);
         aes.Encrypt(nonce, compressed, output.AsSpan(HeaderBytes, compressed.Length), output.AsSpan(HeaderBytes + compressed.Length, TagBytes));
         return output;
+    }
+
+    /// <returns>How many bytes <see cref="Seal"/> gives for the file (its nonce is random, its length isn't), without the key.</returns>
+    public static int SealedLength(SyncFile file)
+    {
+        return HeaderBytes + Compress(file).Length + TagBytes;
     }
 
     /// <returns>
@@ -106,6 +112,11 @@ public static class SyncFileCodec
             && (file.DayPlan is null or { PlanJson: not null, Version: not null })
             && file.Documents is not null
             && file.Documents.All(document => document is { Key: not null, Json: not null });
+    }
+
+    private static byte[] Compress(SyncFile file)
+    {
+        return Deflate(JsonSerializer.SerializeToUtf8Bytes(file, LinkFraming.JsonOptions));
     }
 
     private static byte[] Deflate(byte[] json)

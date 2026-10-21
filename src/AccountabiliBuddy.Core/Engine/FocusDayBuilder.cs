@@ -14,8 +14,8 @@ public static class FocusDayBuilder
 {
     private const int WeekDays = 7;
 
-    // Coming back to the same site within this long is one visit (as on the day bar).
-    private static readonly TimeSpan DriftGap = TimeSpan.FromMinutes(2);
+    /// <summary>Coming back to the same site within this long is one visit (as on the day bar; sync files too).</summary>
+    internal static readonly TimeSpan DriftGap = TimeSpan.FromMinutes(2);
 
     /// <param name="records">Newest first (<see cref="SessionHistoryBuilder.Build"/>), covering the week and the day before it.</param>
     /// <param name="drift">Drift inside counted sessions on <paramref name="day"/> (omitted and scheduled time already left out).</param>
@@ -77,6 +77,20 @@ public static class FocusDayBuilder
     private static List<CountedSession> Counted(
         IReadOnlyList<SessionRecord> records, Func<DateTimeOffset, bool> isOmitted, bool sessionRunning, DateTimeOffset now, TimeZoneInfo zone)
     {
+        return CountedRecords(records, isOmitted, sessionRunning, now)
+            .Select(counted => new CountedSession(new LocalWindow(Local(counted.Record.StartedAt, zone), Local(counted.End, zone)),
+                counted.Record.ProfileId, counted.Record.Mode == SessionMode.Added, counted.Running))
+            .ToList();
+    }
+
+    /// <summary>
+    /// The rule for which recorded sessions count, shared with <see cref="Sync.SyncFileBuilder"/>: not omitted ones or
+    /// old scheduled blocks, and of the sessions without an end only the newest the app recorded, while it runs.
+    /// </summary>
+    /// <returns>In the order of <paramref name="records"/>; the running one ends at <paramref name="now"/>.</returns>
+    internal static List<(SessionRecord Record, DateTimeOffset End, bool Running)> CountedRecords(
+        IReadOnlyList<SessionRecord> records, Func<DateTimeOffset, bool> isOmitted, bool sessionRunning, DateTimeOffset now)
+    {
         // The session running now is the newest one the app recorded (an added one never runs).
         int newestRecorded = -1;
         for (int i = 0; i < records.Count && newestRecorded < 0; i++)
@@ -84,7 +98,7 @@ public static class FocusDayBuilder
             newestRecorded = records[i].Mode == SessionMode.Added ? -1 : i;
         }
 
-        var counted = new List<CountedSession>();
+        var counted = new List<(SessionRecord Record, DateTimeOffset End, bool Running)>();
         for (int i = 0; i < records.Count; i++)
         {
             SessionRecord record = records[i];
@@ -97,14 +111,12 @@ public static class FocusDayBuilder
             {
                 if (ended > record.StartedAt)
                 {
-                    counted.Add(new CountedSession(new LocalWindow(Local(record.StartedAt, zone), Local(ended, zone)), record.ProfileId,
-                        record.Mode == SessionMode.Added, Running: false));
+                    counted.Add((record, ended, Running: false));
                 }
             }
             else if (i == newestRecorded && sessionRunning && now > record.StartedAt)
             {
-                counted.Add(new CountedSession(new LocalWindow(Local(record.StartedAt, zone), Local(now, zone)), record.ProfileId,
-                    Added: false, Running: true));
+                counted.Add((record, now, Running: true));
             }
         }
 
@@ -140,12 +152,12 @@ public static class FocusDayBuilder
         return new LocalWindow(start, start.AddDays(1));
     }
 
-    private static DateTime Local(DateTimeOffset time, TimeZoneInfo zone)
+    internal static DateTime Local(DateTimeOffset time, TimeZoneInfo zone)
     {
         return TimeZoneInfo.ConvertTime(time, zone).DateTime;
     }
 
-    private static DateTimeOffset At(DateTime local, TimeZoneInfo zone)
+    internal static DateTimeOffset At(DateTime local, TimeZoneInfo zone)
     {
         return new DateTimeOffset(local, zone.GetUtcOffset(local));
     }
