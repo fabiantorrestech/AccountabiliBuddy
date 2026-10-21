@@ -18,6 +18,7 @@ object LinkMessages {
     const val WELCOME = "welcome"
     const val STATE = "state"
     const val SETTINGS = "settings"
+    const val FOCUS_DAY = "focusDay"
     const val END_EARLY_TERMS = "endEarlyTerms"
     const val RESULT = "result"
     const val DAY_PLAN_ANSWER = "dayPlanAnswer"

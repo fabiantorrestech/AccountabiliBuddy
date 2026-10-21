@@ -11,6 +11,7 @@ import com.accountabilibuddy.companion.link.LinkClient
 import com.accountabilibuddy.companion.link.LinkDiscovery
 import com.accountabilibuddy.companion.link.LinkStore
 import com.accountabilibuddy.companion.notify.Refresher
+import com.accountabilibuddy.shared.FocusDayJson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -45,6 +46,7 @@ class CompanionApp : Application() {
             LinkStore(File(filesDir, "companion/link.json")), deviceName, deviceKind(), appScope, LinkDiscovery(this), ::applyPcSettings,
             // Without the PC's plan version (a phone-only update, a cleared import) ask for everything again.
             needsFullSettings = { store.state.value.hasImport && store.state.value.pcPlanVersion == null },
+            applyFocusDay = { content -> FocusDayJson.read(content)?.let(store::saveFocusDay) },
         )
         planSync = DayPlanSync(store, link, appScope).also { it.start() }
         Refresher.start(this)

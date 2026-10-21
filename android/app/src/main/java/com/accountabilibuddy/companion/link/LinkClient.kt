@@ -46,6 +46,8 @@ class LinkClient(
     private val applySettings: (content: JsonObject, pcName: String) -> Boolean,
     /** True when the phone lacks something only a full settings push brings (e.g. the plan version, ADR 19). */
     private val needsFullSettings: () -> Boolean = { false },
+    /** Keeps today's focus as the PC counts it (ADR 21), sent at sign-in and when it changes. */
+    private val applyFocusDay: (content: JsonObject) -> Unit = {},
 ) {
     private val _status = MutableStateFlow<LinkStatus>(if (store.pc.value == null) LinkStatus.Unlinked else LinkStatus.Idle)
     private val requests = Mutex()
@@ -273,6 +275,7 @@ class LinkClient(
                     store.setSettingsVersion(version)
                 }
             }
+            LinkMessages.FOCUS_DAY -> body?.let(applyFocusDay)
             LinkMessages.REFUSED -> forget(body?.string("message") ?: "The PC no longer knows this phone. Pair again.")
             else -> pending?.takeIf { message.type in it.types }?.answer?.complete(message)
         }

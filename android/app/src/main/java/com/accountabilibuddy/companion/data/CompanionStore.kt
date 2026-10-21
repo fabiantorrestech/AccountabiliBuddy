@@ -7,6 +7,8 @@ import com.accountabilibuddy.companion.model.LocalWindow
 import com.accountabilibuddy.companion.model.PendingDayPlan
 import com.accountabilibuddy.companion.model.PendingStatus
 import com.accountabilibuddy.companion.model.SleepSettings
+import com.accountabilibuddy.shared.FocusDay
+import com.accountabilibuddy.shared.FocusDayJson
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -79,6 +81,12 @@ class CompanionStore(private val folder: File) {
     fun saveSleep(settings: SleepSettings) = synchronized(lock) {
         write(SLEEP, SettingsJson.sleepJson(settings))
         _state.update { it.copy(sleep = settings) }
+    }
+
+    /** Today's focus from the linked PC (ADR 21); kept as a file so the watch has it after a restart. */
+    fun saveFocusDay(day: FocusDay) = synchronized(lock) {
+        write(FOCUS_DAY, FocusDayJson.write(day))
+        _state.update { it.copy(focusDay = day) }
     }
 
     fun setTimelineNotification(on: Boolean) = updatePhone { it.copy(timelineNotificationOn = on) }
@@ -173,7 +181,7 @@ class CompanionStore(private val folder: File) {
 
     /** Forgets everything imported (the phone's own choices stay). */
     fun clearImport() = synchronized(lock) {
-        listOf(PROFILES, EVENTS, DAY_BAR, PLAN_META, PENDING_PLAN).forEach { File(folder, it).delete() }
+        listOf(PROFILES, EVENTS, DAY_BAR, PLAN_META, PENDING_PLAN, FOCUS_DAY).forEach { File(folder, it).delete() }
         _state.update { CompanionState(sleep = it.sleep, timelineNotificationOn = it.timelineNotificationOn, bedtimeReminderOn = it.bedtimeReminderOn) }
         savePhone()
     }
@@ -219,6 +227,7 @@ class CompanionStore(private val folder: File) {
         read(SLEEP)?.let { json -> runCatching { SettingsJson.sleep(json.jsonObject) }.onSuccess { state = state.copy(sleep = it) } }
         read(DAY_BAR)?.let { json -> runCatching { SettingsJson.dayBar(json.jsonObject) }.onSuccess { state = state.copy(dayBar = it) } }
         read(EVENTS)?.let { json -> (json as? JsonArray)?.let { state = state.copy(events = SettingsJson.events(it)) } }
+        (read(FOCUS_DAY) as? JsonObject)?.let(FocusDayJson::read)?.let { state = state.copy(focusDay = it) }
         (read(PHONE) as? JsonObject)?.let { phone ->
             state = state.copy(
                 importedFrom = phone.string("importedFrom"),
@@ -260,6 +269,7 @@ class CompanionStore(private val folder: File) {
         private const val PHONE = "phone.json"
         private const val PLAN_META = "dayplan-meta.json"
         private const val PENDING_PLAN = "dayplan-pending.json"
+        private const val FOCUS_DAY = "focusday.json"
         private val STAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
     }
 }
