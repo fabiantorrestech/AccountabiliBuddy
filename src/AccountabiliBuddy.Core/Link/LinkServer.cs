@@ -237,7 +237,10 @@ public sealed class LinkServer : IAsyncDisposable
                     await SendSettingsIfNewerAsync(connection, await SettingsAsync().ConfigureAwait(false), stopping).ConfigureAwait(false);
                 }
 
-                await SendFocusDayIfChangedAsync(connection, await FocusDayAsync().ConfigureAwait(false), stopping).ConfigureAwait(false);
+                if (await FocusDayAsync().ConfigureAwait(false) is VersionedFocusDay focusDay)
+                {
+                    await SendFocusDayIfChangedAsync(connection, focusDay, stopping).ConfigureAwait(false);
+                }
 
                 while (await LinkFraming.ReadAsync(tls, stopping).ConfigureAwait(false) is LinkEnvelope request)
                 {
@@ -480,7 +483,11 @@ public sealed class LinkServer : IAsyncDisposable
             return;
         }
 
-        VersionedFocusDay focusDay = await FocusDayAsync().ConfigureAwait(false);
+        if (await FocusDayAsync().ConfigureAwait(false) is not VersionedFocusDay focusDay)
+        {
+            return;
+        }
+
         foreach (Connection connection in _connections.Keys)
         {
             try
@@ -505,10 +512,23 @@ public sealed class LinkServer : IAsyncDisposable
         await connection.SendAsync(LinkEnvelope.Of(LinkMessages.FocusDay, focusDay.Day), cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>The host's focus day with a hash of its JSON, to send it only when it changed.</summary>
-    private async Task<VersionedFocusDay> FocusDayAsync()
+    /// <summary>
+    /// The host's focus day with a hash of its JSON, to send it only when it changed; null when it couldn't be built
+    /// (e.g. the history couldn't be read): nothing is sent then, so devices keep what they had, and signing in and the
+    /// requests after it never depend on it.
+    /// </summary>
+    private async Task<VersionedFocusDay?> FocusDayAsync()
     {
-        LinkFocusDay day = await _host.GetFocusDayAsync().ConfigureAwait(false);
+        LinkFocusDay day;
+        try
+        {
+            day = await _host.GetFocusDayAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return null;
+        }
+
         string version = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(day, LinkFraming.JsonOptions)));
         return new VersionedFocusDay(version, day);
     }

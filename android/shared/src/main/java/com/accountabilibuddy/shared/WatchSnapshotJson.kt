@@ -24,6 +24,8 @@ object WatchSnapshotJson {
         put("plannedMinutes", snapshot.plannedMinutes)
         put("week", buildJsonArray { snapshot.week.forEach { add(FocusDayJson.writeTotal(it)) } })
         put("wifiAllowed", snapshot.wifiAllowed)
+        put("dataAt", snapshot.dataAt.toString())
+        put("relayAllowed", snapshot.relayAllowed)
         snapshot.running?.let { running ->
             put("running", buildJsonObject {
                 running.profile?.let { put("profile", it) }
@@ -49,8 +51,10 @@ object WatchSnapshotJson {
             plannedMinutes = json.int("plannedMinutes") ?: 0,
             week = json.objects("week").mapNotNull(FocusDayJson::readTotal),
             running = (json["running"] as? JsonObject)?.let(::running),
-            // Snapshots from before the switch existed allow it (its default).
+            // Snapshots from before these existed: the switches' defaults, and data as old as the snapshot.
             wifiAllowed = (json["wifiAllowed"] as? kotlinx.serialization.json.JsonPrimitive)?.let { json.bool("wifiAllowed") } ?: true,
+            dataAt = json.instant("dataAt") ?: createdAt,
+            relayAllowed = (json["relayAllowed"] as? kotlinx.serialization.json.JsonPrimitive)?.let { json.bool("relayAllowed") } ?: true,
         )
     }
 

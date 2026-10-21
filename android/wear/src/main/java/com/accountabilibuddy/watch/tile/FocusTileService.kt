@@ -41,6 +41,8 @@ class FocusTileService : Material3TileService() {
                     column(
                         text(glance.headline.layoutString, typography = if (numeric) Typography.NUMERAL_SMALL else Typography.TITLE_SMALL),
                         text(glance.detail.layoutString, typography = Typography.BODY_SMALL),
+                        // How old the data is, when it isn't fresh.
+                        text((glance.updated ?: "").layoutString, typography = Typography.BODY_EXTRA_SMALL),
                     ),
                 )
             },

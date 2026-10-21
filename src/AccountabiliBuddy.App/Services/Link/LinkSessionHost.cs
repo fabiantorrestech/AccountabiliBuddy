@@ -7,7 +7,6 @@ using AccountabiliBuddy.Core.Link;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using Avalonia.Threading;
-using Microsoft.Data.Sqlite;
 
 namespace AccountabiliBuddy.App.Services.Link;
 
@@ -39,6 +38,7 @@ public sealed class LinkSessionHost : ILinkSessionHost
     private readonly IActivityLog _log;
     private readonly OmittedSessionsService _omitted;
     private readonly DeletedUsageService _deleted;
+    private readonly PrivacySettingsService _privacy;
     private readonly DispatcherTimer _focusDayTimer;
     private DateOnly _focusDayDate;
 
@@ -52,7 +52,8 @@ public sealed class LinkSessionHost : ILinkSessionHost
         DayBarSettingsService dayBar,
         IActivityLog log,
         OmittedSessionsService omitted,
-        DeletedUsageService deleted)
+        DeletedUsageService deleted,
+        PrivacySettingsService privacy)
     {
         _sessions = sessions;
         _configuration = configuration;
@@ -76,11 +77,14 @@ public sealed class LinkSessionHost : ILinkSessionHost
         _log = log;
         _omitted = omitted;
         _deleted = deleted;
+        _privacy = privacy;
         _focusDayDate = Today();
         _sessions.StateChanged += (_, _) => FocusDayChanged?.Invoke(this, EventArgs.Empty);
         _configuration.Changed += (_, _) => FocusDayChanged?.Invoke(this, EventArgs.Empty);
         omitted.Changed += (_, _) => FocusDayChanged?.Invoke(this, EventArgs.Empty);
         deleted.Changed += (_, _) => FocusDayChanged?.Invoke(this, EventArgs.Empty);
+        // ADR 15: turning Activity history off stops sending it (the plan still goes).
+        privacy.Changed += (_, _) => FocusDayChanged?.Invoke(this, EventArgs.Empty);
         _focusDayTimer = new DispatcherTimer { Interval = FocusDayRefresh };
         _focusDayTimer.Tick += (_, _) => OnFocusDayTick();
         _focusDayTimer.Start();
@@ -149,7 +153,7 @@ public sealed class LinkSessionHost : ILinkSessionHost
         return JsonSerializer.SerializeToElement(content, LinkFraming.JsonOptions);
     }
 
-    /// <summary>A session was added, edited or deleted by hand in History (ADR 20).</summary>
+    /// <summary>The history changed: a session added, edited or deleted by hand (ADR 20), new activity, or "Delete my data".</summary>
     public void NotifyHistoryChanged()
     {
         FocusDayChanged?.Invoke(this, EventArgs.Empty);
@@ -160,7 +164,10 @@ public sealed class LinkSessionHost : ILinkSessionHost
         return Dispatcher.UIThread.InvokeAsync(BuildFocusDayAsync);
     }
 
-    /// <summary>Today's focus from the history, as the day bar counts it; the plan alone when the history can't be read.</summary>
+    /// <summary>
+    /// Today's focus from the history, as the day bar counts it; the plan alone while Activity history is off (ADR 15).
+    /// When the history can't be read this throws, and the link sends nothing (devices keep what they had).
+    /// </summary>
     private async Task<LinkFocusDay> BuildFocusDayAsync()
     {
         TimeZoneInfo zone = _sessions.TimeProvider.LocalTimeZone;
@@ -169,7 +176,7 @@ public sealed class LinkSessionHost : ILinkSessionHost
         DateTime todayStart = today.ToDateTime(TimeOnly.MinValue);
         IReadOnlyList<SessionRecord> records = Array.Empty<SessionRecord>();
         IReadOnlyList<DriftStretch> drift = Array.Empty<DriftStretch>();
-        try
+        if (_privacy.Current.ActivityLogEnabled)
         {
             // The week and the day before it, so a session that ran into the first day has its start.
             records = SessionHistoryBuilder.Build(await _log.GetSessionEventsAsync(At(todayStart.AddDays(-7), zone), At(todayStart.AddDays(2), zone)));
@@ -178,10 +185,6 @@ public sealed class LinkSessionHost : ILinkSessionHost
                 .Select(record => new TimeRange(record.StartedAt, record.EndedAt ?? now))
                 .ToList();
             drift = await _log.GetDriftAsync(At(todayStart, zone), At(todayStart.AddDays(1), zone), leftOut, _deleted.Parts);
-        }
-        catch (SqliteException)
-        {
-            // Sent without the history; the next change or refresh tries again.
         }
 
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;

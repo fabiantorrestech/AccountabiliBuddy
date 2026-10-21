@@ -1,12 +1,13 @@
 package com.accountabilibuddy.shared
 
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 
 /**
  * What the snapshot is made from. [parts] is today's plan as the sender has it (the phone's own plan, edits included).
- * [focusDay] is the PC's last "focusDay", which arrived at [focusDayAt]. [running] is the PC's running focus session,
- * known only while [pcConnected].
+ * [focusDay] is the PC's last "focusDay", which arrived at [focusDayAt]. [running] is the PC's running focus session as
+ * it last said, at [runningAt] (now while [pcConnected]).
  */
 data class SnapshotInput(
     val now: Instant,
@@ -19,24 +20,38 @@ data class SnapshotInput(
     val running: RunningSession?,
     val pcConnected: Boolean,
     val wifiAllowed: Boolean = true,
+    val runningAt: Instant? = null,
+    val relayAllowed: Boolean = true,
 )
 
 /**
  * Builds the watch's [WatchSnapshot] (ADR 21) for today. A focus day from another date never reaches today's rings
- * (its dated week totals stay). A session the PC sent as running stays open only while the PC says so; otherwise it
- * ends when the PC last said anything. A session running across midnight shows only its part after midnight.
+ * (its dated week totals stay). While the phone isn't connected to the PC (most of the time, ADR 14), the session the
+ * PC last said runs is taken to run until its end, or for up to 12 hours with no set end; after that, or when the PC
+ * says nothing runs, an open session ends at that end or when the PC last said anything. A session running across
+ * midnight shows only its part after midnight.
  */
 object SnapshotBuilder {
     private const val WEEK_DAYS = 7L
+
+    // A session with no set end is taken to run this long after the PC last said so.
+    private val NO_END_LIMIT: Duration = Duration.ofHours(12)
 
     fun build(input: SnapshotInput): WatchSnapshot {
         val today = input.now.atZone(input.zone).toLocalDate()
         val dayStart = today.atStartOfDay(input.zone).toInstant()
         val dayEnd = today.plusDays(1).atStartOfDay(input.zone).toInstant()
         val current = input.focusDay?.takeIf { it.date == today }
-        val running = input.running.takeIf { input.pcConnected }
+        val lastRunning = input.running
+        val running = when {
+            input.pcConnected || lastRunning == null -> lastRunning
+            lastRunning.endsAt != null -> lastRunning.takeIf { lastRunning.endsAt.isAfter(input.now) }
+            else -> lastRunning.takeIf { input.runningAt != null && Duration.between(input.runningAt, input.now) < NO_END_LIMIT }
+        }
 
-        val closeAt = minOf(input.now, input.focusDayAt ?: input.now)
+        // Nothing runs (any more): an open session ends at the known end, else when the PC last said anything.
+        val closeAt = lastRunning?.endsAt?.takeIf { !input.pcConnected }?.let { minOf(it, input.now) }
+            ?: minOf(input.now, input.focusDayAt ?: input.now)
         val sessions = current?.sessions.orEmpty().map { session ->
             if (session.end == null && running == null) session.copy(end = maxOf(session.start, closeAt)) else session
         }.toMutableList()
@@ -60,6 +75,8 @@ object SnapshotBuilder {
             week = emptyList(),
             running = running,
             wifiAllowed = input.wifiAllowed,
+            dataAt = if (input.pcConnected) input.now else listOfNotNull(input.focusDayAt, input.runningAt).maxOrNull() ?: input.now,
+            relayAllowed = input.relayAllowed,
         )
 
         // The PC's totals for the days before today (dated, so an older focus day still counts), and today live.

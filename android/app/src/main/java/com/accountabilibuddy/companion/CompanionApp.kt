@@ -60,6 +60,7 @@ class CompanionApp : Application() {
             // Without the PC's plan version (a phone-only update, a cleared import) ask for everything again.
             needsFullSettings = { store.state.value.hasImport && store.state.value.pcPlanVersion == null },
             applyFocusDay = { content -> FocusDayJson.read(content)?.let(store::saveFocusDay) },
+            onForget = store::clearFocusDay,
         )
         planSync = DayPlanSync(store, link, appScope).also { it.start() }
         watchBridge = WatchBridge(this, store, link, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope) { appOnScreen }

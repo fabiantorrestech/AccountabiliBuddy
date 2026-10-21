@@ -17,8 +17,12 @@ import kotlin.coroutines.resumeWithException
 object PhoneLink {
     private val _phoneReachable = MutableStateFlow<Boolean?>(null)
 
-    // When a message from the phone last came, on the uptime clock; 0 = not since the app started.
+    // When a message from the phone last came, and when the watch last asked, on the uptime clock; 0 = not yet.
     @Volatile private var lastHeard = 0L
+    @Volatile private var lastAsked = 0L
+
+    // Asking wakes the phone (and through it the PC), so not more often than this unless the user asks.
+    private const val ASK_GAP_MS = 2 * 60_000L
 
     /** Whether the last ask reached the phone app; null before the first. */
     val phoneReachable: StateFlow<Boolean?> = _phoneReachable.asStateFlow()
@@ -33,15 +37,27 @@ object PhoneLink {
     /** True when nothing came from the phone for [millis] (or ever, since the app started). */
     fun quietFor(millis: Long): Boolean = lastHeard == 0L || SystemClock.elapsedRealtime() - lastHeard >= millis
 
-    /** Sends "/hello"; the phone answers with a snapshot, or says this watch isn't linked. */
-    suspend fun askForNews(context: Context) {
+    /**
+     * Sends "/hello"; the phone answers with a snapshot, or says this watch isn't linked. With the relay off (the phone's
+     * switch, from the last snapshot) only to a phone that's nearby. Skipped when asked under 2 minutes ago, unless
+     * [force]d; false then.
+     */
+    suspend fun askForNews(context: Context, relayAllowed: Boolean, force: Boolean = false): Boolean {
+        val now = SystemClock.elapsedRealtime()
+        if (!force && lastAsked != 0L && now - lastAsked < ASK_GAP_MS) {
+            return false
+        }
+
+        lastAsked = now
         val reached = runCatching {
             val phones = Wearable.getCapabilityClient(context)
                 .getCapability(WatchPaths.PHONE_CAPABILITY, CapabilityClient.FILTER_REACHABLE).await().nodes
+                .filter { relayAllowed || it.isNearby }
             val messages = Wearable.getMessageClient(context)
             phones.count { phone -> runCatching { messages.sendMessage(phone.id, WatchPaths.HELLO, ByteArray(0)).await() }.isSuccess } > 0
         }.getOrDefault(false)
         _phoneReachable.value = reached
+        return true
     }
 
     // Google Play services tasks, awaited without the coroutines-play-services library (not a dependency).

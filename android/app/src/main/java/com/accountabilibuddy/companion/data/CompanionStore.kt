@@ -90,6 +90,12 @@ class CompanionStore(private val folder: File) {
         _state.update { it.copy(focusDay = day, focusDayAt = at) }
     }
 
+    /** Forgets the focus history received from the PC (the PC was unpaired, ADR 15). */
+    fun clearFocusDay() = synchronized(lock) {
+        File(folder, FOCUS_DAY).delete()
+        _state.update { it.copy(focusDay = null, focusDayAt = null) }
+    }
+
     fun setTimelineNotification(on: Boolean) = updatePhone { it.copy(timelineNotificationOn = on) }
 
     fun setBedtimeReminder(on: Boolean) = updatePhone { it.copy(bedtimeReminderOn = on) }

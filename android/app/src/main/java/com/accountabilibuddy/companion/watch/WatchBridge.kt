@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -66,7 +67,14 @@ class WatchBridge(
     /** Sends when what the watch shows changes, while the app runs. */
     fun start() {
         scope.launch {
-            combine(store.state, link.status, links.settings) { _, _, _ -> Unit }.collectLatest {
+            // The ticker resends now and then while the PC is connected, so the watch's "updated … ago" stays true.
+            val ticker = flow {
+                while (true) {
+                    emit(Unit)
+                    delay(RESEND_MS)
+                }
+            }
+            combine(store.state, link.status, links.settings, link.lastState, ticker) { _, _, _, _, _ -> Unit }.collectLatest {
                 val snapshot = build() ?: return@collectLatest
                 val previous = lastSent
                 if (previous != null && sameContent(previous, snapshot)) {
@@ -122,14 +130,18 @@ class WatchBridge(
     /**
      * The watch app opened and asked for news. When the PC is paired but the phone isn't connected (its app isn't on
      * screen), the phone connects for a moment to get the PC's current session and focus day, then answers. A watch
-     * that isn't the linked one is told it isn't linked.
+     * that isn't the linked one is told it isn't linked. Nothing at all happens when no answer may go to that watch
+     * (Data Layer off, or the relay off and the watch away), so the PC isn't woken for nothing.
      */
     suspend fun answerHello(nodeId: String) {
         val settings = links.settings.value
+        val watch = reachableWatches().firstOrNull { it.id == nodeId }
+        if (!settings.dataLayerOn || watch == null || (!settings.relayOn && !watch.isNearby)) {
+            return
+        }
+
         if (nodeId != settings.linkedNodeId) {
-            if (settings.dataLayerOn) {
-                runCatching { messages.sendMessage(nodeId, WatchPaths.UNLINK, ByteArray(0)).await() }
-            }
+            runCatching { messages.sendMessage(nodeId, WatchPaths.UNLINK, ByteArray(0)).await() }
             return
         }
 
@@ -183,8 +195,12 @@ class WatchBridge(
 
         val pcName = link.pairedPc.value?.pcName
         val settings = links.settings.value
+        val last = link.lastState.value
         return SnapshotBuilder.build(
-            PhoneSnapshot.input(store.state.value, link.status.value, linked = true, pcName, Instant.now(), ZoneId.systemDefault(), settings.wifiFallbackOn),
+            PhoneSnapshot.input(
+                store.state.value, link.status.value, linked = true, pcName, Instant.now(), ZoneId.systemDefault(),
+                wifiAllowed = settings.wifiFallbackOn, lastState = last?.state, lastStateAt = last?.at, relayAllowed = settings.relayOn,
+            ),
         )
     }
 
@@ -209,11 +225,14 @@ class WatchBridge(
             .map { WatchNode(it.id, it.displayName, it.isNearby) }
     }.getOrDefault(emptyList())
 
-    /** The same apart from when it was made. */
-    private fun sameContent(a: WatchSnapshot, b: WatchSnapshot): Boolean = a.copy(createdAt = b.createdAt, week = b.week) == b && a.week.dropLast(1) == b.week.dropLast(1)
+    /** The same apart from when it was made, with data less than a few minutes apart in age. */
+    private fun sameContent(a: WatchSnapshot, b: WatchSnapshot): Boolean =
+        a.copy(createdAt = b.createdAt, dataAt = b.dataAt, week = b.week) == b && a.week.dropLast(1) == b.week.dropLast(1) &&
+            java.time.Duration.between(a.dataAt, b.dataAt).toMillis() < RESEND_MS
 
     private companion object {
         const val MIN_GAP_MS = 10_000L
+        const val RESEND_MS = 5 * 60_000L
         const val PC_WAIT_MS = 8_000L
         const val FOCUS_DAY_WAIT_MS = 3_000L
     }

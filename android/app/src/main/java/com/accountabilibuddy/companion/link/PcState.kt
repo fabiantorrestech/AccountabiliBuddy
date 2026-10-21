@@ -6,6 +6,9 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import java.time.OffsetDateTime
 
+/** The PC's last state and when it came, kept while the link is idle (the watch still shows what runs, ADR 21). */
+data class PcStateAt(val state: PcState, val at: java.time.Instant)
+
 /** A profile the phone can start on the PC. */
 data class PcProfile(val id: String, val name: String)
 

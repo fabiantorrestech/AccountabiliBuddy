@@ -6,21 +6,37 @@ import java.time.ZoneId
 
 /**
  * What the Tile and the watch-face complication show: a ring filled to [value] of [max] (never 0 of 0), a short text
- * for small complications, and a title, headline and detail for the Tile.
+ * for small complications, and a title, headline and detail for the Tile, with how old the data is ([updated], null
+ * while fresh).
  */
-data class Glance(val value: Float, val max: Float, val shortText: String, val title: String, val headline: String, val detail: String)
+data class Glance(
+    val value: Float,
+    val max: Float,
+    val shortText: String,
+    val title: String,
+    val headline: String,
+    val detail: String,
+    val updated: String? = null,
+)
 
 /** Builds the [Glance] (ADR 21): the running session's progress while one runs, else today's focus against the plan. */
 object WatchGlance {
     private const val NONE = "—"
 
     fun from(snapshot: WatchSnapshot?, now: Instant, zone: ZoneId): Glance {
+        val glance = build(snapshot, now, zone)
+        // Yesterday's data already says how old it is in its detail line.
+        return if (snapshot == null || snapshot.date != now.atZone(zone).toLocalDate()) glance
+        else glance.copy(updated = WatchText.updatedAgo(snapshot.dataAt, now))
+    }
+
+    private fun build(snapshot: WatchSnapshot?, now: Instant, zone: ZoneId): Glance {
         if (snapshot == null) {
             return Glance(0f, 1f, NONE, "AccountabiliBuddy", "Not linked", "Link it in the phone app")
         }
 
         if (snapshot.date != now.atZone(zone).toLocalDate()) {
-            return Glance(0f, 1f, NONE, "Today", "No data for today", WatchText.updatedAgo(snapshot.createdAt, now) ?: "")
+            return Glance(0f, 1f, NONE, "Today", "No data for today", WatchText.updatedAgo(snapshot.dataAt, now) ?: "")
         }
 
         val focused = snapshot.focusedMinutes(now, zone)

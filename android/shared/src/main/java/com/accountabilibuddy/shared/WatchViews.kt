@@ -33,7 +33,7 @@ data class TodayView(
             val today = now.atZone(zone).toLocalDate()
             val dayStart = today.atStartOfDay(zone).toInstant()
             fun minuteOf(time: Instant): Int = Duration.between(dayStart, time).toMinutes().toInt().coerceIn(0, MINUTES_PER_DAY)
-            val updated = WatchText.updatedAgo(snapshot.createdAt, now)
+            val updated = WatchText.updatedAgo(snapshot.dataAt, now)
             val nowMinute = minuteOf(now)
             if (snapshot.date != today) {
                 return TodayView(emptyList(), emptyList(), emptyList(), nowMinute, "No data for today", "", null, updated)
@@ -41,7 +41,7 @@ data class TodayView(
 
             val plan = snapshot.parts.map { RingArc(minuteOf(it.start), minuteOf(it.end), argb(it.color), it.name) }
             val focus = snapshot.sessions.mapNotNull { session ->
-                val end = session.end ?: now
+                val end = session.end ?: snapshot.openUntil(now)
                 if (!end.isAfter(session.start)) null else RingArc(minuteOf(session.start), minuteOf(end), FOCUS_COLOR, session.profile ?: "Added", bright = session.end == null)
             }
 
@@ -73,10 +73,23 @@ data class TodayView(
     }
 }
 
-/** The Session page: one ring that fills as the session goes, with the time left (or so far, with no set end). */
-data class SessionView(val title: String, val big: String, val small: String, val fraction: Float, val active: Boolean) {
+/**
+ * The Session page: one ring that fills as the session goes, with the time left (or so far, with no set end), and how
+ * old the data is ([updated], null while fresh).
+ */
+data class SessionView(
+    val title: String,
+    val big: String,
+    val small: String,
+    val fraction: Float,
+    val active: Boolean,
+    val updated: String? = null,
+) {
     companion object {
-        fun from(running: RunningSession?, now: Instant, zone: ZoneId, use24Hour: Boolean): SessionView {
+        fun from(running: RunningSession?, now: Instant, zone: ZoneId, use24Hour: Boolean, dataAt: Instant? = null): SessionView =
+            build(running, now, zone, use24Hour).copy(updated = dataAt?.let { WatchText.updatedAgo(it, now) })
+
+        private fun build(running: RunningSession?, now: Instant, zone: ZoneId, use24Hour: Boolean): SessionView {
             val session = running?.takeIf { it.endsAt == null || it.endsAt.isAfter(now) }
                 ?: return SessionView("Session", "—", "No focus session", 0f, active = false)
             val title = if (session.onBreak) "Break" else session.profile ?: "Focus"

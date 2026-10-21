@@ -40,6 +40,7 @@ fun SessionPage(view: SessionView) {
             Text(view.title, color = color, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             Text(view.big, color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.SemiBold)
             Text(view.small, color = Color(0xB3FFFFFF), fontSize = 12.sp)
+            view.updated?.let { Text(it, color = Color(0xFFFCD34D), fontSize = 10.sp) }
         }
     }
 }

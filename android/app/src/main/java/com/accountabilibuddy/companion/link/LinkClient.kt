@@ -52,8 +52,11 @@ class LinkClient(
     private val needsFullSettings: () -> Boolean = { false },
     /** Keeps today's focus as the PC counts it (ADR 21), sent at sign-in and when it changes. */
     private val applyFocusDay: (content: JsonObject) -> Unit = {},
+    /** The PC is forgotten (unpaired here or there): what came from it goes too (ADR 15). */
+    private val onForget: () -> Unit = {},
 ) {
     private val _status = MutableStateFlow<LinkStatus>(if (store.pc.value == null) LinkStatus.Unlinked else LinkStatus.Idle)
+    private val _lastState = MutableStateFlow<PcStateAt?>(null)
     private val requests = Mutex()
 
     @Volatile private var connection: Connection? = null
@@ -64,6 +67,9 @@ class LinkClient(
 
     /** The paired PC, or null. */
     val pairedPc: StateFlow<LinkedPc?> = store.pc
+
+    /** The PC's last state and when it came; kept after the connection closes, until the PC is forgotten. */
+    val lastState: StateFlow<PcStateAt?> = _lastState.asStateFlow()
 
     /** Signs in to the paired PC, unless already connected or connecting. */
     fun connect() {
@@ -271,7 +277,11 @@ class LinkClient(
     private fun handle(message: LinkEnvelope, pcName: String) {
         val body = message.body as? JsonObject
         when (message.type) {
-            LinkMessages.STATE -> body?.let { _status.value = LinkStatus.Connected(pcName, PcState.parse(it)) }
+            LinkMessages.STATE -> body?.let {
+                val state = PcState.parse(it)
+                _lastState.value = PcStateAt(state, java.time.Instant.now())
+                _status.value = LinkStatus.Connected(pcName, state)
+            }
             LinkMessages.SETTINGS -> {
                 val content = body?.get("content") as? JsonObject
                 val version = body?.string("version")
@@ -289,8 +299,10 @@ class LinkClient(
         connection?.close()
         connection = null
         store.clear()
+        _lastState.value = null
         _status.value = LinkStatus.Unlinked
         lastMessage.value = message
+        onForget()
     }
 
     /** Why the link ended, shown once (e.g. the PC unpaired this phone). */

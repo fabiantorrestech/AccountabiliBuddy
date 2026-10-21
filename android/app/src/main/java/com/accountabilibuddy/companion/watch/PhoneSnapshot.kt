@@ -13,7 +13,10 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
-/** What the phone knows, as the watch snapshot's input (ADR 21): today's plan, the PC's focus day and its session. */
+/**
+ * What the phone knows, as the watch snapshot's input (ADR 21): today's plan, the PC's focus day and its session. While
+ * the link is idle (the app isn't on screen), the PC's last state ([lastState], at [lastStateAt]) says what runs.
+ */
 object PhoneSnapshot {
     fun input(
         state: CompanionState,
@@ -23,8 +26,12 @@ object PhoneSnapshot {
         now: Instant,
         zone: ZoneId,
         wifiAllowed: Boolean = true,
+        lastState: PcState? = null,
+        lastStateAt: Instant? = null,
+        relayAllowed: Boolean = true,
     ): SnapshotInput {
         val connected = status as? LinkStatus.Connected
+        val pcConnected = connected?.state != null
         return SnapshotInput(
             now = now,
             zone = zone,
@@ -33,9 +40,11 @@ object PhoneSnapshot {
             parts = todayParts(state.document.dayPlan, now.atZone(zone).toLocalDate(), zone),
             focusDay = state.focusDay,
             focusDayAt = state.focusDayAt,
-            running = running(connected?.state),
-            pcConnected = connected?.state != null,
+            running = running(connected?.state ?: lastState),
+            pcConnected = pcConnected,
             wifiAllowed = wifiAllowed,
+            runningAt = if (pcConnected) now else lastStateAt,
+            relayAllowed = relayAllowed,
         )
     }
 

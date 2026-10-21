@@ -1,8 +1,10 @@
 package com.accountabilibuddy.watch.link
 
 import com.accountabilibuddy.shared.WatchPaths
+import com.accountabilibuddy.shared.WatchSnapshot
 import com.accountabilibuddy.shared.WatchSnapshotJson
 import com.accountabilibuddy.shared.link.PcOffer
+import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
@@ -27,7 +29,8 @@ class WatchListenerService : WearableListenerService() {
                 val json = runCatching { Json.parseToJsonElement(event.data.decodeToString()) as? JsonObject }.getOrNull() ?: return
                 val snapshot = WatchSnapshotJson.read(json) ?: return
                 if (snapshot.linked) {
-                    SnapshotStore.save(this, snapshot)
+                    // Newer data from the PC over Wi-Fi stays; the phone's switches still apply.
+                    SnapshotStore.save(this, WatchSnapshot.newerOf(SnapshotStore.snapshot(this).value, snapshot))
                 } else {
                     forgetEverything()
                 }
@@ -46,7 +49,14 @@ class WatchListenerService : WearableListenerService() {
                     put("ok", error == null)
                     error?.let { put("message", it) }
                 }
-                runCatching { Wearable.getMessageClient(this).sendMessage(event.sourceNodeId, WatchPaths.PC_PAIRED, answer.toString().toByteArray()) }
+                // With the relay off, the answer goes only while the phone is nearby.
+                val relayAllowed = SnapshotStore.snapshot(this).value?.relayAllowed ?: true
+                val reachable = relayAllowed || runCatching {
+                    Tasks.await(Wearable.getNodeClient(this).connectedNodes).any { it.id == event.sourceNodeId && it.isNearby }
+                }.getOrDefault(false)
+                if (reachable) {
+                    runCatching { Wearable.getMessageClient(this).sendMessage(event.sourceNodeId, WatchPaths.PC_PAIRED, answer.toString().toByteArray()) }
+                }
             }
         }
     }

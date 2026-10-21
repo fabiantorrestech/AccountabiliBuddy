@@ -121,8 +121,9 @@ object PcLink {
                 "state" -> state = message.body as? JsonObject
                 "focusDay" -> focusDay = message.body as? JsonObject
                 "refused" -> {
-                    // This watch isn't paired there any more.
+                    // This watch isn't paired there any more: what came from that PC goes too.
                     forget(context)
+                    SnapshotStore.clear(context)
                     return false
                 }
             }

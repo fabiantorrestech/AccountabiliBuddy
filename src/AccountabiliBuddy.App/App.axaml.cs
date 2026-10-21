@@ -299,7 +299,9 @@ public partial class App : Application
             time);
         // Linked devices (ADR 14): off until turned on in Setup.
         var linkHost = new AccountabiliBuddy.App.Services.Link.LinkSessionHost(
-            _sessions, _configuration, _quickSession, documents, calendars, sleepSettings, dayBarSettings, activityLog, omittedSessions, deletedUsage);
+            _sessions, _configuration, _quickSession, documents, calendars, sleepSettings, dayBarSettings, activityLog, omittedSessions, deletedUsage, privacy);
+        // New activity and "Delete my data" change what paired devices were sent (ADR 15).
+        _recorder.LogChanged += (_, _) => linkHost.NotifyHistoryChanged();
         _link = new AccountabiliBuddy.App.Services.Link.LinkService(
             documents, new DpapiDataProtector(), linkHost, _sessions, new AccountabiliBuddy.Platform.Windows.Network.WindowsNetworkTrust());
         _link.LoadBlocking();

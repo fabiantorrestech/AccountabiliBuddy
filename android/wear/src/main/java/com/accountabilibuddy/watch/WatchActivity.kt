@@ -54,20 +54,24 @@ class WatchActivity : ComponentActivity() {
             MaterialTheme {
                 val stored by snapshots.collectAsState()
                 val phoneReachable by PhoneLink.phoneReachable.collectAsState()
-                WatchApp(stored, phoneReachable, PcLink.isPaired(this), onAskAgain = ::askForNews, onForget = { SnapshotStore.clear(this) })
+                WatchApp(stored, phoneReachable, PcLink.isPaired(this), onAskAgain = { askForNews(force = true) }, onForget = { SnapshotStore.clear(this) })
             }
         }
     }
 
     override fun onStart() {
         super.onStart()
-        askForNews()
+        askForNews(force = false)
     }
 
-    private fun askForNews() {
+    private fun askForNews(force: Boolean) {
         lifecycleScope.launch {
             val asked = SystemClock.elapsedRealtime()
-            PhoneLink.askForNews(this@WatchActivity)
+            val relayAllowed = SnapshotStore.snapshot(this@WatchActivity).value?.relayAllowed ?: true
+            if (!PhoneLink.askForNews(this@WatchActivity, relayAllowed, force)) {
+                // Asked a moment ago; what came then is still on screen.
+                return@launch
+            }
             if (PhoneLink.phoneReachable.value == true) {
                 delay(PHONE_ANSWER_WAIT_MS)
             }
@@ -114,11 +118,11 @@ private fun WatchApp(stored: WatchSnapshot?, phoneReachable: Boolean?, pcPaired:
                     ScreenScaffold {
                         when (page) {
                             0 -> TodayPage(TodayView.from(snapshot, now, zone, use24HourClock))
-                            1 -> SessionPage(SessionView.from(snapshot.running, now, zone, use24HourClock))
+                            1 -> SessionPage(SessionView.from(snapshot.running, now, zone, use24HourClock, dataAt = snapshot.dataAt))
                             2 -> WeekPage(WeekView.from(snapshot, now, zone))
                             else -> LinkPage(
                                 pcName = snapshot.pcName,
-                                updated = WatchText.updatedAgo(snapshot.createdAt, now),
+                                updated = WatchText.updatedAgo(snapshot.dataAt, now),
                                 isSample = stored == null,
                                 pcPaired = pcPaired,
                                 onForget = { if (stored == null) sample = null else onForget() },

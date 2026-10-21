@@ -11,8 +11,9 @@ data class RunningSession(val profile: String?, val startedAt: Instant, val ends
 /**
  * What the watch shows (ADR 21), as the phone sends it: [date]'s plan parts, the focus sessions that count (cut to the
  * day; one with no end runs until now), drift marks, planned minutes, the week, and the session running on the PC.
- * [linked] false tells the watch it's no longer linked; [wifiAllowed] is the phone's "Wi-Fi straight to the PC" switch.
- * Never titles, addresses, reasons or notes.
+ * [linked] false tells the watch it's no longer linked; [wifiAllowed] and [relayAllowed] are the phone's "Wi-Fi straight
+ * to the PC" and relay switches. [dataAt] is how old the PC's data is (the phone may build the snapshot later). Never
+ * titles, addresses, reasons or notes.
  */
 data class WatchSnapshot(
     val createdAt: Instant,
@@ -26,12 +27,17 @@ data class WatchSnapshot(
     val week: List<DayTotal>,
     val running: RunningSession?,
     val wifiAllowed: Boolean = true,
+    val dataAt: Instant = createdAt,
+    val relayAllowed: Boolean = true,
 ) {
-    /** Focused on [date] up to [now]: each session cut to the day, one with no end until [now], overlaps counted once. */
+    /**
+     * Focused on [date] up to [now]: each session cut to the day, one with no end until [now] (or the running session's
+     * end, when that has passed), overlaps counted once.
+     */
     fun focusedMinutes(now: Instant, zone: ZoneId): Int {
         val dayStart = date.atStartOfDay(zone).toInstant()
         val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant()
-        val until = minOf(now, dayEnd)
+        val until = minOf(openUntil(now), dayEnd)
         val windows = sessions.mapNotNull { session ->
             val start = maxOf(session.start, dayStart)
             val end = minOf(session.end ?: until, until)
@@ -40,7 +46,21 @@ data class WatchSnapshot(
         return minutes(windows)
     }
 
+    /** Where a session with no end stops on the rings: now, or the running session's end once that has passed. */
+    fun openUntil(now: Instant): Instant = running?.endsAt?.let { minOf(it, now) } ?: now
+
     companion object {
+        /**
+         * The snapshot to keep when [incoming] arrives: [stored] when its data is newer (e.g. from the PC over Wi-Fi while
+         * the phone sends older data), with the phone's switches from [incoming]; otherwise [incoming].
+         */
+        fun newerOf(stored: WatchSnapshot?, incoming: WatchSnapshot): WatchSnapshot =
+            if (stored != null && stored.dataAt.isAfter(incoming.dataAt)) {
+                stored.copy(wifiAllowed = incoming.wifiAllowed, relayAllowed = incoming.relayAllowed)
+            } else {
+                incoming
+            }
+
         /** Whole minutes of [windows], overlaps counted once (rounded to the nearest minute). */
         fun minutes(windows: List<TimeWindow>): Int {
             var seconds = 0L
