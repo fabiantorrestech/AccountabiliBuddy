@@ -48,6 +48,12 @@ public static class LinkMessages
     /// </summary>
     public const string Settings = "settings";
 
+    /// <summary>
+    /// <see cref="LinkFocusDay"/>: today's plan parts, focus sessions, drift and totals (ADR 21), sent after sign-in and
+    /// whenever they change (a session starts or ends, History changes, every few minutes while a session runs).
+    /// </summary>
+    public const string FocusDay = "focusDay";
+
     /// <summary><see cref="LinkEndEarlyTerms"/>: the wait and the reason length for ending early.</summary>
     public const string EndEarlyTerms = "endEarlyTerms";
 

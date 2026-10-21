@@ -4,16 +4,18 @@ using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Link;
+using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using Avalonia.Threading;
+using Microsoft.Data.Sqlite;
 
 namespace AccountabiliBuddy.App.Services.Link;
 
 /// <summary>
 /// The app's side of the link (<see cref="ILinkSessionHost"/>): the running session, the profiles and the count-up
 /// profile, starting a session, ending one early by the same rules as the End session dialog, and the settings the
-/// device shows (profiles, sleep, day bar, upcoming events; L2). Every call runs on the UI thread, where the session
-/// lives.
+/// device shows (profiles, sleep, day bar, upcoming events; L2) and today's focus (ADR 21). Every call runs on the UI
+/// thread, where the session lives.
 /// </summary>
 public sealed class LinkSessionHost : ILinkSessionHost
 {
@@ -25,12 +27,20 @@ public sealed class LinkSessionHost : ILinkSessionHost
     // Events from yesterday to this many days ahead, as the PC's day bar shows them (visible calendars).
     private const int EventDaysAhead = 14;
 
+    // While a session runs its time and drift grow, so today's focus is sent again this often (and at midnight).
+    private static readonly TimeSpan FocusDayRefresh = TimeSpan.FromMinutes(5);
+
     private readonly SessionController _sessions;
     private readonly ConfigurationService _configuration;
     private readonly QuickSessionService _quickSession;
     private readonly SqliteJsonDocumentStore _documents;
     private readonly CalendarService _calendars;
     private readonly DayPlanEditTimeService _planEditTime;
+    private readonly IActivityLog _log;
+    private readonly OmittedSessionsService _omitted;
+    private readonly DeletedUsageService _deleted;
+    private readonly DispatcherTimer _focusDayTimer;
+    private DateOnly _focusDayDate;
 
     public LinkSessionHost(
         SessionController sessions,
@@ -39,7 +49,10 @@ public sealed class LinkSessionHost : ILinkSessionHost
         SqliteJsonDocumentStore documents,
         CalendarService calendars,
         SleepSettingsService sleep,
-        DayBarSettingsService dayBar)
+        DayBarSettingsService dayBar,
+        IActivityLog log,
+        OmittedSessionsService omitted,
+        DeletedUsageService deleted)
     {
         _sessions = sessions;
         _configuration = configuration;
@@ -59,6 +72,18 @@ public sealed class LinkSessionHost : ILinkSessionHost
         sleep.Changed += (_, _) => SettingsChanged?.Invoke(this, EventArgs.Empty);
         dayBar.Changed += (_, _) => SettingsChanged?.Invoke(this, EventArgs.Empty);
         calendars.Changed += (_, _) => SettingsChanged?.Invoke(this, EventArgs.Empty);
+
+        _log = log;
+        _omitted = omitted;
+        _deleted = deleted;
+        _focusDayDate = Today();
+        _sessions.StateChanged += (_, _) => FocusDayChanged?.Invoke(this, EventArgs.Empty);
+        _configuration.Changed += (_, _) => FocusDayChanged?.Invoke(this, EventArgs.Empty);
+        omitted.Changed += (_, _) => FocusDayChanged?.Invoke(this, EventArgs.Empty);
+        deleted.Changed += (_, _) => FocusDayChanged?.Invoke(this, EventArgs.Empty);
+        _focusDayTimer = new DispatcherTimer { Interval = FocusDayRefresh };
+        _focusDayTimer.Tick += (_, _) => OnFocusDayTick();
+        _focusDayTimer.Start();
     }
 
     public string PcName => Environment.MachineName;
@@ -68,6 +93,8 @@ public sealed class LinkSessionHost : ILinkSessionHost
     public event EventHandler? StateChanged;
 
     public event EventHandler? SettingsChanged;
+
+    public event EventHandler? FocusDayChanged;
 
     /// <summary>Raised (on the UI thread) with the reason when a linked device ended the session early.</summary>
     public event EventHandler<string>? EndedFromDevice;
@@ -120,6 +147,67 @@ public sealed class LinkSessionHost : ILinkSessionHost
             dayPlanEditedAt = _planEditTime.Current,
         };
         return JsonSerializer.SerializeToElement(content, LinkFraming.JsonOptions);
+    }
+
+    /// <summary>A session was added, edited or deleted by hand in History (ADR 20).</summary>
+    public void NotifyHistoryChanged()
+    {
+        FocusDayChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public Task<LinkFocusDay> GetFocusDayAsync()
+    {
+        return Dispatcher.UIThread.InvokeAsync(BuildFocusDayAsync);
+    }
+
+    /// <summary>Today's focus from the history, as the day bar counts it; the plan alone when the history can't be read.</summary>
+    private async Task<LinkFocusDay> BuildFocusDayAsync()
+    {
+        TimeZoneInfo zone = _sessions.TimeProvider.LocalTimeZone;
+        DateTimeOffset now = _sessions.Now;
+        DateOnly today = Today();
+        DateTime todayStart = today.ToDateTime(TimeOnly.MinValue);
+        IReadOnlyList<SessionRecord> records = Array.Empty<SessionRecord>();
+        IReadOnlyList<DriftStretch> drift = Array.Empty<DriftStretch>();
+        try
+        {
+            // The week and the day before it, so a session that ran into the first day has its start.
+            records = SessionHistoryBuilder.Build(await _log.GetSessionEventsAsync(At(todayStart.AddDays(-7), zone), At(todayStart.AddDays(2), zone)));
+            List<TimeRange> leftOut = records
+                .Where(record => _omitted.IsOmitted(record.StartedAt) || record.Mode == SessionMode.Scheduled)
+                .Select(record => new TimeRange(record.StartedAt, record.EndedAt ?? now))
+                .ToList();
+            drift = await _log.GetDriftAsync(At(todayStart, zone), At(todayStart.AddDays(1), zone), leftOut, _deleted.Parts);
+        }
+        catch (SqliteException)
+        {
+            // Sent without the history; the next change or refresh tries again.
+        }
+
+        IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
+        return FocusDayBuilder.Build(today, records, drift, _configuration.Current.DayPlan, _omitted.IsOmitted,
+            id => ProfileOptions.NameOf(profiles, id), _sessions.State.IsActive, now, zone);
+    }
+
+    /// <summary>Every few minutes while a session runs, and when the date changes.</summary>
+    private void OnFocusDayTick()
+    {
+        DateOnly today = Today();
+        if (_sessions.State.IsActive || today != _focusDayDate)
+        {
+            _focusDayDate = today;
+            FocusDayChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private DateOnly Today()
+    {
+        return DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime);
+    }
+
+    private static DateTimeOffset At(DateTime local, TimeZoneInfo zone)
+    {
+        return new DateTimeOffset(local, zone.GetUtcOffset(local));
     }
 
     public Task<string?> StartAsync(LinkStartRequest request)

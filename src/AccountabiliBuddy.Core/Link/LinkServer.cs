@@ -14,7 +14,8 @@ namespace AccountabiliBuddy.Core.Link;
 /// certificate and answers private-network addresses only. A connection first pairs (the one-time code from
 /// <see cref="BeginPairing"/>: five minutes, five tries) or signs in with a device token; after that the device can
 /// start a session or end one early by the app's own rules (<see cref="ILinkSessionHost"/>), and every session change
-/// is pushed to it. A device that is unpaired is disconnected at once.
+/// is pushed to it, as are the settings and today's focus when they change. A device that is unpaired is disconnected
+/// at once.
 /// </summary>
 public sealed class LinkServer : IAsyncDisposable
 {
@@ -79,6 +80,7 @@ public sealed class LinkServer : IAsyncDisposable
         _stopping = new CancellationTokenSource();
         _host.StateChanged += OnStateChanged;
         _host.SettingsChanged += OnSettingsChanged;
+        _host.FocusDayChanged += OnFocusDayChanged;
         _acceptLoop = AcceptLoopAsync(listener, _stopping.Token);
 
         // "Where is the PC?" on the same port number over UDP; without it devices need the remembered address.
@@ -95,6 +97,7 @@ public sealed class LinkServer : IAsyncDisposable
 
         _host.StateChanged -= OnStateChanged;
         _host.SettingsChanged -= OnSettingsChanged;
+        _host.FocusDayChanged -= OnFocusDayChanged;
         _discovery?.Dispose();
         _discovery = null;
         _stopping.Cancel();
@@ -227,6 +230,7 @@ public sealed class LinkServer : IAsyncDisposable
                 // A newly paired device has none yet; a signed-in one says which it has.
                 connection.SettingsVersion = first!.Type == LinkMessages.Hello ? first.BodyAs<LinkHello>()?.SettingsVersion : null;
                 await SendSettingsIfNewerAsync(connection, await SettingsAsync().ConfigureAwait(false), stopping).ConfigureAwait(false);
+                await SendFocusDayIfChangedAsync(connection, await FocusDayAsync().ConfigureAwait(false), stopping).ConfigureAwait(false);
 
                 while (await LinkFraming.ReadAsync(tls, stopping).ConfigureAwait(false) is LinkEnvelope request)
                 {
@@ -437,7 +441,55 @@ public sealed class LinkServer : IAsyncDisposable
         return new LinkSettingsMessage(version, content);
     }
 
+    private void OnFocusDayChanged(object? sender, EventArgs e)
+    {
+        _ = PushFocusDayAsync();
+    }
+
+    /// <summary>Sends today's focus to every device whose copy differs (a raise without a change sends nothing).</summary>
+    private async Task PushFocusDayAsync()
+    {
+        if (_connections.IsEmpty)
+        {
+            return;
+        }
+
+        VersionedFocusDay focusDay = await FocusDayAsync().ConfigureAwait(false);
+        foreach (Connection connection in _connections.Keys)
+        {
+            try
+            {
+                await SendFocusDayIfChangedAsync(connection, focusDay, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
+            {
+                connection.Close();
+            }
+        }
+    }
+
+    private static async Task SendFocusDayIfChangedAsync(Connection connection, VersionedFocusDay focusDay, CancellationToken cancellationToken)
+    {
+        if (connection.FocusDayVersion == focusDay.Version)
+        {
+            return;
+        }
+
+        connection.FocusDayVersion = focusDay.Version;
+        await connection.SendAsync(LinkEnvelope.Of(LinkMessages.FocusDay, focusDay.Day), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>The host's focus day with a hash of its JSON, to send it only when it changed.</summary>
+    private async Task<VersionedFocusDay> FocusDayAsync()
+    {
+        LinkFocusDay day = await _host.GetFocusDayAsync().ConfigureAwait(false);
+        string version = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(day, LinkFraming.JsonOptions)));
+        return new VersionedFocusDay(version, day);
+    }
+
     private sealed record PairingWindow(string Code, DateTimeOffset ExpiresAt, int AttemptsLeft);
+
+    private sealed record VersionedFocusDay(string Version, LinkFocusDay Day);
 
     /// <summary>One device's connection; sends go one at a time (state pushes and answers can overlap).</summary>
     private sealed class Connection
@@ -446,6 +498,7 @@ public sealed class LinkServer : IAsyncDisposable
         private readonly SemaphoreSlim _sending = new(1, 1);
         private LinkEndEarlyTerms? _endEarlyTerms;
         private string? _settingsVersion;
+        private string? _focusDayVersion;
 
         public Connection(Stream stream)
         {
@@ -459,6 +512,13 @@ public sealed class LinkServer : IAsyncDisposable
         {
             get => Volatile.Read(ref _settingsVersion);
             set => Volatile.Write(ref _settingsVersion, value);
+        }
+
+        /// <summary>A hash of the last focus day sent.</summary>
+        public string? FocusDayVersion
+        {
+            get => Volatile.Read(ref _focusDayVersion);
+            set => Volatile.Write(ref _focusDayVersion, value);
         }
 
         /// <summary>The terms given for ending early, until used or the session changes.</summary>

@@ -299,7 +299,7 @@ public partial class App : Application
             time);
         // Linked devices (ADR 14): off until turned on in Setup.
         var linkHost = new AccountabiliBuddy.App.Services.Link.LinkSessionHost(
-            _sessions, _configuration, _quickSession, documents, calendars, sleepSettings, dayBarSettings);
+            _sessions, _configuration, _quickSession, documents, calendars, sleepSettings, dayBarSettings, activityLog, omittedSessions, deletedUsage);
         _link = new AccountabiliBuddy.App.Services.Link.LinkService(
             documents, new DpapiDataProtector(), linkHost, _sessions, new AccountabiliBuddy.Platform.Windows.Network.WindowsNetworkTrust());
         _link.LoadBlocking();
@@ -399,12 +399,13 @@ public partial class App : Application
             Search = new SearchViewModel(SearchDataAsync),
         };
 
-        // A session added, edited or deleted by hand (ADR 20): both day bars read the history again.
+        // A session added, edited or deleted by hand (ADR 20): both day bars read the history again, and linked devices get it.
         DayBarViewModel addedSessionsBar = _dayBar;
         mainViewModel.History.AddedSessionsChanged += (_, _) =>
         {
             addedSessionsBar.ReloadHistory();
             timelineDay.ReloadHistory();
+            linkHost.NotifyHistoryChanged();
         };
 
         mainViewModel.NoisePlayer = noisePlayer;

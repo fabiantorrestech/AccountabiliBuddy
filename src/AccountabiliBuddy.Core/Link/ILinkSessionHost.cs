@@ -28,6 +28,12 @@ public interface ILinkSessionHost
     /// </summary>
     Task<JsonElement> GetSettingsAsync();
 
+    /// <summary>Raised when what <see cref="GetFocusDayAsync"/> returns may have changed.</summary>
+    event EventHandler? FocusDayChanged;
+
+    /// <summary>Today's focus (ADR 21): the plan's parts, the sessions that count, drift, and totals for today and the week.</summary>
+    Task<LinkFocusDay> GetFocusDayAsync();
+
     /// <returns>Null when the session started, otherwise why not.</returns>
     Task<string?> StartAsync(LinkStartRequest request);
 

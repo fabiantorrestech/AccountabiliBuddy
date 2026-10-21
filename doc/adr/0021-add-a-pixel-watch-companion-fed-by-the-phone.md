@@ -4,26 +4,38 @@ Date: 2026-10-21
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
-The user wants a Pixel Watch app that sits alongside the phone and the PC and shows the running focus session, the time focused today and the day's timeline, drawn as rings rather than the straight bars the PC and phone use. They asked for a starting mockup to refine later and gave no further specifics.
+The user wants a Pixel Watch app that sits alongside the phone and the PC and shows the running focus session, the time focused today, the week and the day's timeline, drawn as rings rather than the straight bars the PC and phone use. A first mockup on sample data was built to start from.
 
-The watch has no link of its own today. The project's hard rules keep everything local except a short list of connections, and ADR 14 makes the PC the hub with the phone as its only paired device. A watch app therefore raises two separate questions: where its code lives, and how its data reaches it.
+The project's hard rules keep everything local except a short list of connections. ADR 14 makes the PC the hub, with the phone as its paired device on the local network. A watch app raises three questions: where its code lives, what it may receive, and how the data reaches it.
 
-The mockup was built before this decision, with only the libraries the phone app already pins (Compose, Material 3, Activity). Wear-specific libraries (Compose for Wear OS, Tiles, complications) and any link library need the user's approval first.
+Google's documentation for the Wearable Data Layer, the standard phone-to-watch channel in Google Play services, says it uses the Bluetooth connection when there is one and otherwise routes through a node on Google's servers. Data sent that way is end-to-end encrypted, but Google asks developers to assume it "may at some point use Google-owned servers". Google also says the Data Layer is the only supported way for a phone app and a watch app to talk, and that developers shouldn't open their own sockets between them.
 
 ## Decision
 
-The watch app is a Wear OS app in `android/wear`, a second module of the Android project, with the phone app's application id so Wear OS treats the two as one app. It shows three swipe pages: today on a 24-hour dial (the day plan as the outer ring, focus sessions and drift marks as the inner ring, a red now dot), the running session as one ring that fills as it goes, and the week as seven small rings. It is not standalone: everything it shows comes from the phone, which already has it from the PC over the ADR 14 link. The watch never talks to the PC directly.
+The watch app is a Wear OS app in `android/wear`, a second module of the Android project, with the phone app's application id and signature so Wear OS treats the two as one app. It uses Compose for Wear OS, a Tile and a watch-face complication; the user approved these libraries.
 
-How the phone reaches the watch is left open. There are three options:
+The watch receives a small snapshot and nothing else:
+- the day plan's parts;
+- today's focus sessions, including ones added by hand;
+- drift times;
+- the running session;
+- focused and planned totals for today and the week.
 
-- **Wearable Data Layer** (`play-services-wearable`, recommended). This is the standard path. It uses Bluetooth or Wi-Fi through Google Play services, and the phone only has to send a small snapshot (plan parts, focus times, running session, week totals). The open question is whether Google relays data through its own servers when the two devices are apart. Synced data items may do so. If they do, that would breach the local-only rule, so the app should use direct messages only, and that behaviour has to be checked before this ADR is accepted.
-- **The watch joins the ADR 14 link itself** over Wi-Fi to the PC. This needs no Google services, but watch Wi-Fi is often off and drains the battery, and pairing by QR code doesn't work on a watch screen.
-- **A plain Bluetooth socket** between the phone and watch apps. This needs no new library, but the pairing, reconnection and power handling that the Data Layer already provides would all have to be written by hand.
+These are the readable fields ADR 15 already allows paired devices to have. Window titles, addresses, OCR text and reasons are never sent.
+
+The watch's data comes over the first of these that is turned on and works:
+
+1. **Through the phone, over the Data Layer.** This is on by default, and so is Google's encrypted relay when Bluetooth is off.
+2. **Through the phone, over the Data Layer, only while the watch is nearby (Bluetooth).** This is used when the relay is turned off. The phone checks before each send that the watch is nearby, and uses messages rather than stored items that would sync later.
+3. **Straight to the PC over Wi-Fi.** The watch joins the ADR 14 link as its own paired device (kind "watch"). The pairing offer comes from the PC's QR code through the phone, because a QR code can't be scanned on a watch.
+4. **A direct Bluetooth connection between the phone and watch apps,** as a last resort. Google advises against it, so it is built only if a test on the user's Pixel 7 and Pixel Watch shows it works next to the system's own Bluetooth link. Otherwise it is dropped and this ADR is amended.
+
+Each of these can be turned off on the phone before a watch is linked, and later. Nothing is sent to a watch until the user links it on the phone.
 
 ## Consequences
 
-The mockup can be built, refined and tried on an emulator or the watch now, on sample data, without touching the phone or the PC. Choosing the Data Layer adds a Google Play services dependency on both the phone and the watch, and it needs the cloud question settled first. Tiles and a watch-face complication (a ring on the watch face) would add further Wear libraries later. Whichever link is chosen, the watch receives only what the phone already holds, never window titles, URLs or reasons, so the privacy rules stay the same. The project CLAUDE.md's list of allowed connections must name the link once this is accepted.
+The phone and the watch gain a Google Play services dependency (`play-services-wearable`). With the relay on, the watch snapshot can pass through Google's servers end-to-end encrypted. This is the first exception to "local only" for user data. It is the user's choice, on by default, and can be switched off. The PC gains a message that sends today's focus history to its paired devices (part of the linked-devices milestone L3), which the phone's planned Stats tab can use too. The project CLAUDE.md's list of allowed connections names the watch link. If the direct Bluetooth test fails, the fallback chain ends at Wi-Fi.

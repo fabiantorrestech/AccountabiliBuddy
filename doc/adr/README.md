@@ -5,7 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
-| [0021](0021-add-a-pixel-watch-companion-fed-by-the-phone.md) | Add a Pixel Watch companion fed by the phone | Proposed | — |
+| [0021](0021-add-a-pixel-watch-companion-fed-by-the-phone.md) | Add a Pixel Watch companion fed by the phone | Accepted | — |
 | [0020](0020-keep-hand-added-focus-sessions-in-the-activity-history.md) | Keep hand-added focus sessions in the activity history | Accepted | — |
 | [0019](0019-let-paired-phones-change-the-day-plan.md) | Let paired phones change the day plan | Accepted | — |
 | [0018](0018-leave-enforcement-to-the-blockers.md) | Leave enforcement to the blockers | Accepted | — |
