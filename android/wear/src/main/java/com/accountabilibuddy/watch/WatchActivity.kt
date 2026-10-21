@@ -4,88 +4,110 @@ import android.os.Bundle
 import android.text.format.DateFormat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
+import androidx.wear.compose.foundation.pager.HorizontalPager
+import androidx.wear.compose.foundation.pager.rememberPagerState
+import androidx.wear.compose.material3.AnimatedPage
+import androidx.wear.compose.material3.AppScaffold
+import androidx.wear.compose.material3.HorizontalPagerScaffold
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.ScreenScaffold
+import com.accountabilibuddy.shared.SessionView
+import com.accountabilibuddy.shared.TodayView
+import com.accountabilibuddy.shared.WatchSnapshot
+import com.accountabilibuddy.shared.WatchText
+import com.accountabilibuddy.shared.WeekView
 import com.accountabilibuddy.watch.link.PhoneLink
+import com.accountabilibuddy.watch.link.SnapshotStore
 import com.accountabilibuddy.watch.model.SampleData
+import com.accountabilibuddy.watch.ui.LinkPage
+import com.accountabilibuddy.watch.ui.NotLinkedScreen
 import com.accountabilibuddy.watch.ui.SessionPage
 import com.accountabilibuddy.watch.ui.TodayPage
 import com.accountabilibuddy.watch.ui.WeekPage
 import com.accountabilibuddy.watch.ui.use24HourClock
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.time.LocalDateTime
+import java.time.Instant
+import java.time.ZoneId
 
-/** The watch app (mockup): swipe between today's rings, the running session and the week. Sample data for now. */
+/**
+ * The watch app (ADR 21): swipe between today's rings, the running session, the last 7 days and where the data comes
+ * from. Shows the phone's last snapshot; asks the phone for news each time it comes up.
+ */
 class WatchActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         use24HourClock = DateFormat.is24HourFormat(this)
+        val snapshots = SnapshotStore.snapshot(this)
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme()) {
-                WatchApp()
+            MaterialTheme {
+                val stored by snapshots.collectAsState()
+                val phoneReachable by PhoneLink.phoneReachable.collectAsState()
+                WatchApp(stored, phoneReachable, onAskAgain = ::askForNews, onForget = { SnapshotStore.clear(this) })
             }
         }
     }
 
     override fun onStart() {
         super.onStart()
-        // Each time the app comes up, ask the phone for news (it answers over the Data Layer, ADR 21).
+        askForNews()
+    }
+
+    private fun askForNews() {
         lifecycleScope.launch { PhoneLink.askForNews(this@WatchActivity) }
     }
 }
 
 @Composable
-private fun WatchApp() {
-    val snapshot = remember { SampleData.snapshot() }
-    var now by remember { mutableStateOf(LocalDateTime.now()) }
+private fun WatchApp(stored: WatchSnapshot?, phoneReachable: Boolean?, onAskAgain: () -> Unit, onForget: () -> Unit) {
+    var now by remember { mutableStateOf(Instant.now()) }
+    var sample by remember { mutableStateOf<WatchSnapshot?>(null) }
     LaunchedEffect(Unit) {
         while (true) {
             delay(1_000)
-            now = LocalDateTime.now()
+            now = Instant.now()
         }
     }
 
-    val pager = rememberPagerState(pageCount = { 3 })
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
-        HorizontalPager(pager, Modifier.fillMaxSize()) { page ->
-            when (page) {
-                0 -> TodayPage(snapshot, now)
-                1 -> SessionPage(snapshot.running, now)
-                else -> WeekPage(snapshot.week, now.toLocalDate())
+    val zone = ZoneId.systemDefault()
+    AppScaffold {
+        val snapshot = stored ?: sample
+        if (snapshot == null) {
+            ScreenScaffold {
+                NotLinkedScreen(phoneReachable, onAskAgain, onSample = { sample = SampleData.snapshot(Instant.now(), zone) })
             }
+            return@AppScaffold
         }
 
-        Row(
-            Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            repeat(3) { index ->
-                Box(
-                    Modifier.size(5.dp).background(if (pager.currentPage == index) Color.White else Color(0x55FFFFFF), CircleShape),
-                )
+        val pager = rememberPagerState(pageCount = { PAGES })
+        HorizontalPagerScaffold(pagerState = pager) {
+            HorizontalPager(state = pager) { page ->
+                AnimatedPage(pageIndex = page, pagerState = pager) {
+                    ScreenScaffold {
+                        when (page) {
+                            0 -> TodayPage(TodayView.from(snapshot, now, zone, use24HourClock))
+                            1 -> SessionPage(SessionView.from(snapshot.running, now, zone, use24HourClock))
+                            2 -> WeekPage(WeekView.from(snapshot, now, zone))
+                            else -> LinkPage(
+                                pcName = snapshot.pcName,
+                                updated = WatchText.updatedAgo(snapshot.createdAt, now),
+                                isSample = stored == null,
+                                onForget = { if (stored == null) sample = null else onForget() },
+                            )
+                        }
+                    }
+                }
             }
         }
     }
 }
+
+private const val PAGES = 4

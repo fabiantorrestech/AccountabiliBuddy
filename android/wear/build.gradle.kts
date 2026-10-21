@@ -3,8 +3,8 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-// The Pixel Watch companion (mockup, ADR 21 Proposed): rings for today's plan and focus, the running session and the
-// week. Uses only libraries the phone app already pins; Wear-specific ones wait for the user's OK.
+// The Pixel Watch companion (ADR 21): rings for today's plan and focus, the running session and the week, from the
+// phone's snapshot. Compose for Wear OS, a Tile and a complication (libraries approved by the user on 2026-10-21).
 android {
     namespace = "com.accountabilibuddy.watch"
     compileSdk = 37
@@ -53,6 +53,8 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
-    implementation(libs.androidx.compose.material3)
+    // Compose for Wear OS: round screens, the pager, the time at the top.
+    implementation(libs.wear.compose.material3)
+    implementation(libs.wear.compose.foundation)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
