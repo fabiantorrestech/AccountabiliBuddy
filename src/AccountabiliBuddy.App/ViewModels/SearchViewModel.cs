@@ -60,7 +60,7 @@ public sealed partial class SearchViewModel : ObservableObject
 
     public bool HasPageMatches => PageCount > 0;
 
-    public string PageText => PageCount == 1 ? "1 on this page · Enter = next, Esc = clear" : $"{PageCount} on this page · Enter = next, Esc = clear";
+    public string PageText => PageCount == 1 ? "1 on this page · ↑ ↓ or Enter, Esc = clear" : $"{PageCount} on this page · ↑ ↓ or Enter, Esc = clear";
 
     public string AllText => AllCount < 0 ? "Search All Results…"
         : AllCount >= DataSearchSource.DefaultCap ? $"Search All Results… ({DataSearchSource.DefaultCap}+ in the app)"
@@ -68,6 +68,9 @@ public sealed partial class SearchViewModel : ObservableObject
 
     /// <summary>Raised to move to the next match on the page.</summary>
     public event EventHandler? NextRequested;
+
+    /// <summary>Raised to move to the previous match on the page.</summary>
+    public event EventHandler? PreviousRequested;
 
     /// <summary>Raised with the result to open.</summary>
     public event EventHandler<SearchTarget>? OpenRequested;
@@ -107,6 +110,12 @@ public sealed partial class SearchViewModel : ObservableObject
     private void Next()
     {
         NextRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void Previous()
+    {
+        PreviousRequested?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]

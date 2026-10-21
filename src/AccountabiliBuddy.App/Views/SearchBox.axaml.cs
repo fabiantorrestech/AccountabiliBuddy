@@ -8,7 +8,8 @@ using Avalonia.VisualTree;
 
 namespace AccountabiliBuddy.App.Views;
 
-/// <summary>The search box: Enter goes to the next match (or all results), Esc clears it.</summary>
+/// <summary>The search box: Enter or ↓ goes to the next match (Enter: all results when the page has none), ↑ or
+/// Shift+Enter to the previous one, Esc clears it.</summary>
 public partial class SearchBox : UserControl
 {
     private TopLevel? _topLevel;
@@ -84,7 +85,17 @@ public partial class SearchBox : UserControl
             return;
         }
 
-        if (e.Key == Key.Enter)
+        if (search.HasPageMatches && (e.Key == Key.Up || (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Shift))))
+        {
+            search.PreviousCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (search.HasPageMatches && e.Key == Key.Down)
+        {
+            search.NextCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Enter)
         {
             search.Submit();
             e.Handled = true;

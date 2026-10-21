@@ -78,7 +78,23 @@ public sealed class SearchHighlightLayer : Control
             return;
         }
 
-        CurrentIndex = (CurrentIndex + 1) % _matches.Count;
+        ShowMatch((CurrentIndex + 1) % _matches.Count);
+    }
+
+    /// <summary>Moves to the previous match (to the last from the first) and brings it into view.</summary>
+    public void Previous()
+    {
+        if (_matches.Count == 0)
+        {
+            return;
+        }
+
+        ShowMatch((CurrentIndex - 1 + _matches.Count) % _matches.Count);
+    }
+
+    private void ShowMatch(int index)
+    {
+        CurrentIndex = index;
         Match match = _matches[CurrentIndex];
         match.Owner.BringIntoView(match.LocalRect);
         InvalidateVisual();

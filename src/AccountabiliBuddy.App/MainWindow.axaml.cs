@@ -74,6 +74,7 @@ public partial class MainWindow : Window
             }
         };
         search.NextRequested += (_, _) => Highlights.Next();
+        search.PreviousRequested += (_, _) => Highlights.Previous();
 
         var navigator = new SearchNavigator(
             tab => viewModel.SelectedTab = tab,
