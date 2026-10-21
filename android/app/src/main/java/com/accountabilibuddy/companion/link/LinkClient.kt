@@ -4,6 +4,7 @@ import android.os.SystemClock
 import com.accountabilibuddy.companion.data.JsonValues.bool
 import com.accountabilibuddy.companion.data.JsonValues.int
 import com.accountabilibuddy.companion.data.JsonValues.string
+import com.accountabilibuddy.companion.data.ProfileDocumentParser
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +44,8 @@ class LinkClient(
     private val discovery: LinkDiscovery,
     /** Applies the PC's settings (profiles, sleep, day bar, events); false when they couldn't be read. */
     private val applySettings: (content: JsonObject, pcName: String) -> Boolean,
+    /** True when the phone lacks something only a full settings push brings (e.g. the plan version, ADR 19). */
+    private val needsFullSettings: () -> Boolean = { false },
 ) {
     private val _status = MutableStateFlow<LinkStatus>(if (store.pc.value == null) LinkStatus.Unlinked else LinkStatus.Idle)
     private val requests = Mutex()
@@ -78,7 +81,7 @@ class LinkClient(
                     put("token", token)
                     put("deviceName", deviceName)
                     put("protocolVersion", LinkMessages.PROTOCOL_VERSION)
-                    pc.settingsVersion?.let { put("settingsVersion", it) }
+                    pc.settingsVersion?.takeUnless { needsFullSettings() }?.let { put("settingsVersion", it) }
                 })
                 adopt(opened, pc.pcName)
             } catch (e: IOException) {
@@ -182,6 +185,30 @@ class LinkClient(
         val answer = request(LinkMessages.END_EARLY, buildJsonObject { put("reason", reason) }, LinkMessages.RESULT)
             ?: return "The PC didn't answer."
         return resultError(answer)
+    }
+
+    /**
+     * Sends a day plan edited on the phone (ADR 19): the plan in the PC's shape, the PC version it was edited from and
+     * when. Null when the PC couldn't be asked (not connected, no answer); a PC too old for it answers UNSUPPORTED.
+     */
+    suspend fun sendDayPlanEdit(baseVersion: String, plan: JsonObject, editedAt: java.time.Instant): DayPlanAnswer? {
+        val answer = request(LinkMessages.DAY_PLAN_EDIT, buildJsonObject {
+            put("baseVersion", baseVersion)
+            put("dayPlan", plan)
+            put("editedAt", editedAt.toString())
+        }, LinkMessages.DAY_PLAN_ANSWER, LinkMessages.RESULT) ?: return null
+        val body = answer.body as? JsonObject ?: return null
+        if (answer.type == LinkMessages.RESULT) {
+            return DayPlanAnswer(DayPlanAnswer.UNSUPPORTED, body.string("message") ?: "The PC can't take plan changes.")
+        }
+
+        return DayPlanAnswer(
+            status = body.string("status") ?: DayPlanAnswer.INVALID,
+            message = body.string("message") ?: "",
+            currentVersion = body.string("currentVersion"),
+            currentPlan = (body["currentDayPlan"] as? JsonObject)?.let { runCatching { ProfileDocumentParser.dayPlan(it) }.getOrNull() },
+            currentEditedAt = body.string("currentEditedAt")?.let { runCatching { java.time.OffsetDateTime.parse(it).toInstant() }.getOrNull() },
+        )
     }
 
     /** Forgets the PC here and asks it to forget this phone. */

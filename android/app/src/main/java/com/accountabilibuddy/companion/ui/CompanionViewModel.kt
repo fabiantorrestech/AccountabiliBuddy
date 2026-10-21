@@ -34,6 +34,11 @@ import com.accountabilibuddy.companion.link.EndEarlyTerms
 import com.accountabilibuddy.companion.link.LinkStatus
 import com.accountabilibuddy.companion.link.LinkedPc
 import com.accountabilibuddy.companion.link.PairingLink
+import com.accountabilibuddy.companion.engine.DayPlanValidator
+import com.accountabilibuddy.companion.model.DayPlan
+import com.accountabilibuddy.companion.model.DayPlanConflict
+import com.accountabilibuddy.companion.model.DayPlanDraft
+import java.time.Instant
 import java.time.LocalDateTime
 
 /** The app's screens: the store's state, today's bar (redrawn every 30 seconds while on screen), importing and Health Connect. */
@@ -52,6 +57,9 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     /** A pairing link opened from the PC's QR code, waiting for the user to compare the code and confirm. */
     val pairingOffer = MutableStateFlow<PairingLink?>(null)
     val pairing = MutableStateFlow(false)
+
+    /** Both the PC and the phone changed the day plan (ADR 19); the dialog asks which to keep. */
+    val planConflict: StateFlow<DayPlanConflict?> = (application as CompanionApp).planSync.conflict
 
     /** While a request to the PC runs (start, end early). */
     val pcBusy = MutableStateFlow(false)
@@ -175,6 +183,56 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
             }
         }
     }
+
+    /** The day plan open in the editor; kept here so it survives rotation. Null when the editor is closed. */
+    val planDraft = MutableStateFlow<DayPlanDraft?>(null)
+
+    /**
+     * Opens the editor on the plan shown, building on the PC plan the phone has now (or on the waiting edit's
+     * starting point). Null when it opened, otherwise why not.
+     */
+    fun openPlanEditor(): String? {
+        val state = store.state.value
+        val pending = state.pendingPlan
+        val baseVersion = pending?.baseVersion ?: state.pcPlanVersion
+            ?: return "Update AccountabiliBuddy on the PC to 0.1.48 or newer, then open this app while it's linked."
+        planDraft.value = DayPlanDraft(state.document.dayPlan, state.document.dayPlan, baseVersion, pending?.basePlan ?: state.pcDayPlan)
+        return null
+    }
+
+    fun updatePlanDraft(plan: DayPlan) {
+        planDraft.value = planDraft.value?.copy(plan = plan)
+    }
+
+    fun closePlanEditor() {
+        planDraft.value = null
+    }
+
+    /**
+     * Saves the draft: checked by the PC's rules first, then kept and sent to the PC (now, or when it can be
+     * reached). While it waits, the phone shows it.
+     */
+    fun savePlanDraft(): Boolean {
+        val draft = planDraft.value ?: return false
+        DayPlanValidator.validate(draft.plan)?.let {
+            message.value = it
+            return false
+        }
+
+        store.savePendingPlan(draft.plan, Instant.now(), draft.baseVersion, draft.basePlan)
+        planDraft.value = null
+        message.value = if (linkStatus.value is LinkStatus.Connected) "Sending the plan to the PC…" else "Saved; it goes to the PC when they connect."
+        return true
+    }
+
+    fun discardDayPlanEdit() {
+        store.clearPendingPlan(null)
+        message.value = "Edit discarded; showing the PC's plan."
+    }
+
+    fun useMyPlan() = (getApplication<CompanionApp>()).planSync.useMine()
+
+    fun keepPcPlan() = (getApplication<CompanionApp>()).planSync.keepPc()
 
     fun unpairPc() {
         viewModelScope.launch {

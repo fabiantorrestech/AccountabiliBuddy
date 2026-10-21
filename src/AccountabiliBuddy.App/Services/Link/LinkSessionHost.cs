@@ -182,6 +182,12 @@ public sealed class LinkSessionHost : ILinkSessionHost
     {
         return Dispatcher.UIThread.InvokeAsync(async () =>
         {
+            if (_configuration.IsReadOnly)
+            {
+                // It couldn't be saved; the device keeps its edit instead of being told "Saved".
+                return new LinkDayPlanAnswer(LinkDayPlanStatus.Invalid, "The PC's settings are read-only right now (see the banner in its window).");
+            }
+
             (LinkDayPlanAnswer answer, DayPlan? toSave) = DayPlanEditDecision.Decide(
                 _configuration.Current.DayPlan, _planEditTime.Current, edit, locked: _sessions.IsEnforcing);
             if (toSave is not null)

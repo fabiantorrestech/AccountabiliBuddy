@@ -11,6 +11,7 @@ object LinkMessages {
     const val END_EARLY_BEGIN = "endEarlyBegin"
     const val END_EARLY = "endEarly"
     const val UNPAIR = "unpair"
+    const val DAY_PLAN_EDIT = "dayPlanEdit"
 
     // PC to device.
     const val PAIRED = "paired"
@@ -19,5 +20,6 @@ object LinkMessages {
     const val SETTINGS = "settings"
     const val END_EARLY_TERMS = "endEarlyTerms"
     const val RESULT = "result"
+    const val DAY_PLAN_ANSWER = "dayPlanAnswer"
     const val REFUSED = "refused"
 }

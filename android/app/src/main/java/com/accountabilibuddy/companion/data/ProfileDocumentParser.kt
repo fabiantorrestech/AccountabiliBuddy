@@ -76,7 +76,8 @@ object ProfileDocumentParser {
         note = json.string("note"),
     )
 
-    private fun dayPlan(json: JsonObject): DayPlan = DayPlan(
+    /** A day plan on its own, in the document's shape (also a conflict answer's plan, ADR 19). */
+    fun dayPlan(json: JsonObject): DayPlan = DayPlan(
         categories = (json["categories"] as? JsonArray).orEmpty().map {
             val c = it.jsonObject
             DayCategory(

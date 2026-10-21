@@ -53,7 +53,9 @@ fun MainScreen(
     val pairing by viewModel.pairing.collectAsStateWithLifecycle()
     val pcBusy by viewModel.pcBusy.collectAsStateWithLifecycle()
     val endEarlyTerms by viewModel.endEarlyTerms.collectAsStateWithLifecycle()
+    val planConflict by viewModel.planConflict.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    val planDraft by viewModel.planDraft.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(message) {
@@ -67,7 +69,8 @@ fun MainScreen(
         topBar = { AppHeader() },
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            NavigationBar {
+            // Hidden while the day plan editor is open: its own Save and Cancel lead out.
+            if (planDraft == null) NavigationBar {
                 listOf("Today" to R.drawable.ic_tab_today, "Profiles" to R.drawable.ic_tab_profiles, "Settings" to R.drawable.ic_tab_settings)
                     .forEachIndexed { index, (label, icon) ->
                         NavigationBarItem(
@@ -81,6 +84,19 @@ fun MainScreen(
         },
     ) { padding ->
         Column(Modifier.padding(padding)) {
+            planDraft?.let { draft ->
+                DayPlanEditorScreen(
+                    draft = draft,
+                    pcName = pairedPc?.pcName,
+                    clock = viewModel.clock,
+                    onChange = viewModel::updatePlanDraft,
+                    onSave = viewModel::savePlanDraft,
+                    onClose = viewModel::closePlanEditor,
+                    onMessage = { viewModel.message.value = it },
+                )
+                return@Column
+            }
+
             when (tab) {
                 0 -> TodayScreen(
                     state, model, viewModel.clock, health, onPickFile, onConnectHealth, viewModel::refreshSleep, phoneUsage, onAllowUsage,
@@ -95,6 +111,10 @@ fun MainScreen(
                             onRetry = viewModel::retryPc,
                         )
                     },
+                    onEditPlan = if (pairedPc == null) null else {
+                        { viewModel.openPlanEditor()?.let { viewModel.message.value = it } }
+                    },
+                    onDiscardPlanEdit = viewModel::discardDayPlanEdit,
                 )
                 1 -> ProfilesScreen(
                     state,
@@ -132,6 +152,10 @@ fun MainScreen(
 
     pairingOffer?.let { offer ->
         PairingDialog(offer, busy = pairing, onPair = viewModel::confirmPairing, onCancel = viewModel::cancelPairing)
+    }
+
+    planConflict?.let { conflict ->
+        DayPlanConflictDialog(conflict, pairedPc?.pcName, viewModel.clock, onKeepPc = viewModel::keepPcPlan, onUseMine = viewModel::useMyPlan)
     }
 
     endEarlyTerms?.let { terms ->

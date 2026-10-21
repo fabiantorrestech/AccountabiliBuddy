@@ -35,7 +35,7 @@ public static class DayPlanEditDecision
         string currentVersion = DayPlanVersion.Of(current);
         if (DayPlanVersion.Of(edited) == currentVersion)
         {
-            return (new LinkDayPlanAnswer(LinkDayPlanStatus.Applied, "The PC already has this plan."), null);
+            return (new LinkDayPlanAnswer(LinkDayPlanStatus.Applied, "The PC already has this plan.", currentVersion), null);
         }
 
         if (edit.BaseVersion != currentVersion)
@@ -53,6 +53,7 @@ public static class DayPlanEditDecision
             return (new LinkDayPlanAnswer(LinkDayPlanStatus.Invalid, problem), null);
         }
 
-        return (new LinkDayPlanAnswer(LinkDayPlanStatus.Applied, "Saved on the PC."), edited);
+        // The new version goes back, so a newer edit waiting on the device can build on this one.
+        return (new LinkDayPlanAnswer(LinkDayPlanStatus.Applied, "Saved on the PC.", DayPlanVersion.Of(edited)), edited);
     }
 }

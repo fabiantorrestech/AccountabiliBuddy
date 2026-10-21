@@ -62,15 +62,37 @@ public static class ProfileDocumentSerializer
         return JsonSerializer.SerializeToElement(plan, Options);
     }
 
+    /// <summary>
+    /// A day plan from another device (ADR 19), checked for shape: every list present, no null items, and only known
+    /// enum values (an unknown number would be saved and then break every device that reads the document).
+    /// </summary>
     /// <exception cref="JsonException">The JSON isn't a complete day plan.</exception>
     public static DayPlan DeserializeDayPlan(JsonElement json)
     {
-        DayPlan plan = json.Deserialize<DayPlan>(Options) ?? throw new JsonException("The day plan is empty.");
-        // Missing lists come through as null from the record's constructor; a plan needs all of them.
+        DayPlan plan;
+        try
+        {
+            plan = json.Deserialize<DayPlan>(Options) ?? throw new JsonException("The day plan is empty.");
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or ArgumentException)
+        {
+            // E.g. no JSON at all (an empty element), or a value of the wrong kind.
+            throw new JsonException("The day plan can't be read.", ex);
+        }
+
+        // Missing lists and null items come through as null from the records' constructors; a plan needs them all.
         if (plan.Categories is null || plan.Workdays is null || plan.Workday?.Parts is null || plan.OtherDay?.Parts is null
-            || plan.OneOffDays is null || plan.OneOffDays.Any(day => day?.Template?.Parts is null))
+            || plan.OneOffDays is null
+            || plan.Categories.Any(category => category is null || category.Name is null || category.Color is null)
+            || plan.Workday.Parts.Concat(plan.OtherDay.Parts).Any(part => part is null)
+            || plan.OneOffDays.Any(day => day?.Template?.Parts is null || day.Template.Parts.Any(part => part is null)))
         {
             throw new JsonException("The day plan is incomplete.");
+        }
+
+        if (plan.Categories.Any(category => !Enum.IsDefined(category.Behavior)) || plan.Workdays.Any(day => !Enum.IsDefined(day)))
+        {
+            throw new JsonException("The day plan has a value this version doesn't know.");
         }
 
         return plan;
