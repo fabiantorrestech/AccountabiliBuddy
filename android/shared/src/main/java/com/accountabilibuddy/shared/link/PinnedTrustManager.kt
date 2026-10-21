@@ -1,4 +1,4 @@
-package com.accountabilibuddy.companion.link
+package com.accountabilibuddy.shared.link
 
 import android.util.Base64
 import java.security.MessageDigest

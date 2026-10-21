@@ -194,7 +194,7 @@ fun EndEarlyDialog(terms: EndEarlyTerms, onEnd: (String) -> Unit, onCancel: () -
 
 /** Opened from the PC's QR code: compare the code with the PC's screen, then link. */
 @Composable
-fun PairingDialog(offer: PairingLink, busy: Boolean, onPair: () -> Unit, onCancel: () -> Unit) {
+fun PairingDialog(offer: PairingLink, busy: Boolean, onPair: () -> Unit, onCancel: () -> Unit, onPairWatch: (() -> Unit)? = null) {
     AlertDialog(
         onDismissRequest = { if (!busy) onCancel() },
         title = { Text("Link with ${offer.pcName}?") },
@@ -207,6 +207,10 @@ fun PairingDialog(offer: PairingLink, busy: Boolean, onPair: () -> Unit, onCance
                         "Only on your network, encrypted.",
                     style = MaterialTheme.typography.bodySmall,
                 )
+                if (onPairWatch != null) {
+                    // The watch reaches the PC over Wi-Fi when the phone isn't around; the code goes to it instead.
+                    TextButton(onClick = onPairWatch, enabled = !busy) { Text("Pair my watch instead") }
+                }
             }
         },
         confirmButton = { TextButton(onClick = onPair, enabled = !busy) { Text(if (busy) "Linking…" else "Link") } },

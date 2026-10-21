@@ -176,7 +176,7 @@ public sealed partial class LinkedDevicesViewModel : ObservableObject, IDisposab
             string when = connected.Contains(device.Id) ? "connected now"
                 : device.LastSeenAt is DateTimeOffset seen ? $"last seen {seen.ToLocalTime():ddd d MMM, t}"
                 : "not seen yet";
-            Devices.Add(new LinkedDeviceRowViewModel(device.Id, device.Name, $"{device.Kind} · {when}"));
+            Devices.Add(new LinkedDeviceRowViewModel(device.Id, device.Name, $"{device.Kind} · {when}", device.Kind == "watch" ? "⌚" : "📱"));
         }
 
         Status = !IsEnabled ? "Off. Turn it on to pair a phone or tablet."

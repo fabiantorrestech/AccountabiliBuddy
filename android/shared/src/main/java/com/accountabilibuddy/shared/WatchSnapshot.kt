@@ -11,7 +11,8 @@ data class RunningSession(val profile: String?, val startedAt: Instant, val ends
 /**
  * What the watch shows (ADR 21), as the phone sends it: [date]'s plan parts, the focus sessions that count (cut to the
  * day; one with no end runs until now), drift marks, planned minutes, the week, and the session running on the PC.
- * [linked] false tells the watch it's no longer linked. Never titles, addresses, reasons or notes.
+ * [linked] false tells the watch it's no longer linked; [wifiAllowed] is the phone's "Wi-Fi straight to the PC" switch.
+ * Never titles, addresses, reasons or notes.
  */
 data class WatchSnapshot(
     val createdAt: Instant,
@@ -24,6 +25,7 @@ data class WatchSnapshot(
     val plannedMinutes: Int,
     val week: List<DayTotal>,
     val running: RunningSession?,
+    val wifiAllowed: Boolean = true,
 ) {
     /** Focused on [date] up to [now]: each session cut to the day, one with no end until [now], overlaps counted once. */
     fun focusedMinutes(now: Instant, zone: ZoneId): Int {

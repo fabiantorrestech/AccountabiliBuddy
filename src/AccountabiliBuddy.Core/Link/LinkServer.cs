@@ -14,13 +14,15 @@ namespace AccountabiliBuddy.Core.Link;
 /// certificate and answers private-network addresses only. A connection first pairs (the one-time code from
 /// <see cref="BeginPairing"/>: five minutes, five tries) or signs in with a device token; after that the device can
 /// start a session or end one early by the app's own rules (<see cref="ILinkSessionHost"/>), and every session change
-/// is pushed to it, as are the settings and today's focus when they change. A device that is unpaired is disconnected
-/// at once.
+/// is pushed to it, as are the settings and today's focus when they change. A watch (ADR 21) gets the session and
+/// today's focus only, never the settings, and can't start, end or change anything. A device that is unpaired is
+/// disconnected at once.
 /// </summary>
 public sealed class LinkServer : IAsyncDisposable
 {
     private const int MaxPairingAttempts = 5;
     private const int MaxDeviceNameLength = 60;
+    private const string WatchKind = "watch";
     private static readonly TimeSpan PairingLifetime = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(15);
 
@@ -220,16 +222,21 @@ public sealed class LinkServer : IAsyncDisposable
                 }
 
                 connection.DeviceId = device.Id;
+                connection.IsWatch = device.Kind == WatchKind;
                 _connections[connection] = 0;
                 ConnectionsChanged?.Invoke(this, EventArgs.Empty);
                 await _devices.MarkSeenAsync(device.Id, _host.Now).ConfigureAwait(false);
                 await connection.SendAsync(
                     LinkEnvelope.Of(LinkMessages.Welcome, new LinkWelcome(_host.PcName, LinkMessages.ProtocolVersion)), stopping).ConfigureAwait(false);
-                await connection.SendAsync(LinkEnvelope.Of(LinkMessages.State, await _host.GetStateAsync().ConfigureAwait(false)), stopping)
+                await connection.SendAsync(LinkEnvelope.Of(LinkMessages.State, StateFor(connection, await _host.GetStateAsync().ConfigureAwait(false))), stopping)
                     .ConfigureAwait(false);
-                // A newly paired device has none yet; a signed-in one says which it has.
+                // A newly paired device has none yet; a signed-in one says which it has. A watch never gets them.
                 connection.SettingsVersion = first!.Type == LinkMessages.Hello ? first.BodyAs<LinkHello>()?.SettingsVersion : null;
-                await SendSettingsIfNewerAsync(connection, await SettingsAsync().ConfigureAwait(false), stopping).ConfigureAwait(false);
+                if (!connection.IsWatch)
+                {
+                    await SendSettingsIfNewerAsync(connection, await SettingsAsync().ConfigureAwait(false), stopping).ConfigureAwait(false);
+                }
+
                 await SendFocusDayIfChangedAsync(connection, await FocusDayAsync().ConfigureAwait(false), stopping).ConfigureAwait(false);
 
                 while (await LinkFraming.ReadAsync(tls, stopping).ConfigureAwait(false) is LinkEnvelope request)
@@ -265,7 +272,12 @@ public sealed class LinkServer : IAsyncDisposable
 
         string token = LinkSecrets.NewToken();
         string name = request.DeviceName.Trim() is { Length: > 0 } given ? given[..Math.Min(given.Length, MaxDeviceNameLength)] : "Phone";
-        string kind = request.DeviceKind == "tablet" ? "tablet" : "phone";
+        string kind = request.DeviceKind switch
+        {
+            "tablet" => "tablet",
+            WatchKind => WatchKind,
+            _ => "phone",
+        };
         PairedDevice device = await _devices.AddAsync(name, kind, token, _host.Now).ConfigureAwait(false);
         await connection.SendAsync(LinkEnvelope.Of(LinkMessages.Paired, new LinkPaired(device.Id, token, _host.PcName)), CancellationToken.None)
             .ConfigureAwait(false);
@@ -303,6 +315,14 @@ public sealed class LinkServer : IAsyncDisposable
     /// <returns>False when the connection should close.</returns>
     private async Task<bool> HandleAsync(Connection connection, PairedDevice device, LinkEnvelope request, CancellationToken stopping)
     {
+        if (connection.IsWatch && request.Type != LinkMessages.Unpair)
+        {
+            // A watch only shows (ADR 21): starting, ending and plan edits stay with the PC and the phone.
+            await connection.SendAsync(ResultOf("A watch can only show the session, not start, end or change it.", string.Empty), stopping)
+                .ConfigureAwait(false);
+            return true;
+        }
+
         switch (request.Type)
         {
             case LinkMessages.Start:
@@ -386,13 +406,19 @@ public sealed class LinkServer : IAsyncDisposable
             connection.EndEarlyTerms = null;
             try
             {
-                await connection.SendAsync(LinkEnvelope.Of(LinkMessages.State, state), CancellationToken.None).ConfigureAwait(false);
+                await connection.SendAsync(LinkEnvelope.Of(LinkMessages.State, StateFor(connection, state)), CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
             {
                 connection.Close();
             }
         }
+    }
+
+    /// <summary>A watch shows the running session only (ADR 21): it doesn't get the list of profiles to start.</summary>
+    private static LinkState StateFor(Connection connection, LinkState state)
+    {
+        return connection.IsWatch ? state with { Profiles = Array.Empty<LinkProfile>(), CountUpProfileId = null } : state;
     }
 
     private void OnSettingsChanged(object? sender, EventArgs e)
@@ -409,7 +435,7 @@ public sealed class LinkServer : IAsyncDisposable
         }
 
         LinkSettingsMessage settings = await SettingsAsync().ConfigureAwait(false);
-        foreach (Connection connection in _connections.Keys)
+        foreach (Connection connection in _connections.Keys.Where(connection => !connection.IsWatch))
         {
             try
             {
@@ -506,6 +532,9 @@ public sealed class LinkServer : IAsyncDisposable
         }
 
         public Guid? DeviceId { get; set; }
+
+        /// <summary>A watch: no settings, no requests (ADR 21).</summary>
+        public bool IsWatch { get; set; }
 
         /// <summary>The settings version the device has (from its hello, then each one sent).</summary>
         public string? SettingsVersion

@@ -12,6 +12,7 @@ import com.accountabilibuddy.shared.WatchPaths
 import com.accountabilibuddy.shared.WatchRoute
 import com.accountabilibuddy.shared.WatchSnapshot
 import com.accountabilibuddy.shared.WatchSnapshotJson
+import com.accountabilibuddy.shared.link.PcOffer
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.CoroutineScope
@@ -48,6 +49,7 @@ class WatchBridge(
     private val capabilities = Wearable.getCapabilityClient(context)
     private val sending = Mutex()
     private val _detected = MutableStateFlow<List<WatchNode>>(emptyList())
+    private val _news = MutableStateFlow<String?>(null)
 
     // The last snapshot sent (to skip sending the same again) and when, on the uptime clock.
     private var lastSent: WatchSnapshot? = null
@@ -57,6 +59,9 @@ class WatchBridge(
 
     /** Watches paired with this phone that have the watch app, found by [findWatches]. */
     val detected: StateFlow<List<WatchNode>> = _detected.asStateFlow()
+
+    /** What the watch said back (e.g. how pairing with the PC went), shown once by the app. */
+    val news: StateFlow<String?> = _news.asStateFlow()
 
     /** Sends when what the watch shows changes, while the app runs. */
     fun start() {
@@ -145,6 +150,31 @@ class WatchBridge(
         }
     }
 
+    /**
+     * Passes the PC's pairing QR code to the linked watch, so it can reach the PC over Wi-Fi when the phone can't be
+     * reached. The code is a one-time secret, so it goes only to a watch near the phone, never through the relay.
+     */
+    suspend fun sendPcOffer(offer: PcOffer): String {
+        val settings = links.settings.value
+        if (!settings.wifiFallbackOn) {
+            return "Turn on \"Wi-Fi straight to the PC\" under Pixel Watch first."
+        }
+
+        val watch = WatchRoute.choose(settings.copy(relayOn = false), reachableWatches()).firstOrNull()
+            ?: return "The linked watch isn't near the phone. Bring it close and scan the PC's code again."
+        return runCatching { messages.sendMessage(watch.id, WatchPaths.PC_OFFER, PcOffer.write(offer).toString().toByteArray()).await() }
+            .fold({ "Sent to ${watch.name}: it pairs with ${offer.pcName} over Wi-Fi now…" }, { "Couldn't reach the watch (${it.message})." })
+    }
+
+    /** The watch's answer to [sendPcOffer]. */
+    fun notePcPaired(ok: Boolean, message: String) {
+        _news.value = if (ok) "Your watch is paired with the PC." else "The watch couldn't pair with the PC: $message"
+    }
+
+    fun clearNews() {
+        _news.value = null
+    }
+
     /** The snapshot for the linked watch, or null when none is linked. */
     private fun build(): WatchSnapshot? {
         if (links.settings.value.linkedNodeId == null) {
@@ -152,7 +182,10 @@ class WatchBridge(
         }
 
         val pcName = link.pairedPc.value?.pcName
-        return SnapshotBuilder.build(PhoneSnapshot.input(store.state.value, link.status.value, linked = true, pcName, Instant.now(), ZoneId.systemDefault()))
+        val settings = links.settings.value
+        return SnapshotBuilder.build(
+            PhoneSnapshot.input(store.state.value, link.status.value, linked = true, pcName, Instant.now(), ZoneId.systemDefault(), settings.wifiFallbackOn),
+        )
     }
 
     private suspend fun send(snapshot: WatchSnapshot) = sending.withLock {

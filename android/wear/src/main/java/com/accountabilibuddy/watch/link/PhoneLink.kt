@@ -1,6 +1,7 @@
 package com.accountabilibuddy.watch.link
 
 import android.content.Context
+import android.os.SystemClock
 import com.accountabilibuddy.shared.WatchPaths
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.wearable.CapabilityClient
@@ -12,12 +13,25 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-/** The watch's side of the phone link (ADR 21): asking the phone app for a fresh snapshot. */
+/** The watch's side of the phone link (ADR 21): asking the phone app for a fresh snapshot, and when it last answered. */
 object PhoneLink {
     private val _phoneReachable = MutableStateFlow<Boolean?>(null)
 
+    // When a message from the phone last came, on the uptime clock; 0 = not since the app started.
+    @Volatile private var lastHeard = 0L
+
     /** Whether the last ask reached the phone app; null before the first. */
     val phoneReachable: StateFlow<Boolean?> = _phoneReachable.asStateFlow()
+
+    fun heardFromPhone() {
+        lastHeard = SystemClock.elapsedRealtime()
+    }
+
+    /** True when the phone sent something at or after [since] (an uptime-clock time). */
+    fun heardSince(since: Long): Boolean = lastHeard != 0L && lastHeard >= since
+
+    /** True when nothing came from the phone for [millis] (or ever, since the app started). */
+    fun quietFor(millis: Long): Boolean = lastHeard == 0L || SystemClock.elapsedRealtime() - lastHeard >= millis
 
     /** Sends "/hello"; the phone answers with a snapshot, or says this watch isn't linked. */
     suspend fun askForNews(context: Context) {

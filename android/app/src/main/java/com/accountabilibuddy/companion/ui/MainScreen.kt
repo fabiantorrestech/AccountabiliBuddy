@@ -166,7 +166,12 @@ fun MainScreen(
     }
 
     pairingOffer?.let { offer ->
-        PairingDialog(offer, busy = pairing, onPair = viewModel::confirmPairing, onCancel = viewModel::cancelPairing)
+        // A linked watch with the Wi-Fi fallback on can take the code instead (ADR 21).
+        val canPairWatch = watchSettings.linkedNodeId != null && watchSettings.dataLayerOn && watchSettings.wifiFallbackOn
+        PairingDialog(
+            offer, busy = pairing, onPair = viewModel::confirmPairing, onCancel = viewModel::cancelPairing,
+            onPairWatch = if (canPairWatch) viewModel::pairWatchWithPc else null,
+        )
     }
 
     planConflict?.let { conflict ->

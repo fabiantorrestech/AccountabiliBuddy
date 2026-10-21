@@ -15,7 +15,15 @@ import java.time.ZoneId
 
 /** What the phone knows, as the watch snapshot's input (ADR 21): today's plan, the PC's focus day and its session. */
 object PhoneSnapshot {
-    fun input(state: CompanionState, status: LinkStatus, linked: Boolean, pcName: String?, now: Instant, zone: ZoneId): SnapshotInput {
+    fun input(
+        state: CompanionState,
+        status: LinkStatus,
+        linked: Boolean,
+        pcName: String?,
+        now: Instant,
+        zone: ZoneId,
+        wifiAllowed: Boolean = true,
+    ): SnapshotInput {
         val connected = status as? LinkStatus.Connected
         return SnapshotInput(
             now = now,
@@ -27,6 +35,7 @@ object PhoneSnapshot {
             focusDayAt = state.focusDayAt,
             running = running(connected?.state),
             pcConnected = connected?.state != null,
+            wifiAllowed = wifiAllowed,
         )
     }
 

@@ -1,4 +1,4 @@
-package com.accountabilibuddy.companion.link
+package com.accountabilibuddy.shared.link
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties

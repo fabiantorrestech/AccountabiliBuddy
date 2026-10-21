@@ -1,4 +1,4 @@
-package com.accountabilibuddy.companion.link
+package com.accountabilibuddy.shared.link
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -12,7 +12,7 @@ import java.io.DataOutputStream
 import java.io.EOFException
 import java.io.IOException
 
-/** Messages on the link: a 4-byte big-endian length, then UTF-8 JSON `{type, body}` (as on the PC). */
+/** Messages on the link (ADR 14): a 4-byte big-endian length, then UTF-8 JSON `{type, body}` (as on the PC). Used by the phone and the watch. */
 object LinkFraming {
     private const val MAX_FRAME_BYTES = 1024 * 1024
 

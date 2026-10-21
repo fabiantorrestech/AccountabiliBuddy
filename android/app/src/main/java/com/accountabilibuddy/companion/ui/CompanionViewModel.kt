@@ -1,7 +1,5 @@
 package com.accountabilibuddy.companion.ui
 
-import com.accountabilibuddy.shared.WatchLinkSettings
-import com.accountabilibuddy.shared.WatchNode
 import android.app.Application
 import android.net.Uri
 import android.text.format.DateFormat
@@ -29,6 +27,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -40,6 +39,9 @@ import com.accountabilibuddy.companion.engine.DayPlanValidator
 import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.companion.model.DayPlanConflict
 import com.accountabilibuddy.companion.model.DayPlanDraft
+import com.accountabilibuddy.shared.WatchLinkSettings
+import com.accountabilibuddy.shared.WatchNode
+import com.accountabilibuddy.shared.link.PcOffer
 import java.time.Instant
 import java.time.LocalDateTime
 
@@ -87,6 +89,16 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     /** A message after an import or another action, shown once. */
     val message = MutableStateFlow<String?>(null)
+
+    init {
+        // What the watch says back (e.g. how pairing with the PC went) shows once, like other messages.
+        viewModelScope.launch {
+            watchBridge.news.filterNotNull().collect { news ->
+                message.value = news
+                watchBridge.clearNews()
+            }
+        }
+    }
     val passwordRequest = MutableStateFlow<PasswordRequest?>(null)
     val importing = MutableStateFlow(false)
     val health = MutableStateFlow(HealthStatus.Checking)
@@ -154,6 +166,15 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun findWatches() = watchBridge.findWatches()
+
+    /** "Pair my watch instead": the scanned PC code goes to the linked watch, which pairs over Wi-Fi (ADR 21). */
+    fun pairWatchWithPc() {
+        val offer = pairingOffer.value ?: return
+        pairingOffer.value = null
+        viewModelScope.launch {
+            message.value = watchBridge.sendPcOffer(PcOffer(offer.host, offer.port, offer.fingerprint, offer.code, offer.pcName))
+        }
+    }
 
     fun linkWatch(watch: WatchNode) {
         watchBridge.linkWatch(watch)

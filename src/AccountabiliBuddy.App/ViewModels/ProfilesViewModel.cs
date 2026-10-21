@@ -219,7 +219,9 @@ public sealed partial class ProfilesViewModel : ObservableObject
     /// <summary>The device rows: this PC's profile count and running profile, and each linked device (using this PC's profiles for now).</summary>
     private void RefreshDevices()
     {
-        IReadOnlyList<AccountabiliBuddy.Core.Link.PairedDevice> devices = _link?.Devices ?? Array.Empty<AccountabiliBuddy.Core.Link.PairedDevice>();
+        // A watch only shows the session and today's focus (ADR 21); it has no profiles to list.
+        IReadOnlyList<AccountabiliBuddy.Core.Link.PairedDevice> devices =
+            (_link?.Devices ?? Array.Empty<AccountabiliBuddy.Core.Link.PairedDevice>()).Where(device => device.Kind != "watch").ToList();
         HasLinkedDevices = devices.Count > 0;
 
         // A scheduled block isn't a focus session you started, so it reads "blocks on", not "running".

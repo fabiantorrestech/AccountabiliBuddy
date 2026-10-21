@@ -18,6 +18,7 @@ data class SnapshotInput(
     val focusDayAt: Instant?,
     val running: RunningSession?,
     val pcConnected: Boolean,
+    val wifiAllowed: Boolean = true,
 )
 
 /**
@@ -58,6 +59,7 @@ object SnapshotBuilder {
             plannedMinutes = planned,
             week = emptyList(),
             running = running,
+            wifiAllowed = input.wifiAllowed,
         )
 
         // The PC's totals for the days before today (dated, so an older focus day still counts), and today live.

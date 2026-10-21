@@ -28,6 +28,10 @@ import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Socket
 import javax.net.ssl.SSLSocket
+import com.accountabilibuddy.shared.link.LinkEnvelope
+import com.accountabilibuddy.shared.link.LinkFraming
+import com.accountabilibuddy.shared.link.PinnedTrustManager
+import com.accountabilibuddy.shared.link.TokenVault
 
 /**
  * The connection to the paired PC (ADR 14): TLS that trusts only the PC's pinned certificate, sign-in with the sealed

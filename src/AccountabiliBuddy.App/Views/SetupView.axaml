@@ -95,18 +95,21 @@
                                        Text="The link opens the AccountabiliBuddy companion, which shows this code to compare before pairing:" />
                             <TextBlock Text="{Binding PairingCode}" FontSize="24" FontWeight="SemiBold" FontFamily="Consolas, Courier New, monospace" />
                             <TextBlock Text="{Binding PairingDetail}" Classes="muted" />
+                            <TextBlock Classes="muted" TextWrapping="Wrap"
+                                       Text="Pairing a Pixel Watch? Scan it with the phone and tap &quot;Pair my watch instead&quot;: the watch then reaches this PC over Wi-Fi when the phone isn't around." />
                             <Button Content="Cancel" Command="{Binding CancelPairingCommand}" />
                         </StackPanel>
                     </StackPanel>
                     <ItemsControl ItemsSource="{Binding Devices}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:LinkedDeviceRowViewModel">
-                                <Grid ColumnDefinitions="*,Auto" Margin="0,4">
-                                    <StackPanel>
+                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
+                                    <TextBlock Text="{Binding Icon}" FontSize="20" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                    <StackPanel Grid.Column="1">
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                                         <TextBlock Text="{Binding Detail}" Classes="muted" />
                                     </StackPanel>
-                                    <Button Grid.Column="1" Content="Unpair" VerticalAlignment="Center"
+                                    <Button Grid.Column="2" Content="Unpair" VerticalAlignment="Center"
                                             Command="{Binding $parent[ItemsControl].((vm:LinkedDevicesViewModel)DataContext).UnpairCommand}"
                                             CommandParameter="{Binding}" />
                                 </Grid>

@@ -10,6 +10,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.io.File
+import com.accountabilibuddy.shared.link.TokenVault
 
 /** The paired PC (link.json in the app's private folder); the token inside is sealed by [TokenVault]. */
 class LinkStore(private val file: File) {

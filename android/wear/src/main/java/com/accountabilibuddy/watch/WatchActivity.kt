@@ -1,6 +1,7 @@
 package com.accountabilibuddy.watch
 
 import android.os.Bundle
+import android.os.SystemClock
 import android.text.format.DateFormat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -24,6 +25,7 @@ import com.accountabilibuddy.shared.TodayView
 import com.accountabilibuddy.shared.WatchSnapshot
 import com.accountabilibuddy.shared.WatchText
 import com.accountabilibuddy.shared.WeekView
+import com.accountabilibuddy.watch.link.PcLink
 import com.accountabilibuddy.watch.link.PhoneLink
 import com.accountabilibuddy.watch.link.SnapshotStore
 import com.accountabilibuddy.watch.model.SampleData
@@ -40,7 +42,8 @@ import java.time.ZoneId
 
 /**
  * The watch app (ADR 21): swipe between today's rings, the running session, the last 7 days and where the data comes
- * from. Shows the phone's last snapshot; asks the phone for news each time it comes up.
+ * from. Shows the last snapshot; asks the phone for news each time it comes up, and when the phone doesn't answer
+ * (and hasn't for 2 minutes), asks the PC itself over Wi-Fi if the watch is paired with it and the phone allows it.
  */
 class WatchActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,7 +54,7 @@ class WatchActivity : ComponentActivity() {
             MaterialTheme {
                 val stored by snapshots.collectAsState()
                 val phoneReachable by PhoneLink.phoneReachable.collectAsState()
-                WatchApp(stored, phoneReachable, onAskAgain = ::askForNews, onForget = { SnapshotStore.clear(this) })
+                WatchApp(stored, phoneReachable, PcLink.isPaired(this), onAskAgain = ::askForNews, onForget = { SnapshotStore.clear(this) })
             }
         }
     }
@@ -62,12 +65,29 @@ class WatchActivity : ComponentActivity() {
     }
 
     private fun askForNews() {
-        lifecycleScope.launch { PhoneLink.askForNews(this@WatchActivity) }
+        lifecycleScope.launch {
+            val asked = SystemClock.elapsedRealtime()
+            PhoneLink.askForNews(this@WatchActivity)
+            if (PhoneLink.phoneReachable.value == true) {
+                delay(PHONE_ANSWER_WAIT_MS)
+            }
+
+            val wifiAllowed = SnapshotStore.snapshot(this@WatchActivity).value?.wifiAllowed ?: true
+            if (!PhoneLink.heardSince(asked) && PhoneLink.quietFor(PHONE_QUIET_MS) && wifiAllowed && PcLink.isPaired(this@WatchActivity)) {
+                PcLink.refresh(this@WatchActivity)
+            }
+        }
+    }
+
+    private companion object {
+        // The phone answers within seconds (it may first ask the PC); after that the watch tries the PC itself.
+        const val PHONE_ANSWER_WAIT_MS = 12_000L
+        const val PHONE_QUIET_MS = 2 * 60_000L
     }
 }
 
 @Composable
-private fun WatchApp(stored: WatchSnapshot?, phoneReachable: Boolean?, onAskAgain: () -> Unit, onForget: () -> Unit) {
+private fun WatchApp(stored: WatchSnapshot?, phoneReachable: Boolean?, pcPaired: Boolean, onAskAgain: () -> Unit, onForget: () -> Unit) {
     var now by remember { mutableStateOf(Instant.now()) }
     var sample by remember { mutableStateOf<WatchSnapshot?>(null) }
     LaunchedEffect(Unit) {
@@ -100,6 +120,7 @@ private fun WatchApp(stored: WatchSnapshot?, phoneReachable: Boolean?, onAskAgai
                                 pcName = snapshot.pcName,
                                 updated = WatchText.updatedAgo(snapshot.createdAt, now),
                                 isSample = stored == null,
+                                pcPaired = pcPaired,
                                 onForget = { if (stored == null) sample = null else onForget() },
                             )
                         }
