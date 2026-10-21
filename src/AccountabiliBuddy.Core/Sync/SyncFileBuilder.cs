@@ -13,14 +13,19 @@ public static class SyncFileBuilder
     /// <summary>
     /// The file for the last 14 days: the counted sessions that reach into them (the running one with no end), the
     /// drift in them joined into one mark per visit, the plan and the shared settings. The days are local, from the
-    /// midnight before now − 14 × 24 hours, so a file without sessions speaks only for days it covers
-    /// (<see cref="SyncMerge.FileSpan"/>). With Activity history off (<see cref="SyncDeviceCard.HistoryOff"/>) it carries
-    /// no sessions or drift.
+    /// midnight before now − 14 × 24 hours, so they always hold <see cref="SyncMerge.FileSpan"/>; the file speaks from
+    /// that midnight (<see cref="SyncFile.CoversFrom"/>), or for all a receiver keeps when the device has no older
+    /// session. With Activity history off (<see cref="SyncDeviceCard.HistoryOff"/>) it carries no sessions or drift.
     /// </summary>
     /// <param name="card">The device's card; the file is written at <paramref name="now"/>, whatever its time says.</param>
     /// <param name="records">Newest first (<see cref="SessionHistoryBuilder.Build"/>), covering the 14 days and the day before them.</param>
     /// <param name="drift">Drift inside counted sessions in those days (omitted and scheduled time already left out).</param>
     /// <param name="sessionRunning">True while a session runs: the newest recorded session without an end is it.</param>
+    /// <param name="oldestSessionStart">
+    /// The start of the oldest session record the device still keeps, of any kind; null when it keeps none. When it isn't
+    /// older than the 14 days (after Delete in Setup, or on a new device), the file holds every session the device has
+    /// and speaks for all a receiver keeps (<see cref="SyncMerge.KeptFor"/>), so receivers drop what was deleted.
+    /// </param>
     public static SyncFile Build(
         SyncDeviceCard card,
         IReadOnlyList<SessionRecord> records,
@@ -31,7 +36,8 @@ public static class SyncFileBuilder
         SyncDayPlan? dayPlan,
         IReadOnlyList<SyncDocument> documents,
         DateTimeOffset now,
-        TimeZoneInfo zone)
+        TimeZoneInfo zone,
+        DateTimeOffset? oldestSessionStart)
     {
         SyncDeviceCard written = card with { WrittenAt = now };
         if (card.HistoryOff)
@@ -40,6 +46,7 @@ public static class SyncFileBuilder
         }
 
         DateTimeOffset from = StartOfDay(now - SyncMerge.FileSpan, zone);
+        DateTimeOffset coversFrom = oldestSessionStart is DateTimeOffset oldest && oldest < from ? from : now - SyncMerge.KeptFor;
         List<SyncSession> sessions = FocusDayBuilder.CountedRecords(records, isOmitted, sessionRunning, now)
             .Where(counted => counted.End > from)
             .OrderBy(counted => counted.Record.StartedAt)
@@ -54,13 +61,13 @@ public static class SyncFileBuilder
             .Where(mark => mark.End > from)
             .Select(mark => new SyncDrift(mark.Start, mark.End, mark.ProcessName, mark.Domain, mark.Section))
             .ToList();
-        return new SyncFile(SyncFile.CurrentFormatVersion, written, sessions, marks, dayPlan, documents);
+        return new SyncFile(SyncFile.CurrentFormatVersion, written, sessions, marks, dayPlan, documents, coversFrom);
     }
 
     /// <summary>
     /// Today's part of <paramref name="file"/> for QR codes: the sessions that reach into the local day it was written
-    /// on, and the drift from their start. With none today the newest session goes instead, so the file still speaks
-    /// only from that session on (<see cref="SyncMerge"/>). When the sealed file needs more than
+    /// on, and their drift. It speaks from the end of the newest session it leaves out (as far back as the file when it
+    /// leaves none out), so receivers keep the earlier days. When the sealed file needs more than
     /// <paramref name="maxCodes"/> codes of <see cref="SyncQr.BytesPerCode"/> bytes, the oldest drift goes first, then
     /// the settings (the biggest first), then the plan, and last the oldest sessions (the newest one always stays).
     /// </summary>
@@ -71,19 +78,20 @@ public static class SyncFileBuilder
         DateTimeOffset writtenAt = file.Device.WrittenAt;
         DateTimeOffset todayStart = StartOfDay(writtenAt, zone);
         List<SyncSession> sessions = file.Sessions
-            .Where(session => (session.End ?? writtenAt) > todayStart)
+            .Where(session => EndOf(session, writtenAt) > todayStart)
             .OrderBy(session => session.Start)
             .ToList();
-        if (sessions.Count == 0 && file.Sessions.Count > 0)
-        {
-            sessions.Add(file.Sessions.MaxBy(session => session.Start)!);
-        }
+        DateTimeOffset coversFrom = Latest(SyncMerge.CoveredFrom(file), file.Sessions
+            .Where(session => EndOf(session, writtenAt) <= todayStart)
+            .Select(session => EndOf(session, writtenAt)));
 
-        DateTimeOffset from = sessions.Count > 0 ? sessions[0].Start : todayStart;
+        // The drift in what the file speaks for, read as SyncMerge reads it (from the first session when it starts earlier).
+        DateTimeOffset driftFrom = sessions.Count > 0 && sessions[0].Start < coversFrom ? sessions[0].Start : coversFrom;
         SyncFile today = file with
         {
             Sessions = sessions,
-            Drift = file.Drift.Where(mark => mark.Start >= from).OrderBy(mark => mark.Start).ToList(),
+            Drift = file.Drift.Where(mark => mark.End > driftFrom).OrderBy(mark => mark.Start).ToList(),
+            CoversFrom = coversFrom,
         };
         if (Fits(today, maxBytes))
         {
@@ -109,8 +117,32 @@ public static class SyncFileBuilder
 
         today = today with { DayPlan = null };
         int sessionsKept = NewestThatFit(today.Sessions.Count, minimum: Math.Min(1, today.Sessions.Count),
-            count => Fits(today with { Sessions = Newest(today.Sessions, count) }, maxBytes));
-        return today with { Sessions = Newest(today.Sessions, sessionsKept) };
+            count => Fits(WithNewestSessions(today, count), maxBytes));
+        return WithNewestSessions(today, sessionsKept);
+    }
+
+    /// <summary>
+    /// <paramref name="today"/> with only its newest <paramref name="count"/> sessions: it then speaks from the end of the
+    /// newest one it leaves out.
+    /// </summary>
+    private static SyncFile WithNewestSessions(SyncFile today, int count)
+    {
+        IEnumerable<DateTimeOffset> leftOutEnds = today.Sessions
+            .Take(today.Sessions.Count - count)
+            .Select(session => EndOf(session, today.Device.WrittenAt));
+        return today with { Sessions = Newest(today.Sessions, count), CoversFrom = Latest(SyncMerge.CoveredFrom(today), leftOutEnds) };
+    }
+
+    /// <summary>A session's end; the running one ends when the file was written.</summary>
+    private static DateTimeOffset EndOf(SyncSession session, DateTimeOffset writtenAt)
+    {
+        return session.End ?? writtenAt;
+    }
+
+    /// <returns>The latest of <paramref name="time"/> and <paramref name="others"/>.</returns>
+    private static DateTimeOffset Latest(DateTimeOffset time, IEnumerable<DateTimeOffset> others)
+    {
+        return others.Aggregate(time, (latest, other) => other > latest ? other : latest);
     }
 
     private static bool Fits(SyncFile file, int maxBytes)

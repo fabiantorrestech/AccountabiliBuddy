@@ -21,14 +21,15 @@ import java.util.UUID
 
 /**
  * A [SyncFile] as JSON, in the PC's shape (System.Text.Json with LinkFraming.JsonOptions): the same camelCase names in
- * the same order, nulls written, "seen" as an object keyed by device id, and times as .NET writes a DateTimeOffset
- * ("2026-10-21T20:30:00.25+00:00": seconds always, a fraction of up to 7 digits only when there is one, UTC as
- * "+00:00"). Reading takes any ISO time with an offset, "Z" too.
+ * the same order, nulls written (except "coversFrom", written last and only when set), "seen" as an object keyed by
+ * device id, and times as .NET writes a DateTimeOffset ("2026-10-21T20:30:00.25+00:00": seconds always, a fraction of up
+ * to 7 digits only when there is one, UTC as "+00:00"). Reading takes any ISO time with an offset, "Z" too.
  *
  * Reading refuses what the PC refuses: a missing or null list, card field, drift app, plan field or document field, a
  * value of the wrong type, the empty device id, a device id not in the 36-character form, a format version outside 1 to
- * [SyncFile.CURRENT_FORMAT_VERSION]. A missing time is refused too (the PC would read it as year 1). Unknown properties
- * are ignored, and unknown kinds, methods and document keys are kept (a newer app within format 1).
+ * [SyncFile.CURRENT_FORMAT_VERSION]. A missing time is refused too (the PC would read it as year 1), except the optional
+ * coversFrom. Unknown properties are ignored, and unknown kinds, methods and document keys are kept (a newer app within
+ * format 1).
  */
 object SyncFileJson {
     // .NET keeps 100 ns ticks: a finer fraction is cut, as the PC would keep it.
@@ -48,6 +49,7 @@ object SyncFileJson {
         put("drift", JsonArray(file.drift.map(::writeDrift)))
         put("dayPlan", file.dayPlan?.let(::writeDayPlan) ?: JsonNull)
         put("documents", JsonArray(file.documents.map(::writeDocument)))
+        file.coversFrom?.let { put("coversFrom", writeTime(it)) }
     }
 
     /** Null when the JSON isn't a complete sync file this app can read (see the class comment). */
@@ -111,6 +113,7 @@ object SyncFileJson {
             json.requiredObjects("drift").map(::readDrift),
             json.optionalObject("dayPlan")?.let(::readDayPlan),
             json.requiredObjects("documents").map(::readDocument),
+            json.optionalTime("coversFrom"),
         )
     }
 

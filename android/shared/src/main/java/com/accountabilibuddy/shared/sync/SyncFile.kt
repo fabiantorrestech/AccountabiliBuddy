@@ -13,6 +13,10 @@ import java.util.UUID
  * @property drift Distracting stretches inside the sessions.
  * @property dayPlan Null when the file carries no plan.
  * @property documents The shared settings (profiles, sleep, day bar).
+ * @property coversFrom The time the file speaks from: it holds every counted session of the device that ends after it,
+ * and the drift in them, so a receiver drops what it has from the device after it ([SyncMerge]). Null in a file that
+ * doesn't say (then [SyncMerge.coveredFrom] reads it from the sessions). Optional in the JSON: written only when set,
+ * so a format 1 file without it reads as before.
  */
 data class SyncFile(
     val formatVersion: Int,
@@ -21,6 +25,7 @@ data class SyncFile(
     val drift: List<SyncDrift>,
     val dayPlan: SyncDayPlan?,
     val documents: List<SyncDocument>,
+    val coversFrom: Instant? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1
@@ -86,14 +91,36 @@ data class SyncSession(val start: Instant, val end: Instant?, val profile: Strin
 data class SyncDrift(val start: Instant, val end: Instant, val app: String, val site: String?, val section: String?)
 
 /**
- * A device's day plan as it travels (ADR 19, 22), with what the clash rule needs: its version, when it was last edited,
- * and the version that edit started from.
+ * A device's day plan as it travels (ADR 19, 22), with what the clash rule ([DayPlanClash]) needs: its version, when it
+ * was last edited, and the newest version the device shares with the others. A device stamps its own plan with the
+ * functions below, as on the PC, so several edits between two files still read as one device's change.
  *
  * @property planJson The plan in the PC's day plan shape (the PC's ProfileDocumentSerializer.SerializeDayPlan).
  * @property version The PC's DayPlanVersion of the plan.
- * @property basedOn The version the device held before its last edit; null when it isn't known.
+ * @property editedAt When the plan was last edited, on whichever device; it travels with the plan. A plan nobody has
+ * edited (a new device's default) can say the earliest time, so any edited plan is newer.
+ * @property basedOn The newest version the device shares with the others: the version it last took from another device
+ * or saw in another device's file (then it equals [version]), or, after edits here, the shared version they started
+ * from. Further edits don't move it. Null when it isn't known (a plan edited before the device joined): it counts as
+ * edited.
  */
-data class SyncDayPlan(val planJson: String, val version: String, val editedAt: Instant, val basedOn: String?)
+data class SyncDayPlan(val planJson: String, val version: String, val editedAt: Instant, val basedOn: String?) {
+    /** True when the device edited the plan since it last took or shared one (or that isn't known). */
+    fun hasLocalEdits(): Boolean = basedOn != version
+
+    /** The plan after an edit on this device: [basedOn] stays, however many edits come before the next file. */
+    fun edited(planJson: String, version: String, editedAt: Instant): SyncDayPlan =
+        copy(planJson = planJson, version = version, editedAt = editedAt)
+
+    /** The plan once shared: taken from another device or found in its file. It is based on its own version. */
+    fun shared(): SyncDayPlan = copy(basedOn = version)
+
+    /**
+     * This device's plan kept over [other] (after "Keep the one I was using", or when it was the latest): it reads as an
+     * edit of the other plan, so the other device takes it without asking.
+     */
+    fun keptOver(other: SyncDayPlan): SyncDayPlan = copy(basedOn = other.version)
+}
 
 /**
  * A shared setting as it travels, with when it was last edited: the newest edit wins, and each receiver applies it by

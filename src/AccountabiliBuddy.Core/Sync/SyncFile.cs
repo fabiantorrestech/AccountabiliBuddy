@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace AccountabiliBuddy.Core.Sync;
 
 /// <summary>
@@ -10,13 +12,20 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="Drift">Distracting stretches inside the sessions.</param>
 /// <param name="DayPlan">Null when the file carries no plan.</param>
 /// <param name="Documents">The shared settings (profiles, sleep, day bar).</param>
+/// <param name="CoversFrom">
+/// The time the file speaks from: it holds every counted session of the device that ends after it, and the drift in
+/// them, so a receiver drops what it has from the device after it (<see cref="SyncMerge"/>). Null in a file that
+/// doesn't say (then <see cref="SyncMerge.CoveredFrom"/> reads it from the sessions). Optional in the JSON: written only
+/// when set, so a format 1 file without it reads as before.
+/// </param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
     IReadOnlyList<SyncSession> Sessions,
     IReadOnlyList<SyncDrift> Drift,
     SyncDayPlan? DayPlan,
-    IReadOnlyList<SyncDocument> Documents)
+    IReadOnlyList<SyncDocument> Documents,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? CoversFrom = null)
 {
     public const int CurrentFormatVersion = 1;
 }

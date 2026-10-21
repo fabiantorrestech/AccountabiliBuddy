@@ -6,10 +6,10 @@ public enum DayPlanSyncDecision
     /// <summary>Both devices hold the same plan.</summary>
     Same,
 
-    /// <summary>The other device edited the plan this device holds: take its plan.</summary>
+    /// <summary>The other device edited the plan this device holds, or this device didn't edit and the other's is newer: take it.</summary>
     TakeIncoming,
 
-    /// <summary>This device edited the plan the other device holds: keep this one.</summary>
+    /// <summary>This device edited the plan the other device holds, or the other's is an older one: keep this one.</summary>
     KeepLocal,
 
     /// <summary>
