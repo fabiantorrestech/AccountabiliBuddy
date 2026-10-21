@@ -41,8 +41,6 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     private static readonly TimeSpan NightShown = TimeSpan.FromHours(1);
     private static readonly TimeSpan NightAfterNow = TimeSpan.FromMinutes(30);
 
-    // The sleep line shows from this long before bedtime until wake time.
-    private static readonly TimeSpan SleepLineLead = TimeSpan.FromHours(2);
 
     // Soft green, yellow and red: readable on the dark on-screen window, and as a dot in the main window.
     private static readonly IBrush GoodSleepBrush = new SolidColorBrush(Color.FromRgb(134, 239, 172));
@@ -178,11 +176,11 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         DayPlanRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>True from two hours before bedtime until wake time, with sleep mode on.</summary>
+    /// <summary>True from when bed now would give the sleep goal until wake time, with sleep mode on.</summary>
     [ObservableProperty]
     public partial bool ShowsSleep { get; set; }
 
-    /// <summary>E.g. "Bedtime 10:00 PM · 8h of sleep" or "Sleep if you go now: 6h 40m".</summary>
+    /// <summary>E.g. "Sleep if you go now: 7h 30m · up 7:00 AM".</summary>
     [ObservableProperty]
     public partial string SleepText { get; set; }
 
@@ -190,7 +188,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial SleepAmount SleepAmount { get; set; }
 
-    /// <summary>Green from 7 hours of sleep, yellow from 5, red below.</summary>
+    /// <summary>Green down to an hour under the sleep goal, yellow down to three hours under, red below.</summary>
     [ObservableProperty]
     public partial IBrush SleepBrush { get; set; }
 
@@ -396,27 +394,27 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         return (nights, missed);
     }
 
+    // From when bed now would give the sleep goal until wake time: the sleep left counts down, with the wake time.
     private void UpdateSleepLine(DateTime now)
     {
         SleepSchedule schedule = _sleep.Current.ToSchedule(_configuration.Current.DayPlan);
         LocalWindow night = schedule.NightAround(now);
-        ShowsSleep = _sleep.Current.Enabled && now >= night.Start - SleepLineLead && now < night.End;
+        TimeSpan goal = _sleep.Current.Goal;
+        ShowsSleep = _sleep.Current.Enabled && SleepSchedule.ShowsCountdown(now, night, goal);
         if (!ShowsSleep)
         {
             return;
         }
 
-        TimeSpan sleep = SleepSchedule.SleepIfBedAt(now, night);
-        SleepAmount = SleepSchedule.Rate(sleep);
+        TimeSpan sleep = SleepSchedule.SleepIfBedNow(now, night);
+        SleepAmount = SleepSchedule.Rate(sleep, goal);
         SleepBrush = SleepAmount switch
         {
             SleepAmount.Good => GoodSleepBrush,
             SleepAmount.Okay => OkaySleepBrush,
             _ => ShortSleepBrush,
         };
-        SleepText = now < night.Start
-            ? $"Bedtime {night.Start:t} · {Duration(sleep)} of sleep"
-            : $"Sleep if you go now: {Duration(sleep)}";
+        SleepText = $"Sleep if you go now: {Duration(sleep)} · up {night.End:t}";
     }
 
     private List<(LocalWindow Window, string Tip, Guid? ProfileId, bool Added)> ActualSessions(DateTime now, LocalWindow span)

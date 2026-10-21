@@ -3,6 +3,7 @@ package com.accountabilibuddy.companion.engine
 import com.accountabilibuddy.companion.model.LocalWindow
 import com.accountabilibuddy.companion.model.SleepAmount
 import com.accountabilibuddy.companion.model.SleepTimes
+import com.accountabilibuddy.companion.model.WakeOnce
 import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalDate
@@ -13,12 +14,13 @@ import java.time.LocalTime
  * Bedtime and wake time worked out for actual dates (port of the Windows Core's SleepSchedule). A night is named
  * by the date of its evening. With the day plan ([nightBefore]), each night's times come from the plan for the day
  * the night leads into; otherwise, and for a day whose plan has no night, Friday and Saturday nights use the weekend
- * times.
+ * times. A wake time changed for one night ([wakeOnce]) moves only that morning.
  */
 class SleepSchedule(
     private val weeknights: SleepTimes,
     private val weekends: SleepTimes,
     private val nightBefore: ((LocalDate) -> SleepTimes?)? = null,
+    private val wakeOnce: WakeOnce? = null,
 ) {
     /** From bedtime to wake time of the night starting on [evening]. */
     fun night(evening: LocalDate): LocalWindow {
@@ -28,7 +30,8 @@ class SleepSchedule(
             bed = bed.plusDays(1)
         }
 
-        val wake = evening.plusDays(1).atTime(times.wake)
+        val morning = evening.plusDays(1)
+        val wake = morning.atTime(if (wakeOnce?.morning == morning) wakeOnce.wake else times.wake)
         return LocalWindow(bed, if (wake.isAfter(bed)) wake else bed)
     }
 
@@ -51,6 +54,9 @@ class SleepSchedule(
         val GoodSleep: Duration = Duration.ofHours(7)
         val OkaySleep: Duration = Duration.ofHours(5)
 
+        /** The sleep goal unless the PC says another: the countdown starts when bed now would give this. */
+        val DefaultGoal: Duration = Duration.ofHours(8)
+
         // A bedtime before noon belongs to the early hours after the evening.
         private val NOON: LocalTime = LocalTime.NOON
 
@@ -62,6 +68,21 @@ class SleepSchedule(
             sleep >= OkaySleep -> SleepAmount.Okay
             else -> SleepAmount.Short
         }
+
+        /** Graded against the goal: good down to an hour under it, okay down to three hours under, short below. */
+        fun rate(sleep: Duration, goal: Duration): SleepAmount = when {
+            sleep >= goal.minusHours(1) -> SleepAmount.Good
+            sleep >= goal.minusHours(3) -> SleepAmount.Okay
+            else -> SleepAmount.Short
+        }
+
+        /** From when going to bed would give [goal] of sleep until wake time: the "sleep if you go now" countdown. */
+        fun showsCountdown(now: LocalDateTime, night: LocalWindow, goal: Duration): Boolean =
+            !now.isBefore(night.end.minus(goal)) && now.isBefore(night.end)
+
+        /** How long the sleep would be when going to bed at [now], until wake time. */
+        fun sleepIfBedNow(now: LocalDateTime, night: LocalWindow): Duration =
+            if (now.isBefore(night.end)) Duration.between(now, night.end) else Duration.ZERO
 
         /** How long the sleep would be when going to bed at [now] (or at bedtime, if earlier). */
         fun sleepIfBedAt(now: LocalDateTime, night: LocalWindow): Duration {

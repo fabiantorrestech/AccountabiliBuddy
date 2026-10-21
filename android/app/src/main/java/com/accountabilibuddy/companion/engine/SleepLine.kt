@@ -2,5 +2,5 @@ package com.accountabilibuddy.companion.engine
 
 import com.accountabilibuddy.companion.model.SleepAmount
 
-/** The evening line: "Bedtime 11:45 PM · 7h 00m of sleep" or "Sleep if you go now: 6h 35m", coloured by [amount]. */
+/** The evening countdown, e.g. "Sleep if you go now: 7h 30m · up 7:00 AM", coloured by [amount] against the sleep goal. */
 data class SleepLine(val text: String, val amount: SleepAmount)

@@ -288,6 +288,7 @@ public partial class App : Application
         _noise.Start();
         var noisePlayer = new NoisePlayerViewModel(_noise);
         _sessionOverlay.SetNoisePlayer(noisePlayer);
+        _sessionOverlay.SetTonightWake(new TonightWakeViewModel(sleepSettings, _configuration, time));
         var dataProtector = new DpapiDataProtector();
         _calendarNetwork = new CalendarNetwork();
         _calendarSync = new CalendarSyncService(

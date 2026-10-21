@@ -8,8 +8,17 @@ namespace AccountabiliBuddy.App.Services;
 /// in the evening. App-owned (documents "sleep"), display only.
 /// </summary>
 /// <param name="SameEveryNight">True = the weeknight times every night; false = Friday and Saturday nights use the weekend times.</param>
-public sealed record SleepSettings(bool Enabled, bool SameEveryNight, SleepTimes Weeknights, SleepTimes Weekends)
+/// <param name="GoalHours">The sleep to aim for: the "sleep if you go now" countdown starts when bed now would give this.</param>
+/// <param name="WakeOnce">A wake time changed for one night from the on-screen window, or null (the plan's).</param>
+public sealed record SleepSettings(
+    bool Enabled, bool SameEveryNight, SleepTimes Weeknights, SleepTimes Weekends, double GoalHours = 8, WakeOnce? WakeOnce = null)
 {
+    /// <summary>The goals Settings offers, in hours.</summary>
+    public static IReadOnlyList<double> GoalChoices { get; } = new[] { 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10 };
+
+    /// <summary>The goal as a length; 8 hours when the saved value makes no sense.</summary>
+    public TimeSpan Goal => GoalHours is >= 4 and <= 12 ? TimeSpan.FromHours(GoalHours) : SleepSchedule.DefaultGoal;
+
     public static SleepSettings Default { get; } = new(
         Enabled: true,
         SameEveryNight: false,
@@ -23,6 +32,7 @@ public sealed record SleepSettings(bool Enabled, bool SameEveryNight, SleepTimes
         return new SleepSchedule(
             Weeknights,
             SameEveryNight ? Weeknights : Weekends,
-            plan is null ? null : day => DayPlanSleep.NightBefore(plan, day));
+            plan is null ? null : day => DayPlanSleep.NightBefore(plan, day),
+            WakeOnce);
     }
 }

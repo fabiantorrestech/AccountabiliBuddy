@@ -126,25 +126,19 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
         return nights to missed
     }
 
-    /** From two hours before bedtime until wake time. */
+    /** From when going to bed would give the sleep goal until wake time: the sleep left counts down, with the wake time. */
     fun sleepLine(now: LocalDateTime, sleep: SleepSettings, plan: DayPlan): SleepLine? {
         if (!sleep.enabled) {
             return null
         }
 
         val night = sleep.toSchedule(plan).nightAround(now)
-        if (!night.end.isAfter(night.start) || now.isBefore(night.start.minus(SLEEP_LINE_LEAD)) || !now.isBefore(night.end)) {
+        if (!night.end.isAfter(night.start) || !SleepSchedule.showsCountdown(now, night, sleep.goal)) {
             return null
         }
 
-        val left = SleepSchedule.sleepIfBedAt(now, night)
-        val text = if (now.isBefore(night.start)) {
-            "Bedtime ${clock.time(night.start)} · ${duration(left)} of sleep"
-        } else {
-            "Sleep if you go now: ${duration(left)}"
-        }
-
-        return SleepLine(text, SleepSchedule.rate(left))
+        val left = SleepSchedule.sleepIfBedNow(now, night)
+        return SleepLine("Sleep if you go now: ${duration(left)} · up ${clock.time(night.end)}", SleepSchedule.rate(left, sleep.goal))
     }
 
     private fun eventSpans(events: List<CalendarEvent>, range: LocalWindow): List<DayBarSpan> =
@@ -206,7 +200,6 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
         private const val MAX_TICKS = 8
         private val NIGHT_SHOWN: Duration = Duration.ofHours(1)
         private val NIGHT_AFTER_NOW: Duration = Duration.ofMinutes(30)
-        private val SLEEP_LINE_LEAD: Duration = Duration.ofHours(2)
 
         fun fraction(time: LocalDateTime, range: LocalWindow): Double {
             val length = Duration.between(range.start, range.end).seconds.toDouble()

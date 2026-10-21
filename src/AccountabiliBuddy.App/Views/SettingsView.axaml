@@ -221,10 +221,20 @@
                     <Border Classes="card" search:SearchArea.Name="Sleep">
                     <StackPanel Spacing="6">
                         <TextBlock Text="Sleep" Classes="sectionTitle" />
-                        <TextBlock Text="Your bedtime and wake time. The day bar runs from wake time to bedtime and shades the night; staying up past bedtime shades the lost sleep red. From two hours before bedtime a line on screen says how much sleep you'll get if you go to bed now (green from 7 hours, yellow from 5, red below), and a reminder pops up once. The times are the Sleep parts of your day plan. Can be turned on or off during focus too."
+                        <TextBlock Text="Your bedtime and wake time. The day bar runs from wake time to bedtime and shades the night; staying up past bedtime shades the lost sleep red. From when going to bed would give your sleep goal, a line on screen counts down the sleep you'll get if you go now, with your wake time (green down to an hour under the goal, yellow down to three hours under, red below), and a reminder pops up two hours before bedtime. Hold Ctrl+Alt over the on-screen window to change tonight's wake time. The times are the Sleep parts of your day plan. Can be changed during focus too."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <CheckBox IsChecked="{Binding SleepEnabled}" Content="Use sleep mode" />
                         <StackPanel Spacing="6" IsEnabled="{Binding SleepEnabled}">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <TextBlock Text="Sleep goal" VerticalAlignment="Center" Width="240" />
+                                <ComboBox ItemsSource="{Binding SleepGoalChoices}" SelectedItem="{Binding SelectedSleepGoal}" MinWidth="120">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:SleepGoalChoice">
+                                            <TextBlock Text="{Binding Text}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
                             <Grid ColumnDefinitions="240,Auto" RowDefinitions="Auto,Auto" RowSpacing="6" ColumnSpacing="12">
                                 <TextBlock Text="Nights before workdays" VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1" Text="{Binding WeeknightSleepText}" Opacity="0.8" VerticalAlignment="Center" />

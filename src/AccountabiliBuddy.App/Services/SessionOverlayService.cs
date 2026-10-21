@@ -124,6 +124,12 @@ public sealed class SessionOverlayService : IDisposable
         _viewModel.Noise = noise;
     }
 
+    /// <summary>Shows tonight's wake time, changeable for the night, while Ctrl+Alt is held.</summary>
+    public void SetTonightWake(TonightWakeViewModel wake)
+    {
+        _viewModel.Wake = wake;
+    }
+
     public void SetHiddenForSession(bool hidden)
     {
         IsHiddenForSession = hidden && _sessions.State.IsActive;

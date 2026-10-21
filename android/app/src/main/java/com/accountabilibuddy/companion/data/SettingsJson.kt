@@ -8,8 +8,11 @@ import com.accountabilibuddy.companion.model.DayBarRange
 import com.accountabilibuddy.companion.model.DayBarSettings
 import com.accountabilibuddy.companion.model.SleepSettings
 import com.accountabilibuddy.companion.model.SleepTimes
+import com.accountabilibuddy.companion.model.WakeOnce
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.time.LocalTime
@@ -26,6 +29,8 @@ object SettingsJson {
             sameEveryNight = json.bool("sameEveryNight", default.sameEveryNight),
             weeknights = times(json.obj("weeknights")) ?: default.weeknights,
             weekends = times(json.obj("weekends")) ?: default.weekends,
+            goalHours = (json["goalHours"] as? JsonPrimitive)?.doubleOrNull ?: default.goalHours,
+            wakeOnce = wakeOnce(json.obj("wakeOnce")),
         )
     }
 
@@ -34,6 +39,20 @@ object SettingsJson {
         put("sameEveryNight", settings.sameEveryNight)
         put("weeknights", timesJson(settings.weeknights))
         put("weekends", timesJson(settings.weekends))
+        put("goalHours", settings.goalHours)
+        settings.wakeOnce?.let { once ->
+            put("wakeOnce", buildJsonObject {
+                put("morning", once.morning.toString())
+                put("wake", time(once.wake))
+            })
+        }
+    }
+
+    // A wake time changed on the PC for one night; null when there's none or it can't be read.
+    private fun wakeOnce(json: JsonObject?): WakeOnce? {
+        val morning = json?.string("morning") ?: return null
+        val wake = json.string("wake") ?: return null
+        return runCatching { WakeOnce(JsonValues.date(morning), JsonValues.time(wake)) }.getOrNull()
     }
 
     fun dayBar(json: JsonObject): DayBarSettings {

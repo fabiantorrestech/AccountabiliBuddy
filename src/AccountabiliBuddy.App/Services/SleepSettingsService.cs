@@ -44,6 +44,12 @@ public sealed class SleepSettingsService
         await _store.SaveAsync(DocumentKey, settings);
     }
 
+    /// <summary>Changes the wake time of one night only (null = back to the plan's); the day plan stays as it is.</summary>
+    public Task SetWakeOnceAsync(WakeOnce? wake)
+    {
+        return SaveAsync(Current with { WakeOnce = wake });
+    }
+
     /// <summary>Takes the bedtimes and wake times from the plan's Sleep parts (Workdays = weeknights); saves only on a change.</summary>
     public async Task SaveFromPlanAsync(DayPlan plan)
     {

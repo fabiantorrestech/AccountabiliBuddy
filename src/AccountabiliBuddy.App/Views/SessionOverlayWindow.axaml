@@ -136,6 +136,23 @@
                             <Button Content="Back to default spot" Command="{Binding BackToDefaultSpotCommand}" IsVisible="{Binding ShowsBackToSpot}"
                                     Padding="8,2" FontSize="11" Foreground="White" Background="#33FFFFFF" CornerRadius="5" HorizontalAlignment="Left" />
                         </Panel>
+                        <!-- Sleep mode: tonight's wake time, which − and + change for this one night (the plan stays). -->
+                        <Panel IsVisible="{Binding ShowsDetails}">
+                          <Panel IsVisible="{Binding Wake.IsShown, FallbackValue=False}">
+                            <StackPanel DataContext="{Binding Wake}" x:DataType="vm:TonightWakeViewModel" Spacing="4"
+                                        Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="4">
+                                    <TextBlock Text="{Binding WakeText}" Foreground="White" FontSize="11" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1" Content="−" Command="{Binding EarlierCommand}" ToolTip.Tip="15 minutes earlier, tonight only"
+                                            Padding="8,1" FontSize="12" Foreground="White" Background="#33FFFFFF" CornerRadius="5" />
+                                    <Button Grid.Column="2" Content="+" Command="{Binding LaterCommand}" ToolTip.Tip="15 minutes later, tonight only"
+                                            Padding="8,1" FontSize="12" Foreground="White" Background="#33FFFFFF" CornerRadius="5" />
+                                </Grid>
+                                <Button Content="{Binding PlanWakeText}" Command="{Binding BackToPlanCommand}" IsVisible="{Binding IsChanged}"
+                                        Padding="8,2" FontSize="11" Foreground="White" Background="#33FFFFFF" CornerRadius="5" HorizontalAlignment="Left" />
+                            </StackPanel>
+                          </Panel>
+                        </Panel>
                         <!-- The noise player: play/pause whether or not it's playing, and its own volume. -->
                         <Panel IsVisible="{Binding ShowsDetails}">
                           <Panel IsVisible="{Binding Noise, Converter={x:Static ObjectConverters.IsNotNull}}">

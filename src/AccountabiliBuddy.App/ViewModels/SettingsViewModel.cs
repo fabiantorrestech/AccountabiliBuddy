@@ -400,6 +400,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool SleepEnabled { get; set; }
 
+    /// <summary>The sleep goals to pick from, e.g. "8 h", "8 h 30 min".</summary>
+    public IReadOnlyList<SleepGoalChoice> SleepGoalChoices { get; } =
+        SleepSettings.GoalChoices.Select(hours => new SleepGoalChoice(hours, Hours(TimeSpan.FromHours(hours)))).ToList();
+
+    /// <summary>When the "sleep if you go now" countdown starts: when going to bed would give this much sleep.</summary>
+    [ObservableProperty]
+    public partial SleepGoalChoice? SelectedSleepGoal { get; set; }
+
     /// <summary>E.g. "11:45 PM – 6:45 AM · 7 h of sleep"; set with the Sleep parts in the Day plan tab.</summary>
     [ObservableProperty]
     public partial string WeeknightSleepText { get; set; } = string.Empty;
@@ -416,11 +424,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         OpenDayPlan?.Invoke();
     }
 
-    // Only the on/off switch is edited here: the times come from the day plan's Sleep parts. Display only, so it
-    // can be saved during focus too.
+    // Only the on/off switch and the goal are edited here: the times come from the day plan's Sleep parts. Display
+    // only, so they can be saved during focus too.
     private SleepSettings BuildSleep()
     {
-        return _sleep.Current with { Enabled = SleepEnabled };
+        return _sleep.Current with { Enabled = SleepEnabled, GoalHours = SelectedSleepGoal?.Hours ?? _sleep.Current.GoalHours };
     }
 
     /// <summary>How long a night with these times is (a bedtime before noon counts as after midnight).</summary>
@@ -443,6 +451,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void LoadSleepSettings()
     {
         SleepEnabled = _sleep.Current.Enabled;
+        SelectedSleepGoal = SleepGoalChoices.FirstOrDefault(choice => choice.Hours == _sleep.Current.GoalHours)
+            ?? SleepGoalChoices.First(choice => choice.Hours == 8);
         ShowSleepTimes();
     }
 

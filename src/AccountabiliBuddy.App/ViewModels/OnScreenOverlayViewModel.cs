@@ -84,6 +84,10 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial NoisePlayerViewModel? Noise { get; set; }
 
+    /// <summary>Tonight's wake time with − and +, shown with the details (sleep mode).</summary>
+    [ObservableProperty]
+    public partial TonightWakeViewModel? Wake { get; set; }
+
     [ObservableProperty]
     public partial double PanelOpacity { get; set; }
 
@@ -124,6 +128,11 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     partial void OnShowsDetailsChanged(bool value)
     {
         OnPropertyChanged(nameof(ShowsTemporary));
+        if (value)
+        {
+            // "Tonight" moves on at each wake time; read it again when the details open.
+            Wake?.Refresh();
+        }
     }
 
     /// <summary>Forgets an app's own distances (set by the service).</summary>

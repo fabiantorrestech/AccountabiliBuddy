@@ -6,12 +6,16 @@ namespace AccountabiliBuddy.Core.Engine;
 /// Bedtime and wake time worked out for actual dates. A night is named by the date of its evening: the night of
 /// Friday the 23rd runs from Friday's bedtime to Saturday's wake time. With the day plan, each night's times come from
 /// the plan for the day the night leads into (its workdays and one-off days included); otherwise, and for a day whose
-/// plan has no night, Friday and Saturday nights use the weekend times. All times are local wall-clock times.
+/// plan has no night, Friday and Saturday nights use the weekend times. A wake time changed for one night
+/// (<see cref="WakeOnce"/>) moves only that morning. All times are local wall-clock times.
 /// </summary>
 public sealed class SleepSchedule
 {
     public static readonly TimeSpan GoodSleep = TimeSpan.FromHours(7);
     public static readonly TimeSpan OkaySleep = TimeSpan.FromHours(5);
+
+    /// <summary>The sleep goal unless the user picks another: the countdown starts when bed now would give this.</summary>
+    public static readonly TimeSpan DefaultGoal = TimeSpan.FromHours(8);
 
     // A bedtime before noon belongs to the early hours after the evening.
     private static readonly TimeOnly Noon = new(12, 0);
@@ -19,13 +23,16 @@ public sealed class SleepSchedule
     private readonly SleepTimes _weeknights;
     private readonly SleepTimes _weekends;
     private readonly Func<DateOnly, SleepTimes?>? _nightBefore;
+    private readonly WakeOnce? _wakeOnce;
 
     /// <param name="nightBefore">The times of the night before a day, from the day plan; null when it has none.</param>
-    public SleepSchedule(SleepTimes weeknights, SleepTimes weekends, Func<DateOnly, SleepTimes?>? nightBefore = null)
+    /// <param name="wakeOnce">A wake time changed for one morning only, or null.</param>
+    public SleepSchedule(SleepTimes weeknights, SleepTimes weekends, Func<DateOnly, SleepTimes?>? nightBefore = null, WakeOnce? wakeOnce = null)
     {
         _weeknights = weeknights;
         _weekends = weekends;
         _nightBefore = nightBefore;
+        _wakeOnce = wakeOnce;
     }
 
     public static bool IsWeekendNight(DateOnly evening)
@@ -36,6 +43,14 @@ public sealed class SleepSchedule
     public static SleepAmount Rate(TimeSpan sleep)
     {
         return sleep >= GoodSleep ? SleepAmount.Good : sleep >= OkaySleep ? SleepAmount.Okay : SleepAmount.Short;
+    }
+
+    /// <summary>Graded against the goal: good down to an hour under it, okay down to three hours under, short below.</summary>
+    public static SleepAmount Rate(TimeSpan sleep, TimeSpan goal)
+    {
+        return sleep >= goal - TimeSpan.FromHours(1) ? SleepAmount.Good
+            : sleep >= goal - TimeSpan.FromHours(3) ? SleepAmount.Okay
+            : SleepAmount.Short;
     }
 
     /// <summary>From bedtime to wake time of the night starting on <paramref name="evening"/>.</summary>
@@ -49,7 +64,9 @@ public sealed class SleepSchedule
             bed = bed.AddDays(1);
         }
 
-        DateTime wake = date.AddDays(1) + times.Wake.ToTimeSpan();
+        DateOnly morning = evening.AddDays(1);
+        TimeOnly wakeTime = _wakeOnce is not null && _wakeOnce.Morning == morning ? _wakeOnce.Wake : times.Wake;
+        DateTime wake = date.AddDays(1) + wakeTime.ToTimeSpan();
         return new LocalWindow(bed, wake > bed ? wake : bed);
     }
 
@@ -71,6 +88,21 @@ public sealed class SleepSchedule
         DateOnly evening = DateOnly.FromDateTime(night.Start.TimeOfDay < Noon.ToTimeSpan() ? night.Start.AddDays(-1) : night.Start);
         LocalWindow nightBefore = Night(evening.AddDays(-1));
         return new LocalWindow(nightBefore.End, night.Start);
+    }
+
+    /// <summary>
+    /// True from when going to bed would give <paramref name="goal"/> of sleep until wake time: the "sleep if you go
+    /// now" countdown.
+    /// </summary>
+    public static bool ShowsCountdown(DateTime now, LocalWindow night, TimeSpan goal)
+    {
+        return now >= night.End - goal && now < night.End;
+    }
+
+    /// <summary>How long the sleep would be when going to bed at <paramref name="now"/>, until wake time.</summary>
+    public static TimeSpan SleepIfBedNow(DateTime now, LocalWindow night)
+    {
+        return now < night.End ? night.End - now : TimeSpan.Zero;
     }
 
     /// <summary>How long the sleep would be when going to bed at <paramref name="now"/> (or at bedtime, if earlier).</summary>
