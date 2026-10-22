@@ -29,15 +29,19 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
 
     private readonly Action _hideBriefly;
     private readonly Action _backToDefaultSpot;
+    private readonly Action _openApp;
     private Action<string>? _useDefaultForApp;
     private string? _appWithOwnSpot;
 
     /// <param name="hideBriefly">Hides the window for <see cref="OverlaySettings.QuickHideSeconds"/>.</param>
     /// <param name="backToDefaultSpot">Forgets a dragged position, so it goes back to the top-right corner.</param>
-    public OnScreenOverlayViewModel(SessionOverlayViewModel timer, DayBarViewModel day, Action hideBriefly, Action backToDefaultSpot)
+    /// <param name="openApp">Opens and focuses the main window (also from the tray).</param>
+    public OnScreenOverlayViewModel(
+        SessionOverlayViewModel timer, DayBarViewModel day, Action hideBriefly, Action backToDefaultSpot, Action openApp)
     {
         _hideBriefly = hideBriefly;
         _backToDefaultSpot = backToDefaultSpot;
+        _openApp = openApp;
         AppDropText = string.Empty;
         KeepText = "Keep this spot";
         UseDefaultText = string.Empty;
@@ -241,6 +245,13 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     private void HideBriefly()
     {
         _hideBriefly();
+    }
+
+    /// <summary>"Open AccountabiliBuddy" in the Ctrl+Alt details, and Ctrl+Alt + double-click on an empty spot.</summary>
+    [RelayCommand]
+    private void OpenApp()
+    {
+        _openApp();
     }
 
     // Opens today's sync QR codes (ADR 22); null while the QR code method is off.

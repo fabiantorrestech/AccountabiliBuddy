@@ -43,6 +43,13 @@ public partial class SessionOverlayWindow : Window
     private readonly DispatcherTimer _slide;
     private bool _dragKeysHeld;
     private bool _movedByUser;
+
+    // Ctrl+Alt + double-click opens the app. The drag waits until the mouse moves, since starting it on the press
+    // swallows the second click.
+    private const double DragStartDistance = 4;
+    private DoubleClickDetector? _doubleClick;
+    private PointerPressedEventArgs? _pressToDrag;
+    private Point _pressPoint;
     private OverlayCorner _corner = OverlayCorner.BottomRight;
 
     // True while no saved position is in use, so the window keeps to its corner as its size changes.
@@ -361,12 +368,56 @@ public partial class SessionOverlayWindow : Window
         base.OnPointerPressed(e);
         // A press on the noise volume slider (or another control) works that control instead of moving the window.
         bool onControl = e.Source is Avalonia.Visual visual
-                         && Avalonia.VisualTree.VisualExtensions.FindAncestorOfType<Slider>(visual, includeSelf: true) is not null;
-        if (_dragKeysHeld && !onControl && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+                         && (Avalonia.VisualTree.VisualExtensions.FindAncestorOfType<Slider>(visual, includeSelf: true) is not null
+                             || Avalonia.VisualTree.VisualExtensions.FindAncestorOfType<Button>(visual, includeSelf: true) is not null);
+        if (!_dragKeysHeld || onControl || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
-            _movedByUser = true;
-            BeginMoveDrag(e);
+            return;
         }
+
+        Point position = e.GetPosition(this);
+        _doubleClick ??= new DoubleClickDetector(_control?.DoubleClickTime() ?? TimeSpan.FromMilliseconds(500), DragStartDistance);
+        if (_doubleClick.Press(TimeSpan.FromMilliseconds(e.Timestamp), position))
+        {
+            _pressToDrag = null;
+            (DataContext as OnScreenOverlayViewModel)?.OpenAppCommand.Execute(null);
+            return;
+        }
+
+        _pressToDrag = e;
+        _pressPoint = position;
+    }
+
+    protected override void OnPointerMoved(PointerEventArgs e)
+    {
+        base.OnPointerMoved(e);
+        if (_pressToDrag is not PointerPressedEventArgs press)
+        {
+            return;
+        }
+
+        Point position = e.GetPosition(this);
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            _pressToDrag = null;
+            return;
+        }
+
+        double dx = position.X - _pressPoint.X;
+        double dy = position.Y - _pressPoint.Y;
+        if ((dx * dx) + (dy * dy) > DragStartDistance * DragStartDistance)
+        {
+            _pressToDrag = null;
+            _doubleClick?.Reset();
+            _movedByUser = true;
+            BeginMoveDrag(press);
+        }
+    }
+
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    {
+        base.OnPointerReleased(e);
+        _pressToDrag = null;
     }
 
     private void SlideTowardTarget()

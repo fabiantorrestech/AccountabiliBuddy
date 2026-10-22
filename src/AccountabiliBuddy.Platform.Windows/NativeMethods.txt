@@ -87,6 +87,7 @@ GetLastInputInfo
 // Session timer overlay: click-through window, Ctrl+Alt drag
 SetWindowLong
 GetAsyncKeyState
+GetDoubleClickTime
 VIRTUAL_KEY
 GetForegroundWindow
 GetCursorPos

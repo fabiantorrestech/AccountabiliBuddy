@@ -21,6 +21,9 @@ public interface IOverlayWindowControl
     /// <summary>True while the mouse pointer is over the window, also while clicks pass through it.</summary>
     bool IsCursorOver(nint windowHandle);
 
+    /// <summary>The longest gap between the two clicks of a double-click, as set in Windows.</summary>
+    TimeSpan DoubleClickTime();
+
     /// <summary>
     /// True when another app's window in front covers its whole screen (a fullscreen video, presentation or game).
     /// The desktop and this app's own windows don't count.

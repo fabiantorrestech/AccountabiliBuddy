@@ -45,6 +45,12 @@ public sealed class Win32OverlayWindowControl : IOverlayWindowControl
         return IsDown(VIRTUAL_KEY.VK_CONTROL) && IsDown(VIRTUAL_KEY.VK_MENU);
     }
 
+    public TimeSpan DoubleClickTime()
+    {
+        uint milliseconds = PInvoke.GetDoubleClickTime();
+        return TimeSpan.FromMilliseconds(milliseconds == 0 ? 500 : milliseconds);
+    }
+
     public bool IsCursorOver(nint windowHandle)
     {
         if (!PInvoke.GetCursorPos(out System.Drawing.Point cursor) || !PInvoke.GetWindowRect(new HWND(windowHandle), out RECT rect))

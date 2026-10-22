@@ -528,6 +528,8 @@ public partial class App : Application
         _calendarSync.Start();
         _clockAnchors.Start();
         _sessionCues.Start();
+        // Ctrl+Alt + double-click on the on-screen window, or its Open button.
+        _sessionOverlay.OpenAppRequested += (_, _) => ShowMainWindow();
         _sessionOverlay.Start();
         _bedtimeReminder.ReminderDue += (_, reminder) =>
             presenter.ShowReminder(reminder.Title, reminder.Message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#6366F1")));

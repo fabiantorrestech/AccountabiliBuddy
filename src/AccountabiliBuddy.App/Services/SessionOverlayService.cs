@@ -61,7 +61,8 @@ public sealed class SessionOverlayService : IDisposable
         _configuration = configuration;
         _settings = settings;
         _control = control;
-        _viewModel = new OnScreenOverlayViewModel(_timer, timelineDay, HideBriefly, () => _ = _settings.SavePositionAsync(null, null));
+        _viewModel = new OnScreenOverlayViewModel(
+            _timer, timelineDay, HideBriefly, () => _ = _settings.SavePositionAsync(null, null), () => OpenAppRequested?.Invoke(this, EventArgs.Empty));
         _viewModel.SetUseDefaultForApp(app => _ = _settings.ForgetAppOffsetAsync(app));
         _timer.HalfHourMarked += (_, _) => _viewModel.Glow();
     }
@@ -83,6 +84,9 @@ public sealed class SessionOverlayService : IDisposable
 
     /// <summary>Raised when the timer is shown, hidden or turned on or off for the session.</summary>
     public event EventHandler? Changed;
+
+    /// <summary>Ctrl+Alt + double-click on the window, or its Open button: the app shows the main window.</summary>
+    public event EventHandler? OpenAppRequested;
 
     public void Start()
     {
