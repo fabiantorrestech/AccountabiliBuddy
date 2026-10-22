@@ -142,7 +142,8 @@ public sealed class LinkSessionHost : ILinkSessionHost
         }
 
         DateOnly today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime);
-        var events = new List<CalendarEvent>();
+        // Each event with its calendar's colour, for the phone's Calendar row (an older phone ignores "color").
+        var events = new List<System.Text.Json.Nodes.JsonObject>();
         var seen = new HashSet<(string, string)>();
         for (int day = -1; day <= EventDaysAhead; day++)
         {
@@ -150,7 +151,9 @@ public sealed class LinkSessionHost : ILinkSessionHost
             {
                 if (seen.Add((entry.Event.CalendarId, entry.Event.Id)))
                 {
-                    events.Add(entry.Event);
+                    System.Text.Json.Nodes.JsonObject json = System.Text.Json.JsonSerializer.SerializeToNode(entry.Event, LinkFraming.JsonOptions)!.AsObject();
+                    json["color"] = entry.Calendar.Color;
+                    events.Add(json);
                 }
             }
         }

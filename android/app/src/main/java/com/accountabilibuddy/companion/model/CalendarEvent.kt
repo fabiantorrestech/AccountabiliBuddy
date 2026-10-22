@@ -10,4 +10,6 @@ data class CalendarEvent(
     val localStart: LocalDateTime,
     val localEnd: LocalDateTime,
     val isAllDay: Boolean,
+    /** Its calendar's colour (ARGB), when the PC sent it. */
+    val color: Int? = null,
 )

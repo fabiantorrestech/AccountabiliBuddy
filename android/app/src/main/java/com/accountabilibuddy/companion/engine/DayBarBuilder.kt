@@ -8,8 +8,11 @@ import com.accountabilibuddy.companion.model.LocalWindow
 import com.accountabilibuddy.companion.model.PlannedFocus
 import com.accountabilibuddy.companion.model.ProfileDocument
 import com.accountabilibuddy.companion.model.SleepSettings
+import com.accountabilibuddy.shared.WatchSnapshot
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -33,6 +36,8 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
         slept: List<LocalWindow> = emptyList(),
         /** The context-aware header ([DayHeader]); null: the plan's own status and summary. */
         header: HeaderText? = null,
+        /** The devices' combined focus today (sessions and drift); null: an empty Focus row. */
+        focus: WatchSnapshot? = null,
     ): DayBarModel {
         val day = dayAt(now, settings, sleep, document.dayPlan)
         val span = DayTimeline.calendarSpan(day)
@@ -65,7 +70,7 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
             summaryText = header?.summary ?: summary(range, planned),
             planned = plannedSpans,
             actual = actualSpans,
-            events = eventSpans(events, range),
+            events = eventSpans(events.filter { it.calendarId !in settings.calendarsOff }, range),
             night = night,
             missed = missed,
             ticks = ticks(range),
@@ -73,6 +78,11 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
             sleepLine = sleepLine(now, sleep, document.dayPlan),
             countdownTo = header?.countdownTo,
             countdownFormat = header?.countdownFormat,
+            rows = settings.visibleRows(),
+            focus = focusSpans(focus, now, range),
+            drift = focus?.drift.orEmpty().mapNotNull { mark ->
+                DayTimeline.clip(local(mark.start, mark.end), range)?.let { toSpan(it, range, "Drift ${times(local(mark.start, mark.end))}") }
+            },
         )
     }
 
@@ -145,12 +155,28 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
         return SleepLine("Sleep if you go now: ${duration(left)} · up ${clock.time(night.end)}", SleepSchedule.rate(left, sleep.goal))
     }
 
+    // Each session cut to the bar; one with no end runs until now (or the running session's end, once passed).
+    private fun focusSpans(focus: WatchSnapshot?, now: LocalDateTime, range: LocalWindow): List<DayBarSpan> {
+        focus ?: return emptyList()
+        val until = focus.openUntil(now.atZone(ZoneId.systemDefault()).toInstant())
+        return focus.sessions.mapNotNull { session ->
+            val window = local(session.start, session.end ?: until)
+            if (!window.end.isAfter(window.start)) null
+            else DayTimeline.clip(window, range)?.let { toSpan(it, range, "${session.profile ?: "Focus"} · ${times(window)}").copy(name = session.profile) }
+        }
+    }
+
+    private fun local(start: Instant, end: Instant): LocalWindow {
+        val zone = ZoneId.systemDefault()
+        return LocalWindow(LocalDateTime.ofInstant(start, zone), LocalDateTime.ofInstant(end, zone))
+    }
+
     private fun eventSpans(events: List<CalendarEvent>, range: LocalWindow): List<DayBarSpan> =
         events.mapNotNull { event ->
             val end = if (event.localEnd.isAfter(event.localStart)) event.localEnd else event.localStart.plusMinutes(1)
             val window = LocalWindow(event.localStart, end)
             DayTimeline.clip(window, range)?.let {
-                toSpan(it, range, "${event.title} · ${if (event.isAllDay) "all day" else times(window)}")
+                toSpan(it, range, "${event.title} · ${if (event.isAllDay) "all day" else times(window)}").copy(color = event.color)
             }
         }
 

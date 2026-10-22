@@ -513,7 +513,8 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun build(state: CompanionState, time: LocalDateTime): DayBarModel {
         val app = getApplication<CompanionApp>()
-        val header = HeaderSource.header(app, time, clock, phoneUsage.value?.total?.toMinutes()?.toInt())
-        return builder.build(time, state.document, state.events, state.dayBar, state.sleep, state.slept, header)
+        val focus = HeaderSource.focus(app, time)
+        val header = HeaderSource.header(app, time, clock, phoneUsage.value?.total?.toMinutes()?.toInt(), focus)
+        return builder.build(time, state.document, state.events, state.dayBar, state.sleep, state.slept, header, focus)
     }
 }

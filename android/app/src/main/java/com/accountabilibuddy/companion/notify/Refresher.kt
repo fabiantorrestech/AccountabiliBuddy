@@ -48,8 +48,9 @@ object Refresher {
 
             if (isSeen(context)) {
                 val builder = DayBarBuilder(clock)
-                val header = HeaderSource.header(app, now, clock, HeaderSource.phoneMinutes(context, state, now, builder))
-                val model = builder.build(now, state.document, state.events, state.dayBar, state.sleep, state.slept, header)
+                val focus = HeaderSource.focus(app, now)
+                val header = HeaderSource.header(app, now, clock, HeaderSource.phoneMinutes(context, state, now, builder), focus)
+                val model = builder.build(now, state.document, state.events, state.dayBar, state.sleep, state.slept, header, focus)
                 countdownEnd = model.countdownTo
                 if (state.timelineNotificationOn) {
                     TimelineNotifier.show(context, model)

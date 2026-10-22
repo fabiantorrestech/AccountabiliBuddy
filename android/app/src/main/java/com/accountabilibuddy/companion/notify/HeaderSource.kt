@@ -23,7 +23,7 @@ import java.time.ZoneId
  * phone's screen time.
  */
 object HeaderSource {
-    fun header(app: CompanionApp, now: LocalDateTime, clock: ClockFormat, phoneMinutes: Int?): HeaderText {
+    fun header(app: CompanionApp, now: LocalDateTime, clock: ClockFormat, phoneMinutes: Int?, focus: WatchSnapshot? = focus(app, now)): HeaderText {
         val state = app.store.state.value
         val zone = ZoneId.systemDefault()
         val plan = state.document.dayPlan
@@ -31,7 +31,7 @@ object HeaderSource {
         val night = if (state.sleep.enabled) state.sleep.toSchedule(plan).nightAround(now) else null
         val input = HeaderInput(
             now, zone, plan.partsIn(LocalWindow(start, start.plusDays(1))), state.events, night, state.sleep.goal,
-            wakeSource = null, focus = focus(app, state, now, zone), phoneMinutes = phoneMinutes,
+            wakeSource = null, focus = focus, phoneMinutes = phoneMinutes,
         )
         return DayHeader.build(input, clock)
     }
@@ -48,8 +48,10 @@ object HeaderSource {
         return runCatching { reader.read(day, focus).total.toMinutes().toInt() }.getOrNull()
     }
 
-    // Null while no device has said anything about today's focus (no PC paired, nothing received).
-    private fun focus(app: CompanionApp, state: CompanionState, now: LocalDateTime, zone: ZoneId): WatchSnapshot? {
+    /** The devices' combined focus today; null while no device has said anything about it (no PC paired, nothing received). */
+    fun focus(app: CompanionApp, now: LocalDateTime): WatchSnapshot? {
+        val state = app.store.state.value
+        val zone = ZoneId.systemDefault()
         val received = app.sync.received.value.map { it.file.device.name to it.file }
         val pc = app.link.pairedPc.value
         if (state.focusDay == null && received.isEmpty() && pc == null) {
