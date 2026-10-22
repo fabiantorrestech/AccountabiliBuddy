@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -55,6 +56,7 @@ public sealed partial class ProfilesViewModel : ObservableObject
 
         _sessions.StateChanged += (_, _) => RefreshDevices();
         Profiles.CollectionChanged += (_, _) => RefreshDevices();
+        Profiles.CollectionChanged += (_, _) => RefreshPortTargets();
         _configuration.PendingCancelled += (_, _) =>
         {
             LoadFromConfiguration();
@@ -105,6 +107,29 @@ public sealed partial class ProfilesViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(DeleteProfileCommand))]
     public partial ProfileEditorViewModel? SelectedProfile { get; set; }
 
+    /// <summary>Where the selected profile's ticked rules can go: the other profiles, then "New profile…".</summary>
+    public ObservableCollection<PortTargetOption> PortTargets { get; } = new();
+
+    [ObservableProperty]
+    public partial PortTargetOption? SelectedPortTarget { get; set; }
+
+    /// <summary>"New profile…" was chosen: ask whether it starts from this profile's settings or brand new.</summary>
+    [ObservableProperty]
+    public partial bool IsAskingNewProfileStart { get; set; }
+
+    /// <summary>E.g. "A new profile with 3 rules from 'Coding': start from its settings, or brand new?".</summary>
+    [ObservableProperty]
+    public partial string NewProfilePrompt { get; set; } = string.Empty;
+
+    // Whether the new profile's rules leave the profile they came from (Move) or stay there too (Copy).
+    private bool _newProfileTakesRules;
+
+    partial void OnSelectedProfileChanged(ProfileEditorViewModel? value)
+    {
+        IsAskingNewProfileStart = false;
+        RefreshPortTargets();
+    }
+
     [ObservableProperty]
     public partial string? StatusMessage { get; set; }
 
@@ -114,6 +139,10 @@ public sealed partial class ProfilesViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(DeleteProfileCommand))]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(RevertCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CopySelectedRulesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(MoveSelectedRulesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StartNewProfileFromSettingsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StartNewProfileBrandNewCommand))]
     public partial bool IsLocked { get; set; }
 
     private bool CanEdit => !IsLocked;
@@ -179,6 +208,36 @@ public sealed partial class ProfilesViewModel : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(CanEdit))]
+    private void CopySelectedRules()
+    {
+        PortSelectedRules(move: false);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEdit))]
+    private void MoveSelectedRules()
+    {
+        PortSelectedRules(move: true);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEdit))]
+    private void StartNewProfileFromSettings()
+    {
+        MakeNewProfileWithRules(fromSettings: true);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEdit))]
+    private void StartNewProfileBrandNew()
+    {
+        MakeNewProfileWithRules(fromSettings: false);
+    }
+
+    [RelayCommand]
+    private void CancelNewProfile()
+    {
+        IsAskingNewProfileStart = false;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEdit))]
     private void Revert()
     {
         LoadFromConfiguration();
@@ -189,6 +248,96 @@ public sealed partial class ProfilesViewModel : ObservableObject
     public void Select(Guid profileId)
     {
         SelectedProfile = Profiles.FirstOrDefault(editor => editor.Id == profileId) ?? SelectedProfile;
+    }
+
+    // Copy or Move pressed: into the profile chosen, or ask how a new one starts.
+    private void PortSelectedRules(bool move)
+    {
+        if (SelectedProfile is not { HasSelectedRules: true } source)
+        {
+            StatusMessage = "Tick the rules to copy or move first.";
+            return;
+        }
+
+        if (SelectedPortTarget is null)
+        {
+            StatusMessage = "Choose the profile they go to.";
+            return;
+        }
+
+        int count = source.SelectedRules.Count;
+        if (SelectedPortTarget.Profile is not ProfileEditorViewModel target)
+        {
+            _newProfileTakesRules = move;
+            NewProfilePrompt = $"A new profile with {RuleCount(count)} from '{source.Name}': start from its settings (grace period, unlock options, timer, Cold Turkey blocks) or brand new?";
+            IsAskingNewProfileStart = true;
+            return;
+        }
+
+        (IReadOnlyList<Rule> added, int alreadyThere) =
+            RuleTransfer.CopyInto(target.Rules.Select(rule => rule.ToRule()), source.SelectedRules.Select(rule => rule.ToRule()));
+        target.AddCopiedRules(added);
+        if (move)
+        {
+            source.RemoveRules(source.SelectedRules);
+        }
+
+        source.ClearRuleSelection();
+        // Copy counts what was added; Move counts what left this profile (rules the target had leave too).
+        string done = move ? $"Moved {RuleCount(count)}" : $"Copied {RuleCount(added.Count)}";
+        string already = alreadyThere == 0 ? string.Empty : $" ({alreadyThere} {(alreadyThere == 1 ? "was" : "were")} already there)";
+        StatusMessage = $"{done} to '{target.Name}'{already}. Press Save to keep this change.";
+    }
+
+    private void MakeNewProfileWithRules(bool fromSettings)
+    {
+        IsAskingNewProfileStart = false;
+        if (SelectedProfile is not { HasSelectedRules: true } source)
+        {
+            return;
+        }
+
+        ProfileEditorViewModel created = fromSettings
+            ? source.NewWithSameSettings($"{source.Name} (copy)", ColdTurkeyBlockNames())
+            : ProfileEditorViewModel.CreateNew();
+        IReadOnlyList<RuleEditorViewModel> selected = source.SelectedRules;
+        created.AddCopiedRules(RuleTransfer.CopyInto([], selected.Select(rule => rule.ToRule())).Added);
+        if (_newProfileTakesRules)
+        {
+            source.RemoveRules(selected);
+        }
+
+        source.ClearRuleSelection();
+        if (!fromSettings)
+        {
+            created.ShowColdTurkeyBlocks(ColdTurkeyBlockNames(), Array.Empty<string>());
+        }
+
+        Profiles.Add(created);
+        SelectedProfile = created;
+        string how = fromSettings ? $"from {source.Name}'s settings" : "brand new";
+        StatusMessage = $"Made '{created.Name}' ({how}) with {RuleCount(selected.Count)}. Rename it if you like, then press Save to keep it.";
+    }
+
+    private static string RuleCount(int count)
+    {
+        return count == 1 ? "1 rule" : $"{count} rules";
+    }
+
+    // The other profiles, then "New profile…". A profile chosen before stays chosen while it's listed; otherwise the
+    // first other profile is (only "New profile…" when there is none), so Copy never opens the new-profile question by
+    // surprise.
+    private void RefreshPortTargets()
+    {
+        ProfileEditorViewModel? chosen = SelectedPortTarget?.Profile;
+        PortTargets.Clear();
+        foreach (ProfileEditorViewModel editor in Profiles.Where(editor => editor != SelectedProfile))
+        {
+            PortTargets.Add(new PortTargetOption(editor));
+        }
+
+        PortTargets.Add(new PortTargetOption(null));
+        SelectedPortTarget = PortTargets.FirstOrDefault(option => option.Profile is not null && option.Profile == chosen) ?? PortTargets[0];
     }
 
     private void AddEditor(ProfileEditorViewModel editor)

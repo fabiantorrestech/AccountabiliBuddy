@@ -134,8 +134,42 @@
                                 <TextBlock TextWrapping="Wrap" Opacity="0.75"
                                            Text="Rules: when several match, Channel beats Url beats WindowTitle beats ProcessName, a longer pattern beats a shorter one, and Block wins a tie. OcrText rules are only checked when nothing else matched. ProcessName is without .exe (e.g. chrome). Domain matching (Url only) includes subdomains." />
 
+                                <!-- Ticked rules go to another profile or a new one (copied, or moved out of this one). -->
+                                <Border IsVisible="{Binding HasSelectedRules}" Background="#1F808080" CornerRadius="6" Padding="8,6" Margin="0,4,0,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding SelectionText}" VerticalAlignment="Center" FontWeight="SemiBold" />
+                                        <TextBlock Text="· to" VerticalAlignment="Center" Opacity="0.75" />
+                                        <ComboBox MinWidth="180" ItemsSource="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).PortTargets}"
+                                                  SelectedItem="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).SelectedPortTarget}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:PortTargetOption">
+                                                    <TextBlock Text="{Binding Label}" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                        <Button Content="Copy" Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).CopySelectedRulesCommand}"
+                                                ToolTip.Tip="Copy the ticked rules there; this profile keeps them" />
+                                        <Button Content="Move" Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).MoveSelectedRulesCommand}"
+                                                ToolTip.Tip="Move the ticked rules there; they leave this profile" />
+                                    </StackPanel>
+                                </Border>
+                                <!-- "New profile…": start from this profile's settings or brand new. -->
+                                <Border IsVisible="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).IsAskingNewProfileStart}" BorderBrush="#80FFFFFF" BorderThickness="1"
+                                        CornerRadius="6" Padding="10,8">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).NewProfilePrompt}" TextWrapping="Wrap" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Button Classes="accent" Content="From this profile's settings"
+                                                    Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).StartNewProfileFromSettingsCommand}" />
+                                            <Button Content="Brand new" Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).StartNewProfileBrandNewCommand}" />
+                                            <Button Content="Cancel" Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).CancelNewProfileCommand}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
                                 <Grid Margin="0,4,0,0">
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="28" />
                                         <ColumnDefinition Width="140" />
                                         <ColumnDefinition Width="110" />
                                         <ColumnDefinition Width="2*" MinWidth="140" />
@@ -143,11 +177,13 @@
                                         <ColumnDefinition Width="*" MinWidth="90" />
                                         <ColumnDefinition Width="40" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Match on" FontWeight="SemiBold" />
-                                    <TextBlock Grid.Column="1" Text="How" FontWeight="SemiBold" />
-                                    <TextBlock Grid.Column="2" Text="Pattern" FontWeight="SemiBold" />
-                                    <TextBlock Grid.Column="3" Text="Verdict" FontWeight="SemiBold" />
-                                    <TextBlock Grid.Column="4" Text="Note" FontWeight="SemiBold" />
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding AllRulesSelected}" MinWidth="0" Padding="0"
+                                              ToolTip.Tip="Select all (to copy or move them to another profile)" AutomationProperties.Name="Select all rules" />
+                                    <TextBlock Grid.Column="1" Text="Match on" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="How" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="3" Text="Pattern" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="4" Text="Verdict" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="5" Text="Note" FontWeight="SemiBold" VerticalAlignment="Center" />
                                 </Grid>
 
                                 <ItemsControl ItemsSource="{Binding Rules}">
@@ -155,6 +191,7 @@
                                         <DataTemplate x:DataType="vm:RuleEditorViewModel">
                                             <Grid Margin="0,2">
                                                 <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="28" />
                                                     <ColumnDefinition Width="140" />
                                                     <ColumnDefinition Width="110" />
                                                     <ColumnDefinition Width="2*" MinWidth="140" />
@@ -162,20 +199,22 @@
                                                     <ColumnDefinition Width="*" MinWidth="90" />
                                                     <ColumnDefinition Width="40" />
                                                 </Grid.ColumnDefinitions>
-                                                <ComboBox Grid.Column="0" HorizontalAlignment="Stretch" Margin="0,0,4,0"
+                                                <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" MinWidth="0" Padding="0" VerticalAlignment="Center"
+                                                          ToolTip.Tip="Tick to copy or move it to another profile" AutomationProperties.Name="{Binding Pattern}" />
+                                                <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" Margin="0,0,4,0"
                                                           ItemsSource="{x:Static vm:RuleEditorViewModel.Targets}"
                                                           SelectedItem="{Binding Target}" />
-                                                <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" Margin="0,0,4,0"
+                                                <ComboBox Grid.Column="2" HorizontalAlignment="Stretch" Margin="0,0,4,0"
                                                           ItemsSource="{x:Static vm:RuleEditorViewModel.Kinds}"
                                                           SelectedItem="{Binding Kind}" />
-                                                <TextBox Grid.Column="2" Text="{Binding Pattern}" Margin="0,0,4,0"
+                                                <TextBox Grid.Column="3" Text="{Binding Pattern}" Margin="0,0,4,0"
                                                          PlaceholderText="e.g. youtube.com/shorts" />
-                                                <ComboBox Grid.Column="3" HorizontalAlignment="Stretch" Margin="0,0,4,0"
+                                                <ComboBox Grid.Column="4" HorizontalAlignment="Stretch" Margin="0,0,4,0"
                                                           ItemsSource="{x:Static vm:RuleEditorViewModel.Verdicts}"
                                                           SelectedItem="{Binding Verdict}" />
-                                                <TextBox Grid.Column="4" Text="{Binding Note}" Margin="0,0,4,0"
+                                                <TextBox Grid.Column="5" Text="{Binding Note}" Margin="0,0,4,0"
                                                          PlaceholderText="optional" />
-                                                <Button Grid.Column="5" Content="✕" Command="{Binding RemoveCommand}"
+                                                <Button Grid.Column="6" Content="✕" Command="{Binding RemoveCommand}"
                                                         ToolTip.Tip="Remove rule" />
                                             </Grid>
                                         </DataTemplate>

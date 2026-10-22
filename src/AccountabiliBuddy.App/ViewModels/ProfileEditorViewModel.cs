@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
@@ -14,6 +16,7 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
 
     private ProfileEditorViewModel(FocusProfile profile, ProfileOverlay overlay)
     {
+        Rules.CollectionChanged += OnRulesChanged;
         Id = profile.Id;
         Name = profile.Name;
         GraceSeconds = ((int)profile.UnknownGracePeriod.TotalSeconds).ToString();
@@ -62,6 +65,27 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
     public IReadOnlyList<TimerColorOption> TimerColors { get; }
 
     public ObservableCollection<RuleEditorViewModel> Rules { get; } = new();
+
+    /// <summary>The ticked rules, to copy or move to another profile.</summary>
+    public IReadOnlyList<RuleEditorViewModel> SelectedRules => Rules.Where(rule => rule.IsSelected).ToList();
+
+    public bool HasSelectedRules => Rules.Any(rule => rule.IsSelected);
+
+    /// <summary>E.g. "3 selected".</summary>
+    public string SelectionText => $"{Rules.Count(rule => rule.IsSelected)} selected";
+
+    /// <summary>"Select all": ticked when every rule is; ticking or unticking it does all of them.</summary>
+    public bool AllRulesSelected
+    {
+        get => Rules.Count > 0 && Rules.All(rule => rule.IsSelected);
+        set
+        {
+            foreach (RuleEditorViewModel rule in Rules)
+            {
+                rule.IsSelected = value;
+            }
+        }
+    }
 
     /// <summary>Ways to lift this profile's blocks after a wait (Session tab → Unlock).</summary>
     public ObservableCollection<UnlockOptionEditorViewModel> UnlockOptions { get; } = new();
@@ -143,6 +167,46 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
         Rules.Add(new RuleEditorViewModel(rule, RemoveRule));
     }
 
+    /// <summary>Rules copied in from another profile (unsaved until the tab is saved).</summary>
+    public void AddCopiedRules(IEnumerable<Rule> rules)
+    {
+        foreach (Rule rule in rules)
+        {
+            Rules.Add(new RuleEditorViewModel(rule, RemoveRule));
+        }
+    }
+
+    /// <summary>Takes rules out after they moved to another profile.</summary>
+    public void RemoveRules(IEnumerable<RuleEditorViewModel> rules)
+    {
+        foreach (RuleEditorViewModel rule in rules.ToList())
+        {
+            Rules.Remove(rule);
+        }
+    }
+
+    public void ClearRuleSelection()
+    {
+        AllRulesSelected = false;
+    }
+
+    /// <summary>
+    /// A new profile named <paramref name="name"/> with this one's settings (grace period, unlisted sites, unlock
+    /// options, on-screen timer, Cold Turkey blocks) and no rules yet.
+    /// </summary>
+    public ProfileEditorViewModel NewWithSameSettings(string name, IEnumerable<string> coldTurkeyBlocks)
+    {
+        int graceSeconds = int.TryParse(GraceSeconds.Trim(), out int typed) && typed >= 0 ? typed : DefaultGraceSeconds;
+        var profile = new FocusProfile(Guid.NewGuid(), name, Array.Empty<Rule>(), TimeSpan.FromSeconds(graceSeconds))
+        {
+            UnlockOptions = UnlockOptions.Select(option => option.ToNewOption()).ToList(),
+            AskAboutUnlistedSites = AskAboutUnlistedSites,
+        };
+        ProfileEditorViewModel copy = FromProfile(profile, ToOverlay());
+        copy.ShowColdTurkeyBlocks(coldTurkeyBlocks, ToExpectedBlocks());
+        return copy;
+    }
+
     public bool TryBuild([NotNullWhen(true)] out FocusProfile? profile, [NotNullWhen(false)] out string? error)
     {
         profile = null;
@@ -195,6 +259,37 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
     private void RemoveRule(RuleEditorViewModel rule)
     {
         Rules.Remove(rule);
+    }
+
+    // The selection texts follow each rule's tick, and rules coming and going.
+    private void OnRulesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        foreach (RuleEditorViewModel rule in e.OldItems?.OfType<RuleEditorViewModel>() ?? [])
+        {
+            rule.PropertyChanged -= OnRulePropertyChanged;
+        }
+
+        foreach (RuleEditorViewModel rule in e.NewItems?.OfType<RuleEditorViewModel>() ?? [])
+        {
+            rule.PropertyChanged += OnRulePropertyChanged;
+        }
+
+        OnSelectionChanged();
+    }
+
+    private void OnRulePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(RuleEditorViewModel.IsSelected))
+        {
+            OnSelectionChanged();
+        }
+    }
+
+    private void OnSelectionChanged()
+    {
+        OnPropertyChanged(nameof(HasSelectedRules));
+        OnPropertyChanged(nameof(SelectionText));
+        OnPropertyChanged(nameof(AllRulesSelected));
     }
 
     private void RemoveUnlockOption(UnlockOptionEditorViewModel option)

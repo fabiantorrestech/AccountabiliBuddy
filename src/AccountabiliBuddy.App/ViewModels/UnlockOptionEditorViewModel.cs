@@ -44,6 +44,13 @@ public sealed partial class UnlockOptionEditorViewModel : ObservableObject
         return new UnlockOption(_id, Name.Trim(), TimeSpan.FromMinutes(int.Parse(WaitMinutes.Trim())));
     }
 
+    /// <summary>A copy for a new profile, with its own id; a wait not typed as whole minutes yet becomes 10.</summary>
+    public UnlockOption ToNewOption()
+    {
+        int minutes = int.TryParse(WaitMinutes.Trim(), out int typed) && typed >= 0 ? typed : 10;
+        return new UnlockOption(Guid.NewGuid(), Name.Trim(), TimeSpan.FromMinutes(minutes));
+    }
+
     [RelayCommand]
     private void Remove()
     {

@@ -44,6 +44,10 @@ public sealed partial class RuleEditorViewModel : ObservableObject
     [ObservableProperty]
     public partial string Note { get; set; }
 
+    /// <summary>Ticked to copy or move it to another profile.</summary>
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
+
     [RelayCommand]
     private void Remove()
     {
