@@ -5,7 +5,8 @@ namespace AccountabiliBuddy.Core.Engine;
 /// <summary>
 /// Pairs session start and end events into <see cref="SessionRecord"/>s for the History list. A start followed by
 /// another start (the app was closed mid-session and did not resume) becomes a record without an end.
-/// Interrupted/Resumed pairs inside a session add up to <see cref="SessionRecord.AppClosedFor"/>. Sessions added by hand
+/// Interrupted/Resumed pairs inside a session add up to <see cref="SessionRecord.AppClosedFor"/>; AwayStarted/AwayEnded
+/// pairs become <see cref="SessionRecord.Away"/> (an away with no return closes at the session's end). Sessions added by hand
 /// (ADR 20) are paired on their own, so one placed inside a recorded session never cuts it.
 /// </summary>
 public static class SessionHistoryBuilder
@@ -27,6 +28,8 @@ public static class SessionHistoryBuilder
         SessionEvent? open = null;
         DateTimeOffset? interruptedAt = null;
         TimeSpan closedFor = TimeSpan.Zero;
+        DateTimeOffset? awaySince = null;
+        List<TimeRange>? away = null;
 
         foreach (SessionEvent sessionEvent in events)
         {
@@ -35,12 +38,32 @@ public static class SessionHistoryBuilder
                 case SessionEventKind.Started:
                     if (open is not null)
                     {
-                        records.Add(new SessionRecord(open.At, open.Mode, open.ProfileId, null, null, null, closedFor));
+                        records.Add(new SessionRecord(open.At, open.Mode, open.ProfileId, null, null, null, closedFor,
+                            CloseAway(away, awaySince, DateTimeOffset.MaxValue)));
                     }
 
                     open = sessionEvent;
                     interruptedAt = null;
                     closedFor = TimeSpan.Zero;
+                    awaySince = null;
+                    away = null;
+                    continue;
+
+                case SessionEventKind.AwayStarted:
+                    if (open is not null && awaySince is null)
+                    {
+                        awaySince = sessionEvent.At;
+                    }
+
+                    continue;
+
+                case SessionEventKind.AwayEnded:
+                    if (awaySince is DateTimeOffset left && sessionEvent.At >= left)
+                    {
+                        (away ??= []).Add(new TimeRange(left, sessionEvent.At));
+                    }
+
+                    awaySince = null;
                     continue;
 
                 case SessionEventKind.Interrupted:
@@ -63,16 +86,31 @@ public static class SessionHistoryBuilder
             }
 
             records.Add(new SessionRecord(
-                open.At, open.Mode, open.ProfileId, sessionEvent.At, sessionEvent.Kind, sessionEvent.Reason, closedFor));
+                open.At, open.Mode, open.ProfileId, sessionEvent.At, sessionEvent.Kind, sessionEvent.Reason, closedFor,
+                CloseAway(away, awaySince, sessionEvent.At)));
             open = null;
             closedFor = TimeSpan.Zero;
+            awaySince = null;
+            away = null;
         }
 
         if (open is not null)
         {
-            records.Add(new SessionRecord(open.At, open.Mode, open.ProfileId, null, null, null, closedFor));
+            records.Add(new SessionRecord(open.At, open.Mode, open.ProfileId, null, null, null, closedFor,
+                CloseAway(away, awaySince, DateTimeOffset.MaxValue)));
         }
 
         return records;
+    }
+
+    /// <summary>The session's away stretches, with one still going closed at <paramref name="end"/>.</summary>
+    private static IReadOnlyList<TimeRange>? CloseAway(List<TimeRange>? away, DateTimeOffset? awaySince, DateTimeOffset end)
+    {
+        if (awaySince is DateTimeOffset since && end >= since)
+        {
+            (away ??= []).Add(new TimeRange(since, end));
+        }
+
+        return away;
     }
 }

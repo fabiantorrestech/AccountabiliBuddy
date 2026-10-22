@@ -8,7 +8,7 @@ namespace AccountabiliBuddy.Core.Engine;
 /// and ones added by hand count; omitted sessions and old scheduled blocks don't. Each session is cut at the day's
 /// edges (local midnight), so one across midnight counts on both days. The session running now counts until now; an
 /// older session without an end stopped with the app at an unknown time and is left out. Planned minutes are the day
-/// plan's Watch parts.
+/// plan's Watch parts. Time the user stepped away doesn't count (the session itself is still sent whole).
 /// </summary>
 public static class FocusDayBuilder
 {
@@ -66,7 +66,7 @@ public static class FocusDayBuilder
         {
             DateOnly date = day.AddDays(-offset);
             LocalWindow window = DayWindow(date);
-            week.Add(new LinkDayTotal(date, Minutes(counted.Select(session => session.Window), window), Minutes(PlannedIn(plan, window), window)));
+            week.Add(new LinkDayTotal(date, Minutes(FocusedWindows(counted), window), Minutes(PlannedIn(plan, window), window)));
         }
 
         LinkDayTotal todayTotal = week[^1];
@@ -79,8 +79,26 @@ public static class FocusDayBuilder
     {
         return CountedRecords(records, isOmitted, sessionRunning, now)
             .Select(counted => new CountedSession(new LocalWindow(Local(counted.Record.StartedAt, zone), Local(counted.End, zone)),
-                counted.Record.ProfileId, counted.Record.Mode == SessionMode.Added, counted.Running))
+                counted.Record.ProfileId, counted.Record.Mode == SessionMode.Added, counted.Running,
+                AwayIn(counted.Record, counted.End, zone)))
             .ToList();
+    }
+
+    /// <summary>The record's away stretches in local time, cut at the session's end (one still going ends there).</summary>
+    private static IReadOnlyList<LocalWindow> AwayIn(SessionRecord record, DateTimeOffset end, TimeZoneInfo zone)
+    {
+        return (record.Away ?? [])
+            .Where(stretch => stretch.From < end)
+            .Select(stretch => new LocalWindow(Local(stretch.From, zone), Local(stretch.To < end ? stretch.To : end, zone)))
+            .ToList();
+    }
+
+    /// <summary>The sessions' windows without the time the user was away.</summary>
+    private static IEnumerable<LocalWindow> FocusedWindows(IEnumerable<CountedSession> sessions)
+    {
+        return sessions.SelectMany(session => session.Away.Count == 0
+            ? [session.Window]
+            : DayTimeline.Subtract([session.Window], session.Away));
     }
 
     /// <summary>
@@ -162,5 +180,5 @@ public static class FocusDayBuilder
         return new DateTimeOffset(local, zone.GetUtcOffset(local));
     }
 
-    private sealed record CountedSession(LocalWindow Window, Guid? ProfileId, bool Added, bool Running);
+    private sealed record CountedSession(LocalWindow Window, Guid? ProfileId, bool Added, bool Running, IReadOnlyList<LocalWindow> Away);
 }

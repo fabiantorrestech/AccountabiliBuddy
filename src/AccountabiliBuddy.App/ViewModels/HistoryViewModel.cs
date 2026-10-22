@@ -493,6 +493,11 @@ public sealed partial class HistoryViewModel : ObservableObject
             outcome += $" · app closed {FormatDuration(record.AppClosedFor)}, resumed";
         }
 
+        if (record.AwayTime > TimeSpan.Zero)
+        {
+            outcome += $" · stepped away {FormatDuration(record.AwayTime)}";
+        }
+
         bool omitted = _omitted.IsOmitted(record.StartedAt);
         if (omitted)
         {

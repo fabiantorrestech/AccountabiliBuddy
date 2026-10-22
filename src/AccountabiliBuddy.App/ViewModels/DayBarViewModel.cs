@@ -342,7 +342,9 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         List<TimelineSession> sessions = actual.Select(item => new TimelineSession(item.Window, item.Tip, item.ProfileId, item.Added)).ToList();
         List<TimelineSession> received = ReceivedOnBar(span);
         // Totals add up across devices; time two devices both had in focus counts once (the union of the windows).
-        TimeSpan focused = Total(actual.Select(item => item.Window).Concat(received.Select(session => session.Window)),
+        // Time the user stepped away from this PC's sessions doesn't count.
+        TimeSpan focused = Total(DayTimeline.Subtract(
+                actual.Select(item => item.Window).Concat(received.Select(session => session.Window)), AwayWindows(now)),
             range with { End = now < range.End ? now : range.End });
         // Drift is this PC's own: it stays inside this PC's sessions.
         IReadOnlyList<TimelineItem> drift = TimelineRowsBuilder.DriftOnBar(DriftItems(), sessions, range);
@@ -709,6 +711,25 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         }
 
         return text + $" · {Duration(plannedTotal)} of work planned";
+    }
+
+    /// <summary>The stretches the user stepped away during this PC's sessions; one still going runs until now.</summary>
+    private List<LocalWindow> AwayWindows(DateTime now)
+    {
+        var away = new List<LocalWindow>();
+        foreach (SessionRecord record in _records)
+        {
+            foreach (TimeRange stretch in record.Away ?? [])
+            {
+                DateTime end = stretch.To == DateTimeOffset.MaxValue ? now : ToLocal(stretch.To);
+                if (end > ToLocal(stretch.From))
+                {
+                    away.Add(new LocalWindow(ToLocal(stretch.From), end));
+                }
+            }
+        }
+
+        return away;
     }
 
     private static TimeSpan Total(IEnumerable<LocalWindow> windows, LocalWindow range)

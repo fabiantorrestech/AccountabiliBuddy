@@ -18,4 +18,10 @@ public enum SessionEventKind
 
     /// <summary>The app started again and carried on with the interrupted session.</summary>
     Resumed,
+
+    /// <summary>The user stepped away (the countdown pauses); the reason holds the <see cref="AwayKind"/> name.</summary>
+    AwayStarted,
+
+    /// <summary>The user was back.</summary>
+    AwayEnded,
 }
