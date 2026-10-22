@@ -250,8 +250,9 @@ public sealed class QuickSessionService
     }
 
     /// <summary>
-    /// At launch: every install has the default profile. Makes "QS - Default" when there's none, and renames the one
-    /// the app made before as "Quick Start" (a name only; its rules stay as they are).
+    /// At launch: every install has the default profile. When the saved one is missing, a profile named "Quick Start"
+    /// (what the app made before) or "QS - Default" becomes it; only when there's none is "QS - Default" made. "Quick
+    /// Start" is renamed "QS - Default" (a name only; its rules stay as they are).
     /// </summary>
     public async Task EnsureDefaultProfileAsync()
     {
@@ -260,7 +261,8 @@ public sealed class QuickSessionService
             return;
         }
 
-        if (CountUpProfileId is not Guid existing)
+        Guid? existing = CountUpProfileId ?? await AdoptOldDefaultAsync();
+        if (existing is null)
         {
             await EnsureCountUpProfileAsync();
             return;
@@ -274,6 +276,21 @@ public sealed class QuickSessionService
             });
             CountUpProfileChanged?.Invoke(this, EventArgs.Empty);
         }
+    }
+
+    // The saved default is missing (deleted, or its id changed in a restore or a sync): a profile by the default's old
+    // or new name takes its place, so no second default is made.
+    private async Task<Guid?> AdoptOldDefaultAsync()
+    {
+        FocusProfile? named = _configuration.Current.Profiles.FirstOrDefault(profile => profile.Name == OldCountUpDefaultName)
+                              ?? _configuration.Current.Profiles.FirstOrDefault(profile => profile.Name == CountUpDefaultName);
+        if (named is null)
+        {
+            return null;
+        }
+
+        await SetCountUpProfileAsync(named.Id);
+        return named.Id;
     }
 
     // Both start buttons of a start panel: the default profile, and the profile picked there.

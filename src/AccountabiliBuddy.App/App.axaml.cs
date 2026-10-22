@@ -210,9 +210,10 @@ public partial class App : Application
         _quickSession = new QuickSessionService(
             _sessions, _configuration, _endFlow, monitorLocator, new GdiScreenCapture(), _hotkey, documents);
         _quickSession.Tasks = sessionTasks;
-        // Every install has "QS - Default" (and the old "Quick Start" made by the app gets that name).
-        _ = _quickSession.EnsureDefaultProfileAsync();
         _quickSession.LoadBlocking();
+        // Every install has "QS - Default" (and the old "Quick Start" made by the app gets that name). After the
+        // quick-session settings load: they say which profile is the default.
+        _ = _quickSession.EnsureDefaultProfileAsync();
         // M6 screen reading and M7 activity history.
         var privacy = new PrivacySettingsService(documents);
         privacy.LoadBlocking();
