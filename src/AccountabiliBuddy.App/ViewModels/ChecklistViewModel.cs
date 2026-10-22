@@ -21,7 +21,7 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
         _tasks = tasks;
         _time = time;
         Mode = mode;
-        NewTaskTitle = Heading = DoneHeader = ProgressText = CurrentTaskText = string.Empty;
+        NewTaskTitle = Heading = DoneHeader = ProgressText = CurrentTaskText = CurrentSubtaskText = string.Empty;
         _tasks.Changed += OnChanged;
         Refresh();
     }
@@ -59,9 +59,13 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string ProgressText { get; set; }
 
-    /// <summary>The picked task or subtask (else the first open task), for the on-screen window's bar, e.g. "Fix tests › Unit".</summary>
+    /// <summary>The task the on-screen window's bar shows (the picked one, else the first open task), e.g. "Fix tests".</summary>
     [ObservableProperty]
     public partial string CurrentTaskText { get; set; }
+
+    /// <summary>Its subtask shown under it (the picked one, else its first open one); empty when it has none.</summary>
+    [ObservableProperty]
+    public partial string CurrentSubtaskText { get; set; }
 
     [ObservableProperty]
     public partial bool CanEndAtOnce { get; set; }
@@ -127,7 +131,8 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
         HasDone = DoneTasks.Count > 0;
         DoneHeader = $"Done ({DoneTasks.Count})";
         ProgressText = checklist.HasTasks ? $"{checklist.DoneCount}/{checklist.Tasks.Count}" : string.Empty;
-        CurrentTaskText = checklist.Shown?.Text ?? (checklist.AllDone ? "All tasks done" : string.Empty);
+        CurrentTaskText = checklist.Shown?.Task.Title ?? (checklist.AllDone ? "All tasks done" : string.Empty);
+        CurrentSubtaskText = checklist.Shown?.Subtask?.Title ?? string.Empty;
         Heading = Mode == ChecklistMode.Draft
             ? "Tasks for this session (optional)"
             : checklist.HasTasks ? $"Tasks · {ProgressText}" : "Tasks";

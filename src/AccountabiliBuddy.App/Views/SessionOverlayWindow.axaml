@@ -25,9 +25,13 @@
                     BorderBrush="{Binding OutlineBrush}" BorderThickness="1.5" Opacity="{Binding PanelOpacity}">
                 <Grid RowDefinitions="Auto,Auto,Auto">
                     <StackPanel Grid.Row="1" Spacing="8" HorizontalAlignment="{Binding MainAlignment}">
-                        <!-- Guided sessions: the task now and how far along ("▸ Write intro · 2/5"). -->
-                        <TextBlock Text="{Binding TaskLine}" IsVisible="{Binding ShowsTasks}" Foreground="#E6FFFFFF" FontSize="11"
-                                   Width="{x:Static vm:SessionOverlayViewModel.BarLength}" TextTrimming="CharacterEllipsis" />
+                        <!-- Guided sessions: how far along and the task now on one line ("2/5 ▸ Fix tests"), its subtask
+                             under it (2 lines then "…", all of it while Ctrl+Alt is held). -->
+                        <StackPanel Spacing="1" IsVisible="{Binding ShowsTasks}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
+                            <TextBlock Text="{Binding TaskLine}" Foreground="#E6FFFFFF" FontSize="11" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding SubtaskLine}" IsVisible="{Binding ShowsSubtaskLine}" Foreground="#C8FFFFFF" FontSize="11"
+                                       Margin="10,0,0,0" TextWrapping="Wrap" MaxLines="{Binding SubtaskMaxLines}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
                         <!-- Sleep mode, in the evening: sleep left if you go to bed now. -->
                         <TextBlock Text="{Binding Day.SleepText}" IsVisible="{Binding ShowsSleep}" Foreground="{Binding Day.SleepBrush}"
                                    Width="{x:Static vm:SessionOverlayViewModel.BarLength}" FontSize="12" FontWeight="SemiBold"

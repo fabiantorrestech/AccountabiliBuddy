@@ -132,6 +132,7 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     partial void OnShowsDetailsChanged(bool value)
     {
         OnPropertyChanged(nameof(ShowsTemporary));
+        OnPropertyChanged(nameof(SubtaskMaxLines));
         if (value)
         {
             // "Tonight" moves on at each wake time; read it again when the details open.
@@ -270,17 +271,28 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ShowsTasks { get; set; }
 
-    /// <summary>E.g. "▸ Write intro · 2/5".</summary>
+    /// <summary>One line, e.g. "2/5 ▸ Fix the failing tests": the count first, so a long name cuts off its end, not the count.</summary>
     [ObservableProperty]
     public partial string TaskLine { get; set; } = string.Empty;
+
+    /// <summary>The task's subtask shown under it, e.g. "↳ Integration tests"; empty when it has none.</summary>
+    [ObservableProperty]
+    public partial string SubtaskLine { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool ShowsSubtaskLine { get; set; }
+
+    /// <summary>Up to 2 lines, then "…"; the whole name while Ctrl+Alt is held (0 = no limit).</summary>
+    public int SubtaskMaxLines => ShowsDetails ? 0 : 2;
 
     /// <summary>The checklist and whether a session runs: the task line and the details follow.</summary>
     public void RefreshTasks(bool sessionActive)
     {
         ChecklistViewModel? checklist = Checklist;
         ShowsTasks = sessionActive && checklist is { HasTasks: true };
-        // The count first, so a long task name cuts off its end, not the count.
         TaskLine = checklist is null ? string.Empty : $"{checklist.ProgressText} ▸ {checklist.CurrentTaskText}";
+        SubtaskLine = checklist is { CurrentSubtaskText.Length: > 0 } ? $"↳ {checklist.CurrentSubtaskText}" : string.Empty;
+        ShowsSubtaskLine = ShowsTasks && SubtaskLine.Length > 0;
         checklist?.RefreshEndAtOnce();
     }
 
