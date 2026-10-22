@@ -1,0 +1,37 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.SyncQrWindow"
+        x:DataType="vm:SyncQrViewModel"
+        Title="Sync your phone"
+        Width="980" Height="560" MinWidth="420" MinHeight="380"
+        WindowStartupLocation="CenterScreen">
+    <!-- Today's sync QR codes (ADR 22): the phone's camera opens AccountabiliBuddy, which adds the codes up. -->
+    <DockPanel Margin="20">
+        <TextBlock DockPanel.Dock="Top" Text="{Binding Text}" TextWrapping="Wrap" FontSize="15" Margin="0,0,0,12" />
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Make them again" Command="{Binding LoadCommand}" ToolTip.Tip="As of now, e.g. after a session ended" />
+            <Button Content="Close" Click="OnClose" />
+        </StackPanel>
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Codes}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SyncQrCode">
+                        <StackPanel Margin="0,0,16,16" Spacing="6">
+                            <!-- White behind the code, so a phone reads it in dark mode too. -->
+                            <Border Background="White" Padding="12" CornerRadius="8">
+                                <Image Source="{Binding Picture}" Width="400" Height="400" RenderOptions.BitmapInterpolationMode="None" />
+                            </Border>
+                            <TextBlock Text="{Binding Label}" HorizontalAlignment="Center" Opacity="0.8" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

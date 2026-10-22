@@ -131,6 +131,23 @@ public sealed class EnforcementPresenter
         toast.Show();
     }
 
+    /// <summary>
+    /// A reminder with an action and "Later ▾" on the monitor under the mouse cursor (e.g. "Scan today's code to sync
+    /// your phone"); it stays until answered. <paramref name="onLater"/> gets the minutes chosen, or null for the default.
+    /// </summary>
+    public void ShowWithLater(string title, string message, string actionLabel, Action onAction, Action<int?> onLater, Avalonia.Media.IBrush? accent = null)
+    {
+        MonitorArea? area = _monitors.Find(_monitors.FindMonitorUnderCursor());
+        if (area is null)
+        {
+            return;
+        }
+
+        var toast = new NudgeToast { DataContext = new NudgeToastViewModel(title, message, actionLabel, onAction, staysOpen: true, accent, onLater) };
+        MonitorPlacement.PlaceInCorner(toast, area, MonitorPlacement.Corner.TopRight);
+        toast.Show();
+    }
+
     public void CloseAll()
     {
         foreach (MonitorPresentation presentation in _presentationByMonitor.Values)

@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 
 namespace AccountabiliBuddy.App;
@@ -22,9 +23,13 @@ public partial class MainWindow : Window
 
     private int _shownTab;
 
+    /// <summary>Files dropped on the window (sync files or pictures of sync codes, ADR 22), by their local paths.</summary>
+    public event EventHandler<IReadOnlyList<string>>? FilesDropped;
+
     public MainWindow()
     {
         InitializeComponent();
+        AddHandler(DragDrop.DropEvent, OnDrop);
         Opened += (_, _) => WarmUpPages();
         DataContextChanged += (_, _) =>
         {
@@ -34,6 +39,19 @@ public partial class MainWindow : Window
                 ConnectSearch(viewModel);
             }
         };
+    }
+
+    private void OnDrop(object? sender, DragEventArgs e)
+    {
+        List<string> paths = (e.DataTransfer.TryGetFiles() ?? [])
+            .Select(item => item.TryGetLocalPath())
+            .OfType<string>()
+            .ToList();
+        if (paths.Count > 0)
+        {
+            FilesDropped?.Invoke(this, paths);
+            e.Handled = true;
+        }
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

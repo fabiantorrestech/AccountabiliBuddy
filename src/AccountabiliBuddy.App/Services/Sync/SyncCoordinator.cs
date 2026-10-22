@@ -513,7 +513,7 @@ public sealed class SyncCoordinator
     private async Task<DateTimeOffset?> ApplyProfilesAsync(SyncDocument document)
     {
         ProfileDocument received = ProfileDocumentSerializer.Deserialize(document.Json);
-        if (_configuration.IsReadOnly)
+        if (!IsComplete(received) || _configuration.IsReadOnly)
         {
             return null;
         }
@@ -543,6 +543,15 @@ public sealed class SyncCoordinator
         }
 
         return editedAt;
+    }
+
+    // A profiles document missing required parts (a broken or hand-made file) stays out, like one that can't be read:
+    // the JSON reader leaves them null, and the change guard would trip over them.
+    private static bool IsComplete(ProfileDocument document)
+    {
+        return document.Profiles is not null && document.PomodoroDefaults is not null && document.Escalation is not null
+               && document.Bypass is not null && document.Locks is not null && document.DayPlan is not null
+               && document.Profiles.All(profile => profile is not null && profile.Name is not null && profile.Rules is not null);
     }
 
     /// <summary>On/off, the goal and tonight's one-off wake time; the times follow this PC's day plan.</summary>

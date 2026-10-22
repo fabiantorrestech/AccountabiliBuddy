@@ -168,10 +168,14 @@
                             </Grid>
                           </Panel>
                         </Panel>
-                        <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding ShowsDetails}">
+                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" IsVisible="{Binding ShowsDetails}">
                             <TextBlock Text="Drag to move" Foreground="#99FFFFFF" FontSize="10" VerticalAlignment="Center" />
                             <!-- Only reachable while Ctrl+Alt is held (otherwise clicks pass through the window). -->
-                            <Button Grid.Column="1" Content="{Binding HideButtonText}" Command="{Binding HideBrieflyCommand}"
+                            <!-- Today's sync QR codes for the phone (ADR 22), while the QR code method is on. -->
+                            <Button Grid.Column="1" Content="QR" Command="{Binding ShowSyncQrCommand}" IsVisible="{Binding ShowsQrButton}"
+                                    ToolTip.Tip="Show today's QR codes for your phone to scan"
+                                    Padding="8,2" FontSize="11" Foreground="White" Background="#33FFFFFF" CornerRadius="5" />
+                            <Button Grid.Column="2" Content="{Binding HideButtonText}" Command="{Binding HideBrieflyCommand}"
                                     Padding="8,2" FontSize="11" Foreground="White" Background="#33FFFFFF" CornerRadius="5" />
                         </Grid>
                     </StackPanel>

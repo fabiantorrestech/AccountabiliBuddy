@@ -77,6 +77,7 @@ public partial class App : Application
     private ColdTurkeyService? _coldTurkey;
     private AccountabiliBuddy.App.Services.Link.LinkService? _link;
     private AccountabiliBuddy.App.Services.Sync.SyncFolderService? _syncFolder;
+    private AccountabiliBuddy.App.Services.Sync.QrSyncService? _qrSync;
     private NamedPipeBrowserSource? _browserSource;
     private Win32GlobalHotkey? _hotkey;
     private QuickSessionService? _quickSession;
@@ -431,9 +432,35 @@ public partial class App : Application
         };
         mainViewModel.History.UseReceived(receivedDevices);
 
+        // The QR code method (ADR 22): today's codes from a button (top bar, Ctrl+Alt details) and an end-of-day reminder.
+        var qrSync = new AccountabiliBuddy.App.Services.Sync.QrSyncService(
+            syncCoordinator, syncIdentity, syncSettings, receivedDevices, _configuration, documents, time);
+        qrSync.LoadBlocking();
+        _qrSync = qrSync;
+        var syncImport = new AccountabiliBuddy.App.Services.Sync.SyncImportService(syncCoordinator, syncIdentity);
+        void ShowSyncQr() => new SyncQrWindow { DataContext = new SyncQrViewModel(qrSync.LinksForNowAsync) }.Show();
+        void ShowQrButtons(AccountabiliBuddy.App.Services.Sync.SyncSettings settings)
+        {
+            mainViewModel.ShowsQrButton = settings.QrOn;
+            _sessionOverlay!.SetSyncQr(settings.QrOn ? ShowSyncQr : null);
+        }
+
+        mainViewModel.ShowSyncQr = ShowSyncQr;
+        ShowQrButtons(syncSettings.Current);
+        syncSettings.Changed += (_, settings) => ShowQrButtons(settings);
+        qrSync.ReminderDue += (_, _) => presenter.ShowWithLater(
+            "Scan today's code to sync your phone",
+            "Your phone and watch get today's focus from this PC's QR codes.",
+            "Show code",
+            ShowSyncQr,
+            minutes => _ = qrSync.SnoozeAsync(minutes));
+
         mainViewModel.NoisePlayer = noisePlayer;
         mainViewModel.Settings.OpenDayPlan = () => mainViewModel.SelectedTab = MainWindowViewModel.DayPlanTab;
         _mainWindow = new MainWindow { DataContext = mainViewModel };
+        // Sync files and pictures of the phone's codes dropped on the window (ADR 22), when their method is on.
+        _mainWindow.FilesDropped += async (_, paths) =>
+            presenter.ShowNotice("Sync", await ImportDroppedAsync(syncImport, syncSettings.Current, paths));
         _mainWindow.Title = $"AccountabiliBuddy {AccountabiliBuddy.App.Services.Backup.BackupService.AppVersion}";
         if (_usesDevData)
         {
@@ -484,6 +511,7 @@ public partial class App : Application
         _ = _link.StartIfEnabledAsync();
         syncCoordinator.ClashRaised += (_, request) => ShowDayPlanClash(syncCoordinator, request, presenter, time);
         _syncFolder.Start();
+        _qrSync?.Start();
         _activityWatcher.ActivityChanged += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(_sessionOverlay.OnActivityChanged);
         _dayBar.Start();
         // The main window's bar redraws only while the window is open; the on-screen timeline has its own copy.
@@ -555,6 +583,43 @@ public partial class App : Application
     /// Once ("history.sectionsFilled"): gives history recorded before sections were kept its subreddits and repos
     /// (ADR 17), in the background. If it fails it's tried again at the next start.
     /// </summary>
+    /// <summary>
+    /// Sync files (*.absync, with the sync file method on) and pictures of the phone's QR codes (with the QR code
+    /// method on) dropped on the main window; returns what happened, e.g. "Synced Pixel 7".
+    /// </summary>
+    private static async Task<string> ImportDroppedAsync(
+        AccountabiliBuddy.App.Services.Sync.SyncImportService import, AccountabiliBuddy.App.Services.Sync.SyncSettings settings, IReadOnlyList<string> paths)
+    {
+        List<string> files = paths
+            .Where(path => path.EndsWith(AccountabiliBuddy.App.Services.Sync.SyncFolderService.Extension, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        List<string> pictures = paths.Except(files).ToList();
+        var results = new List<string>();
+        if (files.Count > 0)
+        {
+            if (!settings.FileShareOn)
+            {
+                results.Add("Turn on \"Sync file\" in Devices to take in sync files.");
+            }
+            else
+            {
+                foreach (string file in files)
+                {
+                    results.Add(await import.ImportFileAsync(file));
+                }
+            }
+        }
+
+        if (pictures.Count > 0)
+        {
+            results.Add(settings.QrOn
+                ? await import.ImportPicturesAsync(pictures)
+                : "Turn on \"QR codes\" in Devices to read your phone's codes from a picture.");
+        }
+
+        return string.Join(" · ", results.Distinct());
+    }
+
     private static async Task FillHistorySectionsOnceAsync(SqliteJsonDocumentStore documents, SqliteActivityLog log)
     {
         const string DoneKey = "history.sectionsFilled";
@@ -890,6 +955,7 @@ public partial class App : Application
         _coldTurkey?.Dispose();
         _link?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
         _syncFolder?.Dispose();
+        _qrSync?.Dispose();
         _clockAnchors?.Dispose();
         _unlocks?.Dispose();
         _calendarSync?.Dispose();

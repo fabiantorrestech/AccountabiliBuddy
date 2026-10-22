@@ -18,8 +18,21 @@
                         ToolTip.Tip="Dismiss" />
             </Grid>
             <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Opacity="0.9" />
-            <Button Content="{Binding ActionLabel}" Command="{Binding ActCommand}"
-                    IsVisible="{Binding HasAction}" Classes="accent" HorizontalAlignment="Right" />
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <!-- "Later ▾": a plain click waits the default time, the menu picks one. -->
+                <SplitButton Content="Later" Command="{Binding LaterCommand}" IsVisible="{Binding HasLater}">
+                    <SplitButton.Flyout>
+                        <MenuFlyout Placement="Bottom">
+                            <MenuItem Header="5 min" Command="{Binding LaterCommand}" CommandParameter="5" />
+                            <MenuItem Header="15 min" Command="{Binding LaterCommand}" CommandParameter="15" />
+                            <MenuItem Header="30 min" Command="{Binding LaterCommand}" CommandParameter="30" />
+                            <MenuItem Header="1 h" Command="{Binding LaterCommand}" CommandParameter="60" />
+                        </MenuFlyout>
+                    </SplitButton.Flyout>
+                </SplitButton>
+                <Button Content="{Binding ActionLabel}" Command="{Binding ActCommand}"
+                        IsVisible="{Binding HasAction}" Classes="accent" />
+            </StackPanel>
         </StackPanel>
     </Grid>
 </Window>

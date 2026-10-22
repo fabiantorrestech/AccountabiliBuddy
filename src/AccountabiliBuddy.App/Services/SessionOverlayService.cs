@@ -130,6 +130,12 @@ public sealed class SessionOverlayService : IDisposable
         _viewModel.Wake = wake;
     }
 
+    /// <summary>A "QR" button in the Ctrl+Alt details opens today's sync QR codes (ADR 22); null hides it.</summary>
+    public void SetSyncQr(Action? show)
+    {
+        _viewModel.SetSyncQr(show);
+    }
+
     public void SetHiddenForSession(bool hidden)
     {
         IsHiddenForSession = hidden && _sessions.State.IsActive;

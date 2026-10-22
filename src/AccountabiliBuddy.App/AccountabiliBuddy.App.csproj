@@ -20,6 +20,8 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="QRCoder" Version="1.8.0" />
+    <!-- Reads the sync QR codes in a picture from the phone (ADR 22, user-approved 2026-10-21). -->
+    <PackageReference Include="ZXing.Net" Version="0.16.11" />
     <!-- Installer, updates and uninstall hooks (ADR 10). -->
     <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>

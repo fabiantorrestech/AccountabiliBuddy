@@ -243,6 +243,26 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
         _hideBriefly();
     }
 
+    // Opens today's sync QR codes (ADR 22); null while the QR code method is off.
+    private Action? _showSyncQr;
+
+    /// <summary>The "QR" button next to Hide in the Ctrl+Alt details: while the QR code method is on.</summary>
+    [ObservableProperty]
+    public partial bool ShowsQrButton { get; set; }
+
+    /// <summary>What the QR button opens; null hides it.</summary>
+    public void SetSyncQr(Action? show)
+    {
+        _showSyncQr = show;
+        ShowsQrButton = show is not null;
+    }
+
+    [RelayCommand]
+    private void ShowSyncQr()
+    {
+        _showSyncQr?.Invoke();
+    }
+
     public void Glow()
     {
         GlowOpacity = GlowBrightness;

@@ -134,6 +134,19 @@ public sealed partial class MainWindowViewModel : ObservableObject
     /// <summary>The search box in the top right; null hides it.</summary>
     public SearchViewModel? Search { get; init; }
 
+    /// <summary>Opens today's sync QR codes (ADR 22); set by the app.</summary>
+    public Action? ShowSyncQr { get; set; }
+
+    /// <summary>The QR button next to the search box: while the QR code method is on.</summary>
+    [ObservableProperty]
+    public partial bool ShowsQrButton { get; set; }
+
+    [RelayCommand]
+    private void ShowSyncQrCodes()
+    {
+        ShowSyncQr?.Invoke();
+    }
+
     private readonly DayBarViewModel? _dayBar;
 
     /// <summary>Today at a glance, above the tabs. Clicking a session opens its profile; a plan part, the Day plan tab.</summary>
