@@ -54,6 +54,18 @@ public sealed partial class UpdatesViewModel : ObservableObject
         return _updates.InstallAsync(automatic: false);
     }
 
+    /// <summary>The app checks for updates on its own; off: only Check now asks.</summary>
+    [ObservableProperty]
+    public partial bool CheckForUpdates { get; set; }
+
+    partial void OnCheckForUpdatesChanged(bool value)
+    {
+        if (!_loading && value != _updates.Settings.CheckForUpdates)
+        {
+            _ = _updates.SetCheckForUpdatesAsync(value);
+        }
+    }
+
     partial void OnAutoInstallChanged(bool value)
     {
         if (!_loading && value != _updates.Settings.AutoInstall)
@@ -69,6 +81,7 @@ public sealed partial class UpdatesViewModel : ObservableObject
         HasUpdate = _updates.AvailableVersion is not null;
         IsBusy = _updates.IsBusy;
         AutoInstall = _updates.Settings.AutoInstall;
+        CheckForUpdates = _updates.Settings.CheckForUpdates;
         OnPropertyChanged(nameof(InstallText));
         _loading = false;
     }

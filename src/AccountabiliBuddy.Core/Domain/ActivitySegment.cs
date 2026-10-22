@@ -16,7 +16,8 @@ public sealed record ActivitySegment(
     Guid? ProfileId,
     bool InFocusSession,
     string? OcrText = null,
-    string? Channel = null)
+    string? Channel = null,
+    bool KeepProtectedText = true)
 {
     public TimeSpan Duration => End - Start;
 }

@@ -134,6 +134,9 @@
                             <TextBlock Grid.Row="2" Text="Minimize / block after" VerticalAlignment="Center" />
                             <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding EnforceSeconds}" />
                         </Grid>
+                        <!-- The computer types' "notice and overlay only" (ADR 22), e.g. on a work computer. -->
+                        <CheckBox IsChecked="{Binding NoticeAndOverlayOnly}"
+                                  Content="Notice and overlay only: never minimize a window or redirect a tab (e.g. on a work computer)" />
                     </StackPanel>
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="Ending a focus session early">
@@ -475,6 +478,9 @@
                         <TextBlock Text="Data" Classes="sectionTitle" />
                         <TextBlock Text="Everything is stored only on this computer:" Opacity="0.75" />
                         <SelectableTextBlock Text="{Binding DatabasePath}" />
+                        <!-- Off: History keeps only times, apps, sites and their sections (ADR 22, the Work computer type). -->
+                        <CheckBox IsChecked="{Binding KeepTitlesAndAddresses}" Margin="0,6,0,0"
+                                  Content="Keep window titles, full addresses and screen text in History (encrypted). Off: only times, apps, sites and their sections" />
                         <TextBlock Text="{Binding VersionText}" Opacity="0.75" Margin="0,6,0,0" />
                     </StackPanel>
                     </Border>

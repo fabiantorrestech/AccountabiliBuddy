@@ -99,10 +99,18 @@ public sealed class UpdateService : IDisposable
         await _store.SaveAsync(SettingsKey, Settings);
     }
 
+    public async Task SetCheckForUpdatesAsync(bool check)
+    {
+        Settings = Settings with { CheckForUpdates = check };
+        Changed?.Invoke(this, EventArgs.Empty);
+        await _store.SaveAsync(SettingsKey, Settings);
+    }
+
     /// <param name="manual">From Check now: report "up to date" too, and don't show a notice.</param>
     public async Task CheckAsync(bool manual)
     {
-        if (!CanUpdate || IsBusy)
+        // With update checks off, only a click on Check now asks the releases repo.
+        if (!CanUpdate || IsBusy || (!manual && !Settings.CheckForUpdates))
         {
             return;
         }

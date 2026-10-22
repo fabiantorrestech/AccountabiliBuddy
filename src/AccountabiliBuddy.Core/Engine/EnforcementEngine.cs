@@ -38,6 +38,12 @@ public sealed class EnforcementEngine
         _evaluator = evaluator;
     }
 
+    /// <summary>
+    /// The furthest escalation goes (the Work computer type: <see cref="EscalationLevel.Overlay"/>, never minimizing or
+    /// redirecting a work window). Caps every decision, a repeat offense's floor included.
+    /// </summary>
+    public EscalationLevel MaxLevel { get; set; } = EscalationLevel.Enforce;
+
     /// <param name="profile">The session's profile, or null if it no longer exists.</param>
     /// <param name="snapshots">The latest snapshot of every connected monitor.</param>
     public IReadOnlyList<MonitorEnforcement> Evaluate(
@@ -136,6 +142,7 @@ public sealed class EnforcementEngine
             action = EnforcementAction.Nudge;
         }
 
+        action = Capped(action);
         RememberEscalation(rule.Id, scope, action);
 
         return new MonitorEnforcement(
@@ -153,9 +160,9 @@ public sealed class EnforcementEngine
     private MonitorEnforcement EvaluateUnclassified(ActivitySnapshot snapshot, DriftAssessment drift, DateTimeOffset now)
     {
         bool isRecovering = IsRecovering(snapshot.MonitorId, now);
-        EnforcementAction action = drift.Level == EscalationLevel.Nudge || isRecovering
+        EnforcementAction action = Capped(drift.Level == EscalationLevel.Nudge || isRecovering
             ? EnforcementAction.Nudge
-            : EnforcementAction.Overlay;
+            : EnforcementAction.Overlay);
 
         return new MonitorEnforcement(
             snapshot,
@@ -166,6 +173,19 @@ public sealed class EnforcementEngine
             IsRepeatOffense: false,
             isRecovering,
             NeedsClassification: true);
+    }
+
+    // The action, no further than MaxLevel allows (Minimize and RedirectTab are the Enforce level).
+    private EnforcementAction Capped(EnforcementAction action)
+    {
+        EnforcementAction most = MaxLevel switch
+        {
+            EscalationLevel.None => EnforcementAction.None,
+            EscalationLevel.Nudge => EnforcementAction.Nudge,
+            EscalationLevel.Overlay => EnforcementAction.Overlay,
+            _ => action,
+        };
+        return action > most ? most : action;
     }
 
     private static EnforcementAction ToAction(EscalationLevel level, BlockScope scope, bool canRedirectTab)

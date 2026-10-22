@@ -825,6 +825,45 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsLocked { get; set; }
 
+    /// <summary>How far escalation may go; set by the app (the computer types' "notice and overlay only").</summary>
+    public EnforcementLimitService? EnforcementLimit { get; init; }
+
+    /// <summary>The privacy choices (History without titles and addresses); set by the app.</summary>
+    public PrivacySettingsService? PrivacyChoices { get; init; }
+
+    /// <summary>Notice and overlay only: never minimize a window or redirect a tab (e.g. on a work computer).</summary>
+    public bool NoticeAndOverlayOnly
+    {
+        get => EnforcementLimit?.MaxLevel <= EscalationLevel.Overlay;
+        set
+        {
+            if (EnforcementLimit is null || IsLocked || value == NoticeAndOverlayOnly)
+            {
+                OnPropertyChanged();
+                return;
+            }
+
+            _ = EnforcementLimit.SaveAsync(value ? EscalationLevel.Overlay : EscalationLevel.Enforce);
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>History keeps window titles, full addresses and screen text (encrypted); off keeps only sites and sections.</summary>
+    public bool KeepTitlesAndAddresses
+    {
+        get => PrivacyChoices?.Current.KeepTitlesAndAddresses ?? true;
+        set
+        {
+            if (PrivacyChoices is null || value == KeepTitlesAndAddresses)
+            {
+                return;
+            }
+
+            _ = PrivacyChoices.SetKeepTitlesAndAddressesAsync(value);
+            OnPropertyChanged();
+        }
+    }
+
     /// <summary>The profile-wide values typed in the tab, read and checked.</summary>
     private sealed record ConfigValues(
         PomodoroSettings Pomodoro, EscalationSettings Escalation, BypassSettings Bypass, LockSettings Locks, int CalendarMinutes);

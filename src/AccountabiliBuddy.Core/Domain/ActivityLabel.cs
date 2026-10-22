@@ -12,4 +12,5 @@ public sealed record ActivityLabel(
     RuleVerdict Verdict,
     LabelSource Source,
     LabelLifetime Lifetime = LabelLifetime.Permanent,
-    string? Reason = null);
+    string? Reason = null,
+    bool KeepProtectedText = true);

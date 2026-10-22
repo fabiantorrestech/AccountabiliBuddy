@@ -229,12 +229,17 @@ public partial class App : Application
         _updates = new UpdateService(
             new VelopackUpdater(), _sessions, documents, presenter.ShowNotice, () => _mainWindow?.IsVisible == true);
         _updates.LoadBlocking();
+        // How far escalation may go (the computer types' "notice and overlay only", ADR 22).
+        var enforcementLimit = new EnforcementLimitService(documents);
+        enforcementLimit.LoadBlocking();
+        var enforcementEngine = new EnforcementEngine(new RuleEvaluator(new RuleMatcher())) { MaxLevel = enforcementLimit.MaxLevel };
+        enforcementLimit.Changed += (_, level) => enforcementEngine.MaxLevel = level;
         _enforcement = new EnforcementCoordinator(
             _activityWatcher,
             _browserSource,
             _sessions,
             _configuration,
-            new EnforcementEngine(new RuleEvaluator(new RuleMatcher())),
+            enforcementEngine,
             presenter,
             ocrReader,
             privacy,
@@ -413,6 +418,8 @@ public partial class App : Application
             {
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
                 Updates = new UpdatesViewModel(_updates),
+                EnforcementLimit = enforcementLimit,
+                PrivacyChoices = privacy,
                 GoogleGuide = new GoogleSetupGuide(calendars, _calendarSync, dataProtector, documents, OpenInBrowser),
             },
             activityViewModel,

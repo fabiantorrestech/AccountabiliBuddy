@@ -31,6 +31,9 @@
                     </StackPanel>
                     <CheckBox IsChecked="{Binding AutoInstall}" IsEnabled="{Binding CanUpdate}"
                               Content="Install updates automatically (when no session is running; the app restarts by itself)" />
+                    <!-- Off (the Local only type): the app makes no update check of its own; Check now still asks. -->
+                    <CheckBox IsChecked="{Binding CheckForUpdates}" IsEnabled="{Binding CanUpdate}"
+                              Content="Check for updates on its own (off: only when you click Check now)" />
                 </StackPanel>
             </Border>
         </StackPanel>

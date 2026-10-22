@@ -64,9 +64,10 @@ public sealed class SqliteActivityLog : IActivityLog
         command.Parameters.AddWithValue("$classification", segment.Classification.ToString());
         command.Parameters.AddWithValue("$profile", DbValue(segment.ProfileId?.ToString()));
         command.Parameters.AddWithValue("$focus", segment.InFocusSession ? 1 : 0);
-        command.Parameters.AddWithValue("$title", ProtectOrNull(segment.WindowTitle));
-        command.Parameters.AddWithValue("$url", ProtectOrNull(segment.Url));
-        command.Parameters.AddWithValue("$ocr", ProtectOrNull(segment.OcrText));
+        // "Titles and addresses not kept" (the Work computer type): only the site and its section (above) are stored.
+        command.Parameters.AddWithValue("$title", segment.KeepProtectedText ? ProtectOrNull(segment.WindowTitle) : DBNull.Value);
+        command.Parameters.AddWithValue("$url", segment.KeepProtectedText ? ProtectOrNull(segment.Url) : DBNull.Value);
+        command.Parameters.AddWithValue("$ocr", segment.KeepProtectedText ? ProtectOrNull(segment.OcrText) : DBNull.Value);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -88,9 +89,9 @@ public sealed class SqliteActivityLog : IActivityLog
         command.Parameters.AddWithValue("$lifetime", label.Lifetime.ToString());
         command.Parameters.AddWithValue("$process", label.ProcessName);
         command.Parameters.AddWithValue("$domain", DbValue(DomainOf(label.Url)));
-        command.Parameters.AddWithValue("$title", ProtectOrNull(label.WindowTitle));
-        command.Parameters.AddWithValue("$url", ProtectOrNull(label.Url));
-        command.Parameters.AddWithValue("$ocr", ProtectOrNull(label.OcrText));
+        command.Parameters.AddWithValue("$title", label.KeepProtectedText ? ProtectOrNull(label.WindowTitle) : DBNull.Value);
+        command.Parameters.AddWithValue("$url", label.KeepProtectedText ? ProtectOrNull(label.Url) : DBNull.Value);
+        command.Parameters.AddWithValue("$ocr", label.KeepProtectedText ? ProtectOrNull(label.OcrText) : DBNull.Value);
         command.Parameters.AddWithValue("$reason", ProtectOrNull(label.Reason));
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }

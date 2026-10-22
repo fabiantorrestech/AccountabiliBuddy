@@ -43,6 +43,12 @@ public sealed class PrivacySettingsService
         return UpdateAsync(Current with { ActivityLogEnabled = enabled });
     }
 
+    /// <summary>Whether History keeps window titles, full addresses and screen text (encrypted) or only sites and sections.</summary>
+    public Task SetKeepTitlesAndAddressesAsync(bool keep)
+    {
+        return UpdateAsync(Current with { KeepTitlesAndAddresses = keep });
+    }
+
     private async Task UpdateAsync(PrivacySettings settings)
     {
         Current = settings;

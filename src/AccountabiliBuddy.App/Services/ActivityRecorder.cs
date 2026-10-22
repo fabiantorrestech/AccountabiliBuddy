@@ -120,7 +120,8 @@ public sealed class ActivityRecorder : IDisposable
             answer.Rule.Verdict,
             LabelSource.ClassifyPrompt,
             answer.Lifetime,
-            answer.Reason);
+            answer.Reason,
+            _privacy.Current.KeepTitlesAndAddresses);
         Enqueue(() => _log.RecordLabelAsync(label));
     }
 
@@ -214,9 +215,11 @@ public sealed class ActivityRecorder : IDisposable
 
     private void WriteSegments(IReadOnlyList<ActivitySegment> segments)
     {
+        bool keepProtected = _privacy.Current.KeepTitlesAndAddresses;
         foreach (ActivitySegment segment in segments)
         {
-            Enqueue(() => _log.RecordSegmentAsync(segment));
+            ActivitySegment written = segment with { KeepProtectedText = keepProtected };
+            Enqueue(() => _log.RecordSegmentAsync(written));
         }
     }
 
