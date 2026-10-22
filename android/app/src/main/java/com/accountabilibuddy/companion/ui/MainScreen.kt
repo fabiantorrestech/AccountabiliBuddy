@@ -48,6 +48,7 @@ fun MainScreen(
     val phoneUsage by viewModel.phoneUsage.collectAsStateWithLifecycle()
     val curbox by viewModel.curbox.collectAsStateWithLifecycle()
     val linkStatus by viewModel.linkStatus.collectAsStateWithLifecycle()
+    val folderStatus by viewModel.folderStatus.collectAsStateWithLifecycle()
     val pairedPc by viewModel.pairedPc.collectAsStateWithLifecycle()
     val watchSettings by viewModel.watchSettings.collectAsStateWithLifecycle()
     val detectedWatches by viewModel.detectedWatches.collectAsStateWithLifecycle()
@@ -142,6 +143,7 @@ fun MainScreen(
                         focusDay = state.focusDay,
                         pcName = pairedPc?.pcName,
                         pcConnected = (linkStatus as? LinkStatus.Connected)?.state != null,
+                        folder = folderStatus,
                     ),
                     actions = DevicesActions(
                         onShare = { viewModel.shareSyncFiles(context) },
@@ -150,6 +152,8 @@ fun MainScreen(
                         onJoin = viewModel::joinWithCode,
                         onLeave = viewModel::leaveSyncGroup,
                         onSettings = viewModel::saveSyncSettings,
+                        onFolderChosen = viewModel::chooseSyncFolder,
+                        onSyncFolderNow = viewModel::syncFolderNow,
                     ),
                     pcStatus = linkStatus,
                     pairedPc = pairedPc,

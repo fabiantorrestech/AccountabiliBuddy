@@ -99,6 +99,8 @@ The PCs only see a plain folder. The phone can't do that: the Drive app on Andro
 
 The first task of the plan is a short test of both on your Pixel 7, with your OK to install a throwaway build. The design then records which one is built. Either way the setting stays an optional backup, off by default.
 
+**Decided (2026-10-21):** B is built first (Autosync mirrors the Drive folder; AccountabiliBuddy reads and writes it through Android's folder picker). It worked between the phone and the PC on the user's devices. A (Google sign-in in the app) may follow later, with its own ADR.
+
 ### The end-of-day QR reminder (decided)
 
 - **When:** when the day plan's last Work part ends; the time can be adjusted in Settings.

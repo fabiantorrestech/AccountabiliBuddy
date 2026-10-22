@@ -1,6 +1,8 @@
 package com.accountabilibuddy.companion.ui
 
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -34,6 +37,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.link.LinkStatus
 import com.accountabilibuddy.companion.link.LinkedPc
+import com.accountabilibuddy.companion.sync.DriveFolderSource
+import com.accountabilibuddy.companion.sync.FolderStatus
 import com.accountabilibuddy.companion.sync.PhoneSyncSettings
 import com.accountabilibuddy.companion.sync.ReceivedDevice
 import com.accountabilibuddy.shared.FocusDay
@@ -54,6 +59,8 @@ data class DevicesState(
     val focusDay: FocusDay?,
     val pcName: String?,
     val pcConnected: Boolean,
+    /** The sync folder's last result (ADR 22, way B). */
+    val folder: FolderStatus = FolderStatus(),
 )
 
 /** The Devices tab's actions. */
@@ -64,6 +71,9 @@ data class DevicesActions(
     val onJoin: (String) -> Boolean = { false },
     val onLeave: () -> Unit = {},
     val onSettings: (PhoneSyncSettings) -> Unit = {},
+    /** A folder chosen with Android's folder picker (a tree uri). */
+    val onFolderChosen: (Uri) -> Unit = {},
+    val onSyncFolderNow: () -> Unit = {},
 )
 
 /**
@@ -82,6 +92,7 @@ fun DevicesScreen(
     watchActions: WatchSectionActions,
 ) {
     var dialog by remember { mutableStateOf<DevicesDialog?>(null) }
+    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri -> uri?.let(actions.onFolderChosen) }
     val now = Instant.now()
     val zone = ZoneId.systemDefault()
 
@@ -140,6 +151,7 @@ fun DevicesScreen(
                 OutlinedButton(onClick = { dialog = DevicesDialog.Picture }, enabled = devices.joined && devices.settings.qrOn) {
                     Text("Show as picture")
                 }
+                FolderSection(devices, actions, now) { pickFolder.launch(null) }
             }
         }
 
@@ -185,6 +197,48 @@ fun DevicesScreen(
 }
 
 private enum class DevicesDialog { Scan, Picture, LinkDevice, Leave }
+
+/** The sync folder (backup, off by default): a folder another app such as Autosync keeps in step with Google Drive. */
+@Composable
+private fun FolderSection(devices: DevicesState, actions: DevicesActions, now: Instant, onChoose: () -> Unit) {
+    val settings = devices.settings
+    ToggleRow(
+        "Sync folder (backup)",
+        "A folder another app keeps in step with Google Drive (e.g. Autosync), the one your PC uses. Every 15 min; " +
+            "faster only while the timeline notification is pinned.",
+        settings.folderOn,
+        enabled = devices.joined,
+    ) { on ->
+        if (on && settings.folderUri == null) onChoose() else actions.onSettings(settings.copy(folderOn = on))
+    }
+    if (!settings.folderOn) {
+        return
+    }
+
+    Text(
+        settings.folderUri?.let { "Folder: ${DriveFolderSource.displayName(it)}" } ?: "No folder chosen yet.",
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf(1, 5, 15).forEach { minutes ->
+            FilterChip(
+                selected = settings.folderMinutes == minutes,
+                onClick = { actions.onSettings(settings.copy(folderMinutes = minutes)) },
+                label = { Text("$minutes min") },
+            )
+        }
+    }
+    val status = devices.folder
+    Text(
+        status.problem ?: status.lastSyncAt?.let { "Synced ${DevicesModel.ago(Duration.between(it, now))}" } ?: "Not synced yet.",
+        style = MaterialTheme.typography.bodySmall,
+        color = if (status.problem != null) Color(0xFFFCA5A5) else MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = onChoose) { Text("Choose folder") }
+        OutlinedButton(onClick = actions.onSyncFolderNow, enabled = settings.folderUri != null) { Text("Sync now") }
+    }
+}
 
 @Composable
 private fun JoinWithCode(onJoin: (String) -> Boolean) {
@@ -304,7 +358,7 @@ object DevicesModel {
         return if (count > 1) "Today: $time focused across $count devices" else "Today: $time focused"
     }
 
-    private fun ago(age: Duration): String = when {
+    fun ago(age: Duration): String = when {
         age < Duration.ofMinutes(1) -> "just now"
         age < Duration.ofHours(1) -> "${age.toMinutes()} min ago"
         age < Duration.ofDays(1) -> "${age.toHours()} h ago"

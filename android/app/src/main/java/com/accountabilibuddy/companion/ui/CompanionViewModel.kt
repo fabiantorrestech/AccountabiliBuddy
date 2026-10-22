@@ -58,6 +58,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     private val link = (application as CompanionApp).link
     private val watchBridge = (application as CompanionApp).watchBridge
     private val sync = (application as CompanionApp).sync
+    private val folderSource = (application as CompanionApp).folderSource
 
     /** The Pixel Watch link (ADR 21): its settings and the watches found with the app. */
     val watchSettings: StateFlow<WatchLinkSettings> = watchBridge.settings
@@ -227,6 +228,29 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     fun ownQrLinks(): List<String> = sync.ownQrLinks()
 
     fun saveSyncSettings(settings: PhoneSyncSettings) = sync.saveSettings(settings)
+
+    /** The sync folder's last result (ADR 22, way B). */
+    val folderStatus = folderSource.status
+
+    /** The folder picked for syncing (e.g. the one Autosync keeps in step with Drive): kept across restarts, then synced. */
+    fun chooseSyncFolder(uri: android.net.Uri) {
+        val flags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        try {
+            getApplication<Application>().contentResolver.takePersistableUriPermission(uri, flags)
+        } catch (e: SecurityException) {
+            message.value = "That folder can't be kept: choose a folder on the phone's storage."
+            return
+        }
+
+        sync.saveSettings(sync.settings.value.copy(folderOn = true, folderUri = uri.toString()))
+    }
+
+    fun syncFolderNow() {
+        viewModelScope.launch {
+            folderSource.syncNow()
+            message.value = folderSource.status.value.problem ?: "Synced the folder."
+        }
+    }
 
     /** Joins the group from a typed link code; when the PC is connected, this phone's file goes to it at once. */
     fun joinWithCode(code: String): Boolean {

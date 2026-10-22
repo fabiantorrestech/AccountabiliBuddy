@@ -4,11 +4,13 @@ import com.accountabilibuddy.shared.sync.SyncCompanion
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFile
 import com.accountabilibuddy.shared.sync.SyncFileCodec
+import com.accountabilibuddy.shared.sync.SyncFolder
 import com.accountabilibuddy.shared.sync.SyncKey
 import com.accountabilibuddy.shared.sync.SyncKeyCode
 import com.accountabilibuddy.shared.sync.SyncQr
 import kotlinx.coroutines.flow.StateFlow
 import java.time.Instant
+import java.util.UUID
 
 /**
  * The phone's part in device sync (ADR 22): it joins the group from the PC's link code, takes in files that come by
@@ -58,6 +60,7 @@ class SyncCoordinator(
             SyncDeviceCard.METHOD_LINK.takeIf { settings.linkOn && pcPaired() },
             SyncDeviceCard.METHOD_QR.takeIf { settings.qrOn },
             SyncDeviceCard.METHOD_FILE.takeIf { settings.fileOn },
+            SyncDeviceCard.METHOD_FOLDER.takeIf { settings.folderOn && settings.folderUri != null },
         )
     }
 
@@ -100,6 +103,7 @@ class SyncCoordinator(
         when {
             method == SyncDeviceCard.METHOD_LINK && !settings.linkOn -> return "Sync files over the link are off on this phone."
             method == SyncDeviceCard.METHOD_FILE && !settings.fileOn -> return "Turn on \"Sync files\" in Devices to open sync files."
+            method == SyncDeviceCard.METHOD_FOLDER && !settings.folderOn -> return "The sync folder is off on this phone."
         }
 
         val key = identity.key.value ?: return NOT_JOINED
@@ -160,6 +164,26 @@ class SyncCoordinator(
             .firstOrNull { it.method == SyncDeviceCard.METHOD_LINK && it.file.device.kind == SyncDeviceCard.KIND_PC && it.file.device.name == pcName }
             ?.file?.device?.seen.orEmpty()
         return listOfNotNull(ownSealed()) + SyncCarry.filesFor(store.devices.value, SyncDeviceCard.METHOD_LINK, pcSeen)
+    }
+
+    /** This phone's file name in the sync folder (the PCs' naming); null outside a group. */
+    fun ownFolderFileName(): String? = identity.key.value?.let { SyncFolder.fileNameFor(it.groupId, identity.deviceId) }
+
+    /** The card of a sealed file from this group, without taking it in; null when it can't be read. */
+    fun cardOf(bytes: ByteArray): SyncDeviceCard? = identity.key.value?.let { SyncFileCodec.open(bytes, it)?.device }
+
+    /**
+     * For the sync folder: this phone's own file, and what it carries that didn't come from the folder and is newer
+     * than that device's file there ([inFolder]), each under its device's folder name.
+     */
+    fun filesForFolder(inFolder: Map<UUID, Instant>): List<FolderFile> {
+        val key = identity.key.value ?: return emptyList()
+        val own = ownFile()
+        val carried = store.devices.value
+            .filter { it.method != SyncDeviceCard.METHOD_FOLDER }
+            .filter { device -> inFolder[device.file.device.deviceId]?.let { device.file.device.writtenAt > it } ?: true }
+            .map { FolderFile(SyncFolder.fileNameFor(key.groupId, it.file.device.deviceId), it.file.device.deviceId, it.file.device.writtenAt, it.sealed) }
+        return listOf(FolderFile(SyncFolder.fileNameFor(key.groupId, identity.deviceId), identity.deviceId, own.device.writtenAt, SyncFileCodec.seal(own, key))) + carried
     }
 
     private fun ownSealed(): ByteArray? = identity.key.value?.let { SyncFileCodec.seal(ownFile(), it) }

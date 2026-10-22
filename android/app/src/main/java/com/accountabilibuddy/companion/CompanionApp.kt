@@ -11,6 +11,7 @@ import com.accountabilibuddy.companion.link.LinkClient
 import com.accountabilibuddy.companion.link.LinkDiscovery
 import com.accountabilibuddy.companion.link.LinkStore
 import com.accountabilibuddy.companion.notify.Refresher
+import com.accountabilibuddy.companion.sync.DriveFolderSource
 import com.accountabilibuddy.companion.sync.PhoneSyncSettingsStore
 import com.accountabilibuddy.companion.sync.ReceivedDevicesStore
 import com.accountabilibuddy.companion.sync.SyncCoordinator
@@ -51,6 +52,10 @@ class CompanionApp : Application() {
 
     /** Device sync (ADR 22): the group, the other devices' parts, and the files the phone carries. */
     lateinit var sync: SyncCoordinator
+        private set
+
+    /** The sync folder another app keeps in step with Google Drive (ADR 22, way B). */
+    lateinit var folderSource: DriveFolderSource
         private set
 
     /** True while a screen of the app is showing (set by the screens' view model). */
@@ -94,6 +99,14 @@ class CompanionApp : Application() {
         // The phone's card names its linked watch (Task 18); linking or unlinking it tells the PC at once.
         sync.companions = { watchBridge.companions() }
         watchBridge.onLinkChanged = { sendSyncFilesToPc() }
+        folderSource = DriveFolderSource(this, sync)
+        // The background sync follows the folder switch; a change of folder or interval syncs at once.
+        appScope.launch {
+            sync.settings.collect {
+                folderSource.schedule()
+                folderSource.syncNow()
+            }
+        }
         Refresher.start(this)
     }
 

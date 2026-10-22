@@ -1,6 +1,8 @@
 package com.accountabilibuddy.companion.sync
 
 import com.accountabilibuddy.companion.data.JsonValues.bool
+import com.accountabilibuddy.companion.data.JsonValues.int
+import com.accountabilibuddy.companion.data.JsonValues.string
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -11,10 +13,20 @@ import kotlinx.serialization.json.put
 import java.io.File
 
 /**
- * Which ways the phone shares sync files (ADR 22), safest first: QR codes it scans, sync files shared by hand, and the
- * network link to the paired PC. All on by default; each switch is in the Devices tab.
+ * Which ways the phone shares sync files (ADR 22), safest first: QR codes it scans, sync files shared by hand, the
+ * network link to the paired PC, and a sync folder another app keeps in step with Google Drive. All but the folder
+ * are on by default; each switch is in the Devices tab.
  */
-data class PhoneSyncSettings(val qrOn: Boolean = true, val fileOn: Boolean = true, val linkOn: Boolean = true)
+data class PhoneSyncSettings(
+    val qrOn: Boolean = true,
+    val fileOn: Boolean = true,
+    val linkOn: Boolean = true,
+    val folderOn: Boolean = false,
+    /** The folder chosen with Android's folder picker (a tree uri), or null. */
+    val folderUri: String? = null,
+    /** 1, 5 or 15: faster than 15 only while the pinned timeline runs. */
+    val folderMinutes: Int = 15,
+)
 
 /** [PhoneSyncSettings] in sync-settings.json in the app's private folder. */
 class PhoneSyncSettingsStore(private val file: File) {
@@ -28,6 +40,9 @@ class PhoneSyncSettingsStore(private val file: File) {
             put("qrOn", settings.qrOn)
             put("fileOn", settings.fileOn)
             put("linkOn", settings.linkOn)
+            put("folderOn", settings.folderOn)
+            settings.folderUri?.let { put("folderUri", it) }
+            put("folderMinutes", settings.folderMinutes)
         }
         file.parentFile?.mkdirs()
         val temporary = File(file.parentFile, "${file.name}.tmp")
@@ -42,6 +57,9 @@ class PhoneSyncSettingsStore(private val file: File) {
 
     private fun load(): PhoneSyncSettings {
         val json = runCatching { Json.parseToJsonElement(file.readText()) as JsonObject }.getOrNull() ?: return PhoneSyncSettings()
-        return PhoneSyncSettings(json.bool("qrOn", true), json.bool("fileOn", true), json.bool("linkOn", true))
+        return PhoneSyncSettings(
+            json.bool("qrOn", true), json.bool("fileOn", true), json.bool("linkOn", true), json.bool("folderOn", false),
+            json.string("folderUri"), json.int("folderMinutes") ?: 15,
+        )
     }
 }

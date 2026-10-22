@@ -15,6 +15,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +50,8 @@ class PinnedTimelineService : Service() {
         isRunning = true
         lastNight = isNight(resources.configuration)
         ContextCompat.registerReceiver(this, screenOn, IntentFilter(Intent.ACTION_SCREEN_ON), ContextCompat.RECEIVER_NOT_EXPORTED)
+        // The sync folder at its chosen 1 or 5 minutes, which Android allows only while this service runs (ADR 22).
+        scope.launch { (application as CompanionApp).folderSource.syncWhilePinned() }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
