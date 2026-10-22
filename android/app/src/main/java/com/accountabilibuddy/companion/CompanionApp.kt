@@ -12,6 +12,7 @@ import com.accountabilibuddy.companion.link.LinkDiscovery
 import com.accountabilibuddy.companion.link.LinkStore
 import com.accountabilibuddy.companion.notify.Refresher
 import com.accountabilibuddy.companion.sync.DriveFolderSource
+import com.accountabilibuddy.companion.sync.NextAlarm
 import com.accountabilibuddy.companion.sync.PhoneSyncSettingsStore
 import com.accountabilibuddy.companion.sync.ReceivedDevicesStore
 import com.accountabilibuddy.companion.sync.SyncCoordinator
@@ -102,11 +103,14 @@ class CompanionApp : Application() {
             .also { it.start() }
         // The phone's card names its linked watch (Task 18); linking or unlinking it tells the PC at once.
         sync.companions = { watchBridge.companions() }
+        sync.nextAlarm = { NextAlarm.read(this) }
         watchBridge.onLinkChanged = { sendSyncFilesToPc() }
         folderSource = DriveFolderSource(this, sync)
+        followNextAlarm()
         // The background sync follows the folder switch; a change of folder or interval syncs at once.
         appScope.launch {
             sync.settings.collect {
+                followNextAlarm()
                 folderSource.schedule()
                 folderSource.syncNow()
             }
@@ -118,6 +122,22 @@ class CompanionApp : Application() {
                 .collect { Refresher.refresh(this@CompanionApp) }
         }
         Refresher.start(this)
+    }
+
+    /** Android's next alarm changed (ADR 23): the wake time, the header, and this phone's file for the PCs follow. */
+    fun onNextAlarmChanged() {
+        followNextAlarm()
+        sendSyncFilesToPc()
+        appScope.launch {
+            folderSource.syncNow()
+            Refresher.refresh(this@CompanionApp)
+        }
+    }
+
+    // The phone's own wake time follows its next alarm while "Next alarm as wake time" is on.
+    private fun followNextAlarm() {
+        val alarm = NextAlarm.read(this)?.takeIf { sync.settings.value.alarmOn }
+        store.setPhoneAlarm(alarm?.let { java.time.LocalDateTime.ofInstant(it, java.time.ZoneId.systemDefault()) })
     }
 
     /** Hands the PC this phone's file and what it carries now, when a PC is paired (and connected), after checking the watch link. */

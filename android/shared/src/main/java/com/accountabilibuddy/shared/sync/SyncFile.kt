@@ -54,6 +54,8 @@ data class SyncDeviceCard(
     val seen: Map<UUID, Instant>,
     /** The devices linked to this one (the phone's watch, Task 18); empty for none. Optional in the JSON. */
     val companions: List<SyncCompanion> = emptyList(),
+    /** A phone's next alarm, which the user's PCs can take as the wake time (ADR 23); null for none. Optional in the JSON. */
+    val nextAlarm: Instant? = null,
 ) {
     companion object {
         const val KIND_PC = "pc"

@@ -28,10 +28,12 @@ object HeaderSource {
         val zone = ZoneId.systemDefault()
         val plan = state.document.dayPlan
         val start = now.toLocalDate().atStartOfDay()
-        val night = if (state.sleep.enabled) state.sleep.toSchedule(plan).nightAround(now) else null
+        val schedule = state.sleep.toSchedule(plan)
+        val night = if (state.sleep.enabled) schedule.nightAround(now) else null
+        val byAlarm = night != null && schedule.wakesByAlarm(night.end.toLocalDate().minusDays(1))
         val input = HeaderInput(
             now, zone, plan.partsIn(LocalWindow(start, start.plusDays(1))), state.events, night, state.sleep.goal,
-            wakeSource = null, focus = focus, phoneMinutes = phoneMinutes,
+            wakeSource = if (byAlarm) "alarm" else null, focus = focus, phoneMinutes = phoneMinutes,
         )
         return DayHeader.build(input, clock)
     }

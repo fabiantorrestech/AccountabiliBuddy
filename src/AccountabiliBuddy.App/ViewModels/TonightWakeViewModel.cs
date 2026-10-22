@@ -8,8 +8,9 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// Tonight's wake time in the on-screen window's Ctrl+Alt details, with sleep mode on: − and + move it 15 minutes for
-/// this one night (a <see cref="WakeOnce"/>), "Back to plan" undoes that. The day plan stays as it is. Display only,
-/// so it works during focus too.
+/// this one night (a <see cref="WakeOnce"/>), "Back to plan" undoes that. The day plan stays as it is. While the phone's
+/// alarm sets tomorrow's wake (ADR 23), it wins over a one-night change; changing it then asks first, and a confirmed
+/// change wins over the alarm for that morning. Display only, so it works during focus too.
 /// </summary>
 public sealed partial class TonightWakeViewModel : ObservableObject
 {
@@ -26,6 +27,7 @@ public sealed partial class TonightWakeViewModel : ObservableObject
         _time = time;
         WakeText = PlanWakeText = string.Empty;
         _sleep.Changed += (_, _) => Refresh();
+        _sleep.PhoneAlarmChanged += (_, _) => Refresh();
         _configuration.Changed += (_, _) => Refresh();
         Refresh();
     }
@@ -42,17 +44,22 @@ public sealed partial class TonightWakeViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsChanged { get; set; }
 
-    /// <summary>E.g. "Back to plan (7:00 AM)".</summary>
+    /// <summary>E.g. "Back to plan (7:00 AM)", or "Back to alarm (6:15 AM)".</summary>
     [ObservableProperty]
     public partial string PlanWakeText { get; set; }
+
+    /// <summary>Set by the app: asks (title, message, on confirm) before a change wins over the phone's alarm.</summary>
+    public Action<string, string, Action>? AskToOverrideAlarm { get; set; }
 
     public void Refresh()
     {
         (LocalWindow night, LocalWindow planNight) = Nights();
+        bool alarm = WakesByAlarm(night);
+        bool baseByAlarm = BaselineByAlarm(planNight);
         IsShown = _sleep.Current.Enabled;
-        WakeText = $"Up at {night.End:t}";
+        WakeText = $"Up at {night.End:t}" + (alarm ? " (phone alarm)" : "");
         IsChanged = night.End != planNight.End;
-        PlanWakeText = $"Back to plan ({planNight.End:t})";
+        PlanWakeText = baseByAlarm ? $"Back to alarm ({planNight.End:t})" : $"Back to plan ({planNight.End:t})";
     }
 
     [RelayCommand]
@@ -85,7 +92,31 @@ public sealed partial class TonightWakeViewModel : ObservableObject
             return Task.CompletedTask;
         }
 
-        return _sleep.SetWakeOnceAsync(wake == planNight.End ? null : new WakeOnce(morning, TimeOnly.FromDateTime(wake)));
+        bool overAlarm = _sleep.Current.WakeOnce is { OverridesAlarm: true } current && current.Morning == morning;
+        WakeOnce? change = wake == planNight.End ? null : new WakeOnce(morning, TimeOnly.FromDateTime(wake), overAlarm);
+        if (change is not null && !overAlarm && BaselineByAlarm(planNight))
+        {
+            // The phone's alarm sets this morning and wins over a one-night change: ask before this one wins instead.
+            AskToOverrideAlarm?.Invoke(
+                $"Your phone's alarm sets tomorrow ({planNight.End:t})",
+                $"Your phone's alarm wins over a one-night change. Use {wake:t} for tomorrow instead of the alarm?",
+                () => _ = _sleep.SetWakeOnceAsync(change with { OverridesAlarm = true }));
+            return Task.CompletedTask;
+        }
+
+        return _sleep.SetWakeOnceAsync(change);
+    }
+
+    private bool WakesByAlarm(LocalWindow night)
+    {
+        return _sleep.Schedule(_configuration.Current.DayPlan).WakesByAlarm(DateOnly.FromDateTime(night.End).AddDays(-1));
+    }
+
+    // The baseline (no one-night change) comes from the phone's alarm.
+    private bool BaselineByAlarm(LocalWindow planNight)
+    {
+        return (_sleep.Current with { WakeOnce = null }).ToSchedule(_configuration.Current.DayPlan, _sleep.PhoneAlarm)
+            .WakesByAlarm(DateOnly.FromDateTime(planNight.End).AddDays(-1));
     }
 
     // Tonight with the one-night change, and as the plan has it.
@@ -93,8 +124,8 @@ public sealed partial class TonightWakeViewModel : ObservableObject
     {
         DateTime now = _time.GetLocalNow().DateTime;
         SleepSettings settings = _sleep.Current;
-        LocalWindow planNight = (settings with { WakeOnce = null }).ToSchedule(_configuration.Current.DayPlan).NightAround(now);
-        LocalWindow night = settings.ToSchedule(_configuration.Current.DayPlan).NightAround(now);
+        LocalWindow planNight = (settings with { WakeOnce = null }).ToSchedule(_configuration.Current.DayPlan, _sleep.PhoneAlarm).NightAround(now);
+        LocalWindow night = settings.ToSchedule(_configuration.Current.DayPlan, _sleep.PhoneAlarm).NightAround(now);
         return (night, planNight);
     }
 }

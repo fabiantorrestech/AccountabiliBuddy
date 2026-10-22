@@ -70,6 +70,9 @@ class SyncCoordinator(
     /** The phone's linked watch for its card (Task 18), as the watch bridge last checked it. */
     var companions: () -> List<SyncCompanion> = { emptyList() }
 
+    /** The phone's next alarm for its card (ADR 23); null when there's none. */
+    var nextAlarm: () -> Instant? = { null }
+
     /** Joins the group of [code] (from the PC's link code); a new group drops the old one's copies. False when invalid. */
     fun join(code: String): Boolean {
         val current = identity.code()
@@ -143,6 +146,7 @@ class SyncCoordinator(
         SyncFile.CURRENT_FORMAT_VERSION,
         SyncDeviceCard(
             identity.deviceId, deviceName, SyncDeviceCard.KIND_PHONE, appVersion, now(), methods(), false, SyncCarry.seen(store.devices.value), companions(),
+            nextAlarm().takeIf { settingsStore.settings.value.alarmOn },
         ),
         emptyList(), emptyList(), null, emptyList(),
     )

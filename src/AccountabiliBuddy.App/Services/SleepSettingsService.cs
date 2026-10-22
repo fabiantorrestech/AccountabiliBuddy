@@ -22,7 +22,35 @@ public sealed class SleepSettingsService
 
     public SleepSettings Current { get; private set; } = SleepSettings.Default;
 
+    /// <summary>A paired phone's next alarm (local time) from its sync file (ADR 23); not saved here.</summary>
+    public DateTime? PhoneAlarm { get; private set; }
+
     public event EventHandler<SleepSettings>? Changed;
+
+    /// <summary>The phone's alarm changed (not a change of the settings themselves).</summary>
+    public event EventHandler? PhoneAlarmChanged;
+
+    /// <summary>The nights with the day plan, a one-night change and the phone's alarm in their order.</summary>
+    public SleepSchedule Schedule(DayPlan plan)
+    {
+        return Current.ToSchedule(plan, PhoneAlarm);
+    }
+
+    public void SetPhoneAlarm(DateTime? alarm)
+    {
+        if (alarm == PhoneAlarm)
+        {
+            return;
+        }
+
+        PhoneAlarm = alarm;
+        PhoneAlarmChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public Task SetUsePhoneAlarmAsync(bool use)
+    {
+        return use == Current.UsePhoneAlarm ? Task.CompletedTask : SaveAsync(Current with { UsePhoneAlarm = use });
+    }
 
     public void LoadBlocking()
     {

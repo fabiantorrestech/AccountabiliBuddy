@@ -15,6 +15,8 @@ data class SleepSettings(
     val weekends: SleepTimes,
     val goalHours: Double = 8.0,
     val wakeOnce: WakeOnce? = null,
+    /** This phone's next alarm while "Next alarm as wake time" is on (ADR 23); set by the app, never saved. */
+    val alarm: java.time.LocalDateTime? = null,
 ) {
     /** The goal as a length; 8 hours when the value makes no sense. */
     val goal: java.time.Duration
@@ -26,6 +28,7 @@ data class SleepSettings(
             weeknights, if (sameEveryNight) weeknights else weekends,
             plan?.let { p -> { day: java.time.LocalDate -> p.nightBefore(day) } },
             wakeOnce,
+            alarm,
         )
 
     companion object {

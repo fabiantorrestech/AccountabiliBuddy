@@ -295,7 +295,9 @@ public partial class App : Application
         _noise.Start();
         var noisePlayer = new NoisePlayerViewModel(_noise);
         _sessionOverlay.SetNoisePlayer(noisePlayer);
-        _sessionOverlay.SetTonightWake(new TonightWakeViewModel(sleepSettings, _configuration, time));
+        var tonightWake = new TonightWakeViewModel(sleepSettings, _configuration, time);
+        tonightWake.AskToOverrideAlarm = (title, message, confirm) => presenter.ShowChoice(title, message, "Use my time", confirm, () => { });
+        _sessionOverlay.SetTonightWake(tonightWake);
         var dataProtector = new DpapiDataProtector();
         _calendarNetwork = new CalendarNetwork();
         _calendarSync = new CalendarSyncService(
@@ -317,6 +319,10 @@ public partial class App : Application
         syncSettings.LoadBlocking();
         var receivedDevices = new AccountabiliBuddy.App.Services.Sync.ReceivedDevicesService(documents, time);
         receivedDevices.LoadBlocking();
+        // A paired phone's next alarm (ADR 23): the newest phone file's, while it's still ahead.
+        void FollowPhoneAlarm() => sleepSettings.SetPhoneAlarm(AccountabiliBuddy.App.Services.Sync.PhoneAlarm.Of(receivedDevices.Devices, time));
+        receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(FollowPhoneAlarm);
+        FollowPhoneAlarm();
         var syncIdentity = new AccountabiliBuddy.App.Services.Sync.SyncIdentityService(documents, dataProtector, receivedDevices);
         syncIdentity.LoadBlocking();
         var syncEditTimes = new AccountabiliBuddy.App.Services.Sync.SyncEditTimesService(_configuration, sleepSettings, dayBarSettings, documents, time);

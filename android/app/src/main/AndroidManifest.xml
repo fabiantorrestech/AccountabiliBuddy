@@ -121,6 +121,15 @@
             </intent-filter>
         </receiver>
 
+        <!-- The next alarm changed (ADR 23): a broadcast Android still sends to apps' manifest receivers. -->
+        <receiver
+            android:name=".sync.NextAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.app.action.NEXT_ALARM_CLOCK_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".notify.PinnedTimelineService"
             android:exported="false"

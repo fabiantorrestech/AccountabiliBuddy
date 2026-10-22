@@ -10,8 +10,10 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="SameEveryNight">True = the weeknight times every night; false = Friday and Saturday nights use the weekend times.</param>
 /// <param name="GoalHours">The sleep to aim for: the "sleep if you go now" countdown starts when bed now would give this.</param>
 /// <param name="WakeOnce">A wake time changed for one night from the on-screen window, or null (the plan's).</param>
+/// <param name="UsePhoneAlarm">The phone's next alarm sets the wake time (ADR 23); on by default.</param>
 public sealed record SleepSettings(
-    bool Enabled, bool SameEveryNight, SleepTimes Weeknights, SleepTimes Weekends, double GoalHours = 8, WakeOnce? WakeOnce = null)
+    bool Enabled, bool SameEveryNight, SleepTimes Weeknights, SleepTimes Weekends, double GoalHours = 8, WakeOnce? WakeOnce = null,
+    bool UsePhoneAlarm = true)
 {
     /// <summary>The goals Settings offers, in hours.</summary>
     public static IReadOnlyList<double> GoalChoices { get; } = new[] { 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10 };
@@ -27,12 +29,14 @@ public sealed record SleepSettings(
 
     /// <param name="plan">The day plan, which sets each night (its workdays and one-off days included); these
     /// settings' times are the fallback for a day whose plan has no night.</param>
-    public SleepSchedule ToSchedule(DayPlan? plan = null)
+    /// <param name="phoneAlarm">The phone's next alarm (local time), used while <see cref="UsePhoneAlarm"/> is on.</param>
+    public SleepSchedule ToSchedule(DayPlan? plan = null, DateTime? phoneAlarm = null)
     {
         return new SleepSchedule(
             Weeknights,
             SameEveryNight ? Weeknights : Weekends,
             plan is null ? null : day => DayPlanSleep.NightBefore(plan, day),
-            WakeOnce);
+            WakeOnce,
+            UsePhoneAlarm ? phoneAlarm : null);
     }
 }

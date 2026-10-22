@@ -152,7 +152,8 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
         }
 
         val left = SleepSchedule.sleepIfBedNow(now, night)
-        return SleepLine("Sleep if you go now: ${duration(left)} · up ${clock.time(night.end)}", SleepSchedule.rate(left, sleep.goal))
+        val byAlarm = sleep.toSchedule(plan).wakesByAlarm(night.end.toLocalDate().minusDays(1))
+        return SleepLine("Sleep if you go now: ${duration(left)} · up ${clock.time(night.end)}" + (if (byAlarm) " (alarm)" else ""), SleepSchedule.rate(left, sleep.goal))
     }
 
     // Each session cut to the bar; one with no end runs until now (or the running session's end, once passed).

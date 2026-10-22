@@ -7,7 +7,9 @@ namespace AccountabiliBuddy.Core.Engine;
 /// Friday the 23rd runs from Friday's bedtime to Saturday's wake time. With the day plan, each night's times come from
 /// the plan for the day the night leads into (its workdays and one-off days included); otherwise, and for a day whose
 /// plan has no night, Friday and Saturday nights use the weekend times. A wake time changed for one night
-/// (<see cref="WakeOnce"/>) moves only that morning. All times are local wall-clock times.
+/// (<see cref="WakeOnce"/>) moves only that morning. The phone's next alarm (ADR 23) sets the wake time of the morning it
+/// falls on, between the night's bedtime and noon, over a one-night change unless that change was confirmed over the
+/// alarm. All times are local wall-clock times.
 /// </summary>
 public sealed class SleepSchedule
 {
@@ -24,15 +26,19 @@ public sealed class SleepSchedule
     private readonly SleepTimes _weekends;
     private readonly Func<DateOnly, SleepTimes?>? _nightBefore;
     private readonly WakeOnce? _wakeOnce;
+    private readonly DateTime? _alarm;
 
     /// <param name="nightBefore">The times of the night before a day, from the day plan; null when it has none.</param>
     /// <param name="wakeOnce">A wake time changed for one morning only, or null.</param>
-    public SleepSchedule(SleepTimes weeknights, SleepTimes weekends, Func<DateOnly, SleepTimes?>? nightBefore = null, WakeOnce? wakeOnce = null)
+    /// <param name="alarm">The phone's next alarm (local time), or null.</param>
+    public SleepSchedule(
+        SleepTimes weeknights, SleepTimes weekends, Func<DateOnly, SleepTimes?>? nightBefore = null, WakeOnce? wakeOnce = null, DateTime? alarm = null)
     {
         _weeknights = weeknights;
         _weekends = weekends;
         _nightBefore = nightBefore;
         _wakeOnce = wakeOnce;
+        _alarm = alarm;
     }
 
     public static bool IsWeekendNight(DateOnly evening)
@@ -64,10 +70,37 @@ public sealed class SleepSchedule
             bed = bed.AddDays(1);
         }
 
-        DateOnly morning = evening.AddDays(1);
-        TimeOnly wakeTime = _wakeOnce is not null && _wakeOnce.Morning == morning ? _wakeOnce.Wake : times.Wake;
-        DateTime wake = date.AddDays(1) + wakeTime.ToTimeSpan();
+        (DateTime wake, _) = WakeOf(evening, bed, times);
         return new LocalWindow(bed, wake > bed ? wake : bed);
+    }
+
+    /// <summary>True when the phone's alarm sets the wake time ending the night of <paramref name="evening"/>.</summary>
+    public bool WakesByAlarm(DateOnly evening)
+    {
+        SleepTimes times = _nightBefore?.Invoke(evening.AddDays(1)) ?? (IsWeekendNight(evening) ? _weekends : _weeknights);
+        DateTime bed = evening.ToDateTime(TimeOnly.MinValue) + times.Bedtime.ToTimeSpan();
+        if (times.Bedtime < Noon)
+        {
+            bed = bed.AddDays(1);
+        }
+
+        return WakeOf(evening, bed, times).ByAlarm;
+    }
+
+    // The morning's wake time: the alarm when it falls between bedtime and noon (unless a one-night change was confirmed
+    // over it), else a one-night change, else the plan's.
+    private (DateTime Wake, bool ByAlarm) WakeOf(DateOnly evening, DateTime bed, SleepTimes times)
+    {
+        DateOnly morning = evening.AddDays(1);
+        DateTime noon = morning.ToDateTime(Noon);
+        WakeOnce? once = _wakeOnce is not null && _wakeOnce.Morning == morning ? _wakeOnce : null;
+        if (_alarm is DateTime alarm && alarm > bed && alarm < noon && once?.OverridesAlarm != true)
+        {
+            return (alarm, true);
+        }
+
+        TimeOnly wakeTime = once?.Wake ?? times.Wake;
+        return (morning.ToDateTime(wakeTime), false);
     }
 
     /// <summary>

@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0023](0023-use-the-phones-next-alarm-as-the-wake-time.md) | Use the phone's next alarm as the wake time | Accepted | — |
 | [0022](0022-share-progress-between-your-own-devices-through-sealed-files.md) | Share progress between your own devices through sealed files | Accepted | — |
 | [0021](0021-add-a-pixel-watch-companion-fed-by-the-phone.md) | Add a Pixel Watch companion fed by the phone | Accepted | — |
 | [0020](0020-keep-hand-added-focus-sessions-in-the-activity-history.md) | Keep hand-added focus sessions in the activity history | Accepted | — |

@@ -152,6 +152,11 @@ fun DevicesScreen(
                     Text("Show as picture")
                 }
                 FolderSection(devices, actions, now) { pickFolder.launch(null) }
+                ToggleRow(
+                    "Next alarm as wake time",
+                    "Your next alarm (Clock, QR Alarm…) is your wake time here and on your PCs, which get it in this phone's sync file. It wins over a one-night change.",
+                    devices.settings.alarmOn,
+                ) { actions.onSettings(devices.settings.copy(alarmOn = it)) }
             }
         }
 

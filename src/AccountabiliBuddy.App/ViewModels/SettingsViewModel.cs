@@ -400,6 +400,17 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool SleepEnabled { get; set; }
 
+    /// <summary>The phone's next alarm sets the wake time (ADR 23); saved at once.</summary>
+    public bool UsePhoneAlarm
+    {
+        get => _sleep.Current.UsePhoneAlarm;
+        set
+        {
+            _ = _sleep.SetUsePhoneAlarmAsync(value);
+            OnPropertyChanged();
+        }
+    }
+
     /// <summary>The sleep goals to pick from, e.g. "8 h", "8 h 30 min".</summary>
     public IReadOnlyList<SleepGoalChoice> SleepGoalChoices { get; } =
         SleepSettings.GoalChoices.Select(hours => new SleepGoalChoice(hours, Hours(TimeSpan.FromHours(hours)))).ToList();

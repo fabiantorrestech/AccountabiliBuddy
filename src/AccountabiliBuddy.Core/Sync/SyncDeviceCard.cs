@@ -14,6 +14,10 @@ namespace AccountabiliBuddy.Core.Sync;
 /// The devices linked to this one (the phone's watch, Task 18); null for none. Optional in the JSON: written only when
 /// set, so a format 1 file without it reads as before, and older apps ignore it.
 /// </param>
+/// <param name="NextAlarm">
+/// A phone's next alarm, which the user's PCs can take as the wake time (ADR 23); null for none. Optional in the JSON,
+/// like <paramref name="Companions"/>.
+/// </param>
 public sealed record SyncDeviceCard(
     Guid DeviceId,
     string Name,
@@ -24,7 +28,9 @@ public sealed record SyncDeviceCard(
     bool HistoryOff,
     IReadOnlyDictionary<Guid, DateTimeOffset> Seen,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    IReadOnlyList<SyncCompanion>? Companions = null)
+    IReadOnlyList<SyncCompanion>? Companions = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    DateTimeOffset? NextAlarm = null)
 {
     public const string KindPc = "pc";
     public const string KindPhone = "phone";

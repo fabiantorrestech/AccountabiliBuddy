@@ -227,6 +227,9 @@
                         <TextBlock Text="Your bedtime and wake time. The day bar runs from wake time to bedtime and shades the night; staying up past bedtime shades the lost sleep red. From when going to bed would give your sleep goal, a line on screen counts down the sleep you'll get if you go now, with your wake time (green down to an hour under the goal, yellow down to three hours under, red below), and a reminder pops up two hours before bedtime. Hold Ctrl+Alt over the on-screen window to change tonight's wake time. The times are the Sleep parts of your day plan. Can be changed during focus too."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <CheckBox IsChecked="{Binding SleepEnabled}" Content="Use sleep mode" />
+                        <!-- ADR 23: the phone's next alarm (from its sync file) as the wake time, over a one-night change. -->
+                        <CheckBox IsChecked="{Binding UsePhoneAlarm}"
+                                  Content="Use my phone's alarm as wake time (it wins over a one-night change; changing tomorrow's wake then asks first)" />
                         <StackPanel Spacing="6" IsEnabled="{Binding SleepEnabled}">
                             <StackPanel Orientation="Horizontal" Spacing="12">
                                 <TextBlock Text="Sleep goal" VerticalAlignment="Center" Width="240" />

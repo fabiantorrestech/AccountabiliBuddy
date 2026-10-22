@@ -49,6 +49,7 @@ object SettingsJson {
             put("wakeOnce", buildJsonObject {
                 put("morning", once.morning.toString())
                 put("wake", time(once.wake))
+                if (once.overridesAlarm) put("overridesAlarm", true)
             })
         }
     }
@@ -57,7 +58,7 @@ object SettingsJson {
     private fun wakeOnce(json: JsonObject?): WakeOnce? {
         val morning = json?.string("morning") ?: return null
         val wake = json.string("wake") ?: return null
-        return runCatching { WakeOnce(JsonValues.date(morning), JsonValues.time(wake)) }.getOrNull()
+        return runCatching { WakeOnce(JsonValues.date(morning), JsonValues.time(wake), json.bool("overridesAlarm", false)) }.getOrNull()
     }
 
     fun dayBar(json: JsonObject): DayBarSettings {

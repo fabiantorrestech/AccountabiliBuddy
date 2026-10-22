@@ -26,6 +26,8 @@ data class PhoneSyncSettings(
     val folderUri: String? = null,
     /** 1, 5 or 15: faster than 15 only while the pinned timeline runs. */
     val folderMinutes: Int = 15,
+    /** The phone's next alarm is its wake time and goes to the PCs in its sync file (ADR 23); on by default. */
+    val alarmOn: Boolean = true,
 )
 
 /** [PhoneSyncSettings] in sync-settings.json in the app's private folder. */
@@ -43,6 +45,7 @@ class PhoneSyncSettingsStore(private val file: File) {
             put("folderOn", settings.folderOn)
             settings.folderUri?.let { put("folderUri", it) }
             put("folderMinutes", settings.folderMinutes)
+            put("alarmOn", settings.alarmOn)
         }
         file.parentFile?.mkdirs()
         val temporary = File(file.parentFile, "${file.name}.tmp")
@@ -59,7 +62,7 @@ class PhoneSyncSettingsStore(private val file: File) {
         val json = runCatching { Json.parseToJsonElement(file.readText()) as JsonObject }.getOrNull() ?: return PhoneSyncSettings()
         return PhoneSyncSettings(
             json.bool("qrOn", true), json.bool("fileOn", true), json.bool("linkOn", true), json.bool("folderOn", false),
-            json.string("folderUri"), json.int("folderMinutes") ?: 15,
+            json.string("folderUri"), json.int("folderMinutes") ?: 15, json.bool("alarmOn", true),
         )
     }
 }

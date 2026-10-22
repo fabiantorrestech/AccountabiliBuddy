@@ -69,7 +69,7 @@ class CompanionStore(private val folder: File) {
                 pcDayPlan = data.document.dayPlan,
                 pcPlanVersion = data.dayPlanVersion,
                 pcPlanEditedAt = data.dayPlanEditedAt,
-                sleep = data.sleep ?: it.sleep,
+                sleep = data.sleep?.copy(alarm = it.sleep.alarm) ?: it.sleep,
                 dayBar = data.dayBar ?: it.dayBar,
                 events = if (data.eventsJson != null) data.events else it.events,
                 importedFrom = data.sourceDescription,
@@ -79,9 +79,14 @@ class CompanionStore(private val folder: File) {
         savePhone()
     }
 
+    /** This phone's next alarm as its wake time (ADR 23), or null; kept with the sleep settings in memory only. */
+    fun setPhoneAlarm(alarm: java.time.LocalDateTime?) = synchronized(lock) {
+        _state.update { it.copy(sleep = it.sleep.copy(alarm = alarm)) }
+    }
+
     fun saveSleep(settings: SleepSettings) = synchronized(lock) {
         write(SLEEP, SettingsJson.sleepJson(settings))
-        _state.update { it.copy(sleep = settings) }
+        _state.update { it.copy(sleep = settings.copy(alarm = it.sleep.alarm)) }
     }
 
     /** Today's focus from the linked PC (ADR 21), which arrived [at]; kept as a file so the watch has it after a restart. */

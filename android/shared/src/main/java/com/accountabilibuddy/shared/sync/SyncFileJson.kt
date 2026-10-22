@@ -79,6 +79,9 @@ object SyncFileJson {
                 }
             }))
         }
+
+        // Optional (ADR 23), like the companions.
+        device.nextAlarm?.let { put("nextAlarm", writeTime(it)) }
     }
 
     private fun writeSession(session: SyncSession): JsonObject = buildJsonObject {
@@ -152,6 +155,7 @@ object SyncFileJson {
                     companion.optionalTime("lastHeard"),
                 )
             },
+            json.optionalTime("nextAlarm"),
         )
     }
 

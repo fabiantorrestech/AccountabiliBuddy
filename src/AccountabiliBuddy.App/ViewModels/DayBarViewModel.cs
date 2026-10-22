@@ -115,6 +115,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         _calendars.Changed += (_, _) => Redraw();
         _settings.Changed += (_, _) => _ = ReloadHistoryAsync();
         _sleep.Changed += (_, _) => _ = ReloadHistoryAsync();
+        _sleep.PhoneAlarmChanged += (_, _) => _ = ReloadHistoryAsync();
         _omitted.Changed += (_, _) => _ = ReloadHistoryAsync();
         _coldTurkey.Changed += (_, _) => Redraw();
         _deleted.Changed += (_, _) => _ = ReloadHistoryAsync();
@@ -421,7 +422,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     /// <summary>Wake time to bedtime, plus a little of the night (more while still up, until wake time).</summary>
     private LocalWindow WakingDay(DateTime now)
     {
-        SleepSchedule schedule = _sleep.Current.ToSchedule(_configuration.Current.DayPlan);
+        SleepSchedule schedule = _sleep.Schedule(_configuration.Current.DayPlan);
         LocalWindow waking = schedule.DayAround(now);
         LocalWindow night = schedule.NightAround(now);
         DateTime shownUntil = night.Start + NightShown > now + NightAfterNow ? night.Start + NightShown : now + NightAfterNow;
@@ -438,7 +439,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             return (nights, missed);
         }
 
-        SleepSchedule schedule = _sleep.Current.ToSchedule(_configuration.Current.DayPlan);
+        SleepSchedule schedule = _sleep.Schedule(_configuration.Current.DayPlan);
         for (DateTime evening = range.Start.Date.AddDays(-1); evening <= range.End.Date; evening = evening.AddDays(1))
         {
             LocalWindow night = schedule.Night(DateOnly.FromDateTime(evening));
@@ -464,7 +465,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     // From when bed now would give the sleep goal until wake time: the sleep left counts down, with the wake time.
     private void UpdateSleepLine(DateTime now)
     {
-        SleepSchedule schedule = _sleep.Current.ToSchedule(_configuration.Current.DayPlan);
+        SleepSchedule schedule = _sleep.Schedule(_configuration.Current.DayPlan);
         LocalWindow night = schedule.NightAround(now);
         TimeSpan goal = _sleep.Current.Goal;
         ShowsSleep = _sleep.Current.Enabled && SleepSchedule.ShowsCountdown(now, night, goal);
@@ -481,7 +482,8 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             SleepAmount.Okay => OkaySleepBrush,
             _ => ShortSleepBrush,
         };
-        SleepText = $"Sleep if you go now: {Duration(sleep)} · up {night.End:t}";
+        DateOnly evening = DateOnly.FromDateTime(night.End).AddDays(-1);
+        SleepText = $"Sleep if you go now: {Duration(sleep)} · up {night.End:t}" + (schedule.WakesByAlarm(evening) ? " (phone alarm)" : "");
     }
 
     private List<(LocalWindow Window, string Tip, Guid? ProfileId, bool Added)> ActualSessions(DateTime now, LocalWindow span)

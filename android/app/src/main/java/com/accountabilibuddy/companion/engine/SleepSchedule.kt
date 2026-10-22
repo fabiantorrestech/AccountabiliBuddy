@@ -14,13 +14,16 @@ import java.time.LocalTime
  * Bedtime and wake time worked out for actual dates (port of the Windows Core's SleepSchedule). A night is named
  * by the date of its evening. With the day plan ([nightBefore]), each night's times come from the plan for the day
  * the night leads into; otherwise, and for a day whose plan has no night, Friday and Saturday nights use the weekend
- * times. A wake time changed for one night ([wakeOnce]) moves only that morning.
+ * times. A wake time changed for one night ([wakeOnce]) moves only that morning. The phone's next alarm ([alarm], ADR 23)
+ * sets the wake time of the morning it falls on, between the night's bedtime and noon, over a one-night change unless
+ * that change was confirmed over the alarm.
  */
 class SleepSchedule(
     private val weeknights: SleepTimes,
     private val weekends: SleepTimes,
     private val nightBefore: ((LocalDate) -> SleepTimes?)? = null,
     private val wakeOnce: WakeOnce? = null,
+    private val alarm: java.time.LocalDateTime? = null,
 ) {
     /** From bedtime to wake time of the night starting on [evening]. */
     fun night(evening: LocalDate): LocalWindow {
@@ -30,9 +33,32 @@ class SleepSchedule(
             bed = bed.plusDays(1)
         }
 
-        val morning = evening.plusDays(1)
-        val wake = morning.atTime(if (wakeOnce?.morning == morning) wakeOnce.wake else times.wake)
+        val wake = wakeOf(evening, bed, times).first
         return LocalWindow(bed, if (wake.isAfter(bed)) wake else bed)
+    }
+
+    /** True when the phone's alarm sets the wake time ending the night of [evening]. */
+    fun wakesByAlarm(evening: LocalDate): Boolean {
+        val times = nightBefore?.invoke(evening.plusDays(1)) ?: if (isWeekendNight(evening)) weekends else weeknights
+        var bed = evening.atTime(times.bedtime)
+        if (times.bedtime.isBefore(NOON)) {
+            bed = bed.plusDays(1)
+        }
+
+        return wakeOf(evening, bed, times).second
+    }
+
+    // The morning's wake: the alarm between bedtime and noon (unless a one-night change was confirmed over it), else
+    // the one-night change, else the plan's.
+    private fun wakeOf(evening: LocalDate, bed: java.time.LocalDateTime, times: SleepTimes): Pair<java.time.LocalDateTime, Boolean> {
+        val morning = evening.plusDays(1)
+        val once = wakeOnce?.takeIf { it.morning == morning }
+        val alarm = alarm
+        if (alarm != null && alarm.isAfter(bed) && alarm.isBefore(morning.atTime(NOON)) && once?.overridesAlarm != true) {
+            return alarm to true
+        }
+
+        return morning.atTime(once?.wake ?: times.wake) to false
     }
 
     /** The night ahead of [now], or the one it is in: last night until its wake time, then tonight. */
