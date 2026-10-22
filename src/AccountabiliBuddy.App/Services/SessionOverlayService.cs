@@ -159,6 +159,18 @@ public sealed class SessionOverlayService : IDisposable
         Update();
     }
 
+    /// <summary>
+    /// The tray's "Show on-screen window again": a new window at its kept spot (or the corner when that spot is off
+    /// every screen), and a quick hide is cut short. Hidden for the session (Session tab) stays hidden.
+    /// </summary>
+    public void ShowAgain()
+    {
+        _hiddenUntil = DateTimeOffset.MinValue;
+        _window?.Close();
+        _window = null;
+        Update();
+    }
+
     /// <summary>The Ctrl+Alt "Hide" button: out of the way for a few seconds, then back on its own.</summary>
     public void HideBriefly()
     {
@@ -236,6 +248,13 @@ public sealed class SessionOverlayService : IDisposable
         _viewModel.Update(showsTimer, showsTimeline, showsSleep, doneText, localNow, settings);
         _lastShownAt = _sessions.Now;
 
+        if (_window is { IsLost: true })
+        {
+            // Minimized or off every screen from outside: a new one in its place.
+            _window.Close();
+            _window = null;
+        }
+
         if (_window is null)
         {
             Open(settings);
@@ -285,6 +304,14 @@ public sealed class SessionOverlayService : IDisposable
         };
 
         window.TemporaryChanged += (_, _) => Update();
+        // Closed from outside (Alt+F4 while Ctrl+Alt is held, another tool): opened again at the next tick.
+        window.Closed += (_, _) =>
+        {
+            if (_window == window)
+            {
+                _window = null;
+            }
+        };
         window.AppOffsetChosen += (_, chosen) => _ = _settings.SaveAppOffsetAsync(chosen.App, (int)chosen.InVDips, (int)chosen.InHDips);
 
         _placedAt = (settings.X, settings.Y);

@@ -782,6 +782,10 @@ public partial class App : Application
         var openItem = new NativeMenuItem("Open AccountabiliBuddy");
         openItem.Click += (_, _) => ShowMainWindow();
 
+        // Allowed during focus (Settings isn't): only redraws what would show anyway.
+        var onScreenItem = new NativeMenuItem("Show on-screen window again");
+        onScreenItem.Click += (_, _) => _sessionOverlay?.ShowAgain();
+
         _endSessionMenuItem = new NativeMenuItem("End session…");
         _endSessionMenuItem.Click += async (_, _) => await _endFlow!.TryEndSessionAsync(VisibleMainWindow());
 
@@ -791,6 +795,7 @@ public partial class App : Application
         var menu = new NativeMenu();
         menu.Items.Add(quickItem);
         menu.Items.Add(openItem);
+        menu.Items.Add(onScreenItem);
         menu.Items.Add(_endSessionMenuItem);
         menu.Items.Add(new NativeMenuItemSeparator());
         menu.Items.Add(quitItem);

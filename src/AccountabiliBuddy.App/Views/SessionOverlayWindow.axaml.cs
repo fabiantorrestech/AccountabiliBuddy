@@ -192,6 +192,29 @@ public partial class SessionOverlayWindow : Window
     /// <summary>True in the default corner (not a position the user dragged it to and kept).</summary>
     public bool IsInDefaultCorner => _inDefaultCorner && !_isTemporary;
 
+    /// <summary>
+    /// True when something outside hid it: minimized (Win+D, Win+M) or on no screen at all (a monitor unplugged or a
+    /// tool moved it). The service then makes a new one in its place.
+    /// </summary>
+    public bool IsLost
+    {
+        get
+        {
+            if (WindowState == WindowState.Minimized)
+            {
+                return true;
+            }
+
+            if (_movedByUser)
+            {
+                return false; // Being dragged; it may pass between screens.
+            }
+
+            var box = new PixelRect(Position, PixelSize.FromSize(Bounds.Size, DesktopScaling));
+            return !Screens.All.Any(screen => screen.Bounds.Intersects(box));
+        }
+    }
+
     /// <summary>True while it sits where it was dragged but not kept.</summary>
     public bool IsTemporary => _isTemporary;
 
