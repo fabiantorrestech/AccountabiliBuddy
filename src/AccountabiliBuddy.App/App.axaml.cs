@@ -210,6 +210,8 @@ public partial class App : Application
         _quickSession = new QuickSessionService(
             _sessions, _configuration, _endFlow, monitorLocator, new GdiScreenCapture(), _hotkey, documents);
         _quickSession.Tasks = sessionTasks;
+        // Every install has "QS - Default" (and the old "Quick Start" made by the app gets that name).
+        _ = _quickSession.EnsureDefaultProfileAsync();
         _quickSession.LoadBlocking();
         // M6 screen reading and M7 activity history.
         var privacy = new PrivacySettingsService(documents);
@@ -288,8 +290,7 @@ public partial class App : Application
         _soundPlayer = new Win32SoundPlayer();
         _sessionCues = new SessionCueService(_sessions, soundSettings, _soundPlayer);
         _sessionOverlay = new SessionOverlayService(
-            _sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), timelineDay, _sessionCues,
-            () => _quickSession?.CountUpProfileId);
+            _sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), timelineDay, _sessionCues);
         _dayBar = new DayBarViewModel(
             _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, _coldTurkey, deletedUsage, time);
         _noiseSettings = new NoiseSettingsService(documents);

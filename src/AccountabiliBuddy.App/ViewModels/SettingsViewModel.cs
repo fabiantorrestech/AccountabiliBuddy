@@ -318,8 +318,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     private bool CountUpChanged => SelectedCountUp is not null && SelectedCountUp.ProfileId != _quickSession.CountUpProfileId;
 
     /// <summary>
-    /// The profiles "Count up" can start; while none is chosen (or it was deleted), the first choice is a new
-    /// "Quick Start" profile made on first use.
+    /// The profiles "Quick Start with Default" can start; while none is chosen (or it was deleted), the first choice is
+    /// a new "QS - Default" profile with its starting rules.
     /// </summary>
     private void LoadCountUpChoices(bool keepSelection = false)
     {
@@ -328,7 +328,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         CountUpChoices.Clear();
         if (_quickSession.CountUpProfileId is null)
         {
-            CountUpChoices.Add(new CountUpProfileChoice(null, "Quick Start (a new profile, made on first use)"));
+            CountUpChoices.Add(new CountUpProfileChoice(null, "QS - Default (made again with its starting rules)"));
         }
 
         foreach (FocusProfile profile in _configuration.Current.Profiles)
@@ -773,7 +773,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public ObservableCollection<CountUpProfileChoice> CountUpChoices { get; } = new();
 
-    /// <summary>The profile the quick session's "Count up" starts.</summary>
+    /// <summary>The profile "Quick Start with Default" starts.</summary>
     [ObservableProperty]
     public partial CountUpProfileChoice? SelectedCountUp { get; set; }
 

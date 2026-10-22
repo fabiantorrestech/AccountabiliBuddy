@@ -49,7 +49,7 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
     {
         _timeProvider = timeProvider;
         UntilText = string.Empty;
-        CountUpLabel = "Count up";
+        DefaultProfileName = string.Empty;
 
         foreach (FocusProfile profile in profiles)
         {
@@ -97,6 +97,8 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(StartCommand))]
+    [NotifyCanExecuteChangedFor(nameof(QuickStartCommand))]
+    [NotifyPropertyChangedFor(nameof(QuickStartLabel))]
     public partial ProfileOption? SelectedProfile { get; set; }
 
     /// <summary>True while Shift is held: the slider and arrow keys move in 1-minute steps.</summary>
@@ -198,12 +200,18 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
     /// <summary>Raised when the user starts a session with the current choices.</summary>
     public event EventHandler? StartRequested;
 
-    /// <summary>Raised when the user starts the Quick Start profile with no set end (the on-screen bar counts up).</summary>
-    public event EventHandler? CountUpRequested;
+    /// <summary>"Quick Start with Default": the default profile with no set end (the on-screen bar counts up).</summary>
+    public event EventHandler? QuickStartDefaultRequested;
 
-    /// <summary>E.g. "Count up · Quick Start".</summary>
+    /// <summary>"Quick Start": the profile picked here with no set end.</summary>
+    public event EventHandler<Guid>? QuickStartRequested;
+
+    /// <summary>The default profile's name under "Quick Start with Default", e.g. "QS - Default".</summary>
     [ObservableProperty]
-    public partial string CountUpLabel { get; set; }
+    public partial string DefaultProfileName { get; set; }
+
+    /// <summary>E.g. "Quick Start · Coding".</summary>
+    public string QuickStartLabel => SelectedProfile is null ? "Quick Start" : $"Quick Start · {SelectedProfile.Name}";
 
     /// <summary>Raised when the user wants to end the running session (friction applies).</summary>
     public event EventHandler? EndSessionRequested;
@@ -273,12 +281,23 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
         StartRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    private bool CanCountUp => !IsSessionRunning;
+    private bool CanQuickStartDefault => !IsSessionRunning;
 
-    [RelayCommand(CanExecute = nameof(CanCountUp))]
-    private void CountUp()
+    [RelayCommand(CanExecute = nameof(CanQuickStartDefault))]
+    private void QuickStartDefault()
     {
-        CountUpRequested?.Invoke(this, EventArgs.Empty);
+        QuickStartDefaultRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private bool CanQuickStart => !IsSessionRunning && SelectedProfile is not null;
+
+    [RelayCommand(CanExecute = nameof(CanQuickStart))]
+    private void QuickStart()
+    {
+        if (SelectedProfile is { } profile)
+        {
+            QuickStartRequested?.Invoke(this, profile.Id);
+        }
     }
 
     [RelayCommand]

@@ -27,9 +27,6 @@ public sealed class SessionOverlayService : IDisposable
     private readonly DayBarViewModel _day;
     private readonly OnScreenOverlayViewModel _viewModel;
 
-    // The count-up Quick Start profile: its sessions with no set end always show the timer (the bar is the point).
-    private readonly Func<Guid?> _countUpProfileId;
-
     private SessionOverlayWindow? _window;
     private DateTimeOffset _hiddenUntil = DateTimeOffset.MinValue;
 
@@ -51,10 +48,8 @@ public sealed class SessionOverlayService : IDisposable
         OverlaySettingsService settings,
         IOverlayWindowControl control,
         DayBarViewModel timelineDay,
-        SessionCueService cues,
-        Func<Guid?> countUpProfileId)
+        SessionCueService cues)
     {
-        _countUpProfileId = countUpProfileId;
         cues.Cued += (_, cue) => OnCue(cue.Cue, cue.SessionEnded);
         _day = timelineDay;
         _sessions = sessions;
@@ -77,9 +72,11 @@ public sealed class SessionOverlayService : IDisposable
     public bool IsOnForSession => _sessions.State.IsActive
                                   && (_settings.Current.For(_sessions.State.ProfileId).Enabled || IsCountUp(_sessions.State));
 
-    private bool IsCountUp(SessionState state)
+    // A Quick Start (with the default profile or the one picked) has no set end: it always shows the timer, since the
+    // bar counting up is the point.
+    private static bool IsCountUp(SessionState state)
     {
-        return state.Mode == SessionMode.Manual && state.PhaseEndsAt is null && state.ProfileId is Guid id && id == _countUpProfileId();
+        return state.Mode == SessionMode.Manual && state.PhaseEndsAt is null;
     }
 
     /// <summary>Raised when the timer is shown, hidden or turned on or off for the session.</summary>

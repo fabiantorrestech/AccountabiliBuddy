@@ -4,8 +4,36 @@
              xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.QuickStartPanel"
              x:DataType="vm:QuickSessionViewModel">
-    <!-- Profile, length (presets, slider or an end time), optional break, Start. Used by the quick-session popup and the Session tab. -->
+    <UserControl.Styles>
+        <!-- "Quick Start with Default": the biggest button, in teal so it stands apart from Start. -->
+        <Style Selector="Button.quickDefault">
+            <Setter Property="Background" Value="#0F766E" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="0,14" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style Selector="Button.quickDefault:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#14917F" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.quickDefault:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#0B5E57" />
+        </Style>
+    </UserControl.Styles>
+    <!-- Quick Start with Default on top; then profile, length (presets, slider or an end time), optional break, Start.
+         Used by the quick-session popup and the Session tab. -->
     <StackPanel Spacing="16">
+        <Button Classes="quickDefault" Command="{Binding QuickStartDefaultCommand}" AutomationProperties.Name="Quick Start with Default"
+                ToolTip.Tip="Starts your default profile (Settings) with no set end. The on-screen bar fills each hour and glows every 30 minutes with how long you've been at it; hold Ctrl+Alt to see it any time.">
+            <StackPanel Spacing="2" HorizontalAlignment="Center">
+                <TextBlock Text="Quick Start with Default" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                <TextBlock Text="{Binding DefaultProfileName, StringFormat='{}{0} · no set end'}" FontSize="12" Opacity="0.85"
+                           HorizontalAlignment="Center" />
+            </StackPanel>
+        </Button>
+
         <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding HasProfiles}">
             <TextBlock Text="Profile" VerticalAlignment="Center" Margin="0,0,12,0" Opacity="0.8" />
             <ComboBox x:Name="ProfileBox" Grid.Column="1" ItemsSource="{Binding ProfileOptions}"
@@ -80,9 +108,9 @@
         <Button Content="{Binding StartLabel}" Command="{Binding StartCommand}" Classes="accent"
                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,12" FontSize="16" />
 
-        <!-- No set length: the Quick Start profile (Settings), and the on-screen bar counts up. -->
-        <Button Content="{Binding CountUpLabel}" Command="{Binding CountUpCommand}"
+        <!-- No set length with the profile picked above; the on-screen bar counts up. -->
+        <Button Content="{Binding QuickStartLabel}" Command="{Binding QuickStartCommand}"
                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,8"
-                ToolTip.Tip="Starts your Quick Start profile with no set end. The on-screen bar fills each hour and glows every 30 minutes with how long you've been at it; hold Ctrl+Alt to see it any time." />
+                ToolTip.Tip="Starts the profile picked above with no set end. The on-screen bar fills each hour and glows every 30 minutes with how long you've been at it; hold Ctrl+Alt to see it any time." />
     </StackPanel>
 </UserControl>
