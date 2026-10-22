@@ -80,6 +80,28 @@ object DayTimeline {
         return merged
     }
 
+    /** What's left of [windows] outside every one of [holes], earliest first (e.g. work time with no focus session). */
+    fun subtract(windows: Iterable<LocalWindow>, holes: Iterable<LocalWindow>): List<LocalWindow> {
+        val cuts = union(holes)
+        val left = mutableListOf<LocalWindow>()
+        for (window in union(windows)) {
+            var from = window.start
+            for (cut in cuts.filter { it.end.isAfter(window.start) && it.start.isBefore(window.end) }) {
+                if (cut.start.isAfter(from)) {
+                    left.add(LocalWindow(from, cut.start))
+                }
+
+                from = maxOf(from, cut.end)
+            }
+
+            if (window.end.isAfter(from)) {
+                left.add(LocalWindow(from, window.end))
+            }
+        }
+
+        return left
+    }
+
     /** The part of [window] inside [range], or null if none. */
     fun clip(window: LocalWindow, range: LocalWindow): LocalWindow? {
         val start = maxOf(window.start, range.start)

@@ -27,4 +27,8 @@ data class DayBarModel(
     /** Focus sessions across the devices (an open one until now), and drift marks in them. */
     val focus: List<DayBarSpan> = emptyList(),
     val drift: List<DayBarSpan> = emptyList(),
+    /** Work time (the plan's Watch parts, up to now) with no session on any device, on the Focus row in slate. */
+    val gaps: List<DayBarSpan> = emptyList(),
+    /** Under the bar: focused, "Distracted 12m", "Not in a session 1h 20m"; empty without focus data. */
+    val focusLegend: List<LegendEntry> = emptyList(),
 )

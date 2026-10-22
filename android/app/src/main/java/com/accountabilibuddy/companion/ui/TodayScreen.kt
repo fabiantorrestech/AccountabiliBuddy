@@ -32,6 +32,7 @@ import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.engine.DayBarBuilder
 import com.accountabilibuddy.companion.engine.DayBarModel
 import com.accountabilibuddy.companion.engine.DayTimeline
+import com.accountabilibuddy.companion.engine.LegendEntry
 import com.accountabilibuddy.companion.model.CalendarEvent
 import com.accountabilibuddy.companion.model.LocalWindow
 import com.accountabilibuddy.companion.model.PendingDayPlan
@@ -93,6 +94,7 @@ fun TodayScreen(
                     }
                 }
                 DayBar(model)
+                FocusLegend(model.focusLegend)
                 state.pendingPlan?.let { PlanEditStatus(it, onEditPlan, onDiscardPlanEdit) }
                 if (model.summaryText.isNotEmpty()) {
                     Text(model.summaryText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -310,5 +312,24 @@ private fun PlanEditStatus(pending: PendingDayPlan, onEdit: (() -> Unit)?, onDis
             TextButton(onClick = onEdit) { Text("Fix") }
         }
         TextButton(onClick = onDiscard) { Text("Discard") }
+    }
+}
+
+/** Under the bar, like the PC's legend: each total with a dot in its colour on the bar. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun FocusLegend(entries: List<LegendEntry>) {
+    if (entries.isEmpty()) {
+        return
+    }
+
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        for (entry in entries) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(8.dp).background(Color(entry.color), CircleShape))
+                Spacer(Modifier.width(5.dp))
+                Text(entry.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
 }

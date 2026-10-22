@@ -62,6 +62,10 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
             DayTimeline.clip(window, range)?.let { toSpan(it, range, "Slept ${times(window)} (${duration(Duration.between(window.start, window.end))})") }
         }
         val (night, missed) = sleepSpans(now, range, sleep, document.dayPlan)
+        val soFar = LocalWindow(range.start, minOf(now, range.end))
+        val sessions = focusWindows(focus, now).mapNotNull { DayTimeline.clip(it, soFar) }
+        // Work time so far with no session: its own category on the Focus row (not a day plan category).
+        val gaps = if (focus == null) emptyList() else DayTimeline.subtract(planned.mapNotNull { DayTimeline.clip(it.window, soFar) }, sessions)
 
         return DayBarModel(
             day = day,
@@ -83,6 +87,8 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
             drift = focus?.drift.orEmpty().mapNotNull { mark ->
                 DayTimeline.clip(local(mark.start, mark.end), range)?.let { toSpan(it, range, "Drift ${times(local(mark.start, mark.end))}") }
             },
+            gaps = gaps.map { toSpan(it, range, "Not in a session · ${times(it)} (${duration(Duration.between(it.start, it.end))})") },
+            focusLegend = if (focus == null) emptyList() else focusLegend(focus, sessions, gaps),
         )
     }
 
@@ -155,6 +161,25 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
         // An alarm clock rather than "(alarm)": the notification's sleep line has one line, and the word wrapped out of sight.
         val byAlarm = sleep.toSchedule(plan).wakesByAlarm(night.end.toLocalDate().minusDays(1))
         return SleepLine("Sleep if you go now: ${duration(left)} · up ${clock.time(night.end)}" + (if (byAlarm) " ⏰" else ""), SleepSchedule.rate(left, sleep.goal))
+    }
+
+    // Focused, distracted (drift inside the sessions, overlaps once) and not in a session, each from 1 minute.
+    private fun focusLegend(focus: WatchSnapshot, sessions: List<LocalWindow>, gaps: List<LocalWindow>): List<LegendEntry> {
+        val distracted = focus.drift.flatMap { mark -> sessions.mapNotNull { DayTimeline.clip(local(mark.start, mark.end), it) } }
+        val legend = mutableListOf(LegendEntry("${duration(total(sessions))} focused", FOCUS_COLOR))
+        total(distracted).takeIf { it >= Duration.ofMinutes(1) }?.let { legend.add(LegendEntry("Distracted ${duration(it)}", DISTRACTED_COLOR)) }
+        total(gaps).takeIf { it >= Duration.ofMinutes(1) }?.let { legend.add(LegendEntry("Not in a session ${duration(it)}", NOT_IN_SESSION_COLOR)) }
+        return legend
+    }
+
+    private fun total(windows: List<LocalWindow>): Duration =
+        DayTimeline.union(windows).fold(Duration.ZERO) { sum, window -> sum.plus(Duration.between(window.start, window.end)) }
+
+    // The sessions' real times; one with no end runs until now (or the running session's end, once passed).
+    private fun focusWindows(focus: WatchSnapshot?, now: LocalDateTime): List<LocalWindow> {
+        focus ?: return emptyList()
+        val until = focus.openUntil(now.atZone(ZoneId.systemDefault()).toInstant())
+        return focus.sessions.map { local(it.start, it.end ?: until) }.filter { it.end.isAfter(it.start) }
     }
 
     // Each session cut to the bar; one with no end runs until now (or the running session's end, once passed).
@@ -232,6 +257,11 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
         private const val MAX_TICKS = 8
         private val NIGHT_SHOWN: Duration = Duration.ofHours(1)
         private val NIGHT_AFTER_NOW: Duration = Duration.ofMinutes(30)
+
+        /** The legend's colours, as on the bar (and the PC): teal focus, red distracted, slate not in a session. */
+        const val FOCUS_COLOR = 0xFF0F766E.toInt()
+        const val DISTRACTED_COLOR = 0xFFEF4444.toInt()
+        const val NOT_IN_SESSION_COLOR = 0xFF64748B.toInt()
 
         fun fraction(time: LocalDateTime, range: LocalWindow): Double {
             val length = Duration.between(range.start, range.end).seconds.toDouble()

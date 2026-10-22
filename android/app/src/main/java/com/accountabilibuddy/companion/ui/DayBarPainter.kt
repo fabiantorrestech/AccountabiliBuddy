@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
+import com.accountabilibuddy.companion.engine.DayBarBuilder
 import com.accountabilibuddy.companion.engine.DayBarModel
 import com.accountabilibuddy.companion.engine.DayBarSpan
 import com.accountabilibuddy.companion.model.BarRow
@@ -39,6 +40,7 @@ object DayBarPainter {
     private const val MISSED = 0x59DC2626
     private const val SLEPT = 0xFF6366F1.toInt()
     private const val DRIFT = 0xFFEF4444.toInt()
+    private const val NOT_IN_SESSION = DayBarBuilder.NOT_IN_SESSION_COLOR
     private const val MIN_DRIFT_PX = 2f
 
     // Plan parts at 85% like on the PC; on the notification's teal card a light edge keeps teal parts visible.
@@ -114,6 +116,8 @@ object DayBarPainter {
             }
         }
         tops[BarRow.Focus]?.let { top ->
+            // Work time with no session under the sessions, in slate.
+            spans(canvas, paint, model.gaps, NOT_IN_SESSION, width, dp(top), dp(sizes.focus), dp(2f))
             spans(canvas, paint, model.focus, focused, width, dp(top), dp(sizes.focus), dp(2f))
             driftMarks(canvas, paint, model.drift, width, dp(top), dp(sizes.focus))
         }
