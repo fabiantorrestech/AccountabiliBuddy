@@ -114,7 +114,10 @@ public sealed class SessionEngine
         return true;
     }
 
-    /// <summary>The user is back: the phase's end moves later by the time away, so no focus time is lost.</summary>
+    /// <summary>
+    /// The user is back: the phase's start and end move later by the time away, so no focus time is lost and its
+    /// countdown carries on where it paused.
+    /// </summary>
     /// <returns>How long the user was away; null when not away.</returns>
     public TimeSpan? Return()
     {
@@ -133,6 +136,7 @@ public sealed class SessionEngine
         {
             Away = null,
             AwaySince = null,
+            PhaseStartedAt = State.PhaseStartedAt + away,
             PhaseEndsAt = State.PhaseEndsAt + away,
         });
         return away;

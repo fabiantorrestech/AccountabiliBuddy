@@ -169,6 +169,15 @@ public sealed class ActivityRecorder : IDisposable
                 _timeProvider.GetUtcNow(), SessionEventKind.Started, state.Mode, state.ProfileId, state.PhaseEndsAt);
             Enqueue(() => _log.RecordSessionEventAsync(started));
         }
+
+        // Step away: a resumed session that was away is already logged as away.
+        if (previous.IsActive && state.IsActive && previous.IsAway != state.IsAway && IsEnabled && !_sessions.IsResuming)
+        {
+            var change = state.Away is AwayKind kind
+                ? new SessionEvent(state.AwaySince ?? _timeProvider.GetUtcNow(), SessionEventKind.AwayStarted, state.Mode, state.ProfileId, Reason: kind.ToString())
+                : new SessionEvent(_timeProvider.GetUtcNow(), SessionEventKind.AwayEnded, state.Mode, state.ProfileId);
+            Enqueue(() => _log.RecordSessionEventAsync(change));
+        }
     }
 
     private void OnSessionCompleted(object? sender, SessionState finished)

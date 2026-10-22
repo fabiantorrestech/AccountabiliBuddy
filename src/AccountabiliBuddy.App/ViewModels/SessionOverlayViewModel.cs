@@ -144,6 +144,8 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
 
     public void Update(SessionState state, DateTimeOffset now, TimeZoneInfo zone, string profileName, Color profileColor, OverlaySettings settings)
     {
+        // Stepped away: everything reads the moment the countdown paused.
+        now = state.CountdownTime(now);
         bool isBreak = !state.IsEnforcing;
         DateTimeOffset start = state.PhaseStartedAt ?? now;
         DateTimeOffset? end = state.PhaseEndsAt;

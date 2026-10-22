@@ -81,6 +81,8 @@ public partial class App : Application
     private NamedPipeBrowserSource? _browserSource;
     private Win32GlobalHotkey? _hotkey;
     private QuickSessionService? _quickSession;
+    private StepAwayService? _stepAway;
+    private Win32GlobalHotkey? _stepAwayHotkey;
     private InstanceSignals? _instanceSignals;
     private ActivityRecorder? _recorder;
     private EnforcementCoordinator? _enforcement;
@@ -90,6 +92,7 @@ public partial class App : Application
     private SetupAssistantWindow? _assistantWindow;
     private TrayIcon? _trayIcon;
     private NativeMenuItem? _endSessionMenuItem;
+    private NativeMenuItem? _stepAwayMenuItem;
 
     // Used by the XAML previewer.
     public App()
@@ -214,6 +217,10 @@ public partial class App : Application
         // Every install has "QS - Default" (and the old "Quick Start" made by the app gets that name). After the
         // quick-session settings load: they say which profile is the default.
         _ = _quickSession.EnsureDefaultProfileAsync();
+        // Step away: the countdown pauses until any input, the shortcut again or "I'm back".
+        _stepAwayHotkey = new Win32GlobalHotkey();
+        _stepAway = new StepAwayService(_sessions, new Win32UserIdleDetector(), _stepAwayHotkey, documents, time);
+        _stepAway.LoadBlocking();
         // M6 screen reading and M7 activity history.
         var privacy = new PrivacySettingsService(documents);
         privacy.LoadBlocking();
@@ -469,6 +476,7 @@ public partial class App : Application
                 _configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, dayBarSettings, overlaySettings, soundSettings, _sessionCues, sleepSettings, database.DatabasePath,
                 _noise)
             {
+                StepAway = _stepAway,
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
                 Updates = new UpdatesViewModel(_updates),
                 EnforcementLimit = enforcementLimit,
@@ -792,6 +800,10 @@ public partial class App : Application
         var onScreenItem = new NativeMenuItem("Show on-screen window again");
         onScreenItem.Click += (_, _) => _sessionOverlay?.ShowAgain();
 
+        // Allowed during focus: it pauses the countdown, it never shortens a wait.
+        _stepAwayMenuItem = new NativeMenuItem("Step away");
+        _stepAwayMenuItem.Click += (_, _) => _stepAway?.Toggle();
+
         _endSessionMenuItem = new NativeMenuItem("End session…");
         _endSessionMenuItem.Click += async (_, _) => await _endFlow!.TryEndSessionAsync(VisibleMainWindow());
 
@@ -802,6 +814,7 @@ public partial class App : Application
         menu.Items.Add(quickItem);
         menu.Items.Add(openItem);
         menu.Items.Add(onScreenItem);
+        menu.Items.Add(_stepAwayMenuItem);
         menu.Items.Add(_endSessionMenuItem);
         menu.Items.Add(new NativeMenuItemSeparator());
         menu.Items.Add(quitItem);
@@ -835,6 +848,18 @@ public partial class App : Application
         if (_endSessionMenuItem is not null)
         {
             _endSessionMenuItem.IsEnabled = state.IsActive;
+        }
+
+        if (_stepAwayMenuItem is not null && _stepAway is not null)
+        {
+            string shortcut = _stepAway.Settings.Hotkey.Length > 0 ? $"  ({_stepAway.Settings.Hotkey})" : string.Empty;
+            string header = state.IsAway ? $"I'm back{shortcut}" : $"Step away{shortcut}";
+            if (_stepAwayMenuItem.Header != header)
+            {
+                _stepAwayMenuItem.Header = header;
+            }
+
+            _stepAwayMenuItem.IsEnabled = state.IsActive;
         }
     }
 
@@ -1039,6 +1064,8 @@ public partial class App : Application
     {
         _instanceSignals?.Dispose();
         _hotkey?.Dispose();
+        _stepAway?.Dispose();
+        _stepAwayHotkey?.Dispose();
         _enforcement?.Dispose();
         _recorder?.Dispose();
         _watchedBrowsers?.Dispose();

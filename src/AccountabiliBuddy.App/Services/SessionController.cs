@@ -102,6 +102,19 @@ public sealed class SessionController : IDisposable
         return _engine.StartPomodoro(profileId, settings, breakAfterLastCycle: true);
     }
 
+    /// <summary>The user steps away: the countdown pauses until <see cref="Return"/> (see <see cref="StepAwayService"/>).</summary>
+    /// <returns>False with no session running or when already away.</returns>
+    public bool StepAway(AwayKind kind)
+    {
+        return _engine.StepAway(kind);
+    }
+
+    /// <returns>How long the user was away; null when not away.</returns>
+    public TimeSpan? Return()
+    {
+        return _engine.Return();
+    }
+
     /// <param name="earlyEndReason">The reason typed in the friction dialog, if one was required.</param>
     public void EndSession(string? earlyEndReason)
     {

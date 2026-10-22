@@ -20,4 +20,7 @@ public sealed record SessionState(
     public bool IsEnforcing => Phase == SessionPhase.Focus;
 
     public bool IsAway => Away is not null;
+
+    /// <summary>The time countdowns read: frozen at <see cref="AwaySince"/> while away, else <paramref name="now"/>.</summary>
+    public DateTimeOffset CountdownTime(DateTimeOffset now) => AwaySince is DateTimeOffset since && since < now ? since : now;
 }

@@ -39,13 +39,16 @@ public static class SessionStatusFormatter
             _ => "Manual session",
         };
 
+        // Stepped away: the countdown is paused.
+        string away = state.IsAway ? "Away · " : string.Empty;
+        DateTimeOffset clock = state.CountdownTime(now);
         if (state.PhaseEndsAt is DateTimeOffset end)
         {
-            return $"{FormatDuration(end - now)} left · {mode}";
+            return $"{away}{FormatDuration(end - clock)} left · {mode}";
         }
 
-        TimeSpan elapsed = state.PhaseStartedAt is DateTimeOffset start ? now - start : TimeSpan.Zero;
-        return $"Running for {FormatDuration(elapsed)} · {mode}";
+        TimeSpan elapsed = state.PhaseStartedAt is DateTimeOffset start ? clock - start : TimeSpan.Zero;
+        return $"{away}Running for {FormatDuration(elapsed)} · {mode}";
     }
 
     public static string FormatDuration(TimeSpan duration)

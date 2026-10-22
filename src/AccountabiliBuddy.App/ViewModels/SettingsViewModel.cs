@@ -35,6 +35,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly OverlaySettingsService _overlays;
     private readonly SessionSoundSettingsService _sounds;
     private readonly NoisePlayerService? _noise;
+    private StepAwayService? _stepAway;
     private readonly SessionCueService _cues;
     private readonly SleepSettingsService _sleep;
 
@@ -208,7 +209,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             return;
         }
 
-        bool unsaved = HotkeyChanged || CountUpChanged || DayBarChanged || SleepChanged || SoundsChanged || NoiseChanged || TimerChanged || ConfigChanged;
+        bool unsaved = HotkeyChanged || CountUpChanged || DayBarChanged || SleepChanged || SoundsChanged || NoiseChanged || StepAwayChanged || TimerChanged || ConfigChanged;
         if (unsaved && !HasUnsavedChanges)
         {
             SaveStatus = null; // A new edit: the last save's message is old news.
@@ -222,7 +223,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public async Task<bool> SaveAllAsync()
     {
         bool hotkey = HotkeyChanged, countUp = CountUpChanged, dayBar = DayBarChanged, sleep = SleepChanged, sounds = SoundsChanged, timer = TimerChanged;
-        bool noise = NoiseChanged;
+        bool noise = NoiseChanged, stepAway = StepAwayChanged;
         bool config = ConfigChanged && !IsLocked;
 
         var problems = new List<string>();
@@ -270,6 +271,12 @@ public sealed partial class SettingsViewModel : ObservableObject
             }
         }
 
+        // Step away only pauses the countdown, so it can be saved during focus too.
+        if (stepAway && await SaveStepAwayAsync() is string stepAwayError)
+        {
+            notes.Add(stepAwayError);
+        }
+
         if (timer)
         {
             await SaveTimerAsync();
@@ -287,7 +294,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         RefreshUnsaved();
         SaveStatus = notes.Count == 0 ? "Saved." : string.Join(" ", notes.Prepend("Saved."));
         // Profile-wide changes held back by a focus session don't keep you on the tab.
-        return !(HotkeyChanged || CountUpChanged || DayBarChanged || SleepChanged || SoundsChanged || NoiseChanged || TimerChanged || (ConfigChanged && !IsLocked));
+        return !(HotkeyChanged || CountUpChanged || DayBarChanged || SleepChanged || SoundsChanged || NoiseChanged || StepAwayChanged || TimerChanged || (ConfigChanged && !IsLocked));
     }
 
     [RelayCommand]
@@ -309,6 +316,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         LoadDisplaySettings();
         LoadSoundSettings();
         LoadNoiseSettings();
+        LoadStepAwaySettings();
         LoadSleepSettings();
         ShowSavedTimerProfiles();
         RefreshUnsaved();
@@ -356,6 +364,11 @@ public sealed partial class SettingsViewModel : ObservableObject
             || !SameKey(_noise.Settings.PlayPauseKey, NoisePlayPauseKey)
             || !SameKey(_noise.Settings.VolumeUpKey, NoiseVolumeUpKey)
             || !SameKey(_noise.Settings.VolumeDownKey, NoiseVolumeDownKey));
+
+    private bool StepAwayChanged => _stepAway is not null
+        && (!SameKey(_stepAway.Settings.Hotkey, StepAwayHotkey)
+            || _stepAway.Settings.AutoAfterIdle != StepAwayAutoIdle
+            || _stepAway.Settings.IdleMinutes != (int)(StepAwayIdleMinutes ?? _stepAway.Settings.IdleMinutes));
 
     private static bool SameKey(string saved, string edited)
     {
@@ -595,6 +608,78 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     public bool HasNoisePlayer => _noise is not null;
+
+    /// <summary>Step away's shortcut and idle switch (Focus sessions); set by the app.</summary>
+    public StepAwayService? StepAway
+    {
+        get => _stepAway;
+        init
+        {
+            _stepAway = value;
+            LoadStepAwaySettings();
+            OnPropertyChanged(nameof(HasStepAway));
+        }
+    }
+
+    public bool HasStepAway => _stepAway is not null;
+
+    /// <summary>The Step away shortcut being edited; empty = none.</summary>
+    [ObservableProperty]
+    public partial string StepAwayHotkey { get; set; } = string.Empty;
+
+    /// <summary>Step away by itself after a few idle minutes during a session.</summary>
+    [ObservableProperty]
+    public partial bool StepAwayAutoIdle { get; set; }
+
+    [ObservableProperty]
+    public partial decimal? StepAwayIdleMinutes { get; set; }
+
+    [ObservableProperty]
+    public partial string? StepAwayStatus { get; set; }
+
+    private void LoadStepAwaySettings()
+    {
+        if (_stepAway is null)
+        {
+            return;
+        }
+
+        StepAwaySettings settings = _stepAway.Settings;
+        StepAwayHotkey = settings.Hotkey;
+        StepAwayAutoIdle = settings.AutoAfterIdle;
+        StepAwayIdleMinutes = settings.IdleMinutes;
+        StepAwayStatus = _stepAway.HotkeyError ?? StepAwayHint(settings.Hotkey);
+    }
+
+    /// <returns>Why the shortcut wasn't taken, or null.</returns>
+    private async Task<string?> SaveStepAwayAsync()
+    {
+        if (_stepAway is null)
+        {
+            return null;
+        }
+
+        string? error = SameKey(_stepAway.Settings.Hotkey, StepAwayHotkey) ? null : await _stepAway.ChangeHotkeyAsync(StepAwayHotkey);
+        await _stepAway.SaveAsync(_stepAway.Settings with
+        {
+            AutoAfterIdle = StepAwayAutoIdle,
+            IdleMinutes = (int)(StepAwayIdleMinutes ?? _stepAway.Settings.IdleMinutes),
+        });
+        LoadStepAwaySettings();
+        if (error is not null)
+        {
+            StepAwayStatus = error;
+        }
+
+        return error;
+    }
+
+    private static string StepAwayHint(string hotkey)
+    {
+        return hotkey.Length > 0
+            ? $"Press {hotkey} anywhere during a session to step away, and again when you're back."
+            : "No shortcut: step away from the tray or the on-screen window (hold Ctrl+Alt).";
+    }
 
     private void LoadNoiseSettings()
     {

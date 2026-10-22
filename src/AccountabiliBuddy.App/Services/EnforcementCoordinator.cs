@@ -183,7 +183,9 @@ public sealed class EnforcementCoordinator : IDisposable
 
     private void Reevaluate()
     {
-        SessionState state = _sessions.State;
+        // Stepped away: whatever is on screen meanwhile isn't judged (no prompts, nudges or drift) until the user is
+        // back. Judged like a break; the session itself stays locked as before.
+        SessionState state = _sessions.State.IsAway ? _sessions.State with { Phase = SessionPhase.ShortBreak } : _sessions.State;
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
         FocusProfile? profile = profiles.FirstOrDefault(candidate => candidate.Id == state.ProfileId);
         if (profile is not null && _sessionRules.Count > 0)

@@ -108,6 +108,22 @@
                         <ComboBox ItemsSource="{Binding CountUpChoices}" SelectedItem="{Binding SelectedCountUp}" MinWidth="300" />
                     </StackPanel>
                     </Border>
+                    <Border Classes="card" search:SearchArea.Name="Step away" IsVisible="{Binding HasStepAway}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Step away" Classes="sectionTitle" />
+                        <TextBlock Text="A bathroom break or someone at your desk: the countdown pauses until you're back. Any key or mouse movement brings you back. It never shortens a wait. Also in the tray and the on-screen window (hold Ctrl+Alt)."
+                                   Opacity="0.75" TextWrapping="Wrap" />
+                        <controls:HotkeyBox Text="{Binding StepAwayHotkey}" Width="220" HorizontalAlignment="Left" />
+                        <TextBlock Text="{Binding StepAwayStatus}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <CheckBox Content="Step away by itself after" IsChecked="{Binding StepAwayAutoIdle}" />
+                            <NumericUpDown Value="{Binding StepAwayIdleMinutes}" Minimum="1" Maximum="60" Increment="1" FormatString="0"
+                                           Width="110" IsEnabled="{Binding StepAwayAutoIdle}" />
+                            <TextBlock Text="minutes with no input" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Text="The idle minutes before it starts still count as focus." Opacity="0.75" TextWrapping="Wrap" />
+                    </StackPanel>
+                    </Border>
                     <Border Classes="card" search:SearchArea.Name="Pomodoro defaults">
                     <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
                         <TextBlock Text="Pomodoro defaults" Classes="sectionTitle" />
