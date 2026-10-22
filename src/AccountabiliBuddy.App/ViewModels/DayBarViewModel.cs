@@ -127,12 +127,31 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             _reloadSoonTimer.Stop();
             _reloadSoonTimer.Start();
         };
+        _sessions.Ticked += (_, _) => Glide();
 
         Redraw();
     }
 
     [ObservableProperty]
     public partial DayBarLayout Layout { get; set; }
+
+    /// <summary>
+    /// Where now is on the bar (0–1), moved every second so the now line glides between redraws (a fraction of a pixel
+    /// each second; anti-aliasing turns that into a slow drift).
+    /// </summary>
+    [ObservableProperty]
+    public partial double NowFraction { get; set; }
+
+    /// <summary>Moves the now line to this second. Runs every second while the bar shows.</summary>
+    public void Glide()
+    {
+        if (_paused || Layout.RangeStart is not DateTime start || Layout.RangeEnd is not DateTime end)
+        {
+            return;
+        }
+
+        NowFraction = Fraction(LocalNow(), new LocalWindow(start, end));
+    }
 
     /// <summary>E.g. "Mon (10/19)".</summary>
     [ObservableProperty]
@@ -371,6 +390,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         IReadOnlyList<TimelineRowChoice> rows = settings.RowsInOrder();
         Layout = new DayBarLayout(
             TimelineRowsBuilder.Build(timelineDay, rows), Ticks(range), Fraction(now, range), night, missed, range.Start, range.End);
+        NowFraction = Layout.Now;
         UpdateSleepLine(now);
         HasPlannedFocus = planned.Any(focus => DayTimeline.Clip(focus.Window, range) is not null);
 

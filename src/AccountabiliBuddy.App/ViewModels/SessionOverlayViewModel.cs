@@ -21,6 +21,12 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
     private static readonly Color BreakColor = Color.FromRgb(107, 158, 138);
     private static readonly Color WrapUpColor = Color.FromRgb(217, 119, 6);
     private static readonly TimeSpan WrapUpTime = TimeSpan.FromMinutes(5);
+
+    /// <summary>The bar's colour at rest in quiet mode (<see cref="OverlaySettings.Quiet"/>).</summary>
+    public static readonly Color QuietColor = Color.FromRgb(100, 116, 139);
+
+    // The last minutes of a phase are loud: full colour even in quiet mode.
+    private static readonly TimeSpan LoudTime = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan PulseLength = TimeSpan.FromMilliseconds(600);
     private const double PulseBrightness = 0.3;
     private static readonly TimeSpan HalfHour = TimeSpan.FromMinutes(30);
@@ -103,6 +109,10 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial IBrush AccentBrush { get; set; }
 
+    /// <summary>The last 2 minutes of a phase with an end: the window shows in full colour, even when quiet.</summary>
+    [ObservableProperty]
+    public partial bool IsLoud { get; set; }
+
     /// <summary>Marks splitting the bar or ring into equal parts; 0 = none.</summary>
     [ObservableProperty]
     public partial int Divisions { get; set; }
@@ -175,7 +185,9 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
         BarWidth = Math.Round(shown * BarLength * 2) / 2;
         RingSweep = Math.Round(shown * 360);
 
-        Color accent = isBreak ? BreakColor
+        IsLoud = hasEnd && end!.Value > now && end.Value - now <= LoudTime && !state.IsAway;
+        Color accent = settings.Quiet && !ShowsDetails && !IsLoud ? QuietColor
+            : isBreak ? BreakColor
             : settings.WrapUpColor && hasEnd && IsWrappingUp(start, end!.Value, now) ? WrapUpColor
             : profileColor;
         if (AccentBrush is not SolidColorBrush current || current.Color != accent)

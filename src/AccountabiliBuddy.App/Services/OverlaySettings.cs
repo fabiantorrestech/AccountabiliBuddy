@@ -28,6 +28,8 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="AppShifts">Each app's own sideways distance in from the corner (process name, lowercase → display
 /// pixels), e.g. to clear a browser's side panel; apps without one stay at the screen edge.</param>
 /// <param name="Corner">The corner it sits in by default; bottom corners stay above the taskbar while it shows.</param>
+/// <param name="Quiet">At rest it's muted (60%, slate colours, red marks kept); full colour while Ctrl+Alt is held and for
+/// loud moments (the last 2 minutes, time up). On by default; settings saved before it existed read as on.</param>
 public sealed record OverlaySettings(
     OverlayStyle Style,
     double Opacity,
@@ -49,7 +51,8 @@ public sealed record OverlaySettings(
     int MaximizedAppDrop = OverlaySettings.BottomCornerDrop,
     IReadOnlyDictionary<string, int>? AppDrops = null,
     IReadOnlyDictionary<string, int>? AppShifts = null,
-    OverlayCorner Corner = OverlayCorner.BottomRight)
+    OverlayCorner Corner = OverlayCorner.BottomRight,
+    bool Quiet = true)
 {
     /// <summary>Default vertical distance for maximized apps from a top corner (clears tabs, toolbars, window buttons).</summary>
     public const int TopCornerDrop = 110;

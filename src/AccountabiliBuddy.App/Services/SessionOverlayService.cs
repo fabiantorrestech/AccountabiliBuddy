@@ -28,6 +28,7 @@ public sealed class SessionOverlayService : IDisposable
     private readonly OnScreenOverlayViewModel _viewModel;
 
     private SessionOverlayWindow? _window;
+    private StepAwayService? _stepAway;
     private DateTimeOffset _hiddenUntil = DateTimeOffset.MinValue;
 
     // After a session ran out, the window stays a few seconds (glowing) even if nothing else would show.
@@ -145,6 +146,14 @@ public sealed class SessionOverlayService : IDisposable
         _viewModel.RefreshTasks(_sessions.State.IsActive);
     }
 
+    /// <summary>Step away: the Ctrl+Alt button and the "Away · 4:12" badge.</summary>
+    public void SetStepAway(StepAwayService stepAway)
+    {
+        _stepAway = stepAway;
+        _viewModel.SetStepAway(stepAway.Toggle);
+        stepAway.Changed += (_, _) => Update();
+    }
+
     public void SetSyncQr(Action? show)
     {
         _viewModel.SetSyncQr(show);
@@ -239,6 +248,11 @@ public sealed class SessionOverlayService : IDisposable
             Guid profileId = state.ProfileId!.Value;
             string name = _configuration.Current.Profiles.FirstOrDefault(profile => profile.Id == profileId)?.Name ?? "Focus";
             _timer.Update(state, _sessions.Now, _sessions.TimeProvider.LocalTimeZone, name, ColorOf(profileId, settings), settings);
+        }
+
+        if (_stepAway is not null)
+        {
+            _viewModel.SetAway(state.IsAway ? _stepAway.AwayText : null, state.IsActive);
         }
 
         DateTime localNow = TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime;

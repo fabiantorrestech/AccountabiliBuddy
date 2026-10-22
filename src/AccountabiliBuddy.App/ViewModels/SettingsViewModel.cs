@@ -781,6 +781,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool TimerFillUp { get; set; }
 
+    /// <summary>How the on-screen window looks at rest (<see cref="OverlaySettings.Quiet"/>).</summary>
+    public static IReadOnlyList<string> TimerColourModes { get; } =
+        ["Quiet: muted, in colour with Ctrl+Alt and in the last 2 minutes", "Full colour"];
+
+    /// <summary>0 = quiet, 1 = full colour.</summary>
+    [ObservableProperty]
+    public partial int TimerColourIndex { get; set; }
+
     /// <summary>20–100.</summary>
     [ObservableProperty]
     public partial double TimerOpacityPercent { get; set; }
@@ -1159,6 +1167,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             PulseAtMarks = TimerPulseAtMarks,
             HideInFullscreen = TimerHideInFullscreen,
             FillUp = TimerFillUp,
+            Quiet = TimerColourIndex != 1,
             DefaultTimer = new ProfileOverlay(DefaultTimerOn, DefaultTimerColor.Hex),
             ShowTimeline = ShowTimeline,
             TimelineInFocus = TimelineStaysInFocus ? TimelineInFocus.ShowBoth : TimelineInFocus.SwapForTimer,
@@ -1265,6 +1274,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         TimerPulseAtMarks = overlay.PulseAtMarks;
         TimerHideInFullscreen = overlay.HideInFullscreen;
         TimerFillUp = overlay.FillUp;
+        TimerColourIndex = overlay.Quiet ? 0 : 1;
         ProfileOverlay defaultTimer = overlay.DefaultTimer ?? ProfileOverlay.Off;
         DefaultTimerOn = defaultTimer.Enabled;
         DefaultTimerColor = TimerColorOption.Match(DefaultTimerColors, defaultTimer.Color);

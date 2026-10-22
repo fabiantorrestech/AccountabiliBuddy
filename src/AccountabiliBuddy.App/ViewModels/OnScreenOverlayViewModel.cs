@@ -21,6 +21,13 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     // With the mouse over it, it almost disappears, so what's under it can be seen (clicks already pass through).
     private const double HoveredFade = 0.12;
 
+    // Quiet mode at rest: no more than this opaque.
+    private const double QuietOpacity = 0.6;
+
+    private OverlaySettings _settings = OverlaySettings.Default;
+    private bool _showsTimer;
+    private Action? _stepAway;
+
     // The glow rises and falls over the transition set in the window (0.9 s each way), held lit in between.
     private const double GlowBrightness = 0.75;
     private static readonly TimeSpan GlowHold = TimeSpan.FromSeconds(1.4);
@@ -50,6 +57,7 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
         {
             _glowTimer.Stop();
             GlowOpacity = 0;
+            ApplyQuiet();
         };
         Timer = timer;
         Day = day;
@@ -240,6 +248,55 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
         OutlineBrush = ready ? DragOutline : Brushes.Transparent;
         ShowsDetails = ready;
         Timer.SetDragReady(ready);
+        ApplyQuiet();
+    }
+
+    /// <summary>Muted at rest (quiet mode): not while Ctrl+Alt is held, in a phase's last 2 minutes, glowing or saying "done".</summary>
+    [ObservableProperty]
+    public partial bool IsQuiet { get; set; }
+
+    /// <summary>"Away · 4:12" while the user stepped away.</summary>
+    [ObservableProperty]
+    public partial string AwayText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool ShowsAway { get; set; }
+
+    /// <summary>The Ctrl+Alt button: "Step away", or "I'm back" while away.</summary>
+    [ObservableProperty]
+    public partial string StepAwayText { get; set; } = "Step away";
+
+    /// <summary>While a session runs and Step away is wired.</summary>
+    [ObservableProperty]
+    public partial bool ShowsStepAway { get; set; }
+
+    /// <summary>What the Step away button does (set by the service): step away, or back while away.</summary>
+    public void SetStepAway(Action toggle)
+    {
+        _stepAway = toggle;
+    }
+
+    /// <param name="awayText">"Away · 4:12" while away, null when not.</param>
+    /// <param name="sessionActive">The button shows only while a session runs.</param>
+    public void SetAway(string? awayText, bool sessionActive = true)
+    {
+        AwayText = awayText ?? string.Empty;
+        ShowsAway = awayText is not null;
+        StepAwayText = awayText is null ? "Step away" : "I'm back";
+        ShowsStepAway = _stepAway is not null && sessionActive;
+    }
+
+    [RelayCommand]
+    private void StepAway()
+    {
+        _stepAway?.Invoke();
+    }
+
+    private void ApplyQuiet()
+    {
+        bool loud = (_showsTimer && Timer.IsLoud) || GlowOpacity > 0 || ShowsDone;
+        IsQuiet = _settings.Quiet && !ShowsDetails && !loud;
+        PanelOpacity = IsQuiet ? Math.Min(_settings.Opacity, QuietOpacity) : _settings.Opacity;
     }
 
     [RelayCommand]
@@ -311,6 +368,7 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     public void Glow()
     {
         GlowOpacity = GlowBrightness;
+        ApplyQuiet();
         _glowTimer.Stop();
         _glowTimer.Start();
     }
@@ -331,7 +389,9 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
         ShowsTimelineTime = settings.TimelineShowsTime;
         TimeText = $"{localNow:t}";
         HideButtonText = $"Hide {settings.QuickHideSeconds}s";
-        PanelOpacity = settings.Opacity;
+        _settings = settings;
+        _showsTimer = showsTimer;
+        ApplyQuiet();
         Scale = settings.Size switch
         {
             OverlaySize.Small => 0.8,

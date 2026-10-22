@@ -315,6 +315,7 @@ public partial class App : Application
         tonightWake.AskToOverrideAlarm = (title, message, confirm) => presenter.ShowChoice(title, message, "Use my time", confirm, () => { });
         _sessionOverlay.SetTonightWake(tonightWake);
         _sessionOverlay.SetChecklist(new ChecklistViewModel(sessionTasks, ChecklistMode.Compact, time));
+        _sessionOverlay.SetStepAway(_stepAway);
         // ADR 25: every task ticked: offer to end the session now (when it may), else just say so.
         sessionTasks.AllDoneReached += (_, _) =>
         {

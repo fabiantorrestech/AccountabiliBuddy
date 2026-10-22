@@ -43,6 +43,10 @@
                     BorderBrush="{Binding OutlineBrush}" BorderThickness="1.5" Opacity="{Binding PanelOpacity}">
                 <Grid RowDefinitions="Auto,Auto,Auto">
                     <StackPanel Grid.Row="1" Spacing="8" HorizontalAlignment="{Binding MainAlignment}">
+                        <!-- Stepped away: the countdown is paused until any input. -->
+                        <Border IsVisible="{Binding ShowsAway}" Background="#33FFFFFF" CornerRadius="6" Padding="8,2" HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding AwayText}" Foreground="White" FontSize="12" FontWeight="SemiBold" />
+                        </Border>
                         <!-- Guided sessions: how far along and the task now on one line ("2/5 ▸ Fix tests"), its subtask
                              under it (2 lines then "…", all of it while Ctrl+Alt is held). -->
                         <StackPanel Spacing="1" IsVisible="{Binding ShowsTasks}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
@@ -67,7 +71,8 @@
 
                         <!-- All-day timeline: a small copy of the day bar, with the next block under it. -->
                         <StackPanel Spacing="2" IsVisible="{Binding ShowsTimeline}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
-                            <controls:DayBarControl Layout="{Binding Day.Layout}" Compact="True" />
+                            <controls:DayBarControl Layout="{Binding Day.Layout}" Compact="True" Quiet="{Binding IsQuiet}"
+                                                    NowFraction="{Binding Day.NowFraction}" />
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Text="{Binding Day.StatusText}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
                                            Foreground="#CCFFFFFF" FontSize="10" />
@@ -207,6 +212,12 @@
                                            VerticalAlignment="Center" TextAlignment="Right" />
                             </Grid>
                           </Panel>
+                        </Panel>
+                        <!-- Step away: pauses the countdown until any key or mouse movement. -->
+                        <Panel IsVisible="{Binding ShowsDetails}">
+                            <Button Content="{Binding StepAwayText}" Command="{Binding StepAwayCommand}" IsVisible="{Binding ShowsStepAway}"
+                                    ToolTip.Tip="Pauses the countdown; any key or mouse movement brings you back"
+                                    Padding="8,2" FontSize="11" Foreground="White" Background="#4D0F766E" CornerRadius="5" HorizontalAlignment="Left" />
                         </Panel>
                         <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" IsVisible="{Binding ShowsDetails}">
                             <TextBlock Text="Drag to move" Foreground="#99FFFFFF" FontSize="10" VerticalAlignment="Center" />

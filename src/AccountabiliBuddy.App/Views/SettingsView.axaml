@@ -301,8 +301,11 @@
                         <TextBlock Text="On-screen timer" Classes="sectionTitle" />
                         <TextBlock Text="Shows how much of the session is left, on top of other windows, for the profiles chosen below (also set in each profile on the Profiles tab). Clicks go through it; hold Ctrl+Alt to see the details and drag to move it. Can be saved during focus too."
                                    Opacity="0.75" TextWrapping="Wrap" />
-                        <Grid ColumnDefinitions="240,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="6">
+                        <Grid ColumnDefinitions="240,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="6">
                             <TextBlock Grid.Row="0" Text="Look" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="5" Text="At rest" VerticalAlignment="Center" />
+                            <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerColourModes}"
+                                      SelectedIndex="{Binding TimerColourIndex}" MinWidth="200" />
                             <TextBlock Grid.Row="4" Text="Corner (bottom corners stay above the taskbar)" VerticalAlignment="Center" TextWrapping="Wrap" />
                             <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerCornerNames}"
                                       SelectedIndex="{Binding TimerCornerIndex}" MinWidth="200" />

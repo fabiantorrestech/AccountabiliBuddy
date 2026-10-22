@@ -34,6 +34,12 @@ public sealed class DayBarControl : Control
     public static readonly StyledProperty<bool> CompactProperty =
         AvaloniaProperty.Register<DayBarControl, bool>(nameof(Compact));
 
+    public static readonly StyledProperty<bool> QuietProperty =
+        AvaloniaProperty.Register<DayBarControl, bool>(nameof(Quiet));
+
+    public static readonly StyledProperty<double> NowFractionProperty =
+        AvaloniaProperty.Register<DayBarControl, double>(nameof(NowFraction), double.NaN);
+
     private static readonly Sizes Normal = new(LabelWidth: 84, RowTop: 3, RowHeight: 14, RowGap: 3, AxisGap: 4, AxisHeight: 14,
         NowOverhang: 3, TextSize: 11, PartTextSize: 10);
 
@@ -53,6 +59,9 @@ public sealed class DayBarControl : Control
     private static readonly IBrush AddedBrush = new SolidColorBrush(FocusColor, 0.45);
     private static readonly IPen AddedStripePen = new Pen(new SolidColorBrush(Color.FromRgb(45, 212, 191), 0.55), 2);
     private static readonly IBrush NowBrush = new SolidColorBrush(Color.FromRgb(220, 38, 38));
+
+    /// <summary>Every span in <see cref="Quiet"/>: one muted slate (drift and task marks keep their colours).</summary>
+    public static readonly IBrush QuietBrush = new SolidColorBrush(Color.FromRgb(100, 116, 139), 0.55);
     private static readonly IBrush NightBrush = new SolidColorBrush(Color.FromRgb(79, 70, 229), 0.28);
     private static readonly IBrush MissedBrush = new SolidColorBrush(Color.FromRgb(220, 38, 38), 0.35);
     private static readonly IPen HoverOutline = new Pen(new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)), 1.5);
@@ -66,7 +75,7 @@ public sealed class DayBarControl : Control
 
     static DayBarControl()
     {
-        AffectsRender<DayBarControl>(LayoutProperty, CompactProperty);
+        AffectsRender<DayBarControl>(LayoutProperty, CompactProperty, QuietProperty, NowFractionProperty);
         AffectsMeasure<DayBarControl>(LayoutProperty, CompactProperty);
     }
 
@@ -101,6 +110,20 @@ public sealed class DayBarControl : Control
     {
         get => GetValue(CompactProperty);
         set => SetValue(CompactProperty, value);
+    }
+
+    /// <summary>The on-screen window at rest: every span in one muted slate, drift and task marks in their colours.</summary>
+    public bool Quiet
+    {
+        get => GetValue(QuietProperty);
+        set => SetValue(QuietProperty, value);
+    }
+
+    /// <summary>Where the now line is drawn (0–1), moved every second so it glides; NaN = the layout's own.</summary>
+    public double NowFraction
+    {
+        get => GetValue(NowFractionProperty);
+        set => SetValue(NowFractionProperty, value);
     }
 
     private Sizes Size => Compact ? Small : Normal;
@@ -164,7 +187,8 @@ public sealed class DayBarControl : Control
 
         DrawAxis(context, size, layout, trackBrush, textBrush, rowsBottom);
 
-        double nowX = BarLeft(size) + (Math.Clamp(layout.Now, 0, 1) * BarWidth(size));
+        double now = double.IsNaN(NowFraction) ? layout.Now : NowFraction;
+        double nowX = BarLeft(size) + (Math.Clamp(now, 0, 1) * BarWidth(size));
         nowX = Math.Clamp(nowX, BarLeft(size) + 1, Math.Max(BarLeft(size) + 1, Bounds.Width - 1));
         context.DrawLine(new Pen(NowBrush, 2), new Point(nowX, size.RowTop - size.NowOverhang), new Point(nowX, rowsBottom + size.NowOverhang));
     }
@@ -221,8 +245,13 @@ public sealed class DayBarControl : Control
         foreach (DayBarSpan span in row.Spans)
         {
             Rect box = SpanRect(size, span, top);
-            IBrush brush = span.Hatched ? AddedBrush : BrushFor(span.Color) ?? DefaultBrush(row.Kind);
+            IBrush brush = Quiet ? QuietBrush : span.Hatched ? AddedBrush : BrushFor(span.Color) ?? DefaultBrush(row.Kind);
             context.DrawRectangle(brush, null, box, 3, 3);
+
+            if (Quiet)
+            {
+                continue; // No stripes or names at rest.
+            }
 
             if (row.Kind == TimelineRow.Blockers)
             {
