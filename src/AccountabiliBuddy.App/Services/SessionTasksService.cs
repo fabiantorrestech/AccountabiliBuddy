@@ -93,6 +93,17 @@ public sealed class SessionTasksService : IDisposable
         return SetAsync(Current.Rename(id, title));
     }
 
+    /// <summary>The on-screen bar shows this open task or subtask; picking it again goes back to the first open task.</summary>
+    public Task PickAsync(Guid id)
+    {
+        return SetAsync(Current.Pick(id));
+    }
+
+    public Task MoveAsync(Guid id, int offset)
+    {
+        return SetAsync(Current.Move(id, offset));
+    }
+
     public async Task ToggleAsync(Guid id)
     {
         bool wasDone = Current.AllDone;

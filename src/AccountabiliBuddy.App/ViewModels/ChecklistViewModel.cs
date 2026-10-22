@@ -35,7 +35,7 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     /// <summary>Ticks show once a session runs.</summary>
     public bool CanTick => Mode != ChecklistMode.Draft;
 
-    /// <summary>Adding, removing and subtasks: not in the on-screen window.</summary>
+    /// <summary>Adding, renaming, moving, removing and subtasks: not in the on-screen window (it can't take typing).</summary>
     public bool CanEdit => Mode != ChecklistMode.Compact;
 
     public ObservableCollection<TaskRowViewModel> OpenTasks { get; } = new();
@@ -59,7 +59,7 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string ProgressText { get; set; }
 
-    /// <summary>The first open task, for the on-screen window's bar.</summary>
+    /// <summary>The picked task or subtask (else the first open task), for the on-screen window's bar, e.g. "Fix tests › Unit".</summary>
     [ObservableProperty]
     public partial string CurrentTaskText { get; set; }
 
@@ -119,7 +119,7 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
         DoneTasks.Clear();
         foreach (SessionTask task in checklist.Tasks)
         {
-            var row = new TaskRowViewModel(task, DoneText(task, checklist), _tasks.ToggleAsync, _tasks.RemoveAsync, (title, parent) => _tasks.AddAsync(title, parent));
+            var row = new TaskRowViewModel(task, DoneText(task, checklist), checklist.Shown, _tasks);
             (task.IsDone && CanTick ? DoneTasks : OpenTasks).Add(row);
         }
 
@@ -127,7 +127,7 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
         HasDone = DoneTasks.Count > 0;
         DoneHeader = $"Done ({DoneTasks.Count})";
         ProgressText = checklist.HasTasks ? $"{checklist.DoneCount}/{checklist.Tasks.Count}" : string.Empty;
-        CurrentTaskText = checklist.Current?.Title ?? (checklist.AllDone ? "All tasks done" : string.Empty);
+        CurrentTaskText = checklist.Shown?.Text ?? (checklist.AllDone ? "All tasks done" : string.Empty);
         Heading = Mode == ChecklistMode.Draft
             ? "Tasks for this session (optional)"
             : checklist.HasTasks ? $"Tasks · {ProgressText}" : "Tasks";

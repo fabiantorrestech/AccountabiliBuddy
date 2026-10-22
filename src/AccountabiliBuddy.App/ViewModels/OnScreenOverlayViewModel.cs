@@ -279,7 +279,8 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     {
         ChecklistViewModel? checklist = Checklist;
         ShowsTasks = sessionActive && checklist is { HasTasks: true };
-        TaskLine = checklist is null ? string.Empty : $"▸ {checklist.CurrentTaskText} · {checklist.ProgressText}";
+        // The count first, so a long task name cuts off its end, not the count.
+        TaskLine = checklist is null ? string.Empty : $"{checklist.ProgressText} ▸ {checklist.CurrentTaskText}";
         checklist?.RefreshEndAtOnce();
     }
 
