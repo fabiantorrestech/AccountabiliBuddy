@@ -49,6 +49,13 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
     public partial bool AskAboutUnlistedSites { get; set; }
 
     /// <summary>
+    /// Ticked from the start when the classify prompt (another profile's session) adds an exemption, so it goes here
+    /// too (this computer only).
+    /// </summary>
+    [ObservableProperty]
+    public partial bool PreTickForExemptions { get; set; }
+
+    /// <summary>
     /// The on-screen session timer during this profile's sessions (this computer only): a <see cref="TimerChoice"/>
     /// index (use the default, on or off).
     /// </summary>

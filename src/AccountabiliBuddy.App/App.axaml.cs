@@ -233,6 +233,9 @@ public partial class App : Application
         _activityWatcher.ActivityChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => activityViewModel.Apply(snapshot));
 
         var presenter = new EnforcementPresenter(new WindowsEnforcer(), _browserSource, monitorLocator, time);
+        var exemptionDefaults = new ExemptionDefaultsService(documents);
+        exemptionDefaults.LoadBlocking();
+        presenter.PreTickedExemptionProfiles = () => exemptionDefaults.PreTicked;
         _updates = new UpdateService(
             new VelopackUpdater(), _sessions, documents, presenter.ShowNotice, () => _mainWindow?.IsVisible == true);
         _updates.LoadBlocking();
@@ -455,7 +458,7 @@ public partial class App : Application
                 Day = timelineDay,
                 ColdTurkey = new ColdTurkeyStatusViewModel(_coldTurkey, _sessions),
             },
-            new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, _link),
+            new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, _link, exemptionDefaults),
             new DayPlanViewModel(_configuration, _sessions),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
             new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time,

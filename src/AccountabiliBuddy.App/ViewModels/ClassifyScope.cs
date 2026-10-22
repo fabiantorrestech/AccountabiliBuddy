@@ -6,12 +6,15 @@ public enum ClassifyScope
     /// <summary>Process name rule.</summary>
     WholeApp,
 
-    /// <summary>URL domain rule (browser tabs only).</summary>
+    /// <summary>URL domain rule (browser tabs only): the whole site.</summary>
     Site,
 
     /// <summary>Window title "contains" rule.</summary>
     Title,
 
-    /// <summary>Channel rule (YouTube videos and channel pages only).</summary>
-    Channel,
+    /// <summary>The part of the site the page is in (<see cref="AccountabiliBuddy.Core.Engine.SiteParts.PartOf"/>): a section, channel or path.</summary>
+    Part,
+
+    /// <summary>The page alone (<see cref="AccountabiliBuddy.Core.Engine.SiteParts.PageOf"/>).</summary>
+    Page,
 }

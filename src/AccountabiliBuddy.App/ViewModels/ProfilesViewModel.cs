@@ -19,6 +19,7 @@ public sealed partial class ProfilesViewModel : ObservableObject
     private readonly SessionController _sessions;
     private readonly OverlaySettingsService _overlays;
     private readonly ColdTurkeyService _coldTurkey;
+    private readonly ExemptionDefaultsService? _exemptionDefaults;
     private readonly AccountabiliBuddy.App.Services.Link.LinkService? _link;
 
     // Every rule id this tab already has an editor for, so rules added elsewhere can be told apart.
@@ -33,9 +34,11 @@ public sealed partial class ProfilesViewModel : ObservableObject
         PendingChangesViewModel pendingChanges,
         OverlaySettingsService overlays,
         ColdTurkeyService coldTurkey,
-        AccountabiliBuddy.App.Services.Link.LinkService? link = null)
+        AccountabiliBuddy.App.Services.Link.LinkService? link = null,
+        ExemptionDefaultsService? exemptionDefaults = null)
     {
         _link = link;
+        _exemptionDefaults = exemptionDefaults;
         _configuration = configuration;
         _sessions = sessions;
         _overlays = overlays;
@@ -200,6 +203,10 @@ public sealed partial class ProfilesViewModel : ObservableObject
             // Display only and this computer's own, so it applies at once even when the profiles wait.
             await _overlays.SaveProfilesAsync(Profiles.ToDictionary(editor => editor.Id, editor => editor.ToOverlay()));
             await _coldTurkey.SaveExpectedAsync(Profiles.ToDictionary(editor => editor.Id, editor => editor.ToExpectedBlocks()));
+            if (_exemptionDefaults is not null)
+            {
+                await _exemptionDefaults.SaveAsync(Profiles.Where(editor => editor.PreTickForExemptions).Select(editor => editor.Id));
+            }
         }
 
         StatusMessage = _configuration.IsReadOnly
@@ -401,6 +408,7 @@ public sealed partial class ProfilesViewModel : ObservableObject
     {
         ProfileEditorViewModel editor = ProfileEditorViewModel.FromProfile(profile, _overlays.Current.SavedFor(profile.Id));
         editor.ShowColdTurkeyBlocks(ColdTurkeyBlockNames(), _coldTurkey.ExpectedFor(profile.Id));
+        editor.PreTickForExemptions = _exemptionDefaults?.PreTicked.Contains(profile.Id) == true;
         return editor;
     }
 

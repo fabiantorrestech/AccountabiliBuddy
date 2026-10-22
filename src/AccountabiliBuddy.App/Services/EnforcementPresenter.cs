@@ -43,6 +43,9 @@ public sealed class EnforcementPresenter
     /// <summary>Raised when the user answers the classify prompt.</summary>
     public event EventHandler<ClassifyAnswer>? Answered;
 
+    /// <summary>The profiles ticked from the start in the prompt's "Add exemption" (Profiles tab); set by the app.</summary>
+    public Func<IReadOnlySet<Guid>>? PreTickedExemptionProfiles { get; set; }
+
     /// <param name="profileName">Name of the session's profile, shown on the overlay and prompt.</param>
     /// <param name="sessionDetail">Time left and session type, shown on the overlay.</param>
     /// <param name="otherProfiles">The other profiles, offered by the prompt's "add exemption".</param>
@@ -381,7 +384,7 @@ public sealed class EnforcementPresenter
         }
 
         ActivitySnapshot asked = unknown.Snapshot;
-        var viewModel = new ClassifyPromptViewModel(profileName, asked, otherProfiles);
+        var viewModel = new ClassifyPromptViewModel(profileName, asked, otherProfiles, PreTickedExemptionProfiles?.Invoke());
         string subject = viewModel.Subject;
         viewModel.Answered += (_, answer) =>
         {

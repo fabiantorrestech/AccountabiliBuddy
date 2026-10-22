@@ -8,8 +8,10 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// "Is this on track?" prompt for activity no rule covers, shown during focus until it is answered (there is no
-/// "not now"; unanswered activity escalates). Browser tabs default to the site (domain); other apps default to the
-/// whole app. The user can narrow it to the window title, or to the channel on YouTube, and edit the text.
+/// "not now"; unanswered activity escalates). For a browser tab it asks first: the whole site, or only certain parts
+/// (the page's section, channel or path; only this page; or only this view by its window title), so a part answers
+/// for that part and the rest of the site is still asked about. Other apps: the whole app or only this view. The
+/// pattern can be edited before answering.
 /// <list type="bullet">
 /// <item>On track: allowed for this session only, and needs a reason (at least one word).</item>
 /// <item>Add exemption (the quieter option): a permanent Allow rule in the session's profile and any others ticked,
@@ -25,20 +27,24 @@ public sealed partial class ClassifyPromptViewModel : ObservableObject
     private readonly string _processName;
     private readonly string _windowTitle;
     private readonly string? _site;
-    private readonly string? _channel;
+    private readonly SitePart? _part;
+    private readonly SitePart? _page;
     private readonly ActivitySnapshot _snapshot;
 
     /// <param name="otherProfiles">Profiles besides the session's that an exemption can also be added to.</param>
-    public ClassifyPromptViewModel(string profileName, ActivitySnapshot snapshot, IReadOnlyList<ProfileOption> otherProfiles)
+    /// <param name="preTicked">Of those, the ones ticked from the start (Profiles tab).</param>
+    public ClassifyPromptViewModel(
+        string profileName, ActivitySnapshot snapshot, IReadOnlyList<ProfileOption> otherProfiles, IReadOnlySet<Guid>? preTicked = null)
     {
         ProfileName = profileName;
         _snapshot = snapshot;
-        OtherProfiles = otherProfiles.Select(profile => new ProfileChoiceViewModel(profile)).ToList();
+        OtherProfiles = otherProfiles.Select(profile => new ProfileChoiceViewModel(profile, preTicked?.Contains(profile.Id) == true)).ToList();
         Reason = string.Empty;
         _processName = snapshot.ProcessName;
         _windowTitle = snapshot.WindowTitle;
         _site = snapshot.Url is null ? null : UrlNormalizer.GetHost(snapshot.Url);
-        _channel = snapshot.Channel;
+        _part = snapshot.Url is null ? null : SiteParts.PartOf(snapshot.Url, snapshot.Channel);
+        _page = snapshot.Url is null ? null : SiteParts.PageOf(snapshot.Url);
 
         Subject = EnforcementEngine.ClassificationSubject(snapshot);
         Scope = _site is null ? ClassifyScope.WholeApp : ClassifyScope.Site;
@@ -56,16 +62,23 @@ public sealed partial class ClassifyPromptViewModel : ObservableObject
 
     public bool HasSite => _site is not null;
 
-    public bool HasChannel => _channel is not null;
+    public bool HasPart => _part is not null;
 
-    public string WholeAppLabel => $"The whole app ({_processName})";
+    public bool HasPage => _page is not null;
 
-    public string SiteLabel => $"This site ({_site})";
+    public string WholeAppLabel => HasSite ? $"The whole browser ({_processName})" : $"The whole app ({_processName})";
 
-    public string ChannelLabel => $"This channel ({_channel})";
+    public string SiteLabel => $"The whole site ({_site})";
+
+    public string PartLabel => _part?.Label ?? string.Empty;
+
+    public string PageLabel => _page?.Label ?? string.Empty;
+
+    /// <summary>E.g. "Only this part: the rest of reddit.com is still asked about."</summary>
+    public string PartsNote => $"Only this part: the rest of {_site} is still asked about.";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsWholeApp), nameof(IsSite), nameof(IsTitle), nameof(IsChannel), nameof(PatternLabel))]
+    [NotifyPropertyChangedFor(nameof(IsWholeApp), nameof(IsSite), nameof(IsTitle), nameof(IsPart), nameof(IsPage), nameof(IsOnlyParts), nameof(PatternLabel))]
     public partial ClassifyScope Scope { get; set; }
 
     public bool IsWholeApp
@@ -86,17 +99,38 @@ public sealed partial class ClassifyPromptViewModel : ObservableObject
         set => SelectScope(ClassifyScope.Title, value);
     }
 
-    public bool IsChannel
+    public bool IsPart
     {
-        get => Scope == ClassifyScope.Channel;
-        set => SelectScope(ClassifyScope.Channel, value);
+        get => Scope == ClassifyScope.Part;
+        set => SelectScope(ClassifyScope.Part, value);
+    }
+
+    public bool IsPage
+    {
+        get => Scope == ClassifyScope.Page;
+        set => SelectScope(ClassifyScope.Page, value);
+    }
+
+    /// <summary>"Only certain parts" (a browser tab): its section or path, this page, or this view.</summary>
+    public bool IsOnlyParts
+    {
+        get => Scope is ClassifyScope.Part or ClassifyScope.Page or ClassifyScope.Title;
+        set
+        {
+            if (value && !IsOnlyParts)
+            {
+                Scope = HasPart ? ClassifyScope.Part : HasPage ? ClassifyScope.Page : ClassifyScope.Title;
+            }
+        }
     }
 
     public string PatternLabel => Scope switch
     {
         ClassifyScope.Site => "Site (domain, includes subdomains)",
         ClassifyScope.Title => "Window title contains",
-        ClassifyScope.Channel => "Channel name",
+        ClassifyScope.Part when _part?.Target == MatchTarget.Channel => "Channel name",
+        ClassifyScope.Part => "Address starts with",
+        ClassifyScope.Page => _page?.Kind == MatchKind.Exact ? "Address (this page)" : "Address starts with (this page, any query)",
         _ => "App (process name)",
     };
 
@@ -173,7 +207,8 @@ public sealed partial class ClassifyPromptViewModel : ObservableObject
         {
             ClassifyScope.Site => _site ?? string.Empty,
             ClassifyScope.Title => _windowTitle,
-            ClassifyScope.Channel => _channel ?? string.Empty,
+            ClassifyScope.Part => _part?.Pattern ?? string.Empty,
+            ClassifyScope.Page => _page?.Pattern ?? string.Empty,
             _ => _processName,
         };
     }
@@ -198,7 +233,8 @@ public sealed partial class ClassifyPromptViewModel : ObservableObject
         {
             ClassifyScope.Site => (MatchTarget.Url, MatchKind.Domain),
             ClassifyScope.Title => (MatchTarget.WindowTitle, MatchKind.Contains),
-            ClassifyScope.Channel => (MatchTarget.Channel, MatchKind.Exact),
+            ClassifyScope.Part when _part is not null => (_part.Target, _part.Kind),
+            ClassifyScope.Page when _page is not null => (_page.Target, _page.Kind),
             _ => (MatchTarget.ProcessName, MatchKind.Exact),
         };
 

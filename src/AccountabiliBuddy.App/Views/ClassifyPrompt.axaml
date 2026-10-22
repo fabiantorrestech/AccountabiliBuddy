@@ -14,13 +14,23 @@
             <TextBlock Text="{Binding Question}" FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap" />
             <TextBlock Text="{Binding WindowTitleText}" Opacity="0.75" TextWrapping="Wrap" MaxLines="2"
                        TextTrimming="CharacterEllipsis" />
-            <RadioButton Content="{Binding SiteLabel}" IsChecked="{Binding IsSite}" IsVisible="{Binding HasSite}"
-                         GroupName="scope" />
-            <RadioButton Content="{Binding ChannelLabel}" IsChecked="{Binding IsChannel}" IsVisible="{Binding HasChannel}"
-                         GroupName="scope" />
-            <RadioButton Content="{Binding WholeAppLabel}" IsChecked="{Binding IsWholeApp}" GroupName="scope" />
-            <RadioButton Content="Only this view (match the window title)" IsChecked="{Binding IsTitle}"
-                         GroupName="scope" />
+            <!-- A browser tab: the whole site, or only certain parts (then which part). -->
+            <StackPanel Spacing="2" IsVisible="{Binding HasSite}">
+                <RadioButton Content="{Binding SiteLabel}" IsChecked="{Binding IsSite}" GroupName="site" FontWeight="SemiBold" />
+                <RadioButton Content="Only certain parts" IsChecked="{Binding IsOnlyParts}" GroupName="site" FontWeight="SemiBold" />
+                <StackPanel Margin="26,0,0,0" Spacing="0" IsVisible="{Binding IsOnlyParts}">
+                    <RadioButton Content="{Binding PartLabel}" IsChecked="{Binding IsPart}" IsVisible="{Binding HasPart}" GroupName="part" />
+                    <RadioButton Content="{Binding PageLabel}" IsChecked="{Binding IsPage}" IsVisible="{Binding HasPage}" GroupName="part" />
+                    <RadioButton Content="Only this view (match the window title)" IsChecked="{Binding IsTitle}" GroupName="part" />
+                    <TextBlock Text="{Binding PartsNote}" FontSize="12" Opacity="0.7" TextWrapping="Wrap" />
+                </StackPanel>
+                <RadioButton Content="{Binding WholeAppLabel}" IsChecked="{Binding IsWholeApp}" GroupName="site" FontSize="12" Opacity="0.8" />
+            </StackPanel>
+            <!-- Any other app: the whole app, or only this view. -->
+            <StackPanel Spacing="2" IsVisible="{Binding !HasSite}">
+                <RadioButton Content="{Binding WholeAppLabel}" IsChecked="{Binding IsWholeApp}" GroupName="app" />
+                <RadioButton Content="Only this view (match the window title)" IsChecked="{Binding IsTitle}" GroupName="app" />
+            </StackPanel>
             <TextBlock Text="{Binding PatternLabel}" FontSize="12" Opacity="0.75" />
             <TextBox Text="{Binding Pattern}" />
             <TextBox Text="{Binding Reason}" PlaceholderText="Why? Needed to allow it (one word is enough)" />

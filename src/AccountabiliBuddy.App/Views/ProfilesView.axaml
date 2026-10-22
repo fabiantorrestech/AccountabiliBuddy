@@ -95,6 +95,11 @@
                                                Text="Ask about websites with no rule, even when the browser app is allowed (otherwise allowing a browser allows every site you haven't blocked)" />
                                 </CheckBox>
 
+                                <CheckBox IsChecked="{Binding PreTickForExemptions}">
+                                    <TextBlock TextWrapping="Wrap"
+                                               Text="Pre-tick this profile when the &quot;Is this on track?&quot; prompt adds an exemption during another profile's session, so it's allowed here too (this computer only)" />
+                                </CheckBox>
+
                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                     <TextBlock Text="On-screen timer during this profile's sessions" VerticalAlignment="Center" />
                                     <ComboBox ItemsSource="{x:Static vm:TimerChoice.Names}" SelectedIndex="{Binding TimerChoiceIndex}"
