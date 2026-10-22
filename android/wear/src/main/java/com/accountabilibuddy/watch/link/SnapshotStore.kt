@@ -39,6 +39,7 @@ object SnapshotStore {
         loaded = true
         _snapshot.value = snapshot
         Surfaces.refresh(context)
+        com.accountabilibuddy.watch.alerts.PhaseAlertScheduler.schedule(context, snapshot)
     }
 
     fun clear(context: Context) = synchronized(lock) {

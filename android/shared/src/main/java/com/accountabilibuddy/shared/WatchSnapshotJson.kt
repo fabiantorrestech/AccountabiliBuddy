@@ -42,6 +42,12 @@ object WatchSnapshotJson {
                 put("startedAt", running.startedAt.toString())
                 running.endsAt?.let { put("endsAt", it.toString()) }
                 put("onBreak", running.onBreak)
+                // Guided sessions (ADR 24): only while it has a checklist.
+                if (running.tasksTotal > 0) {
+                    running.task?.let { put("task", it) }
+                    put("tasksDone", running.tasksDone)
+                    put("tasksTotal", running.tasksTotal)
+                }
             })
         }
     }
@@ -74,6 +80,9 @@ object WatchSnapshotJson {
 
     private fun running(json: JsonObject): RunningSession? {
         val startedAt = json.instant("startedAt") ?: return null
-        return RunningSession(json.string("profile"), startedAt, json.instant("endsAt"), json.bool("onBreak"))
+        return RunningSession(
+            json.string("profile"), startedAt, json.instant("endsAt"), json.bool("onBreak"),
+            json.string("task"), json.int("tasksDone") ?: 0, json.int("tasksTotal") ?: 0,
+        )
     }
 }

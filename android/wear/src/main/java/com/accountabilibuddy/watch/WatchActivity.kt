@@ -9,9 +9,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
 import androidx.wear.compose.foundation.pager.HorizontalPager
 import androidx.wear.compose.foundation.pager.rememberPagerState
@@ -25,10 +27,12 @@ import com.accountabilibuddy.shared.TodayView
 import com.accountabilibuddy.shared.WatchSnapshot
 import com.accountabilibuddy.shared.WatchText
 import com.accountabilibuddy.shared.WeekView
+import com.accountabilibuddy.watch.alerts.PhaseAlertScheduler
 import com.accountabilibuddy.watch.link.PcLink
 import com.accountabilibuddy.watch.link.PhoneLink
 import com.accountabilibuddy.watch.link.SnapshotStore
 import com.accountabilibuddy.watch.model.SampleData
+import com.accountabilibuddy.watch.ui.AlertsPage
 import com.accountabilibuddy.watch.ui.LinkPage
 import com.accountabilibuddy.watch.ui.NotLinkedScreen
 import com.accountabilibuddy.watch.ui.SessionPage
@@ -111,16 +115,22 @@ private fun WatchApp(stored: WatchSnapshot?, phoneReachable: Boolean?, pcPaired:
             return@AppScaffold
         }
 
-        val pager = rememberPagerState(pageCount = { PAGES })
+        // While a focus or break timer runs, its page comes first (the pager starts over when that changes).
+        val running = snapshot.running?.let { it.endsAt?.isAfter(now) ?: true } == true
+        val order = if (running) listOf(Page.Session, Page.Today) else listOf(Page.Today, Page.Session)
+        val pages = order + listOf(Page.Week, Page.Alerts, Page.Link)
+        val context = LocalContext.current
+        val pager = key(running) { rememberPagerState(pageCount = { pages.size }) }
         HorizontalPagerScaffold(pagerState = pager) {
             HorizontalPager(state = pager) { page ->
                 AnimatedPage(pageIndex = page, pagerState = pager) {
                     ScreenScaffold {
-                        when (page) {
-                            0 -> TodayPage(TodayView.from(snapshot, now, zone, use24HourClock))
-                            1 -> SessionPage(SessionView.from(snapshot.running, now, zone, use24HourClock, dataAt = snapshot.dataAt))
-                            2 -> WeekPage(WeekView.from(snapshot, now, zone))
-                            else -> LinkPage(
+                        when (pages[page]) {
+                            Page.Today -> TodayPage(TodayView.from(snapshot, now, zone, use24HourClock))
+                            Page.Session -> SessionPage(SessionView.from(snapshot.running, now, zone, use24HourClock, dataAt = snapshot.dataAt))
+                            Page.Week -> WeekPage(WeekView.from(snapshot, now, zone))
+                            Page.Alerts -> AlertsPage(onChanged = { PhaseAlertScheduler.schedule(context, stored) })
+                            Page.Link -> LinkPage(
                                 pcName = snapshot.pcName,
                                 updated = WatchText.updatedAgo(snapshot.dataAt, now),
                                 // Each device whose focus is in the day (ADR 22), with its data's age.
@@ -137,4 +147,4 @@ private fun WatchApp(stored: WatchSnapshot?, phoneReachable: Boolean?, pcPaired:
     }
 }
 
-private const val PAGES = 4
+private enum class Page { Today, Session, Week, Alerts, Link }

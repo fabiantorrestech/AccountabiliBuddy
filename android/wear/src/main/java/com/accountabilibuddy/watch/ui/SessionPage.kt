@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +41,7 @@ fun SessionPage(view: SessionView) {
             Text(view.title, color = color, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             Text(view.big, color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.SemiBold)
             Text(view.small, color = Color(0xB3FFFFFF), fontSize = 12.sp)
+            view.task?.let { Text(it, color = Color(0xE6FFFFFF), fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(horizontal = 28.dp)) }
             view.updated?.let { Text(it, color = Color(0xFFFCD34D), fontSize = 10.sp) }
         }
     }

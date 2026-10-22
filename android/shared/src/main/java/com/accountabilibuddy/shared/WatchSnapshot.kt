@@ -5,8 +5,23 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
-/** The focus session running on the PC: its profile, when this phase started and when it ends (null: no set end). */
-data class RunningSession(val profile: String?, val startedAt: Instant, val endsAt: Instant?, val onBreak: Boolean)
+/**
+ * The focus session running on the PC: its profile, when this phase started and when it ends (null: no set end), and
+ * its guided checklist (ADR 24): the current task, and how many of how many are done (0 of 0: none).
+ */
+data class RunningSession(
+    val profile: String?,
+    val startedAt: Instant,
+    val endsAt: Instant?,
+    val onBreak: Boolean,
+    val task: String? = null,
+    val tasksDone: Int = 0,
+    val tasksTotal: Int = 0,
+) {
+    /** With the checklist's current task (the first open one) and its progress. */
+    fun withTasks(tasks: List<com.accountabilibuddy.shared.sync.SessionTaskItem>): RunningSession =
+        copy(task = tasks.firstOrNull { !it.isDone }?.title, tasksDone = tasks.count { it.isDone }, tasksTotal = tasks.size)
+}
 
 /** A device whose focus is in the snapshot (ADR 22), and how old its data is: shown on the watch's "where from" page. */
 data class DataSource(val name: String, val dataAt: Instant)

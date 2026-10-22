@@ -84,6 +84,8 @@ data class SessionView(
     val fraction: Float,
     val active: Boolean,
     val updated: String? = null,
+    /** The guided checklist: "▸ Fix tests · 1/3", "All tasks done · 3/3"; null without one. */
+    val task: String? = null,
 ) {
     companion object {
         fun from(running: RunningSession?, now: Instant, zone: ZoneId, use24Hour: Boolean, dataAt: Instant? = null): SessionView =
@@ -93,17 +95,22 @@ data class SessionView(
             val session = running?.takeIf { it.endsAt == null || it.endsAt.isAfter(now) }
                 ?: return SessionView("Session", "—", "No focus session", 0f, active = false)
             val title = if (session.onBreak) "Break" else session.profile ?: "Focus"
+            val task = when {
+                session.tasksTotal == 0 -> null
+                session.task == null -> "All tasks done · ${session.tasksDone}/${session.tasksTotal}"
+                else -> "▸ ${session.task} · ${session.tasksDone}/${session.tasksTotal}"
+            }
             val endsAt = session.endsAt
             if (endsAt == null) {
                 val elapsed = Duration.between(session.startedAt, now).coerceAtLeast(Duration.ZERO)
                 return SessionView(title, WatchText.timer(elapsed), "since ${WatchText.clock(session.startedAt.atZone(zone).toLocalTime(), use24Hour)}",
-                    (elapsed.toMinutes() % 60) / 60f, active = true)
+                    (elapsed.toMinutes() % 60) / 60f, active = true, task = task)
             }
 
             val total = Duration.between(session.startedAt, endsAt).seconds.coerceAtLeast(1)
             val left = Duration.between(now, endsAt).coerceAtLeast(Duration.ZERO)
             return SessionView(title, WatchText.timer(left), "ends ${WatchText.clock(endsAt.atZone(zone).toLocalTime(), use24Hour)}",
-                (1f - left.seconds.toFloat() / total).coerceIn(0f, 1f), active = true)
+                (1f - left.seconds.toFloat() / total).coerceIn(0f, 1f), active = true, task = task)
         }
     }
 }

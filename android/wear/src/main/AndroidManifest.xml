@@ -7,6 +7,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <!-- The buzz when a focus or break timer ends, at the exact time even in Doze (a timer is what exact alarms are for). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <application
         android:icon="@mipmap/ic_launcher"
@@ -70,5 +73,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <receiver
+            android:name=".alerts.PhaseAlertReceiver"
+            android:exported="false" />
     </application>
 </manifest>
