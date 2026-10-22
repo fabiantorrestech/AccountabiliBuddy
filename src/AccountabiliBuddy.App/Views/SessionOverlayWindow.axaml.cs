@@ -538,6 +538,18 @@ public partial class SessionOverlayWindow : Window
         viewModel?.SetDragReady(held);
     }
 
+    /// <summary>
+    /// Back in front of other always-on-top windows (a meeting app's, a tool's) that came up after it: Windows keeps
+    /// the newest of those in front, and Topmost alone never takes the spot back.
+    /// </summary>
+    public void KeepOnTop()
+    {
+        if (_control is not null && TryGetPlatformHandle() is IPlatformHandle handle)
+        {
+            _control.KeepOnTop(handle.Handle);
+        }
+    }
+
     private void SetClickThrough(bool clickThrough)
     {
         if (_control is not null && TryGetPlatformHandle() is IPlatformHandle handle)

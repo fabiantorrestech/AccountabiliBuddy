@@ -15,6 +15,11 @@ public interface IOverlayWindowControl
     /// </summary>
     void SetClickThrough(nint windowHandle, bool clickThrough);
 
+    /// <summary>
+    /// Puts the window back in front of other always-on-top windows that came up after it, without taking focus.
+    /// </summary>
+    void KeepOnTop(nint windowHandle);
+
     /// <summary>True while Ctrl and Alt are both held down, whichever app is in front.</summary>
     bool AreDragKeysHeld();
 

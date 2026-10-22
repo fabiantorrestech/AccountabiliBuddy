@@ -40,6 +40,14 @@ public sealed class Win32OverlayWindowControl : IOverlayWindowControl
         PInvoke.SetWindowLong(window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, (int)style);
     }
 
+    public void KeepOnTop(nint windowHandle)
+    {
+        // HWND_TOPMOST (-1): first among the always-on-top windows; nothing else about it changes.
+        PInvoke.SetWindowPos(new HWND(windowHandle), new HWND(-1), 0, 0, 0, 0,
+            SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE
+            | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER);
+    }
+
     public bool AreDragKeysHeld()
     {
         return IsDown(VIRTUAL_KEY.VK_CONTROL) && IsDown(VIRTUAL_KEY.VK_MENU);

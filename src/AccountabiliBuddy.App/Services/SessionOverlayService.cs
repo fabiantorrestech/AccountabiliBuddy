@@ -267,6 +267,7 @@ public sealed class SessionOverlayService : IDisposable
         }
 
         _window!.SetCorner(settings.Corner);
+        _window.KeepOnTop();
 
         // Keeps a maximized app's top-right buttons (close, tabs, extensions) clickable, by that app's own distance.
         MaximizedApp? maximized = settings.MoveForMaximizedApps ? _control.MaximizedAppInFront() : null;
