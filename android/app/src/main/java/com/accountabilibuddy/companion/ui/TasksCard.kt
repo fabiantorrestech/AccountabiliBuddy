@@ -20,7 +20,10 @@ import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.sync.RunningTasks
 import com.accountabilibuddy.shared.sync.SessionTaskItem
 
-/** The running session's checklist (ADR 24), read only: open tasks with their subtasks, the done ones behind "Done (n)". */
+/**
+ * The running session's checklist (ADR 24), read only: open tasks with their subtasks (the one the PC's bar shows
+ * marked ▸), the done ones behind "Done (n)".
+ */
 @Composable
 fun TasksCard(running: RunningTasks) {
     var showDone by remember { mutableStateOf(false) }
@@ -33,26 +36,27 @@ fun TasksCard(running: RunningTasks) {
                 Text("All tasks done", style = MaterialTheme.typography.bodyMedium)
             }
 
-            open.forEach { task -> TaskLine(task, indent = false) }
+            open.forEach { task -> TaskLine(task, indent = false, markedId = running.markedId) }
             if (done.isNotEmpty()) {
                 TextButton(onClick = { showDone = !showDone }) { Text(if (showDone) "Hide done (${done.size})" else "Done (${done.size})") }
                 if (showDone) {
-                    done.forEach { task -> TaskLine(task, indent = false) }
+                    done.forEach { task -> TaskLine(task, indent = false, markedId = null) }
                 }
             }
         }
     }
 }
 
+// [markedId]: the task or subtask the PC's bar shows, marked ▸.
 @Composable
-private fun TaskLine(task: SessionTaskItem, indent: Boolean) {
+private fun TaskLine(task: SessionTaskItem, indent: Boolean, markedId: String?) {
     Row(Modifier.padding(start = if (indent) 20.dp else 0.dp)) {
         Text(
-            (if (task.isDone) "☑ " else "☐ ") + task.title,
+            (if (task.isDone) "☑ " else "☐ ") + (if (task.id != null && task.id == markedId) "▸ " else "") + task.title,
             style = MaterialTheme.typography.bodyMedium,
             textDecoration = if (task.isDone) TextDecoration.LineThrough else null,
             color = if (task.isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
         )
     }
-    task.subtasks.forEach { subtask -> TaskLine(subtask, indent = true) }
+    task.subtasks.forEach { subtask -> TaskLine(subtask, indent = true, markedId = markedId) }
 }

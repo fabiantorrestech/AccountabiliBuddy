@@ -18,9 +18,15 @@ data class RunningSession(
     val tasksDone: Int = 0,
     val tasksTotal: Int = 0,
 ) {
-    /** With the checklist's current task (the first open one) and its progress. */
-    fun withTasks(tasks: List<com.accountabilibuddy.shared.sync.SessionTaskItem>): RunningSession =
-        copy(task = tasks.firstOrNull { !it.isDone }?.title, tasksDone = tasks.count { it.isDone }, tasksTotal = tasks.size)
+    /**
+     * With the checklist's current task, as the PC's bar shows it ("Fix tests › Lint": the task picked on the PC, else
+     * the first open one, with its subtask), and its progress.
+     */
+    fun withTasks(tasks: List<com.accountabilibuddy.shared.sync.SessionTaskItem>, currentId: String? = null): RunningSession {
+        val shown = com.accountabilibuddy.shared.sync.SessionTaskItem.shown(tasks, currentId)
+        val text = shown?.let { (task, subtask) -> if (subtask == null) task.title else "${task.title} › ${subtask.title}" }
+        return copy(task = text, tasksDone = tasks.count { it.isDone }, tasksTotal = tasks.size)
+    }
 }
 
 /** A device whose focus is in the snapshot (ADR 22), and how old its data is: shown on the watch's "where from" page. */

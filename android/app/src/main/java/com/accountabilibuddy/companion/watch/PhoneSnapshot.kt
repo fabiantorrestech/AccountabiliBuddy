@@ -80,6 +80,6 @@ object PhoneSnapshot {
         }
 
         val startedAt = state.phaseStartedAt?.toInstant() ?: return null
-        return RunningSession(state.profileName, startedAt, state.phaseEndsAt?.toInstant(), state.isBreak).withTasks(state.tasks)
+        return RunningSession(state.profileName, startedAt, state.phaseEndsAt?.toInstant(), state.isBreak).withTasks(state.tasks, state.currentTask)
     }
 }

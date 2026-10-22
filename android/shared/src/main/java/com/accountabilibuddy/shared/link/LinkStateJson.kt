@@ -21,7 +21,7 @@ object LinkStateJson {
         val phase = state.string("phase") ?: "idle"
         val startedAt = state.time("phaseStartedAt") ?: return null
         return RunningSession(state.string("profileName"), startedAt, state.time("phaseEndsAt"), onBreak = phase == "shortBreak" || phase == "longBreak")
-            .withTasks(com.accountabilibuddy.shared.sync.SessionTaskItem.read(state["tasks"] as? kotlinx.serialization.json.JsonArray))
+            .withTasks(com.accountabilibuddy.shared.sync.SessionTaskItem.read(state["tasks"] as? kotlinx.serialization.json.JsonArray), state.string("currentTask"))
     }
 
     private fun JsonObject.string(name: String): String? = (this[name] as? JsonPrimitive)?.takeIf { it !is JsonNull && it.isString }?.content

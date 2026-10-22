@@ -445,11 +445,15 @@ public sealed class LinkSessionHost : ILinkSessionHost
             profiles.Select(profile => new LinkProfile(profile.Id, profile.Name)).ToList(),
             _quickSession.CountUpProfileId,
             _sessions.Now,
-            state.IsActive ? Tasks?.Invoke() : null);
+            state.IsActive ? Tasks?.Invoke() : null,
+            state.IsActive ? CurrentTask?.Invoke() : null);
     }
 
     /// <summary>Guided sessions (ADR 24): the running session's checklist for the phone; set by the app.</summary>
     public Func<IReadOnlyList<SessionTask>?>? Tasks { get; set; }
+
+    /// <summary>The task or subtask picked to show on the bar (null: the first open task); set by the app.</summary>
+    public Func<Guid?>? CurrentTask { get; set; }
 
     /// <summary>The checklist changed: paired devices get the state again.</summary>
     public void NotifyTasksChanged()

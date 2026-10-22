@@ -10,6 +10,7 @@ namespace AccountabiliBuddy.Core.Link;
 /// <param name="PhaseEndsAt">Null for a session with no set end (count-up).</param>
 /// <param name="CountUpProfileId">The profile "Count up" starts; null = "Quick Start", made on first use.</param>
 /// <param name="Tasks">The running session's guided checklist (ADR 24); null for none (left out of the JSON).</param>
+/// <param name="CurrentTask">The task or subtask picked to show on the bar; null for none (the first open task shows).</param>
 public sealed record LinkState(
     string? Mode,
     string Phase,
@@ -22,7 +23,9 @@ public sealed record LinkState(
     Guid? CountUpProfileId,
     DateTimeOffset SentAt,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    IReadOnlyList<AccountabiliBuddy.Core.Domain.SessionTask>? Tasks = null)
+    IReadOnlyList<AccountabiliBuddy.Core.Domain.SessionTask>? Tasks = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    Guid? CurrentTask = null)
 {
     public bool IsActive => Mode is not null;
 }

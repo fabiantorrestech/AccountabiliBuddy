@@ -5,9 +5,15 @@ import com.accountabilibuddy.shared.sync.SessionTaskItem
 import java.time.Duration
 import java.time.Instant
 
-/** A running session's checklist the phone knows (ADR 24), and which device it's from. */
-data class RunningTasks(val source: String, val tasks: List<SessionTaskItem>) {
+/**
+ * A running session's checklist the phone knows (ADR 24), which device it's from, and the task or subtask picked there
+ * to show ([currentId]; null: the first open task).
+ */
+data class RunningTasks(val source: String, val tasks: List<SessionTaskItem>, val currentId: String? = null) {
     val doneCount: Int get() = tasks.count { it.isDone }
+
+    /** The item marked ▸: the shown subtask, else the shown task (as the PC's bar shows it). */
+    val markedId: String? get() = SessionTaskItem.shown(tasks, currentId)?.let { (task, subtask) -> subtask?.id ?: task.id }
 
     companion object {
         // A file older than this doesn't say the session still runs (it may have ended since).
@@ -18,7 +24,7 @@ data class RunningTasks(val source: String, val tasks: List<SessionTaskItem>) {
          * whose running session has tasks, e.g. from the work computer through the folder.
          */
         fun of(pcName: String?, pcState: PcState?, received: List<ReceivedDevice>, now: Instant): RunningTasks? {
-            pcState?.takeIf { it.isActive && it.tasks.isNotEmpty() }?.let { return RunningTasks(pcName ?: "PC", it.tasks) }
+            pcState?.takeIf { it.isActive && it.tasks.isNotEmpty() }?.let { return RunningTasks(pcName ?: "PC", it.tasks, it.currentTask) }
             return received
                 .filter { Duration.between(it.file.device.writtenAt, now) <= FRESH }
                 .mapNotNull { device ->

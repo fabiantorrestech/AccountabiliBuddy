@@ -29,6 +29,8 @@ data class PcState(
     val countUpProfileId: String?,
     /** The running session's guided checklist (ADR 24); empty for none or an older PC. */
     val tasks: List<SessionTaskItem> = emptyList(),
+    /** The task or subtask picked on the PC to show; null for none (the first open task shows). */
+    val currentTask: String? = null,
 ) {
     val isActive: Boolean get() = mode != null
     val isBreak: Boolean get() = phase == "shortBreak" || phase == "longBreak"
@@ -50,6 +52,7 @@ data class PcState(
             },
             countUpProfileId = body.string("countUpProfileId"),
             tasks = SessionTaskItem.read(body["tasks"] as? JsonArray),
+            currentTask = body.string("currentTask"),
         )
     }
 }

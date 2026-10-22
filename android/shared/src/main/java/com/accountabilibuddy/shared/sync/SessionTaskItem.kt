@@ -29,6 +29,20 @@ data class SessionTaskItem(val id: String?, val title: String, val doneAt: Insta
             )
         }
 
+        /**
+         * What the PC's bar shows (its SessionChecklist.Shown): the picked open subtask with its task; or the picked open
+         * task, else the first open task, with its first open subtask (null when it has none). Null when all are done.
+         */
+        fun shown(tasks: List<SessionTaskItem>, currentId: String?): Pair<SessionTaskItem, SessionTaskItem?>? {
+            val open = tasks.filter { !it.isDone }
+            if (currentId != null) {
+                open.forEach { task -> task.subtasks.firstOrNull { it.id == currentId && !it.isDone }?.let { return task to it } }
+            }
+
+            val task = open.firstOrNull { currentId != null && it.id == currentId } ?: open.firstOrNull() ?: return null
+            return task to task.subtasks.firstOrNull { !it.isDone }
+        }
+
         fun write(items: List<SessionTaskItem>, time: (Instant) -> String): JsonArray = JsonArray(items.map { item ->
             buildJsonObject {
                 put("id", item.id)

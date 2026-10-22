@@ -358,6 +358,7 @@ public partial class App : Application
             syncIdentity, receivedDevices, syncEditTimes);
         // Guided sessions (ADR 24): the checklist goes to paired devices in the link's state and in this PC's sync file.
         linkHost.Tasks = () => sessionTasks.IsLive ? sessionTasks.Current.Tasks : null;
+        linkHost.CurrentTask = () => sessionTasks.IsLive ? sessionTasks.Current.CurrentId : null;
         syncCoordinator.TasksOf = start => sessionTasks.ForSession(start)?.Tasks is { Count: > 0 } tasks ? tasks : null;
         sessionTasks.Changed += (_, _) =>
         {
