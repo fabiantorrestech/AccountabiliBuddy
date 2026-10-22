@@ -1,6 +1,7 @@
 using System.Globalization;
 using AccountabiliBuddy.App.Controls;
 using AccountabiliBuddy.App.Services;
+using AccountabiliBuddy.App.Services.Sync;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Import;
@@ -56,6 +57,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     private readonly SleepSettingsService _sleep;
     private readonly OmittedSessionsService _omitted;
     private readonly ColdTurkeyService _coldTurkey;
+    private ReceivedDevicesService? _received;
     private readonly DeletedUsageService _deleted;
     private readonly TimeProvider _time;
     private readonly DispatcherTimer _redrawTimer;
@@ -160,6 +162,17 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>Reads the history again soon (e.g. after a session was added by hand).</summary>
+    /// <summary>
+    /// The other devices' sessions (ADR 22) join the Focus row in their device's shade, and the focused time counts
+    /// them where this PC had no session running. Set once, after the sync services are built.
+    /// </summary>
+    public void UseReceived(ReceivedDevicesService received)
+    {
+        _received = received;
+        received.Changed += (_, _) => Redraw();
+        Redraw();
+    }
+
     public void ReloadHistory()
     {
         _ = ReloadHistoryAsync();
@@ -310,13 +323,18 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 
         LocalWindow range = settings.Range == DayBarRange.FullDay ? day : DayTimeline.FitTo(day, content, span);
 
-        TimeSpan focused = Total(actual.Select(item => item.Window), range with { End = now < range.End ? now : range.End });
         List<TimelineSession> sessions = actual.Select(item => new TimelineSession(item.Window, item.Tip, item.ProfileId, item.Added)).ToList();
+        List<TimelineSession> received = ReceivedOnBar(span);
+        // Totals add up across devices; time two devices both had in focus counts once (the union of the windows).
+        TimeSpan focused = Total(actual.Select(item => item.Window).Concat(received.Select(session => session.Window)),
+            range with { End = now < range.End ? now : range.End });
+        // Drift is this PC's own: it stays inside this PC's sessions.
         IReadOnlyList<TimelineItem> drift = TimelineRowsBuilder.DriftOnBar(DriftItems(), sessions, range);
         var timelineDay = new TimelineDay(
             range,
             TimelineRowsBuilder.PartsAround(_configuration.Current.DayPlan, span),
-            sessions,
+            // The other devices' first, so this PC's own sessions draw on top where they overlap.
+            received.Concat(sessions).ToList(),
             drift,
             EventItems(range, settings),
             settings.ShowColdTurkey && _coldTurkey.Blocks is ColdTurkeyBlocks blocks ? BlockerTimeline.ColdTurkey(blocks, range) : null,
@@ -660,6 +678,27 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     {
         double length = (range.End - range.Start).TotalMinutes;
         return length <= 0 ? 0 : (time - range.Start).TotalMinutes / length;
+    }
+
+    /// <summary>The other devices' sessions on the day shown, in their shade, e.g. "Work PC · Deep work · 9:00 AM – 10:30 AM".</summary>
+    private List<TimelineSession> ReceivedOnBar(LocalWindow span)
+    {
+        if (_received is null)
+        {
+            return [];
+        }
+
+        TimeZoneInfo zone = _time.LocalTimeZone;
+        DateTimeOffset from = new(span.Start, zone.GetUtcOffset(span.Start));
+        DateTimeOffset to = new(span.End, zone.GetUtcOffset(span.End));
+        return ReceivedSessions.In(_received.Devices, from, to)
+            .Select(session =>
+            {
+                var window = new LocalWindow(ToLocal(session.Start), ToLocal(session.End));
+                string what = session.Added ? "added by hand" : session.Profile ?? "focus";
+                return new TimelineSession(window, $"{session.DeviceName} · {what} · {Times(window)}", null, Color: ReceivedSessions.ColorOf(session.DeviceId));
+            })
+            .ToList();
     }
 
     private static string Times(LocalWindow window)

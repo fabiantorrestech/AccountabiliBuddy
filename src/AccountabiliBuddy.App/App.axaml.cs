@@ -320,6 +320,9 @@ public partial class App : Application
             syncIdentity, receivedDevices, syncEditTimes);
         syncCoordinator.LoadBlocking();
         linkHost.UseSync(syncCoordinator, receivedDevices, syncIdentity, syncSettings);
+        // The running log (ADR 22): the other devices' sessions on both day bars (History gets them below).
+        _dayBar.UseReceived(receivedDevices);
+        timelineDay.UseReceived(receivedDevices);
         _syncFolder = new AccountabiliBuddy.App.Services.Sync.SyncFolderService(syncCoordinator, syncSettings, syncIdentity, receivedDevices, _sessions);
 
         var setupViewModel = new SetupViewModel(
@@ -426,6 +429,7 @@ public partial class App : Application
             linkHost.NotifyHistoryChanged();
             syncCoordinator.NotifyHistoryChanged();
         };
+        mainViewModel.History.UseReceived(receivedDevices);
 
         mainViewModel.NoisePlayer = noisePlayer;
         mainViewModel.Settings.OpenDayPlan = () => mainViewModel.SelectedTab = MainWindowViewModel.DayPlanTab;

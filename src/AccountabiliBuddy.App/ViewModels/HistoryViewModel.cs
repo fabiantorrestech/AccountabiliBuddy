@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using AccountabiliBuddy.App.Services;
+using AccountabiliBuddy.App.Services.Sync;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Ports;
@@ -50,6 +51,9 @@ public sealed partial class HistoryViewModel : ObservableObject
     private DateTimeOffset? _editingStart;
     // Whether a focus session runs now: nothing can be added from its start on (ADR 20).
     private readonly Func<bool> _isSessionRunning;
+
+    // The other devices' parts (ADR 22); null until the sync services are built.
+    private ReceivedDevicesService? _received;
 
     public HistoryViewModel(
         IActivityLog log,
@@ -243,6 +247,38 @@ public sealed partial class HistoryViewModel : ObservableObject
 
     public ObservableCollection<SessionRowViewModel> Sessions { get; } = new();
 
+    /// <summary>"All devices" (the default) or "This PC": whether the other devices' sessions are listed and counted.</summary>
+    [ObservableProperty]
+    public partial bool ShowAllDevices { get; set; } = true;
+
+    /// <summary>True once another device's part is on this PC: the device filter shows.</summary>
+    [ObservableProperty]
+    public partial bool HasReceivedDevices { get; set; }
+
+    /// <summary>
+    /// The other devices' sessions (ADR 22) are listed with their device's tag and count in the totals where this PC
+    /// had no session running. Set once, after the sync services are built.
+    /// </summary>
+    public void UseReceived(ReceivedDevicesService received)
+    {
+        _received = received;
+        received.Changed += (_, _) => _ = RefreshAsync();
+        _ = RefreshAsync();
+    }
+
+    /// <summary>The "This PC" choice of the device filter (the other side of <see cref="ShowAllDevices"/>).</summary>
+    public bool ShowThisPcOnly
+    {
+        get => !ShowAllDevices;
+        set => ShowAllDevices = !value;
+    }
+
+    partial void OnShowAllDevicesChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowThisPcOnly));
+        _ = RefreshAsync();
+    }
+
     partial void OnPeriodChanged(HistoryPeriod value)
     {
         if (value == HistoryPeriod.Day && SelectedDay is null)
@@ -356,7 +392,17 @@ public sealed partial class HistoryViewModel : ObservableObject
             .Select(record => (record.EndedAt!.Value < to ? record.EndedAt.Value : to) - (record.StartedAt > from ? record.StartedAt : from))
             .Where(length => length > TimeSpan.Zero)
             .Aggregate(TimeSpan.Zero, (sum, length) => sum + length);
-        FocusTimeText = FormatDuration(summary.FocusTime + addedTime);
+
+        // The other devices' sessions (ADR 22) add the time no local session covered; "This PC" leaves them out.
+        HasReceivedDevices = _received is { Devices.Count: > 0 };
+        IReadOnlyList<ReceivedSession> received = ShowAllDevices && _received is not null
+            ? ReceivedSessions.In(_received.Devices, from, to)
+            : [];
+        IEnumerable<TimeRange> counted = around
+            .Where(record => record.Mode != SessionMode.Scheduled && !_omitted.IsOmitted(record.StartedAt))
+            .Select(record => new TimeRange(record.StartedAt, record.EndedAt ?? localNow));
+        TimeSpan receivedTime = ReceivedSessions.ExtraTime(counted, received, from, to);
+        FocusTimeText = FormatDuration(summary.FocusTime + addedTime + receivedTime);
         OnTrackText = $"{FormatDuration(summary.OnTrackTime)} ({Percent(summary.OnTrackTime, summary.FocusTime)})";
         DistractedText = $"{FormatDuration(summary.DistractedTime)} ({Percent(summary.DistractedTime, summary.FocusTime)})";
         UnknownText = FormatDuration(summary.UnknownTime);
@@ -393,13 +439,26 @@ public sealed partial class HistoryViewModel : ObservableObject
         HasNoDistractions = _allDistractions.Count == 0;
         HasNoUsage = _allOverall.Count == 0;
 
+        // Newest first, this PC's and the other devices' together; another device's started in the period, like this PC's.
+        IEnumerable<SessionRowViewModel> rows = records.Select(record => ToRow(record, startOfToday))
+            .Concat(received.Where(session => session.Start >= from && session.Start < to).Select(session => ToRow(session, startOfToday)))
+            .OrderByDescending(row => row.StartedAt);
         Sessions.Clear();
-        foreach (SessionRecord record in records)
+        foreach (SessionRowViewModel row in rows)
         {
-            Sessions.Add(ToRow(record, startOfToday));
+            Sessions.Add(row);
         }
 
         HasNoSessions = Sessions.Count == 0;
+    }
+
+    private static SessionRowViewModel ToRow(ReceivedSession session, DateTimeOffset startOfToday)
+    {
+        DateTimeOffset startedLocal = session.Start.ToLocalTime();
+        string when = startedLocal >= startOfToday ? $"Today {startedLocal:t}" : $"{startedLocal:ddd} {startedLocal:t}";
+        string title = session.Added ? "Added by hand" : session.Profile ?? "Focus session";
+        return new SessionRowViewModel(when, title, FormatDuration(session.End - session.Start), $"On {session.DeviceName}", null,
+            session.Start, IsOmitted: false, EndedAt: session.End, DeviceName: session.DeviceName);
     }
 
     private SessionRowViewModel ToRow(SessionRecord record, DateTimeOffset startOfToday)

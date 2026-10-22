@@ -5,6 +5,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="StartedAt">Identifies the session (for omitting it).</param>
 /// <param name="IsOmitted">Omitted: shown greyed, left out of totals and the day bar.</param>
 /// <param name="ConfirmingDelete">An added session whose Delete was clicked: the row asks before deleting.</param>
+/// <param name="DeviceName">Another device's session (ADR 22): the device it was counted on, shown as a tag.</param>
 public sealed record SessionRowViewModel(
     string WhenText,
     string Title,
@@ -15,10 +16,14 @@ public sealed record SessionRowViewModel(
     bool IsOmitted,
     bool IsAdded = false,
     DateTimeOffset? EndedAt = null,
-    bool ConfirmingDelete = false)
+    bool ConfirmingDelete = false,
+    string? DeviceName = null)
 {
-    /// <summary>Added by hand (ADR 20): edited or deleted here instead of omitted.</summary>
-    public bool ShowsMarkButton => !IsAdded;
+    /// <summary>Counted on another device: shown with its tag; omitted, edited or deleted only there.</summary>
+    public bool IsReceived => DeviceName is not null;
+
+    /// <summary>Added by hand (ADR 20): edited or deleted here instead of omitted. Another device's: neither.</summary>
+    public bool ShowsMarkButton => !IsAdded && !IsReceived;
 
     /// <summary>Edit and Delete show for an added session until Delete asks to be confirmed.</summary>
     public bool ShowsAddedButtons => IsAdded && !ConfirmingDelete;
