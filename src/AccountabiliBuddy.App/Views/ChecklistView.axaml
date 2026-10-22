@@ -1,0 +1,111 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.ChecklistView"
+             x:DataType="vm:ChecklistViewModel">
+    <!-- A guided session's checklist (ADR 24, 25): before Start (add/edit), while it runs (tick/add/edit) or in the
+         on-screen window's Ctrl+Alt details (tick only, small). Done tasks sit under a collapsed "Done (n)". -->
+    <UserControl.Styles>
+        <Style Selector="TextBlock.compact">
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+        <!-- The on-screen window is small: smaller boxes and a slim "Done (n)" header there. -->
+        <Style Selector="CheckBox.compact">
+            <Setter Property="MinHeight" Value="20" />
+        </Style>
+        <Style Selector="CheckBox.compact /template/ Border#NormalRectangle">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
+        </Style>
+        <Style Selector="Expander.compact">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="4,2" />
+        </Style>
+        <Style Selector="Expander.compact /template/ ToggleButton#ExpanderHeader">
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="Padding" Value="8,0" />
+        </Style>
+        <Style Selector="Button.small">
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="MinHeight" Value="22" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+    </UserControl.Styles>
+    <StackPanel Spacing="4">
+        <TextBlock Text="{Binding Heading}" Opacity="0.8" IsVisible="{Binding !IsCompact}" />
+
+        <ItemsControl ItemsSource="{Binding OpenTasks}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:TaskRowViewModel">
+                    <StackPanel Spacing="2">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                            <CheckBox IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="0,0,6,0" VerticalAlignment="Center"
+                                      IsVisible="{Binding $parent[ItemsControl].((vm:ChecklistViewModel)DataContext).CanTick}"
+                                      Classes.compact="{Binding $parent[ItemsControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
+                            <TextBlock Grid.Column="1" Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Center"
+                                       Classes.compact="{Binding $parent[ItemsControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
+                            <Button Grid.Column="2" Classes="small" Content="+ step" Command="{Binding BeginAddSubtaskCommand}"
+                                    ToolTip.Tip="Add a subtask"
+                                    IsVisible="{Binding $parent[ItemsControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
+                            <Button Grid.Column="3" Classes="small" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove"
+                                    IsVisible="{Binding $parent[ItemsControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Subtasks}" Margin="24,0,0,0" IsVisible="{Binding HasSubtasks}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SubtaskRowViewModel">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <CheckBox IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                  IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanTick}"
+                                                  Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Center" Opacity="0.85"
+                                                   Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
+                                        <Button Grid.Column="2" Classes="small" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove"
+                                                IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBox Classes="taskEntry" Margin="24,0,0,0" Text="{Binding NewSubtaskTitle}" PlaceholderText="Subtask (Enter)"
+                                 IsVisible="{Binding IsAddingSubtask}">
+                            <TextBox.KeyBindings>
+                                <KeyBinding Gesture="Enter" Command="{Binding AddSubtaskCommand}" />
+                            </TextBox.KeyBindings>
+                        </TextBox>
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBox Classes="taskEntry" Text="{Binding NewTaskTitle}" PlaceholderText="Add a task (Enter)" IsVisible="{Binding CanEdit}">
+            <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding AddTaskCommand}" />
+            </TextBox.KeyBindings>
+        </TextBox>
+
+        <Expander Header="{Binding DoneHeader}" IsVisible="{Binding HasDone}" IsExpanded="False" HorizontalAlignment="Stretch" Padding="8,4"
+                  Classes.compact="{Binding IsCompact}">
+            <ItemsControl ItemsSource="{Binding DoneTasks}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:TaskRowViewModel">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <CheckBox IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="0,0,6,0" VerticalAlignment="Center"
+                                      Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{Binding Title}" TextWrapping="Wrap" TextDecorations="Strikethrough" Opacity="0.7"
+                                           Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
+                                <TextBlock Text="{Binding DoneText}" FontSize="11" Opacity="0.55" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Expander>
+
+        <CheckBox Content="Tell me when all tasks are done" IsChecked="{Binding NotifyAllDone}" IsVisible="{Binding ShowsNotifyChoice}" />
+        <Button Content="End session · all tasks done" Command="{Binding EndAtOnceCommand}" IsVisible="{Binding CanEndAtOnce}"
+                Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                ToolTip.Tip="Every task is ticked: the session ends now, with the reason &quot;All tasks done&quot;" />
+    </StackPanel>
+</UserControl>

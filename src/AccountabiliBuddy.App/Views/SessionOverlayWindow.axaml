@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
         xmlns:controls="using:AccountabiliBuddy.App.Controls"
+        xmlns:views="using:AccountabiliBuddy.App.Views"
         x:Class="AccountabiliBuddy.App.Views.SessionOverlayWindow"
         x:DataType="vm:OnScreenOverlayViewModel"
         Title="AccountabiliBuddy timer"
@@ -24,6 +25,9 @@
                     BorderBrush="{Binding OutlineBrush}" BorderThickness="1.5" Opacity="{Binding PanelOpacity}">
                 <Grid RowDefinitions="Auto,Auto,Auto">
                     <StackPanel Grid.Row="1" Spacing="8" HorizontalAlignment="{Binding MainAlignment}">
+                        <!-- Guided sessions: the task now and how far along ("▸ Write intro · 2/5"). -->
+                        <TextBlock Text="{Binding TaskLine}" IsVisible="{Binding ShowsTasks}" Foreground="#E6FFFFFF" FontSize="11"
+                                   Width="{x:Static vm:SessionOverlayViewModel.BarLength}" TextTrimming="CharacterEllipsis" />
                         <!-- Sleep mode, in the evening: sleep left if you go to bed now. -->
                         <TextBlock Text="{Binding Day.SleepText}" IsVisible="{Binding ShowsSleep}" Foreground="{Binding Day.SleepBrush}"
                                    Width="{x:Static vm:SessionOverlayViewModel.BarLength}" FontSize="12" FontWeight="SemiBold"
@@ -112,6 +116,10 @@
                                                IsVisible="{Binding DetailProgress, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 </StackPanel>
                             </Panel>
+                        </Panel>
+                        <!-- Guided sessions: tick tasks here while Ctrl+Alt is held; done ones collapsed; end at once when all are done. -->
+                        <Panel IsVisible="{Binding ShowsTasks}">
+                            <views:ChecklistView DataContext="{Binding Checklist}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}" />
                         </Panel>
                         <Panel IsVisible="{Binding ShowsDetails}">
                             <TextBlock Text="{Binding AppDropText}" IsVisible="{Binding ShowsAppDrop}" Foreground="#CCFFFFFF" FontSize="10"

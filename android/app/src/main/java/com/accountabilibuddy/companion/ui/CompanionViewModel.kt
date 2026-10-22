@@ -220,6 +220,14 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         message.value = text
     }
 
+    /** The running session's checklist (ADR 24): from the linked PC's state, else the newest sync file's open session. */
+    val runningTasks: StateFlow<com.accountabilibuddy.companion.sync.RunningTasks?> =
+        combine(link.status, link.lastState, sync.received) { status, last, received ->
+            com.accountabilibuddy.companion.sync.RunningTasks.of(
+                link.pairedPc.value?.pcName, (status as? LinkStatus.Connected)?.state ?: last?.state, received, java.time.Instant.now(),
+            )
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     /** The Devices tab (ADR 22): the other devices' parts, the group's key and the phone's method switches. */
     val syncReceived = sync.received
     val syncKey = sync.key

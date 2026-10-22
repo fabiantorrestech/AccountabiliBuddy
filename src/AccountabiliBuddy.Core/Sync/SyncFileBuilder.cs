@@ -26,6 +26,7 @@ public static class SyncFileBuilder
     /// older than the 14 days (after Delete in Setup, or on a new device), the file holds every session the device has
     /// and speaks for all a receiver keeps (<see cref="SyncMerge.KeptFor"/>), so receivers drop what was deleted.
     /// </param>
+    /// <param name="tasksOf">A session's guided checklist by its start (ADR 24), or null for none.</param>
     public static SyncFile Build(
         SyncDeviceCard card,
         IReadOnlyList<SessionRecord> records,
@@ -37,7 +38,8 @@ public static class SyncFileBuilder
         IReadOnlyList<SyncDocument> documents,
         DateTimeOffset now,
         TimeZoneInfo zone,
-        DateTimeOffset? oldestSessionStart)
+        DateTimeOffset? oldestSessionStart,
+        Func<DateTimeOffset, IReadOnlyList<SessionTask>?>? tasksOf = null)
     {
         SyncDeviceCard written = card with { WrittenAt = now };
         if (card.HistoryOff)
@@ -54,7 +56,7 @@ public static class SyncFileBuilder
             {
                 bool added = counted.Record.Mode == SessionMode.Added;
                 return new SyncSession(counted.Record.StartedAt, counted.Running ? null : counted.End,
-                    added ? null : profileName(counted.Record.ProfileId), added);
+                    added ? null : profileName(counted.Record.ProfileId), added, tasksOf?.Invoke(counted.Record.StartedAt));
             })
             .ToList();
         List<SyncDrift> marks = DriftMarks.Merge(drift, FocusDayBuilder.DriftGap)

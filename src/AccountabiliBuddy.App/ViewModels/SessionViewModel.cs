@@ -52,6 +52,7 @@ public sealed partial class SessionViewModel : ObservableObject
             }
         };
         _sessions.Ticked += (_, _) => RefreshStatus();
+        Tasks = _quickSession.Tasks is { } tasks ? new ChecklistViewModel(tasks, ChecklistMode.Live, _sessions.TimeProvider) : null;
         _configuration.Changed += (_, document) =>
         {
             RefreshFromConfiguration(document);
@@ -186,8 +187,12 @@ public sealed partial class SessionViewModel : ObservableObject
             $"{pomodoro.LongBreakLength.TotalMinutes:0} min long break every {pomodoro.CyclesBeforeLongBreak} cycles";
     }
 
+    /// <summary>Guided sessions: the running session's checklist (null when the app doesn't offer it).</summary>
+    public ChecklistViewModel? Tasks { get; }
+
     private void RefreshStatus()
     {
+        Tasks?.RefreshEndAtOnce();
         SessionState state = _sessions.State;
         string? profileName = ProfileOptions.NameOf(_configuration.Current.Profiles, state.ProfileId);
 

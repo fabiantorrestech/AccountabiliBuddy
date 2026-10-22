@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.QuickStartPanel"
              x:DataType="vm:QuickSessionViewModel">
     <!-- Profile, length (presets, slider or an end time), optional break, Start. Used by the quick-session popup and the Session tab. -->
@@ -70,6 +71,11 @@
             <TextBlock Grid.Column="2" Text="{Binding BreakLabel}" FontSize="16" VerticalAlignment="Center"
                        HorizontalAlignment="Right" Opacity="{Binding BreakLabelOpacity}" />
         </Grid>
+
+        <!-- Guided sessions: what this session is for, as tasks with subtasks (optional). -->
+        <Panel IsVisible="{Binding Checklist, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <views:ChecklistView DataContext="{Binding Checklist}" />
+        </Panel>
 
         <Button Content="{Binding StartLabel}" Command="{Binding StartCommand}" Classes="accent"
                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,12" FontSize="16" />

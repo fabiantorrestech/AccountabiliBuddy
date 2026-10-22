@@ -61,6 +61,8 @@ fun TodayScreen(
     /** Opens the day plan editor (ADR 19); null hides the button. */
     onEditPlan: (() -> Unit)? = null,
     onDiscardPlanEdit: () -> Unit = {},
+    /** The running session's checklist (ADR 24), from the linked PC or a sync file; null hides the card. */
+    runningTasks: com.accountabilibuddy.companion.sync.RunningTasks? = null,
 ) {
     val dark = isSystemInDarkTheme()
     val now = LocalDateTime.now()
@@ -115,6 +117,9 @@ fun TodayScreen(
 
         if (showsPcCard) {
             item { pcCard() }
+        }
+        runningTasks?.let { tasks ->
+            item { TasksCard(tasks) }
         }
         item { SleepCard(state, clock, health, onConnectHealth, onRefreshSleep) }
         item { PhoneCard(phoneUsage, onAllowUsage) }

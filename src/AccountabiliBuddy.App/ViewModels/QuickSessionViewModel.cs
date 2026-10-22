@@ -210,9 +210,13 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
 
     public event EventHandler? CloseRequested;
 
+    /// <summary>The session's tasks before Start (guided sessions); null when the app doesn't offer them.</summary>
+    public ChecklistViewModel? Checklist { get; set; }
+
     public void Dispose()
     {
         _clock.Stop();
+        Checklist?.Dispose();
     }
 
     public QuickSessionPreferences ToPreferences(string hotkey)

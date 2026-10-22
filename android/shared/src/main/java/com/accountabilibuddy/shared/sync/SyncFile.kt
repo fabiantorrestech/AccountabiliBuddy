@@ -83,7 +83,14 @@ data class SyncDeviceCard(
  * @property profile The profile's name; null for a session added by hand.
  * @property added Added by hand in History (ADR 20); its note never travels.
  */
-data class SyncSession(val start: Instant, val end: Instant?, val profile: String?, val added: Boolean)
+data class SyncSession(
+    val start: Instant,
+    val end: Instant?,
+    val profile: String?,
+    val added: Boolean,
+    /** Its guided-session checklist (ADR 24); empty for none. Optional in the JSON. */
+    val tasks: List<SessionTaskItem> = emptyList(),
+)
 
 /**
  * A distracting stretch inside a counted session, from the readable columns only (ADR 8, 17).

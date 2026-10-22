@@ -4,4 +4,14 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="End">Null for the session that was running when the file was written (<see cref="SyncDeviceCard.WrittenAt"/>).</param>
 /// <param name="Profile">The profile's name; null for a session added by hand.</param>
 /// <param name="Added">Added by hand in History (ADR 20); its note never travels.</param>
-public sealed record SyncSession(DateTimeOffset Start, DateTimeOffset? End, string? Profile, bool Added);
+/// <param name="Tasks">
+/// Its guided-session checklist (ADR 24); null for none. Optional in the JSON (written only when set), so older apps
+/// ignore it and the format stays 1.
+/// </param>
+public sealed record SyncSession(
+    DateTimeOffset Start,
+    DateTimeOffset? End,
+    string? Profile,
+    bool Added,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<AccountabiliBuddy.Core.Domain.SessionTask>? Tasks = null);

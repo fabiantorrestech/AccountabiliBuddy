@@ -35,6 +35,9 @@ public sealed class QuickSessionService
     // True while a session started from the popup is running, so its natural end can offer another one.
     private bool _ownsRunningSession;
 
+    /// <summary>Guided sessions: the checklist the start controls edit before Start; set by the app.</summary>
+    public SessionTasksService? Tasks { get; set; }
+
     public QuickSessionService(
         SessionController sessions,
         ConfigurationService configuration,
@@ -123,6 +126,7 @@ public sealed class QuickSessionService
         var viewModel = new QuickSessionViewModel(
             _configuration.Current.Profiles, Preferences, sessionCompleted: false, runningSessionText: null, _sessions.TimeProvider);
         viewModel.StartRequested += async (_, _) => await StartAsync(viewModel, fromPopup: false);
+        viewModel.Checklist = Tasks is null ? null : new ChecklistViewModel(Tasks, ChecklistMode.Draft, _sessions.TimeProvider);
         viewModel.CountUpLabel = $"Count up · {CountUpProfileName}";
         viewModel.CountUpRequested += async (_, _) => await StartCountUpAsync();
         return viewModel;
@@ -165,6 +169,7 @@ public sealed class QuickSessionService
         var viewModel = new QuickSessionViewModel(
             _configuration.Current.Profiles, Preferences, sessionCompleted, runningText, _sessions.TimeProvider);
         viewModel.StartRequested += async (_, _) => await StartAsync(viewModel, fromPopup: true);
+        viewModel.Checklist = Tasks is null ? null : new ChecklistViewModel(Tasks, ChecklistMode.Draft, _sessions.TimeProvider);
         viewModel.CountUpLabel = $"Count up · {CountUpProfileName}";
         viewModel.CountUpRequested += async (_, _) => await StartCountUpAsync();
         viewModel.EndSessionRequested += async (_, _) =>

@@ -87,6 +87,18 @@ public partial class QuickSessionWindow : Window
             return;
         }
 
+        // Typing a task: only Esc still closes the popup (Enter adds the task).
+        if (e.Source is TextBox { Classes: var classes } && classes.Contains("taskEntry"))
+        {
+            if (e.Key == Key.Escape)
+            {
+                viewModel.CloseCommand.Execute(null);
+                e.Handled = true;
+            }
+
+            return;
+        }
+
         bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
         switch (e.Key)
         {

@@ -2,6 +2,7 @@ package com.accountabilibuddy.companion.link
 
 import com.accountabilibuddy.companion.data.JsonValues.bool
 import com.accountabilibuddy.companion.data.JsonValues.string
+import com.accountabilibuddy.shared.sync.SessionTaskItem
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import java.time.OffsetDateTime
@@ -26,6 +27,8 @@ data class PcState(
     val phaseEndsAt: OffsetDateTime?,
     val profiles: List<PcProfile>,
     val countUpProfileId: String?,
+    /** The running session's guided checklist (ADR 24); empty for none or an older PC. */
+    val tasks: List<SessionTaskItem> = emptyList(),
 ) {
     val isActive: Boolean get() = mode != null
     val isBreak: Boolean get() = phase == "shortBreak" || phase == "longBreak"
@@ -46,6 +49,7 @@ data class PcState(
                 PcProfile(id, profile.string("name") ?: "(no name)")
             },
             countUpProfileId = body.string("countUpProfileId"),
+            tasks = SessionTaskItem.read(body["tasks"] as? JsonArray),
         )
     }
 }

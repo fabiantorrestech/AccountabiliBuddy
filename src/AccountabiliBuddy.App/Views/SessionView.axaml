@@ -22,6 +22,12 @@
                 </StackPanel>
             </Border>
 
+            <!-- Guided sessions: the running session's tasks (tick, add, edit), done ones collapsed. -->
+            <Border IsVisible="{Binding IsSessionActive}" Padding="20" CornerRadius="10"
+                    Background="#1A808080" BorderBrush="#33808080" BorderThickness="1">
+                <views:ChecklistView DataContext="{Binding Tasks}" />
+            </Border>
+
             <!-- New here: no profiles yet. -->
             <Border IsVisible="{Binding ShowsWelcome}" Padding="20" CornerRadius="10"
                     Background="#1A808080" BorderBrush="#33808080" BorderThickness="1">

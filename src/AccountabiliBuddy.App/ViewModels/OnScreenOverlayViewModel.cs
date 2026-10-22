@@ -262,6 +262,27 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     public partial bool ShowsQrButton { get; set; }
 
     /// <summary>What the QR button opens; null hides it.</summary>
+    /// <summary>Guided sessions: the running session's checklist (ticked here with Ctrl+Alt held).</summary>
+    [ObservableProperty]
+    public partial ChecklistViewModel? Checklist { get; set; }
+
+    /// <summary>While a session with tasks runs.</summary>
+    [ObservableProperty]
+    public partial bool ShowsTasks { get; set; }
+
+    /// <summary>E.g. "▸ Write intro · 2/5".</summary>
+    [ObservableProperty]
+    public partial string TaskLine { get; set; } = string.Empty;
+
+    /// <summary>The checklist and whether a session runs: the task line and the details follow.</summary>
+    public void RefreshTasks(bool sessionActive)
+    {
+        ChecklistViewModel? checklist = Checklist;
+        ShowsTasks = sessionActive && checklist is { HasTasks: true };
+        TaskLine = checklist is null ? string.Empty : $"▸ {checklist.CurrentTaskText} · {checklist.ProgressText}";
+        checklist?.RefreshEndAtOnce();
+    }
+
     public void SetSyncQr(Action? show)
     {
         _showSyncQr = show;

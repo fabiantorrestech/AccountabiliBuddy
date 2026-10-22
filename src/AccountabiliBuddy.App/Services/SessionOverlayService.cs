@@ -99,7 +99,11 @@ public sealed class SessionOverlayService : IDisposable
 
             Update();
         };
-        _sessions.Ticked += (_, _) => Update();
+        _sessions.Ticked += (_, _) =>
+        {
+            Update();
+            _viewModel.RefreshTasks(_sessions.State.IsActive);
+        };
         _settings.Changed += (_, _) => Update();
         _configuration.Changed += (_, _) => Update();
         _day.PropertyChanged += (_, e) =>
@@ -135,6 +139,15 @@ public sealed class SessionOverlayService : IDisposable
     }
 
     /// <summary>A "QR" button in the Ctrl+Alt details opens today's sync QR codes (ADR 22); null hides it.</summary>
+    /// <summary>Guided sessions: the running session's checklist for the bar and the Ctrl+Alt details.</summary>
+    public void SetChecklist(ChecklistViewModel checklist)
+    {
+        _viewModel.Checklist = checklist;
+        checklist.PropertyChanged += (_, _) => _viewModel.RefreshTasks(_sessions.State.IsActive);
+        _sessions.StateChanged += (_, state) => _viewModel.RefreshTasks(state.IsActive);
+        _viewModel.RefreshTasks(_sessions.State.IsActive);
+    }
+
     public void SetSyncQr(Action? show)
     {
         _viewModel.SetSyncQr(show);

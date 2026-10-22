@@ -1,0 +1,32 @@
+package com.accountabilibuddy.companion.sync
+
+import com.accountabilibuddy.companion.link.PcState
+import com.accountabilibuddy.shared.sync.SessionTaskItem
+import java.time.Duration
+import java.time.Instant
+
+/** A running session's checklist the phone knows (ADR 24), and which device it's from. */
+data class RunningTasks(val source: String, val tasks: List<SessionTaskItem>) {
+    val doneCount: Int get() = tasks.count { it.isDone }
+
+    companion object {
+        // A file older than this doesn't say the session still runs (it may have ended since).
+        private val FRESH: Duration = Duration.ofHours(12)
+
+        /**
+         * The linked PC's running session with tasks first; otherwise the newest sync file (written in the last 12 hours)
+         * whose running session has tasks, e.g. from the work computer through the folder.
+         */
+        fun of(pcName: String?, pcState: PcState?, received: List<ReceivedDevice>, now: Instant): RunningTasks? {
+            pcState?.takeIf { it.isActive && it.tasks.isNotEmpty() }?.let { return RunningTasks(pcName ?: "PC", it.tasks) }
+            return received
+                .filter { Duration.between(it.file.device.writtenAt, now) <= FRESH }
+                .mapNotNull { device ->
+                    device.file.sessions.lastOrNull { it.end == null && it.tasks.isNotEmpty() }
+                        ?.let { device.file.device.writtenAt to RunningTasks(device.file.device.name, it.tasks) }
+                }
+                .maxByOrNull { it.first }
+                ?.second
+        }
+    }
+}

@@ -121,6 +121,9 @@ public sealed class SyncCoordinator
     /// edited. A received file raises it only when it changed what this PC's own file says (a plan or setting taken, the
     /// plan now shared, an edit time adopted), never merely for arriving, so two devices never answer each other forever.
     /// </summary>
+    /// <summary>Guided sessions (ADR 24): a session's checklist by its start, for this PC's file; set by the app.</summary>
+    public Func<DateTimeOffset, IReadOnlyList<SessionTask>?>? TasksOf { get; set; }
+
     public event EventHandler? OwnDataChanged;
 
     /// <summary>Loads the plan's sync state, before the first file is built or received.</summary>
@@ -213,7 +216,7 @@ public sealed class SyncCoordinator
 
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
         return SyncFileBuilder.Build(card, records, drift, _omitted.IsOmitted, id => ProfileOptions.NameOf(profiles, id),
-            _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart);
+            _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf);
     }
 
     private async Task<string?> AcceptOnUiThreadAsync(byte[] sealedBytes, string method)

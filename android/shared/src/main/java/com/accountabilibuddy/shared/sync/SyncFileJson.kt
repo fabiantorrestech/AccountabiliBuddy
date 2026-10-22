@@ -89,6 +89,9 @@ object SyncFileJson {
         put("end", session.end?.let(::writeTime))
         put("profile", session.profile)
         put("added", session.added)
+        if (session.tasks.isNotEmpty()) {
+            put("tasks", SessionTaskItem.write(session.tasks, ::writeTime))
+        }
     }
 
     private fun writeDrift(drift: SyncDrift): JsonObject = buildJsonObject {
@@ -164,6 +167,7 @@ object SyncFileJson {
         json.optionalTime("end"),
         json.optionalString("profile"),
         json.flag("added"),
+        SessionTaskItem.read(json["tasks"] as? JsonArray),
     )
 
     private fun readDrift(json: JsonObject): SyncDrift = SyncDrift(

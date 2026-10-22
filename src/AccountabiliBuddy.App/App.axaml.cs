@@ -185,6 +185,9 @@ public partial class App : Application
         _configuration.LoadBlocking();
 
         _sessions = new SessionController(new SessionEngine(time), _configuration, time);
+        // Guided sessions (ADR 24, 25): the next or running session's checklist.
+        var sessionTasks = new SessionTasksService(documents, new DpapiDataProtector(), _sessions, time);
+        sessionTasks.LoadBlocking();
         _endFlow = new SessionEndFlow(_sessions);
 
         var startupRegistrar = new RunKeyStartupRegistrar(AppPaths.LaunchPath, StartupOptions.MinimizedArgument);
@@ -206,6 +209,7 @@ public partial class App : Application
         _hotkey = new Win32GlobalHotkey();
         _quickSession = new QuickSessionService(
             _sessions, _configuration, _endFlow, monitorLocator, new GdiScreenCapture(), _hotkey, documents);
+        _quickSession.Tasks = sessionTasks;
         _quickSession.LoadBlocking();
         // M6 screen reading and M7 activity history.
         var privacy = new PrivacySettingsService(documents);
@@ -298,6 +302,26 @@ public partial class App : Application
         var tonightWake = new TonightWakeViewModel(sleepSettings, _configuration, time);
         tonightWake.AskToOverrideAlarm = (title, message, confirm) => presenter.ShowChoice(title, message, "Use my time", confirm, () => { });
         _sessionOverlay.SetTonightWake(tonightWake);
+        _sessionOverlay.SetChecklist(new ChecklistViewModel(sessionTasks, ChecklistMode.Compact, time));
+        // ADR 25: every task ticked: offer to end the session now (when it may), else just say so.
+        sessionTasks.AllDoneReached += (_, _) =>
+        {
+            if (!sessionTasks.NotifyAllDone)
+            {
+                return;
+            }
+
+            if (sessionTasks.CanEndAtOnce)
+            {
+                presenter.ShowChoice("All tasks done", "Every task for this session is ticked. End the session now?", "End session",
+                    () => sessionTasks.EndAtOnce(), () => { });
+            }
+            else
+            {
+                presenter.ShowNotice("All tasks done",
+                    "Every task is ticked. Ending at once works when the tasks were set before the session started and it has run 10 minutes; hold Ctrl+Alt over the on-screen window for the button.");
+            }
+        };
         var dataProtector = new DpapiDataProtector();
         _calendarNetwork = new CalendarNetwork();
         _calendarSync = new CalendarSyncService(
@@ -330,6 +354,14 @@ public partial class App : Application
         var syncCoordinator = new AccountabiliBuddy.App.Services.Sync.SyncCoordinator(
             _sessions, _configuration, activityLog, omittedSessions, deletedUsage, privacy, sleepSettings, dayBarSettings, documents, syncSettings,
             syncIdentity, receivedDevices, syncEditTimes);
+        // Guided sessions (ADR 24): the checklist goes to paired devices in the link's state and in this PC's sync file.
+        linkHost.Tasks = () => sessionTasks.IsLive ? sessionTasks.Current.Tasks : null;
+        syncCoordinator.TasksOf = start => sessionTasks.ForSession(start)?.Tasks is { Count: > 0 } tasks ? tasks : null;
+        sessionTasks.Changed += (_, _) =>
+        {
+            linkHost.NotifyTasksChanged();
+            syncCoordinator.NotifyHistoryChanged();
+        };
         syncCoordinator.LoadBlocking();
         linkHost.UseSync(syncCoordinator, receivedDevices, syncIdentity, syncSettings);
         // The running log (ADR 22): the other devices' sessions on both day bars (History gets them below).
@@ -520,6 +552,7 @@ public partial class App : Application
 
         _recorder.Start();
         SessionResume? resumed = _sessions.Start(savedSession);
+        _ = sessionTasks.AfterStartupAsync();
         if (resumed is not null && _sessions.State.IsActive)
         {
             presenter.ShowNotice(

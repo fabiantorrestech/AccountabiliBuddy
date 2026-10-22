@@ -9,6 +9,7 @@ namespace AccountabiliBuddy.Core.Link;
 /// <param name="CountsAsFocus">False for scheduled blocks (they block but aren't focus) and breaks.</param>
 /// <param name="PhaseEndsAt">Null for a session with no set end (count-up).</param>
 /// <param name="CountUpProfileId">The profile "Count up" starts; null = "Quick Start", made on first use.</param>
+/// <param name="Tasks">The running session's guided checklist (ADR 24); null for none (left out of the JSON).</param>
 public sealed record LinkState(
     string? Mode,
     string Phase,
@@ -19,7 +20,9 @@ public sealed record LinkState(
     DateTimeOffset? PhaseEndsAt,
     IReadOnlyList<LinkProfile> Profiles,
     Guid? CountUpProfileId,
-    DateTimeOffset SentAt)
+    DateTimeOffset SentAt,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<AccountabiliBuddy.Core.Domain.SessionTask>? Tasks = null)
 {
     public bool IsActive => Mode is not null;
 }

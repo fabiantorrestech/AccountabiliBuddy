@@ -444,6 +444,16 @@ public sealed class LinkSessionHost : ILinkSessionHost
             state.PhaseEndsAt,
             profiles.Select(profile => new LinkProfile(profile.Id, profile.Name)).ToList(),
             _quickSession.CountUpProfileId,
-            _sessions.Now);
+            _sessions.Now,
+            state.IsActive ? Tasks?.Invoke() : null);
+    }
+
+    /// <summary>Guided sessions (ADR 24): the running session's checklist for the phone; set by the app.</summary>
+    public Func<IReadOnlyList<SessionTask>?>? Tasks { get; set; }
+
+    /// <summary>The checklist changed: paired devices get the state again.</summary>
+    public void NotifyTasksChanged()
+    {
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
 }
