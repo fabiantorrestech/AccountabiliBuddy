@@ -8,8 +8,9 @@ public static class SearchTabs
     public const int DayPlan = 2;
     public const int Exceptions = 3;
     public const int History = 4;
-    public const int Setup = 5;
-    public const int Integrations = 6;
-    public const int Settings = 7;
-    public const int About = 8;
+    public const int Devices = 5;
+    public const int Setup = 6;
+    public const int Integrations = 7;
+    public const int Settings = 8;
+    public const int About = 9;
 }

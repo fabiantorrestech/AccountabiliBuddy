@@ -45,8 +45,8 @@ public static class ReceivedSessions
         return Shades[(bytes[0] ^ bytes[15]) % Shades.Length];
     }
 
-    // The length of the union of the ranges, clipped to the period.
-    private static TimeSpan Covered(IEnumerable<TimeRange> ranges, DateTimeOffset from, DateTimeOffset to)
+    /// <summary>The length of the union of <paramref name="ranges"/> inside [<paramref name="from"/>, <paramref name="to"/>): overlaps once.</summary>
+    public static TimeSpan Covered(IEnumerable<TimeRange> ranges, DateTimeOffset from, DateTimeOffset to)
     {
         TimeSpan total = TimeSpan.Zero;
         DateTimeOffset? start = null;

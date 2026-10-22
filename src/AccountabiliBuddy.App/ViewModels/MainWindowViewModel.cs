@@ -37,7 +37,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private const int ProfilesTab = 1;
     public const int DayPlanTab = 2;
     public const int HistoryTab = 4;
-    public const int SettingsTab = 7;
+    public const int SettingsTab = 8;
 
     // Where the user was going when Settings had unsaved changes: a tab, or null = hiding the window.
     private int? _leaveTarget;
@@ -133,6 +133,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     /// <summary>The search box in the top right; null hides it.</summary>
     public SearchViewModel? Search { get; init; }
+
+    /// <summary>The Devices tab (ADR 22): this PC and the user's other devices.</summary>
+    public DevicesViewModel? Devices { get; init; }
 
     /// <summary>Opens today's sync QR codes (ADR 22); set by the app.</summary>
     public Action? ShowSyncQr { get; set; }

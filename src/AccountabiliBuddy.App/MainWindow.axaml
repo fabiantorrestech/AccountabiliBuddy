@@ -56,6 +56,7 @@
                     <TabItem Header="Day plan" />
                     <TabItem Header="Exceptions" />
                     <TabItem Header="History" />
+                    <TabItem Header="Devices" />
                     <TabItem Header="Setup" />
                     <TabItem Header="Integrations" />
                     <TabItem Header="Settings" />
@@ -143,6 +144,7 @@
                     <views:DayPlanView DataContext="{Binding DayPlan}" IsVisible="False" />
                     <views:ExceptionsView DataContext="{Binding Exceptions}" IsVisible="False" />
                     <views:HistoryView DataContext="{Binding History}" IsVisible="False" />
+                    <views:DevicesView DataContext="{Binding Devices}" IsVisible="False" />
                     <views:SetupView DataContext="{Binding Setup}" IsVisible="False" />
                     <views:IntegrationsView DataContext="{Binding Integrations}" IsVisible="False" />
                     <views:SettingsView DataContext="{Binding Settings}" IsVisible="False" />

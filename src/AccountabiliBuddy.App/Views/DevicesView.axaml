@@ -1,0 +1,181 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.DevicesView"
+             x:DataType="vm:DevicesViewModel">
+    <!-- The Devices tab (ADR 22): this PC and the user's other devices, the ways they share, and pairing over the link. -->
+    <UserControl.Styles>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="#1A808080" />
+            <Setter Property="BorderBrush" Value="#33808080" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16,12" />
+        </Style>
+        <Style Selector="TextBlock.title">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.muted">
+            <Setter Property="Opacity" Value="0.75" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer>
+        <StackPanel Margin="16" Spacing="12" MaxWidth="760" HorizontalAlignment="Left">
+            <Border IsVisible="{Binding IsLocked}" Background="#33F59E0B" Padding="12,8" CornerRadius="6">
+                <TextBlock Text="Leaving the group and the sharing switches are locked while a focus session you started is running." TextWrapping="Wrap" />
+            </Border>
+
+            <!-- Every device in the group, this PC first, with how fresh its data is. -->
+            <TextBlock Text="Your devices" Classes="title" />
+            <TextBlock Text="{Binding CombinedTodayText}" IsVisible="{Binding CombinedTodayText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            <Border Classes="card">
+                <ItemsControl ItemsSource="{Binding Rows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:DeviceRowViewModel">
+                            <Grid ColumnDefinitions="*,Auto" Margin="{Binding RowMargin}">
+                                <StackPanel>
+                                    <TextBlock>
+                                        <Run Text="{Binding Name}" FontWeight="SemiBold" />
+                                        <Run Text=" · " />
+                                        <Run Text="{Binding Kind}" />
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding MethodsText}" Classes="muted" FontSize="12" />
+                                    <TextBlock Text="{Binding LastText}" Classes="muted" FontSize="12"
+                                               IsVisible="{Binding LastText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                </StackPanel>
+                                <!-- The state in words and colour, never colour alone. -->
+                                <Border Grid.Column="1" Background="{Binding PillBrush}" CornerRadius="10" Padding="9,2" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding StateText}" FontSize="12" Foreground="White" />
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Sync now" Command="{Binding SyncNowCommand}" IsEnabled="{Binding InGroup}"
+                        ToolTip.Tip="Write this PC's sync file now and hand it to connected devices" />
+                <Button Content="Show QR code" Command="{Binding ShowQrCodeCommand}" IsVisible="{Binding QrOn}" />
+                <Button Content="Import sync file or picture…" Click="OnImport" IsEnabled="{Binding InGroup}" />
+            </StackPanel>
+
+            <!-- Joining another device's group, or showing this group's code to link one. -->
+            <TextBlock Text="Link your devices" Classes="title" Margin="0,8,0,0" />
+            <Border Classes="card">
+                <StackPanel Spacing="10">
+                    <TextBlock Classes="muted"
+                               Text="Devices in one group share their focus through encrypted sync files. The link code is the key: anyone with it can read your files, so keep it to your own devices." />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Link a device" Command="{Binding LinkDeviceCommand}" Classes="accent" />
+                        <Button Content="Leave group" Command="{Binding LeaveGroupCommand}" IsVisible="{Binding InGroup}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding HasLinkCode}">
+                        <Border Background="White" Padding="8" CornerRadius="6" VerticalAlignment="Top">
+                            <Image Source="{Binding LinkQrImage}" Width="200" Height="200" RenderOptions.BitmapInterpolationMode="None" />
+                        </Border>
+                        <StackPanel Spacing="6" VerticalAlignment="Center" MaxWidth="360">
+                            <TextBlock Text="Scan it with the phone's camera, or type the code on another PC" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <SelectableTextBlock Text="{Binding LinkCodeText}" FontSize="16" FontFamily="Consolas, Courier New, monospace" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </StackPanel>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBox Text="{Binding JoinCode}" PlaceholderText="A link code from your other device (40 characters)" />
+                        <Button Grid.Column="1" Content="Join" Command="{Binding JoinCommand}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- The ways this PC shares, safest first. -->
+            <TextBlock Text="How this PC shares" Classes="title" Margin="0,8,0,0" />
+            <Border Classes="card">
+                <StackPanel Spacing="10">
+                    <TextBlock Classes="muted"
+                               Text="Safest first. Sync files hold focus times, profile names and sites; never page titles, addresses or reasons." />
+                    <CheckBox IsChecked="{Binding QrOn}" Content="QR codes: show today's codes for the phone to scan (nothing leaves the PC but the picture)" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,0,0,0" IsVisible="{Binding QrOn}">
+                        <CheckBox IsChecked="{Binding ReminderAtWorkEnd}" Content="Remind me when work ends" VerticalAlignment="Center" />
+                        <TimePicker SelectedTime="{Binding ReminderAt}" MinuteIncrement="15" ClockIdentifier="12HourClock" IsVisible="{Binding !ReminderAtWorkEnd}" />
+                        <TextBlock Text="Later waits" VerticalAlignment="Center" />
+                        <ComboBox SelectedIndex="{Binding SnoozeIndex}">
+                            <ComboBoxItem Content="5 min" />
+                            <ComboBoxItem Content="15 min" />
+                            <ComboBoxItem Content="30 min" />
+                            <ComboBoxItem Content="1 h" />
+                        </ComboBox>
+                    </StackPanel>
+                    <CheckBox IsChecked="{Binding FileShareOn}" Content="Sync files: save or open a .absync file by hand" />
+                    <CheckBox IsChecked="{Binding FolderOn}" Content="Sync folder: write and read sync files in a folder (e.g. inside Google Drive)" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,0,0,0">
+                        <TextBlock Text="{Binding FolderPath, TargetNullValue=No folder chosen}" Classes="muted" VerticalAlignment="Center" MaxWidth="360" TextTrimming="CharacterEllipsis" />
+                        <Button Content="Choose folder…" Click="OnChooseFolder" />
+                        <TextBlock Text="every" VerticalAlignment="Center" />
+                        <ComboBox SelectedIndex="{Binding IntervalIndex}">
+                            <ComboBoxItem Content="change (instant)" />
+                            <ComboBoxItem Content="1 minute" />
+                            <ComboBoxItem Content="5 minutes" />
+                            <ComboBoxItem Content="15 minutes" />
+                        </ComboBox>
+                    </StackPanel>
+                    <CheckBox IsChecked="{Binding LinkOn}" Content="Network link: sync files go to devices paired over your own network (below)" />
+                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap"
+                               IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+            </Border>
+
+            <!-- Phones, tablets and watches paired over the network link (ADR 14), moved here from Setup. -->
+            <TextBlock Text="Paired over the network link" Classes="title" Margin="0,8,0,0" />
+            <TextBlock Classes="muted"
+                       Text="Lets your phone or tablet (the AccountabiliBuddy companion) show this PC's session and start or end one, with the same rules for ending as here. Only on your home network and encrypted; nothing goes through the internet. Windows Firewall asks once: allow it on private networks." />
+            <Border Classes="card" DataContext="{Binding LinkedDevices}" x:DataType="vm:LinkedDevicesViewModel">
+                <StackPanel Spacing="10">
+                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                        <TextBlock Text="Let phones and tablets link to this PC" Classes="title" />
+                        <TextBlock Grid.Row="1" Text="{Binding Status}" Classes="muted" />
+                        <StackPanel Grid.RowSpan="2" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Button Content="Turn on" Command="{Binding TurnOnCommand}" Classes="accent" />
+                            <Button Content="Turn off" Command="{Binding TurnOffCommand}" />
+                        </StackPanel>
+                    </Grid>
+                    <Button Content="Pair a phone or tablet…" Command="{Binding PairCommand}" IsVisible="{Binding IsEnabled}" />
+                    <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding IsPairing}">
+                        <Border Background="White" Padding="8" CornerRadius="6" VerticalAlignment="Top">
+                            <Image Source="{Binding QrImage}" Width="220" Height="220" RenderOptions.BitmapInterpolationMode="None" />
+                        </Border>
+                        <StackPanel Spacing="6" VerticalAlignment="Center" MaxWidth="340">
+                            <TextBlock Text="Scan it with your phone's camera" FontWeight="SemiBold" />
+                            <TextBlock Classes="muted"
+                                       Text="The link opens the AccountabiliBuddy companion, which shows this code to compare before pairing:" />
+                            <TextBlock Text="{Binding PairingCode}" FontSize="24" FontWeight="SemiBold" FontFamily="Consolas, Courier New, monospace" />
+                            <TextBlock Text="{Binding PairingDetail}" Classes="muted" />
+                            <TextBlock Classes="muted" TextWrapping="Wrap"
+                                       Text="Pairing a Pixel Watch? Scan it with the phone and tap &quot;Pair my watch instead&quot;: the watch then reaches this PC over Wi-Fi when the phone isn't around." />
+                            <Button Content="Cancel" Command="{Binding CancelPairingCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding Devices}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LinkedDeviceRowViewModel">
+                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
+                                    <TextBlock Text="{Binding Icon}" FontSize="20" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Detail}" Classes="muted" />
+                                    </StackPanel>
+                                    <Button Grid.Column="2" Content="Unpair" VerticalAlignment="Center"
+                                            Command="{Binding $parent[ItemsControl].((vm:LinkedDevicesViewModel)DataContext).UnpairCommand}"
+                                            CommandParameter="{Binding}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap"
+                               IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

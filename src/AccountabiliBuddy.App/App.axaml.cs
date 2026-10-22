@@ -334,10 +334,7 @@ public partial class App : Application
             new PrivacySetupViewModel(privacy, _recorder, ocrReader.IsAvailable),
             _sessions,
             _watchedBrowsers,
-            _privateAccess)
-        {
-            LinkedDevices = new LinkedDevicesViewModel(_link, _sessions),
-        };
+            _privateAccess);
         _setupAssistant = new SetupAssistantService(documents, time);
         _setupAssistant.LoadBlocking();
         var blockerLocator = new WindowsBlockerSourceLocator();
@@ -390,6 +387,11 @@ public partial class App : Application
             return DataSearchSource.Entries(_configuration!.Current, events, searchUsage, shownNames);
         }
 
+        // The Devices tab (ADR 22): the group, the sharing methods and the phones paired over the link (from Setup).
+        var devices = new DevicesViewModel(syncIdentity, syncSettings, receivedDevices, syncCoordinator, _sessions, time)
+        {
+            LinkedDevices = new LinkedDevicesViewModel(_link, _sessions),
+        };
         var mainViewModel = new MainWindowViewModel(
             new SessionViewModel(
                 _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks), _quickSession)
@@ -419,6 +421,7 @@ public partial class App : Application
         {
             DayBar = _dayBar,
             Search = new SearchViewModel(SearchDataAsync),
+            Devices = devices,
         };
 
         // A session added, edited or deleted by hand (ADR 20): both day bars read the history again, and linked devices get it.
@@ -446,6 +449,14 @@ public partial class App : Application
         }
 
         mainViewModel.ShowSyncQr = ShowSyncQr;
+        devices.ShowSyncQr = ShowSyncQr;
+        devices.Import = syncImport;
+        devices.SyncNow = async () =>
+        {
+            await _syncFolder!.WriteNowAsync();
+            // Seals this PC's file again for the link, which hands it to connected devices.
+            syncCoordinator.NotifyHistoryChanged();
+        };
         ShowQrButtons(syncSettings.Current);
         syncSettings.Changed += (_, settings) => ShowQrButtons(settings);
         qrSync.ReminderDue += (_, _) => presenter.ShowWithLater(
