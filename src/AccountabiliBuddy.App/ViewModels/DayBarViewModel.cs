@@ -66,6 +66,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 
     private IReadOnlyList<SessionRecord> _records = Array.Empty<SessionRecord>();
     private IReadOnlyList<DriftStretch> _drift = Array.Empty<DriftStretch>();
+    private SessionTasksService? _tasks;
     private DateTimeOffset _historyLoadedAt = DateTimeOffset.MinValue;
     private LocalWindow _historySpan;
 
@@ -98,8 +99,9 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         _time = time;
 
         Layout = DayBarLayout.Empty;
-        DateText = StatusText = SummaryText = SleepText = FocusTotalText = string.Empty;
+        DateText = StatusText = SummaryText = SleepText = string.Empty;
         PlanTotals = Array.Empty<PlanTotal>();
+        FocusTotals = Array.Empty<PlanTotal>();
         SleepBrush = GoodSleepBrush;
 
         _redrawTimer = new DispatcherTimer { Interval = RedrawInterval };
@@ -167,6 +169,14 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     /// The other devices' sessions (ADR 22) join the Focus row in their device's shade, and the focused time counts
     /// them where this PC had no session running. Set once, after the sync services are built.
     /// </summary>
+    /// <summary>Guided sessions (ADR 24): ticked tasks become white marks on the Focus row.</summary>
+    public void UseTasks(SessionTasksService tasks)
+    {
+        _tasks = tasks;
+        tasks.Changed += (_, _) => Dispatcher.UIThread.Post(Redraw);
+        Redraw();
+    }
+
     public void UseReceived(ReceivedDevicesService received)
     {
         _received = received;
@@ -219,9 +229,14 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool ShowsPlanTotals { get; set; }
 
-    /// <summary>Under the bar, e.g. "3h 10m focused · 2 drifts".</summary>
+    /// <summary>
+    /// Under the bar, each in its colour: "3h 10m focused", "Distracted 12m" (time on distracting sites inside this PC's
+    /// sessions), "Not in a session 1h 20m" (work time with no session, so far), "4 tasks done".
+    /// </summary>
     [ObservableProperty]
-    public partial string FocusTotalText { get; set; }
+    public partial IReadOnlyList<PlanTotal> FocusTotals { get; set; }
+
+
 
     /// <summary>True while the Focus row shows.</summary>
     [ObservableProperty]
@@ -331,6 +346,13 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             range with { End = now < range.End ? now : range.End });
         // Drift is this PC's own: it stays inside this PC's sessions.
         IReadOnlyList<TimelineItem> drift = TimelineRowsBuilder.DriftOnBar(DriftItems(), sessions, range);
+        // Work time (the plan's Watch parts) so far with no session on any device: its own category on the Focus row.
+        var soFar = range with { End = now < range.End ? now : range.End };
+        IReadOnlyList<LocalWindow> unfocused = DayTimeline.Subtract(
+            planned.Select(focus => DayTimeline.Clip(focus.Window, soFar)).OfType<LocalWindow>(),
+            actual.Select(item => item.Window).Concat(received.Select(session => session.Window)));
+        TimeSpan distracted = DistractedTime(sessions, soFar);
+        IReadOnlyList<TimelineItem> taskMarks = TaskMarks(range);
         var timelineDay = new TimelineDay(
             range,
             TimelineRowsBuilder.PartsAround(_configuration.Current.DayPlan, span),
@@ -339,7 +361,9 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             drift,
             EventItems(range, settings),
             settings.ShowColdTurkey && _coldTurkey.Blocks is ColdTurkeyBlocks blocks ? BlockerTimeline.ColdTurkey(blocks, range) : null,
-            focused);
+            focused,
+            unfocused,
+            taskMarks);
 
         (List<DayBarSpan> night, List<DayBarSpan> missed) = SleepSpans(now, range);
         IReadOnlyList<TimelineRowChoice> rows = settings.RowsInOrder();
@@ -352,12 +376,53 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         DateText = $"{date.ToString("ddd", CultureInfo.CurrentCulture)} ({date:M/d})";
         StatusText = Status(now, range, planned);
         SummaryText = Summary(range, planned, focused, drift.Count);
-        UpdateLegend(range, planned, focused, drift.Count, rows);
+        UpdateLegend(range, planned, focused, distracted, Total(unfocused, range), taskMarks.Count, rows);
+    }
+
+    /// <summary>Time on distracting sites inside this PC's sessions (each visit's own time, overlaps once).</summary>
+    private TimeSpan DistractedTime(IReadOnlyList<TimelineSession> sessions, LocalWindow range)
+    {
+        var inSessions = new List<LocalWindow>();
+        foreach (DriftStretch stretch in _drift)
+        {
+            var window = new LocalWindow(ToLocal(stretch.Start), ToLocal(stretch.End));
+            inSessions.AddRange(sessions.Select(session => DayTimeline.Clip(window, session.Window)).OfType<LocalWindow>());
+        }
+
+        return Total(inSessions, range);
+    }
+
+    /// <summary>Guided sessions' ticked tasks (ADR 24) in the range: "✓ Write intro · 25m" (since the last tick or the start).</summary>
+    private IReadOnlyList<TimelineItem> TaskMarks(LocalWindow range)
+    {
+        if (_tasks is null)
+        {
+            return Array.Empty<TimelineItem>();
+        }
+
+        var marks = new List<TimelineItem>();
+        foreach (SessionChecklist checklist in _tasks.History.Append(_tasks.Current).Where(item => item.SessionStart is not null))
+        {
+            DateTimeOffset previous = checklist.SessionStart!.Value;
+            foreach (SessionTask task in checklist.Tasks.Where(task => task.DoneAt is not null).OrderBy(task => task.DoneAt))
+            {
+                DateTime at = ToLocal(task.DoneAt!.Value);
+                if (at >= range.Start && at <= range.End)
+                {
+                    string took = TimelineRowsBuilder.Duration(task.DoneAt.Value - previous);
+                    marks.Add(new TimelineItem(new LocalWindow(at, at), $"✓ {task.Title} · {took}", TimelineRowsBuilder.TaskMarkColor));
+                }
+
+                previous = task.DoneAt.Value;
+            }
+        }
+
+        return marks;
     }
 
     // The legend under the bar, lined up with its row labels: planned work by kind, and the focus so far.
-    private void UpdateLegend(LocalWindow range, IReadOnlyList<PlannedFocus> planned, TimeSpan focused, int drifts,
-        IReadOnlyList<TimelineRowChoice> rows)
+    private void UpdateLegend(LocalWindow range, IReadOnlyList<PlannedFocus> planned, TimeSpan focused, TimeSpan distracted,
+        TimeSpan notInSession, int tasksDone, IReadOnlyList<TimelineRowChoice> rows)
     {
         List<PlanTotal> totals = DayTimeline.PlannedByName(planned, range)
             .Select(entry => new PlanTotal($"{entry.Name} {Duration(entry.Length)}", BrushOf(planned.First(focus => focus.Name == entry.Name).Color)))
@@ -371,14 +436,32 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         }
 
         ShowsPlanTotals = totals.Count > 0 && rows.Any(row => row.Row == TimelineRow.Plan && row.Shown);
-        FocusTotalText = drifts switch
+        var focus = new List<PlanTotal> { new($"{Duration(focused)} focused", DayBarControl.FocusBrush) };
+        if (distracted >= TimeSpan.FromMinutes(1))
         {
-            0 => $"{Duration(focused)} focused",
-            1 => $"{Duration(focused)} focused · 1 drift",
-            _ => $"{Duration(focused)} focused · {drifts} drifts",
-        };
+            focus.Add(new PlanTotal($"Distracted {Duration(distracted)}", DistractedBrush));
+        }
+
+        if (notInSession >= TimeSpan.FromMinutes(1))
+        {
+            focus.Add(new PlanTotal($"Not in a session {Duration(notInSession)}", NotInSessionBrush));
+        }
+
+        if (tasksDone > 0)
+        {
+            focus.Add(new PlanTotal(tasksDone == 1 ? "1 task done" : $"{tasksDone} tasks done", TaskBrush));
+        }
+
+        if (!focus.Select(KeyOf).SequenceEqual(FocusTotals.Select(KeyOf)))
+        {
+            FocusTotals = focus;
+        }
         ShowsFocusTotal = rows.Any(row => row.Row == TimelineRow.Focus && row.Shown);
     }
+
+    private static readonly IBrush DistractedBrush = new SolidColorBrush(Color.Parse("#EF4444"));
+    private static readonly IBrush NotInSessionBrush = new SolidColorBrush(Color.Parse(TimelineRowsBuilder.NotInSessionColor));
+    private static readonly IBrush TaskBrush = new SolidColorBrush(Color.Parse(TimelineRowsBuilder.TaskMarkColor));
 
     private static IBrush BrushOf(string color)
     {

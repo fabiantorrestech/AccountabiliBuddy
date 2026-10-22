@@ -366,6 +366,8 @@ public partial class App : Application
         linkHost.UseSync(syncCoordinator, receivedDevices, syncIdentity, syncSettings);
         // The running log (ADR 22): the other devices' sessions on both day bars (History gets them below).
         _dayBar.UseReceived(receivedDevices);
+        _dayBar.UseTasks(sessionTasks);
+        timelineDay.UseTasks(sessionTasks);
         timelineDay.UseReceived(receivedDevices);
         _syncFolder = new AccountabiliBuddy.App.Services.Sync.SyncFolderService(syncCoordinator, syncSettings, syncIdentity, receivedDevices, _sessions);
 

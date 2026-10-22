@@ -107,6 +107,36 @@ public static class DayTimeline
         return merged;
     }
 
+    /// <summary>
+    /// What's left of <paramref name="windows"/> outside every one of <paramref name="holes"/>, earliest first (e.g. work
+    /// time with no focus session).
+    /// </summary>
+    public static IReadOnlyList<LocalWindow> Subtract(IEnumerable<LocalWindow> windows, IEnumerable<LocalWindow> holes)
+    {
+        IReadOnlyList<LocalWindow> cuts = Union(holes);
+        var left = new List<LocalWindow>();
+        foreach (LocalWindow window in Union(windows))
+        {
+            DateTime from = window.Start;
+            foreach (LocalWindow cut in cuts.Where(cut => cut.End > window.Start && cut.Start < window.End))
+            {
+                if (cut.Start > from)
+                {
+                    left.Add(new LocalWindow(from, cut.Start));
+                }
+
+                from = Max(from, cut.End);
+            }
+
+            if (window.End > from)
+            {
+                left.Add(new LocalWindow(from, window.End));
+            }
+        }
+
+        return left;
+    }
+
     /// <summary>The part of <paramref name="window"/> inside <paramref name="range"/>, or null if none.</summary>
     public static LocalWindow? Clip(LocalWindow window, LocalWindow range)
     {

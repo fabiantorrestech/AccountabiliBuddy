@@ -6,5 +6,7 @@ namespace AccountabiliBuddy.App.Controls;
 /// <param name="Color">"#RRGGBB" (a plan part's category, an event's calendar); null = the row's own colour.</param>
 /// <param name="Label">Text drawn inside it when there's room (a plan part's name).</param>
 /// <param name="Hatched">Drawn lighter with stripes: a focus session added by hand (ADR 20).</param>
+/// <param name="IsGap">Work time with no focus session (the Focus row): empty time for "add a session" clicks.</param>
 public sealed record DayBarSpan(
-    double Start, double End, string Tip, Guid? ProfileId = null, string? Color = null, string? Label = null, bool Hatched = false);
+    double Start, double End, string Tip, Guid? ProfileId = null, string? Color = null, string? Label = null, bool Hatched = false,
+    bool IsGap = false);

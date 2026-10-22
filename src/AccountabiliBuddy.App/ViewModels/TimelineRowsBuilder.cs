@@ -14,6 +14,12 @@ public static class TimelineRowsBuilder
     /// <summary>Amber, like a warning sign: what the blockers block.</summary>
     public const string BlockerColor = "#F59E0B";
 
+    /// <summary>Slate: work time with no focus session (not a day plan category; worked out from the plan and sessions).</summary>
+    public const string NotInSessionColor = "#64748B";
+
+    /// <summary>White: a guided session's ticked task on the Focus row.</summary>
+    public const string TaskMarkColor = "#FFFFFF";
+
     /// <param name="rows">Every row in order with whether it shows (<see cref="DayBarSettings.RowsInOrder"/>).</param>
     public static IReadOnlyList<DayBarRow> Build(TimelineDay day, IReadOnlyList<TimelineRowChoice> rows)
     {
@@ -24,7 +30,8 @@ public static class TimelineRowsBuilder
             {
                 TimelineRow.Calendar => new DayBarRow(TimelineRow.Calendar, "Calendar", Items(day.Events, day.Range), Array.Empty<DayBarSpan>()),
                 TimelineRow.Plan => new DayBarRow(TimelineRow.Plan, "Plan", PlanSpans(day), Array.Empty<DayBarSpan>()),
-                TimelineRow.Focus => new DayBarRow(TimelineRow.Focus, $"Focus {Duration(day.Focused)}", SessionSpans(day), Items(day.Drift, day.Range)),
+                TimelineRow.Focus => new DayBarRow(TimelineRow.Focus, $"Focus {Duration(day.Focused)}", [.. GapSpans(day), .. SessionSpans(day)],
+                    [.. Items(day.Drift, day.Range), .. Items(day.TaskMarks ?? [], day.Range, allowEmpty: true)]),
                 TimelineRow.Blockers when day.Blockers is not null =>
                     new DayBarRow(TimelineRow.Blockers, "Cold Turkey", BlockerSpans(day.Blockers, day.Range), Array.Empty<DayBarSpan>()),
                 _ => null,
@@ -84,6 +91,22 @@ public static class TimelineRowsBuilder
         return spans;
     }
 
+    // Work time with no session: under the sessions, slate, and still empty for "add a session" clicks.
+    private static List<DayBarSpan> GapSpans(TimelineDay day)
+    {
+        var spans = new List<DayBarSpan>();
+        foreach (LocalWindow gap in day.Unfocused ?? [])
+        {
+            if (DayTimeline.Clip(gap, day.Range) is LocalWindow shown)
+            {
+                spans.Add(ToSpan(shown, day.Range, $"Not in a session · {Times(gap)} ({Duration(gap.End - gap.Start)})")
+                    with { Color = NotInSessionColor, IsGap = true });
+            }
+        }
+
+        return spans;
+    }
+
     private static List<DayBarSpan> SessionSpans(TimelineDay day)
     {
         var spans = new List<DayBarSpan>();
@@ -98,7 +121,8 @@ public static class TimelineRowsBuilder
         return spans;
     }
 
-    private static List<DayBarSpan> Items(IReadOnlyList<TimelineItem> items, LocalWindow range)
+    // allowEmpty: a mark at one moment (a ticked task) has no length; it's drawn at least the mark's width.
+    private static List<DayBarSpan> Items(IReadOnlyList<TimelineItem> items, LocalWindow range, bool allowEmpty = false)
     {
         var spans = new List<DayBarSpan>();
         foreach (TimelineItem item in items)
@@ -106,6 +130,10 @@ public static class TimelineRowsBuilder
             if (DayTimeline.Clip(item.Window, range) is LocalWindow shown)
             {
                 spans.Add(ToSpan(shown, range, item.Tip) with { Color = item.Color });
+            }
+            else if (allowEmpty && item.Window.Start >= range.Start && item.Window.Start <= range.End)
+            {
+                spans.Add(ToSpan(item.Window, range, item.Tip) with { Color = item.Color });
             }
         }
 

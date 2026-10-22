@@ -254,7 +254,8 @@ public sealed class DayBarControl : Control
                 box = box.WithWidth(DayBarHitTest.MinMarkWidth);
             }
 
-            context.DrawRectangle(DriftBrush, null, box, 1, 1);
+            // Drift in red; a ticked task (ADR 24) in its own colour.
+            context.DrawRectangle(BrushFor(mark.Color) ?? DriftBrush, null, box, 1, 1);
         }
     }
 
@@ -279,7 +280,8 @@ public sealed class DayBarControl : Control
             return null;
         }
 
-        if (row.Spans.Any(span => at >= span.Start && at <= span.End))
+        // Work time with no session (a gap) is still empty: a session can be added there.
+        if (row.Spans.Any(span => !span.IsGap && at >= span.Start && at <= span.End))
         {
             return null;
         }
