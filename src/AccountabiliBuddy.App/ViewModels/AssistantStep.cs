@@ -4,6 +4,12 @@ namespace AccountabiliBuddy.App.ViewModels;
 public enum AssistantStep
 {
     Welcome,
+
+    /// <summary>Link to your other devices first (ADR 22): a new device then gets their profiles and plan.</summary>
+    LinkFirst,
+
+    /// <summary>What kind of computer this is: Personal, Work or Local only (each a starting set of switches).</summary>
+    ComputerType,
     Import,
     Usage,
     Review,

@@ -828,6 +828,32 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>How far escalation may go; set by the app (the computer types' "notice and overlay only").</summary>
     public EnforcementLimitService? EnforcementLimit { get; init; }
 
+    /// <summary>The computer type this PC was set up as, and applying one again; set by the app.</summary>
+    public AccountabiliBuddy.App.Services.Setup.ComputerTypeService? ComputerTypes { get; init; }
+
+    /// <summary>E.g. "Set up as: Work computer", or that no type was chosen.</summary>
+    public string ComputerTypeText => ComputerTypes?.Current is AccountabiliBuddy.App.Services.Setup.ComputerType type
+        ? $"Set up as: {AccountabiliBuddy.App.Services.Setup.ComputerTypeService.NameOf(type)}"
+        : "No computer type chosen (the setup assistant offers one).";
+
+    /// <summary>The type to apply again: 0 Personal, 1 Work, 2 Local only.</summary>
+    public int ComputerTypeIndex { get; set; }
+
+    /// <summary>Sets the chosen type's switches again (profiles and the day plan stay as they are).</summary>
+    [RelayCommand]
+    private async Task ApplyComputerTypeAsync()
+    {
+        if (ComputerTypes is null || IsLocked)
+        {
+            return;
+        }
+
+        await ComputerTypes.ApplyAsync((AccountabiliBuddy.App.Services.Setup.ComputerType)Math.Clamp(ComputerTypeIndex, 0, 2));
+        OnPropertyChanged(nameof(ComputerTypeText));
+        OnPropertyChanged(nameof(NoticeAndOverlayOnly));
+        OnPropertyChanged(nameof(KeepTitlesAndAddresses));
+    }
+
     /// <summary>The privacy choices (History without titles and addresses); set by the app.</summary>
     public PrivacySettingsService? PrivacyChoices { get; init; }
 

@@ -465,6 +465,22 @@
                 <StackPanel Spacing="16" IsVisible="{Binding Groups[3].IsSelected}"
                             search:SearchArea.Name="App &amp; data" search:SearchArea.SettingsGroup="3">
                     <TextBlock Text="App &amp; data" Classes="groupTitle" />
+                    <Border Classes="card" search:SearchArea.Name="Computer type">
+                    <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
+                        <TextBlock Text="Computer type" Classes="sectionTitle" />
+                        <TextBlock Text="{Binding ComputerTypeText}" />
+                        <TextBlock Text="Applying a type sets its starting switches again (privacy, escalation, sharing, update checks). Profiles and the day plan stay as they are."
+                                   Opacity="0.75" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <ComboBox SelectedIndex="{Binding ComputerTypeIndex}" MinWidth="200">
+                                <ComboBoxItem Content="Personal computer" />
+                                <ComboBoxItem Content="Work computer" />
+                                <ComboBoxItem Content="Local only" />
+                            </ComboBox>
+                            <Button Content="Apply a type again" Command="{Binding ApplyComputerTypeCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                    </Border>
                     <Border Classes="card" search:SearchArea.Name="Backup">
                     <StackPanel Spacing="6">
                         <TextBlock Text="Backup" Classes="sectionTitle" />

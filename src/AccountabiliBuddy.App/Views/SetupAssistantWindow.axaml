@@ -80,6 +80,45 @@
                     </Border>
                 </StackPanel>
 
+                <!-- 1b. Link to your other devices first (ADR 22) -->
+                <StackPanel IsVisible="{Binding IsLinkFirst}" Spacing="12" MaxWidth="720" HorizontalAlignment="Left">
+                    <TextBlock Classes="body"
+                               Text="Already using AccountabiliBuddy on a phone or another PC? Link this one first: it gets your profiles, day plan and settings from them, and they share their focus with each other." />
+                    <RadioButton GroupName="link" IsChecked="{Binding !HasOtherDevice}" Content="This is my first device" />
+                    <RadioButton GroupName="link" IsChecked="{Binding HasOtherDevice}" Content="I have AccountabiliBuddy on another device" />
+                    <StackPanel Spacing="6" Margin="28,0,0,0" IsVisible="{Binding HasOtherDevice}">
+                        <TextBlock Classes="muted"
+                                   Text="On the other device, open Devices → Link a device, and type its link code here (40 characters; the dashes don't matter)." />
+                        <TextBox Text="{Binding LinkCode}" PlaceholderText="e.g. 8KQ2V-7XHPM-D4WN6-…" MaxWidth="520" HorizontalAlignment="Left" />
+                    </StackPanel>
+                    <TextBlock Classes="muted" Text="You can also do this later in the Devices tab." />
+                </StackPanel>
+
+                <!-- 1c. What kind of computer is this? (ADR 22) -->
+                <StackPanel IsVisible="{Binding IsComputerType}" Spacing="12" MaxWidth="720" HorizontalAlignment="Left">
+                    <TextBlock Classes="body"
+                               Text="Each type is only a starting set of switches: you can change any of them later in Settings and Devices. Safest first." />
+                    <RadioButton GroupName="type" IsChecked="{Binding IsLocalOnlyType}">
+                        <TextBlock TextWrapping="Wrap" Text="Local only: makes no network connections of its own; no syncing, no update checks." />
+                    </RadioButton>
+                    <RadioButton GroupName="type" IsChecked="{Binding IsWorkType}">
+                        <TextBlock TextWrapping="Wrap" Text="Work computer: keeps only sites (no titles or addresses), notices and overlays but never minimizes work windows, shares through a sync folder and QR codes." />
+                    </RadioButton>
+                    <RadioButton GroupName="type" IsChecked="{Binding IsPersonalType}">
+                        <TextBlock TextWrapping="Wrap" Text="Personal computer: everything available, the network link to your phone included." />
+                    </RadioButton>
+                    <Button Content="Choose the sync folder…" Command="{Binding ChooseSyncFolderCommand}" IsVisible="{Binding IsWorkType}"
+                            ToolTip.Tip="E.g. a folder inside Google Drive for desktop" />
+                    <TextBlock Text="What this computer will do" Classes="title" />
+                    <ItemsControl ItemsSource="{Binding TypeSummary}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <TextBlock Text="{Binding StringFormat='• {0}'}" TextWrapping="Wrap" Margin="0,1" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
                 <!-- 2. Bring your blocks -->
                 <StackPanel IsVisible="{Binding IsImport}" Spacing="12">
                     <Border Classes="locked" IsVisible="{Binding IsLocked}">

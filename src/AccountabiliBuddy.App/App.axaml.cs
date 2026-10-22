@@ -346,9 +346,16 @@ public partial class App : Application
         ConfigurationService configuration = _configuration;
         SessionController sessions = _sessions;
         var backups = new BackupService(_configuration, documents, activityLog, new DpapiDataProtector(), time, dataDirectory);
+        // The computer types (ADR 22): the assistant applies one; Settings shows it and can apply one again.
+        var computerTypes = new AccountabiliBuddy.App.Services.Setup.ComputerTypeService(documents, privacy, enforcementLimit, syncSettings, _updates);
+        computerTypes.LoadBlocking();
         _createAssistant = () => new SetupAssistantViewModel(
             blockerLocator, configuration, sessions, activityLog, privacy, time, setupViewModel,
-            new BackupViewModel(backups, sessions, RestartApp, showExport: false));
+            new BackupViewModel(backups, sessions, RestartApp, showExport: false))
+        {
+            Types = computerTypes,
+            Identity = syncIdentity,
+        };
         setupViewModel.OpenAssistant = ShowSetupAssistant;
 
         // Search reads the user's things when asked: History's apps and sites (last 90 days, re-read at most once a minute),
@@ -419,6 +426,7 @@ public partial class App : Application
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
                 Updates = new UpdatesViewModel(_updates),
                 EnforcementLimit = enforcementLimit,
+                ComputerTypes = computerTypes,
                 PrivacyChoices = privacy,
                 GoogleGuide = new GoogleSetupGuide(calendars, _calendarSync, dataProtector, documents, OpenInBrowser),
             },

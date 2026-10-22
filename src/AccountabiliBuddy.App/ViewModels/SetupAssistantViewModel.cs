@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using AccountabiliBuddy.App.Services;
+using AccountabiliBuddy.App.Services.Sync;
+using AccountabiliBuddy.App.Services.Setup;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Import;
 using AccountabiliBuddy.Core.Ports;
@@ -11,7 +13,7 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// The setup assistant: welcome → bring your blocks (other blockers found on this PC, a LeechBlock file, or a pasted
+/// The setup assistant: welcome → link to your other devices → what kind of computer → bring your blocks (other blockers found on this PC, a LeechBlock file, or a pasted
 /// list) → your usage (suggestions from Cold Turkey's statistics, optional copy into History) → review (profiles and
 /// their rules) → browsers → basics → done. The import is saved when leaving the review page, in one
 /// change through <see cref="ConfigurationService"/>; it only adds profiles. Importing is locked during a
@@ -72,6 +74,97 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     /// <summary>Set by the window: shows an open-file dialog and returns the chosen path.</summary>
     public Func<Task<string?>>? PickFile { get; set; }
 
+    /// <summary>Set by the window: shows a folder dialog and returns the chosen path (the Work type's sync folder).</summary>
+    public Func<Task<string?>>? PickFolder { get; set; }
+
+    /// <summary>Computer types and applying one (ADR 22); null skips the type step.</summary>
+    public ComputerTypeService? Types { get; init; }
+
+    /// <summary>This PC's place in a device group (ADR 22); null skips the link step.</summary>
+    public SyncIdentityService? Identity { get; init; }
+
+    // Joined a device group in the link step: the profiles come from the other devices, so "Bring your blocks" is skipped.
+    private bool _joined;
+
+    /// <summary>"I have AccountabiliBuddy on another device": a link code to join with.</summary>
+    [ObservableProperty]
+    public partial bool HasOtherDevice { get; set; }
+
+    [ObservableProperty]
+    public partial string? LinkCode { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWorkType), nameof(IsPersonalType), nameof(IsLocalOnlyType))]
+    public partial ComputerType SelectedType { get; set; }
+
+    public bool IsPersonalType
+    {
+        get => SelectedType == ComputerType.Personal;
+        set
+        {
+            if (value)
+            {
+                SelectedType = ComputerType.Personal;
+            }
+        }
+    }
+
+    public bool IsWorkType
+    {
+        get => SelectedType == ComputerType.Work;
+        set
+        {
+            if (value)
+            {
+                SelectedType = ComputerType.Work;
+            }
+        }
+    }
+
+    public bool IsLocalOnlyType
+    {
+        get => SelectedType == ComputerType.LocalOnly;
+        set
+        {
+            if (value)
+            {
+                SelectedType = ComputerType.LocalOnly;
+            }
+        }
+    }
+
+    /// <summary>"What this computer will do" for the selected type, in plain words (to show IT if needed).</summary>
+    public ObservableCollection<string> TypeSummary { get; } = new();
+
+    partial void OnSelectedTypeChanged(ComputerType value) => RefreshTypeSummary();
+
+    /// <summary>The Work type asks for the sync folder (e.g. inside Google Drive).</summary>
+    [RelayCommand]
+    private async Task ChooseSyncFolderAsync()
+    {
+        if (PickFolder is null || Types is null || await PickFolder() is not string path)
+        {
+            return;
+        }
+
+        await Types.SetFolderAsync(path);
+        RefreshTypeSummary();
+    }
+
+    private void RefreshTypeSummary()
+    {
+        TypeSummary.Clear();
+        if (Types is null)
+        {
+            return;
+        }
+
+        foreach (string line in ComputerTypeSummary.Lines(ComputerTypePreset.For(SelectedType), Types.Sync))
+        {
+            TypeSummary.Add(line);
+        }
+    }
+
     public event EventHandler? CloseRequested;
 
     public ObservableCollection<DetectedSourceRowViewModel> Sources { get; } = new();
@@ -97,7 +190,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     public bool HasNotes => Notes.Count > 0;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsImport), nameof(IsUsage), nameof(IsReview), nameof(IsBrowsers),
+    [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsLinkFirst), nameof(IsComputerType), nameof(IsImport), nameof(IsUsage), nameof(IsReview), nameof(IsBrowsers),
         nameof(IsBasics), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(BackCommand))]
     public partial AssistantStep Step { get; set; }
@@ -134,6 +227,10 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     public bool IsWelcome => Step == AssistantStep.Welcome;
 
+    public bool IsLinkFirst => Step == AssistantStep.LinkFirst;
+
+    public bool IsComputerType => Step == AssistantStep.ComputerType;
+
     public bool IsImport => Step == AssistantStep.Import;
 
     public bool IsUsage => Step == AssistantStep.Usage;
@@ -149,6 +246,8 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     public string StepTitle => Step switch
     {
         AssistantStep.Welcome => "Welcome to AccountabiliBuddy",
+        AssistantStep.LinkFirst => "Link to your other devices?",
+        AssistantStep.ComputerType => "What kind of computer is this?",
         AssistantStep.Import => "Bring your blocks",
         AssistantStep.Usage => "Your usage",
         AssistantStep.Review => "Review",
@@ -201,13 +300,26 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         StatusMessage = null;
         switch (Step)
         {
+            case AssistantStep.Welcome when Identity is not null:
+                Step = AssistantStep.LinkFirst;
+                break;
             case AssistantStep.Welcome:
-                Step = AssistantStep.Import;
-                if (!_hasScanned)
+                await GoToTypeOrImportAsync();
+                break;
+            case AssistantStep.LinkFirst:
+                if (await JoinIfAskedAsync())
                 {
-                    await ScanAsync();
+                    await GoToTypeOrImportAsync();
                 }
 
+                break;
+            case AssistantStep.ComputerType:
+                if (Types is not null)
+                {
+                    await Types.ApplyAsync(SelectedType);
+                }
+
+                await GoToImportAsync();
                 break;
             case AssistantStep.Import:
                 if (HasUsage)
@@ -239,6 +351,60 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
             default:
                 CloseRequested?.Invoke(this, EventArgs.Empty);
                 break;
+        }
+    }
+
+    // "I have AccountabiliBuddy on another device" joins its group. True to go on (joined, or not asked); false when the
+    // code didn't work or linking is locked (the step stays, with why).
+    private async Task<bool> JoinIfAskedAsync()
+    {
+        if (!HasOtherDevice || Identity is null)
+        {
+            return true;
+        }
+
+        if (IsLocked)
+        {
+            StatusMessage = "Linking is locked while a focus session you started is running.";
+            return false;
+        }
+
+        if (!await Identity.JoinAsync(LinkCode?.Trim() ?? string.Empty))
+        {
+            StatusMessage = "That isn't a link code: on your other device, open Devices → Link a device.";
+            return false;
+        }
+
+        _joined = true;
+        return true;
+    }
+
+    private async Task GoToTypeOrImportAsync()
+    {
+        if (Types is not null)
+        {
+            SelectedType = Types.Current ?? ComputerType.Personal;
+            RefreshTypeSummary();
+            Step = AssistantStep.ComputerType;
+            return;
+        }
+
+        await GoToImportAsync();
+    }
+
+    // Joined a group: the profiles come from the other devices, so "Bring your blocks" is skipped.
+    private async Task GoToImportAsync()
+    {
+        if (_joined)
+        {
+            Step = AssistantStep.Browsers;
+            return;
+        }
+
+        Step = AssistantStep.Import;
+        if (!_hasScanned)
+        {
+            await ScanAsync();
         }
     }
 
@@ -569,7 +735,12 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     private List<AssistantStep> VisibleSteps()
     {
-        return Enum.GetValues<AssistantStep>().Where(step => step != AssistantStep.Usage || HasUsage).ToList();
+        return Enum.GetValues<AssistantStep>()
+            .Where(step => step != AssistantStep.Usage || HasUsage)
+            .Where(step => step != AssistantStep.LinkFirst || Identity is not null)
+            .Where(step => step != AssistantStep.ComputerType || Types is not null)
+            .Where(step => !_joined || step is not (AssistantStep.Import or AssistantStep.Usage or AssistantStep.Review))
+            .ToList();
     }
 
     private void OnSessionStateChanged(object? sender, SessionState state)

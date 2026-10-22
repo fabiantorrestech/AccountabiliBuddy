@@ -20,8 +20,19 @@ public partial class SetupAssistantWindow : Window
             {
                 viewModel.CloseRequested += (_, _) => Close();
                 viewModel.PickFile = PickFileAsync;
+                viewModel.PickFolder = PickFolderAsync;
             }
         };
+    }
+
+    private async Task<string?> PickFolderAsync()
+    {
+        IReadOnlyList<IStorageFolder> folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Choose the sync folder (e.g. inside Google Drive)",
+            AllowMultiple = false,
+        });
+        return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
     }
 
     private async Task<string?> PickFileAsync()
