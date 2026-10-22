@@ -5,4 +5,7 @@ public interface INetworkTrust
 {
     /// <returns>True when every connected Wi-Fi or Ethernet network is marked private; false when one is public, or there is none.</returns>
     bool IsOnPrivateNetwork();
+
+    /// <returns>A connected Wi-Fi or Ethernet network marked public (the first found), or null.</returns>
+    PublicNetwork? FindPublicNetwork();
 }

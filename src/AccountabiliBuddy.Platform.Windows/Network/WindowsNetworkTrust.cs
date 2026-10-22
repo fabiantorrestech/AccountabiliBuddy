@@ -55,6 +55,46 @@ public sealed class WindowsNetworkTrust : INetworkTrust
         }
     }
 
+    public unsafe PublicNetwork? FindPublicNetwork()
+    {
+        Dictionary<Guid, bool> physicalAdapters = NetworkInterface.GetAllNetworkInterfaces()
+            .Where(adapter => adapter.OperationalStatus == OperationalStatus.Up
+                              && adapter.NetworkInterfaceType is NetworkInterfaceType.Wireless80211 or NetworkInterfaceType.Ethernet
+                              && !adapter.Description.Contains("Virtual", StringComparison.OrdinalIgnoreCase)
+                              && !adapter.Description.Contains("Hyper-V", StringComparison.OrdinalIgnoreCase)
+                              && Guid.TryParse(adapter.Id, out _))
+            .ToDictionary(adapter => Guid.Parse(adapter.Id), adapter => adapter.NetworkInterfaceType == NetworkInterfaceType.Wireless80211);
+        try
+        {
+            var manager = (INetworkListManager)new NetworkListManager();
+            IEnumNetworks networks = manager.GetNetworks(NLM_ENUM_NETWORK.NLM_ENUM_NETWORK_CONNECTED);
+            while (Next(networks) is INetwork network)
+            {
+                Guid? adapter = AdaptersOf(network).Where(physicalAdapters.ContainsKey).Select(id => (Guid?)id).FirstOrDefault();
+                if (adapter is null || network.GetCategory() != NLM_NETWORK_CATEGORY.NLM_NETWORK_CATEGORY_PUBLIC)
+                {
+                    continue;
+                }
+
+                var name = network.GetName();
+                try
+                {
+                    return new PublicNetwork(name.ToString() ?? "this network", physicalAdapters[adapter.Value]);
+                }
+                finally
+                {
+                    Marshal.FreeBSTR(new IntPtr(name.Value));
+                }
+            }
+
+            return null;
+        }
+        catch (COMException)
+        {
+            return null;
+        }
+    }
+
     private static List<Guid> AdaptersOf(INetwork network)
     {
         var adapters = new List<Guid>();

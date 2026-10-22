@@ -538,6 +538,23 @@ public partial class App : Application
         _coldTurkey.Start();
         linkHost.EndedFromDevice += (_, reason) => presenter.ShowNotice("Session ended from your phone", reason);
         _link.DevicePaired += (_, device) => presenter.ShowNotice("Device linked", $"{device.Name} is linked to this PC.");
+        // Once per network: "Phone link paused" on a network Windows marks Public, with a way to Windows' setting.
+        var publicNotices = new AccountabiliBuddy.App.Services.Link.PublicNetworkNoticeService(documents);
+        publicNotices.LoadBlocking();
+        _link.PausedOnPublicNetwork += async (_, network) =>
+        {
+            if (await publicNotices.ShouldTellAsync(network.Name, _link.Devices.Count > 0))
+            {
+                presenter.ShowChoice(
+                    $"Phone link paused on {network.Name}",
+                    $"Windows marks {network.Name} as Public, so AccountabiliBuddy doesn't listen for your phone here. If it's your own "
+                    + $"network, set it to Private: Settings → Network & internet → {(network.IsWireless ? "Wi-Fi" : "Ethernet")} → "
+                    + $"{network.Name} → Private network. Your phone reconnects by itself, no new pairing.",
+                    "Open network settings",
+                    () => OpenInBrowser(new Uri(network.IsWireless ? "ms-settings:network-wifi" : "ms-settings:network-ethernet")),
+                    () => { });
+            }
+        };
         _ = _link.StartIfEnabledAsync();
         syncCoordinator.ClashRaised += (_, request) => ShowDayPlanClash(syncCoordinator, request, presenter, time);
         _syncFolder.Start();

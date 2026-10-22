@@ -68,6 +68,9 @@ public sealed class LinkService : IAsyncDisposable
     /// <summary>Raised when a device paired with the offered code.</summary>
     public event EventHandler<PairedDevice>? DevicePaired;
 
+    /// <summary>Linking paused on a network Windows marks Public (raised at each check while paused).</summary>
+    public event EventHandler<PublicNetwork>? PausedOnPublicNetwork;
+
     public void LoadBlocking()
     {
         try
@@ -198,6 +201,10 @@ public sealed class LinkService : IAsyncDisposable
         Problem = "Paused: Windows marks this network as Public. Linking works on networks set to Private "
                   + "(Settings → Network & internet → your Wi-Fi or Ethernet → Private network).";
         Changed?.Invoke(this, EventArgs.Empty);
+        if (_networkTrust.FindPublicNetwork() is PublicNetwork network)
+        {
+            PausedOnPublicNetwork?.Invoke(this, network);
+        }
     }
 
     private async Task StartServerAsync()

@@ -11,9 +11,9 @@ android {
         applicationId = "com.accountabilibuddy.companion"
         minSdk = 26
         targetSdk = 36
-        // Follows the PC app's version (0.1.52 → 152), shown in About.
-        versionCode = 152
-        versionName = "0.1.52"
+        // Follows the PC app's version (0.1.53 → 153), shown in About.
+        versionCode = 153
+        versionName = "0.1.53"
     }
 
     buildTypes {
