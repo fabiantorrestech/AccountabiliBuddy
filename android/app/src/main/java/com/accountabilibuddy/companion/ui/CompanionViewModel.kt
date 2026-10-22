@@ -239,6 +239,17 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun saveSyncSettings(settings: PhoneSyncSettings) = sync.saveSettings(settings)
 
+    /** Apps seen setting alarms (id to name, newest first) for the wake-up alarm picker. */
+    fun alarmApps(): List<Pair<String, String>> {
+        val app = getApplication<CompanionApp>()
+        return app.alarmHistory.history.reversed().mapNotNull { it.app }.distinct().map { id ->
+            id to (runCatching { app.packageManager.getApplicationLabel(app.packageManager.getApplicationInfo(id, 0)).toString() }.getOrNull() ?: id)
+        }
+    }
+
+    /** The app learned as the wake-up alarm, or null. */
+    fun learnedAlarmApp(): String? = getApplication<CompanionApp>().learnedAlarmApp
+
     /** The sync folder's last result (ADR 22, way B). */
     val folderStatus = folderSource.status
 

@@ -42,6 +42,7 @@ object Refresher {
     suspend fun refresh(context: Context) {
         drawing.withLock {
             val app = context.applicationContext as CompanionApp
+            app.refreshWakeAlarm()
             val state = app.store.state.value
             val clock = ClockFormat(DateFormat.is24HourFormat(context))
             val now = LocalDateTime.now()

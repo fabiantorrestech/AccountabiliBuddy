@@ -12,8 +12,11 @@ import java.time.Instant
  * with every app without a permission. It's the phone's wake time and goes to the PCs in its sync file.
  */
 object NextAlarm {
-    fun read(context: Context): Instant? =
-        context.getSystemService(AlarmManager::class.java)?.nextAlarmClock?.triggerTime?.let(Instant::ofEpochMilli)
+    /** The next alarm clock and the app that set it (from the alarm's own "open" intent); null when none is set. */
+    fun read(context: Context): AlarmSighting? {
+        val info = context.getSystemService(AlarmManager::class.java)?.nextAlarmClock ?: return null
+        return AlarmSighting(Instant.ofEpochMilli(info.triggerTime), info.showIntent?.creatorPackage, Instant.now())
+    }
 }
 
 /** Android says the next alarm changed: the phone's wake time, its sync file and the card follow. */

@@ -146,6 +146,8 @@ fun MainScreen(
                         pcName = pairedPc?.pcName,
                         pcConnected = (linkStatus as? LinkStatus.Connected)?.state != null,
                         folder = folderStatus,
+                        alarmApps = viewModel.alarmApps(),
+                        learnedAlarmApp = viewModel.learnedAlarmApp(),
                     ),
                     actions = DevicesActions(
                         onShare = { viewModel.shareSyncFiles(context) },

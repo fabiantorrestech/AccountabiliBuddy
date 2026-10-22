@@ -19,6 +19,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -61,6 +63,9 @@ data class DevicesState(
     val pcConnected: Boolean,
     /** The sync folder's last result (ADR 22, way B). */
     val folder: FolderStatus = FolderStatus(),
+    /** Apps seen setting alarms (id to name), and the one learned as the wake-up alarm. */
+    val alarmApps: List<Pair<String, String>> = emptyList(),
+    val learnedAlarmApp: String? = null,
 )
 
 /** The Devices tab's actions. */
@@ -157,6 +162,9 @@ fun DevicesScreen(
                     "Your next alarm (Clock, QR Alarm…) is your wake time here and on your PCs, which get it in this phone's sync file. It wins over a one-night change.",
                     devices.settings.alarmOn,
                 ) { actions.onSettings(devices.settings.copy(alarmOn = it)) }
+                if (devices.settings.alarmOn) {
+                    AlarmAppPicker(devices) { app -> actions.onSettings(devices.settings.copy(alarmApp = app)) }
+                }
             }
         }
 
@@ -202,6 +210,25 @@ fun DevicesScreen(
 }
 
 private enum class DevicesDialog { Scan, Picture, LinkDevice, Leave }
+
+/** Which app's alarms are the wake-up alarm: learned (calendar apps never count) or pinned. */
+@Composable
+private fun AlarmAppPicker(devices: DevicesState, onPick: (String?) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    fun name(app: String?) = devices.alarmApps.firstOrNull { it.first == app }?.second ?: app ?: "none yet"
+    val pinned = devices.settings.alarmApp
+    val label = if (pinned != null) "Wake-up alarm: ${name(pinned)} (pinned)"
+    else "Wake-up alarm: Auto · ${devices.learnedAlarmApp?.let(::name) ?: "learning (any alarm but calendars)"}"
+    Column {
+        TextButton(onClick = { open = true }) { Text("$label ▾") }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(text = { Text("Auto (learn from my mornings)") }, onClick = { open = false; onPick(null) })
+            devices.alarmApps.filter { !it.first.contains("calendar", ignoreCase = true) }.forEach { (app, appName) ->
+                DropdownMenuItem(text = { Text(appName) }, onClick = { open = false; onPick(app) })
+            }
+        }
+    }
+}
 
 /** The sync folder (backup, off by default): a folder another app such as Autosync keeps in step with Google Drive. */
 @Composable

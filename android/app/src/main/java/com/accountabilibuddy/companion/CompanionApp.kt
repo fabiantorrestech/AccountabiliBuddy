@@ -12,7 +12,9 @@ import com.accountabilibuddy.companion.link.LinkDiscovery
 import com.accountabilibuddy.companion.link.LinkStore
 import com.accountabilibuddy.companion.notify.Refresher
 import com.accountabilibuddy.companion.sync.DriveFolderSource
+import com.accountabilibuddy.companion.sync.AlarmHistoryStore
 import com.accountabilibuddy.companion.sync.NextAlarm
+import com.accountabilibuddy.companion.sync.WakeAlarm
 import com.accountabilibuddy.companion.sync.PhoneSyncSettingsStore
 import com.accountabilibuddy.companion.sync.ReceivedDevicesStore
 import com.accountabilibuddy.companion.sync.SyncCoordinator
@@ -103,14 +105,14 @@ class CompanionApp : Application() {
             .also { it.start() }
         // The phone's card names its linked watch (Task 18); linking or unlinking it tells the PC at once.
         sync.companions = { watchBridge.companions() }
-        sync.nextAlarm = { NextAlarm.read(this) }
+        sync.nextAlarm = { wakeAlarm }
         watchBridge.onLinkChanged = { sendSyncFilesToPc() }
         folderSource = DriveFolderSource(this, sync)
-        followNextAlarm()
+        refreshWakeAlarm()
         // The background sync follows the folder switch; a change of folder or interval syncs at once.
         appScope.launch {
             sync.settings.collect {
-                followNextAlarm()
+                refreshWakeAlarm()
                 folderSource.schedule()
                 folderSource.syncNow()
             }
@@ -126,7 +128,7 @@ class CompanionApp : Application() {
 
     /** Android's next alarm changed (ADR 23): the wake time, the header, and this phone's file for the PCs follow. */
     fun onNextAlarmChanged() {
-        followNextAlarm()
+        refreshWakeAlarm()
         sendSyncFilesToPc()
         appScope.launch {
             folderSource.syncNow()
@@ -134,10 +136,41 @@ class CompanionApp : Application() {
         }
     }
 
-    // The phone's own wake time follows its next alarm while "Next alarm as wake time" is on.
-    private fun followNextAlarm() {
-        val alarm = NextAlarm.read(this)?.takeIf { sync.settings.value.alarmOn }
-        store.setPhoneAlarm(alarm?.let { java.time.LocalDateTime.ofInstant(it, java.time.ZoneId.systemDefault()) })
+    /** The alarms seen as next (for learning the wake-up alarm app). */
+    val alarmHistory by lazy { AlarmHistoryStore(java.io.File(filesDir, "companion/alarms.json")) }
+
+    /** The wake-up alarm now ([WakeAlarm]): the pinned or learned app's next alarm; null when there's none. */
+    @Volatile
+    var wakeAlarm: java.time.Instant? = null
+        private set
+
+    /** The app learned as the wake-up alarm, for the Devices tab; null until two mornings show it. */
+    @Volatile
+    var learnedAlarmApp: String? = null
+        private set
+
+    /**
+     * The phone's wake time follows its wake-up alarm while "Next alarm as wake time" is on (ADR 23): Android's next
+     * alarm is remembered with the app that set it, the wake-up app is pinned or learned from mornings in the sleep
+     * plan, and calendar apps never count.
+     */
+    fun refreshWakeAlarm() {
+        val zone = java.time.ZoneId.systemDefault()
+        val now = java.time.Instant.now()
+        val next = NextAlarm.read(this)
+        val history = next?.let { WakeAlarm.remember(alarmHistory.history, it) } ?: alarmHistory.history
+        if (history != alarmHistory.history) {
+            alarmHistory.save(history)
+        }
+
+        val state = store.state.value
+        val plan = state.sleep.copy(alarm = null).toSchedule(state.document.dayPlan)
+        learnedAlarmApp = WakeAlarm.learned(history) { at ->
+            WakeAlarm.inMorningWindow(java.time.LocalDateTime.ofInstant(at, zone), plan::night)
+        }
+        val settings = sync.settings.value
+        wakeAlarm = WakeAlarm.choose(next, history, settings.alarmApp, learnedAlarmApp, now)
+        store.setPhoneAlarm(wakeAlarm?.takeIf { settings.alarmOn }?.let { java.time.LocalDateTime.ofInstant(it, zone) })
     }
 
     /** Hands the PC this phone's file and what it carries now, when a PC is paired (and connected), after checking the watch link. */

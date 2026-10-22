@@ -28,6 +28,8 @@ data class PhoneSyncSettings(
     val folderMinutes: Int = 15,
     /** The phone's next alarm is its wake time and goes to the PCs in its sync file (ADR 23); on by default. */
     val alarmOn: Boolean = true,
+    /** The app whose alarms are the wake-up alarm, pinned by the user; null: learned ([WakeAlarm]). */
+    val alarmApp: String? = null,
 )
 
 /** [PhoneSyncSettings] in sync-settings.json in the app's private folder. */
@@ -46,6 +48,7 @@ class PhoneSyncSettingsStore(private val file: File) {
             settings.folderUri?.let { put("folderUri", it) }
             put("folderMinutes", settings.folderMinutes)
             put("alarmOn", settings.alarmOn)
+            settings.alarmApp?.let { put("alarmApp", it) }
         }
         file.parentFile?.mkdirs()
         val temporary = File(file.parentFile, "${file.name}.tmp")
@@ -62,7 +65,7 @@ class PhoneSyncSettingsStore(private val file: File) {
         val json = runCatching { Json.parseToJsonElement(file.readText()) as JsonObject }.getOrNull() ?: return PhoneSyncSettings()
         return PhoneSyncSettings(
             json.bool("qrOn", true), json.bool("fileOn", true), json.bool("linkOn", true), json.bool("folderOn", false),
-            json.string("folderUri"), json.int("folderMinutes") ?: 15, json.bool("alarmOn", true),
+            json.string("folderUri"), json.int("folderMinutes") ?: 15, json.bool("alarmOn", true), json.string("alarmApp"),
         )
     }
 }
