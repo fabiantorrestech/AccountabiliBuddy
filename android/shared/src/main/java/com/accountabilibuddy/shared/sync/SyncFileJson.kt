@@ -68,6 +68,17 @@ object SyncFileJson {
         put("methods", JsonArray(device.methods.map { JsonPrimitive(it) }))
         put("historyOff", device.historyOff)
         put("seen", JsonObject(device.seen.entries.associate { (id, seen) -> id.toString() to JsonPrimitive(writeTime(seen)) }))
+        // Optional (Task 18): written only when there are any, so a file without them is format 1 as before.
+        if (device.companions.isNotEmpty()) {
+            put("companions", JsonArray(device.companions.map { companion ->
+                buildJsonObject {
+                    put("name", companion.name)
+                    put("kind", companion.kind)
+                    put("linked", companion.linked)
+                    put("lastHeard", companion.lastHeard?.let(::writeTime))
+                }
+            }))
+        }
     }
 
     private fun writeSession(session: SyncSession): JsonObject = buildJsonObject {
@@ -132,6 +143,15 @@ object SyncFileJson {
             json.requiredStrings("methods"),
             json.flag("historyOff"),
             json.requiredObject("seen").entries.associate { (id, seen) -> readDeviceId(id) to readTime(stringOf(seen)) },
+            (json["companions"] as? JsonArray).orEmpty().map { element ->
+                val companion = element as? JsonObject ?: throw NotASyncFileException()
+                SyncCompanion(
+                    companion.requiredString("name"),
+                    companion.requiredString("kind"),
+                    companion.flag("linked"),
+                    companion.optionalTime("lastHeard"),
+                )
+            },
         )
     }
 

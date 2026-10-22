@@ -52,6 +52,8 @@ data class SyncDeviceCard(
     val methods: List<String>,
     val historyOff: Boolean,
     val seen: Map<UUID, Instant>,
+    /** The devices linked to this one (the phone's watch, Task 18); empty for none. Optional in the JSON. */
+    val companions: List<SyncCompanion> = emptyList(),
 ) {
     companion object {
         const val KIND_PC = "pc"
@@ -134,5 +136,18 @@ data class SyncDocument(val key: String, val json: String, val editedAt: Instant
         const val PROFILES_KEY = "profiles"
         const val SLEEP_KEY = "sleep"
         const val DAY_BAR_KEY = "daybar"
+    }
+}
+
+/**
+ * A device linked to the one that wrote the file (ADR 22, Task 18): the phone's Pixel Watch, shown under its device on
+ * the PC's Devices tab, display only (paired and unpaired on the phone), as on the PC (Core's SyncCompanion).
+ *
+ * @property linked Still known to the writing device (its watch link is still valid).
+ * @property lastHeard When the writing device last heard from it or delivered to it; null when not yet.
+ */
+data class SyncCompanion(val name: String, val kind: String, val linked: Boolean, val lastHeard: Instant?) {
+    companion object {
+        const val KIND_WATCH = "watch"
     }
 }

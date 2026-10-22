@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.App.Services.Sync;
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Link;
 using AccountabiliBuddy.Core.Sync;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
@@ -72,6 +73,12 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
 
     /// <summary>Takes in sync files and pictures of the phone's codes; set by the app.</summary>
     public SyncImportService? Import { get; set; }
+
+    /// <summary>The devices paired over the network link (a watch there merges into its phone's watch row); set by the app.</summary>
+    public Func<IReadOnlyList<PairedDevice>>? PairedDevices { get; set; }
+
+    /// <summary>Unpairs a device paired over the network link (null when done, else why not); set by the app.</summary>
+    public Func<Guid, Task<string?>>? UnpairDevice { get; set; }
 
     public ObservableCollection<DeviceRowViewModel> Rows { get; } = new();
 
@@ -171,9 +178,60 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
                 $"{Ago(age)} · {MethodName(device.Method)}",
                 state,
                 state == DeviceSyncState.Behind ? $"Behind by {Duration(age - interval)}" : "Up to date"));
+            foreach (SyncCompanion companion in card.Companions ?? [])
+            {
+                Rows.Add(CompanionRow(companion, card.Name, now));
+            }
         }
 
         _ = UpdateTodayAsync(now);
+    }
+
+    /// <summary>
+    /// A phone's linked watch under it (Task 18), display only: paired and unpaired on the phone. A watch also paired
+    /// with this PC over Wi-Fi (the same name) shows once, here, with that pairing's Unpair.
+    /// </summary>
+    private DeviceRowViewModel CompanionRow(SyncCompanion companion, string phoneName, DateTimeOffset now)
+    {
+        PairedDevice? wifi = PairedDevices?.Invoke()
+            .FirstOrDefault(device => device.Kind == SyncDeviceCard.KindWatch && device.Name == companion.Name);
+        string methods = wifi is null ? "Pair or unpair on the phone" : "Pair or unpair on the phone · also paired with this PC";
+        if (!companion.Linked)
+        {
+            return new DeviceRowViewModel($"⌚ {companion.Name}", $"linked to {phoneName}", methods,
+                "Not found on the phone: open AccountabiliBuddy on the watch", DeviceSyncState.Unlinked, "Not found", Indented: true, UnpairId: wifi?.Id);
+        }
+
+        string last = companion.LastHeard is DateTimeOffset heard ? $"last update {Ago(now - heard)}" : "not heard from yet";
+        DeviceSyncState state = companion.LastHeard is DateTimeOffset seen
+            ? DeviceRowViewModel.StateFor(now - seen < TimeSpan.Zero ? TimeSpan.Zero : now - seen, TimeSpan.FromDays(1))
+            : DeviceSyncState.Waiting;
+        string stateText = state switch
+        {
+            DeviceSyncState.Behind => "Behind",
+            DeviceSyncState.Waiting => "Waiting",
+            _ => "Linked",
+        };
+        return new DeviceRowViewModel($"⌚ {companion.Name}", $"linked to {phoneName}", methods, last, state, stateText, Indented: true, UnpairId: wifi?.Id);
+    }
+
+    /// <summary>Unpairs the Wi-Fi pairing of a phone's watch that's also paired with this PC.</summary>
+    [RelayCommand]
+    private async Task UnpairCompanionAsync(DeviceRowViewModel? row)
+    {
+        if (row?.UnpairId is not Guid id || UnpairDevice is null)
+        {
+            return;
+        }
+
+        if (IsLocked)
+        {
+            Message = LockedMessage;
+            return;
+        }
+
+        Message = await UnpairDevice(id) ?? $"Unpaired {row.Name.TrimStart('⌚', ' ')} from this PC (it stays linked to the phone).";
+        Refresh();
     }
 
     [RelayCommand]

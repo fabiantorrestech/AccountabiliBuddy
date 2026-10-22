@@ -46,10 +46,16 @@
                                     <TextBlock Text="{Binding LastText}" Classes="muted" FontSize="12"
                                                IsVisible="{Binding LastText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 </StackPanel>
-                                <!-- The state in words and colour, never colour alone. -->
-                                <Border Grid.Column="1" Background="{Binding PillBrush}" CornerRadius="10" Padding="9,2" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding StateText}" FontSize="12" Foreground="White" />
-                                </Border>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <!-- A phone's watch also paired with this PC over Wi-Fi: that pairing's Unpair (Task 18). -->
+                                    <Button Content="Unpair" IsVisible="{Binding CanUnpair}" Padding="8,2" FontSize="12"
+                                            Command="{Binding $parent[ItemsControl].((vm:DevicesViewModel)DataContext).UnpairCompanionCommand}"
+                                            CommandParameter="{Binding}" />
+                                    <!-- The state in words and colour, never colour alone. -->
+                                    <Border Background="{Binding PillBrush}" CornerRadius="10" Padding="9,2">
+                                        <TextBlock Text="{Binding StateText}" FontSize="12" Foreground="White" />
+                                    </Border>
+                                </StackPanel>
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

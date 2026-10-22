@@ -80,16 +80,30 @@ class CompanionApp : Application() {
             applyFocusDay = { content -> FocusDayJson.read(content)?.let(store::saveFocusDay) },
             onForget = store::clearFocusDay,
             onSyncFile = { sealed -> sync.acceptSealed(sealed, SyncDeviceCard.METHOD_LINK) },
-            syncFilesForPc = sync::filesForPc,
+            // Before each sync file the phone writes for the PC, it checks its watch link is still valid (Task 18).
+            syncFilesForPc = { pcName ->
+                watchBridge.refreshKnownWatches()
+                sync.filesForPc(pcName)
+            },
         )
         // A file that came by QR code, Drive or a share goes on to the PC at once when connected.
-        sync.onCarryChanged = {
-            link.pairedPc.value?.let { pc -> appScope.launch { link.sendSyncFiles(sync.filesForPc(pc.pcName)) } }
-        }
+        sync.onCarryChanged = { sendSyncFilesToPc() }
         planSync = DayPlanSync(store, link, appScope).also { it.start() }
         watchBridge = WatchBridge(this, store, link, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope, { appOnScreen }, sync.received)
             .also { it.start() }
+        // The phone's card names its linked watch (Task 18); linking or unlinking it tells the PC at once.
+        sync.companions = { watchBridge.companions() }
+        watchBridge.onLinkChanged = { sendSyncFilesToPc() }
         Refresher.start(this)
+    }
+
+    /** Hands the PC this phone's file and what it carries now, when a PC is paired (and connected), after checking the watch link. */
+    private fun sendSyncFilesToPc() {
+        val pc = link.pairedPc.value ?: return
+        appScope.launch {
+            watchBridge.refreshKnownWatches()
+            link.sendSyncFiles(sync.filesForPc(pc.pcName))
+        }
     }
 
     /** The linked PC's profiles, sleep, day bar and events (L2): kept like an import, then the card and widget redraw. */

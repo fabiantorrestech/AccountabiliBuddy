@@ -10,6 +10,10 @@ namespace AccountabiliBuddy.Core.Sync;
 /// have from it (ADR 15).
 /// </param>
 /// <param name="Seen">For each other device (by id), the newest <see cref="WrittenAt"/> this device holds from it.</param>
+/// <param name="Companions">
+/// The devices linked to this one (the phone's watch, Task 18); null for none. Optional in the JSON: written only when
+/// set, so a format 1 file without it reads as before, and older apps ignore it.
+/// </param>
 public sealed record SyncDeviceCard(
     Guid DeviceId,
     string Name,
@@ -18,7 +22,9 @@ public sealed record SyncDeviceCard(
     DateTimeOffset WrittenAt,
     IReadOnlyList<string> Methods,
     bool HistoryOff,
-    IReadOnlyDictionary<Guid, DateTimeOffset> Seen)
+    IReadOnlyDictionary<Guid, DateTimeOffset> Seen,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<SyncCompanion>? Companions = null)
 {
     public const string KindPc = "pc";
     public const string KindPhone = "phone";

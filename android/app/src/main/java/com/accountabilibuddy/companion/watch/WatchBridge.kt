@@ -1,5 +1,7 @@
 package com.accountabilibuddy.companion.watch
 
+import com.accountabilibuddy.shared.sync.SyncCompanions
+import com.accountabilibuddy.shared.sync.SyncCompanion
 import android.content.Context
 import android.os.SystemClock
 import com.accountabilibuddy.companion.data.CompanionStore
@@ -59,6 +61,23 @@ class WatchBridge(
     private var lastSent: WatchSnapshot? = null
     private var lastSentAt = 0L
 
+    // Task 18: the watches the Data Layer knows (with the app, near or not) and when the linked one was last heard.
+    @Volatile private var knownWatchIds: Set<String> = emptySet()
+    @Volatile private var lastHeard: Instant? = null
+
+    /** Called after the watch is linked or unlinked here, so the PC's Devices tab learns it at once (Task 18). */
+    var onLinkChanged: (() -> Unit)? = null
+
+    /** The linked watch as a companion on this phone's sync file (Task 18): still valid while the Data Layer knows it. */
+    fun companions(): List<SyncCompanion> = SyncCompanions.companionsFor(links.settings.value, knownWatchIds, lastHeard)
+
+    /** Asks the Data Layer which watches have the app, near or not; kept as they were when it can't be asked. */
+    suspend fun refreshKnownWatches() {
+        knownWatchIds = runCatching {
+            capabilities.getCapability(WatchPaths.WATCH_CAPABILITY, CapabilityClient.FILTER_ALL).await().nodes.map { it.id }.toSet()
+        }.getOrDefault(knownWatchIds)
+    }
+
     val settings: StateFlow<WatchLinkSettings> = links.settings
 
     /** Watches paired with this phone that have the watch app, found by [findWatches]. */
@@ -103,17 +122,24 @@ class WatchBridge(
                     .map { WatchNode(it.id, it.displayName, it.isNearby) }
                     .sortedBy { it.name }
             }.getOrDefault(emptyList())
+            if (_detected.value.isNotEmpty()) {
+                knownWatchIds = _detected.value.map { it.id }.toSet()
+            }
         }
     }
 
     fun linkWatch(watch: WatchNode) {
         links.update { it.copy(linkedNodeId = watch.id, linkedName = watch.name) }
+        knownWatchIds = knownWatchIds + watch.id
+        onLinkChanged?.invoke()
     }
 
     /** Stops all sends; the watch is told (when a route allows) so it forgets what it has. */
     fun unlinkWatch() {
         val before = links.settings.value
         links.update { it.copy(linkedNodeId = null, linkedName = null) }
+        lastHeard = null
+        onLinkChanged?.invoke()
         scope.launch {
             sending.withLock {
                 lastSent = null
@@ -138,6 +164,10 @@ class WatchBridge(
      */
     suspend fun answerHello(nodeId: String) {
         val settings = links.settings.value
+        if (nodeId == settings.linkedNodeId) {
+            lastHeard = Instant.now()
+        }
+
         val watch = reachableWatches().firstOrNull { it.id == nodeId }
         if (!settings.dataLayerOn || watch == null || (!settings.relayOn && !watch.isNearby)) {
             return
@@ -218,6 +248,7 @@ class WatchBridge(
         val bytes = WatchSnapshotJson.write(snapshot).toString().toByteArray()
         val delivered = targets.any { watch -> runCatching { messages.sendMessage(watch.id, WatchPaths.SNAPSHOT, bytes).await() }.isSuccess }
         if (delivered) {
+            lastHeard = Instant.now()
             lastSent = snapshot
             lastSentAt = SystemClock.elapsedRealtime()
         }

@@ -451,6 +451,8 @@ public partial class App : Application
         mainViewModel.ShowSyncQr = ShowSyncQr;
         devices.ShowSyncQr = ShowSyncQr;
         devices.Import = syncImport;
+        devices.PairedDevices = () => _link.Devices;
+        devices.UnpairDevice = _link.UnpairAsync;
         devices.SyncNow = async () =>
         {
             await _syncFolder!.WriteNowAsync();

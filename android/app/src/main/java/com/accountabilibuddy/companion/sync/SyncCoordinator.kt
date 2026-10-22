@@ -1,5 +1,6 @@
 package com.accountabilibuddy.companion.sync
 
+import com.accountabilibuddy.shared.sync.SyncCompanion
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFile
 import com.accountabilibuddy.shared.sync.SyncFileCodec
@@ -13,7 +14,7 @@ import java.time.Instant
  * The phone's part in device sync (ADR 22): it joins the group from the PC's link code, takes in files that come by
  * the link, QR codes, Drive or a share, and carries them on ([SyncCarry]): what came by QR code or Drive goes to the
  * PC over the link, and the PC's files go to Drive or out as a share. Its own file holds its card and what it has
- * seen, nothing else.
+ * seen (and its linked watch, Task 18), nothing else.
  */
 class SyncCoordinator(
     private val identity: SyncIdentityStore,
@@ -62,6 +63,9 @@ class SyncCoordinator(
 
     /** Called after a file that didn't come over the link was taken in, so it can go on to the PC. */
     var onCarryChanged: (() -> Unit)? = null
+
+    /** The phone's linked watch for its card (Task 18), as the watch bridge last checked it. */
+    var companions: () -> List<SyncCompanion> = { emptyList() }
 
     /** Joins the group of [code] (from the PC's link code); a new group drops the old one's copies. False when invalid. */
     fun join(code: String): Boolean {
@@ -133,7 +137,9 @@ class SyncCoordinator(
     /** This phone's own file: its card and, for each device, the newest file it holds (nothing else). */
     fun ownFile(): SyncFile = SyncFile(
         SyncFile.CURRENT_FORMAT_VERSION,
-        SyncDeviceCard(identity.deviceId, deviceName, SyncDeviceCard.KIND_PHONE, appVersion, now(), methods(), false, SyncCarry.seen(store.devices.value)),
+        SyncDeviceCard(
+            identity.deviceId, deviceName, SyncDeviceCard.KIND_PHONE, appVersion, now(), methods(), false, SyncCarry.seen(store.devices.value), companions(),
+        ),
         emptyList(), emptyList(), null, emptyList(),
     )
 

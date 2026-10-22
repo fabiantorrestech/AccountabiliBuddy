@@ -6,10 +6,14 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="Kind">"This PC", "PC", "Phone" or "Watch".</param>
 /// <param name="MethodsText">The methods it uses, e.g. "network link, QR codes".</param>
 /// <param name="LastText">When its data last arrived here and how, e.g. "14 min ago · sync folder".</param>
-/// <param name="Indented">Shown under the device above it (a phone's linked watch).</param>
+/// <param name="Indented">Shown under the device above it (a phone's linked watch, Task 18).</param>
+/// <param name="UnpairId">A watch also paired with this PC over Wi-Fi: its pairing, which Unpair removes; null otherwise.</param>
 public sealed record DeviceRowViewModel(
-    string Name, string Kind, string MethodsText, string LastText, DeviceSyncState State, string StateText, bool Indented = false)
+    string Name, string Kind, string MethodsText, string LastText, DeviceSyncState State, string StateText, bool Indented = false,
+    Guid? UnpairId = null)
 {
+    public bool CanUnpair => UnpairId is not null;
+
     /// <summary>A device's part counts as behind once it's older than its interval plus this margin (as on the phone).</summary>
     public static readonly TimeSpan Margin = TimeSpan.FromMinutes(5);
 

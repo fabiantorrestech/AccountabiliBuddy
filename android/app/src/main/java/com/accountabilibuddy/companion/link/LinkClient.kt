@@ -57,7 +57,7 @@ class LinkClient(
     /** Takes in a sealed sync file the PC sent (ADR 22): its own or one it received. */
     private val onSyncFile: (sealed: ByteArray) -> Unit = {},
     /** The sealed sync files to hand the PC (by its name) after signing in (ADR 22). */
-    private val syncFilesForPc: (pcName: String) -> List<ByteArray> = { emptyList() },
+    private val syncFilesForPc: suspend (pcName: String) -> List<ByteArray> = { emptyList() },
 ) {
     private val _status = MutableStateFlow<LinkStatus>(if (store.pc.value == null) LinkStatus.Unlinked else LinkStatus.Idle)
     private val _lastState = MutableStateFlow<PcStateAt?>(null)
