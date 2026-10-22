@@ -39,7 +39,7 @@ import kotlin.time.Duration.Companion.minutes
  * The swipe-in Tile (ADR 21): today on a 24-hour ring like the app's Today page (the plan's parts in their colours on
  * the outer ring, focus with red drift ticks on the inner one, a white now tick), with today's focus against the plan
  * or the running session in the middle; tapping it opens the app. The now tick moves through one timeline entry per
- * 5 minutes for the next 2 hours; redrawn when a snapshot arrives.
+ * 10 minutes for the next 2 hours; redrawn when a snapshot arrives.
  */
 class FocusTileService : Material3TileService() {
     override suspend fun MaterialScope.tileResponse(requestParams: TileRequest): Tile {
@@ -115,8 +115,10 @@ class FocusTileService : Material3TileService() {
     private companion object {
         // The system may refresh less often; the timeline keeps the now tick moving meanwhile.
         val REFRESH = 5.minutes
-        val ENTRY_LENGTH: Duration = Duration.ofMinutes(5)
-        const val ENTRY_COUNT = 24
+        val ENTRY_LENGTH: Duration = Duration.ofMinutes(10)
+
+        // The Pixel Watch draws nothing (a black Tile) for a timeline of 24 entries; 12 work, whatever their size.
+        const val ENTRY_COUNT = 12
         const val RING_THICKNESS = 5f
         const val RING_GAP = 2f
         const val FULL_TURN = 359.9f
