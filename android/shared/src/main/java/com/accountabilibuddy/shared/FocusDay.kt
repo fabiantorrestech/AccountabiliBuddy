@@ -21,8 +21,11 @@ data class FocusDay(
 /** A part of the day plan on [FocusDay.date], cut to that day. [kind] is "watch" (planned work), "rest" or "sleep". */
 data class FocusPart(val name: String, val category: String, val color: String, val kind: String, val start: Instant, val end: Instant)
 
-/** A focus session that counts, cut to the day; [end] is null for the one running now, [profile] for one added by hand. */
-data class FocusSession(val start: Instant, val end: Instant?, val profile: String?, val added: Boolean)
+/**
+ * A focus session that counts, cut to the day; [end] is null for the one running now, [profile] for one added by hand.
+ * [device] is the device that counted it, once the day combines devices (ADR 22); null for the PC's own day.
+ */
+data class FocusSession(val start: Instant, val end: Instant?, val profile: String?, val added: Boolean, val device: String? = null)
 
 /** A stretch of time, e.g. a drift mark. */
 data class TimeWindow(val start: Instant, val end: Instant)

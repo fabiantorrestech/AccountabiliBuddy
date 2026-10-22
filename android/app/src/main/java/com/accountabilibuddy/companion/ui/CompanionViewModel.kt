@@ -36,6 +36,7 @@ import com.accountabilibuddy.companion.link.LinkStatus
 import com.accountabilibuddy.companion.link.LinkedPc
 import com.accountabilibuddy.companion.link.PairingLink
 import com.accountabilibuddy.companion.sync.JoinLink
+import com.accountabilibuddy.companion.sync.PhoneSyncSettings
 import com.accountabilibuddy.companion.sync.SyncShare
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.companion.engine.DayPlanValidator
@@ -214,6 +215,44 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun showMessage(text: String) {
         message.value = text
+    }
+
+    /** The Devices tab (ADR 22): the other devices' parts, the group's key and the phone's method switches. */
+    val syncReceived = sync.received
+    val syncKey = sync.key
+    val syncSettings = sync.settings
+
+    fun syncLinkCode(): String? = sync.linkCode()
+
+    fun ownQrLinks(): List<String> = sync.ownQrLinks()
+
+    fun saveSyncSettings(settings: PhoneSyncSettings) = sync.saveSettings(settings)
+
+    /** Joins the group from a typed link code; when the PC is connected, this phone's file goes to it at once. */
+    fun joinWithCode(code: String): Boolean {
+        if (!sync.join(code.trim())) {
+            return false
+        }
+
+        message.value = "Joined your devices."
+        link.pairedPc.value?.let { pc -> viewModelScope.launch { link.sendSyncFiles(sync.filesForPc(pc.pcName)) } }
+        return true
+    }
+
+    fun leaveSyncGroup() {
+        sync.leave()
+        message.value = "Left your device group. What came from your other devices is gone from this phone."
+    }
+
+    /** Opens the share sheet with this phone's sync file and the ones it carries. */
+    fun shareSyncFiles(context: android.content.Context) {
+        val files = sync.filesToCarry(SyncDeviceCard.METHOD_FILE)
+        if (files.isEmpty()) {
+            message.value = "This phone isn't linked to your other devices yet."
+            return
+        }
+
+        SyncShare.share(context, files)
     }
 
     fun findWatches() = watchBridge.findWatches()

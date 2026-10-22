@@ -3,7 +3,9 @@ package com.accountabilibuddy.companion.sync
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFile
 import com.accountabilibuddy.shared.sync.SyncFileCodec
+import com.accountabilibuddy.shared.sync.SyncKey
 import com.accountabilibuddy.shared.sync.SyncKeyCode
+import com.accountabilibuddy.shared.sync.SyncQr
 import kotlinx.coroutines.flow.StateFlow
 import java.time.Instant
 
@@ -18,8 +20,9 @@ class SyncCoordinator(
     private val store: ReceivedDevicesStore,
     private val deviceName: String,
     private val appVersion: String,
-    /** The methods this phone uses now (see [SyncDeviceCard.methods]). */
-    private val methods: () -> List<String>,
+    private val settingsStore: PhoneSyncSettingsStore,
+    /** True while a PC is paired (the link is then one of this phone's methods). */
+    private val pcPaired: () -> Boolean,
     private val now: () -> Instant = Instant::now,
 ) {
     private val scan = QrScan()
@@ -27,9 +30,35 @@ class SyncCoordinator(
     /** The other devices' parts on this phone. */
     val received: StateFlow<List<ReceivedDevice>> = store.devices
 
+    /** The group's key; null while the phone isn't in a group. */
+    val key: StateFlow<SyncKey?> = identity.key
+
+    /** The phone's method switches (the Devices tab). */
+    val settings: StateFlow<PhoneSyncSettings> = settingsStore.settings
+
     /** True while the phone is in a device group. */
     val isJoined: Boolean
         get() = identity.key.value != null
+
+    fun saveSettings(settings: PhoneSyncSettings) = settingsStore.save(settings)
+
+    /** The group's link code (to show so another device joins); null outside a group. */
+    fun linkCode(): String? = identity.code()
+
+    /** This phone's own file as QR code links, for "Show as picture" (a PC without a camera reads a screenshot). */
+    fun ownQrLinks(): List<String> {
+        val key = identity.key.value ?: return emptyList()
+        return SyncQr.links(SyncFileCodec.seal(ownFile(), key), key.groupId)
+    }
+
+    // The methods on the phone's card: what's switched on (the link only while a PC is paired).
+    private fun methods(): List<String> = settingsStore.settings.value.let { settings ->
+        listOfNotNull(
+            SyncDeviceCard.METHOD_LINK.takeIf { settings.linkOn && pcPaired() },
+            SyncDeviceCard.METHOD_QR.takeIf { settings.qrOn },
+            SyncDeviceCard.METHOD_FILE.takeIf { settings.fileOn },
+        )
+    }
 
     /** Called after a file that didn't come over the link was taken in, so it can go on to the PC. */
     var onCarryChanged: (() -> Unit)? = null
@@ -63,6 +92,12 @@ class SyncCoordinator(
      */
     @Synchronized
     fun acceptSealed(bytes: ByteArray, method: String): String? {
+        val settings = settingsStore.settings.value
+        when {
+            method == SyncDeviceCard.METHOD_LINK && !settings.linkOn -> return "Sync files over the link are off on this phone."
+            method == SyncDeviceCard.METHOD_FILE && !settings.fileOn -> return "Turn on \"Sync files\" in Devices to open sync files."
+        }
+
         val key = identity.key.value ?: return NOT_JOINED
         val file = SyncFileCodec.open(bytes, key) ?: return CANNOT_READ
         val outcome = SyncCarry.accept(store.devices.value, file, bytes, method, identity.deviceId, now())
@@ -80,6 +115,10 @@ class SyncCoordinator(
 
     /** One scanned QR link from the PC: e.g. "2 of 3 scanned", "Synced Work PC", or why not. */
     fun onQrLink(link: String): String {
+        if (!settingsStore.settings.value.qrOn) {
+            return "Turn on \"QR codes\" in Devices to scan the PC's codes."
+        }
+
         val key = identity.key.value ?: return "Join your devices first: scan the PC's link code (Devices on the PC)."
         val step = synchronized(scan) { scan.add(link, key.groupId) }
         if (step !is QrScanStep.Complete) {
@@ -107,6 +146,10 @@ class SyncCoordinator(
      * name) says it has it already.
      */
     fun filesForPc(pcName: String): List<ByteArray> {
+        if (!settingsStore.settings.value.linkOn) {
+            return emptyList()
+        }
+
         val pcSeen = store.devices.value
             .firstOrNull { it.method == SyncDeviceCard.METHOD_LINK && it.file.device.kind == SyncDeviceCard.KIND_PC && it.file.device.name == pcName }
             ?.file?.device?.seen.orEmpty()

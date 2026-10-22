@@ -53,6 +53,10 @@ fun MainScreen(
     val detectedWatches by viewModel.detectedWatches.collectAsStateWithLifecycle()
     val pairingOffer by viewModel.pairingOffer.collectAsStateWithLifecycle()
     val joinOffer by viewModel.joinOffer.collectAsStateWithLifecycle()
+    val syncReceived by viewModel.syncReceived.collectAsStateWithLifecycle()
+    val syncKey by viewModel.syncKey.collectAsStateWithLifecycle()
+    val syncSettings by viewModel.syncSettings.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val pairing by viewModel.pairing.collectAsStateWithLifecycle()
     val pcBusy by viewModel.pcBusy.collectAsStateWithLifecycle()
     val endEarlyTerms by viewModel.endEarlyTerms.collectAsStateWithLifecycle()
@@ -76,7 +80,7 @@ fun MainScreen(
             if (planDraft == null) NavigationBar {
                 listOf(
                     "Today" to R.drawable.ic_tab_today, "Profiles" to R.drawable.ic_tab_profiles,
-                    "Settings" to R.drawable.ic_tab_settings, "About" to R.drawable.ic_tab_about,
+                    "Devices" to R.drawable.ic_tab_devices, "Settings" to R.drawable.ic_tab_settings, "About" to R.drawable.ic_tab_about,
                 )
                     .forEachIndexed { index, (label, icon) ->
                         NavigationBarItem(
@@ -129,7 +133,39 @@ fun MainScreen(
                     pcState = (linkStatus as? LinkStatus.Connected)?.state,
                     deviceName = viewModel.deviceName,
                 )
-                2 -> {
+                2 -> DevicesScreen(
+                    devices = DevicesState(
+                        deviceName = viewModel.deviceName,
+                        joined = syncKey != null,
+                        settings = syncSettings,
+                        received = syncReceived,
+                        focusDay = state.focusDay,
+                        pcName = pairedPc?.pcName,
+                        pcConnected = (linkStatus as? LinkStatus.Connected)?.state != null,
+                    ),
+                    actions = DevicesActions(
+                        onShare = { viewModel.shareSyncFiles(context) },
+                        ownQrLinks = viewModel::ownQrLinks,
+                        linkCode = viewModel::syncLinkCode,
+                        onJoin = viewModel::joinWithCode,
+                        onLeave = viewModel::leaveSyncGroup,
+                        onSettings = viewModel::saveSyncSettings,
+                    ),
+                    pcStatus = linkStatus,
+                    pairedPc = pairedPc,
+                    onPastePairingLink = viewModel::pastePairingLink,
+                    onUnpairPc = viewModel::unpairPc,
+                    watch = WatchSectionState(watchSettings, detectedWatches),
+                    watchActions = WatchSectionActions(
+                        onFind = viewModel::findWatches,
+                        onLink = viewModel::linkWatch,
+                        onUnlink = viewModel::unlinkWatch,
+                        onDataLayer = viewModel::setWatchDataLayer,
+                        onRelay = viewModel::setWatchRelay,
+                        onWifi = viewModel::setWatchWifi,
+                    ),
+                )
+                3 -> {
                     // Curbox's status shows only here: ask it when Settings opens, or the app comes back to it.
                     LifecycleStartEffect(Unit) {
                         viewModel.refreshCurbox()
@@ -146,19 +182,6 @@ fun MainScreen(
                         onAddWidget = onAddWidget,
                         curbox = curbox,
                         onConnectCurbox = onConnectCurbox,
-                        pcStatus = linkStatus,
-                        pairedPc = pairedPc,
-                        onPastePairingLink = viewModel::pastePairingLink,
-                        onUnpairPc = viewModel::unpairPc,
-                        watch = WatchSectionState(watchSettings, detectedWatches),
-                        watchActions = WatchSectionActions(
-                            onFind = viewModel::findWatches,
-                            onLink = viewModel::linkWatch,
-                            onUnlink = viewModel::unlinkWatch,
-                            onDataLayer = viewModel::setWatchDataLayer,
-                            onRelay = viewModel::setWatchRelay,
-                            onWifi = viewModel::setWatchWifi,
-                        ),
                     )
                 }
                 else -> AboutScreen(pcName = pairedPc?.pcName)

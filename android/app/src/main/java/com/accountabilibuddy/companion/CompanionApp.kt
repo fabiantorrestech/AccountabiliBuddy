@@ -11,6 +11,7 @@ import com.accountabilibuddy.companion.link.LinkClient
 import com.accountabilibuddy.companion.link.LinkDiscovery
 import com.accountabilibuddy.companion.link.LinkStore
 import com.accountabilibuddy.companion.notify.Refresher
+import com.accountabilibuddy.companion.sync.PhoneSyncSettingsStore
 import com.accountabilibuddy.companion.sync.ReceivedDevicesStore
 import com.accountabilibuddy.companion.sync.SyncCoordinator
 import com.accountabilibuddy.companion.sync.SyncIdentityStore
@@ -69,13 +70,8 @@ class CompanionApp : Application() {
             ReceivedDevicesStore(File(filesDir, "companion/sync-received.json")),
             deviceName,
             appVersion(),
-            methods = {
-                listOfNotNull(
-                    SyncDeviceCard.METHOD_LINK.takeIf { linkStore.pc.value != null },
-                    SyncDeviceCard.METHOD_QR,
-                    SyncDeviceCard.METHOD_FILE,
-                )
-            },
+            PhoneSyncSettingsStore(File(filesDir, "companion/sync-settings.json")),
+            pcPaired = { linkStore.pc.value != null },
         )
         link = LinkClient(
             linkStore, deviceName, deviceKind(), appScope, LinkDiscovery(this), ::applyPcSettings,
@@ -91,7 +87,7 @@ class CompanionApp : Application() {
             link.pairedPc.value?.let { pc -> appScope.launch { link.sendSyncFiles(sync.filesForPc(pc.pcName)) } }
         }
         planSync = DayPlanSync(store, link, appScope).also { it.start() }
-        watchBridge = WatchBridge(this, store, link, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope) { appOnScreen }
+        watchBridge = WatchBridge(this, store, link, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope, { appOnScreen }, sync.received)
             .also { it.start() }
         Refresher.start(this)
     }

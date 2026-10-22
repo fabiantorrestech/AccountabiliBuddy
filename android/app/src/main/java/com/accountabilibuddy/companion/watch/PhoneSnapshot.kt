@@ -1,5 +1,9 @@
 package com.accountabilibuddy.companion.watch
 
+import com.accountabilibuddy.shared.sync.SyncFile
+import com.accountabilibuddy.shared.sync.SyncDeviceCard
+import com.accountabilibuddy.shared.sync.FocusDayCombine
+import com.accountabilibuddy.shared.DataSource
 import com.accountabilibuddy.companion.data.CompanionState
 import com.accountabilibuddy.companion.link.LinkStatus
 import com.accountabilibuddy.companion.link.PcState
@@ -29,17 +33,24 @@ object PhoneSnapshot {
         lastState: PcState? = null,
         lastStateAt: Instant? = null,
         relayAllowed: Boolean = true,
+        /** The other devices' names and sync files on the phone (ADR 22): their focus joins today's, tagged. */
+        received: List<Pair<String, SyncFile>> = emptyList(),
     ): SnapshotInput {
         val connected = status as? LinkStatus.Connected
         val pcConnected = connected?.state != null
+        val today = now.atZone(zone).toLocalDate()
+        val others = received.filter { (name, file) -> !(file.device.kind == SyncDeviceCard.KIND_PC && name == pcName) }
         return SnapshotInput(
             now = now,
             zone = zone,
             linked = linked,
             pcName = pcName,
-            parts = todayParts(state.document.dayPlan, now.atZone(zone).toLocalDate(), zone),
-            focusDay = state.focusDay,
+            parts = todayParts(state.document.dayPlan, today, zone),
+            // The linked PC's live day wins over its own sync file; the other devices' sessions join it.
+            focusDay = if (received.isEmpty()) state.focusDay else FocusDayCombine.combine(state.focusDay, pcName, received, today, zone, now),
             focusDayAt = state.focusDayAt,
+            sources = listOfNotNull(pcName?.let { name -> state.focusDayAt?.let { DataSource(name, it) } }) +
+                others.map { (name, file) -> DataSource(name, file.device.writtenAt) },
             running = running(connected?.state ?: lastState),
             pcConnected = pcConnected,
             wifiAllowed = wifiAllowed,

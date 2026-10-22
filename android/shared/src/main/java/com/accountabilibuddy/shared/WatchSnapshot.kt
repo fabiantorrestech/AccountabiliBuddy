@@ -8,6 +8,9 @@ import java.time.ZoneId
 /** The focus session running on the PC: its profile, when this phase started and when it ends (null: no set end). */
 data class RunningSession(val profile: String?, val startedAt: Instant, val endsAt: Instant?, val onBreak: Boolean)
 
+/** A device whose focus is in the snapshot (ADR 22), and how old its data is: shown on the watch's "where from" page. */
+data class DataSource(val name: String, val dataAt: Instant)
+
 /**
  * What the watch shows (ADR 21), as the phone sends it: [date]'s plan parts, the focus sessions that count (cut to the
  * day; one with no end runs until now), drift marks, planned minutes, the week, and the session running on the PC.
@@ -29,6 +32,8 @@ data class WatchSnapshot(
     val wifiAllowed: Boolean = true,
     val dataAt: Instant = createdAt,
     val relayAllowed: Boolean = true,
+    /** The devices whose focus is in it, with their data's age (the linked PC first); empty in snapshots from before. */
+    val sources: List<DataSource> = emptyList(),
 ) {
     /**
      * Focused on [date] up to [now]: each session cut to the day, one with no end until [now] (or the running session's

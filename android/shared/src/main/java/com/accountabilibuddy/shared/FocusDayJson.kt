@@ -69,11 +69,12 @@ object FocusDayJson {
         session.end?.let { put("end", it.toString()) }
         session.profile?.let { put("profile", it) }
         put("added", session.added)
+        session.device?.let { put("device", it) }
     }
 
     internal fun readSession(json: JsonObject): FocusSession? {
         val start = json.instant("start") ?: return null
-        return FocusSession(start, json.instant("end"), json.string("profile"), json.bool("added"))
+        return FocusSession(start, json.instant("end"), json.string("profile"), json.bool("added"), json.string("device"))
     }
 
     internal fun writeWindow(window: TimeWindow): JsonObject = buildJsonObject {

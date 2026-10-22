@@ -39,7 +39,7 @@ fun NotLinkedScreen(phoneReachable: Boolean?, onAskAgain: () -> Unit, onSample: 
  * again while the watch is linked; unlinking is on the phone). A sample day has a way back instead.
  */
 @Composable
-fun LinkPage(pcName: String?, updated: String?, isSample: Boolean, pcPaired: Boolean, onForget: () -> Unit) {
+fun LinkPage(pcName: String?, updated: String?, isSample: Boolean, pcPaired: Boolean, onForget: () -> Unit, sources: List<String> = emptyList()) {
     Box(Modifier.fillMaxSize().padding(horizontal = 24.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (isSample) {
@@ -50,8 +50,14 @@ fun LinkPage(pcName: String?, updated: String?, isSample: Boolean, pcPaired: Boo
             }
 
             Text("Linked to your phone", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-            Text(pcName?.let { "Focus from $it" } ?: "No PC linked to the phone", color = Color(0xB3FFFFFF), fontSize = 12.sp, textAlign = TextAlign.Center)
-            Text(updated ?: "Up to date", color = Color(0xB3FFFFFF), fontSize = 11.sp)
+            if (sources.size > 1) {
+                // Focus from several devices (ADR 22): each with how old its data is.
+                Text("Focus from", color = Color(0xB3FFFFFF), fontSize = 12.sp)
+                sources.forEach { line -> Text(line, color = Color(0xB3FFFFFF), fontSize = 11.sp, textAlign = TextAlign.Center) }
+            } else {
+                Text(pcName?.let { "Focus from $it" } ?: "No PC linked to the phone", color = Color(0xB3FFFFFF), fontSize = 12.sp, textAlign = TextAlign.Center)
+                Text(updated ?: "Up to date", color = Color(0xB3FFFFFF), fontSize = 11.sp)
+            }
             Text(if (pcPaired) "Wi-Fi to the PC: paired" else "Wi-Fi to the PC: not paired", color = Color(0x80FFFFFF), fontSize = 10.sp)
             OutlinedButton(onClick = onForget) { Text("Forget data") }
         }

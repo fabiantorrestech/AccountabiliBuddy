@@ -5,6 +5,7 @@ import android.os.SystemClock
 import com.accountabilibuddy.companion.data.CompanionStore
 import com.accountabilibuddy.companion.link.LinkClient
 import com.accountabilibuddy.companion.link.LinkStatus
+import com.accountabilibuddy.companion.sync.ReceivedDevice
 import com.accountabilibuddy.shared.SnapshotBuilder
 import com.accountabilibuddy.shared.WatchLinkSettings
 import com.accountabilibuddy.shared.WatchNode
@@ -45,6 +46,8 @@ class WatchBridge(
     private val scope: CoroutineScope,
     /** True while the phone app is on screen (its link to the PC is then the screen's, not the watch's). */
     private val appOnScreen: () -> Boolean,
+    /** The other devices' parts on the phone (ADR 22): their focus joins the watch's day, tagged with the device. */
+    private val received: StateFlow<List<ReceivedDevice>> = MutableStateFlow(emptyList()),
 ) {
     private val messages = Wearable.getMessageClient(context)
     private val capabilities = Wearable.getCapabilityClient(context)
@@ -74,7 +77,7 @@ class WatchBridge(
                     delay(RESEND_MS)
                 }
             }
-            combine(store.state, link.status, links.settings, link.lastState, ticker) { _, _, _, _, _ -> Unit }.collectLatest {
+            combine(store.state, link.status, links.settings, link.lastState, ticker, received) { _ -> Unit }.collectLatest {
                 val snapshot = build() ?: return@collectLatest
                 val previous = lastSent
                 if (previous != null && sameContent(previous, snapshot)) {
@@ -200,6 +203,7 @@ class WatchBridge(
             PhoneSnapshot.input(
                 store.state.value, link.status.value, linked = true, pcName, Instant.now(), ZoneId.systemDefault(),
                 wifiAllowed = settings.wifiFallbackOn, lastState = last?.state, lastStateAt = last?.at, relayAllowed = settings.relayOn,
+                received = received.value.map { it.file.device.name to it.file },
             ),
         )
     }

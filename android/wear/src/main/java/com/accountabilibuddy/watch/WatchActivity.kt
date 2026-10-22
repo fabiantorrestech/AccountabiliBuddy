@@ -123,6 +123,8 @@ private fun WatchApp(stored: WatchSnapshot?, phoneReachable: Boolean?, pcPaired:
                             else -> LinkPage(
                                 pcName = snapshot.pcName,
                                 updated = WatchText.updatedAgo(snapshot.dataAt, now),
+                                // Each device whose focus is in the day (ADR 22), with its data's age.
+                                sources = snapshot.sources.map { "${it.name} · ${WatchText.updatedAgo(it.dataAt, now) ?: "up to date"}" },
                                 isSample = stored == null,
                                 pcPaired = pcPaired,
                                 onForget = { if (stored == null) sample = null else onForget() },

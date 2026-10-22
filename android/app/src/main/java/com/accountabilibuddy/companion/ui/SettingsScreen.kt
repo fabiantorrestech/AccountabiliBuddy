@@ -62,12 +62,6 @@ fun SettingsScreen(
     onAddWidget: () -> Unit,
     curbox: CurboxStatus,
     onConnectCurbox: () -> Unit,
-    pcStatus: LinkStatus = LinkStatus.Unlinked,
-    pairedPc: LinkedPc? = null,
-    onPastePairingLink: (String) -> Boolean = { false },
-    onUnpairPc: () -> Unit = {},
-    watch: WatchSectionState = WatchSectionState(),
-    watchActions: WatchSectionActions = WatchSectionActions(),
 ) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
@@ -114,19 +108,13 @@ fun SettingsScreen(
         }
 
         item { HorizontalDivider() }
-        item { PcSection(pcStatus, pairedPc, onPastePairingLink, onUnpairPc) }
-
-        item { HorizontalDivider() }
-        item { WatchSection(watch, watchActions) }
-
-        item { HorizontalDivider() }
         item { CurboxSection(curbox, onConnectCurbox) }
 
         item { HorizontalDivider() }
         item {
             Text(
                 "Local only: the app talks only to your linked PC, on your own network and encrypted, and to your linked watch " +
-                    "(through Google's encrypted relay only if you allow it above). Nothing else goes to the internet.",
+                    "(through Google's encrypted relay only if you allow it in Devices). Nothing else goes to the internet.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -171,7 +159,7 @@ private fun CurboxSection(curbox: CurboxStatus, onConnect: () -> Unit) {
 }
 
 @Composable
-private fun PcSection(status: LinkStatus, pc: LinkedPc?, onPaste: (String) -> Boolean, onUnpair: () -> Unit) {
+internal fun PcSection(status: LinkStatus, pc: LinkedPc?, onPaste: (String) -> Boolean, onUnpair: () -> Unit) {
     Section("PC") {
         if (pc == null) {
             Text(
@@ -214,7 +202,7 @@ private fun PcSection(status: LinkStatus, pc: LinkedPc?, onPaste: (String) -> Bo
     }
 }
 
-/** The Pixel Watch link (ADR 21) as Settings shows it. */
+/** The Pixel Watch link (ADR 21) as the Devices tab shows it. */
 data class WatchSectionState(val settings: WatchLinkSettings = WatchLinkSettings(), val detected: List<WatchNode> = emptyList())
 
 data class WatchSectionActions(
@@ -227,7 +215,7 @@ data class WatchSectionActions(
 )
 
 @Composable
-private fun WatchSection(watch: WatchSectionState, actions: WatchSectionActions) {
+internal fun WatchSection(watch: WatchSectionState, actions: WatchSectionActions) {
     val settings = watch.settings
     LaunchedEffect(Unit) { actions.onFind() }
 
@@ -281,7 +269,7 @@ private fun WatchSection(watch: WatchSectionState, actions: WatchSectionActions)
 }
 
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
+internal fun Section(title: String, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title, style = MaterialTheme.typography.titleMedium)
         content()
@@ -289,7 +277,7 @@ private fun Section(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun ToggleRow(title: String, detail: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
+internal fun ToggleRow(title: String, detail: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)

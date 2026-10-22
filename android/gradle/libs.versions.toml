@@ -11,6 +11,7 @@ glance = "1.2.0"
 healthConnect = "1.1.0"
 work = "2.12.0"
 # ADR 21 (user-approved 2026-10-21): the phone-watch link and the watch app.
+zxingCore = "3.5.3"
 playServicesWearable = "20.0.1"
 wearCompose = "1.7.1"
 wearTiles = "1.6.2"
@@ -31,6 +32,7 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
 androidx-health-connect = { group = "androidx.health.connect", name = "connect-client", version.ref = "healthConnect" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }
 play-services-wearable = { group = "com.google.android.gms", name = "play-services-wearable", version.ref = "playServicesWearable" }
 wear-compose-material3 = { group = "androidx.wear.compose", name = "compose-material3", version.ref = "wearCompose" }
 wear-compose-foundation = { group = "androidx.wear.compose", name = "compose-foundation", version.ref = "wearCompose" }

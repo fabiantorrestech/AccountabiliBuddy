@@ -61,5 +61,7 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     // The watch link (ADR 21): Wearable Data Layer messages to the paired Pixel Watch.
     implementation(libs.play.services.wearable)
+    // QR codes drawn on the phone: its own sync file and the group's link code (ADR 22, user-approved 2026-10-21).
+    implementation(libs.zxing.core)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

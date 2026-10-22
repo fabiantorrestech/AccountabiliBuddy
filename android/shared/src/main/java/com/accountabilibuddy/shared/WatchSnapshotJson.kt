@@ -26,6 +26,16 @@ object WatchSnapshotJson {
         put("wifiAllowed", snapshot.wifiAllowed)
         put("dataAt", snapshot.dataAt.toString())
         put("relayAllowed", snapshot.relayAllowed)
+        if (snapshot.sources.isNotEmpty()) {
+            put("sources", buildJsonArray {
+                snapshot.sources.forEach { source ->
+                    add(buildJsonObject {
+                        put("name", source.name)
+                        put("dataAt", source.dataAt.toString())
+                    })
+                }
+            })
+        }
         snapshot.running?.let { running ->
             put("running", buildJsonObject {
                 running.profile?.let { put("profile", it) }
@@ -55,6 +65,10 @@ object WatchSnapshotJson {
             wifiAllowed = (json["wifiAllowed"] as? kotlinx.serialization.json.JsonPrimitive)?.let { json.bool("wifiAllowed") } ?: true,
             dataAt = json.instant("dataAt") ?: createdAt,
             relayAllowed = (json["relayAllowed"] as? kotlinx.serialization.json.JsonPrimitive)?.let { json.bool("relayAllowed") } ?: true,
+            sources = json.objects("sources").mapNotNull { source ->
+                val dataAt = source.instant("dataAt") ?: return@mapNotNull null
+                DataSource(source.string("name") ?: return@mapNotNull null, dataAt)
+            },
         )
     }
 

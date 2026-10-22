@@ -22,6 +22,8 @@ data class SnapshotInput(
     val wifiAllowed: Boolean = true,
     val runningAt: Instant? = null,
     val relayAllowed: Boolean = true,
+    /** The devices whose focus is in [focusDay], with their data's age (ADR 22). */
+    val sources: List<DataSource> = emptyList(),
 )
 
 /**
@@ -57,7 +59,7 @@ object SnapshotBuilder {
         }.toMutableList()
         if (running != null && sessions.none { it.end == null } && running.startedAt.isBefore(input.now)) {
             // The PC says a session runs that its focus day doesn't have yet.
-            sessions += FocusSession(maxOf(running.startedAt, dayStart), null, running.profile, added = false)
+            sessions += FocusSession(maxOf(running.startedAt, dayStart), null, running.profile, added = false, device = input.pcName.takeIf { input.sources.isNotEmpty() })
         }
 
         val parts = input.parts.filter { it.end.isAfter(dayStart) && it.start.isBefore(dayEnd) }
@@ -77,6 +79,7 @@ object SnapshotBuilder {
             wifiAllowed = input.wifiAllowed,
             dataAt = if (input.pcConnected) input.now else listOfNotNull(input.focusDayAt, input.runningAt).maxOrNull() ?: input.now,
             relayAllowed = input.relayAllowed,
+            sources = input.sources,
         )
 
         // The PC's totals for the days before today (dated, so an older focus day still counts), and today live.
