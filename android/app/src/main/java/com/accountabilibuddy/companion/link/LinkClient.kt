@@ -54,6 +54,10 @@ class LinkClient(
     private val applyFocusDay: (content: JsonObject) -> Unit = {},
     /** The PC is forgotten (unpaired here or there): what came from it goes too (ADR 15). */
     private val onForget: () -> Unit = {},
+    /** Takes in a sealed sync file the PC sent (ADR 22): its own or one it received. */
+    private val onSyncFile: (sealed: ByteArray) -> Unit = {},
+    /** The sealed sync files to hand the PC (by its name) after signing in (ADR 22). */
+    private val syncFilesForPc: (pcName: String) -> List<ByteArray> = { emptyList() },
 ) {
     private val _status = MutableStateFlow<LinkStatus>(if (store.pc.value == null) LinkStatus.Unlinked else LinkStatus.Idle)
     private val _lastState = MutableStateFlow<PcStateAt?>(null)
@@ -223,6 +227,22 @@ class LinkClient(
         )
     }
 
+    /**
+     * Hands the PC sealed sync files (ADR 22), one request each, which the PC answers. Null when every one was taken,
+     * otherwise the last reason one wasn't (also when not connected).
+     */
+    suspend fun sendSyncFiles(files: List<ByteArray>): String? {
+        var problem: String? = null
+        for (file in files) {
+            val answer = request(LinkMessages.SYNC_FILE, buildJsonObject {
+                put("data", java.util.Base64.getEncoder().encodeToString(file))
+            }, LinkMessages.RESULT)
+            problem = if (answer == null) "The PC didn't answer." else resultError(answer) ?: problem
+        }
+
+        return problem
+    }
+
     /** Forgets the PC here and asks it to forget this phone. */
     suspend fun unpair() {
         withContext(Dispatchers.IO) {
@@ -255,6 +275,8 @@ class LinkClient(
     private fun adopt(opened: Connection, pcName: String) {
         connection = opened
         _status.value = LinkStatus.Connected(pcName, null)
+        // The files this phone carries go to the PC once signed in (the PC reads requests after its own first sends).
+        scope.launch { sendSyncFiles(syncFilesForPc(pcName)) }
         readJob = scope.launch(Dispatchers.IO) {
             try {
                 while (true) {
@@ -290,6 +312,10 @@ class LinkClient(
                 }
             }
             LinkMessages.FOCUS_DAY -> body?.let(applyFocusDay)
+            LinkMessages.SYNC_FILE -> body?.string("data")
+                ?.let { runCatching { java.util.Base64.getDecoder().decode(it) }.getOrNull() }
+                ?.takeIf { it.isNotEmpty() }
+                ?.let(onSyncFile)
             LinkMessages.REFUSED -> forget(body?.string("message") ?: "The PC no longer knows this phone. Pair again.")
             else -> pending?.takeIf { message.type in it.types }?.answer?.complete(message)
         }

@@ -23,4 +23,8 @@ object LinkMessages {
     const val RESULT = "result"
     const val DAY_PLAN_ANSWER = "dayPlanAnswer"
     const val REFUSED = "refused"
+
+    // Both ways. A sealed sync file (ADR 22), body {"data": base64}: the PC sends its own and each one it received;
+    // the phone sends the files it carries, and the PC answers each with RESULT.
+    const val SYNC_FILE = "syncFile"
 }

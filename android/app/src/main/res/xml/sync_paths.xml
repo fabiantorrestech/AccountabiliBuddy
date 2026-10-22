@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What FileProvider may hand out: only the sync files SyncShare writes for the share sheet (ADR 22). -->
+<paths>
+    <cache-path name="sync" path="sync/" />
+</paths>

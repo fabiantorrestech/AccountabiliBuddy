@@ -65,7 +65,38 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="accountabilibuddy" android:host="pair" />
             </intent-filter>
+            <!-- Device sync (ADR 22): the PC's link code (join) and its sync QR codes (sync), opened by the camera. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="accountabilibuddy" android:host="join" />
+                <data android:scheme="accountabilibuddy" android:host="sync" />
+            </intent-filter>
+            <!-- Sync files (*.absync) opened or shared with the app; anything else gets "That file can't be read". -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:mimeType="application/octet-stream" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
         </activity>
+
+        <!-- Sharing sync files out (ADR 22): only the app's cache/sync folder is offered. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/sync_paths" />
+        </provider>
 
         <!-- Health Connect (Android 14+): why the app reads sleep. -->
         <activity-alias

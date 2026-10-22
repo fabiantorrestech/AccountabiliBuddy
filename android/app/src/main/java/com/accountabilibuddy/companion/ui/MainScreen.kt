@@ -52,6 +52,7 @@ fun MainScreen(
     val watchSettings by viewModel.watchSettings.collectAsStateWithLifecycle()
     val detectedWatches by viewModel.detectedWatches.collectAsStateWithLifecycle()
     val pairingOffer by viewModel.pairingOffer.collectAsStateWithLifecycle()
+    val joinOffer by viewModel.joinOffer.collectAsStateWithLifecycle()
     val pairing by viewModel.pairing.collectAsStateWithLifecycle()
     val pcBusy by viewModel.pcBusy.collectAsStateWithLifecycle()
     val endEarlyTerms by viewModel.endEarlyTerms.collectAsStateWithLifecycle()
@@ -171,6 +172,21 @@ fun MainScreen(
         PairingDialog(
             offer, busy = pairing, onPair = viewModel::confirmPairing, onCancel = viewModel::cancelPairing,
             onPairWatch = if (canPairWatch) viewModel::pairWatchWithPc else null,
+        )
+    }
+
+    joinOffer?.let { offer ->
+        AlertDialog(
+            onDismissRequest = viewModel::cancelJoin,
+            title = { Text("Join ${offer.pcName}'s devices?") },
+            text = {
+                Text(
+                    "This phone joins your device group: it shares its sync file with your other devices and carries " +
+                        "theirs between them, encrypted with this link code.",
+                )
+            },
+            confirmButton = { TextButton(onClick = viewModel::confirmJoin) { Text("Join") } },
+            dismissButton = { TextButton(onClick = viewModel::cancelJoin) { Text("Cancel") } },
         )
     }
 

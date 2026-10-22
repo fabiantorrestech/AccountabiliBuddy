@@ -11,7 +11,11 @@ import com.accountabilibuddy.companion.link.LinkClient
 import com.accountabilibuddy.companion.link.LinkDiscovery
 import com.accountabilibuddy.companion.link.LinkStore
 import com.accountabilibuddy.companion.notify.Refresher
+import com.accountabilibuddy.companion.sync.ReceivedDevicesStore
+import com.accountabilibuddy.companion.sync.SyncCoordinator
+import com.accountabilibuddy.companion.sync.SyncIdentityStore
 import com.accountabilibuddy.companion.watch.WatchBridge
+import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.companion.watch.WatchLinkStore
 import com.accountabilibuddy.shared.FocusDayJson
 import kotlinx.coroutines.CoroutineScope
@@ -44,6 +48,10 @@ class CompanionApp : Application() {
     lateinit var watchBridge: WatchBridge
         private set
 
+    /** Device sync (ADR 22): the group, the other devices' parts, and the files the phone carries. */
+    lateinit var sync: SyncCoordinator
+        private set
+
     /** True while a screen of the app is showing (set by the screens' view model). */
     @Volatile
     var appOnScreen: Boolean = false
@@ -55,13 +63,33 @@ class CompanionApp : Application() {
         super.onCreate()
         store = CompanionStore(File(filesDir, "companion"))
         deviceName = readDeviceName()
+        val linkStore = LinkStore(File(filesDir, "companion/link.json"))
+        sync = SyncCoordinator(
+            SyncIdentityStore(File(filesDir, "companion/sync.json")),
+            ReceivedDevicesStore(File(filesDir, "companion/sync-received.json")),
+            deviceName,
+            appVersion(),
+            methods = {
+                listOfNotNull(
+                    SyncDeviceCard.METHOD_LINK.takeIf { linkStore.pc.value != null },
+                    SyncDeviceCard.METHOD_QR,
+                    SyncDeviceCard.METHOD_FILE,
+                )
+            },
+        )
         link = LinkClient(
-            LinkStore(File(filesDir, "companion/link.json")), deviceName, deviceKind(), appScope, LinkDiscovery(this), ::applyPcSettings,
+            linkStore, deviceName, deviceKind(), appScope, LinkDiscovery(this), ::applyPcSettings,
             // Without the PC's plan version (a phone-only update, a cleared import) ask for everything again.
             needsFullSettings = { store.state.value.hasImport && store.state.value.pcPlanVersion == null },
             applyFocusDay = { content -> FocusDayJson.read(content)?.let(store::saveFocusDay) },
             onForget = store::clearFocusDay,
+            onSyncFile = { sealed -> sync.acceptSealed(sealed, SyncDeviceCard.METHOD_LINK) },
+            syncFilesForPc = sync::filesForPc,
         )
+        // A file that came by QR code, Drive or a share goes on to the PC at once when connected.
+        sync.onCarryChanged = {
+            link.pairedPc.value?.let { pc -> appScope.launch { link.sendSyncFiles(sync.filesForPc(pc.pcName)) } }
+        }
         planSync = DayPlanSync(store, link, appScope).also { it.start() }
         watchBridge = WatchBridge(this, store, link, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope) { appOnScreen }
             .also { it.start() }
@@ -84,6 +112,9 @@ class CompanionApp : Application() {
     /** E.g. "Fabian's Pixel 7" (the name set in Android's settings), else the model. */
     private fun readDeviceName(): String =
         Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)?.takeIf { it.isNotBlank() } ?: Build.MODEL
+
+    private fun appVersion(): String =
+        runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "?"
 
     private fun deviceKind(): String = if (resources.configuration.smallestScreenWidthDp >= 600) "tablet" else "phone"
 }

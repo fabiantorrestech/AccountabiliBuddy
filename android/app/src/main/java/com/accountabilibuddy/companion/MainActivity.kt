@@ -18,6 +18,8 @@ import androidx.activity.viewModels
 import androidx.health.connect.client.PermissionController
 import com.accountabilibuddy.companion.link.PairingLink
 import com.accountabilibuddy.companion.notify.TimelineNotifier
+import com.accountabilibuddy.companion.sync.JoinLink
+import com.accountabilibuddy.companion.sync.SyncShare
 import com.accountabilibuddy.companion.ui.CompanionTheme
 import com.accountabilibuddy.companion.ui.CompanionViewModel
 import com.accountabilibuddy.companion.ui.MainScreen
@@ -75,18 +77,30 @@ class MainActivity : ComponentActivity() {
         }
 
         if (savedInstanceState == null) {
-            offerPairingFrom(intent)
+            handleLink(intent)
         }
     }
 
-    /** The PC's QR code opened the app again while it was open. */
+    /** A QR code or a shared file opened the app again while it was open. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        offerPairingFrom(intent)
+        handleLink(intent)
     }
 
-    private fun offerPairingFrom(intent: Intent?) {
-        intent?.data?.let { PairingLink.parse(it) }?.let(viewModel::offerPairing)
+    /**
+     * What opened the app: the PC's pairing code, its link code for device sync ("join"), one of its sync QR codes
+     * ("sync"), or sync files (*.absync) opened or shared with the app (ADR 14, 22).
+     */
+    private fun handleLink(intent: Intent?) {
+        intent ?: return
+        val data = intent.data
+        when {
+            data?.scheme == PairingLink.SCHEME && data.host == PairingLink.HOST -> PairingLink.parse(data)?.let(viewModel::offerPairing)
+            data?.scheme == PairingLink.SCHEME && data.host == JoinLink.HOST ->
+                JoinLink.parse(data.toString())?.let(viewModel::offerJoin) ?: viewModel.showMessage("That link code isn't complete.")
+            data?.scheme == PairingLink.SCHEME && data.host == SYNC_HOST -> viewModel.scanSyncCode(data.toString())
+            else -> SyncShare.urisIn(intent).takeIf { it.isNotEmpty() }?.let(viewModel::openSyncFiles)
+        }
     }
 
     override fun onStart() {
@@ -135,5 +149,10 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !TimelineNotifier.canPost(this)) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+    }
+
+    private companion object {
+        /** The host of the PC's sync QR codes ([com.accountabilibuddy.shared.sync.SyncQr.LINK_START]). */
+        const val SYNC_HOST = "sync"
     }
 }

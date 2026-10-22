@@ -35,6 +35,9 @@ import com.accountabilibuddy.companion.link.EndEarlyTerms
 import com.accountabilibuddy.companion.link.LinkStatus
 import com.accountabilibuddy.companion.link.LinkedPc
 import com.accountabilibuddy.companion.link.PairingLink
+import com.accountabilibuddy.companion.sync.JoinLink
+import com.accountabilibuddy.companion.sync.SyncShare
+import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.companion.engine.DayPlanValidator
 import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.companion.model.DayPlanConflict
@@ -53,6 +56,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     val curboxClient = CurboxClient(application)
     private val link = (application as CompanionApp).link
     private val watchBridge = (application as CompanionApp).watchBridge
+    private val sync = (application as CompanionApp).sync
 
     /** The Pixel Watch link (ADR 21): its settings and the watches found with the app. */
     val watchSettings: StateFlow<WatchLinkSettings> = watchBridge.settings
@@ -65,6 +69,9 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     /** A pairing link opened from the PC's QR code, waiting for the user to compare the code and confirm. */
     val pairingOffer = MutableStateFlow<PairingLink?>(null)
+
+    /** A scanned link code waiting for "Join <PC name>'s devices?" (ADR 22). */
+    val joinOffer = MutableStateFlow<JoinLink?>(null)
     val pairing = MutableStateFlow(false)
 
     /** Both the PC and the phone changed the day plan (ADR 19); the dialog asks which to keep. */
@@ -163,6 +170,50 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
             pairingOffer.value = null
             message.value = error ?: "Linked to ${offer.pcName}."
         }
+    }
+
+    /** The PC's link code for device sync was scanned (ADR 22): asks before joining. */
+    fun offerJoin(offer: JoinLink) {
+        joinOffer.value = offer
+    }
+
+    fun cancelJoin() {
+        joinOffer.value = null
+    }
+
+    /** Joins the group; when the PC is connected, this phone's file goes to it at once. */
+    fun confirmJoin() {
+        val offer = joinOffer.value ?: return
+        joinOffer.value = null
+        if (!sync.join(offer.code)) {
+            message.value = "That link code didn't work. Show it again on ${offer.pcName}."
+            return
+        }
+
+        message.value = "Joined ${offer.pcName}'s devices."
+        link.pairedPc.value?.let { pc -> viewModelScope.launch { link.sendSyncFiles(sync.filesForPc(pc.pcName)) } }
+    }
+
+    /** One of the PC's sync QR codes was scanned: e.g. "2 of 3 scanned", then "Synced Work PC". */
+    fun scanSyncCode(link: String) {
+        viewModelScope.launch(Dispatchers.IO) { message.value = sync.onQrLink(link) }
+    }
+
+    /** Sync files (*.absync) opened or shared with the app. */
+    fun openSyncFiles(uris: List<Uri>) {
+        val app = getApplication<CompanionApp>()
+        viewModelScope.launch(Dispatchers.IO) {
+            val results = uris.map { uri ->
+                val bytes = SyncShare.read(app, uri) ?: return@map "That file couldn't be read."
+                sync.acceptSealed(bytes, SyncDeviceCard.METHOD_FILE)
+                    ?: "Synced ${sync.received.value.firstOrNull { it.sealed === bytes }?.file?.device?.name ?: "your other device"}"
+            }
+            message.value = if (results.size == 1) results[0] else results.distinct().joinToString(" · ")
+        }
+    }
+
+    fun showMessage(text: String) {
+        message.value = text
     }
 
     fun findWatches() = watchBridge.findWatches()
