@@ -70,6 +70,7 @@ class FocusTileService : Material3TileService() {
                 box(
                     ring(arcs.filter { it.ring == 0 }, nowDegrees, inset = 0f),
                     ring(arcs.filter { it.ring == 1 }, nowDegrees, inset = RING_THICKNESS + RING_GAP),
+                    ticks(inset = 2 * (RING_THICKNESS + RING_GAP)),
                     column(
                         text(glance.headline.layoutString, typography = if (numeric) Typography.NUMERAL_SMALL else Typography.TITLE_SMALL),
                         text(glance.detail.layoutString, typography = Typography.BODY_SMALL),
@@ -96,6 +97,26 @@ class FocusTileService : Material3TileService() {
         // Many drifts in a day: keep the layout small (the plan and focus come first in the list).
         arcs.take(MAX_ARCS_PER_RING).forEach { ring.addContent(arc(it.startDegrees, it.sweepDegrees, it.color.toInt(), RING_THICKNESS)) }
         nowDegrees?.let { ring.addContent(arc(it - NOW_TICK_DEGREES / 2, NOW_TICK_DEGREES, NOW_COLOR, RING_THICKNESS)) }
+        return ring.build()
+    }
+
+    /** Clock ticks hanging inward from just inside the focus ring: each hour, longer and brighter every 3 hours. */
+    private fun ticks(inset: Float): LayoutElementBuilders.LayoutElement {
+        val ring = LayoutElementBuilders.Box.Builder()
+            .setWidth(expand())
+            .setHeight(expand())
+            .setModifiers(
+                ModifiersBuilders.Modifiers.Builder()
+                    .setPadding(ModifiersBuilders.Padding.Builder().setAll(dp(inset)).build())
+                    .build(),
+            )
+        TileRing.ticks().forEach { tick ->
+            val width = if (tick.major) MAJOR_TICK_DEGREES else MINOR_TICK_DEGREES
+            ring.addContent(
+                arc(tick.degrees - width / 2, width, if (tick.major) MAJOR_TICK_COLOR else MINOR_TICK_COLOR, if (tick.major) MAJOR_TICK_LENGTH else MINOR_TICK_LENGTH),
+            )
+        }
+
         return ring.build()
     }
 
@@ -126,5 +147,11 @@ class FocusTileService : Material3TileService() {
         const val MAX_ARCS_PER_RING = 48
         const val TRACK_COLOR = 0x33FFFFFF
         const val NOW_COLOR = 0xFFFFFFFF.toInt()
+        const val MAJOR_TICK_DEGREES = 1.4f
+        const val MINOR_TICK_DEGREES = 0.8f
+        const val MAJOR_TICK_LENGTH = 6f
+        const val MINOR_TICK_LENGTH = 3f
+        const val MAJOR_TICK_COLOR = 0xCCFFFFFF.toInt()
+        const val MINOR_TICK_COLOR = 0x66FFFFFF
     }
 }

@@ -15,6 +15,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material3.Text
+import com.accountabilibuddy.shared.TileRing
 import com.accountabilibuddy.shared.TodayView
 
 /**
@@ -42,9 +43,14 @@ fun TodayPage(view: TodayView) {
                 drawLine(Color(0xFFEF4444), pointAt(minute, inner - ring / 2), pointAt(minute, inner + ring / 2), strokeWidth = 2.dp.toPx())
             }
 
-            // Hour marks inside the rings: midnight, 6, noon, 18.
-            for (hour in listOf(0, 6, 12, 18)) {
-                drawCircle(Color(0x66FFFFFF), 1.5.dp.toPx(), pointAt(hour * 60, inner - ring - 2.dp.toPx()))
+            // Clock ticks inside the rings: each hour, longer and brighter at 12, 3, 6 and 9 (AM and PM).
+            val tickFrom = inner - ring / 2 - 2.dp.toPx()
+            TileRing.ticks().forEach { tick ->
+                val length = (if (tick.major) 6 else 3).dp.toPx()
+                drawLine(
+                    if (tick.major) Color(0xCCFFFFFF) else Color(0x66FFFFFF), pointAt(tick.minute, tickFrom), pointAt(tick.minute, tickFrom - length),
+                    strokeWidth = (if (tick.major) 2f else 1f).dp.toPx(),
+                )
             }
 
             // Now: a hand across both rings and a red dot on the outer one.

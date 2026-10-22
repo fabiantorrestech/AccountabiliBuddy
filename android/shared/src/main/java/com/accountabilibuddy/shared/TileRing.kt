@@ -3,6 +3,9 @@ package com.accountabilibuddy.shared
 /** The drift tick colour on the Tile's focus ring (red, as the drift marks on the PC's Focus row). */
 const val DRIFT_COLOR: Long = 0xFFEF4444L
 
+/** A clock tick on the 24-hour rings: its minute of the day and angle; [major] at 12, 3, 6 and 9 (AM and PM). */
+data class RingTick(val minute: Int, val degrees: Float, val major: Boolean)
+
 /**
  * A stretch on the watch Tile's 24-hour rings, in degrees: midnight at 0° (the top), clockwise. [ring] 0 is the plan
  * (the outer ring), 1 is focus with its drift ticks (the inner ring).
@@ -25,6 +28,9 @@ object TileRing {
     }
 
     fun nowDegrees(nowMinute: Int): Float = nowMinute * DEGREES_PER_MINUTE
+
+    /** A tick each hour, the ones every 3 hours longer, like a clock's (on the Tile and the Today page). */
+    fun ticks(): List<RingTick> = (0 until 24).map { hour -> RingTick(hour * 60, hour * 60 * DEGREES_PER_MINUTE, hour % 3 == 0) }
 
     private fun arc(arc: RingArc, ring: Int): TileArc? {
         val minutes = arc.endMinute - arc.startMinute
