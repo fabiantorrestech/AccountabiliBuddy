@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
+import android.os.SystemClock
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
@@ -45,14 +46,17 @@ object TimelineNotifier {
         val subtle = if (night) 0xCCFFFFFF.toInt() else 0xB3042F2E.toInt()
 
         val collapsed = RemoteViews(context.packageName, R.layout.notification_timeline).apply {
-            setTextViewText(R.id.timeline_title, "${model.dateText} · ${model.statusText}")
+            val counting = setCountdown(this, model, text)
+            setTextViewText(R.id.timeline_title, if (counting) "${model.dateText} · " else "${model.dateText} · ${model.statusText}")
             setTextColor(R.id.timeline_title, text)
             setBar(this, model, width, metrics.density, night, compact = true)
         }
         val expanded = RemoteViews(context.packageName, R.layout.notification_timeline_expanded).apply {
             setTextViewText(R.id.timeline_title, model.dateText)
             setTextColor(R.id.timeline_title, text)
-            setTextViewText(R.id.timeline_status, listOf(model.statusText, model.summaryText).filter { it.isNotEmpty() }.joinToString(" · "))
+            val counting = setCountdown(this, model, text)
+            val status = if (counting) listOf(model.summaryText) else listOf(model.statusText, model.summaryText)
+            setTextViewText(R.id.timeline_status, status.filter { it.isNotEmpty() }.joinToString(" · "))
             setTextColor(R.id.timeline_status, subtle)
             setBar(this, model, width, metrics.density, night, compact = false)
             val sleep = model.sleepLine
@@ -107,6 +111,23 @@ object TimelineNotifier {
         SleepAmount.Good -> if (dark) 0xFF86EFAC.toInt() else 0xFF15803D.toInt()
         SleepAmount.Okay -> if (dark) 0xFFFDE68A.toInt() else 0xFFA16207.toInt()
         SleepAmount.Short -> if (dark) 0xFFFCA5A5.toInt() else 0xFFB91C1C.toInt()
+    }
+
+    /** The live countdown (a session's time left, a part's start) in the views' chronometer; false when nothing counts down. */
+    private fun setCountdown(views: RemoteViews, model: DayBarModel, color: Int): Boolean {
+        val end = model.countdownTo
+        val format = model.countdownFormat
+        val left = end?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() }
+        if (left == null || format == null || left <= 0) {
+            views.setViewVisibility(R.id.timeline_countdown, View.GONE)
+            return false
+        }
+
+        views.setChronometer(R.id.timeline_countdown, SystemClock.elapsedRealtime() + left, format, true)
+        views.setChronometerCountDown(R.id.timeline_countdown, true)
+        views.setTextColor(R.id.timeline_countdown, color)
+        views.setViewVisibility(R.id.timeline_countdown, View.VISIBLE)
+        return true
     }
 
     /** The bar in the colours of the card as posted ([night]: the dark teal card). */

@@ -19,4 +19,7 @@ data class DayBarModel(
     val ticks: List<DayBarTick>,
     val now: Double,
     val sleepLine: SleepLine?,
+    /** While the header counts down (a session's end, a part's start): when, and the status with "%s" for the time. */
+    val countdownTo: java.time.Instant? = null,
+    val countdownFormat: String? = null,
 )

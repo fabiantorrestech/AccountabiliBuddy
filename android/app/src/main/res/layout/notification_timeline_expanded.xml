@@ -14,6 +14,15 @@
         android:textSize="18sp"
         android:maxLines="1" />
 
+    <!-- While something counts down: the status with the time left ticking (the line below then holds the summary). -->
+    <Chronometer
+        android:id="@+id/timeline_countdown"
+        style="@style/TextAppearance.Compat.Notification"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:visibility="gone" />
+
     <TextView
         android:id="@+id/timeline_status"
         style="@style/TextAppearance.Compat.Notification"

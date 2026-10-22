@@ -31,6 +31,8 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
         settings: DayBarSettings,
         sleep: SleepSettings,
         slept: List<LocalWindow> = emptyList(),
+        /** The context-aware header ([DayHeader]); null: the plan's own status and summary. */
+        header: HeaderText? = null,
     ): DayBarModel {
         val day = dayAt(now, settings, sleep, document.dayPlan)
         val span = DayTimeline.calendarSpan(day)
@@ -59,8 +61,8 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
         return DayBarModel(
             day = day,
             dateText = day.start.format(dateFormat),
-            statusText = status(now, range, planned, document),
-            summaryText = summary(range, planned),
+            statusText = header?.status ?: status(now, range, planned, document),
+            summaryText = header?.summary ?: summary(range, planned),
             planned = plannedSpans,
             actual = actualSpans,
             events = eventSpans(events, range),
@@ -69,6 +71,8 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
             ticks = ticks(range),
             now = fraction(now, range),
             sleepLine = sleepLine(now, sleep, document.dayPlan),
+            countdownTo = header?.countdownTo,
+            countdownFormat = header?.countdownFormat,
         )
     }
 

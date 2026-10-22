@@ -16,6 +16,7 @@ import com.accountabilibuddy.companion.curbox.CurboxClient
 import com.accountabilibuddy.companion.curbox.CurboxStatus
 import com.accountabilibuddy.companion.engine.DayTimeline
 import com.accountabilibuddy.companion.health.SleepReader
+import com.accountabilibuddy.companion.notify.HeaderSource
 import com.accountabilibuddy.companion.usage.PhoneUsage
 import com.accountabilibuddy.companion.usage.PhoneUsageReader
 import com.accountabilibuddy.companion.model.SleepSettings
@@ -93,7 +94,10 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     private val builder = DayBarBuilder(clock)
     val state: StateFlow<CompanionState> = store.state
 
-    val model: StateFlow<DayBarModel> = combine(store.state, now) { state, time -> build(state, time) }
+    /** Null while usage access isn't granted. */
+    val phoneUsage = MutableStateFlow<PhoneUsage?>(null)
+
+    val model: StateFlow<DayBarModel> = combine(store.state, now, phoneUsage) { state, time, _ -> build(state, time) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, build(store.state.value, now.value))
 
     /** A message after an import or another action, shown once. */
@@ -112,8 +116,6 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     val importing = MutableStateFlow(false)
     val health = MutableStateFlow(HealthStatus.Checking)
 
-    /** Null while usage access isn't granted. */
-    val phoneUsage = MutableStateFlow<PhoneUsage?>(null)
     val curbox = MutableStateFlow(CurboxStatus())
 
     val healthPermissions: Set<String> get() = sleepReader.permissions
@@ -509,6 +511,9 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    private fun build(state: CompanionState, time: LocalDateTime): DayBarModel =
-        builder.build(time, state.document, state.events, state.dayBar, state.sleep, state.slept)
+    private fun build(state: CompanionState, time: LocalDateTime): DayBarModel {
+        val app = getApplication<CompanionApp>()
+        val header = HeaderSource.header(app, time, clock, phoneUsage.value?.total?.toMinutes()?.toInt())
+        return builder.build(time, state.document, state.events, state.dayBar, state.sleep, state.slept, header)
+    }
 }

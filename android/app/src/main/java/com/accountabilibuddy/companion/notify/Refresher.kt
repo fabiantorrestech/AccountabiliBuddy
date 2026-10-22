@@ -24,9 +24,14 @@ import java.time.LocalDateTime
  */
 object Refresher {
     private const val INTERVAL_MS = 5 * 60 * 1000L
+    private const val COUNTDOWN_GRACE_MS = 5_000L
 
     // Screen-on, the alarm and the app can all ask at the same moment: one redraw at a time.
     private val drawing = Mutex()
+
+    // When the header's countdown ends (a session, a part's start): the next redraw comes then if that's sooner.
+    @Volatile
+    private var countdownEnd: java.time.Instant? = null
 
     fun start(context: Context) {
         Channels.create(context)
@@ -42,7 +47,10 @@ object Refresher {
             val now = LocalDateTime.now()
 
             if (isSeen(context)) {
-                val model = DayBarBuilder(clock).build(now, state.document, state.events, state.dayBar, state.sleep, state.slept)
+                val builder = DayBarBuilder(clock)
+                val header = HeaderSource.header(app, now, clock, HeaderSource.phoneMinutes(context, state, now, builder))
+                val model = builder.build(now, state.document, state.events, state.dayBar, state.sleep, state.slept, header)
+                countdownEnd = model.countdownTo
                 if (state.timelineNotificationOn) {
                     TimelineNotifier.show(context, model)
                     if (!PinnedTimelineService.isRunning && TimelineNotifier.canPost(context)) {
@@ -71,6 +79,8 @@ object Refresher {
             context, 0, Intent(context, RefreshReceiver::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        alarms.set(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + INTERVAL_MS, intent)
+        val untilCountdownEnd = countdownEnd?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
+        val delay = untilCountdownEnd?.takeIf { it in 1 until INTERVAL_MS } ?: INTERVAL_MS
+        alarms.set(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + delay, intent)
     }
 }

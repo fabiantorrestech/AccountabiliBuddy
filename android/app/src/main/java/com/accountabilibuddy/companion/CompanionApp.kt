@@ -24,6 +24,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.merge
 import kotlinx.serialization.json.JsonObject
 import java.io.File
 
@@ -106,6 +110,12 @@ class CompanionApp : Application() {
                 folderSource.schedule()
                 folderSource.syncNow()
             }
+        }
+        // The header follows the PC's session and the devices' focus: redraw (at most every 2 s) when they change.
+        appScope.launch {
+            merge(link.status, link.lastState, sync.received, store.state.map { it.focusDay }.distinctUntilChanged())
+                .debounce(2_000)
+                .collect { Refresher.refresh(this@CompanionApp) }
         }
         Refresher.start(this)
     }
