@@ -111,6 +111,20 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
         _tasks.EndAtOnce();
     }
 
+    /// <summary>The on-screen bar's box by the task: ticks the task it shows (and its subtasks).</summary>
+    [RelayCommand]
+    private Task TickCurrentTaskAsync()
+    {
+        return _tasks.Current.Shown is { } shown ? _tasks.ToggleAsync(shown.Task.Id) : Task.CompletedTask;
+    }
+
+    /// <summary>The on-screen bar's box by the subtask: ticks the subtask it shows.</summary>
+    [RelayCommand]
+    private Task TickCurrentSubtaskAsync()
+    {
+        return _tasks.Current.Shown?.Subtask is { } subtask ? _tasks.ToggleAsync(subtask.Id) : Task.CompletedTask;
+    }
+
     private void OnChanged(object? sender, EventArgs e)
     {
         Refresh();
