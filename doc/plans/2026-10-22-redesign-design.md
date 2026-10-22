@@ -123,12 +123,25 @@ Phone Today: the goal ring with today's progress, the running session's task, **
 - **Interrupted.** A second flavour of Step away for a colleague at the desk or a call: same badge, same pause, same auto-end on input, labelled so History tells breaks from interruptions.
 - Not now: "where I left off" at session end, Windows Do Not Disturb.
 
+## K. The other computer *(user, 2026-10-22: hyperfocus on the work PC turns into Claude Code on the personal PC)*
+
+The cause is "I had an idea and it has to happen now"; the laptop next to the work PC is the cheapest outlet. Software on a machine the user administers is a speed bump, not a wall, so the design makes the lazy path the right one and counts the rest.
+
+- **Decided locally, by the day plan.** During its own Work parts the personal PC assumes the user is working; no sync needed, no lag, works offline. The default when unsure is closed. Sync only *relaxes* it (goal met, no session running).
+- **A Work-hours profile on the personal PC.** Dev tools (Claude Code, terminals, IDEs; the user's list) are **blocked** (minimized at once), not nudged. Calls, browser and mail stay open, so an unplanned call needs no exception. The only ways out are the existing ones: end early (wait + reason) or the goal unlock.
+- **The gate.** Waking or touching the personal PC during work hours: "Work until 5:00 · what were you about to do?", a box that files a come-back, and a 60-second wait before anything else. It **re-arms after 3 minutes with no input**, so a chair flip pays every time; a single wait would be paid once in the morning and forgotten.
+- **Lights out (opt-in, per computer).** At each Work part start, and after every 3-minute idle gap during work hours, the personal PC locks (`LockWorkStation`, keeps downloads) or sleeps (stronger). Waking lands on the gate. Off when the goal is met, outside work hours, in a Rest or calendar part, or on a Local-only computer.
+- **Earned time.** When the work PC reports today's deep-work goal met (G), the personal PC's Work-hours profile lifts for the rest of the day: "Goal met · 2h 10m · personal PC open". The one place sync has to work; minutes of lag are fine.
+- **Planned interview or call:** a calendar event or one-off day part (from the phone too; applies at once). Both PCs relax for that window. **Unplanned:** press Interrupted on the work PC; the call runs on the tools that were never blocked. A live coding exercise on the laptop costs the end-early wait, on purpose.
+- **Capture at the source.** Ctrl+Alt+N on the work PC parks the idea as a come-back (F); the gate asks for it too if the user walked anyway.
+- **Counted.** Input on the personal PC within a minute of input on the work PC is a pickup: escalates at once, no grace, shown with the phone pickups on the review and in History. The app being killed and restarted counts as one too; tamper resistance stays V3.
+
 ## Order of work (my proposal; reorder freely)
 
 1. **Navigation, Today, Focus mode** (A, B, C): the daily win, no backend change.
-2. **Prompt calming and learn mode** (D, E): the first-minutes pain.
-3. **Drive-only sync** (H, ADR 26): reliability at work; removes the link.
-4. **Goal and growth** (G): schema v6, History graph.
+2. **Prompt calming and learn mode** (D, E): the first-minutes pain. Plus K's local part: the Work-hours profile, the gate with its re-arm, and the come-back key on the work PC.
+3. **Drive-only sync** (H, ADR 26): reliability at work; removes the link. Plus K's synced part: lights out, pickups counted across PCs.
+4. **Goal and growth** (G): schema v6, History graph. Plus K's goal unlock ("personal PC open").
 5. **Capture** (F, ADR).
 
 ## Reviewer's questions, settled (2026-10-22; my calls unless marked user)
@@ -151,6 +164,8 @@ Exact spacing and sizes (the mockups set the direction, not the pixels); the rin
 - Step away **pauses** the countdown. The end-of-session review is an **in-app card**. The default daily goal at first run is **1 h**. The resting overlay keeps a slim timeline with a gliding now line.
 
 - Auto Step-away after idle is **off by default**; the work PC **calls the Drive API itself** (one more outbound connection there, like the calendar). *(user, 2026-10-22)*
+
+- Section K (the other computer) as written: local-first, dev tools blocked not nudged, the gate re-arms on idle, lights out opt-in, goal unlock, pickups counted. *(user, 2026-10-22: "let's go with this solution")*
 
 ## Status
 
