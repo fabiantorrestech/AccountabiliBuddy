@@ -98,6 +98,46 @@ public sealed class SessionEngine
         SetState(SessionState.Idle);
     }
 
+    /// <summary>
+    /// The user steps away (a break or an interruption): the countdown pauses until <see cref="Return"/>.
+    /// It never shortens a wait or ends the session.
+    /// </summary>
+    /// <returns>False with no session running or when already away.</returns>
+    public bool StepAway(AwayKind kind)
+    {
+        if (!State.IsActive || State.IsAway)
+        {
+            return false;
+        }
+
+        SetState(State with { Away = kind, AwaySince = Now });
+        return true;
+    }
+
+    /// <summary>The user is back: the phase's end moves later by the time away, so no focus time is lost.</summary>
+    /// <returns>How long the user was away; null when not away.</returns>
+    public TimeSpan? Return()
+    {
+        if (State.AwaySince is not DateTimeOffset since)
+        {
+            return null;
+        }
+
+        TimeSpan away = Now - since;
+        if (away < TimeSpan.Zero)
+        {
+            away = TimeSpan.Zero;
+        }
+
+        SetState(State with
+        {
+            Away = null,
+            AwaySince = null,
+            PhaseEndsAt = State.PhaseEndsAt + away,
+        });
+        return away;
+    }
+
     /// <summary>Everything needed to carry on with the current session after the app restarts.</summary>
     public SessionCheckpoint CreateCheckpoint()
     {
@@ -138,9 +178,14 @@ public sealed class SessionEngine
         return true;
     }
 
-    /// <summary>Advances phases that have run out.</summary>
+    /// <summary>Advances phases that have run out. Nothing runs out while the user is away.</summary>
     public void Tick()
     {
+        if (State.IsAway)
+        {
+            return;
+        }
+
         DateTimeOffset now = Now;
         SessionState before = State;
 
