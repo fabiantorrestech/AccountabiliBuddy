@@ -23,6 +23,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -71,6 +72,7 @@ fun SettingsScreen(
     pauseActions: PauseActions = PauseActions(),
 ) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item { AppearanceSection() }
         if (pause != null) {
             item {
                 // Ticks the wait down while it's shown.
@@ -340,8 +342,36 @@ internal fun Section(title: String, summary: String? = null, startOpen: Boolean 
                 Text(if (open) "▾" else "▸", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        if (open) {
-            content()
+        // Folds open and shut smoothly (Settings → Appearance → Animations; at once when off).
+        val scale = LocalMotionScale.current
+        androidx.compose.animation.AnimatedVisibility(
+            visible = open,
+            enter = androidx.compose.animation.expandVertically(motionSpec(scale, 220)) + androidx.compose.animation.fadeIn(motionSpec(scale, 220)),
+            exit = androidx.compose.animation.shrinkVertically(motionSpec(scale, 180)) + androidx.compose.animation.fadeOut(motionSpec(scale, 180)),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+        }
+    }
+}
+
+/** Settings → Appearance: the theme and how fast animations run. */
+@Composable
+private fun AppearanceSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val theme by UiPrefs.theme.collectAsState()
+    val motion by UiPrefs.motion.collectAsState()
+    Section("Appearance", summary = "${theme.label} · animations ${motion.label.lowercase()}") {
+        Text("Theme", style = MaterialTheme.typography.bodyMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ThemeChoice.entries.forEach { choice ->
+                androidx.compose.material3.FilterChip(selected = theme == choice, onClick = { UiPrefs.setTheme(context, choice) }, label = { Text(choice.label) })
+            }
+        }
+        Text("Animations", style = MaterialTheme.typography.bodyMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            MotionSpeed.entries.forEach { speed ->
+                androidx.compose.material3.FilterChip(selected = motion == speed, onClick = { UiPrefs.setMotion(context, speed) }, label = { Text(speed.label) })
+            }
         }
     }
 }

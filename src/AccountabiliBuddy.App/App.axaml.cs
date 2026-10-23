@@ -88,6 +88,7 @@ public partial class App : Application
     private WorkHoursGuard? _workHours;
     private HyperfocusGuard? _hyperfocus;
     private StartNudgeService? _startNudge;
+    private Motion? _motion;
     private AccountabiliBuddy.App.Services.Sync.PhonePickups? _phonePickups;
     private DeepWorkService? _deepWork;
     private DeepWorkHistoryViewModel? _deepWorkHistory;
@@ -382,6 +383,10 @@ public partial class App : Application
         // Steer toward starting: Today with the task box ready when work starts, at launch, and on coming back.
         _startNudge = new StartNudgeService(_sessions, _configuration, new Win32UserIdleDetector(), documents);
         _startNudge.LoadBlocking();
+        // Animations at the chosen speed, or none (Settings → On screen & sound).
+        _motion = new Motion(documents);
+        _motion.LoadBlocking();
+        _motion.Apply();
         // ADR 28: while it guards, a day plan change that frees some of today's work waits like a looser change.
         _configuration.DayPlanHold = _workHours.DescribeCut;
         _activityWatcher.ActivityChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => _workHours.OnActivity(snapshot));
@@ -694,6 +699,7 @@ public partial class App : Application
                 WorkHours = new WorkHoursViewModel(_workHours!, _sessions),
                 Hyperfocus = new HyperfocusViewModel(_hyperfocus!, _configuration),
                 StartNudge = new StartNudgeViewModel(_startNudge!),
+                Motion = new MotionViewModel(_motion!),
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
                 Updates = new UpdatesViewModel(_updates),
                 EnforcementLimit = enforcementLimit,

@@ -128,6 +128,7 @@ class CompanionApp : Application() {
         }
         watchBridge.onLinkChanged = { sendSyncFilesToPc() }
         folderSource = DriveFolderSource(this, sync)
+        com.accountabilibuddy.companion.ui.UiPrefs.load(this)
         driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn)
         // Drive (ADR 26): every 30 s while a session runs or the timeline is pinned, else 15 min.
         appScope.launch { driveSource.loop { driveBusy() } }

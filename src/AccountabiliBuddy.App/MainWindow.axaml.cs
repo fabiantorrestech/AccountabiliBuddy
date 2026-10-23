@@ -175,6 +175,9 @@ public partial class MainWindow : Window
             Pages.Children[i].IsVisible = i == Tabs.SelectedIndex;
         }
 
+        // The page coming into view fades and lifts in (Settings → Animations).
+        AccountabiliBuddy.App.Services.Motion.Current?.Enter(Pages.Children[_shownTab]);
+
         // Search highlights follow the page showing.
         Highlights.Page = Pages.Children[_shownTab];
         Dispatcher.UIThread.Post(Highlights.RecountNow, DispatcherPriority.Background);

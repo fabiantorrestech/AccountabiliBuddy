@@ -5,6 +5,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.graphics.Color
 
 /** The PC app's look: dark slate with the focus teal. */
@@ -46,7 +48,17 @@ private val Light = lightColorScheme(
     onSurfaceVariant = Color(0xFF55606B),
 )
 
+/** The app's colours (the phone's setting, or Light or Dark from Settings → Appearance) and its animation speed. */
 @Composable
 fun CompanionTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (isSystemInDarkTheme()) Dark else Light, content = content)
+    val theme by UiPrefs.theme.collectAsState()
+    val motion by UiPrefs.motion.collectAsState()
+    val dark = when (theme) {
+        ThemeChoice.System -> isSystemInDarkTheme()
+        ThemeChoice.Light -> false
+        ThemeChoice.Dark -> true
+    }
+    androidx.compose.runtime.CompositionLocalProvider(LocalMotionScale provides motion.scale) {
+        MaterialTheme(colorScheme = if (dark) Dark else Light, content = content)
+    }
 }

@@ -12,6 +12,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -120,7 +121,18 @@ fun MainScreen(
                 return@Column
             }
 
-            when (tab) {
+            val scale = LocalMotionScale.current
+            androidx.compose.animation.AnimatedContent(
+                targetState = tab,
+                transitionSpec = {
+                    val toRight = targetState > initialState
+                    (androidx.compose.animation.fadeIn(motionSpec(scale, 220)) +
+                        androidx.compose.animation.slideInHorizontally(motionSpec(scale, 220)) { width -> if (toRight) width / 8 else -width / 8 })
+                        .togetherWith(androidx.compose.animation.fadeOut(motionSpec(scale, 150)))
+                },
+                label = "tabs",
+            ) { shown ->
+            when (shown) {
                 0 -> TodayScreen(
                     state, model, viewModel.clock, health, onPickFile, onConnectHealth, viewModel::refreshSleep, phoneUsage, onAllowUsage,
                     showsPcCard = pairedPc != null,
@@ -223,6 +235,7 @@ fun MainScreen(
                     )
                 }
                 else -> AboutScreen(pcName = pairedPc?.pcName)
+            }
             }
         }
     }

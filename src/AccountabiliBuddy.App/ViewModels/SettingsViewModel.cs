@@ -619,6 +619,10 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public StartNudgeViewModel? StartNudge { get; init; }
 
+    public MotionViewModel? Motion { get; init; }
+
+    public bool HasMotion => Motion is not null;
+
     public bool HasStartNudge => StartNudge is not null;
 
     public bool HasHyperfocus => Hyperfocus is not null;
