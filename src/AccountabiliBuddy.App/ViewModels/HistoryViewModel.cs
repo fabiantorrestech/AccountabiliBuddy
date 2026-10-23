@@ -58,6 +58,9 @@ public sealed partial class HistoryViewModel : ObservableObject
     /// <summary>Builds "New this week" (set by the app).</summary>
     public SessionReviewService? ReviewService { get; set; }
 
+    /// <summary>Deep work against the daily goal over days (redesign phase 4); null hides the card.</summary>
+    public DeepWorkHistoryViewModel? DeepWork { get; set; }
+
     /// <summary>"New this week": the week's sites and apps with no rule, shown after "Review new this week".</summary>
     [ObservableProperty]
     public partial SessionReviewViewModel? WeekReview { get; set; }

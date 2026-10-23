@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:views="using:AccountabiliBuddy.App.Views"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
              x:Class="AccountabiliBuddy.App.Views.HistoryView"
              x:DataType="vm:HistoryViewModel">
     <UserControl.Resources>
@@ -138,6 +139,21 @@
 
     <ScrollViewer>
         <StackPanel Margin="16" Spacing="14" MaxWidth="900" HorizontalAlignment="Left">
+            <!-- Deep work against the daily goal, day by day (redesign phase 4). -->
+            <Border Padding="16,12" CornerRadius="10" Background="#1A2A9D8F" BorderBrush="#552A9D8F" BorderThickness="1"
+                    DataContext="{Binding DeepWork}" x:DataType="vm:DeepWorkHistoryViewModel"
+                    IsVisible="{Binding $parent[UserControl].((vm:HistoryViewModel)DataContext).DeepWork, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
+                <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="Deep work" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <ToggleButton Grid.Column="1" Content="30 days" IsChecked="{Binding ShowsMonth}" />
+                    </Grid>
+                    <controls:DeepWorkChart Bars="{Binding Bars}" GoalLine="{Binding GoalLine}" Height="140" />
+                    <TextBlock Text="{Binding SummaryText}" Opacity="0.85" TextWrapping="Wrap" />
+                    <TextBlock Text="Bars: focus in sessions on any of your devices · dashed line: your daily goal · teal: goal met" FontSize="11" Opacity="0.6" />
+                </StackPanel>
+            </Border>
+
             <!-- New this week: sites and apps used in focus with no rule, turned into rules here. -->
             <StackPanel Spacing="8">
                 <StackPanel Orientation="Horizontal" Spacing="10">

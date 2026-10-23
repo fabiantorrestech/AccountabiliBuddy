@@ -87,6 +87,7 @@ public partial class App : Application
     private WorkHoursGuard? _workHours;
     private HyperfocusGuard? _hyperfocus;
     private DeepWorkService? _deepWork;
+    private DeepWorkHistoryViewModel? _deepWorkHistory;
     private ComebackStore? _comebacks;
     private CaptureService? _capture;
     private WorkGateService? _workGate;
@@ -549,6 +550,21 @@ public partial class App : Application
                 new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A9D8F")));
         _deepWork.Changed += (_, _) => _sessionOverlay?.SetGoalText($"Goal · {_deepWork.Progress.Text}");
         sessionViewModel.Goal = new GoalCardViewModel(_deepWork, goal);
+        _deepWorkHistory = new DeepWorkHistoryViewModel(
+            async (from, to) => SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(from, to)),
+            () => receivedDevices.Devices.SelectMany(device => device.File.Sessions),
+            omittedSessions.IsOmitted,
+            goal,
+            time);
+        _sessions.StateChanged += (_, state) =>
+        {
+            if (!state.IsActive)
+            {
+                _ = _deepWorkHistory.RefreshAsync();
+            }
+        };
+        receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(() => _ = _deepWorkHistory.RefreshAsync());
+        _ = _deepWorkHistory.RefreshAsync();
         // Earned time (design K): today's goal met across the user's devices opens this computer's work hours.
         _workHours!.Goal = () => _deepWork?.Progress;
         _ = _deepWork.ReloadAsync();
@@ -568,6 +584,7 @@ public partial class App : Application
                 _programPaths, desktopShell, isSessionRunning: () => _sessions!.State.IsActive)
             {
                 ReviewService = _sessionReview,
+                DeepWork = _deepWorkHistory,
             },
             setupViewModel,
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
