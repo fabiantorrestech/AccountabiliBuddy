@@ -573,6 +573,31 @@
                                    IsVisible="{Binding NoiseKeysStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     </StackPanel>
                     </Border>
+                    <Border Classes="card" search:SearchArea.Name="Play when headphones connect" IsVisible="{Binding HasHeadphones}">
+                    <StackPanel Spacing="6" DataContext="{Binding Headphones}" x:DataType="vm:HeadphoneSettingsViewModel">
+                        <TextBlock Text="Play when headphones connect" Classes="sectionTitle" />
+                        <TextBlock Text="The noise player starts its last file when these headphones connect, any time of day, and pauses when they disconnect. Changes apply at once."
+                                   Opacity="0.75" TextWrapping="Wrap" />
+                        <Border Background="#1FF59E0B" BorderBrush="#66F59E0B" BorderThickness="1" CornerRadius="6" Padding="10,6">
+                            <TextBlock Text="Tip: it really helps to have a dedicated pair of work/focus headphones, so putting them on means focus and it doesn't get in the way of your normal headphones."
+                                       TextWrapping="Wrap" />
+                        </Border>
+                        <CheckBox IsChecked="{Binding Wired}" Content="Wired headphones or a headset (USB always works; a headphone jack only if your sound driver reports it)" />
+                        <CheckBox IsChecked="{Binding Bluetooth}" Content="These Bluetooth headphones:" />
+                        <StackPanel Margin="28,0,0,0" Spacing="4" IsVisible="{Binding Bluetooth}">
+                            <ItemsControl ItemsSource="{Binding Devices}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:HeadphoneChoiceViewModel">
+                                        <CheckBox IsChecked="{Binding IsChosen}" Content="{Binding Name}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding Status}" Opacity="0.75" TextWrapping="Wrap"
+                                       IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            <Button Content="Look again" Command="{Binding RefreshDevicesCommand}" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </StackPanel>
+                    </Border>
                 </StackPanel>
 
                 <StackPanel Spacing="16" IsVisible="{Binding Groups[3].IsSelected}"

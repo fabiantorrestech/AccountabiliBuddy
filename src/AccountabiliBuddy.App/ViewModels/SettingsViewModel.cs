@@ -621,6 +621,11 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public MotionViewModel? Motion { get; init; }
 
+    /// <summary>Play the noise when chosen headphones connect.</summary>
+    public HeadphoneSettingsViewModel? Headphones { get; init; }
+
+    public bool HasHeadphones => Headphones is not null;
+
     public bool HasMotion => Motion is not null;
 
     public bool HasStartNudge => StartNudge is not null;

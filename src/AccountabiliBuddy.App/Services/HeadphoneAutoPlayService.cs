@@ -1,0 +1,96 @@
+using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Ports;
+using AccountabiliBuddy.Core.Storage;
+using Avalonia.Threading;
+using Microsoft.Data.Sqlite;
+
+namespace AccountabiliBuddy.App.Services;
+
+/// <summary>
+/// Plays the noise player's last file when chosen headphones connect (any time of day) and pauses it when they
+/// disconnect, so it never carries on through the speakers. The watcher runs only while a switch is on.
+/// </summary>
+public sealed class HeadphoneAutoPlayService : IDisposable
+{
+    private const string DocumentKey = "headphones";
+    // Windows moves sound to new headphones a moment after they appear.
+    private static readonly TimeSpan SettleDelay = TimeSpan.FromSeconds(2);
+
+    private readonly SqliteJsonDocumentStore _store;
+    private readonly IHeadphoneWatcher _watcher;
+    private readonly NoisePlayerService _noise;
+    private bool _watching;
+
+    public HeadphoneAutoPlayService(SqliteJsonDocumentStore store, IHeadphoneWatcher watcher, NoisePlayerService noise)
+    {
+        _store = store;
+        _watcher = watcher;
+        _noise = noise;
+        _watcher.Changed += (_, change) => Dispatcher.UIThread.Post(() => _ = HandleAsync(change));
+    }
+
+    public HeadphoneSettings Current { get; private set; } = HeadphoneSettings.Default;
+
+    public void LoadBlocking()
+    {
+        try
+        {
+            HeadphoneSettings? loaded = Task.Run(() => _store.LoadAsync<HeadphoneSettings>(DocumentKey)).GetAwaiter().GetResult();
+            Current = loaded is null ? HeadphoneSettings.Default : loaded with { Devices = loaded.Devices ?? [] };
+        }
+        catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
+        {
+            Current = HeadphoneSettings.Default;
+        }
+
+        WatchIfOn();
+    }
+
+    public async Task SaveAsync(HeadphoneSettings settings)
+    {
+        Current = settings;
+        WatchIfOn();
+        try
+        {
+            await _store.SaveAsync(DocumentKey, settings);
+        }
+        catch (SqliteException)
+        {
+            // Applies for now; written with the next change.
+        }
+    }
+
+    public Task<IReadOnlyList<BluetoothAudioDevice>> ListBluetoothAsync() => _watcher.ListBluetoothAudioAsync();
+
+    public void Dispose() => _watcher.Dispose();
+
+    private void WatchIfOn()
+    {
+        if (!_watching && Current.IsOn)
+        {
+            _watching = true;
+            _watcher.Start();
+        }
+    }
+
+    private async Task HandleAsync(HeadphoneEvent change)
+    {
+        bool chosen = change.IsBluetooth
+            ? Current.Bluetooth && Current.Devices.Any(device => device.Id == change.DeviceId)
+            : Current.Wired;
+        if (!chosen)
+        {
+            return;
+        }
+
+        if (change.Connected)
+        {
+            await Task.Delay(SettleDelay);
+            _noise.PlayNow();
+        }
+        else
+        {
+            _noise.PauseNow();
+        }
+    }
+}

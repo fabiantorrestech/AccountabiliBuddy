@@ -91,6 +91,24 @@ public sealed class NoisePlayerService : IDisposable
         }
     }
 
+    /// <summary>Plays the current file if it isn't playing (focus headphones connected).</summary>
+    public void PlayNow()
+    {
+        if (!IsPlaying)
+        {
+            Play();
+        }
+    }
+
+    /// <summary>Pauses if playing (focus headphones went away).</summary>
+    public void PauseNow()
+    {
+        if (IsPlaying)
+        {
+            _player!.Pause();
+        }
+    }
+
     public void Next()
     {
         if (_player is null)

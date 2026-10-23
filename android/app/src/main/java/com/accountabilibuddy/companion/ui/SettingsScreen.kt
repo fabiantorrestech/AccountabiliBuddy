@@ -144,6 +144,7 @@ fun SettingsScreen(
         noise?.let { player ->
             item { HorizontalDivider() }
             item { NoiseSection(player, noiseSettings) }
+            item { HeadphonesSection() }
         }
 
         item { HorizontalDivider() }

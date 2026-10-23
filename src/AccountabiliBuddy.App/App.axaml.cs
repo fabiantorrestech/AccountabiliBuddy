@@ -61,6 +61,7 @@ public partial class App : Application
     private SessionOverlayService? _sessionOverlay;
     private NoisePlayerService? _noise;
     private NoiseSettingsService? _noiseSettings;
+    private HeadphoneAutoPlayService? _headphones;
     private SessionCueService? _sessionCues;
     private AppAndSiteIcons? _icons;
     private UpdateService? _updates;
@@ -329,6 +330,8 @@ public partial class App : Application
         _noise = new NoisePlayerService(
             () => new AccountabiliBuddy.Platform.Windows.Audio.WindowsNoisePlayer(), _noiseSettings, () => new Win32GlobalHotkey());
         _noise.Start();
+        _headphones = new HeadphoneAutoPlayService(documents, new AccountabiliBuddy.Platform.Windows.Audio.WindowsHeadphoneWatcher(), _noise);
+        _headphones.LoadBlocking();
         var noisePlayer = new NoisePlayerViewModel(_noise);
         _sessionOverlay.SetNoisePlayer(noisePlayer);
         var tonightWake = new TonightWakeViewModel(sleepSettings, _configuration, time);
@@ -720,6 +723,7 @@ public partial class App : Application
                 Hyperfocus = new HyperfocusViewModel(_hyperfocus!, _configuration),
                 StartNudge = new StartNudgeViewModel(_startNudge!),
                 Motion = new MotionViewModel(_motion!),
+                Headphones = new HeadphoneSettingsViewModel(_headphones!),
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
                 Updates = new UpdatesViewModel(_updates),
                 EnforcementLimit = enforcementLimit,
@@ -1393,6 +1397,8 @@ public partial class App : Application
         {
             await _noiseSettings.FlushAsync();
         }
+
+        _headphones?.Dispose();
 
         if (_mainWindow is not null)
         {

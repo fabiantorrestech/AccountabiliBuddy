@@ -223,7 +223,13 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
     private fun notifyService() {
         val intent = Intent(context, NoiseService::class.java).setAction(NoiseService.ACTION_UPDATE)
         if (_state.value.playing) {
-            ContextCompat.startForegroundService(context, intent)
+            try {
+                ContextCompat.startForegroundService(context, intent)
+            } catch (e: IllegalStateException) {
+                // Started from the background (headphones connected) where Android refuses it; the pinned timeline
+                // keeps the app, and so the sound, alive.
+                android.util.Log.w("NoisePlayer", "noise service not started", e)
+            }
         } else if (NoiseService.running) {
             context.startService(intent)
         }

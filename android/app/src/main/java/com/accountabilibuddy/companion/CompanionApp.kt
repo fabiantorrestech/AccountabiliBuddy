@@ -81,6 +81,9 @@ class CompanionApp : Application() {
     lateinit var noise: com.accountabilibuddy.companion.noise.NoisePlayer
         private set
 
+    /** "Play when headphones connect" (Settings → Noise player). */
+    val headphones by lazy { com.accountabilibuddy.companion.noise.HeadphoneStore(this) }
+
     /** True while a screen of the app is showing (set by the screens' view model). */
     @Volatile
     var appOnScreen: Boolean = false
@@ -150,6 +153,7 @@ class CompanionApp : Application() {
         // Drive (ADR 26): every 30 s while a session runs or the timeline is pinned, else 15 min.
         appScope.launch { driveSource.loop { driveBusy() } }
         noise = com.accountabilibuddy.companion.noise.NoisePlayer(this, com.accountabilibuddy.companion.noise.NoiseSettingsStore(this), appScope)
+        com.accountabilibuddy.companion.noise.HeadphoneWatcher(this, headphones, noise).start()
         // The widget's play/pause follows the player.
         noise.onChanged = {
             appScope.launch { runCatching { com.accountabilibuddy.companion.widget.TimelineWidget().updateAll(this@CompanionApp) } }
