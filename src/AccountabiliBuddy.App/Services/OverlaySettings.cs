@@ -33,7 +33,7 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="QuietMarks">In quiet mode, the timeline's red (drift marks, the now line) and task marks are dulled at
 /// rest too, instead of staying in full colour. On by default.</param>
 /// <param name="TaskOnlyWithCtrlAlt">The current task line shows only while Ctrl+Alt is held. Off by default.</param>
-/// <param name="TaskOpacity">How opaque the task line is while shown that way (0.2 to 1).</param>
+/// <param name="HeldOpacity">How opaque the whole window (background, task line and all) is while Ctrl+Alt is held (0.2 to 1).</param>
 public sealed record OverlaySettings(
     OverlayStyle Style,
     double Opacity,
@@ -59,7 +59,7 @@ public sealed record OverlaySettings(
     bool Quiet = true,
     bool QuietMarks = true,
     bool TaskOnlyWithCtrlAlt = false,
-    double TaskOpacity = 1.0)
+    double HeldOpacity = 1.0)
 {
     /// <summary>Default vertical distance for maximized apps from a top corner (clears tabs, toolbars, window buttons).</summary>
     public const int TopCornerDrop = 110;
