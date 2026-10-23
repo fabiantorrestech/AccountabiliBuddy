@@ -87,6 +87,8 @@ public partial class App : Application
     private WorkHoursGuard? _workHours;
     private ComebackStore? _comebacks;
     private CaptureService? _capture;
+    private WorkGateService? _workGate;
+    private WorkGateWindow? _workGateWindow;
     private Win32GlobalHotkey? _stepAwayHotkey;
     private InstanceSignals? _instanceSignals;
     private ActivityRecorder? _recorder;
@@ -349,6 +351,9 @@ public partial class App : Application
         _workHours = new WorkHoursGuard(_sessions, _configuration, documents, windowsEnforcer, () => _activityWatcher.CaptureCurrent(), presenter.ShowNotice);
         _workHours.LoadBlocking();
         _activityWatcher.ActivityChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => _workHours.OnActivity(snapshot));
+        // The gate: the first input after 3 idle minutes during guarded work hours asks what you were about to do.
+        _workGate = new WorkGateService(_workHours, new Win32UserIdleDetector(), _comebacks, _sessions);
+        _workGate.Changed += (_, _) => ShowWorkGate(monitorLocator);
         // The review card after each session: what it used with no rule, as rules.
         _sessionReview = new SessionReviewService(activityLog, _configuration, documents, _sessions, () => exemptionDefaults.PreTicked);
         _sessionReview.LoadBlocking();
@@ -882,6 +887,43 @@ public partial class App : Application
         UpdateTray();
     }
 
+    /// <summary>Shows or closes the work-hours gate (ADR 27) as the service opens or closes it.</summary>
+    private void ShowWorkGate(IMonitorLocator monitors)
+    {
+        WorkGateViewModel? gate = _workGate?.Current;
+        if (gate is null)
+        {
+            WorkGateWindow? open = _workGateWindow;
+            _workGateWindow = null;
+            open?.Close();
+            return;
+        }
+
+        if (_workGateWindow is not null)
+        {
+            return;
+        }
+
+        var window = new WorkGateWindow { DataContext = gate };
+        window.Closed += (_, _) =>
+        {
+            if (_workGateWindow == window)
+            {
+                // Closed some other way: asked again at the next check.
+                _workGateWindow = null;
+                _workGate?.WindowClosed();
+            }
+        };
+        if (monitors.Find(monitors.FindMonitorUnderCursor()) is MonitorArea area)
+        {
+            MonitorPlacement.Center(window, area);
+        }
+
+        _workGateWindow = window;
+        window.Show();
+        window.Activate();
+    }
+
     private void UpdateTray()
     {
         if (_trayIcon is null || _sessions is null || _configuration is null)
@@ -1126,6 +1168,7 @@ public partial class App : Application
         _sessionReview?.Dispose();
         _workHours?.Dispose();
         _capture?.Dispose();
+        _workGate?.Dispose();
         _stepAwayHotkey?.Dispose();
         _enforcement?.Dispose();
         _recorder?.Dispose();

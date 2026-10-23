@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.WorkGateWindow"
+        x:DataType="vm:WorkGateViewModel"
+        Title="Work hours"
+        Width="560" SizeToContent="Height"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="True"
+        WindowStartupLocation="Manual">
+    <!-- ADR 27: the gate on a personal PC during work hours. The line becomes a come-back; Continue after 60 s. -->
+    <Border Padding="24,20" Background="#FF15191E" BorderBrush="#AA2A9D8F" BorderThickness="2" CornerRadius="10">
+        <StackPanel Spacing="12">
+            <TextBlock Text="{Binding UntilText}" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding Question}" TextWrapping="Wrap" Opacity="0.85" />
+            <TextBox x:Name="Line" Text="{Binding Text}" PlaceholderText="e.g. refactor the sync code" />
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding WaitText}" VerticalAlignment="Center" Opacity="0.75" />
+                <Button Grid.Column="1" Content="Continue" Command="{Binding ContinueCommand}" Classes="accent" />
+            </Grid>
+            <TextBlock Text="Dev tools stay closed until work ends. Calls, mail and the browser are open." FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+        </StackPanel>
+    </Border>
+</Window>
