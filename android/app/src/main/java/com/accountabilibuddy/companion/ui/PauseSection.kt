@@ -48,6 +48,11 @@ data class PauseActions(
     /** The work-start nudge's repeat (5, 10, 15 minutes; 0 = once). */
     val nudgeRepeat: Int = 5,
     val onNudgeRepeat: (Int) -> Unit = {},
+    /** The full-screen work nudge: on, and whether Android lets it show ("Display over other apps"). */
+    val takeoverOn: Boolean = true,
+    val takeoverAllowed: Boolean = false,
+    val onTakeover: (Boolean) -> Unit = {},
+    val onAllowTakeover: () -> Unit = {},
 )
 
 /**
@@ -85,6 +90,16 @@ fun PauseSection(state: PauseState, now: Instant, clock: ClockFormat, actions: P
                     label = { Text(if (minutes == 0) "Once" else "$minutes min") },
                 )
             }
+        }
+
+        ToggleRow(
+            "Take over the screen",
+            "During work time with no session, unlocking the phone shows a full-screen card: plan 3 tasks and start. " +
+                "\"I'm starting\" gives 10 minutes, snoozing is free twice a day, then needs a reason.",
+            actions.takeoverOn,
+        ) { actions.onTakeover(it) }
+        if (actions.takeoverOn && !actions.takeoverAllowed) {
+            OutlinedButton(onClick = actions.onAllowTakeover) { Text("Allow \"Display over other apps\"") }
         }
 
         val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> actions.onCarPause(granted) }

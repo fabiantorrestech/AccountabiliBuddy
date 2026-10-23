@@ -268,6 +268,7 @@ public sealed class DayBarControl : Control
         {
             Rect box = SpanRect(size, span, top);
             IBrush brush = span.IsAway ? BrushFor(span.Color) ?? AwayBrush
+                : span.IsOverlap ? SeeThrough(span.Color)
                 : Quiet ? QuietBrush
                 : span.Hatched ? AddedBrush
                 : BrushFor(span.Color) ?? DefaultBrush(row.Kind);
@@ -277,6 +278,13 @@ public sealed class DayBarControl : Control
             {
                 // Stepped away: slate with dark stripes over the session, quiet or not (it's a gap in the focus).
                 DrawStripes(context, box, AwayStripePen);
+                continue;
+            }
+
+            if (span.IsOverlap)
+            {
+                // Pre-Work over Sleep: stripes in its own colour over the see-through fill.
+                DrawStripes(context, box, new Pen(BrushFor(span.Color) ?? DefaultBrush(row.Kind), 1.5));
                 continue;
             }
 
@@ -518,6 +526,10 @@ public sealed class DayBarControl : Control
             _ => CalendarBrush,
         };
     }
+
+    // A part's colour, mostly see-through (Pre-Work over Sleep).
+    private static IBrush SeeThrough(string? hex) =>
+        hex is not null && Color.TryParse(hex, out Color color) ? new SolidColorBrush(color, 0.35) : QuietBrush;
 
     private static IBrush? BrushFor(string? hex)
     {

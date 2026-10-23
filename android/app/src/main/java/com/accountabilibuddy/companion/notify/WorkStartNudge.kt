@@ -57,7 +57,9 @@ object WorkStartNudge {
             context, 5, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val notification = NotificationCompat.Builder(context, Channels.NUDGE)
+        val notification = NotificationCompat.Builder(context, Channels.WORK_NUDGE)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setSmallIcon(R.drawable.ic_stat_timeline)
             .setContentTitle("Work time · plan 3 tasks and start")
             .setContentText("No session is running yet. Write down what you're doing first, start on your computer, and put the phone away.")

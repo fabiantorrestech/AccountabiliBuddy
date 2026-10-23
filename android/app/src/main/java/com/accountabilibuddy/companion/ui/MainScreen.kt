@@ -64,6 +64,7 @@ fun MainScreen(
     val syncSettings by viewModel.syncSettings.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
     var nudgeRepeat by remember { mutableIntStateOf(com.accountabilibuddy.companion.notify.WorkStartNudge.repeatMinutes(context)) }
+    var takeoverOn by remember { mutableStateOf(com.accountabilibuddy.companion.nudge.NudgeStore(context).load().takeoverOn) }
     val pairing by viewModel.pairing.collectAsStateWithLifecycle()
     val pcBusy by viewModel.pcBusy.collectAsStateWithLifecycle()
     val endEarlyTerms by viewModel.endEarlyTerms.collectAsStateWithLifecycle()
@@ -227,6 +228,17 @@ fun MainScreen(
                             onCarPause = viewModel::setCarPause,
                             onPlanOffDays = { viewModel.openPlanEditor(startTab = 2)?.let { viewModel.message.value = it } },
                             nudgeRepeat = nudgeRepeat,
+                            takeoverOn = takeoverOn,
+                            takeoverAllowed = com.accountabilibuddy.companion.nudge.Takeover.canShow(context),
+                            onTakeover = { on ->
+                                com.accountabilibuddy.companion.nudge.NudgeStore(context).update { it.copy(takeoverOn = on) }
+                                takeoverOn = on
+                            },
+                            onAllowTakeover = {
+                                context.startActivity(
+                                    android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}")),
+                                )
+                            },
                             onNudgeRepeat = { minutes ->
                                 com.accountabilibuddy.companion.notify.WorkStartNudge.setRepeatMinutes(context, minutes)
                                 nudgeRepeat = minutes

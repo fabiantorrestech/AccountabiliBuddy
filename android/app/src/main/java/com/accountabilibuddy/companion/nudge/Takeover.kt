@@ -1,0 +1,60 @@
+package com.accountabilibuddy.companion.nudge
+
+import android.app.KeyguardManager
+import android.content.Context
+import android.content.Intent
+import android.os.PowerManager
+import android.provider.Settings
+import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.companion.engine.ClockFormat
+import com.accountabilibuddy.companion.notify.WorkStartNudge
+import com.accountabilibuddy.companion.sync.OpenComebacks
+import com.accountabilibuddy.shared.WatchSnapshot
+import com.accountabilibuddy.shared.WorkStart
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
+
+/**
+ * Shows the full-screen work nudge ([NudgeActivity]) when it's due and someone is looking: the phone unlocked and its
+ * screen on, during a work stretch with no session. Android lets the app open it from the background only with
+ * "Display over other apps", which the user turns on in Settings → AccountabiliBuddy on this phone.
+ */
+object Takeover {
+    fun canShow(context: Context): Boolean = Settings.canDrawOverlays(context)
+
+    /** @param focus the devices' combined focus; null while the phone is paused (then nothing shows). */
+    fun maybeShow(context: Context, focus: WatchSnapshot?, clock: ClockFormat, now: Instant = Instant.now()) {
+        if (focus == null || !canShow(context) || !inUse(context)) {
+            return
+        }
+
+        val zone = ZoneId.systemDefault()
+        val store = NudgeStore(context)
+        val state = store.load()
+        val stretch = WorkStart.current(focus, now)
+        if (!NudgeRules.due(state, stretch != null, stretch, now, LocalDate.now(zone), WorkStartNudge.repeatMinutes(context))) {
+            return
+        }
+
+        store.save(state.copy(lastShown = now))
+        val until = focus.parts.filter { it.kind == "watch" && it.start <= now && now < it.end }.maxOfOrNull { it.end }
+            ?.let { "Work until ${clock.time(LocalDateTime.ofInstant(it, zone))}" }
+        val app = context.applicationContext as CompanionApp
+        val parked = OpenComebacks.of(app.link.pairedPc.value?.pcName, app.link.lastState.value?.state, app.sync.received.value, now)
+            ?.items?.map { it.text }.orEmpty()
+        val intent = Intent(context, NudgeActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            .putExtra(NudgeActivity.EXTRA_UNTIL, until)
+            .putStringArrayListExtra(NudgeActivity.EXTRA_PARKED, ArrayList(parked))
+        runCatching { context.startActivity(intent) }
+    }
+
+    /** True on a day the user said "Not working today" on the card (no phone nudges then). */
+    fun isDayOff(context: Context): Boolean = NudgeStore(context).load().dayOff == LocalDate.now()
+
+    // Screen on and unlocked: someone is using the phone.
+    private fun inUse(context: Context): Boolean =
+        context.getSystemService(PowerManager::class.java).isInteractive && !context.getSystemService(KeyguardManager::class.java).isKeyguardLocked
+}

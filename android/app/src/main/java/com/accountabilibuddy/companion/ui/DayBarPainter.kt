@@ -175,6 +175,24 @@ object DayBarPainter {
 
             val rect = RectF(left, top, right, top + height)
             paint.style = Paint.Style.FILL
+            if (span.overlap) {
+                // Pre-Work over Sleep: a faint fill with stripes in its colour, the night showing through.
+                val color = span.color ?: fallback
+                paint.color = (color and 0x00FFFFFF) or 0x59000000
+                canvas.drawRoundRect(rect, radius, radius, paint)
+                paint.color = (color and 0x00FFFFFF) or 0xCC000000.toInt()
+                paint.strokeWidth = 1.5f
+                canvas.save()
+                canvas.clipRect(rect)
+                var x = left - height
+                while (x < right) {
+                    canvas.drawLine(x, top + height, x + height, top, paint)
+                    x += 6f * (height / 16f).coerceAtLeast(0.5f)
+                }
+                canvas.restore()
+                continue
+            }
+
             paint.color = span.color?.let { (it and 0x00FFFFFF) or PART_ALPHA } ?: fallback
             canvas.drawRoundRect(rect, radius, radius, paint)
             if (onAccent && span.color != null) {

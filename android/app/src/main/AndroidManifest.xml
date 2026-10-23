@@ -6,6 +6,8 @@
     <!-- The Wi-Fi network's broadcast address, to find the paired PC when its address changed (ADR 14). -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- "Take over the screen": the work nudge opens full screen over other apps (turned on by the user). -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- "Pause in the car": tells a car's Bluetooth (by its class) from other devices; asked only when that switch is turned on. -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
@@ -104,6 +106,13 @@
         </provider>
 
         <!-- Health Connect (Android 14+): why the app reads sleep. -->
+        <activity
+            android:name=".nudge.NudgeActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.accountabilibuddy.companion.nudge" />
+
         <activity-alias
             android:name="ViewPermissionUsageActivity"
             android:exported="true"

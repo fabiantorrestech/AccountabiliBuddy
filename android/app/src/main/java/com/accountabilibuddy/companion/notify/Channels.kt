@@ -10,6 +10,9 @@ object Channels {
     const val BEDTIME = "bedtime"
     const val NOISE = "noise"
     const val NUDGE = "nudge"
+
+    /** The work-time nudge: pops down over the app in use (heads-up), with a buzz. */
+    const val WORK_NUDGE = "work_nudge"
     const val PARKED = "parked"
 
     fun create(context: Context) {
@@ -22,6 +25,14 @@ object Channels {
         manager.createNotificationChannel(
             NotificationChannel(NUDGE, "Work start", NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = "When planned work starts and no session runs"
+                setSound(null, null)
+                enableVibration(true)
+                setShowBadge(false)
+            },
+        )
+        manager.createNotificationChannel(
+            NotificationChannel(WORK_NUDGE, "Work-time nudge", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "During work time with no session: pops down over the app you're in"
                 setSound(null, null)
                 enableVibration(true)
                 setShowBadge(false)

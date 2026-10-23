@@ -220,6 +220,11 @@ class CompanionApp : Application() {
     }
 
     /** Hands the PC this phone's file and what it carries now, when a PC is paired (and connected), after checking the watch link. */
+    /** Redraws the notification, widget and nudges soon (after the full-screen card closes, a setting changes). */
+    fun refreshSoon() {
+        appScope.launch { Refresher.refresh(this@CompanionApp) }
+    }
+
     fun sendSyncFilesToPc() {
         val pc = link.pairedPc.value ?: return
         appScope.launch {

@@ -53,10 +53,20 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
 
         // Every part of the day plan (Rest and Sleep too) in its category's colour; the texts still follow the Watch parts.
         // A day either side, so a night running past the bar keeps its real times in the label.
-        val plannedSpans = document.dayPlan.partsIn(LocalWindow(span.start.minusDays(1), span.end.plusDays(1))).mapNotNull { part ->
-            DayTimeline.clip(part.window, range)?.let {
-                toSpan(it, range, "${part.name} · ${times(part.window)}").copy(color = part.category.argb.toInt(), name = part.name)
+        val parts = document.dayPlan.partsIn(LocalWindow(span.start.minusDays(1), span.end.plusDays(1)))
+        val nights = parts.filter { it.category.behavior == com.accountabilibuddy.companion.model.CategoryBehavior.Sleep }.map { it.window }
+        val plannedSpans = parts.flatMap { part ->
+            val shown = DayTimeline.clip(part.window, range) ?: return@flatMap emptyList()
+            val plain = toSpan(shown, range, "${part.name} · ${times(part.window)}").copy(color = part.category.argb.toInt(), name = part.name)
+            if (part.category.behavior != com.accountabilibuddy.companion.model.CategoryBehavior.PreWork || nights.isEmpty()) {
+                return@flatMap listOf(plain)
             }
+
+            // Pre-Work over Sleep (ADR 31): the piece over the night is see-through, the rest as usual.
+            val awake = DayTimeline.subtract(listOf(shown), nights)
+            val over = DayTimeline.subtract(listOf(shown), awake)
+            awake.map { toSpan(it, range, plain.label).copy(color = plain.color, name = part.name) } +
+                over.map { toSpan(it, range, "${plain.label} (over Sleep)").copy(color = plain.color, overlap = true) }
         }
         val actualSpans = slept.mapNotNull { window ->
             DayTimeline.clip(window, range)?.let { toSpan(it, range, "Slept ${times(window)} (${duration(Duration.between(window.start, window.end))})") }

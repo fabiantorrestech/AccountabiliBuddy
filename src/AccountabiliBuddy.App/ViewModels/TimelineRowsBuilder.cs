@@ -80,11 +80,30 @@ public static class TimelineRowsBuilder
     private static List<DayBarSpan> PlanSpans(TimelineDay day)
     {
         var spans = new List<DayBarSpan>();
+        List<LocalWindow> nights = day.Parts.Where(part => part.Category.Behavior == CategoryBehavior.Sleep).Select(part => part.Window).ToList();
         foreach (PlannedPart part in day.Parts)
         {
-            if (DayTimeline.Clip(part.Window, day.Range) is LocalWindow shown)
+            if (DayTimeline.Clip(part.Window, day.Range) is not LocalWindow shown)
             {
-                spans.Add(ToSpan(shown, day.Range, $"{part.Name} · {Times(part.Window)}") with { Color = part.Category.Color, Label = part.Name });
+                continue;
+            }
+
+            string tip = $"{part.Name} · {Times(part.Window)}";
+            if (part.Category.Behavior != CategoryBehavior.PreWork || nights.Count == 0)
+            {
+                spans.Add(ToSpan(shown, day.Range, tip) with { Color = part.Category.Color, Label = part.Name });
+                continue;
+            }
+
+            // Pre-Work over Sleep (ADR 31): the part that overlaps the night is drawn see-through, the rest as usual.
+            foreach (LocalWindow awake in DayTimeline.Subtract([shown], nights))
+            {
+                spans.Add(ToSpan(awake, day.Range, tip) with { Color = part.Category.Color, Label = part.Name });
+            }
+
+            foreach (LocalWindow over in DayTimeline.Subtract([shown], DayTimeline.Subtract([shown], nights)))
+            {
+                spans.Add(ToSpan(over, day.Range, $"{tip} (over Sleep: guarded if you're up early)") with { Color = part.Category.Color, IsOverlap = true });
             }
         }
 

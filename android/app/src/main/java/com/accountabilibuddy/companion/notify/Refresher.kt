@@ -82,8 +82,11 @@ object Refresher {
             }
             // Steering (start nudge, parked phone, pickups to the PC): from the devices' combined focus.
             val focus = HeaderSource.focus(app, now)?.takeUnless { quiet }
-            WorkStartNudge.check(context, focus)
-            nudgeAt = WorkStartNudge.nextAt(context, focus)
+            // "Not working today" on the full-screen card: no work nudges on the phone today.
+            val nudgeFocus = focus?.takeUnless { com.accountabilibuddy.companion.nudge.Takeover.isDayOff(context) }
+            WorkStartNudge.check(context, nudgeFocus)
+            com.accountabilibuddy.companion.nudge.Takeover.maybeShow(context, nudgeFocus, clock)
+            nudgeAt = WorkStartNudge.nextAt(context, nudgeFocus)
             val running = focus?.running
             val pickups = running?.let { app.sync.unlocksSince(it.startedAt)?.size }
             ParkedNotice.check(context, running, pickups, clock)

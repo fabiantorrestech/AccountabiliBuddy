@@ -16,4 +16,6 @@ data class DayBarSpan(
     val name: String? = null,
     /** An all-day event (the Calendar row): a thin sliver along the top of the row, not a full block. */
     val allDay: Boolean = false,
+    /** Pre-Work over Sleep (the Plan row): see-through with stripes, so the night shows under it. */
+    val overlap: Boolean = false,
 )
