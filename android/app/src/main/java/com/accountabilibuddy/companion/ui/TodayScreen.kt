@@ -109,11 +109,9 @@ fun TodayScreen(
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Bring your PC's profiles", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "On the PC: Settings → Backup → Export (without secrets, or with a password). Put the .abbackup file on the phone, then import it here.",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                        Text("Link the PC in Devices, or import a backup.", style = MaterialTheme.typography.bodyMedium)
                         Button(onClick = onImport) { Text("Import backup file") }
+                        Hint("On the PC: Settings → Backup → Export (without secrets, or with a password). Put the .abbackup file on the phone, then import it here.", label = "How to export")
                     }
                 }
             }
@@ -212,11 +210,9 @@ private fun PhoneCard(usage: PhoneUsage?, onAllow: () -> Unit) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Phone today", style = MaterialTheme.typography.titleMedium)
             if (usage == null) {
-                Text(
-                    "See how long you were on the phone, and how much of it was during focus blocks. Needs Usage access (it stays on the phone).",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text("Time on the phone, and during focus.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedButton(onClick = onAllow) { Text("Allow usage access") }
+                Hint("Needs Usage access. What it reads stays on the phone.", label = "Why the permission")
                 return@Column
             }
 
@@ -268,15 +264,12 @@ private fun SleepCard(state: CompanionState, clock: ClockFormat, health: HealthS
             when (health) {
                 HealthStatus.Checking -> Unit
                 HealthStatus.NotAvailable -> Text(
-                    "Health Connect isn't available on this phone, so measured sleep can't be shown.",
+                    "No Health Connect: measured sleep can't show.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 HealthStatus.NeedsPermission -> {
-                    Text(
-                        "Show the sleep your watch measured (Pixel Watch, Fitbit) by letting the app read sleep from Health Connect. It stays on the phone.",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    OutlinedButton(onClick = onConnect) { Text("Connect Health Connect") }
+                    OutlinedButton(onClick = onConnect) { Text("Show measured sleep") }
+                    Hint("The sleep your watch measured (Pixel Watch, Fitbit), read from Health Connect. It stays on the phone.", label = "What this reads")
                 }
                 HealthStatus.Connected -> {
                     val last = state.slept.lastOrNull()

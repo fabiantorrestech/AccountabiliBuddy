@@ -33,6 +33,7 @@ import java.util.UUID
  */
 object ProfileDocumentParser {
     private const val DAY_PLAN_SCHEMA_VERSION = 5
+    private const val COMMS_SCHEMA_VERSION = 6
 
     fun parse(json: String): ProfileDocument {
         val root = try {
@@ -53,7 +54,7 @@ object ProfileDocumentParser {
         val profiles = (root["profiles"] as? JsonArray).orEmpty().map { profile(it.jsonObject) }
         val read = if (version < DAY_PLAN_SCHEMA_VERSION) DayPlan.Default else root.obj("dayPlan")?.let(::dayPlan) ?: DayPlan.Default
         // v6 (comms windows): a v5 plan gains the Comms category; the PC itself upgrades an untouched starting plan.
-        val plan = if (read.categories.none { it.behavior == CategoryBehavior.Comms }) read.copy(categories = read.categories + DayPlan.comms) else read
+        val plan = if (version < COMMS_SCHEMA_VERSION && read.categories.none { it.behavior == CategoryBehavior.Comms }) read.copy(categories = read.categories + DayPlan.comms) else read
         return ProfileDocument(ProfileDocument.CURRENT_SCHEMA_VERSION, profiles, plan)
     }
 

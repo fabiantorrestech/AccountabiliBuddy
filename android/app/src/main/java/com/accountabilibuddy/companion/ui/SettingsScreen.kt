@@ -1,5 +1,6 @@
 package com.accountabilibuddy.companion.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -26,10 +27,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.curbox.CurboxStatus
 import com.accountabilibuddy.companion.data.CompanionState
@@ -65,15 +68,12 @@ fun SettingsScreen(
 ) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
-            Section("Profiles from the PC") {
+            Section("Profiles from the PC", summary = if (state.hasImport) "Imported ${state.importedAt}" else "Nothing imported") {
                 Text(
                     if (state.hasImport) "${state.importedFrom}; imported ${state.importedAt}." else "Nothing imported yet.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                Text(
-                    "On the PC: Settings → Backup → Export, without secrets or with a password. Open the .abbackup file here. The phone keeps it to itself.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Hint("On the PC: Settings → Backup → Export, without secrets or with a password. Open the .abbackup file here. The phone keeps it to itself.")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = onImport, enabled = !importing) { Text(if (importing) "Importing…" else "Import backup file") }
                     if (state.hasImport) {
@@ -88,7 +88,13 @@ fun SettingsScreen(
         item { HorizontalDivider() }
 
         item {
-            Section("On the phone") {
+            Section(
+                "On the phone",
+                summary = listOf(
+                    "Notification ${if (state.timelineNotificationOn) "on" else "off"}",
+                    "Reminder ${if (state.bedtimeReminderOn) "on" else "off"}",
+                ).joinToString(" · "),
+            ) {
                 ToggleRow("Timeline notification", "Always on, silent, pinned near the top", state.timelineNotificationOn, onChange = onTimelineNotification)
                 ToggleRow("Bedtime reminder", "Once a night, two hours before bedtime", state.bedtimeReminderOn, onChange = onBedtimeReminder)
                 OutlinedButton(onClick = onAddWidget) { Text("Add timeline widget to home screen") }
@@ -112,10 +118,10 @@ fun SettingsScreen(
 
         item { HorizontalDivider() }
         item {
-            Text(
+            Hint(
                 "Local only: the app talks only to your linked PC, on your own network and encrypted, and to your linked watch " +
                     "(through Google's encrypted relay only if you allow it in Devices). Nothing else goes to the internet.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                label = "Privacy: what leaves this phone",
             )
         }
     }
@@ -123,17 +129,19 @@ fun SettingsScreen(
 
 @Composable
 private fun CurboxSection(curbox: CurboxStatus, onConnect: () -> Unit) {
-    Section("Curbox") {
+    val summary = when {
+        !curbox.installed -> "Not installed"
+        !curbox.granted -> "Not connected"
+        curbox.focusActive -> "Focus running"
+        else -> "Connected"
+    }
+    Section("Curbox", summary = summary) {
         when {
-            !curbox.installed -> Text(
-                "Curbox isn't installed (or is too old for its API). AccountabiliBuddy works alongside it when it is.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            !curbox.installed -> Text("Not installed (or too old for its API).", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
             !curbox.granted -> {
-                Text(
-                    "Curbox is installed. Allow AccountabiliBuddy in Curbox to show its status and groups here (read only for now).",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text("Allow AccountabiliBuddy in Curbox to show its status here.", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedButton(onClick = onConnect) { Text("Connect to Curbox") }
             }
             else -> {
@@ -148,10 +156,7 @@ private fun CurboxSection(curbox: CurboxStatus, onConnect: () -> Unit) {
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
-                Text(
-                    "Importing the groups' apps and sites needs Curbox's API to share them; today it only shares counts.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Hint("Importing the groups' apps and sites needs Curbox's API to share them; today it only shares counts.", label = "Why only counts")
             }
         }
         curbox.error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Color(0xFFFCA5A5)) }
@@ -160,12 +165,18 @@ private fun CurboxSection(curbox: CurboxStatus, onConnect: () -> Unit) {
 
 @Composable
 internal fun PcSection(status: LinkStatus, pc: LinkedPc?, onPaste: (String) -> Boolean, onUnpair: () -> Unit) {
-    Section("PC") {
+    val summary = when {
+        pc == null -> "Not linked"
+        status is LinkStatus.Connected -> "${pc.pcName} · connected"
+        else -> "${pc.pcName} · not connected"
+    }
+    Section("PC", summary = summary) {
         if (pc == null) {
-            Text(
-                "Not linked. On the PC: Setup → Linked devices → Turn on → Pair a phone or tablet, then scan the QR code " +
+            Text("Not linked.", style = MaterialTheme.typography.bodyMedium)
+            Hint(
+                "On the PC: Setup → Linked devices → Turn on → Pair a phone or tablet, then scan the QR code " +
                     "with this phone's camera. If the camera only shows the link as text, copy it and paste it here.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                label = "How to link",
             )
             var pasted by remember { mutableStateOf("") }
             var wrong by remember { mutableStateOf(false) }
@@ -194,10 +205,7 @@ internal fun PcSection(status: LinkStatus, pc: LinkedPc?, onPaste: (String) -> B
             else -> "connects while this app is open"
         }
         Text("Linked to ${pc.pcName} (${pc.host}) · $state", style = MaterialTheme.typography.bodyMedium)
-        Text(
-            "The PC's session shows on Today, where you can start one or end it early with the PC's own wait and reason.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Hint("The PC's session shows on Today, where you can start one or end it early with the PC's own wait and reason.")
         OutlinedButton(onClick = onUnpair) { Text("Unpair") }
     }
 }
@@ -219,16 +227,15 @@ internal fun WatchSection(watch: WatchSectionState, actions: WatchSectionActions
     val settings = watch.settings
     LaunchedEffect(Unit) { actions.onFind() }
 
-    Section("Pixel Watch") {
-        val linkedName = settings.linkedName
+    val linkedName = settings.linkedName
+    val summary = if (settings.linkedNodeId != null && linkedName != null) "Linked: $linkedName" else "Not linked"
+    Section("Pixel Watch", summary = summary) {
         if (settings.linkedNodeId != null && linkedName != null) {
-            Text("Linked: $linkedName. It shows today's plan, focus and the week as rings.", style = MaterialTheme.typography.bodyMedium)
+            Text("Linked: $linkedName.", style = MaterialTheme.typography.bodyMedium)
             OutlinedButton(onClick = actions.onUnlink) { Text("Unlink") }
         } else if (watch.detected.isEmpty()) {
-            Text(
-                "No watch with AccountabiliBuddy found. Install the watch app, keep the watch connected to this phone, then check again.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Text("No watch found.", style = MaterialTheme.typography.bodyMedium)
+            Hint("Install the watch app and keep the watch connected to this phone, then check again.", label = "How to find it")
             OutlinedButton(onClick = actions.onFind) { Text("Check again") }
         } else {
             watch.detected.forEach { found ->
@@ -243,10 +250,7 @@ internal fun WatchSection(watch: WatchSectionState, actions: WatchSectionActions
             }
         }
 
-        Text(
-            "Nothing goes to a watch until you link it. Choose how it may get there, before linking or any time after:",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Text("How it may reach the watch", style = MaterialTheme.typography.bodyMedium)
         ToggleRow("Through this phone", "Over the watch's own connection to the phone (Wear OS Data Layer).", settings.dataLayerOn, onChange = actions.onDataLayer)
         ToggleRow(
             "Google's encrypted relay",
@@ -260,32 +264,80 @@ internal fun WatchSection(watch: WatchSectionState, actions: WatchSectionActions
                 "\"Pair my watch\").",
             settings.wifiFallbackOn, onChange = actions.onWifi,
         )
-        Text(
-            "The watch gets plan parts, focus session times and profile names, drift times and totals. Never page titles, " +
-                "addresses, reasons or notes.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Hint(
+            "Nothing goes to a watch until you link it. The watch gets plan parts, focus session times and profile names, drift times, " +
+                "totals and the daily goal. Never page titles, addresses, reasons or notes.",
+            label = "What the watch gets",
         )
     }
 }
 
+/**
+ * A titled group. With a [summary] it folds: the title and the one-line summary show, the rest opens on a tap
+ * ([startOpen] for the first look). Without one it's always open.
+ */
 @Composable
-internal fun Section(title: String, content: @Composable () -> Unit) {
+internal fun Section(title: String, summary: String? = null, startOpen: Boolean = false, content: @Composable () -> Unit) {
+    var open by rememberSaveable(title) { mutableStateOf(summary == null || startOpen) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
-        content()
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().clickable(enabled = summary != null) { open = !open },
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                if (summary != null && !open) {
+                    Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis)
+                }
+            }
+            if (summary != null) {
+                Text(if (open) "▾" else "▸", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (open) {
+            content()
+        }
     }
 }
 
+/** A switch with its title; a short [detail] shows under it, a long one behind ⓘ. */
 @Composable
 internal fun ToggleRow(title: String, detail: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
+    var explained by remember { mutableStateOf(false) }
+    val long = detail.length > SHORT_TEXT
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, style = MaterialTheme.typography.bodyLarge)
+                if (long) {
+                    Text(" ⓘ", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable { explained = !explained })
+                }
+            }
+            if (!long || explained) {
+                Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
     }
 }
+
+/** An explanation folded behind "ⓘ [label]"; a tap shows the [text]. */
+@Composable
+internal fun Hint(text: String, label: String = "How this works") {
+    var open by remember { mutableStateOf(false) }
+    Column {
+        Text("ⓘ $label", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.clickable { open = !open }.padding(vertical = 2.dp))
+        if (open) {
+            Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** Longer than this, a switch's detail goes behind ⓘ. */
+private const val SHORT_TEXT = 48
 
 /** Which time the picker is editing. */
 private enum class SleepField { WeeknightBed, WeeknightWake, WeekendBed, WeekendWake }
@@ -294,11 +346,9 @@ private enum class SleepField { WeeknightBed, WeeknightWake, WeekendBed, Weekend
 private fun SleepSection(saved: SleepSettings, clock: ClockFormat, onSave: (SleepSettings) -> Unit) {
     var editing by remember { mutableStateOf<SleepField?>(null) }
 
-    Section("Sleep") {
-        Text(
-            "The bar runs from wake time to bedtime and shades the night; from two hours before bedtime it says how much sleep you'll get if you go now. Comes from the PC: over the link when it's paired, or from a backup.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    val summary = if (!saved.enabled) "Off" else "Bed ${clock.time(LocalDate.now().atTime(saved.weeknights.bedtime))} · up ${clock.time(LocalDate.now().atTime(saved.weeknights.wake))}"
+    Section("Sleep", summary = summary) {
+        Hint("The bar runs from wake time to bedtime and shades the night; from two hours before bedtime it says how much sleep you'll get if you go now. Comes from the PC: over the link when it's paired, or from a backup.")
         ToggleRow("Sleep mode", "Bedtime and wake time on the timeline", saved.enabled) { onSave(saved.copy(enabled = it)) }
         ToggleRow("Same every night", "Off: Friday and Saturday nights use the weekend times", saved.sameEveryNight) { onSave(saved.copy(sameEveryNight = it)) }
         NightRow(if (saved.sameEveryNight) "Every night" else "Weeknights (Sun–Thu)", saved.weeknights, clock,

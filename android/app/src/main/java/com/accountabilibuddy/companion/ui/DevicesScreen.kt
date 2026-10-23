@@ -117,16 +117,14 @@ fun DevicesScreen(
                     .forEach { row -> DeviceRowView(row) }
                 DevicesModel.rows(devices, now).forEach { row -> DeviceRowView(row) }
                 if (devices.joined && devices.received.isEmpty()) {
-                    Text(
-                        "No other device's sync file yet: scan the PC's codes, open a sync file, or connect to the linked PC.",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Text("No other device yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Hint("Scan the PC's codes, open a sync file, or connect to the linked PC.", label = "How to bring them in")
                 }
             }
         }
 
         item {
-            Section("Link this phone") {
+            Section("Link this phone", summary = if (devices.joined) "In your device group" else "Not linked yet", startOpen = !devices.joined) {
                 if (devices.joined) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { dialog = DevicesDialog.LinkDevice }) { Text("Link a device") }
@@ -139,11 +137,17 @@ fun DevicesScreen(
         }
 
         item {
-            Section("How this phone shares") {
-                Text(
+            val methods = listOfNotNull(
+                "QR".takeIf { devices.settings.qrOn },
+                "files".takeIf { devices.settings.fileOn },
+                "link".takeIf { devices.settings.linkOn },
+                "folder".takeIf { devices.settings.folderOn },
+            )
+            Section("How this phone shares", summary = if (methods.isEmpty()) "Nothing on" else methods.joinToString(" · ")) {
+                Hint(
                     "Safest first. Sync files are encrypted with your devices' link code; they hold focus times, profile names and " +
                         "sites, never page titles, addresses or reasons.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    label = "What's shared",
                 )
                 ToggleRow("QR codes", "Scan the PC's codes with the camera; nothing travels but the picture.", devices.settings.qrOn) {
                     actions.onSettings(devices.settings.copy(qrOn = it))
@@ -281,10 +285,7 @@ private fun FolderSection(devices: DevicesState, actions: DevicesActions, now: I
 private fun JoinWithCode(onJoin: (String) -> Boolean) {
     var code by remember { mutableStateOf("") }
     var wrong by remember { mutableStateOf(false) }
-    Text(
-        "On the PC: Devices → Link a new device, then scan its code with this phone's camera, or type the code here.",
-        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    Hint("On the PC: Devices → Link a new device, then scan its code with this phone's camera, or type the code here.", label = "Where's the code?")
     OutlinedTextField(
         value = code,
         onValueChange = {

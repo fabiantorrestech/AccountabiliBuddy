@@ -87,8 +87,10 @@ fun PcCard(
 
                 is LinkStatus.Offline -> {
                     Text("PC", style = MaterialTheme.typography.titleMedium)
-                    Text(status.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    // The first sentence ("Can't reach DESK-PC"); the technical reason behind ⓘ.
+                    Text(status.message.substringBefore(" (").substringBefore("."), style = MaterialTheme.typography.bodyMedium)
                     OutlinedButton(onClick = onRetry) { Text("Try again") }
+                    Hint(status.message, label = "Details")
                 }
 
                 else -> {
@@ -202,11 +204,7 @@ fun PairingDialog(offer: PairingLink, busy: Boolean, onPair: () -> Unit, onCance
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Check that the PC shows this code:")
                 Text(offer.displayCode, style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    "This phone can then show the PC's session and start or end one, with the PC's own wait and reason. " +
-                        "Only on your network, encrypted.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                Text("Then this phone shows the PC's session. Your network only, encrypted.", style = MaterialTheme.typography.bodySmall)
                 if (onPairWatch != null) {
                     // The watch reaches the PC over Wi-Fi when the phone isn't around; the code goes to it instead.
                     TextButton(onClick = onPairWatch, enabled = !busy) { Text("Pair my watch instead") }
