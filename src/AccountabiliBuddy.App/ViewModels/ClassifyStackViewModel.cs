@@ -14,11 +14,14 @@ namespace AccountabiliBuddy.App.ViewModels;
 public sealed partial class ClassifyStackViewModel : ObservableObject
 {
     private readonly IReadOnlySet<Guid> _preTicked;
+    private readonly Guid _profileId;
 
     public ClassifyStackViewModel(
-        string profileName, IReadOnlyList<ActivitySnapshot> unknowns, IReadOnlyList<ProfileOption> otherProfiles, IReadOnlySet<Guid>? preTicked)
+        string profileName, IReadOnlyList<ActivitySnapshot> unknowns, IReadOnlyList<ProfileOption> otherProfiles, IReadOnlySet<Guid>? preTicked,
+        Guid profileId)
     {
         ProfileName = profileName;
+        _profileId = profileId;
         _preTicked = preTicked ?? new HashSet<Guid>();
         Rows = unknowns.Select(snapshot => new ClassifyStackRowViewModel(new ClassifyPromptViewModel(profileName, snapshot, otherProfiles, preTicked))).ToList();
         Reason = string.Empty;
@@ -66,7 +69,8 @@ public sealed partial class ClassifyStackViewModel : ObservableObject
                 return null;
             }
 
-            answers.Add(answer);
+            // The profile it was asked for, whatever runs when it's answered.
+            answers.Add(answer with { ProfileId = _profileId });
         }
 
         return answers;

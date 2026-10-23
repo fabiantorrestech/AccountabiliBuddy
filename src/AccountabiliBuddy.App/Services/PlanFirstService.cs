@@ -22,6 +22,9 @@ public sealed class PlanFirstService : IDisposable
     private bool _planning;
     private int _doneAtStart;
 
+    // When planning ended in the session still running: unknowns' grace counts from then (null once the session ends).
+    private DateTimeOffset? _endedAt;
+
     public PlanFirstService(SessionController sessions, SessionTasksService? tasks)
     {
         _sessions = sessions;
@@ -39,6 +42,12 @@ public sealed class PlanFirstService : IDisposable
 
     /// <summary>When planning ends (moves later after a step away); null when not planning.</summary>
     public DateTimeOffset? EndsAt => _planning && _sessions.State.PhaseStartedAt is DateTimeOffset start ? start + Length : null;
+
+    /// <summary>
+    /// What the engine holds unknowns until: the planned end while planning, then the moment planning ended (so an unknown
+    /// seen while planning gets its full grace from then), null once the session is over.
+    /// </summary>
+    public DateTimeOffset? HoldUntil => _planning ? EndsAt : _endedAt;
 
     /// <summary>E.g. "4:12"; empty when not planning.</summary>
     public string LeftText
@@ -115,6 +124,7 @@ public sealed class PlanFirstService : IDisposable
         if (!state.IsActive)
         {
             End();
+            _endedAt = null;
             return;
         }
 
@@ -124,6 +134,7 @@ public sealed class PlanFirstService : IDisposable
             // A session just started (not resumed, not a step away coming back): plan first.
             _held.Clear();
             _heldSubjects.Clear();
+            _endedAt = null;
             _doneAtStart = _tasks?.Current.DoneCount ?? 0;
             _planning = true;
             Changed?.Invoke(this, EventArgs.Empty);
@@ -158,6 +169,8 @@ public sealed class PlanFirstService : IDisposable
             return;
         }
 
+        DateTimeOffset now = _sessions.State.CountdownTime(_sessions.Now);
+        _endedAt = EndsAt is DateTimeOffset end && end < now ? end : now;
         _planning = false;
         Ended?.Invoke(this, EventArgs.Empty);
         Changed?.Invoke(this, EventArgs.Empty);

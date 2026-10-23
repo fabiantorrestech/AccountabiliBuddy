@@ -327,6 +327,14 @@ public partial class App : Application
         // Plan first: a session's first 7 minutes hold unknowns (rules still enforce).
         _planFirst = new PlanFirstService(_sessions, sessionTasks);
         _enforcement.PlanFirst = _planFirst;
+        // The session the stacked prompt was for ended: it goes (the review card has those unknowns).
+        _sessions.StateChanged += (_, state) =>
+        {
+            if (!state.IsActive)
+            {
+                presenter.CloseStack();
+            }
+        };
         // Planning over with the session still running: settle what was opened meanwhile in one window.
         _planFirst.Ended += (_, _) =>
         {
@@ -339,6 +347,7 @@ public partial class App : Application
             IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
             presenter.ShowStack(
                 ProfileOptions.NameOf(profiles, state.ProfileId) ?? "this session",
+                state.ProfileId!.Value,
                 _planFirst.HeldUnknowns.ToList(),
                 profiles.Where(profile => profile.Id != state.ProfileId).Select(ProfileOption.From).ToList());
         };

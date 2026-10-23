@@ -3,22 +3,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace AccountabiliBuddy.App.ViewModels;
 
-/// <summary>What the review does with a row.</summary>
-public enum ReviewChoice
-{
-    /// <summary>Nothing: left as it is (it may come up again).</summary>
-    None,
-
-    /// <summary>A block rule, at once.</summary>
-    Distracting,
-
-    /// <summary>An allow rule (needs the card's reason).</summary>
-    Fine,
-
-    /// <summary>Never proposed again.</summary>
-    Ignore,
-}
-
 /// <summary>One row of the review card: a site or app with no rule, how long it was used, and what to do with it.</summary>
 /// <param name="Site">The site (domain), or null for an app.</param>
 /// <param name="App">The app (process name).</param>

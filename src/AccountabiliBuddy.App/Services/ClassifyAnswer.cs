@@ -13,4 +13,5 @@ public sealed record ClassifyAnswer(
     ActivitySnapshot Snapshot,
     LabelLifetime Lifetime,
     string? Reason,
-    IReadOnlyList<Guid> OtherProfileIds);
+    IReadOnlyList<Guid> OtherProfileIds,
+    Guid? ProfileId = null);

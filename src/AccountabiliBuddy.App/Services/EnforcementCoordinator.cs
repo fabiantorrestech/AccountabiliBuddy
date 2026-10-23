@@ -176,7 +176,8 @@ public sealed class EnforcementCoordinator : IDisposable
 
     private async void OnClassifyAnswered(object? sender, ClassifyAnswer answer)
     {
-        if (_sessions.State.ProfileId is not Guid profileId)
+        // The profile it was asked for (the stacked prompt names it), else the session's.
+        if ((answer.ProfileId ?? _sessions.State.ProfileId) is not Guid profileId)
         {
             return;
         }
@@ -185,6 +186,11 @@ public sealed class EnforcementCoordinator : IDisposable
 
         if (answer.Lifetime == LabelLifetime.Session)
         {
+            if (_sessions.State.ProfileId != profileId)
+            {
+                return; // That session is over: "on track for this session" has nothing left to apply to.
+            }
+
             _sessionRules.Add(answer.Rule);
             _sessionRulesProfileId = profileId;
             Reevaluate();
@@ -228,7 +234,7 @@ public sealed class EnforcementCoordinator : IDisposable
             .Select(snapshot => readScreens ? WithScreenText(snapshot) : snapshot)
             .ToList();
 
-        _engine.HoldUnknownsUntil = _planFirst?.EndsAt;
+        _engine.HoldUnknownsUntil = _planFirst?.HoldUntil;
         IReadOnlyList<MonitorEnforcement> decisions = _engine.Evaluate(
             state,
             profile,

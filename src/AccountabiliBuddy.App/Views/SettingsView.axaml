@@ -200,7 +200,7 @@
                             <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" FontWeight="SemiBold" />
                             <Button Content="Turn on" Command="{Binding TurnOnCommand}" IsVisible="{Binding !IsOn}" Classes="accent" />
                             <Button Content="Turn off" Command="{Binding TurnOffCommand}" IsVisible="{Binding IsOn}" />
-                            <Button Content="Stop for today…" Command="{Binding BeginStopCommand}" IsVisible="{Binding IsGuarding}" />
+                            <Button Content="Stop for today…" Command="{Binding BeginStopCommand}" IsVisible="{Binding HasWorkLeftToday}" />
                         </StackPanel>
                         <StackPanel Spacing="6" IsVisible="{Binding IsStopping}">
                             <TextBlock Text="{Binding StopWaitText}" />

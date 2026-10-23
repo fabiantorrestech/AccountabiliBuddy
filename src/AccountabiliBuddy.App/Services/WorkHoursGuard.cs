@@ -47,6 +47,29 @@ public sealed class WorkHoursGuard : IDisposable
 
     public WorkHoursSettings Settings { get; private set; } = WorkHoursSettings.Default;
 
+    /// <summary>
+    /// On, not stopped for today, and a work part still to come or under way today, whether or not a session runs or it's a
+    /// break: turning it off or taking an app off the list then waits (stop for today first).
+    /// </summary>
+    public bool HasWorkLeftToday
+    {
+        get
+        {
+            if (!Settings.On || Settings.StoppedOn == Today())
+            {
+                return false;
+            }
+
+            DateTime now = LocalNow();
+            DateTime endOfDay = now.Date.AddDays(1);
+            return DayTimeline.Planned(_configuration.Current.DayPlan, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)))
+                .Any(focus => focus.Window.End > now && focus.Window.Start < endOfDay);
+        }
+    }
+
+    /// <summary>How long stopping for today waits (the end-early wait).</summary>
+    public TimeSpan StopWait => _configuration.Current.Bypass.WaitDuration;
+
     /// <summary>True while the listed apps wait.</summary>
     public bool IsGuarding => GuardingUntil() is not null;
 
@@ -77,11 +100,11 @@ public sealed class WorkHoursGuard : IDisposable
         return SaveAsync(Settings with { On = true });
     }
 
-    /// <summary>Looser: refused while guarding (stop for today first, with its wait and reason).</summary>
+    /// <summary>Looser: refused while work is left today (stop for today first, with its wait and reason).</summary>
     /// <returns>False when refused.</returns>
     public async Task<bool> TurnOffAsync()
     {
-        if (IsGuarding)
+        if (HasWorkLeftToday)
         {
             return false;
         }
@@ -91,11 +114,11 @@ public sealed class WorkHoursGuard : IDisposable
     }
 
     /// <summary>The apps that wait (stricter when added; removing one while guarding waits like any looser change).</summary>
-    /// <returns>False when an app would be removed while guarding.</returns>
+    /// <returns>False when an app would be removed while work is left today.</returns>
     public async Task<bool> SetAppsAsync(IEnumerable<string> apps)
     {
         IReadOnlyList<string> next = Normalize(apps);
-        if (IsGuarding && Settings.Apps.Any(app => !next.Contains(app)))
+        if (HasWorkLeftToday && Settings.Apps.Any(app => !next.Contains(app)))
         {
             return false;
         }

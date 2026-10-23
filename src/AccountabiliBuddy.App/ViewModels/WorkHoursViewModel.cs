@@ -11,6 +11,9 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// </summary>
 public sealed partial class WorkHoursViewModel : ObservableObject
 {
+    // A stop asked for and not confirmed within the wait plus this is dropped (ask again), so the wait can't be done ahead.
+    private static readonly TimeSpan ConfirmWithin = TimeSpan.FromMinutes(2);
+
     private readonly WorkHoursGuard _guard;
     private readonly SessionController _sessions;
     private DateTimeOffset? _stopAskedAt;
@@ -43,6 +46,10 @@ public sealed partial class WorkHoursViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsGuarding { get; set; }
 
+    /// <summary>Work still to come today: "Stop for today…" shows (and turning off waits for it).</summary>
+    [ObservableProperty]
+    public partial bool HasWorkLeftToday { get; set; }
+
     /// <summary>"Stop for today" asked: the wait runs and the reason box shows.</summary>
     [ObservableProperty]
     public partial bool IsStopping { get; set; }
@@ -64,14 +71,14 @@ public sealed partial class WorkHoursViewModel : ObservableObject
     [RelayCommand]
     private async Task TurnOffAsync()
     {
-        Message = await _guard.TurnOffAsync() ? null : "During work hours, stop for today first (it waits like ending a session early).";
+        Message = await _guard.TurnOffAsync() ? null : "Work is left today: stop for today first (it waits like ending a session early).";
     }
 
     [RelayCommand]
     private async Task SaveAppsAsync()
     {
         bool saved = await _guard.SetAppsAsync(AppsText.Split([',', ';', '\n'], StringSplitOptions.RemoveEmptyEntries));
-        Message = saved ? "Saved." : "Removing an app has to wait until work hours end (or stop for today first).";
+        Message = saved ? "Saved." : "Removing an app waits until today's work is over (or stop for today first).";
         AppsText = string.Join(", ", _guard.Settings.Apps);
     }
 
@@ -88,6 +95,13 @@ public sealed partial class WorkHoursViewModel : ObservableObject
     {
         if (_stopAskedAt is not DateTimeOffset asked)
         {
+            return;
+        }
+
+        if (_sessions.Now - asked > _guard.StopWait + ConfirmWithin)
+        {
+            CancelStop();
+            Message = "That was asked too long ago: ask again (the wait starts now).";
             return;
         }
 
@@ -115,6 +129,7 @@ public sealed partial class WorkHoursViewModel : ObservableObject
     {
         IsOn = _guard.Settings.On;
         IsGuarding = _guard.IsGuarding;
+        HasWorkLeftToday = _guard.HasWorkLeftToday;
         StatusText = !IsOn ? "Off"
             : IsGuarding ? $"Guarding: {_guard.UntilText}"
             : "On: guards during your plan's work parts (not now)";
@@ -122,6 +137,7 @@ public sealed partial class WorkHoursViewModel : ObservableObject
 
     private void RefreshStopWait()
     {
+        HasWorkLeftToday = _guard.HasWorkLeftToday;
         if (_stopAskedAt is DateTimeOffset asked)
         {
             TimeSpan left = _guard.WaitLeft(asked);

@@ -362,7 +362,7 @@ public sealed class EnforcementPresenter
     /// Planning is over: every unknown seen meanwhile in one window (redesign phase 2). Its answers are raised through
     /// <see cref="Answered"/> one by one; rows left unanswered are asked about one by one later.
     /// </summary>
-    public void ShowStack(string profileName, IReadOnlyList<ActivitySnapshot> unknowns, IReadOnlyList<ProfileOption> otherProfiles)
+    public void ShowStack(string profileName, Guid profileId, IReadOnlyList<ActivitySnapshot> unknowns, IReadOnlyList<ProfileOption> otherProfiles)
     {
         if (unknowns.Count == 0 || _stack is not null)
         {
@@ -376,7 +376,7 @@ public sealed class EnforcementPresenter
         }
 
         ClosePrompt();
-        var viewModel = new ClassifyStackViewModel(profileName, unknowns, otherProfiles, PreTickedExemptionProfiles?.Invoke());
+        var viewModel = new ClassifyStackViewModel(profileName, unknowns, otherProfiles, PreTickedExemptionProfiles?.Invoke(), profileId);
         var stack = new ClassifyStackPrompt { DataContext = viewModel };
         viewModel.Submitted += (_, answers) =>
         {
@@ -396,6 +396,14 @@ public sealed class EnforcementPresenter
         MonitorPlacement.PlaceInCorner(stack, area, MonitorPlacement.Corner.BottomRight);
         _stack = stack;
         stack.Show();
+    }
+
+    /// <summary>The session the stack was asked for ended: it goes (its unknowns reach the session review instead).</summary>
+    public void CloseStack()
+    {
+        ClassifyStackPrompt? stack = _stack;
+        _stack = null;
+        stack?.Close();
     }
 
     private void UpdatePrompt(
