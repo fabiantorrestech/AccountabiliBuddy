@@ -18,7 +18,21 @@
                 hides them. A TabControl takes a page out of the window and puts it back on every switch, which rebuilds
                 every control on it (hundreds of ms on Profiles or Settings); a hidden page costs nothing.
             -->
-            <DockPanel DockPanel.Dock="Left">
+            <DockPanel DockPanel.Dock="Left" Classes="sidebar" Background="Transparent">
+                <DockPanel.Styles>
+                    <!-- The focus-mode toggle only shows while the pointer is over the sidebar; otherwise it fades away. -->
+                    <Style Selector="Button.focusToggle">
+                        <Setter Property="Opacity" Value="0" />
+                        <Setter Property="Transitions">
+                            <Transitions>
+                                <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                            </Transitions>
+                        </Setter>
+                    </Style>
+                    <Style Selector="DockPanel.sidebar:pointerover Button.focusToggle">
+                        <Setter Property="Opacity" Value="0.75" />
+                    </Style>
+                </DockPanel.Styles>
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="22,18,12,6">
                     <Image Source="/Assets/app-icon.png" Width="26" Height="26" />
                     <TextBlock Text="AccountabiliBuddy" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -29,10 +43,11 @@
                                              IsVisible="{Binding NoisePlayer, Converter={x:Static ObjectConverters.IsNotNull}}">
                     <views:NoisePlayerView DataContext="{Binding NoisePlayer}" />
                 </controls:FillWidthDecorator>
-                <!-- Focus mode: the rest of the sidebar is back for this session. -->
-                <Button DockPanel.Dock="Bottom" Content="Show everything" Command="{Binding ShowEverythingNowCommand}" IsVisible="{Binding IsFocusMode}"
-                        Margin="20,0,12,10" Background="Transparent" BorderThickness="0" Opacity="0.7" Padding="4,2"
-                        ToolTip.Tip="The other tabs, for this session" />
+                <!-- During a session: show the other tabs, or hide them again (focus mode). -->
+                <Button DockPanel.Dock="Bottom" Classes="focusToggle" Content="{Binding FocusToggleText}" Command="{Binding ToggleEverythingCommand}"
+                        IsVisible="{Binding IsSessionRunning}"
+                        Margin="20,0,12,10" Background="Transparent" BorderThickness="0" Padding="4,2"
+                        ToolTip.Tip="Show the other tabs for this session, or hide them again" />
                 <TabControl x:Name="Tabs" TabStripPlacement="Left" Margin="0,4,0,8" SelectionChanged="OnTabChanged"
                             SelectedIndex="{Binding SelectedTab}">
                     <TabControl.Styles>

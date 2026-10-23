@@ -47,7 +47,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     /// <summary>Focus mode: only Today and History in the sidebar while a session runs.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsMoreItems))]
+    [NotifyPropertyChangedFor(nameof(ShowsMoreItems), nameof(FocusToggleText))]
     public partial bool IsFocusMode { get; set; }
 
     /// <summary>"Show everything" was chosen for this session: the whole sidebar is back until it ends.</summary>
@@ -64,6 +64,20 @@ public sealed partial class MainWindowViewModel : ObservableObject
         RefreshFocusMode();
     }
 
+    /// <summary>During a session: "Show everything" brings the other tabs back, "Hide everything" returns to focus mode.</summary>
+    [RelayCommand]
+    private void ToggleEverything()
+    {
+        ShowEverything = !ShowEverything;
+        RefreshFocusMode();
+    }
+
+    /// <summary>The toggle shows only while a session runs.</summary>
+    [ObservableProperty]
+    public partial bool IsSessionRunning { get; set; }
+
+    public string FocusToggleText => IsFocusMode ? "Show everything" : "Hide everything";
+
     private void OnSessionActiveChanged(bool active)
     {
         _sessionActive = active;
@@ -77,6 +91,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private void RefreshFocusMode()
     {
+        IsSessionRunning = _sessionActive;
         IsFocusMode = MainTabs.IsFocusMode(_sessionActive, ShowEverything);
         if (IsFocusMode && !MainTabs.ShowsTimeline((MainTab)SelectedTab))
         {
