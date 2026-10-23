@@ -162,6 +162,12 @@ public sealed class SessionOverlayService : IDisposable
         stepAway.Changed += (_, _) => Update();
     }
 
+    /// <summary>Today's deep work against the goal for the Ctrl+Alt details (redesign phase 4).</summary>
+    public void SetGoalText(string text)
+    {
+        _viewModel.GoalText = text;
+    }
+
     public void SetSyncQr(Action? show)
     {
         _viewModel.SetSyncQr(show);

@@ -20,6 +20,27 @@
                         IsVisible="{Binding IsVisible, FallbackValue=False}" HorizontalAlignment="Left" />
             </Panel>
 
+            <!-- Today's deep work against the daily goal (redesign phase 4). -->
+            <Border Padding="16,12" CornerRadius="10" Background="#1A2A9D8F" BorderBrush="#552A9D8F" BorderThickness="1"
+                    DataContext="{Binding Goal}" x:DataType="vm:GoalCardViewModel"
+                    IsVisible="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).Goal, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
+                <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                        <TextBlock Text="Deep work today" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding Text}" VerticalAlignment="Center" Opacity="0.85" />
+                        <Button Grid.Column="2" Content="✎" Command="{Binding EditCommand}" ToolTip.Tip="Change the daily goal" Padding="8,2" />
+                    </Grid>
+                    <ProgressBar Value="{Binding Percent}" Minimum="0" Maximum="100" Height="8" Foreground="#2A9D8F" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsEditing}">
+                        <TextBlock Text="Daily goal" VerticalAlignment="Center" />
+                        <NumericUpDown Value="{Binding GoalMinutes}" Minimum="30" Maximum="480" Increment="15" FormatString="0" Width="120" />
+                        <TextBlock Text="minutes" VerticalAlignment="Center" />
+                        <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" />
+                        <Button Content="Cancel" Command="{Binding CancelCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <!-- Come back to: parked ideas until ticked (idle and in Focus mode). Ctrl+Alt+N adds one from anywhere. -->
             <Border Padding="16" CornerRadius="10" Background="#1AD97757" BorderBrush="#55D97757" BorderThickness="1"
                     DataContext="{Binding Comebacks}" x:DataType="vm:ComebacksViewModel"

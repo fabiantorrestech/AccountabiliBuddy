@@ -146,6 +146,8 @@
                     <StackPanel Grid.Row="{Binding DetailsRow}" Margin="{Binding DetailsMargin}" Spacing="8" IsVisible="{Binding ShowsDetails}">
                         <TextBlock Text="{Binding Day.SummaryText}" IsVisible="{Binding ShowsTimeline}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}"
                                    Foreground="#CCFFFFFF" FontSize="11" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding GoalText}" IsVisible="{Binding GoalText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                   Width="{x:Static vm:SessionOverlayViewModel.BarLength}" Foreground="#CCFFFFFF" FontSize="11" />
                         <Panel IsVisible="{Binding ShowsTimer}">
                             <Panel DataContext="{Binding Timer}" x:DataType="vm:SessionOverlayViewModel">
                                 <StackPanel Spacing="1" IsVisible="{Binding ShowsDetails}" MaxWidth="{x:Static vm:SessionOverlayViewModel.BarLength}">

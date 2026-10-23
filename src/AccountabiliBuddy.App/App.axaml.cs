@@ -86,6 +86,7 @@ public partial class App : Application
     private SessionReviewService? _sessionReview;
     private WorkHoursGuard? _workHours;
     private HyperfocusGuard? _hyperfocus;
+    private DeepWorkService? _deepWork;
     private ComebackStore? _comebacks;
     private CaptureService? _capture;
     private WorkGateService? _workGate;
@@ -532,6 +533,23 @@ public partial class App : Application
         };
         // Focus mode: the Today page while a session runs (the main window's day bar is the one it reads).
         sessionViewModel.Comebacks = new ComebacksViewModel(_comebacks!);
+        // Deep work against the daily goal (redesign phase 4): Today's card, the on-screen details, "Goal met" once a day.
+        _deepWork = new DeepWorkService(
+            _sessions,
+            goal,
+            async () =>
+            {
+                DateTimeOffset now = time.GetUtcNow();
+                return SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(now.AddDays(-2), now.AddDays(1)));
+            },
+            () => receivedDevices.Devices.SelectMany(device => device.File.Sessions),
+            omittedSessions.IsOmitted);
+        _deepWork.GoalReached += (_, progress) =>
+            presenter.ShowReminder(progress.Text, "Today's deep-work goal is reached. Anything more is a bonus.",
+                new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A9D8F")));
+        _deepWork.Changed += (_, _) => _sessionOverlay?.SetGoalText($"Goal · {_deepWork.Progress.Text}");
+        sessionViewModel.Goal = new GoalCardViewModel(_deepWork, goal);
+        _ = _deepWork.ReloadAsync();
         sessionViewModel.Review = _sessionReview!.Pending;
         _sessionReview.Changed += (_, _) => sessionViewModel.Review = _sessionReview.Pending;
         sessionViewModel.Focus = new FocusViewModel(
@@ -1201,6 +1219,7 @@ public partial class App : Application
         _capture?.Dispose();
         _workGate?.Dispose();
         _hyperfocus?.Dispose();
+        _deepWork?.Dispose();
         _stepAwayHotkey?.Dispose();
         _enforcement?.Dispose();
         _recorder?.Dispose();
