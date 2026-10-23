@@ -4,7 +4,7 @@ Date: 2026-10-23
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -16,4 +16,4 @@ We will make Google Drive the way the user's devices sync. Both apps sign in to 
 
 ## Consequences
 
-Sync works the same at home, at work and on mobile data, and the work computer joins without a local network or a mirrored folder. In exchange, two outbound connections are added (the PC's Drive calls and the phone's Google sign-in and Drive calls), the Google Cloud project must leave "Testing" so sign-ins stop lapsing every 7 days, the phone needs a Google sign-in library (a new dependency), and the lag becomes the poll interval (about 30 seconds from PC to phone) instead of instant. Removing the link deletes a large, working part of both apps, so it is done only after Drive sync has run for a while. Reversing this means restoring the link (it stays in git history) and dropping the Drive classes; the file format doesn't change either way.
+Sync works the same at home, at work and on mobile data, and the work computer joins without a local network or a mirrored folder. In exchange, two outbound connections are added (the PC's Drive calls and the phone's Google sign-in and Drive calls), the Google Cloud project must leave "Testing" so sign-ins stop lapsing every 7 days, the phone needs a Google sign-in library (Play services auth, `com.google.android.gms:play-services-auth`, approved by the user 2026-10-23 over AppAuth: no redirect setup and no refresh tokens kept by the app), and the lag becomes the poll interval (about 30 seconds from PC to phone) instead of instant. Removing the link deletes a large, working part of both apps, so it is done only after Drive sync has run for a while. Reversing this means restoring the link (it stays in git history) and dropping the Drive classes; the file format doesn't change either way.

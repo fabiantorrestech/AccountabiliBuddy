@@ -1,6 +1,6 @@
 # Redesign phase 3: Drive-only sync (DRAFT, needs the user)
 
-> **Status:** draft for review. Nothing here is built. ADR 26 is **Proposed**. Phase 3 needs decisions and console work only the user can do (below), and it deletes the Wi-Fi link, which needs the user's explicit OK.
+> **Status:** approved by the user 2026-10-23 (option 1: full plan, play-services-auth on the phone). ADR 26 Accepted. Deleting the Wi-Fi link (Task 9) still needs the user's explicit OK at the time.
 
 **Goal:** the user's devices sync through Google Drive (ADR 26); the Wi-Fi link goes; the watch is fed only by the phone; the phone can tick tasks, park thoughts and tick come-backs through the sync files; phone pickups and pickups across PCs are counted (design G, K); lights out on the personal PC (K).
 
