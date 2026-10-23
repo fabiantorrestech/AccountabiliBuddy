@@ -357,6 +357,13 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         DateTime now = LocalNow();
         (LocalWindow day, LocalWindow span) = CurrentDay();
         IReadOnlyList<PlannedFocus> planned = DayTimeline.Planned(_configuration.Current.DayPlan, span);
+        // A lunch taken (flexible break, schema v8) isn't work: it comes out of the planned work it lies in.
+        TimelineItem? lunch = TakenLunch();
+        if (lunch is not null)
+        {
+            planned = planned.SelectMany(focus => DayTimeline.Subtract([focus.Window], [lunch.Window]).Select(window => focus with { Window = window })).ToList();
+        }
+
         List<(LocalWindow Window, string Tip, Guid? ProfileId, bool Added, IReadOnlyList<LocalWindow> Away)> actual = ActualSessions(now, span);
 
         IEnumerable<LocalWindow> content = planned.Select(focus => focus.Window).Concat(actual.Select(item => item.Window));
@@ -397,7 +404,8 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             settings.ShowColdTurkey && _coldTurkey.Blocks is ColdTurkeyBlocks blocks ? BlockerTimeline.ColdTurkey(blocks, range) : null,
             focused,
             unfocused,
-            taskMarks.Concat(phoneFree).ToList());
+            taskMarks.Concat(phoneFree).ToList(),
+            lunch is null ? null : [lunch]);
 
         (List<DayBarSpan> night, List<DayBarSpan> missed) = SleepSpans(now, range);
         IReadOnlyList<TimelineRowChoice> rows = settings.RowsInOrder();
@@ -426,6 +434,21 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         }
 
         return Total(inSessions, range);
+    }
+
+    /// <summary>Today's lunch once started (flexible break, schema v8); set by the app.</summary>
+    public Func<AccountabiliBuddy.Core.Sync.SyncLunch?>? Lunch { get; set; }
+
+    private TimelineItem? TakenLunch()
+    {
+        if (Lunch?.Invoke() is not AccountabiliBuddy.Core.Sync.SyncLunch taken)
+        {
+            return null;
+        }
+
+        var window = new LocalWindow(ToLocal(taken.Start), ToLocal(taken.End));
+        string color = _configuration.Current.DayPlan.FlexibleBreakOn(DateOnly.FromDateTime(window.Start))?.Color ?? "#CA8A04";
+        return new TimelineItem(window, $"Lunch · {Times(window)}", color);
     }
 
     /// <summary>The starts of this PC's sessions the phone saw no pickup in (ADR 26); set by the app.</summary>
@@ -738,6 +761,11 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             return state.IsEnforcing
                 ? until is null ? $"In focus · {profile}, no set end" : $"In focus · {profile} until {until}"
                 : until is null ? "On a break" : $"On a break until {until}";
+        }
+
+        if (TakenLunch() is TimelineItem lunch && lunch.Window.Contains(now))
+        {
+            return $"Lunch until {lunch.Window.End:t}";
         }
 
         PlannedFocus? current = planned.FirstOrDefault(focus => focus.Window.Contains(now));

@@ -120,6 +120,8 @@ object ProfileDocumentParser {
                 start = JsonValues.time(p.requireString("start")),
                 end = JsonValues.time(p.requireString("end")),
                 label = p.string("label"),
+                flexMinutes = p.int("flexMinutes"),
+                hintAt = p.string("hintAt")?.let(JsonValues::time),
             )
         },
     )

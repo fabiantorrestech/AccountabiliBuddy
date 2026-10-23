@@ -52,6 +52,7 @@ fun MainScreen(
     val folderStatus by viewModel.folderStatus.collectAsStateWithLifecycle()
     val driveStatus by viewModel.driveStatus.collectAsStateWithLifecycle()
     val pauseState by viewModel.pauseState.collectAsStateWithLifecycle()
+    val lunchTaken by (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.lunch.collectAsStateWithLifecycle()
     val runningTasks by viewModel.runningTasks.collectAsStateWithLifecycle()
     val comebacks by viewModel.comebacks.collectAsStateWithLifecycle()
     val pairedPc by viewModel.pairedPc.collectAsStateWithLifecycle()
@@ -143,7 +144,15 @@ fun MainScreen(
                 label = "tabs",
             ) { shown ->
             when (shown) {
-                0 -> TodayScreen(
+                0 -> Column {
+                    LunchCard(
+                        flex = state.document.dayPlan.flexibleBreakOn(java.time.LocalDate.now()),
+                        taken = lunchTaken?.takeIf { it.start.atZone(java.time.ZoneId.systemDefault()).toLocalDate() == java.time.LocalDate.now() },
+                        clock = viewModel.clock,
+                        onStart = { minutes -> (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.start(minutes) },
+                        onBack = { (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.endNow() },
+                    )
+                    TodayScreen(
                     state, model, viewModel.clock, health, onPickFile, onConnectHealth, viewModel::refreshSleep, phoneUsage, onAllowUsage,
                     showsPcCard = pairedPc != null,
                     pcCard = {
@@ -163,6 +172,7 @@ fun MainScreen(
                     runningTasks = runningTasks,
                     comebacks = comebacks,
                 )
+                }
                 1 -> ProfilesScreen(
                     state,
                     viewModel.clock,

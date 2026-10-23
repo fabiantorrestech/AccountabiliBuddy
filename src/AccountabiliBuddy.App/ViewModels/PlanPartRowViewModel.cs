@@ -45,6 +45,17 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
 
+    /// <summary>A flexible break (schema v8): the times are its window; it lasts <see cref="FlexMinutes"/> once started.</summary>
+    [ObservableProperty]
+    public partial bool IsFlexible { get; set; }
+
+    [ObservableProperty]
+    public partial decimal? FlexMinutes { get; set; }
+
+    /// <summary>A hint when not started by then; null = none.</summary>
+    [ObservableProperty]
+    public partial TimeSpan? HintAt { get; set; }
+
     public string Name => string.IsNullOrWhiteSpace(Label) ? Category?.Name ?? "?" : Label.Trim();
 
     /// <summary>"#RRGGBB", for drawing on the bar.</summary>
@@ -61,7 +72,9 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
         }
 
         return new PlanPart(Id, Category.Id, TimeOnly.FromTimeSpan(start), TimeOnly.FromTimeSpan(end),
-            string.IsNullOrWhiteSpace(Label) ? null : Label.Trim());
+            string.IsNullOrWhiteSpace(Label) ? null : Label.Trim(),
+            IsFlexible ? (int)Math.Clamp(FlexMinutes ?? 60, 15, 240) : null,
+            IsFlexible && HintAt is TimeSpan hint ? TimeOnly.FromTimeSpan(hint) : null);
     }
 
     internal void Show(PlanPart part)
@@ -71,6 +84,9 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
         Label = part.Label ?? string.Empty;
         Start = part.Start.ToTimeSpan();
         End = part.End.ToTimeSpan();
+        IsFlexible = part.IsFlexible;
+        FlexMinutes = part.FlexMinutes ?? 60;
+        HintAt = part.HintAt?.ToTimeSpan() ?? (part.IsFlexible ? null : new TimeSpan(13, 0, 0));
         _showing = false;
     }
 
@@ -100,6 +116,21 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
     }
 
     partial void OnEndChanged(TimeSpan? value)
+    {
+        Edited();
+    }
+
+    partial void OnIsFlexibleChanged(bool value)
+    {
+        Edited();
+    }
+
+    partial void OnFlexMinutesChanged(decimal? value)
+    {
+        Edited();
+    }
+
+    partial void OnHintAtChanged(TimeSpan? value)
     {
         Edited();
     }

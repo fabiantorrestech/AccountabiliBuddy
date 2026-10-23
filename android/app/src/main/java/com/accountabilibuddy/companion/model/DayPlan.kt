@@ -30,10 +30,24 @@ data class DayCategory(val id: UUID, val name: String, val color: String, val be
  * One stretch of a day template. A part whose [end] isn't after its [start] belongs to the day it ends on and starts
  * the evening before; an [end] of 00:00 is midnight at the end of its own day.
  */
-data class PlanPart(val id: UUID, val categoryId: UUID, val start: LocalTime, val end: LocalTime, val label: String? = null) {
+data class PlanPart(
+    val id: UUID,
+    val categoryId: UUID,
+    val start: LocalTime,
+    val end: LocalTime,
+    val label: String? = null,
+    /** A flexible break (schema v8, e.g. lunch): start–end is its window, this how long it lasts once started; null = fixed hours. */
+    val flexMinutes: Int? = null,
+    /** A flexible break not started by then gets one hint; null = none. */
+    val hintAt: LocalTime? = null,
+) {
     val endsAtMidnight: Boolean get() = end == LocalTime.MIDNIGHT
     val crossesMidnight: Boolean get() = !endsAtMidnight && !end.isAfter(start)
+    val isFlexible: Boolean get() = (flexMinutes ?: 0) > 0
 }
+
+/** A day's flexible break placed on its date (as on the PC's Core FlexibleBreak). */
+data class FlexibleBreak(val name: String, val color: Long, val window: LocalWindow, val minutes: Int, val hintAt: java.time.LocalDateTime?)
 
 data class DayTemplate(val parts: List<PlanPart> = emptyList())
 
@@ -57,6 +71,15 @@ data class DayPlan(
     val oneOffDays: List<OneOffDay> = emptyList(),
 ) {
     fun category(id: UUID): DayCategory? = categories.firstOrNull { it.id == id }
+
+    /** The flexible break (e.g. lunch) on [date]; null on a day without one. */
+    fun flexibleBreakOn(date: LocalDate): FlexibleBreak? {
+        val part = templateFor(date).parts.firstOrNull { it.isFlexible && !it.crossesMidnight } ?: return null
+        val category = category(part.categoryId) ?: return null
+        val day = date.atStartOfDay()
+        val end = if (part.endsAtMidnight) day.plusDays(1) else date.atTime(part.end)
+        return FlexibleBreak(part.label ?: category.name, category.argb, LocalWindow(date.atTime(part.start), end), part.flexMinutes!!, part.hintAt?.let { date.atTime(it) })
+    }
 
     fun templateFor(date: LocalDate): DayTemplate =
         oneOffDays.firstOrNull { it.date == date }?.template ?: if (date.dayOfWeek in workdays) workday else otherDay

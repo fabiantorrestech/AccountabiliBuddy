@@ -30,7 +30,7 @@ public static class DayTemplateEditing
     {
         int start = Math.Clamp(startMinute / SnapMinutes * SnapMinutes, 0, MinutesPerDay - SnapMinutes);
         List<(int Start, int End)> taken = template.Parts
-            .Where(other => !MayOverlap(categoryId, other.CategoryId, categories))
+            .Where(other => !other.IsFlexible && !MayOverlap(categoryId, other.CategoryId, categories))
             .SelectMany(Ranges).ToList();
         if (taken.Any(range => range.Start <= start && start < range.End))
         {
@@ -69,7 +69,8 @@ public static class DayTemplateEditing
         int start = Math.Min(Snap(startMinute), MinutesPerDay - SnapMinutes);
         int end = Snap(endMinute);
         List<(int Start, int End)> others = template.Parts
-            .Where(other => other.Id != partId && !MayOverlap(part.CategoryId, other.CategoryId, categories))
+            // A flexible break's window lies over the work around it (schema v8): neither pushes the other.
+            .Where(other => other.Id != partId && !part.IsFlexible && !other.IsFlexible && !MayOverlap(part.CategoryId, other.CategoryId, categories))
             .SelectMany(Ranges)
             .OrderBy(range => range.Start)
             .ToList();

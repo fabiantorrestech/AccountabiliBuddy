@@ -59,6 +59,12 @@ object SyncFileJson {
                 }
             }))
         }
+        file.lunch?.let { lunch ->
+            put("lunch", buildJsonObject {
+                put("start", writeTime(lunch.start))
+                put("end", writeTime(lunch.end))
+            })
+        }
         file.pickups?.let { list ->
             put("pickups", JsonArray(list.map { pickup ->
                 buildJsonObject {
@@ -153,6 +159,7 @@ object SyncFileJson {
             json.optionalTime("coversFrom"),
             readComebacks(json["comebacks"]),
             readPickups(json["pickups"]),
+            json.optionalObject("lunch")?.let { lunch -> runCatching { SyncLunch(lunch.requiredTime("start"), lunch.requiredTime("end")) }.getOrNull() },
         )
     }
 

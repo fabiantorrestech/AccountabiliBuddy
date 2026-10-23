@@ -75,6 +75,9 @@ class SyncCoordinator(
     /** The phone's next alarm for its card (ADR 23); null when there's none. */
     var nextAlarm: () -> Instant? = { null }
 
+    /** Today's flexible lunch (schema v8), when started here or taken from another device. */
+    var lunch: () -> com.accountabilibuddy.shared.sync.SyncLunch? = { null }
+
     /** The phone's unlock times since a moment (ADR 26 pickups); null without Usage access. */
     var unlocksSince: (Instant) -> List<Instant>? = { null }
 
@@ -166,6 +169,7 @@ class SyncCoordinator(
         ),
         emptyList(), emptyList(), null, emptyList(),
         pickups = runCatching { pickups() }.getOrNull(),
+        lunch = lunch(),
     )
 
     /** Everything to hand over by [method] (Drive or a share): this phone's own file first, then what it carries. */

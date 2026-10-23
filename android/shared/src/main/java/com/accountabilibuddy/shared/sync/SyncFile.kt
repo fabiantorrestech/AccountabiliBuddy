@@ -30,6 +30,8 @@ data class SyncFile(
     val comebacks: List<SyncComeback>? = null,
     /** A phone's pickups during the other devices' sessions (ADR 26); null for none or an older app. */
     val pickups: List<SyncPickup>? = null,
+    /** Today's flexible lunch as this device started or took it (schema v8); null for none or an older app. */
+    val lunch: SyncLunch? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1
@@ -167,3 +169,5 @@ data class SyncCompanion(val name: String, val kind: String, val linked: Boolean
         const val KIND_WATCH = "watch"
     }
 }
+/** A flexible lunch: when it started and ends. Every device takes the newest one for the day. */
+data class SyncLunch(val start: java.time.Instant, val end: java.time.Instant)

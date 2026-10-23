@@ -16,6 +16,8 @@ public static class ProfileDocumentSerializer
     private const int CommsSchemaVersion = 6;
     private const int PreWorkSchemaVersion = 7;
 
+    // v8: flexible breaks (a part's FlexMinutes and HintAt, optional): nothing to migrate, older plans have none.
+
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

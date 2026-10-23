@@ -118,6 +118,26 @@ public sealed record DayPlan(
         return parts.OrderBy(part => part.Window.Start).ThenBy(part => part.Window.End).ThenBy(part => part.Part.Id).ToList();
     }
 
+    /// <summary>
+    /// The flexible break (e.g. lunch) on <paramref name="date"/>, placed on its date: its window, how long it lasts
+    /// and its hint time; null when that day has none (the first one, when there are several).
+    /// </summary>
+    public FlexibleBreak? FlexibleBreakOn(DateOnly date)
+    {
+        DateTime day = date.ToDateTime(TimeOnly.MinValue);
+        foreach (PlanPart part in TemplateFor(date).Parts.Where(part => part.IsFlexible && !part.CrossesMidnight))
+        {
+            if (Category(part.CategoryId) is DayCategory category)
+            {
+                var window = new LocalWindow(day + part.Start.ToTimeSpan(), day + TimeSpan.FromMinutes(part.EndMinutes));
+                return new FlexibleBreak(part.Label ?? category.Name, category.Color, window, TimeSpan.FromMinutes(part.FlexMinutes!.Value),
+                    part.HintAt is TimeOnly hint ? day + hint.ToTimeSpan() : null);
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>The part at <paramref name="localTime"/>, or null when nothing is planned then.</summary>
     public PlannedPart? PartAt(DateTime localTime)
     {

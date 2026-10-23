@@ -9,8 +9,24 @@ namespace AccountabiliBuddy.Core.Domain;
 /// part's own day (Extra Work 22:00–00:00), not the evening before.
 /// </summary>
 /// <param name="Label">Shown instead of the category's name, e.g. "After-office work"; null = the category's name.</param>
-public sealed record PlanPart(Guid Id, Guid CategoryId, TimeOnly Start, TimeOnly End, string? Label = null)
+/// <param name="FlexMinutes">
+/// A flexible break (schema v8, e.g. lunch): Start–End is the window it may start in, this is how long it lasts once
+/// started ("Start lunch", on any device). Until then the window counts as the work around it. Null = fixed hours.
+/// </param>
+/// <param name="HintAt">A flexible break not started by this time gets one hint; null = none.</param>
+public sealed record PlanPart(
+    Guid Id,
+    Guid CategoryId,
+    TimeOnly Start,
+    TimeOnly End,
+    string? Label = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? FlexMinutes = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] TimeOnly? HintAt = null)
 {
+    /// <summary>A flexible break: its times are a window, it lasts <see cref="FlexMinutes"/> once started.</summary>
+    [JsonIgnore]
+    public bool IsFlexible => FlexMinutes is > 0;
+
     // Derived from Start/End; not part of the shared JSON schema.
     [JsonIgnore]
     public bool EndsAtMidnight => End == TimeOnly.MinValue;

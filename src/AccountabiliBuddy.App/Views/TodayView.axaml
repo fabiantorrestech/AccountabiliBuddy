@@ -54,6 +54,19 @@
                 </StackPanel>
             </Border>
 
+            <!-- Flexible lunch (schema v8): start it any time; then the time left and "I'm back". -->
+            <Border Padding="16,12" CornerRadius="10" Background="#1ACA8A04" BorderBrush="#55CA8A04" BorderThickness="1"
+                    DataContext="{Binding Lunch}" x:DataType="vm:LunchCardViewModel"
+                    IsVisible="{Binding IsVisible, FallbackValue=False}">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <TextBlock Text="{Binding Text}" VerticalAlignment="Center" TextWrapping="Wrap" FontWeight="SemiBold" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                        <Button Content="Start lunch" Command="{Binding StartCommand}" IsVisible="{Binding CanStart}" Classes="accent" />
+                        <Button Content="I'm back" Command="{Binding BackCommand}" IsVisible="{Binding IsOnLunch}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
             <!-- Today's deep work against the daily goal (redesign phase 4). -->
             <Border Padding="16,12" CornerRadius="10" Background="#1A2A9D8F" BorderBrush="#552A9D8F" BorderThickness="1"
                     DataContext="{Binding Goal}" x:DataType="vm:GoalCardViewModel"

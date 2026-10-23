@@ -178,6 +178,10 @@
         </service>
 
         <receiver
+            android:name=".lunch.LunchReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".pause.CarReceiver"
             android:exported="true">
             <intent-filter>

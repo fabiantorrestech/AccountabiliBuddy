@@ -83,8 +83,11 @@ public sealed class DayPlanBar : Control
         foreach (Piece piece in Pieces())
         {
             Rect box = new(X(piece.Start), BarTop, Math.Max(1, X(piece.End) - X(piece.Start)), BarHeight);
-            var fill = new SolidColorBrush(Color.Parse(piece.Row.Color), 0.85);
-            context.DrawRectangle(fill, piece.Row.IsSelected ? SelectedOutline : null, box.Deflate(0.5), 4, 4);
+            // A flexible break's window lies over the work around it: see-through with a dashed edge.
+            var fill = new SolidColorBrush(Color.Parse(piece.Row.Color), piece.Row.IsFlexible ? 0.35 : 0.85);
+            IPen? edge = piece.Row.IsSelected ? SelectedOutline
+                : piece.Row.IsFlexible ? new Pen(new SolidColorBrush(Color.Parse(piece.Row.Color)), 1.5, new DashStyle([3, 2], 0)) : null;
+            context.DrawRectangle(fill, edge, box.Deflate(0.5), 4, 4);
 
             var name = new FormattedText(piece.Row.Name, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, TextTypeface, 11, Brushes.White)
             {

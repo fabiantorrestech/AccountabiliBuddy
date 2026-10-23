@@ -38,6 +38,8 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
         header: HeaderText? = null,
         /** The devices' combined focus today (sessions and drift); null: an empty Focus row. */
         focus: WatchSnapshot? = null,
+        /** Today's lunch once started (flexible break, schema v8): solid on the Plan row. */
+        lunch: LocalWindow? = null,
     ): DayBarModel {
         val day = dayAt(now, settings, sleep, document.dayPlan)
         val span = DayTimeline.calendarSpan(day)
@@ -58,6 +60,10 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
         val plannedSpans = parts.flatMap { part ->
             val shown = DayTimeline.clip(part.window, range) ?: return@flatMap emptyList()
             val plain = toSpan(shown, range, "${part.name} · ${times(part.window)}").copy(color = part.category.argb.toInt(), name = part.name)
+            if (part.part.isFlexible) {
+                // A flexible break's window (schema v8): see-through over the work until it's taken.
+                return@flatMap listOf(plain.copy(name = null, overlap = true, label = "${part.name} window · ${times(part.window)}"))
+            }
             if (part.category.behavior != com.accountabilibuddy.companion.model.CategoryBehavior.PreWork || nights.isEmpty()) {
                 return@flatMap listOf(plain)
             }
@@ -68,6 +74,9 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
             awake.map { toSpan(it, range, plain.label).copy(color = plain.color, name = part.name) } +
                 over.map { toSpan(it, range, "${plain.label} (over Sleep)").copy(color = plain.color, overlap = true) }
         }
+        val lunchSpans = listOfNotNull(lunch?.let { taken ->
+            DayTimeline.clip(taken, range)?.let { toSpan(it, range, "Lunch · ${times(taken)}").copy(color = document.dayPlan.flexibleBreakOn(taken.start.toLocalDate())?.color?.toInt() ?: 0xFFCA8A04.toInt(), name = "Lunch") }
+        })
         val actualSpans = slept.mapNotNull { window ->
             DayTimeline.clip(window, range)?.let { toSpan(it, range, "Slept ${times(window)} (${duration(Duration.between(window.start, window.end))})") }
         }
@@ -82,7 +91,7 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
             dateText = day.start.format(dateFormat),
             statusText = header?.status ?: status(now, range, planned, document),
             summaryText = header?.summary ?: summary(range, planned),
-            planned = plannedSpans,
+            planned = plannedSpans + lunchSpans,
             actual = actualSpans,
             events = eventSpans(events.filter { it.calendarId !in settings.calendarsOff }, range),
             night = night,

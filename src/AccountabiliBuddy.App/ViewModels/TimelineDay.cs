@@ -18,4 +18,5 @@ public sealed record TimelineDay(
     IReadOnlyList<BlockerWindow>? Blockers,
     TimeSpan Focused,
     IReadOnlyList<LocalWindow>? Unfocused = null,
-    IReadOnlyList<TimelineItem>? TaskMarks = null);
+    IReadOnlyList<TimelineItem>? TaskMarks = null,
+    IReadOnlyList<TimelineItem>? Breaks = null);

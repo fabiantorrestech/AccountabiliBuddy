@@ -88,6 +88,7 @@ public partial class App : Application
     private WorkHoursGuard? _workHours;
     private HyperfocusGuard? _hyperfocus;
     private StartNudgeService? _startNudge;
+    private LunchService? _lunch;
     private Motion? _motion;
     private AccountabiliBuddy.App.Services.Sync.PhonePickups? _phonePickups;
     private DeepWorkService? _deepWork;
@@ -383,6 +384,11 @@ public partial class App : Application
         // Steer toward starting: Today with the task box ready when work starts, at launch, and on coming back.
         _startNudge = new StartNudgeService(_sessions, _configuration, new Win32UserIdleDetector(), documents);
         _startNudge.LoadBlocking();
+        // Flexible lunch (schema v8): Start lunch any time in its window, on any device; one chime when it's over.
+        _lunch = new LunchService(_sessions, _configuration, documents,
+            (title, message) => presenter.ShowReminder(title, message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#CA8A04"))),
+            () => _sessionCues?.Play(soundSettings.Current.BreakEndSound));
+        _lunch.LoadBlocking();
         // Animations at the chosen speed, or none (Settings → On screen & sound).
         _motion = new Motion(documents);
         _motion.LoadBlocking();
@@ -404,7 +410,8 @@ public partial class App : Application
         _preWork.LoadBlocking();
         _preWork.Changed += (_, _) => ShowPreWork(monitorLocator);
         _preWork.DayOffTaken += (_, _) => _ = _workHours.TakeDayOffAsync();
-        _startNudge!.IsDayOff = () => _preWork.IsDayOff;
+        // Nothing steers on a day off or during lunch.
+        _startNudge!.IsDayOff = () => _preWork.IsDayOff || _lunch!.IsOnLunch;
         _activityWatcher.ActivityChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => _preWork.OnActivity(snapshot));
         // The review card after each session: what it used with no rule, as rules.
         _sessionReview = new SessionReviewService(activityLog, _configuration, documents, _sessions, () => exemptionDefaults.PreTicked)
@@ -478,6 +485,18 @@ public partial class App : Application
         // Come-backs (ADR 30): the open ones go to paired devices in the link's state and in this PC's sync file.
         linkHost.Comebacks = () => _comebacks!.Open.Select(comeback => new AccountabiliBuddy.Core.Link.LinkComeback(comeback.Id, comeback.Text, comeback.CreatedAt)).ToList();
         syncCoordinator.Comebacks = () => _comebacks!.Open.Select(comeback => new AccountabiliBuddy.Core.Sync.SyncComeback(comeback.Id, comeback.Text, comeback.CreatedAt)).ToList();
+        // Lunch is the user's, not this PC's: started here or on another device, every device takes the newest.
+        syncCoordinator.Lunch = () => _lunch!.Taken;
+        _lunch!.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
+        receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            foreach (AccountabiliBuddy.Core.Sync.SyncLunch lunch in receivedDevices.Devices.Select(device => device.File.Lunch).OfType<AccountabiliBuddy.Core.Sync.SyncLunch>())
+            {
+                _lunch.Receive(lunch);
+            }
+        });
+        _dayBar.Lunch = () => _lunch.Taken;
+        timelineDay.Lunch = () => _lunch.Taken;
         _comebacks!.Changed += (_, _) =>
         {
             linkHost.NotifyTasksChanged();
@@ -593,6 +612,7 @@ public partial class App : Application
         };
         // Focus mode: the Today page while a session runs (the main window's day bar is the one it reads).
         sessionViewModel.Comebacks = new ComebacksViewModel(_comebacks!);
+        sessionViewModel.Lunch = new LunchCardViewModel(_lunch!, _sessions);
         // Deep work against the daily goal (redesign phase 4): Today's card, the on-screen details, "Goal met" once a day.
         _deepWork = new DeepWorkService(
             _sessions,

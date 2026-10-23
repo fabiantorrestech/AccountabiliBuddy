@@ -43,7 +43,7 @@ object DayTemplateEditing {
 
     fun addAt(template: DayTemplate, startMinute: Int, categoryId: UUID, categories: List<DayCategory> = emptyList()): DayTemplate? {
         val start = (startMinute / SNAP_MINUTES * SNAP_MINUTES).coerceIn(0, MINUTES_PER_DAY - SNAP_MINUTES)
-        val taken = template.parts.filterNot { mayOverlap(categoryId, it.categoryId, categories) }.flatMap(::ranges)
+        val taken = template.parts.filterNot { it.isFlexible || mayOverlap(categoryId, it.categoryId, categories) }.flatMap(::ranges)
         if (taken.any { it.first <= start && start < it.second }) {
             return null
         }
@@ -67,7 +67,9 @@ object DayTemplateEditing {
         val part = template.parts.firstOrNull { it.id == partId } ?: return null
         var start = min(snap(startMinute.toDouble()), MINUTES_PER_DAY - SNAP_MINUTES)
         var end = snap(endMinute.toDouble())
-        val others = template.parts.filter { it.id != partId && !mayOverlap(part.categoryId, it.categoryId, categories) }.flatMap(::ranges).sortedBy { it.first }
+        // A flexible break's window lies over the work around it (schema v8): neither pushes the other.
+        val others = template.parts.filter { it.id != partId && !part.isFlexible && !it.isFlexible && !mayOverlap(part.categoryId, it.categoryId, categories) }
+            .flatMap(::ranges).sortedBy { it.first }
 
         if (!crossesMidnight) {
             if (start >= end) {

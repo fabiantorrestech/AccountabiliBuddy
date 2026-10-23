@@ -28,6 +28,7 @@ public static class DayPlanValidator
             for (int j = i + 1; j < template.Parts.Count; j++)
             {
                 if (Overlap(template.Parts[i], template.Parts[j])
+                    && !template.Parts[i].IsFlexible && !template.Parts[j].IsFlexible
                     && !DayTemplateEditing.MayOverlap(template.Parts[i].CategoryId, template.Parts[j].CategoryId, categories))
                 {
                     return $"{Describe(template.Parts[i], categories)} overlaps {Describe(template.Parts[j], categories)}.";

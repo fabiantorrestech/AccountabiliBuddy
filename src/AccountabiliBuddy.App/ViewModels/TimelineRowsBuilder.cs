@@ -89,6 +89,14 @@ public static class TimelineRowsBuilder
             }
 
             string tip = $"{part.Name} · {Times(part.Window)}";
+            if (part.Part.IsFlexible)
+            {
+                // A flexible break's window (schema v8): see-through over the work around it until it's taken.
+                spans.Add(ToSpan(shown, day.Range, $"{part.Name} window · {Times(part.Window)} ({Duration(TimeSpan.FromMinutes(part.Part.FlexMinutes!.Value))}, start any time)")
+                    with { Color = part.Category.Color, IsOverlap = true });
+                continue;
+            }
+
             if (part.Category.Behavior != CategoryBehavior.PreWork || nights.Count == 0)
             {
                 spans.Add(ToSpan(shown, day.Range, tip) with { Color = part.Category.Color, Label = part.Name });
@@ -104,6 +112,15 @@ public static class TimelineRowsBuilder
             foreach (LocalWindow over in DayTimeline.Subtract([shown], DayTimeline.Subtract([shown], nights)))
             {
                 spans.Add(ToSpan(over, day.Range, $"{tip} (over Sleep: guarded if you're up early)") with { Color = part.Category.Color, IsOverlap = true });
+            }
+        }
+
+        // A flexible break as taken (lunch started): solid, on top.
+        foreach (TimelineItem taken in day.Breaks ?? [])
+        {
+            if (DayTimeline.Clip(taken.Window, day.Range) is LocalWindow shown)
+            {
+                spans.Add(ToSpan(shown, day.Range, taken.Tip) with { Color = taken.Color, Label = "Lunch" });
             }
         }
 

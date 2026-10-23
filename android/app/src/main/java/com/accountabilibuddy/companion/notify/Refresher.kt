@@ -59,7 +59,7 @@ object Refresher {
                 val builder = DayBarBuilder(clock)
                 val focus = HeaderSource.focus(app, now)
                 val header = HeaderSource.header(app, now, clock, HeaderSource.phoneMinutes(context, state, now, builder), focus)
-                val model = builder.build(now, state.document, state.events, state.dayBar, state.sleep, state.slept, header, focus)
+                val model = builder.build(now, state.document, state.events, state.dayBar, state.sleep, state.slept, header, focus, (app.lunch.today()?.let { com.accountabilibuddy.companion.model.LocalWindow(java.time.LocalDateTime.ofInstant(it.start, java.time.ZoneId.systemDefault()), java.time.LocalDateTime.ofInstant(it.end, java.time.ZoneId.systemDefault())) }))
                 countdownEnd = model.countdownTo
                 if (state.timelineNotificationOn) {
                     TimelineNotifier.show(context, model)
@@ -82,8 +82,17 @@ object Refresher {
             }
             // Steering (start nudge, parked phone, pickups to the PC): from the devices' combined focus.
             val focus = HeaderSource.focus(app, now)?.takeUnless { quiet }
-            // "Not working today" on the full-screen card: no work nudges on the phone today.
-            val nudgeFocus = focus?.takeUnless { com.accountabilibuddy.companion.nudge.Takeover.isDayOff(context) }
+            // "Not working today" on the full-screen card, or lunch: no work nudges on the phone.
+            val nudgeFocus = focus?.takeUnless { com.accountabilibuddy.companion.nudge.Takeover.isDayOff(context) || app.lunch.isOnLunch() }
+            // Lunch: "Lunch over!" once (its alarm may come late), and one hint when it isn't started by its time.
+            com.accountabilibuddy.companion.lunch.LunchReceiver.tellOver(context)
+            app.store.state.value.document.dayPlan.flexibleBreakOn(now.toLocalDate())?.let { flex ->
+                val hint = flex.hintAt
+                if (!quiet && hint != null && app.lunch.today() == null && !now.isBefore(hint) && now.isBefore(flex.window.end) && !app.lunch.hintedOn(now.toLocalDate())) {
+                    app.lunch.markHinted(now.toLocalDate())
+                    com.accountabilibuddy.companion.lunch.LunchReceiver.hint(context, clock.time(flex.window.end))
+                }
+            }
             WorkStartNudge.check(context, nudgeFocus)
             com.accountabilibuddy.companion.nudge.Takeover.maybeShow(context, nudgeFocus, clock)
             nudgeAt = WorkStartNudge.nextAt(context, nudgeFocus)

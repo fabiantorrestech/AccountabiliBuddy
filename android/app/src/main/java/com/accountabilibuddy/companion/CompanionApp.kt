@@ -74,6 +74,9 @@ class CompanionApp : Application() {
     /** The phone's master switch and car pause. */
     val pause by lazy { com.accountabilibuddy.companion.pause.PauseStore(this) }
 
+    /** Today's flexible lunch, the same on every device (schema v8). */
+    val lunch by lazy { com.accountabilibuddy.companion.lunch.LunchStore(this) }
+
     /** The noise player (sounds from a folder the user picks), as on the PC. */
     lateinit var noise: com.accountabilibuddy.companion.noise.NoisePlayer
         private set
@@ -119,6 +122,20 @@ class CompanionApp : Application() {
         // The phone's card names its linked watch (Task 18); linking or unlinking it tells the PC at once.
         sync.companions = { watchBridge.companions() }
         sync.nextAlarm = { wakeAlarm }
+        // Lunch is the user's: this phone's goes out in its file; one from another device is taken here.
+        sync.lunch = { lunch.today() }
+        lunch.onChanged = {
+            sendSyncFilesToPc()
+            appScope.launch {
+                driveSource.syncNow()
+                Refresher.refresh(this@CompanionApp)
+            }
+        }
+        appScope.launch {
+            sync.received.collect { devices ->
+                devices.mapNotNull { it.file.lunch }.forEach { lunch.receive(it) }
+            }
+        }
         // Pickups during the other devices' sessions (ADR 26): unlock times from Usage access, when allowed.
         // Unlocks while the phone was paused or in the car aren't pickups.
         sync.unlocksSince = { from ->

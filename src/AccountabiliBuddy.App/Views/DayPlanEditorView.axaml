@@ -14,7 +14,8 @@
         <ItemsControl ItemsSource="{Binding ShownRows}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:PlanPartRowViewModel">
-                    <Grid ColumnDefinitions="16,140,140,Auto,Auto,Auto,Auto" ColumnSpacing="8" Margin="0,2">
+                    <StackPanel Spacing="4" Margin="0,2">
+                    <Grid ColumnDefinitions="16,140,140,Auto,Auto,Auto,Auto" ColumnSpacing="8">
                         <Border Width="12" Height="12" CornerRadius="6" Background="{Binding ColorBrush}" VerticalAlignment="Center" />
                         <TextBox Grid.Column="1" Text="{Binding Label}" PlaceholderText="{Binding Category.Name}"
                                  ToolTip.Tip="Name for this part (empty = the category's name)" />
@@ -30,6 +31,16 @@
                         <TimePicker Grid.Column="5" SelectedTime="{Binding End}" MinuteIncrement="15" MinWidth="0" Width="196" />
                         <Button Grid.Column="6" Content="✕" ToolTip.Tip="Delete this part" Command="{Binding DeleteCommand}" />
                     </Grid>
+                    <!-- A flexible break (e.g. lunch): the times are the window; it starts when you press Start lunch. -->
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="24,0,0,0">
+                        <CheckBox IsChecked="{Binding IsFlexible}" Content="Flexible: start any time in this window, for"
+                                  ToolTip.Tip="Like lunch: it can lie over your work block; until you press Start lunch the window counts as work" />
+                        <NumericUpDown Value="{Binding FlexMinutes}" Minimum="15" Maximum="240" Increment="15" FormatString="0" Width="110"
+                                       IsEnabled="{Binding IsFlexible}" />
+                        <TextBlock Text="min · hint at" VerticalAlignment="Center" IsVisible="{Binding IsFlexible}" />
+                        <TimePicker SelectedTime="{Binding HintAt}" MinuteIncrement="15" MinWidth="0" Width="196" IsVisible="{Binding IsFlexible}" />
+                    </StackPanel>
+                    </StackPanel>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>

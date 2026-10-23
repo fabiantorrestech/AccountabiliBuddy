@@ -132,6 +132,20 @@ private fun PartRow(part: PlanPart, categories: List<DayCategory>, clock: ClockF
             OutlinedButton(onClick = { picking = "end" }) { Text(clock.time(part.end.atDate(LocalDate.now()))) }
             TextButton(onClick = onDelete, modifier = Modifier.width(48.dp)) { Text("✕") }
         }
+        // A flexible break (e.g. lunch): the times are its window, it starts when you press Start lunch.
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            androidx.compose.material3.Checkbox(
+                checked = part.isFlexible,
+                onCheckedChange = { on -> onChange(part.copy(flexMinutes = if (on) 60 else null, hintAt = if (on) LocalTime.of(13, 0) else null)) },
+            )
+            Text("Flexible, for", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+            listOf(30, 45, 60, 90).forEach { minutes ->
+                androidx.compose.material3.FilterChip(
+                    selected = part.flexMinutes == minutes, enabled = part.isFlexible,
+                    onClick = { onChange(part.copy(flexMinutes = minutes)) }, label = { Text("$minutes") },
+                )
+            }
+        }
     }
 
     picking?.let { which ->

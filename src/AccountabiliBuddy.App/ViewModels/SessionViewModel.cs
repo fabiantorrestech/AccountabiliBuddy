@@ -70,6 +70,10 @@ public sealed partial class SessionViewModel : ObservableObject
     [ObservableProperty]
     public partial QuickSessionViewModel QuickStart { get; set; }
 
+    /// <summary>Today's lunch card (flexible break); set by the app.</summary>
+    [ObservableProperty]
+    public partial LunchCardViewModel? Lunch { get; set; }
+
     /// <summary>The Unlock card.</summary>
     public UnlockViewModel Unlock { get; }
 
