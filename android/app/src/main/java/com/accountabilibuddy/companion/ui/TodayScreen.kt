@@ -108,7 +108,7 @@ fun TodayScreen(
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Bring your PC's profiles", style = MaterialTheme.typography.titleMedium)
+                        IconTitle("Bring your PC's profiles", style = MaterialTheme.typography.titleMedium)
                         Text("Link the PC in Devices, or import a backup.", style = MaterialTheme.typography.bodyMedium)
                         Button(onClick = onImport) { Text("Import backup file") }
                         Hint("On the PC: Settings → Backup → Export (without secrets, or with a password). Put the .abbackup file on the phone, then import it here.", label = "How to export")
@@ -130,7 +130,7 @@ fun TodayScreen(
         item { PhoneCard(phoneUsage, onAllowUsage) }
 
         if (todayBlocks.isNotEmpty() || todayEvents.isNotEmpty()) {
-            item { Text("Today", style = MaterialTheme.typography.titleSmall) }
+            item { IconTitle("Today", style = MaterialTheme.typography.titleSmall) }
             todayBlocks.forEach { focus -> item { BlockRow(state, focus, clock, now) } }
             todayEvents.forEach { event -> item { EventRow(event, clock) } }
         }
@@ -139,7 +139,7 @@ fun TodayScreen(
         if (todayBlocks.none { it.window.end.isAfter(now) }) {
             if (nextBlocks.isNotEmpty() || nextEvents.isNotEmpty()) {
                 item {
-                    Text(
+                    IconTitle(
                         "Tomorrow · ${tomorrowDate.format(TOMORROW_FORMAT)}",
                         style = MaterialTheme.typography.titleSmall,
                     )
@@ -208,7 +208,7 @@ private fun EventRow(event: CalendarEvent, clock: ClockFormat) {
 private fun PhoneCard(usage: PhoneUsage?, onAllow: () -> Unit) {
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Phone today", style = MaterialTheme.typography.titleMedium)
+            IconTitle("Phone today", style = MaterialTheme.typography.titleMedium)
             if (usage == null) {
                 Text("Time on the phone, and during focus.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedButton(onClick = onAllow) { Text("Allow usage access") }
@@ -250,7 +250,7 @@ private fun PhoneCard(usage: PhoneUsage?, onAllow: () -> Unit) {
 private fun SleepCard(state: CompanionState, clock: ClockFormat, health: HealthStatus, onConnect: () -> Unit, onRefresh: () -> Unit) {
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Sleep", style = MaterialTheme.typography.titleMedium)
+            IconTitle("Sleep", style = MaterialTheme.typography.titleMedium)
             val night = state.sleep.toSchedule(state.document.dayPlan).nightAround(LocalDateTime.now())
             if (state.sleep.enabled) {
                 Text(

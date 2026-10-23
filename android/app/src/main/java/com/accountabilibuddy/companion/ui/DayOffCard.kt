@@ -41,7 +41,7 @@ internal fun DayOffCard() {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)
             .background(Color(0x33F4A261), RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 4.dp),
     ) {
-        Text("Not working today: no work nudges on this phone.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        IconTitle("Not working today: no work nudges on this phone.", style = MaterialTheme.typography.bodyMedium, icon = SectionIcons.of("Not working today"), modifier = Modifier.weight(1f))
         TextButton(onClick = {
             NudgeStore(context).update { it.copy(dayOff = null, dayOffAskedAt = null) }
             dayOff = false

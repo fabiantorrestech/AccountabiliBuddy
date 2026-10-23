@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0032](0032-use-material-icon-libraries.md) | Use Material icon libraries for UI icons | Accepted | — |
 | [0031](0031-guard-pre-work-parts.md) | Guard Pre-Work parts | Accepted | — |
 | [0030](0030-carry-come-backs-to-the-users-devices.md) | Carry come-backs to the user's devices | Accepted | — |
 | [0029](0029-share-the-daily-goal-with-paired-devices.md) | Share the daily goal with paired devices | Accepted | — |

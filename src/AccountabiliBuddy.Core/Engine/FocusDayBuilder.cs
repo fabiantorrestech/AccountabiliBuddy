@@ -8,7 +8,9 @@ namespace AccountabiliBuddy.Core.Engine;
 /// and ones added by hand count; omitted sessions and old scheduled blocks don't. Each session is cut at the day's
 /// edges (local midnight), so one across midnight counts on both days. The session running now counts until now; an
 /// older session without an end stopped with the app at an unknown time and is left out. Planned minutes are the day
-/// plan's Watch parts. Time the user stepped away doesn't count (the session itself is still sent whole).
+/// plan's Watch parts. Time the user stepped away or marked distracted in History doesn't count: an ended session
+/// is sent in the pieces without it (as in sync files, so the phone's own sums agree), and marked stretches go with
+/// the drift marks so they show red there too.
 /// </summary>
 public static class FocusDayBuilder
 {
@@ -37,13 +39,19 @@ public static class FocusDayBuilder
         var sessions = new List<LinkFocusSession>();
         foreach (CountedSession session in counted.OrderBy(session => session.Window.Start))
         {
-            if (DayTimeline.Clip(session.Window, today) is not LocalWindow inDay)
+            IReadOnlyList<LocalWindow> pieces = session.Running || session.Away.Count == 0
+                ? [session.Window]
+                : DayTimeline.Subtract([session.Window], session.Away);
+            foreach (LocalWindow piece in pieces)
             {
-                continue;
-            }
+                if (DayTimeline.Clip(piece, today) is not LocalWindow inDay)
+                {
+                    continue;
+                }
 
-            DateTimeOffset? end = session.Running ? null : At(inDay.End, zone);
-            sessions.Add(new LinkFocusSession(At(inDay.Start, zone), end, session.Added ? null : profileName(session.ProfileId), session.Added));
+                DateTimeOffset? end = session.Running ? null : At(inDay.End, zone);
+                sessions.Add(new LinkFocusSession(At(inDay.Start, zone), end, session.Added ? null : profileName(session.ProfileId), session.Added));
+            }
         }
 
         var marks = new List<LinkWindow>();
@@ -55,6 +63,18 @@ public static class FocusDayBuilder
                 marks.Add(new LinkWindow(At(inDay.Start, zone), At(inDay.End, zone)));
             }
         }
+
+        // Marked distracted in History: red on the phone's Focus row like drift.
+        foreach (AwayStretch marked in counted.SelectMany(session => session.Distracted))
+        {
+            var window = new LocalWindow(Local(marked.From, zone), Local(marked.To, zone));
+            if (DayTimeline.Clip(window, today) is LocalWindow inDay)
+            {
+                marks.Add(new LinkWindow(At(inDay.Start, zone), At(inDay.End, zone)));
+            }
+        }
+
+        marks = marks.OrderBy(mark => mark.Start).ToList();
 
         var parts = plan.PartsIn(today)
             .Select(part => new LinkPlanPart(part.Name, part.Category.Name, part.Category.Color, KindOf(part.Category.Behavior),
@@ -80,7 +100,8 @@ public static class FocusDayBuilder
         return CountedRecords(records, isOmitted, sessionRunning, now)
             .Select(counted => new CountedSession(new LocalWindow(Local(counted.Record.StartedAt, zone), Local(counted.End, zone)),
                 counted.Record.ProfileId, counted.Record.Mode == SessionMode.Added, counted.Running,
-                AwayIn(counted.Record, counted.End, zone)))
+                AwayIn(counted.Record, counted.End, zone),
+                (counted.Record.Away ?? []).Where(stretch => stretch.Kind == AwayKind.Distracted).ToList()))
             .ToList();
     }
 
@@ -181,5 +202,6 @@ public static class FocusDayBuilder
         return new DateTimeOffset(local, zone.GetUtcOffset(local));
     }
 
-    private sealed record CountedSession(LocalWindow Window, Guid? ProfileId, bool Added, bool Running, IReadOnlyList<LocalWindow> Away);
+    private sealed record CountedSession(
+        LocalWindow Window, Guid? ProfileId, bool Added, bool Running, IReadOnlyList<LocalWindow> Away, IReadOnlyList<AwayStretch> Distracted);
 }

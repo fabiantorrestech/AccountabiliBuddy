@@ -14,7 +14,7 @@
             </StackPanel>
 
             <Border Padding="24,20" Margin="0,8">
-                <TextBlock Text="&quot;Now just to make sure you don't slip up while in camp we assign every camper an accountability buddy...&quot;"
+                <TextBlock Text="&quot;Now to make sure you don't slip up while in camp, we assign every camper an accountability buddy...&quot;"
                            FontSize="20" FontStyle="Italic" TextWrapping="Wrap" TextAlignment="Center" LineHeight="30" />
             </Border>
 

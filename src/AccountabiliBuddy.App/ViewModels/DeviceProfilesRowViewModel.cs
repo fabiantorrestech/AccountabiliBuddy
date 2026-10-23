@@ -21,6 +21,9 @@ public sealed partial class DeviceProfilesRowViewModel : ObservableObject
 
     public string Name { get; }
 
+    /// <summary>The device's kind as an icon: a phone, a tablet or a watch.</summary>
+    public Material.Icons.MaterialIconKind Icon { get; init; } = Material.Icons.MaterialIconKind.Cellphone;
+
     /// <summary>E.g. "uses this PC's profiles · connected now".</summary>
     public string Detail { get; }
 

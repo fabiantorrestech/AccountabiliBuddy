@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:controls="using:AccountabiliBuddy.App.Controls"
              xmlns:views="using:AccountabiliBuddy.App.Views"
@@ -69,7 +70,10 @@
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:SettingsGroupViewModel">
                         <StackPanel Spacing="2" Margin="0,2">
-                            <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <mi:MaterialIcon Kind="{Binding Icon}" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                                <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" />
+                            </StackPanel>
                             <ItemsControl ItemsSource="{Binding Sections}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="x:String">
@@ -94,10 +98,13 @@
 
                 <StackPanel Spacing="16" IsVisible="{Binding Groups[0].IsSelected}"
                             search:SearchArea.Name="Focus sessions" search:SearchArea.SettingsGroup="0">
-                    <TextBlock Text="Focus sessions" Classes="groupTitle" />
+                    <StackPanel Orientation="Horizontal" Spacing="10"><mi:MaterialIcon Kind="Target" Width="22" Height="22" VerticalAlignment="Center" Opacity="0.85" /><TextBlock Text="Focus sessions" Classes="groupTitle" /></StackPanel>
                     <Border Classes="card" search:SearchArea.Name="Quick session shortcut">
                     <StackPanel Spacing="6">
-                        <TextBlock Text="Quick session shortcut" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="KeyboardOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Quick session shortcut" Classes="sectionTitle" />
+                        </StackPanel>
                         <TextBlock Text="Click the box and press the keys you want (at least one of Ctrl, Alt or Win, plus a letter, number, F-key or Space)."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <controls:HotkeyBox Text="{Binding HotkeyText}" Width="220" HorizontalAlignment="Left" />
@@ -110,7 +117,10 @@
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="Step away" IsVisible="{Binding HasStepAway}">
                     <StackPanel Spacing="6">
-                        <TextBlock Text="Step away" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="Walk" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Step away" Classes="sectionTitle" />
+                        </StackPanel>
                         <TextBlock Text="A bathroom break or someone at your desk: the countdown pauses until you're back. Any key or mouse movement brings you back. It never shortens a wait. Also in the tray and the on-screen window (hold Ctrl+Alt)."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <controls:HotkeyBox Text="{Binding StepAwayHotkey}" Width="220" HorizontalAlignment="Left" />
@@ -126,7 +136,10 @@
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="Hyperfocus reminder" IsVisible="{Binding HasHyperfocus}">
                     <StackPanel Spacing="6" DataContext="{Binding Hyperfocus}" x:DataType="vm:HyperfocusViewModel">
-                        <TextBlock Text="Hyperfocus reminder" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="Brain" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Hyperfocus reminder" Classes="sectionTitle" />
+                        </StackPanel>
                         <TextBlock Text="One quiet reminder after a long stretch of focus with no break: water, stand, eat. Coming back from Step away starts the stretch over."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <StackPanel Orientation="Horizontal" Spacing="8">
@@ -151,7 +164,10 @@
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="Pomodoro defaults">
                     <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
-                        <TextBlock Text="Pomodoro defaults" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="TimerOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Pomodoro defaults" Classes="sectionTitle" />
+                        </StackPanel>
                         <Grid ColumnDefinitions="240,120" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6">
                             <TextBlock Grid.Row="0" Text="Focus (minutes)" VerticalAlignment="Center" />
                             <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding FocusMinutes}" />
@@ -166,7 +182,10 @@
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="Escalation">
                     <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
-                        <TextBlock Text="Escalation (seconds of continuous distraction)" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="AlertOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Escalation (seconds of continuous distraction)" Classes="sectionTitle" />
+                        </StackPanel>
                         <Grid ColumnDefinitions="240,120" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
                             <TextBlock Grid.Row="0" Text="Notification after" VerticalAlignment="Center" />
                             <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding NudgeSeconds}" />
@@ -182,7 +201,10 @@
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="Ending a focus session early">
                     <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
-                        <TextBlock Text="Ending a focus session early" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="ExitRun" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Ending a focus session early" Classes="sectionTitle" />
+                        </StackPanel>
                         <Grid ColumnDefinitions="240,120" RowDefinitions="Auto,Auto" RowSpacing="6">
                             <TextBlock Grid.Row="0" Text="Wait before you can end (seconds)" VerticalAlignment="Center" />
                             <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding BypassWaitSeconds}" />
@@ -193,7 +215,10 @@
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="Unlocks">
                     <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
-                        <TextBlock Text="Unlocks" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="LockOpenOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Unlocks" Classes="sectionTitle" />
+                        </StackPanel>
                         <CheckBox IsChecked="{Binding RelockAtMidnight}" Content="Relock at midnight" />
                         <TextBlock Opacity="0.75" TextWrapping="Wrap"
                                    Text="When on, an unlock lifts the blocks only until the next midnight unless you pick another time when unlocking. Unlock options are set per profile." />
@@ -201,7 +226,10 @@
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="Looser changes">
                     <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
-                        <TextBlock Text="Looser changes" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="TimerSand" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Looser changes" Classes="sectionTitle" />
+                        </StackPanel>
                         <Grid ColumnDefinitions="240,120">
                             <TextBlock Text="Wait before they apply (minutes)" VerticalAlignment="Center" />
                             <TextBox Grid.Column="1" Text="{Binding LooseningDelayMinutes}" />
@@ -214,10 +242,13 @@
 
                 <StackPanel Spacing="16" IsVisible="{Binding Groups[1].IsSelected}"
                             search:SearchArea.Name="Your day" search:SearchArea.SettingsGroup="1">
-                    <TextBlock Text="Your day" Classes="groupTitle" />
+                    <StackPanel Orientation="Horizontal" Spacing="10"><mi:MaterialIcon Kind="WeatherSunny" Width="22" Height="22" VerticalAlignment="Center" Opacity="0.85" /><TextBlock Text="Your day" Classes="groupTitle" /></StackPanel>
                     <Border Classes="card" search:SearchArea.Name="Steer me to start" IsVisible="{Binding HasStartNudge}">
                     <StackPanel Spacing="6" DataContext="{Binding StartNudge}" x:DataType="vm:StartNudgeViewModel">
-                        <TextBlock Text="Steer me to start" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="CompassOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Steer me to start" Classes="sectionTitle" />
+                        </StackPanel>
                         <CheckBox IsChecked="{Binding IsOn}" Content="During work parts with no session, open Today with the task box ready" />
                         <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,0,0,0">
                             <TextBlock Text="Nudge again every" VerticalAlignment="Center" />
@@ -230,7 +261,10 @@
                     <!-- ADR 27: a personal computer can hold dev tools during the plan's work parts. -->
                     <Border Classes="card" search:SearchArea.Name="Work hours on this computer" IsVisible="{Binding HasWorkHours}">
                     <StackPanel Spacing="8" DataContext="{Binding WorkHours}" x:DataType="vm:WorkHoursViewModel">
-                        <TextBlock Text="Work hours on this computer" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="BriefcaseOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Work hours on this computer" Classes="sectionTitle" />
+                        </StackPanel>
                         <TextBlock Text="For a personal computer next to your work one: during your day plan's work parts, the apps below are minimized at once (Claude Code, terminals and editors by default). Calls, mail and the browser stay open. It also holds during a session you start here. Reaching for one of them after a pause asks what you were about to do. Stopping for today waits like ending a session early; while it's on, a day plan change that frees today's work hours waits too."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <StackPanel Orientation="Horizontal" Spacing="8">
@@ -256,7 +290,10 @@
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="Day bar">
                     <StackPanel Spacing="6">
-                        <TextBlock Text="Day bar" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="ChartTimelineVariant" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Day bar" Classes="sectionTitle" />
+                        </StackPanel>
                         <TextBlock Text="The bar above the tabs: rows for your calendar, your day plan, the focus sessions you started (with red drift marks) and Cold Turkey's blocks, with a red line at now. The on-screen timeline uses the same rows. Can be saved during focus too."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <CheckBox IsChecked="{Binding ShowDayBar}" Content="Show the day bar" />
@@ -303,7 +340,10 @@
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="Sleep">
                     <StackPanel Spacing="6">
-                        <TextBlock Text="Sleep" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="WeatherNight" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Sleep" Classes="sectionTitle" />
+                        </StackPanel>
                         <TextBlock Text="Your bedtime and wake time. The day bar runs from wake time to bedtime and shades the night; staying up past bedtime shades the lost sleep red. From when going to bed would give your sleep goal, a line on screen counts down the sleep you'll get if you go now, with your wake time (green down to an hour under the goal, yellow down to three hours under, red below), and a reminder pops up two hours before bedtime. Hold Ctrl+Alt over the on-screen window to change tonight's wake time. The times are the Sleep parts of your day plan. Can be changed during focus too."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <CheckBox IsChecked="{Binding SleepEnabled}" Content="Use sleep mode" />
@@ -338,7 +378,10 @@
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="Calendars">
                     <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
-                        <TextBlock Text="Calendars" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="CalendarMonthOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Calendars" Classes="sectionTitle" />
+                        </StackPanel>
                         <Grid ColumnDefinitions="240,120">
                             <TextBlock Text="Check iCal links every (minutes)" VerticalAlignment="Center" />
                             <TextBox Grid.Column="1" Text="{Binding CalendarRefreshMinutes}" />
@@ -367,10 +410,13 @@
 
                 <StackPanel Spacing="16" IsVisible="{Binding Groups[2].IsSelected}"
                             search:SearchArea.Name="On screen &amp; sound" search:SearchArea.SettingsGroup="2">
-                    <TextBlock Text="On screen &amp; sound" Classes="groupTitle" />
+                    <StackPanel Orientation="Horizontal" Spacing="10"><mi:MaterialIcon Kind="MonitorSpeaker" Width="22" Height="22" VerticalAlignment="Center" Opacity="0.85" /><TextBlock Text="On screen &amp; sound" Classes="groupTitle" /></StackPanel>
                     <Border Classes="card" search:SearchArea.Name="Animations" IsVisible="{Binding HasMotion}">
                     <StackPanel Spacing="6" DataContext="{Binding Motion}" x:DataType="vm:MotionViewModel">
-                        <TextBlock Text="Animations" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="Animation" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Animations" Classes="sectionTitle" />
+                        </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBlock Text="Speed" VerticalAlignment="Center" />
                             <ComboBox ItemsSource="{x:Static vm:MotionViewModel.SpeedNames}" SelectedIndex="{Binding SpeedIndex}" MinWidth="140" />
@@ -381,7 +427,10 @@
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="On-screen timer">
                     <StackPanel Spacing="6">
-                        <TextBlock Text="On-screen timer" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="ClockOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="On-screen timer" Classes="sectionTitle" />
+                        </StackPanel>
                         <TextBlock Text="Shows how much of the session is left, on top of other windows, for the profiles chosen below (also set in each profile on the Profiles tab). Clicks go through it; hold Ctrl+Alt to see the details and drag to move it. Can be saved during focus too."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <Grid ColumnDefinitions="240,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="6">
@@ -495,7 +544,10 @@
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="On-screen timeline">
                     <StackPanel Spacing="6">
-                        <TextBlock Text="On-screen timeline" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="Timeline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="On-screen timeline" Classes="sectionTitle" />
+                        </StackPanel>
                         <TextBlock Text="A small copy of the day bar in the same spot as the timer: your blocks, the focus sessions you started and a red line at now, with the next block under it. It shows on days with blocks; hold Ctrl+Alt for how much you focused."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <CheckBox IsChecked="{Binding ShowTimeline}" Content="Show the timeline on days with focus blocks" />
@@ -513,7 +565,10 @@
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="Sounds when time is up">
                     <StackPanel Spacing="6">
-                        <TextBlock Text="Sounds when time is up" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="BellRingOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Sounds when time is up" Classes="sectionTitle" />
+                        </StackPanel>
                         <TextBlock Text="Played when focus or a break runs out (not when you end a session yourself), also while the on-screen window is hidden. Can be saved during focus too."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <Grid ColumnDefinitions="240,Auto,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="8">
@@ -549,7 +604,10 @@
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="Noise player">
                     <StackPanel Spacing="6" IsVisible="{Binding HasNoisePlayer}">
-                        <TextBlock Text="Noise player" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="MusicNote" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Noise player" Classes="sectionTitle" />
+                        </StackPanel>
                         <TextBlock Text="The player at the bottom left plays the sound files of this folder in name order (mp3, wav, m4a, aac, flac, wma). Folder changes apply at once."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding NoiseFolderText}" TextWrapping="Wrap" />
@@ -575,7 +633,10 @@
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="Play when headphones connect" IsVisible="{Binding HasHeadphones}">
                     <StackPanel Spacing="6" DataContext="{Binding Headphones}" x:DataType="vm:HeadphoneSettingsViewModel">
-                        <TextBlock Text="Play when headphones connect" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="Headphones" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Play when headphones connect" Classes="sectionTitle" />
+                        </StackPanel>
                         <TextBlock Text="The noise player starts its last file when these headphones connect, any time of day, and pauses when they disconnect. Changes apply at once."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <Border Background="#1FF59E0B" BorderBrush="#66F59E0B" BorderThickness="1" CornerRadius="6" Padding="10,6">
@@ -602,10 +663,13 @@
 
                 <StackPanel Spacing="16" IsVisible="{Binding Groups[3].IsSelected}"
                             search:SearchArea.Name="App &amp; data" search:SearchArea.SettingsGroup="3">
-                    <TextBlock Text="App &amp; data" Classes="groupTitle" />
+                    <StackPanel Orientation="Horizontal" Spacing="10"><mi:MaterialIcon Kind="CogOutline" Width="22" Height="22" VerticalAlignment="Center" Opacity="0.85" /><TextBlock Text="App &amp; data" Classes="groupTitle" /></StackPanel>
                     <Border Classes="card" search:SearchArea.Name="Computer type">
                     <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
-                        <TextBlock Text="Computer type" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="Laptop" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Computer type" Classes="sectionTitle" />
+                        </StackPanel>
                         <TextBlock Text="{Binding ComputerTypeText}" />
                         <TextBlock Text="Applying a type sets its starting switches again (privacy, escalation, sharing, update checks). Profiles and the day plan stay as they are."
                                    Opacity="0.75" TextWrapping="Wrap" />
@@ -621,7 +685,10 @@
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="Backup">
                     <StackPanel Spacing="6">
-                        <TextBlock Text="Backup" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="BackupRestore" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Backup" Classes="sectionTitle" />
+                        </StackPanel>
                         <TextBlock Text="Save your profiles, settings, calendars and history to a file, or restore them from one, e.g. on a new PC."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <views:BackupPanel DataContext="{Binding Backup}" />
@@ -629,7 +696,10 @@
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="Data">
                     <StackPanel Spacing="4">
-                        <TextBlock Text="Data" Classes="sectionTitle" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="DatabaseOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Data" Classes="sectionTitle" />
+                        </StackPanel>
                         <TextBlock Text="Everything is stored only on this computer:" Opacity="0.75" />
                         <SelectableTextBlock Text="{Binding DatabasePath}" />
                         <!-- Off: History keeps only times, apps, sites and their sections (ADR 22, the Work computer type). -->

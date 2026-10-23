@@ -1,5 +1,8 @@
 package com.accountabilibuddy.companion.ui
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Computer
+import androidx.compose.material.icons.outlined.Smartphone
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -72,6 +75,7 @@ fun ProfilesScreen(state: CompanionState, clock: ClockFormat, pcName: String? = 
         item {
             DeviceRow(
                 title = pcName,
+                icon = Icons.Outlined.Computer,
                 detail = "${profiles.size} profile${if (profiles.size == 1) "" else "s"} · $running · synced ${state.importedAt ?: "not yet"}",
                 expanded = pcExpanded,
                 onToggle = { pcExpanded = !pcExpanded },
@@ -86,6 +90,7 @@ fun ProfilesScreen(state: CompanionState, clock: ClockFormat, pcName: String? = 
         item {
             DeviceRow(
                 title = "$deviceName (this phone)",
+                icon = Icons.Outlined.Smartphone,
                 detail = "uses $pcName's profiles",
                 expanded = phoneExpanded,
                 onToggle = { phoneExpanded = !phoneExpanded },
@@ -106,10 +111,10 @@ fun ProfilesScreen(state: CompanionState, clock: ClockFormat, pcName: String? = 
 
 /** A device's row: ▾/▸, its name, and a line about its profiles; tap to open or close. */
 @Composable
-private fun DeviceRow(title: String, detail: String, expanded: Boolean, onToggle: () -> Unit) {
+private fun DeviceRow(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, detail: String, expanded: Boolean, onToggle: () -> Unit) {
     Column(Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 4.dp)) {
-        Text("${if (expanded) "▾" else "▸"} $title", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 18.dp))
+        IconTitle("${if (expanded) "▾" else "▸"} $title", style = MaterialTheme.typography.titleMedium, icon = icon, fontWeight = FontWeight.SemiBold)
+        Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 46.dp))
     }
 }
 

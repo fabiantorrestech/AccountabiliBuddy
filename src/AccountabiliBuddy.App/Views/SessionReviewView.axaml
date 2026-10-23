@@ -1,12 +1,13 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              x:Class="AccountabiliBuddy.App.Views.SessionReviewView"
              x:DataType="vm:SessionReviewViewModel">
     <!-- The review card: sites and apps with no rule, each Distracting / Fine / Ignore; one reason for the Fine ones. -->
     <Border Padding="20" CornerRadius="10" Background="#1A2A9D8F" BorderBrush="#552A9D8F" BorderThickness="1">
         <StackPanel Spacing="10">
-            <TextBlock Text="{Binding Heading}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <DockPanel><mi:MaterialIcon DockPanel.Dock="Left" Kind="ClipboardCheckOutline" Width="20" Height="20" VerticalAlignment="Center" Opacity="0.85" Margin="0,0,8,0" /><TextBlock Text="{Binding Heading}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" /></DockPanel>
             <TextBlock Text="{Binding PhoneText}" Foreground="#22C55E" TextWrapping="Wrap"
                        IsVisible="{Binding PhoneText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             <!-- Notes kept during the session (redesign phase 5): shown once, here. -->

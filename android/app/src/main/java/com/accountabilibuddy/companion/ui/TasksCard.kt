@@ -31,7 +31,7 @@ fun TasksCard(running: RunningTasks) {
     val done = running.tasks.filter { it.isDone }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Tasks · ${running.source} · ${running.doneCount}/${running.tasks.size}", style = MaterialTheme.typography.titleSmall)
+            IconTitle("Tasks · ${running.source} · ${running.doneCount}/${running.tasks.size}", style = MaterialTheme.typography.titleSmall)
             if (open.isEmpty()) {
                 Text("All tasks done", style = MaterialTheme.typography.bodyMedium)
             }

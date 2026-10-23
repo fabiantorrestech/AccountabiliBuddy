@@ -17,7 +17,7 @@ import com.accountabilibuddy.companion.sync.OpenComebacks
 fun ComebacksCard(comebacks: OpenComebacks) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Come back to · ${comebacks.source}", style = MaterialTheme.typography.titleSmall)
+            IconTitle("Come back to · ${comebacks.source}", style = MaterialTheme.typography.titleSmall)
             comebacks.items.forEach { item -> Text("• ${item.text}", style = MaterialTheme.typography.bodyMedium) }
         }
     }

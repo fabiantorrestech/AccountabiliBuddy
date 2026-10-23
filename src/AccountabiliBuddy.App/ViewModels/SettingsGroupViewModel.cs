@@ -13,6 +13,15 @@ public sealed partial class SettingsGroupViewModel : ObservableObject
 
     public string Name { get; }
 
+    /// <summary>The group's icon in the side list (the same one heads the group's page).</summary>
+    public Material.Icons.MaterialIconKind Icon => Name switch
+    {
+        "Focus sessions" => Material.Icons.MaterialIconKind.Target,
+        "Your day" => Material.Icons.MaterialIconKind.WeatherSunny,
+        "On screen & sound" => Material.Icons.MaterialIconKind.MonitorSpeaker,
+        _ => Material.Icons.MaterialIconKind.CogOutline,
+    };
+
     /// <summary>The titles of its cards, in order; clicking one in the side list scrolls to it.</summary>
     public IReadOnlyList<string> Sections { get; }
 

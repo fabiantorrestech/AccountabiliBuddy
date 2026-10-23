@@ -57,7 +57,7 @@ fun LunchCard(flex: FlexibleBreak?, taken: SyncLunch?, clock: ClockFormat, onSta
                     taken != null -> "Lunch done · ${time(taken.start)} – ${time(taken.end)}"
                     else -> "${flex!!.name} · any time ${clock.time(flex.window.start)} – ${clock.time(flex.window.end)} · ${flex.minutes} min"
                 }
-                Text(text, style = MaterialTheme.typography.titleSmall)
+                IconTitle(text, style = MaterialTheme.typography.titleSmall, icon = SectionIcons.of("Lunch"))
             }
             when {
                 onLunch -> OutlinedButton(onClick = onBack) { Text("I'm back") }

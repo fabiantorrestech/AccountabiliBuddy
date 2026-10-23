@@ -674,7 +674,10 @@ public sealed partial class HistoryViewModel : ObservableObject
             return;
         }
 
-        List<SessionGap> gaps = GapRows.Select(row => new SessionGap(OnSessionDay(row.From!.Value), OnSessionDay(row.To!.Value))).ToList();
+        // The pickers have no seconds: a stretch within a minute of the session's edge starts or ends at that edge.
+        List<SessionGap> gaps = GapRows
+            .Select(row => new SessionGap(SnapToSession(OnSessionDay(row.From!.Value)), SnapToSession(OnSessionDay(row.To!.Value))))
+            .ToList();
         if (SessionGaps.Validate(_gapSessionStart, _gapSessionEnd, gaps) is string problem)
         {
             GapFormError = problem;
@@ -694,6 +697,11 @@ public sealed partial class HistoryViewModel : ObservableObject
         CancelGaps();
         AddedSessionsChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    private DateTimeOffset SnapToSession(DateTimeOffset time) =>
+        (time - _gapSessionStart).Duration() < TimeSpan.FromMinutes(1) ? _gapSessionStart
+        : (time - _gapSessionEnd).Duration() < TimeSpan.FromMinutes(1) ? _gapSessionEnd
+        : time;
 
     private DateTime LocalOf(DateTimeOffset time) => TimeZoneInfo.ConvertTime(time, _timeProvider.LocalTimeZone).DateTime;
 

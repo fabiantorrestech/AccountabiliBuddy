@@ -399,6 +399,12 @@ public sealed partial class ProfilesViewModel : ObservableObject
             LinkedDevices.Add(new DeviceProfilesRowViewModel(device.Id, device.Name, $"{names.Count} profiles (this PC's, synced) · {seen}", names)
             {
                 IsExpanded = expanded.Contains(device.Id),
+                Icon = device.Kind switch
+                {
+                    "watch" => Material.Icons.MaterialIconKind.WatchVariant,
+                    "tablet" => Material.Icons.MaterialIconKind.Tablet,
+                    _ => Material.Icons.MaterialIconKind.Cellphone,
+                },
             });
         }
     }

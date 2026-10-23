@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.TodayView"
@@ -25,7 +26,7 @@
                     DataContext="{Binding Shutdown}" x:DataType="vm:ShutdownCardViewModel"
                     IsVisible="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).Shutdown, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
                 <StackPanel Spacing="8">
-                    <TextBlock Text="Wrap up the day" FontWeight="SemiBold" FontSize="16" />
+                    <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="WeatherSunset" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" /><TextBlock Text="Wrap up the day" FontWeight="SemiBold" FontSize="16" /></StackPanel>
                     <StackPanel Spacing="2" IsVisible="{Binding HasComebacks}">
                         <TextBlock Text="Come-backs: tick the ones that are done" Opacity="0.8" />
                         <ItemsControl ItemsSource="{Binding Comebacks}">
@@ -59,7 +60,7 @@
                     DataContext="{Binding DayOff}" x:DataType="vm:DayOffCardViewModel"
                     IsVisible="{Binding IsVisible, FallbackValue=False}">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                    <TextBlock Text="Day off on this computer: no Pre-Work, work-hours guard or start nudges today." VerticalAlignment="Center" TextWrapping="Wrap" />
+                    <DockPanel><mi:MaterialIcon DockPanel.Dock="Left" Kind="Beach" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" /><Panel Width="8" DockPanel.Dock="Left" /><TextBlock Text="Day off on this computer: no Pre-Work, work-hours guard or start nudges today." VerticalAlignment="Center" TextWrapping="Wrap" /></DockPanel>
                     <Button Grid.Column="1" Content="Undo" Command="{Binding UndoCommand}" />
                 </Grid>
             </Border>
@@ -69,7 +70,7 @@
                     DataContext="{Binding Lunch}" x:DataType="vm:LunchCardViewModel"
                     IsVisible="{Binding IsVisible, FallbackValue=False}">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                    <TextBlock Text="{Binding Text}" VerticalAlignment="Center" TextWrapping="Wrap" FontWeight="SemiBold" />
+                    <DockPanel><mi:MaterialIcon DockPanel.Dock="Left" Kind="SilverwareForkKnife" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" /><Panel Width="8" DockPanel.Dock="Left" /><TextBlock Text="{Binding Text}" VerticalAlignment="Center" TextWrapping="Wrap" FontWeight="SemiBold" /></DockPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
                         <Button Content="Start lunch" Command="{Binding StartCommand}" IsVisible="{Binding CanStart}" Classes="accent" />
                         <Button Content="I'm back" Command="{Binding BackCommand}" IsVisible="{Binding IsOnLunch}" />
@@ -83,7 +84,7 @@
                     IsVisible="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).Goal, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
                 <StackPanel Spacing="8">
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                        <TextBlock Text="Deep work today" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="BullseyeArrow" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" /><TextBlock Text="Deep work today" FontWeight="SemiBold" VerticalAlignment="Center" /></StackPanel>
                         <TextBlock Grid.Column="1" Text="{Binding Text}" VerticalAlignment="Center" Opacity="0.85" />
                         <Button Grid.Column="2" Content="✎" Command="{Binding EditCommand}" ToolTip.Tip="Change the daily goal" Padding="8,2" />
                     </Grid>
@@ -107,7 +108,7 @@
                     DataContext="{Binding Comebacks}" x:DataType="vm:ComebacksViewModel"
                     IsVisible="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).Comebacks, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
                 <StackPanel Spacing="6">
-                    <TextBlock Text="Come back to" FontWeight="SemiBold" />
+                    <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="FlagOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" /><TextBlock Text="Come back to" FontWeight="SemiBold" /></StackPanel>
                     <ItemsControl ItemsSource="{Binding Items}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:ComebackRowViewModel">
@@ -136,7 +137,7 @@
             <Border IsVisible="{Binding ShowsWelcome}" Padding="20" CornerRadius="10"
                     Background="#1A808080" BorderBrush="#33808080" BorderThickness="1">
                 <StackPanel Spacing="10">
-                    <TextBlock Text="Welcome! Let's set up your first focus profile" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="HandWave" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" /><TextBlock Text="Welcome! Let's set up your first focus profile" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" /></StackPanel>
                     <TextBlock TextWrapping="Wrap" Opacity="0.85"
                                Text="A profile says what counts as distracting while you focus (sites and apps to block). Start with the example, which blocks common time-wasters like YouTube, Reddit and social media; you can change it any time." />
                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
@@ -159,7 +160,7 @@
                 <Expander Header="Other ways to start: Pomodoro, no set end" HorizontalAlignment="Stretch">
                     <StackPanel Spacing="16">
                         <StackPanel Spacing="6">
-                            <TextBlock Text="Pomodoro" FontWeight="SemiBold" />
+                            <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="TimerOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" /><TextBlock Text="Pomodoro" FontWeight="SemiBold" /></StackPanel>
                             <TextBlock Text="{Binding PomodoroSummary}" Opacity="0.75" TextWrapping="Wrap" />
                             <TextBlock Text="Focus cycles (blank = until you stop it)" Opacity="0.75" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
@@ -168,7 +169,7 @@
                             </StackPanel>
                         </StackPanel>
                         <StackPanel Spacing="6">
-                            <TextBlock Text="No set end" FontWeight="SemiBold" />
+                            <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="AllInclusive" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" /><TextBlock Text="No set end" FontWeight="SemiBold" /></StackPanel>
                             <TextBlock Text="Runs until you end it; ending it takes no wait or reason." Opacity="0.75" TextWrapping="Wrap" />
                             <Button Content="Start until I end it" Command="{Binding StartOpenEndedCommand}" />
                         </StackPanel>
@@ -205,7 +206,7 @@
                     IsVisible="{Binding IsVisible, FallbackValue=False}" Padding="16" CornerRadius="10"
                     Background="#1A808080" BorderBrush="#33808080" BorderThickness="1">
                 <StackPanel Spacing="6">
-                    <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" />
+                    <DockPanel><mi:MaterialIcon DockPanel.Dock="Left" Kind="Snowflake" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" /><Panel Width="8" DockPanel.Dock="Left" /><TextBlock Text="{Binding Summary}" FontWeight="SemiBold" /></DockPanel>
                     <ItemsControl ItemsSource="{Binding Blocks}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:ColdTurkeyBlockRow">

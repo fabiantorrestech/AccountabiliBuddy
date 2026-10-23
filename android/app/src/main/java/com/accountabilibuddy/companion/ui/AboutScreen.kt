@@ -50,7 +50,7 @@ fun AboutScreen(pcName: String?) {
         Text("Version $version", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(32.dp))
         Text(
-            "\"Now just to make sure you don't slip up while in camp we assign every camper an accountability buddy...\"",
+            "\"Now to make sure you don't slip up while in camp, we assign every camper an accountability buddy...\"",
             style = MaterialTheme.typography.titleMedium.copy(fontStyle = FontStyle.Italic, lineHeight = 28.sp),
             textAlign = TextAlign.Center,
         )

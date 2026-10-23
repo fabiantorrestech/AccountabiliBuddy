@@ -343,7 +343,7 @@ internal fun Section(title: String, summary: String? = null, startOpen: Boolean 
             modifier = Modifier.fillMaxWidth().clickable(enabled = summary != null) { open = !open },
         ) {
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
+                IconTitle(title, style = MaterialTheme.typography.titleMedium)
                 if (summary != null && !open) {
                     Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
                         overflow = TextOverflow.Ellipsis)

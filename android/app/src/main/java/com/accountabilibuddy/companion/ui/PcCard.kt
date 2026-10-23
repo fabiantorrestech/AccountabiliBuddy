@@ -60,7 +60,7 @@ fun PcCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             when (status) {
                 is LinkStatus.Connected -> {
-                    Text("PC · ${status.pcName}", style = MaterialTheme.typography.titleMedium)
+                    IconTitle("PC · ${status.pcName}", style = MaterialTheme.typography.titleMedium)
                     val state = status.state
                     if (state == null) {
                         Text("Connected…", style = MaterialTheme.typography.bodyMedium)
@@ -86,7 +86,7 @@ fun PcCard(
                 }
 
                 is LinkStatus.Offline -> {
-                    Text("PC", style = MaterialTheme.typography.titleMedium)
+                    IconTitle("PC", style = MaterialTheme.typography.titleMedium)
                     // The first sentence ("Can't reach DESK-PC"); the technical reason behind ⓘ.
                     Text(status.message.substringBefore(" (").substringBefore("."), style = MaterialTheme.typography.bodyMedium)
                     OutlinedButton(onClick = onRetry) { Text("Try again") }
@@ -94,7 +94,7 @@ fun PcCard(
                 }
 
                 else -> {
-                    Text("PC", style = MaterialTheme.typography.titleMedium)
+                    IconTitle("PC", style = MaterialTheme.typography.titleMedium)
                     Text("Connecting…", style = MaterialTheme.typography.bodyMedium)
                 }
             }
