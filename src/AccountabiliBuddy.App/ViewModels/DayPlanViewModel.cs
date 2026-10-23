@@ -111,7 +111,7 @@ public sealed partial class DayPlanViewModel : ObservableObject
         }
 
         await _configuration.UpdateAsync(document => document with { DayPlan = plan });
-        StatusMessage = _configuration.IsReadOnly ? "Not saved: settings are read-only (see banner)." : "Saved.";
+        StatusMessage = _configuration.IsReadOnly ? "Not saved: settings are read-only (see banner)." : _configuration.DayPlanWaitText ?? "Saved.";
         RefreshUnsaved();
     }
 

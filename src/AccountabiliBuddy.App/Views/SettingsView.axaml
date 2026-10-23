@@ -194,7 +194,7 @@
                     <Border Classes="card" search:SearchArea.Name="Work hours on this computer" IsVisible="{Binding HasWorkHours}">
                     <StackPanel Spacing="8" DataContext="{Binding WorkHours}" x:DataType="vm:WorkHoursViewModel">
                         <TextBlock Text="Work hours on this computer" Classes="sectionTitle" />
-                        <TextBlock Text="For a personal computer next to your work one: during your day plan's work parts, the apps below are minimized at once (Claude Code, terminals and editors by default). Calls, mail and the browser stay open. A session you start here steps it aside. Stopping for today waits like ending a session early."
+                        <TextBlock Text="For a personal computer next to your work one: during your day plan's work parts, the apps below are minimized at once (Claude Code, terminals and editors by default). Calls, mail and the browser stay open. It also holds during a session you start here. Reaching for one of them after a pause asks what you were about to do. Stopping for today waits like ending a session early; while it's on, a day plan change that frees today's work hours waits too."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" FontWeight="SemiBold" />

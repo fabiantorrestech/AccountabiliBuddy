@@ -359,8 +359,10 @@ public partial class App : Application
         // ADR 27: work hours on this computer (off unless turned on in Settings).
         _workHours = new WorkHoursGuard(_sessions, _configuration, documents, windowsEnforcer, () => _activityWatcher.CaptureCurrent(), presenter.ShowNotice);
         _workHours.LoadBlocking();
+        // ADR 28: while it guards, a day plan change that frees some of today's work waits like a looser change.
+        _configuration.DayPlanHold = _workHours.DescribeCut;
         _activityWatcher.ActivityChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => _workHours.OnActivity(snapshot));
-        // The gate: the first input after 3 idle minutes during guarded work hours asks what you were about to do.
+        // The gate: reaching for a dev tool once work starts, or after 3 idle minutes, asks what you were about to do (ADR 28).
         _workGate = new WorkGateService(_workHours, new Win32UserIdleDetector(), _comebacks, _sessions);
         _workGate.Changed += (_, _) => ShowWorkGate(monitorLocator);
         // The review card after each session: what it used with no rule, as rules.

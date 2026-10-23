@@ -259,7 +259,7 @@ public sealed partial class ExceptionsViewModel : ObservableObject
                 },
             });
             OneOffEditor = null;
-            StatusMessage = $"Same as the default day plan, so {date:ddd d MMM} stays a normal day.";
+            StatusMessage = _configuration.DayPlanWaitText ?? $"Same as the default day plan, so {date:ddd d MMM} stays a normal day.";
             return;
         }
 
@@ -273,7 +273,7 @@ public sealed partial class ExceptionsViewModel : ObservableObject
             },
         });
         OneOffEditor = null;
-        StatusMessage = $"{date:ddd d MMM} has its own plan.";
+        StatusMessage = _configuration.DayPlanWaitText ?? $"{date:ddd d MMM} has its own plan.";
     }
 
     [RelayCommand]
@@ -502,6 +502,11 @@ public sealed partial class ExceptionsViewModel : ObservableObject
         if (OneOffEditor is not null && _editingDate == date)
         {
             OneOffEditor = null;
+        }
+
+        if (_configuration.DayPlanWaitText is string waits)
+        {
+            StatusMessage = waits;
         }
 
         StatusMessage = $"{date:ddd d MMM} follows the default day plan again.";

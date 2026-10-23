@@ -7,9 +7,10 @@ using Microsoft.Data.Sqlite;
 namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
-/// Work hours on a personal computer (ADR 27): while turned on, during the day plan's work (Watch) parts, with no session the
-/// user started running here and not stopped for today, the listed apps are minimized at once, with one notice a minute.
-/// Stopping for today, like turning it off during work hours, costs the end-early wait and reason. Use from the UI thread.
+/// Work hours on a personal computer (ADR 28, superseding ADR 27): while turned on, during the day plan's work (Watch)
+/// parts and not stopped for today, the listed apps are minimized at once, also during a session, with one notice a minute
+/// (or the gate, <see cref="OpenGate"/>). Stopping for today costs the end-early wait and reason; turning it off, taking an
+/// app off the list or a day plan change that frees today's work waits (<see cref="DescribeCut"/>). Use from the UI thread.
 /// </summary>
 public sealed class WorkHoursGuard : IDisposable
 {
@@ -46,6 +47,12 @@ public sealed class WorkHoursGuard : IDisposable
     }
 
     public WorkHoursSettings Settings { get; private set; } = WorkHoursSettings.Default;
+
+    /// <summary>
+    /// Asked when a listed app was just minimized: true when the gate opened for it (then no notice). Set by
+    /// <see cref="WorkGateService"/>.
+    /// </summary>
+    public Func<bool>? OpenGate { get; set; }
 
     /// <summary>
     /// On, not stopped for today, and a work part still to come or under way today, whether or not a session runs or it's a
@@ -156,6 +163,11 @@ public sealed class WorkHoursGuard : IDisposable
         }
 
         _ = _enforcer.MinimizeWindowAsync(snapshot.WindowId);
+        if (OpenGate?.Invoke() == true)
+        {
+            return;
+        }
+
         DateTimeOffset now = _sessions.Now;
         if (now - _lastNotice >= NoticeGap)
         {
@@ -185,6 +197,27 @@ public sealed class WorkHoursGuard : IDisposable
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// For <see cref="ConfigurationService.DayPlanHold"/>: a day plan change that frees some of today's remaining work while
+    /// guarding is on and not stopped for today waits (ADR 28). The line describing it, or null.
+    /// </summary>
+    public string? DescribeCut(DayPlan before, DayPlan after)
+    {
+        if (!Settings.On || Settings.StoppedOn == Today())
+        {
+            return null;
+        }
+
+        TimeSpan freed = DayPlanCut.FreedToday(before, after, LocalNow());
+        if (freed <= TimeSpan.Zero)
+        {
+            return null;
+        }
+
+        string length = $"{(int)freed.TotalHours}h {freed.Minutes:00}m";
+        return $"Day plan: frees {length} of today's work hours (work hours on this computer)";
+    }
+
     public void Dispose()
     {
         _sessions.Ticked -= OnTicked;
@@ -194,7 +227,7 @@ public sealed class WorkHoursGuard : IDisposable
     /// <summary>The end of the work part now, when guarding; null otherwise.</summary>
     private DateTime? GuardingUntil()
     {
-        if (!Settings.On || _sessions.State.IsActive || Settings.StoppedOn == Today())
+        if (!Settings.On || Settings.StoppedOn == Today())
         {
             return null;
         }

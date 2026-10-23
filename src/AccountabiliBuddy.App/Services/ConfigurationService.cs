@@ -45,6 +45,19 @@ public sealed class ConfigurationService
     /// <summary>What the editors show and change: the pending configuration if there is one, otherwise the current one.</summary>
     public ProfileDocument Editing => Pending?.Document ?? Current;
 
+    /// <summary>
+    /// Says whether a day plan change has to wait (ADR 28: it frees some of today's work hours while the work-hours guard
+    /// is on): a line describing it, or null when it applies at once like any other day plan change (ADR 18).
+    /// </summary>
+    public Func<DayPlan, DayPlan, string?>? DayPlanHold { get; set; }
+
+    /// <summary>
+    /// When a day plan change is waiting (<see cref="DayPlanHold"/>), what to tell the user who made it; null otherwise.
+    /// </summary>
+    public string? DayPlanWaitText => Pending is { } pending && !SameDayPlan(Current.DayPlan, pending.Document.DayPlan)
+        ? $"Waits {(int)Current.Locks.LooseningDelay.TotalMinutes} min: it frees part of today's work hours (work hours on this computer). The banner counts down and can cancel it."
+        : null;
+
     /// <summary>Set when saved settings could not be read. Saving is then disabled so nothing is overwritten.</summary>
     public string? LoadError { get; private set; }
 
@@ -103,7 +116,7 @@ public sealed class ConfigurationService
             .Where(profile => fromAnotherDevice || Editing.Profiles.All(editing => editing.Id != profile.Id))
             .Select(profile => profile.Id)
             .ToHashSet();
-        ConfigurationSplit split = ConfigurationChangeGuard.Split(Current, proposed, deletionsThatWait);
+        ConfigurationSplit split = HoldDayPlan(ConfigurationChangeGuard.Split(Current, proposed, deletionsThatWait), proposed);
 
         PendingChanges? next = null;
         if (split.HasWaitingChanges)
@@ -111,6 +124,7 @@ public sealed class ConfigurationService
             PendingChanges? previous = Pending;
             bool looserThanBefore = previous is null
                 || LooseningDetector.Find(previous.Document, proposed).Count > 0
+                || DayPlanHold?.Invoke(previous.Document.DayPlan, proposed.DayPlan) is not null
                 || (fromAnotherDevice && ConfigurationChangeGuard.DeletionsWaiting(previous.Document, proposed).Count > 0);
             DateTimeOffset readyAt = looserThanBefore
                 ? _timeProvider.GetUtcNow() + Current.Locks.LooseningDelay
@@ -218,15 +232,40 @@ public sealed class ConfigurationService
         }
     }
 
-    /// <summary>Re-describes what is still looser than <paramref name="current"/> (or deleted on another device); null when nothing is.</summary>
-    private static PendingChanges? Recheck(PendingChanges pending, ProfileDocument current)
+    /// <summary>
+    /// Re-describes what is still looser than <paramref name="current"/> (or deleted on another device, or a held day plan
+    /// change); null when nothing is.
+    /// </summary>
+    private PendingChanges? Recheck(PendingChanges pending, ProfileDocument current)
     {
         List<string> changes =
         [
             .. LooseningDetector.Find(current, pending.Document),
             .. ConfigurationChangeGuard.DeletionsWaiting(current, pending.Document),
         ];
+        if (!SameDayPlan(current.DayPlan, pending.Document.DayPlan))
+        {
+            // Only a held change leaves the plans different; it keeps waiting (never dropped), also before the guard loads.
+            changes.Add(DayPlanHold?.Invoke(current.DayPlan, pending.Document.DayPlan) ?? "Day plan: a change waiting");
+        }
+
         return changes.Count == 0 ? null : pending with { Changes = changes };
+    }
+
+    /// <summary>A day plan change that <see cref="DayPlanHold"/> holds keeps the current plan for now and waits.</summary>
+    private ConfigurationSplit HoldDayPlan(ConfigurationSplit split, ProfileDocument proposed)
+    {
+        if (DayPlanHold?.Invoke(Current.DayPlan, proposed.DayPlan) is not string line)
+        {
+            return split;
+        }
+
+        return new ConfigurationSplit(split.ApplyNow with { DayPlan = Current.DayPlan }, [.. split.WaitingChanges, line]);
+    }
+
+    private static bool SameDayPlan(DayPlan a, DayPlan b)
+    {
+        return ReferenceEquals(a, b) || JsonSerializer.Serialize(a) == JsonSerializer.Serialize(b);
     }
 
     private void SetPending(PendingChanges? pending)

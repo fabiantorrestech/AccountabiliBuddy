@@ -4,7 +4,7 @@ Date: 2026-10-22
 
 ## Status
 
-Accepted
+Superseded by [28. Close the work-hours guard's free exits](0028-close-the-work-hours-guards-free-exits.md)
 
 ## Context
 

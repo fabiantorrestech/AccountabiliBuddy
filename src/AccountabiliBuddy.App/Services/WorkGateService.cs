@@ -4,17 +4,16 @@ using AccountabiliBuddy.Core.Ports;
 namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
-/// The work-hours gate (ADR 27): while <see cref="WorkHoursGuard"/> guards, the first input after <see cref="RearmAfter"/>
-/// with none (and the first input once work hours start) opens <see cref="Current"/>. It asks what the user was about to do,
-/// keeps the answer as a come-back, and lets them continue after 60 seconds. A gate closed some other way opens again at
-/// the next check; one open when work hours end closes, keeping what was typed. Use from the UI thread only.
+/// The work-hours gate (ADR 28): while <see cref="WorkHoursGuard"/> guards and no session runs, the first listed app the
+/// user reaches for once work hours start, and again after <see cref="RearmAfter"/> with no input, opens
+/// <see cref="Current"/> instead of the plain notice. Calls, the browser and any other input never open it. It asks what
+/// the user was about to do, keeps the answer as a come-back, and lets them continue after 60 seconds. A gate closed some
+/// other way opens again on the next listed app; one open when work hours end closes, keeping what was typed. Use from
+/// the UI thread only.
 /// </summary>
 public sealed class WorkGateService : IDisposable
 {
     public static readonly TimeSpan RearmAfter = TimeSpan.FromMinutes(3);
-
-    // Input this recent counts as "the user is here".
-    private static readonly TimeSpan FreshInput = TimeSpan.FromSeconds(2);
 
     private readonly WorkHoursGuard _guard;
     private readonly IUserIdleDetector _idle;
@@ -29,6 +28,7 @@ public sealed class WorkGateService : IDisposable
         _idle = idle;
         _comebacks = comebacks;
         _sessions = sessions;
+        _guard.OpenGate = TryOpen;
         _sessions.Ticked += OnTicked;
     }
 
@@ -38,7 +38,7 @@ public sealed class WorkGateService : IDisposable
     /// <summary>Raised when <see cref="Current"/> opens or closes (the app shows or closes the window).</summary>
     public event EventHandler? Changed;
 
-    /// <summary>The window was closed some other way: it opens again at the next check while still owed.</summary>
+    /// <summary>The window was closed some other way: the next listed app opens it again.</summary>
     public void WindowClosed()
     {
         if (Current is not null)
@@ -50,7 +50,7 @@ public sealed class WorkGateService : IDisposable
         }
     }
 
-    /// <summary>Arms and opens the gate. Runs every second.</summary>
+    /// <summary>Arms the gate (work hours starting, or a pause), counts its wait down, closes it when work ends. Runs every second.</summary>
     public void CheckNow()
     {
         bool guarding = _guard.IsGuarding;
@@ -67,29 +67,44 @@ public sealed class WorkGateService : IDisposable
             return;
         }
 
-        TimeSpan idleFor = _idle.GetIdleTime();
         if (Current is not null)
         {
             Current.Refresh(_sessions.Now);
-            return;
         }
-
-        if (idleFor >= RearmAfter)
+        else if (_idle.GetIdleTime() >= RearmAfter)
         {
             _armed = true;
-        }
-        else if (_armed && idleFor < FreshInput)
-        {
-            _armed = false;
-            Current = new WorkGateViewModel(_guard.UntilText, _sessions.Now, Continue);
-            Current.Refresh(_sessions.Now);
-            Changed?.Invoke(this, EventArgs.Empty);
         }
     }
 
     public void Dispose()
     {
         _sessions.Ticked -= OnTicked;
+        if (_guard.OpenGate == TryOpen)
+        {
+            _guard.OpenGate = null;
+        }
+    }
+
+    /// <summary>A listed app was just minimized: opens the gate when it's owed. True when it's showing (no notice then).</summary>
+    private bool TryOpen()
+    {
+        CheckNow();
+        if (Current is not null)
+        {
+            return true;
+        }
+
+        if (!_armed || _sessions.State.IsActive)
+        {
+            return false; // A session has its own enforcement: the dev tool is only minimized.
+        }
+
+        _armed = false;
+        Current = new WorkGateViewModel(_guard.UntilText, _sessions.Now, Continue);
+        Current.Refresh(_sessions.Now);
+        Changed?.Invoke(this, EventArgs.Empty);
+        return true;
     }
 
     private void Continue(WorkGateViewModel gate)

@@ -388,6 +388,10 @@ public sealed class LinkSessionHost : ILinkSessionHost
             {
                 _planEditTime.ExpectEdit(edit.EditedAt);
                 await _configuration.UpdateAsync(document => document with { DayPlan = toSave });
+                if (_configuration.DayPlanWaitText is string waits)
+                {
+                    return answer with { Message = $"On the PC: {waits}" };
+                }
             }
 
             return answer;
