@@ -458,14 +458,18 @@ public partial class App : Application
         {
             LinkedDevices = new LinkedDevicesViewModel(_link, _sessions),
         };
+        var sessionViewModel = new SessionViewModel(
+            _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks), _quickSession)
+        {
+            TimerToggle = new TimerToggleViewModel(_sessionOverlay),
+            Day = timelineDay,
+            ColdTurkey = new ColdTurkeyStatusViewModel(_coldTurkey, _sessions),
+        };
+        // Focus mode: the Today page while a session runs (the main window's day bar is the one it reads).
+        sessionViewModel.Focus = new FocusViewModel(
+            _sessions, _configuration, _stepAway, sessionViewModel.Tasks, _dayBar, () => _endFlow.TryEndSessionAsync(VisibleMainWindow()));
         var mainViewModel = new MainWindowViewModel(
-            new SessionViewModel(
-                _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks), _quickSession)
-            {
-                TimerToggle = new TimerToggleViewModel(_sessionOverlay),
-                Day = timelineDay,
-                ColdTurkey = new ColdTurkeyStatusViewModel(_coldTurkey, _sessions),
-            },
+            sessionViewModel,
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, _link, exemptionDefaults),
             new DayPlanViewModel(_configuration, _sessions),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
@@ -985,6 +989,12 @@ public partial class App : Application
         if (_mainWindow is null)
         {
             return;
+        }
+
+        // Focus mode: while a session runs the window opens on Today, whatever was showing before.
+        if (_mainWindow.DataContext is MainWindowViewModel { IsFocusMode: true } focusMode)
+        {
+            focusMode.SelectedTab = (int)MainTab.Today;
         }
 
         _mainWindow.Show();

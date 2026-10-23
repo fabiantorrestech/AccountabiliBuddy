@@ -32,6 +32,62 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ShowDevTools = showDevTools;
         LoadError = loadError;
         session.OpenProfilesRequested += (_, _) => SelectedTab = ProfilesTab;
+        session.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SessionViewModel.IsSessionActive))
+            {
+                OnSessionActiveChanged(session.IsSessionActive);
+            }
+        };
+        _sessionActive = session.IsSessionActive;
+        RefreshFocusMode();
+    }
+
+    private bool _sessionActive;
+
+    /// <summary>Focus mode: only Today and History in the sidebar while a session runs.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsMoreItems))]
+    public partial bool IsFocusMode { get; set; }
+
+    /// <summary>"Show everything" was chosen for this session: the whole sidebar is back until it ends.</summary>
+    [ObservableProperty]
+    public partial bool ShowEverything { get; set; }
+
+    /// <summary>The four under More, when it's unfolded and not in focus mode.</summary>
+    public bool ShowsMoreItems => IsMoreOpen && !IsFocusMode;
+
+    [RelayCommand]
+    private void ShowEverythingNow()
+    {
+        ShowEverything = true;
+        RefreshFocusMode();
+    }
+
+    private void OnSessionActiveChanged(bool active)
+    {
+        _sessionActive = active;
+        if (!active)
+        {
+            ShowEverything = false; // Each session starts in focus mode.
+        }
+
+        RefreshFocusMode();
+    }
+
+    private void RefreshFocusMode()
+    {
+        IsFocusMode = MainTabs.IsFocusMode(_sessionActive, ShowEverything);
+        if (IsFocusMode && !MainTabs.ShowsTimeline((MainTab)SelectedTab))
+        {
+            // A tab the rail no longer shows: land on Today.
+            SelectedTab = (int)MainTab.Today;
+        }
+    }
+
+    partial void OnIsMoreOpenChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowsMoreItems));
     }
 
     private const int ProfilesTab = (int)MainTab.Profiles;

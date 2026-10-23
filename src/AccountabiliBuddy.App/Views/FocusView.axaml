@@ -1,0 +1,56 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             x:Class="AccountabiliBuddy.App.Views.FocusView"
+             x:DataType="vm:FocusViewModel">
+    <!-- Focus mode: the countdown, End session, the focus so far, the current task in front and the checklist, and
+         Step away / Interrupted. Nothing else while a session runs. -->
+    <UserControl.Styles>
+        <Style Selector="Button.away">
+            <Setter Property="Background" Value="#4D0F766E" />
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+    </UserControl.Styles>
+    <StackPanel Spacing="16">
+        <Border Padding="20" CornerRadius="10" Background="#220F766E" BorderBrush="#550F766E" BorderThickness="1">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <TextBlock Text="{Binding TimeLeftText}" FontSize="44" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   AutomationProperties.Name="Time left" />
+                        <TextBlock Text="{Binding PhaseText}" FontSize="15" Opacity="0.8" VerticalAlignment="Center" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="End session…" Command="{Binding EndSessionCommand}" VerticalAlignment="Center" />
+                </Grid>
+                <!-- Stepped away: the countdown is paused until any input. -->
+                <Border IsVisible="{Binding IsAway}" Background="#33FFFFFF" CornerRadius="6" Padding="10,4" HorizontalAlignment="Left">
+                    <TextBlock Text="{Binding AwayText}" FontWeight="SemiBold" />
+                </Border>
+                <TextBlock Text="{Binding FocusedTodayText}" Opacity="0.75" TextWrapping="Wrap"
+                           IsVisible="{Binding FocusedTodayText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasStepAway}">
+                    <Button Classes="away" Content="{Binding StepAwayText}" Command="{Binding StepAwayCommand}"
+                            ToolTip.Tip="A bathroom break: the countdown pauses; any key or mouse movement brings you back" />
+                    <Button Classes="away" Content="Interrupted" Command="{Binding InterruptedCommand}" IsVisible="{Binding !IsAway}"
+                            ToolTip.Tip="Someone at your desk or a call: the same pause, kept apart in History" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- The task in front, then the checklist (tick, add, edit). -->
+        <Border Padding="20" CornerRadius="10" Background="#1A808080" BorderBrush="#33808080" BorderThickness="1"
+                IsVisible="{Binding Checklist, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <StackPanel Spacing="10">
+                <StackPanel Spacing="2" IsVisible="{Binding HasTasks}">
+                    <TextBlock Text="{Binding NowText}" Opacity="0.7" FontSize="12" />
+                    <TextBlock Text="{Binding CurrentTaskText}" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding CurrentSubtaskText, StringFormat='↳ {0}'}" FontSize="14" Opacity="0.8" TextWrapping="Wrap"
+                               IsVisible="{Binding HasSubtask}" />
+                </StackPanel>
+                <views:ChecklistView DataContext="{Binding Checklist}" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

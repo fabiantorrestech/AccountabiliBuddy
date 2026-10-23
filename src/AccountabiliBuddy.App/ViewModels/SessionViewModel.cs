@@ -73,6 +73,9 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>The Unlock card.</summary>
     public UnlockViewModel Unlock { get; }
 
+    /// <summary>Focus mode: what the page shows while a session runs (set by the app).</summary>
+    public FocusViewModel? Focus { get; set; }
+
     /// <summary>Hide or show the on-screen timer for the running session.</summary>
     public TimerToggleViewModel? TimerToggle { get; init; }
 

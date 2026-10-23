@@ -9,6 +9,15 @@ public static class MainTabs
         return tab is MainTab.Today or MainTab.History;
     }
 
+    /// <summary>
+    /// Focus mode: only Today and History in the sidebar while a session runs, until "Show everything" is chosen for
+    /// that session.
+    /// </summary>
+    public static bool IsFocusMode(bool sessionActive, bool showEverything)
+    {
+        return sessionActive && !showEverything;
+    }
+
     /// <summary>Folded under "More" in the sidebar: the things set once.</summary>
     public static bool IsUnderMore(MainTab tab)
     {
