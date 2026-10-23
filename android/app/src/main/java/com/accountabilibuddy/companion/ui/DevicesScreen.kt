@@ -3,6 +3,7 @@ package com.accountabilibuddy.companion.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -35,7 +36,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.link.LinkStatus
 import com.accountabilibuddy.companion.link.LinkedPc
@@ -104,12 +111,10 @@ fun DevicesScreen(
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Section("Your devices") {
-                Text(
-                    if (devices.joined) "${devices.deviceName} (this phone) · in your device group"
-                    else "${devices.deviceName} (this phone) · not linked to your other devices yet",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
                 DevicesModel.todayLine(devices, now, zone)?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                // This phone first, its linked watch indented under it, then the other devices.
+                OwnDeviceRows.rows(devices.deviceName, devices.joined, watch.settings, watch.detected.map { it.id }.toSet())
+                    .forEach { row -> DeviceRowView(row) }
                 DevicesModel.rows(devices, now).forEach { row -> DeviceRowView(row) }
                 if (devices.joined && devices.received.isEmpty()) {
                     Text(
@@ -299,7 +304,12 @@ private fun JoinWithCode(onJoin: (String) -> Boolean) {
 
 @Composable
 private fun DeviceRowView(row: DeviceRow) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = if (row.indented) 28.dp else 0.dp),
+    ) {
+        DeviceKindIcon(row.kind)
         Column(Modifier.weight(1f)) {
             Text(row.name, style = MaterialTheme.typography.bodyLarge)
             Text(row.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -307,19 +317,32 @@ private fun DeviceRowView(row: DeviceRow) {
         // The state in words and colour, never colour alone.
         Box(
             Modifier
-                .background(pillColor(row.state), RoundedCornerShape(10.dp))
+                .background(pillColor(row.pillTone), RoundedCornerShape(10.dp))
                 .padding(horizontal = 8.dp, vertical = 2.dp),
         ) {
-            Text(row.state.label, style = MaterialTheme.typography.labelSmall, color = Color.White)
+            Text(row.pillText, style = MaterialTheme.typography.labelSmall, color = Color.White)
         }
     }
 }
 
-private fun pillColor(state: SyncState): Color = when (state) {
-    SyncState.UP_TO_DATE -> Color(0xFF047857)
-    SyncState.BEHIND -> Color(0xFFB45309)
-    SyncState.WAITING -> Color(0xFF475569)
-    SyncState.UNLINKED -> Color(0xFF7F1D1D)
+/** A small outline of the device (PC, phone or watch), drawn from [DeviceKind.iconPath] in a 16 × 16 box. */
+@Composable
+private fun DeviceKindIcon(kind: DeviceKind) {
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    val path = remember(kind) { PathParser().parsePathString(kind.iconPath).toPath() }
+    Canvas(Modifier.size(22.dp)) {
+        scale(size.minDimension / 16f, pivot = Offset.Zero) {
+            drawPath(path, color, style = Stroke(width = 1.3f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        }
+    }
+}
+
+private fun pillColor(tone: PillTone): Color = when (tone) {
+    PillTone.UP_TO_DATE -> Color(0xFF047857)
+    PillTone.BEHIND -> Color(0xFFB45309)
+    PillTone.WAITING -> Color(0xFF475569)
+    PillTone.UNLINKED -> Color(0xFF7F1D1D)
+    PillTone.THIS_DEVICE -> Color(0xFF0F766E)
 }
 
 @Composable
@@ -352,9 +375,6 @@ private fun QrDialog(title: String, text: String, links: List<String>, onDismiss
     )
 }
 
-/** One device on the Devices tab: its name, kind, age and method, and its state. */
-data class DeviceRow(val name: String, val detail: String, val state: SyncState)
-
 /** The Devices tab's rows and totals line, from what the phone has (no Android here). */
 object DevicesModel {
     /** How often another device's file should come when nothing else says (the PC's default interval). */
@@ -371,10 +391,13 @@ object DevicesModel {
                 SyncDeviceCard.KIND_WATCH -> "Watch"
                 else -> "Phone"
             }
+            val state = if (live) SyncState.UP_TO_DATE else SyncState.of(age, DEFAULT_INTERVAL)
             DeviceRow(
                 card.name,
                 "$kind · ${ago(age)} · ${methodName(device.method)}",
-                if (live) SyncState.UP_TO_DATE else SyncState.of(age, DEFAULT_INTERVAL),
+                state.label,
+                OwnDeviceRows.tone(state),
+                DeviceKind.of(card.kind),
             )
         }
 

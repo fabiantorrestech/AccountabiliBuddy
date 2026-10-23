@@ -44,4 +44,17 @@ public sealed record DeviceRowViewModel(
     };
 
     public Avalonia.Thickness RowMargin => Indented ? new Avalonia.Thickness(28, 2, 0, 2) : new Avalonia.Thickness(0, 4, 0, 4);
+
+    // Outlines in a 16 × 16 box, the same drawings as the phone's Devices tab (DeviceKind.iconPath).
+    private static readonly Geometry PcIcon = Geometry.Parse("M2 3.5h12v8H2z M6 14h4 M8 11.5V14");
+    private static readonly Geometry PhoneIcon = Geometry.Parse("M5.5 1.5h5a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1z M7 12.5h2");
+    private static readonly Geometry WatchIcon = Geometry.Parse("M8 4a4 4 0 1 1 0 8a4 4 0 1 1 0-8z M6 4.6L6.6 1.5h2.8L10 4.6 M6 11.4l0.6 3.1h2.8l0.6-3.1 M8 6.3V8l1 1");
+
+    /// <summary>The small outline left of the row: a PC, a phone or a watch.</summary>
+    public Geometry Icon => Kind switch
+    {
+        "Phone" => PhoneIcon,
+        "Watch" => WatchIcon,
+        _ => PcIcon,
+    };
 }

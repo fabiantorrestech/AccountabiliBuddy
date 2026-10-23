@@ -195,10 +195,12 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     {
         PairedDevice? wifi = PairedDevices?.Invoke()
             .FirstOrDefault(device => device.Kind == SyncDeviceCard.KindWatch && device.Name == companion.Name);
-        string methods = wifi is null ? "Pair or unpair on the phone" : "Pair or unpair on the phone · also paired with this PC";
+        string methods = wifi is null
+            ? $"Linked to {phoneName} · pair or unpair on the phone"
+            : $"Linked to {phoneName} · pair or unpair on the phone · also paired with this PC";
         if (!companion.Linked)
         {
-            return new DeviceRowViewModel($"⌚ {companion.Name}", $"linked to {phoneName}", methods,
+            return new DeviceRowViewModel(companion.Name, "Watch", methods,
                 "Not found on the phone: open AccountabiliBuddy on the watch", DeviceSyncState.Unlinked, "Not found", Indented: true, UnpairId: wifi?.Id);
         }
 
@@ -212,7 +214,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
             DeviceSyncState.Waiting => "Waiting",
             _ => "Linked",
         };
-        return new DeviceRowViewModel($"⌚ {companion.Name}", $"linked to {phoneName}", methods, last, state, stateText, Indented: true, UnpairId: wifi?.Id);
+        return new DeviceRowViewModel(companion.Name, "Watch", methods, last, state, stateText, Indented: true, UnpairId: wifi?.Id);
     }
 
     /// <summary>Unpairs the Wi-Fi pairing of a phone's watch that's also paired with this PC.</summary>
