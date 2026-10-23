@@ -67,6 +67,7 @@
                     <TabItem Header="Day plan" IsVisible="{Binding !IsFocusMode}" />
                     <TabItem Header="Calendar" IsVisible="{Binding !IsFocusMode}" />
                     <TabItem Header="History" Margin="0,10,0,0" />
+                    <TabItem Header="Notebook" IsVisible="{Binding !IsFocusMode}" />
                     <TabItem Header="Devices" IsVisible="{Binding !IsFocusMode}" />
                     <!-- No page of its own: selecting it unfolds the four under it (the view model puts the selection back). -->
                     <TabItem Header="{Binding MoreHeader}" Margin="0,10,0,0" Opacity="0.8" IsVisible="{Binding !IsFocusMode}" />
@@ -171,6 +172,7 @@
                     <views:DayPlanView DataContext="{Binding DayPlan}" IsVisible="False" />
                     <views:ExceptionsView DataContext="{Binding Exceptions}" IsVisible="False" />
                     <views:HistoryView DataContext="{Binding History}" IsVisible="False" />
+                    <views:NotebookView DataContext="{Binding Notebook}" IsVisible="False" />
                     <views:DevicesView DataContext="{Binding Devices}" IsVisible="False" />
                     <!-- "More" has no page; this keeps the pages lined up with the tabs. -->
                     <Panel IsVisible="False" />

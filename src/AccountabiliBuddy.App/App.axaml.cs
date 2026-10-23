@@ -671,6 +671,7 @@ public partial class App : Application
         };
         // Capture in Focus mode (redesign phase 5): notes for the session's review, come-backs with ⚑ or "!".
         sessionViewModel.Focus.Capture = new CaptureBoxViewModel(_sessionNotes!, _comebacks!);
+        var notebook = new NotebookViewModel(_comebacks!, _sessionNotes!, sessionTasks, time);
         var mainViewModel = new MainWindowViewModel(
             sessionViewModel,
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, _link, exemptionDefaults),
@@ -704,6 +705,7 @@ public partial class App : Application
             Environment.GetEnvironmentVariable(DevToolsVariable) == "1",
             _configuration.LoadError)
         {
+            Notebook = notebook,
             DayBar = _dayBar,
             Search = new SearchViewModel(SearchDataAsync),
             Devices = devices,

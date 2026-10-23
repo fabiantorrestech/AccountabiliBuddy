@@ -215,6 +215,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public HistoryViewModel History { get; }
 
+    /// <summary>The Notebook tab; set by the app.</summary>
+    public NotebookViewModel? Notebook { get; init; }
+
     public SetupViewModel Setup { get; }
 
     public IntegrationsViewModel Integrations { get; }

@@ -12,6 +12,9 @@ public enum MainTab
     DayPlan,
     Calendar,
     History,
+
+    /// <summary>Everything written down: come-backs, notes, unfinished and done tasks.</summary>
+    Notebook,
     Devices,
     More,
     Setup,
