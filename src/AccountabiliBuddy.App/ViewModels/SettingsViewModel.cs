@@ -609,6 +609,11 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public bool HasNoisePlayer => _noise is not null;
 
+    /// <summary>Work hours on this computer (ADR 27, Your day); set by the app.</summary>
+    public WorkHoursViewModel? WorkHours { get; init; }
+
+    public bool HasWorkHours => WorkHours is not null;
+
     /// <summary>Step away's shortcut and idle switch (Focus sessions); set by the app.</summary>
     public StepAwayService? StepAway
     {

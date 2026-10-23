@@ -84,6 +84,7 @@ public partial class App : Application
     private StepAwayService? _stepAway;
     private PlanFirstService? _planFirst;
     private SessionReviewService? _sessionReview;
+    private WorkHoursGuard? _workHours;
     private Win32GlobalHotkey? _stepAwayHotkey;
     private InstanceSignals? _instanceSignals;
     private ActivityRecorder? _recorder;
@@ -241,7 +242,8 @@ public partial class App : Application
         // The watcher raises events on its own thread; UI collections must be touched on the UI thread.
         _activityWatcher.ActivityChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => activityViewModel.Apply(snapshot));
 
-        var presenter = new EnforcementPresenter(new WindowsEnforcer(), _browserSource, monitorLocator, time);
+        var windowsEnforcer = new WindowsEnforcer();
+        var presenter = new EnforcementPresenter(windowsEnforcer, _browserSource, monitorLocator, time);
         var exemptionDefaults = new ExemptionDefaultsService(documents);
         exemptionDefaults.LoadBlocking();
         presenter.PreTickedExemptionProfiles = () => exemptionDefaults.PreTicked;
@@ -337,6 +339,10 @@ public partial class App : Application
                 profiles.Where(profile => profile.Id != state.ProfileId).Select(ProfileOption.From).ToList());
         };
         _sessionOverlay.SetPlanFirst(_planFirst);
+        // ADR 27: work hours on this computer (off unless turned on in Settings).
+        _workHours = new WorkHoursGuard(_sessions, _configuration, documents, windowsEnforcer, () => _activityWatcher.CaptureCurrent(), presenter.ShowNotice);
+        _workHours.LoadBlocking();
+        _activityWatcher.ActivityChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => _workHours.OnActivity(snapshot));
         // The review card after each session: what it used with no rule, as rules.
         _sessionReview = new SessionReviewService(activityLog, _configuration, documents, _sessions, () => exemptionDefaults.PreTicked);
         _sessionReview.LoadBlocking();
@@ -514,6 +520,7 @@ public partial class App : Application
                 _noise)
             {
                 StepAway = _stepAway,
+                WorkHours = new WorkHoursViewModel(_workHours!, _sessions),
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
                 Updates = new UpdatesViewModel(_updates),
                 EnforcementLimit = enforcementLimit,
@@ -1110,6 +1117,7 @@ public partial class App : Application
         _stepAway?.Dispose();
         _planFirst?.Dispose();
         _sessionReview?.Dispose();
+        _workHours?.Dispose();
         _stepAwayHotkey?.Dispose();
         _enforcement?.Dispose();
         _recorder?.Dispose();

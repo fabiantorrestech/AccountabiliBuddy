@@ -190,6 +190,33 @@
                 <StackPanel Spacing="16" IsVisible="{Binding Groups[1].IsSelected}"
                             search:SearchArea.Name="Your day" search:SearchArea.SettingsGroup="1">
                     <TextBlock Text="Your day" Classes="groupTitle" />
+                    <!-- ADR 27: a personal computer can hold dev tools during the plan's work parts. -->
+                    <Border Classes="card" search:SearchArea.Name="Work hours on this computer" IsVisible="{Binding HasWorkHours}">
+                    <StackPanel Spacing="8" DataContext="{Binding WorkHours}" x:DataType="vm:WorkHoursViewModel">
+                        <TextBlock Text="Work hours on this computer" Classes="sectionTitle" />
+                        <TextBlock Text="For a personal computer next to your work one: during your day plan's work parts, the apps below are minimized at once (Claude Code, terminals and editors by default). Calls, mail and the browser stay open. A session you start here steps it aside. Stopping for today waits like ending a session early."
+                                   Opacity="0.75" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" FontWeight="SemiBold" />
+                            <Button Content="Turn on" Command="{Binding TurnOnCommand}" IsVisible="{Binding !IsOn}" Classes="accent" />
+                            <Button Content="Turn off" Command="{Binding TurnOffCommand}" IsVisible="{Binding IsOn}" />
+                            <Button Content="Stop for today…" Command="{Binding BeginStopCommand}" IsVisible="{Binding IsGuarding}" />
+                        </StackPanel>
+                        <StackPanel Spacing="6" IsVisible="{Binding IsStopping}">
+                            <TextBlock Text="{Binding StopWaitText}" />
+                            <TextBox Text="{Binding StopReason}" PlaceholderText="Why stop today? (the same reason length as ending a session early)" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Stop for today" Command="{Binding ConfirmStopCommand}" />
+                                <Button Content="Cancel" Command="{Binding CancelStopCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                        <TextBlock Text="Apps that wait (process names, comma separated)" FontSize="12" Opacity="0.75" />
+                        <TextBox Text="{Binding AppsText}" TextWrapping="Wrap" AcceptsReturn="False" />
+                        <Button Content="Save apps" Command="{Binding SaveAppsCommand}" HorizontalAlignment="Left" />
+                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Opacity="0.85"
+                                   IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+                    </Border>
                     <Border Classes="card" search:SearchArea.Name="Day bar">
                     <StackPanel Spacing="6">
                         <TextBlock Text="Day bar" Classes="sectionTitle" />
