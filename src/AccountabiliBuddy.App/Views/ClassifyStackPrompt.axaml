@@ -1,0 +1,44 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.ClassifyStackPrompt"
+        x:DataType="vm:ClassifyStackViewModel"
+        Title="What you opened while planning"
+        Width="560" SizeToContent="Height" MaxHeight="760"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False"
+        WindowStartupLocation="Manual">
+    <!-- Planning is over: every unknown site or app seen meanwhile, one row each; one window settles them all. -->
+    <Grid ColumnDefinitions="6,*">
+        <Border Grid.Column="0" Background="#2A9D8F" />
+        <StackPanel Grid.Column="1" Margin="14,12" Spacing="10">
+            <TextBlock Text="{Binding Heading}" FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap" />
+            <TextBlock Text="Rows you leave are asked about one by one later." FontSize="12" Opacity="0.7" TextWrapping="Wrap" />
+            <ScrollViewer MaxHeight="480">
+                <ItemsControl ItemsSource="{Binding Rows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ClassifyStackRowViewModel">
+                            <Border BorderBrush="#33808080" BorderThickness="0,0,0,1" Padding="0,6">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="{Binding Prompt.Subject}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Prompt.WindowTitleText}" FontSize="12" Opacity="0.7"
+                                               TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                    <ComboBox ItemsSource="{Binding ScopeOptions}" SelectedItem="{Binding SelectedScope}" HorizontalAlignment="Stretch" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <ToggleButton Content="Distracting" IsChecked="{Binding IsDistracting}" />
+                                        <ToggleButton Content="On track (this session)" IsChecked="{Binding IsOnTrack}" />
+                                        <ToggleButton Content="Exempt (always)" IsChecked="{Binding IsExempt}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+            <TextBox Text="{Binding Reason}" PlaceholderText="Why? Needed for On track and Exempt (one word is enough)" />
+            <TextBlock Text="{Binding Error}" Foreground="#E76F51" TextWrapping="Wrap"
+                       IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            <Button Content="Done" Command="{Binding DoneCommand}" Classes="accent" HorizontalAlignment="Right" />
+        </StackPanel>
+    </Grid>
+</Window>

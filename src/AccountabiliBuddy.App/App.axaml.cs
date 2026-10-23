@@ -320,6 +320,21 @@ public partial class App : Application
         // Plan first: a session's first 7 minutes hold unknowns (rules still enforce).
         _planFirst = new PlanFirstService(_sessions, sessionTasks);
         _enforcement.PlanFirst = _planFirst;
+        // Planning over with the session still running: settle what was opened meanwhile in one window.
+        _planFirst.Ended += (_, _) =>
+        {
+            SessionState state = _sessions.State;
+            if (!state.IsActive || _planFirst.HeldUnknowns.Count == 0)
+            {
+                return;
+            }
+
+            IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
+            presenter.ShowStack(
+                ProfileOptions.NameOf(profiles, state.ProfileId) ?? "this session",
+                _planFirst.HeldUnknowns.ToList(),
+                profiles.Where(profile => profile.Id != state.ProfileId).Select(ProfileOption.From).ToList());
+        };
         _sessionOverlay.SetPlanFirst(_planFirst);
         // ADR 25: every task ticked: offer to end the session now (when it may), else just say so.
         sessionTasks.AllDoneReached += (_, _) =>

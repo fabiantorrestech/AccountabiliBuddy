@@ -215,18 +215,36 @@ public sealed partial class ClassifyPromptViewModel : ObservableObject
 
     private void Answer(RuleVerdict verdict, LabelLifetime lifetime, IReadOnlyList<Guid> otherProfileIds)
     {
+        if (BuildAnswer(verdict, lifetime, otherProfileIds, Reason, out string? error) is ClassifyAnswer answer)
+        {
+            Answered?.Invoke(this, answer);
+        }
+        else
+        {
+            Error = error;
+        }
+    }
+
+    /// <summary>
+    /// The answer for this site or app with the scope and pattern chosen here (also used row by row by the stacked
+    /// prompt); null with <paramref name="error"/> when the pattern is empty or an allow has no reason.
+    /// </summary>
+    public ClassifyAnswer? BuildAnswer(
+        RuleVerdict verdict, LabelLifetime lifetime, IReadOnlyList<Guid> otherProfileIds, string reasonText, out string? error)
+    {
+        error = null;
         string pattern = Pattern.Trim();
         if (pattern.Length == 0)
         {
-            Error = "Enter what to match first.";
-            return;
+            error = "Enter what to match first.";
+            return null;
         }
 
-        string reason = Reason.Trim();
+        string reason = reasonText.Trim();
         if (verdict == RuleVerdict.Allow && !reason.Any(char.IsLetterOrDigit))
         {
-            Error = "Write why first (one word is enough).";
-            return;
+            error = "Write why first (one word is enough).";
+            return null;
         }
 
         (MatchTarget target, MatchKind kind) = Scope switch
@@ -239,6 +257,6 @@ public sealed partial class ClassifyPromptViewModel : ObservableObject
         };
 
         var rule = new Rule(Guid.NewGuid(), target, kind, pattern, verdict, RuleNote);
-        Answered?.Invoke(this, new ClassifyAnswer(rule, _snapshot, lifetime, reason.Length == 0 ? null : reason, otherProfileIds));
+        return new ClassifyAnswer(rule, _snapshot, lifetime, reason.Length == 0 ? null : reason, otherProfileIds);
     }
 }

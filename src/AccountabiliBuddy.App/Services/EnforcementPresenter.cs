@@ -26,6 +26,9 @@ public sealed class EnforcementPresenter
     private readonly Dictionary<string, DateTimeOffset> _lastActionByTarget = new(StringComparer.Ordinal);
 
     private ClassifyPrompt? _prompt;
+
+    // The stacked prompt (what was opened while planning); while it's open the single prompt waits.
+    private ClassifyStackPrompt? _stack;
     private string? _promptSubject;
 
     public EnforcementPresenter(
@@ -355,9 +358,54 @@ public sealed class EnforcementPresenter
         }
     }
 
+    /// <summary>
+    /// Planning is over: every unknown seen meanwhile in one window (redesign phase 2). Its answers are raised through
+    /// <see cref="Answered"/> one by one; rows left unanswered are asked about one by one later.
+    /// </summary>
+    public void ShowStack(string profileName, IReadOnlyList<ActivitySnapshot> unknowns, IReadOnlyList<ProfileOption> otherProfiles)
+    {
+        if (unknowns.Count == 0 || _stack is not null)
+        {
+            return;
+        }
+
+        MonitorArea? area = _monitors.Find(_monitors.FindMonitorUnderCursor()) ?? _monitors.Find(unknowns[0].MonitorId);
+        if (area is null)
+        {
+            return;
+        }
+
+        ClosePrompt();
+        var viewModel = new ClassifyStackViewModel(profileName, unknowns, otherProfiles, PreTickedExemptionProfiles?.Invoke());
+        var stack = new ClassifyStackPrompt { DataContext = viewModel };
+        viewModel.Submitted += (_, answers) =>
+        {
+            stack.Close();
+            foreach (ClassifyAnswer answer in answers)
+            {
+                Answered?.Invoke(this, answer);
+            }
+        };
+        stack.Closed += (_, _) =>
+        {
+            if (_stack == stack)
+            {
+                _stack = null;
+            }
+        };
+        MonitorPlacement.PlaceInCorner(stack, area, MonitorPlacement.Corner.BottomRight);
+        _stack = stack;
+        stack.Show();
+    }
+
     private void UpdatePrompt(
         IReadOnlyList<MonitorEnforcement> decisions, string profileName, IReadOnlyList<ProfileOption> otherProfiles)
     {
+        if (_stack is not null)
+        {
+            return; // One window at a time: the stack settles the planning minutes' unknowns first.
+        }
+
         if (_prompt is not null)
         {
             bool stillNeeded = decisions.Any(decision => decision.NeedsClassification
