@@ -85,6 +85,8 @@ public partial class App : Application
     private PlanFirstService? _planFirst;
     private SessionReviewService? _sessionReview;
     private WorkHoursGuard? _workHours;
+    private ComebackStore? _comebacks;
+    private CaptureService? _capture;
     private Win32GlobalHotkey? _stepAwayHotkey;
     private InstanceSignals? _instanceSignals;
     private ActivityRecorder? _recorder;
@@ -339,6 +341,10 @@ public partial class App : Application
                 profiles.Where(profile => profile.Id != state.ProfileId).Select(ProfileOption.From).ToList());
         };
         _sessionOverlay.SetPlanFirst(_planFirst);
+        // Capture at the source: Ctrl+Alt+N parks an idea as a come-back (this computer, encrypted).
+        _comebacks = new ComebackStore(documents, new DpapiDataProtector(), time);
+        _comebacks.LoadBlocking();
+        _capture = new CaptureService(_comebacks, new Win32GlobalHotkey(), monitorLocator);
         // ADR 27: work hours on this computer (off unless turned on in Settings).
         _workHours = new WorkHoursGuard(_sessions, _configuration, documents, windowsEnforcer, () => _activityWatcher.CaptureCurrent(), presenter.ShowNotice);
         _workHours.LoadBlocking();
@@ -496,6 +502,7 @@ public partial class App : Application
             ColdTurkey = new ColdTurkeyStatusViewModel(_coldTurkey, _sessions),
         };
         // Focus mode: the Today page while a session runs (the main window's day bar is the one it reads).
+        sessionViewModel.Comebacks = new ComebacksViewModel(_comebacks!);
         sessionViewModel.Review = _sessionReview!.Pending;
         _sessionReview.Changed += (_, _) => sessionViewModel.Review = _sessionReview.Pending;
         sessionViewModel.Focus = new FocusViewModel(
@@ -1118,6 +1125,7 @@ public partial class App : Application
         _planFirst?.Dispose();
         _sessionReview?.Dispose();
         _workHours?.Dispose();
+        _capture?.Dispose();
         _stepAwayHotkey?.Dispose();
         _enforcement?.Dispose();
         _recorder?.Dispose();

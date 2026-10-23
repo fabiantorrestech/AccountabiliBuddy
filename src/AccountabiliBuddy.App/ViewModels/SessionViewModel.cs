@@ -73,6 +73,9 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>The Unlock card.</summary>
     public UnlockViewModel Unlock { get; }
 
+    /// <summary>"Come back to": ideas parked with Ctrl+Alt+N or the work-hours gate (set by the app).</summary>
+    public ComebacksViewModel? Comebacks { get; set; }
+
     /// <summary>The review card after a session (sites and apps with no rule); null when there's none.</summary>
     [ObservableProperty]
     public partial SessionReviewViewModel? Review { get; set; }

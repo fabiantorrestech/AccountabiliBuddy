@@ -20,6 +20,31 @@
                         IsVisible="{Binding IsVisible, FallbackValue=False}" HorizontalAlignment="Left" />
             </Panel>
 
+            <!-- Come back to: parked ideas until ticked (idle and in Focus mode). Ctrl+Alt+N adds one from anywhere. -->
+            <Border Padding="16" CornerRadius="10" Background="#1AD97757" BorderBrush="#55D97757" BorderThickness="1"
+                    DataContext="{Binding Comebacks}" x:DataType="vm:ComebacksViewModel"
+                    IsVisible="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).Comebacks, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Come back to" FontWeight="SemiBold" />
+                    <ItemsControl ItemsSource="{Binding Items}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ComebackRowViewModel">
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="0,2">
+                                    <CheckBox Command="{Binding TickCommand}" ToolTip.Tip="Done: tick it off" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding When}" FontSize="11" Opacity="0.6" VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBox Text="{Binding NewText}" PlaceholderText="Park an idea (Enter) · or Ctrl+Alt+N anywhere">
+                        <TextBox.KeyBindings>
+                            <KeyBinding Gesture="Enter" Command="{Binding AddCommand}" />
+                        </TextBox.KeyBindings>
+                    </TextBox>
+                </StackPanel>
+            </Border>
+
             <!-- After a session: what it used with no rule, as rules (Distracting / Fine / Ignore). -->
             <Panel IsVisible="{Binding Review, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <views:SessionReviewView DataContext="{Binding Review}" />
