@@ -70,8 +70,17 @@ fun SettingsScreen(
     noiseSettings: com.accountabilibuddy.companion.noise.NoiseSettings = com.accountabilibuddy.companion.noise.NoiseSettings(),
     pause: com.accountabilibuddy.companion.pause.PauseState? = null,
     pauseActions: PauseActions = PauseActions(),
+    onAllowUsage: () -> Unit = {},
+    onOpenSetup: () -> Unit = {},
 ) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            Section("Permissions", summary = permissionsSummary(context, health)) {
+                PermissionsList(health, onConnectHealth, onAllowUsage)
+                androidx.compose.material3.TextButton(onClick = onOpenSetup) { Text("Open the setup again") }
+            }
+        }
         item { AppearanceSection() }
         if (pause != null) {
             item {

@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- "Take over the screen": the work nudge opens full screen over other apps (turned on by the user). -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Settings → Permissions → Unrestricted battery: asks Android to let the app run on time (the user confirms). -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- "Pause in the car": tells a car's Bluetooth (by its class) from other devices; asked only when that switch is turned on. -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />

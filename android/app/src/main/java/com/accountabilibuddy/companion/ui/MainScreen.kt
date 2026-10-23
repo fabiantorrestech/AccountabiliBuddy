@@ -64,6 +64,7 @@ fun MainScreen(
     val syncSettings by viewModel.syncSettings.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
     var nudgeRepeat by remember { mutableIntStateOf(com.accountabilibuddy.companion.notify.WorkStartNudge.repeatMinutes(context)) }
+    var showSetup by remember { mutableStateOf(!SetupState.shown(context)) }
     var takeoverOn by remember { mutableStateOf(com.accountabilibuddy.companion.nudge.NudgeStore(context).load().takeoverOn) }
     val pairing by viewModel.pairing.collectAsStateWithLifecycle()
     val pcBusy by viewModel.pcBusy.collectAsStateWithLifecycle()
@@ -108,6 +109,14 @@ fun MainScreen(
         },
     ) { padding ->
         Column(Modifier.padding(padding)) {
+            if (showSetup) {
+                SetupScreen(health, onConnectHealth, onAllowUsage) {
+                    SetupState.markShown(context)
+                    showSetup = false
+                }
+                return@Column
+            }
+
             planDraft?.let { draft ->
                 DayPlanEditorScreen(
                     draft = draft,
@@ -222,6 +231,8 @@ fun MainScreen(
                         noise = noise,
                         noiseSettings = noiseSettings,
                         pause = pauseState,
+                        onAllowUsage = onAllowUsage,
+                        onOpenSetup = { showSetup = true },
                         pauseActions = PauseActions(
                             onRequestOff = viewModel::requestPause,
                             onTurnOn = viewModel::turnPauseOff,
