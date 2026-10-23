@@ -25,6 +25,7 @@ public sealed class WorkHoursGuard : IDisposable
     private readonly Action<string, string> _notify;
     private DateTimeOffset _lastNotice = DateTimeOffset.MinValue;
     private bool _wasGuarding;
+    private DateOnly? _goalToldOn;
 
     /// <param name="currentWindows">The window in front on each monitor (swept when work hours start).</param>
     /// <param name="notify">Shows a notice (title, message).</param>
@@ -55,23 +56,31 @@ public sealed class WorkHoursGuard : IDisposable
     public Func<bool>? OpenGate { get; set; }
 
     /// <summary>
+    /// Today's deep work against the goal, across the user's devices (earned time, design K): once met, this computer is
+    /// open for the rest of the day (it only relaxes the guard). Null: no goal unlock.
+    /// </summary>
+    public Func<GoalProgress?>? Goal { get; set; }
+
+    private bool GoalMet => Goal?.Invoke() is { Met: true };
+
+    /// <summary>
     /// On, not stopped for today, and a work part still to come or under way today, whether or not a session runs or it's a
     /// break: turning it off or taking an app off the list then waits (stop for today first).
     /// </summary>
-    public bool HasWorkLeftToday
-    {
-        get
-        {
-            if (!Settings.On || Settings.StoppedOn == Today())
-            {
-                return false;
-            }
+    public bool HasWorkLeftToday => !GoalMet && WorkLeftToday();
 
-            DateTime now = LocalNow();
-            DateTime endOfDay = now.Date.AddDays(1);
-            return DayTimeline.Planned(_configuration.Current.DayPlan, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)))
-                .Any(focus => focus.Window.End > now && focus.Window.Start < endOfDay);
+    // On, not stopped for today, and a work part still to come or under way today (the goal aside).
+    private bool WorkLeftToday()
+    {
+        if (!Settings.On || Settings.StoppedOn == Today())
+        {
+            return false;
         }
+
+        DateTime now = LocalNow();
+        DateTime endOfDay = now.Date.AddDays(1);
+        return DayTimeline.Planned(_configuration.Current.DayPlan, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)))
+            .Any(focus => focus.Window.End > now && focus.Window.Start < endOfDay);
     }
 
     /// <summary>How long stopping for today waits (the end-early wait).</summary>
@@ -179,6 +188,7 @@ public sealed class WorkHoursGuard : IDisposable
     /// <summary>Notices guarding starting or stopping, and sweeps the windows in front when it starts. Runs every second.</summary>
     public void CheckNow()
     {
+        TellGoalMet();
         bool guarding = IsGuarding;
         if (guarding == _wasGuarding)
         {
@@ -203,7 +213,7 @@ public sealed class WorkHoursGuard : IDisposable
     /// </summary>
     public string? DescribeCut(DayPlan before, DayPlan after)
     {
-        if (!Settings.On || Settings.StoppedOn == Today())
+        if (!Settings.On || Settings.StoppedOn == Today() || GoalMet)
         {
             return null;
         }
@@ -227,7 +237,7 @@ public sealed class WorkHoursGuard : IDisposable
     /// <summary>The end of the work part now, when guarding; null otherwise.</summary>
     private DateTime? GuardingUntil()
     {
-        if (!Settings.On || Settings.StoppedOn == Today())
+        if (!Settings.On || Settings.StoppedOn == Today() || GoalMet)
         {
             return null;
         }
@@ -240,6 +250,18 @@ public sealed class WorkHoursGuard : IDisposable
             .Select(window => (LocalWindow?)window)
             .FirstOrDefault();
         return stretch?.End;
+    }
+
+    // One notice the first time the goal opens this computer on a day it would still guard.
+    private void TellGoalMet()
+    {
+        if (Goal?.Invoke() is not { Met: true } progress || _goalToldOn == Today() || !WorkLeftToday())
+        {
+            return;
+        }
+
+        _goalToldOn = Today();
+        _notify($"{progress.Text} · this computer is open", "Today's deep-work goal is met, so work hours are over here for today.");
     }
 
     private async Task SaveAsync(WorkHoursSettings settings)

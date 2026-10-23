@@ -549,6 +549,8 @@ public partial class App : Application
                 new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A9D8F")));
         _deepWork.Changed += (_, _) => _sessionOverlay?.SetGoalText($"Goal · {_deepWork.Progress.Text}");
         sessionViewModel.Goal = new GoalCardViewModel(_deepWork, goal);
+        // Earned time (design K): today's goal met across the user's devices opens this computer's work hours.
+        _workHours!.Goal = () => _deepWork?.Progress;
         _ = _deepWork.ReloadAsync();
         sessionViewModel.Review = _sessionReview!.Pending;
         _sessionReview.Changed += (_, _) => sessionViewModel.Review = _sessionReview.Pending;
