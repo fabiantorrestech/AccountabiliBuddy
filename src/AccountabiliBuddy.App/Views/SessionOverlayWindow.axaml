@@ -78,7 +78,15 @@
                                                     NowFraction="{Binding Day.NowFraction}" />
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Text="{Binding Day.StatusText}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
-                                           Foreground="#CCFFFFFF" FontSize="10" />
+                                           Foreground="#CCFFFFFF" FontSize="10" Classes.unstarted="{Binding Day.IsUnstarted}">
+                                    <!-- Work time with no session: amber until one starts. -->
+                                    <TextBlock.Styles>
+                                        <Style Selector="TextBlock.unstarted">
+                                            <Setter Property="Foreground" Value="#F4A261" />
+                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                        </Style>
+                                    </TextBlock.Styles>
+                                </TextBlock>
                                 <TextBlock Grid.Column="1" Text="{Binding TimeText}" IsVisible="{Binding ShowsTimelineTime}" Margin="6,0,0,0"
                                            Foreground="White" FontSize="10" FontWeight="SemiBold" />
                             </Grid>

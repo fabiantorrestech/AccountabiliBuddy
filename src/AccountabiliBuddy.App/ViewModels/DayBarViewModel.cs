@@ -157,6 +157,10 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string DateText { get; set; }
 
+    /// <summary>True during a work part with no session: the on-screen window shows the status in amber.</summary>
+    [ObservableProperty]
+    public partial bool IsUnstarted { get; set; }
+
     /// <summary>E.g. "In focus · Coding until 12:00 PM" or "Next: Coding at 1:30 PM".</summary>
     [ObservableProperty]
     public partial string StatusText { get; set; }
@@ -406,6 +410,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         DateTime date = day.Start.Date;
         DateText = $"{date.ToString("ddd", CultureInfo.CurrentCulture)} ({date:M/d})";
         StatusText = Status(now, range, planned);
+        IsUnstarted = !_sessions.State.IsActive && planned.Any(focus => focus.Window.Contains(now));
         SummaryText = Summary(range, planned, focused, drift.Count);
         UpdateLegend(range, planned, focused, distracted, Total(unfocused, range), taskMarks.Count, rows, phoneFree.Count);
     }

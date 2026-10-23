@@ -62,6 +62,7 @@ fun MainScreen(
     val syncKey by viewModel.syncKey.collectAsStateWithLifecycle()
     val syncSettings by viewModel.syncSettings.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
+    var nudgeRepeat by remember { mutableIntStateOf(com.accountabilibuddy.companion.notify.WorkStartNudge.repeatMinutes(context)) }
     val pairing by viewModel.pairing.collectAsStateWithLifecycle()
     val pcBusy by viewModel.pcBusy.collectAsStateWithLifecycle()
     val endEarlyTerms by viewModel.endEarlyTerms.collectAsStateWithLifecycle()
@@ -213,6 +214,11 @@ fun MainScreen(
                             onTurnOn = viewModel::turnPauseOff,
                             onCarPause = viewModel::setCarPause,
                             onPlanOffDays = { viewModel.openPlanEditor(startTab = 2)?.let { viewModel.message.value = it } },
+                            nudgeRepeat = nudgeRepeat,
+                            onNudgeRepeat = { minutes ->
+                                com.accountabilibuddy.companion.notify.WorkStartNudge.setRepeatMinutes(context, minutes)
+                                nudgeRepeat = minutes
+                            },
                         ),
                     )
                 }

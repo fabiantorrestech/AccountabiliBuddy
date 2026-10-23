@@ -33,6 +33,10 @@ object Refresher {
     @Volatile
     private var countdownEnd: java.time.Instant? = null
 
+    // When the start nudge could come again: the next redraw comes then if that's sooner.
+    @Volatile
+    private var nudgeAt: java.time.Instant? = null
+
     // The pickups last sent to the PC for the running session (sent again only when they change).
     @Volatile
     private var lastPickups: Int? = null
@@ -79,6 +83,7 @@ object Refresher {
             // Steering (start nudge, parked phone, pickups to the PC): from the devices' combined focus.
             val focus = HeaderSource.focus(app, now)?.takeUnless { quiet }
             WorkStartNudge.check(context, focus)
+            nudgeAt = WorkStartNudge.nextAt(context, focus)
             val running = focus?.running
             val pickups = running?.let { app.sync.unlocksSince(it.startedAt)?.size }
             ParkedNotice.check(context, running, pickups, clock)
@@ -103,7 +108,8 @@ object Refresher {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val untilCountdownEnd = countdownEnd?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
-        val delay = untilCountdownEnd?.takeIf { it in 1 until INTERVAL_MS } ?: INTERVAL_MS
+        val untilNudge = nudgeAt?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
+        val delay = listOfNotNull(untilCountdownEnd, untilNudge).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
         alarms.set(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + delay, intent)
     }
 }

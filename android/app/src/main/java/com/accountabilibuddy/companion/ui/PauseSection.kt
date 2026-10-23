@@ -45,6 +45,9 @@ data class PauseActions(
     val onTurnOn: () -> Unit = {},
     val onCarPause: (Boolean) -> Unit = {},
     val onPlanOffDays: () -> Unit = {},
+    /** The work-start nudge's repeat (5, 10, 15 minutes; 0 = once). */
+    val nudgeRepeat: Int = 5,
+    val onNudgeRepeat: (Int) -> Unit = {},
 )
 
 /**
@@ -71,6 +74,17 @@ fun PauseSection(state: PauseState, now: Instant, clock: ClockFormat, actions: P
                 Button(onClick = actions.onTurnOn) { Text("Cancel, keep it on") }
             }
             is PauseStatus.Paused -> Button(onClick = actions.onTurnOn) { Text("Turn back on") }
+        }
+
+        Text("Work-start nudge: again every", style = MaterialTheme.typography.bodyMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(5, 10, 15, 0).forEach { minutes ->
+                FilterChip(
+                    selected = actions.nudgeRepeat == minutes,
+                    onClick = { actions.onNudgeRepeat(minutes) },
+                    label = { Text(if (minutes == 0) "Once" else "$minutes min") },
+                )
+            }
         }
 
         val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> actions.onCarPause(granted) }

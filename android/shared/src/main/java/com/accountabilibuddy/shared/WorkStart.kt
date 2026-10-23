@@ -36,6 +36,41 @@ object WorkStart {
         return starts(snapshot.parts).lastOrNull { it <= now && Duration.between(it, now) <= NUDGE_WITHIN }
     }
 
+    /** The start of the work stretch [now] is in, while no session runs; null outside work or during a session. */
+    fun current(snapshot: WatchSnapshot, now: Instant): Instant? {
+        if (snapshot.running != null || snapshot.parts.none { it.kind == "watch" && it.start <= now && now < it.end }) {
+            return null
+        }
+
+        return starts(snapshot.parts).lastOrNull { it <= now }
+    }
+
+    /**
+     * The phone's nudge is due: in a work stretch with no session, never nudged in this stretch yet, or [repeatMinutes]
+     * (5, 10 or 15; 0 = once) since the last one ([lastNudge]).
+     */
+    fun nudgeDue(snapshot: WatchSnapshot, now: Instant, lastNudge: Instant?, repeatMinutes: Int): Boolean {
+        val stretch = current(snapshot, now) ?: return false
+        if (lastNudge == null || lastNudge < stretch) {
+            return true
+        }
+
+        return repeatMinutes > 0 && Duration.between(lastNudge, now) >= Duration.ofMinutes(repeatMinutes.toLong())
+    }
+
+    /** When the next nudge could come (for the phone's next wake-up): the repeat in a stretch, else the next stretch's start. */
+    fun nextNudgeAt(snapshot: WatchSnapshot?, now: Instant, lastNudge: Instant?, repeatMinutes: Int): Instant? {
+        if (snapshot == null || snapshot.running != null) {
+            return null
+        }
+
+        if (current(snapshot, now) != null && lastNudge != null && repeatMinutes > 0) {
+            return lastNudge.plus(Duration.ofMinutes(repeatMinutes.toLong()))
+        }
+
+        return next(snapshot, now)
+    }
+
     /** The next stretch start after [now] (the watch's buzz), while no session runs; null for none today. */
     fun next(snapshot: WatchSnapshot?, now: Instant): Instant? {
         if (snapshot == null || snapshot.running != null) {

@@ -219,8 +219,12 @@
                     <StackPanel Spacing="6" DataContext="{Binding StartNudge}" x:DataType="vm:StartNudgeViewModel">
                         <TextBlock Text="Steer me to start" Classes="sectionTitle" />
                         <CheckBox IsChecked="{Binding IsOn}" Content="During work parts with no session, open Today with the task box ready" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,0,0,0">
+                            <TextBlock Text="Nudge again every" VerticalAlignment="Center" />
+                            <ComboBox ItemsSource="{x:Static vm:StartNudgeViewModel.RepeatNames}" SelectedIndex="{Binding RepeatIndex}" MinWidth="140" />
+                        </StackPanel>
                         <TextBlock Opacity="0.75" TextWrapping="Wrap"
-                                   Text="When a work part starts, when the app starts during one, and when you come back after 10 minutes away. Once each time; never during a session." />
+                                   Text="When a work part starts, when the app starts during one, when you come back after 10 minutes away, and again every few minutes until a session starts. Never during a session; the on-screen window says it in amber meanwhile." />
                     </StackPanel>
                     </Border>
                     <!-- ADR 27: a personal computer can hold dev tools during the plan's work parts. -->

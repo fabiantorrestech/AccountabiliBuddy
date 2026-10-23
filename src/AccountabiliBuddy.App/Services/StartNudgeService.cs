@@ -23,6 +23,7 @@ public sealed class StartNudgeService
     private readonly SqliteJsonDocumentStore _store;
     private bool _wasInWork;
     private bool _sawAway;
+    private DateTimeOffset _lastNudge = DateTimeOffset.MinValue;
 
     public StartNudgeService(SessionController sessions, ConfigurationService configuration, IUserIdleDetector idle, SqliteJsonDocumentStore store)
     {
@@ -74,7 +75,7 @@ public sealed class StartNudgeService
         {
             // Work just started, or the app just started during it.
             _wasInWork = true;
-            Due?.Invoke(this, EventArgs.Empty);
+            Nudge();
             return;
         }
 
@@ -86,8 +87,19 @@ public sealed class StartNudgeService
         {
             // Back at the desk.
             _sawAway = false;
-            Due?.Invoke(this, EventArgs.Empty);
+            Nudge();
         }
+        else if (Settings.RepeatMinutes > 0 && _sessions.Now - _lastNudge >= TimeSpan.FromMinutes(Settings.RepeatMinutes))
+        {
+            // Still no session: again, every few minutes, while someone's at the computer.
+            Nudge();
+        }
+    }
+
+    private void Nudge()
+    {
+        _lastNudge = _sessions.Now;
+        Due?.Invoke(this, EventArgs.Empty);
     }
 
     private bool InWorkPart()

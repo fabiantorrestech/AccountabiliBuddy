@@ -12,6 +12,20 @@ public sealed partial class StartNudgeViewModel : ObservableObject
     {
         _nudge = nudge;
         IsOn = nudge.Settings.On;
+        RepeatIndex = Math.Max(0, Array.IndexOf(RepeatChoices, nudge.Settings.RepeatMinutes));
+    }
+
+    /// <summary>"Nudge again every": 5, 10 or 15 minutes, or only once (0).</summary>
+    public static int[] RepeatChoices { get; } = [5, 10, 15, 0];
+
+    public static IReadOnlyList<string> RepeatNames { get; } = ["5 minutes", "10 minutes", "15 minutes", "Only once"];
+
+    [ObservableProperty]
+    public partial int RepeatIndex { get; set; }
+
+    partial void OnRepeatIndexChanged(int value)
+    {
+        _ = _nudge.SaveAsync(_nudge.Settings with { RepeatMinutes = RepeatChoices[Math.Clamp(value, 0, RepeatChoices.Length - 1)] });
     }
 
     [ObservableProperty]
