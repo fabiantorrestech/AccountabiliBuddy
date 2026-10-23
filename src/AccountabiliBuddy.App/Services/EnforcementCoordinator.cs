@@ -33,6 +33,9 @@ public sealed class EnforcementCoordinator : IDisposable
     private readonly PrivateWindowAccessMonitor _privateAccess;
 
     private readonly Dictionary<string, ActivitySnapshot> _latestByMonitor = new(StringComparer.Ordinal);
+
+    // What was decided last; kept for the recorder while the user has stepped away (nothing is decided then).
+    private IReadOnlyList<MonitorEnforcement> _lastDecisions = Array.Empty<MonitorEnforcement>();
     private readonly ScreenTextCache _screenText = new();
     private bool _isReadingScreen;
 
@@ -183,9 +186,15 @@ public sealed class EnforcementCoordinator : IDisposable
 
     private void Reevaluate()
     {
-        // Stepped away: whatever is on screen meanwhile isn't judged (no prompts, nudges or drift) until the user is
-        // back. Judged like a break; the session itself stays locked as before.
-        SessionState state = _sessions.State.IsAway ? _sessions.State with { Phase = SessionPhase.ShortBreak } : _sessions.State;
+        SessionState state = _sessions.State;
+        if (state.IsAway)
+        {
+            // Stepped away: everything stays as it was (what was blocked stays blocked, an open prompt stays open, the
+            // escalation doesn't move or start over) until the user is back. Only the recorder hears the idle time.
+            _recorder.Observe(_lastDecisions, state, _sessions.Now);
+            return;
+        }
+
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
         FocusProfile? profile = profiles.FirstOrDefault(candidate => candidate.Id == state.ProfileId);
         if (profile is not null && _sessionRules.Count > 0)
@@ -216,6 +225,7 @@ public sealed class EnforcementCoordinator : IDisposable
             .ToList();
         _presenter.Apply(decisions, profileName, SessionStatusFormatter.Detail(state, now), otherProfiles);
         _recorder.Observe(decisions, state, now);
+        _lastDecisions = decisions;
 
         if (readScreens)
         {

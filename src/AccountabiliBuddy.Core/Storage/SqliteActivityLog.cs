@@ -269,9 +269,15 @@ public sealed class SqliteActivityLog : IActivityLog
         await using SqliteDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
+            // A kind from a newer app version (e.g. restored from its backup) is skipped instead of failing every read.
+            if (!Enum.TryParse(reader.GetString(1), out SessionEventKind kind))
+            {
+                continue;
+            }
+
             events.Add(new SessionEvent(
                 Parse(reader.GetString(0)),
-                Enum.Parse<SessionEventKind>(reader.GetString(1)),
+                kind,
                 // A mode from a newer app version reads as unknown instead of failing (ADR 20).
                 reader.IsDBNull(2) || !Enum.TryParse(reader.GetString(2), out SessionMode mode) ? null : mode,
                 reader.IsDBNull(3) ? null : Guid.Parse(reader.GetString(3)),

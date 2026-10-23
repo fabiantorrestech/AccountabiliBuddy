@@ -241,7 +241,9 @@ public sealed class EnforcementEngine
 
     private DriftTracker BeginPhaseIfNew(SessionState state, EscalationSettings settings)
     {
-        var phase = new PhaseKey(state.Mode, state.PhaseStartedAt);
+        // Not the phase's start: returning from Step away moves it, and the ladder must carry on where it was. A new
+        // phase always passes through a state that isn't enforcing (a break, idle), which ends the old one.
+        var phase = new PhaseKey(state.Mode, state.Phase, state.ProfileId, state.CompletedFocusCycles);
         if (_tracker is not null && phase == _currentPhase)
         {
             return _tracker;
@@ -271,5 +273,5 @@ public sealed class EnforcementEngine
     }
 
     /// <summary>Identifies one focus phase; a new value means a new phase started.</summary>
-    private sealed record PhaseKey(SessionMode? Mode, DateTimeOffset? StartedAt);
+    private sealed record PhaseKey(SessionMode? Mode, SessionPhase Phase, Guid? ProfileId, int CompletedFocusCycles);
 }

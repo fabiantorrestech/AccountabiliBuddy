@@ -29,7 +29,8 @@ public static class SessionHistoryBuilder
         DateTimeOffset? interruptedAt = null;
         TimeSpan closedFor = TimeSpan.Zero;
         DateTimeOffset? awaySince = null;
-        List<TimeRange>? away = null;
+        AwayKind awayKind = AwayKind.Break;
+        List<AwayStretch>? away = null;
 
         foreach (SessionEvent sessionEvent in events)
         {
@@ -39,7 +40,7 @@ public static class SessionHistoryBuilder
                     if (open is not null)
                     {
                         records.Add(new SessionRecord(open.At, open.Mode, open.ProfileId, null, null, null, closedFor,
-                            CloseAway(away, awaySince, DateTimeOffset.MaxValue)));
+                            CloseAway(away, awaySince, awayKind, DateTimeOffset.MaxValue)));
                     }
 
                     open = sessionEvent;
@@ -53,6 +54,8 @@ public static class SessionHistoryBuilder
                     if (open is not null && awaySince is null)
                     {
                         awaySince = sessionEvent.At;
+                        // The reason holds the kind's name; anything else (or none) reads as a break.
+                        awayKind = Enum.TryParse(sessionEvent.Reason, out AwayKind kind) ? kind : AwayKind.Break;
                     }
 
                     continue;
@@ -60,7 +63,7 @@ public static class SessionHistoryBuilder
                 case SessionEventKind.AwayEnded:
                     if (awaySince is DateTimeOffset left && sessionEvent.At >= left)
                     {
-                        (away ??= []).Add(new TimeRange(left, sessionEvent.At));
+                        (away ??= []).Add(new AwayStretch(left, sessionEvent.At, awayKind));
                     }
 
                     awaySince = null;
@@ -87,7 +90,7 @@ public static class SessionHistoryBuilder
 
             records.Add(new SessionRecord(
                 open.At, open.Mode, open.ProfileId, sessionEvent.At, sessionEvent.Kind, sessionEvent.Reason, closedFor,
-                CloseAway(away, awaySince, sessionEvent.At)));
+                CloseAway(away, awaySince, awayKind, sessionEvent.At)));
             open = null;
             closedFor = TimeSpan.Zero;
             awaySince = null;
@@ -97,18 +100,18 @@ public static class SessionHistoryBuilder
         if (open is not null)
         {
             records.Add(new SessionRecord(open.At, open.Mode, open.ProfileId, null, null, null, closedFor,
-                CloseAway(away, awaySince, DateTimeOffset.MaxValue)));
+                CloseAway(away, awaySince, awayKind, DateTimeOffset.MaxValue)));
         }
 
         return records;
     }
 
     /// <summary>The session's away stretches, with one still going closed at <paramref name="end"/>.</summary>
-    private static IReadOnlyList<TimeRange>? CloseAway(List<TimeRange>? away, DateTimeOffset? awaySince, DateTimeOffset end)
+    private static IReadOnlyList<AwayStretch>? CloseAway(List<AwayStretch>? away, DateTimeOffset? awaySince, AwayKind kind, DateTimeOffset end)
     {
         if (awaySince is DateTimeOffset since && end >= since)
         {
-            (away ??= []).Add(new TimeRange(since, end));
+            (away ??= []).Add(new AwayStretch(since, end, kind));
         }
 
         return away;

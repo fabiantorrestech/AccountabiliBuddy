@@ -111,8 +111,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         if (newValue == MoreTab)
         {
-            // "More" has no page: it folds or unfolds, and the page stays where it was.
-            IsMoreOpen = !IsMoreOpen;
+            // "More" has no page: it folds or unfolds, and the page stays where it was. It stays open while one of its
+            // pages shows (folding would hide the tab of the page showing).
+            IsMoreOpen = MainTabs.IsUnderMore((MainTab)oldValue) || !IsMoreOpen;
             SelectedTab = oldValue == MoreTab ? (int)MainTab.Today : oldValue;
             return;
         }
@@ -120,6 +121,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (MainTabs.IsUnderMore((MainTab)newValue))
         {
             IsMoreOpen = true;
+        }
+
+        // Focus mode: opening a page the rail hides (a search result, a profile link) shows everything for this session,
+        // so its tab is there to see.
+        if (IsFocusMode && !MainTabs.ShowsTimeline((MainTab)newValue))
+        {
+            ShowEverything = true;
+            IsFocusMode = false;
         }
 
         ShowsTimeline = MainTabs.ShowsTimeline((MainTab)newValue);
@@ -141,7 +150,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     /// <param name="to">The tab being opened, or null when the window is being closed.</param>
     public bool MayLeaveTab(int from, int? to)
     {
-        if (from != SettingsTab || to == SettingsTab || to == MoreTab || !Settings.HasUnsavedChanges)
+        if (from != SettingsTab || to == SettingsTab || !Settings.HasUnsavedChanges)
         {
             return true;
         }

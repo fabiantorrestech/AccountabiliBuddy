@@ -493,9 +493,15 @@ public sealed partial class HistoryViewModel : ObservableObject
             outcome += $" · app closed {FormatDuration(record.AppClosedFor)}, resumed";
         }
 
-        if (record.AwayTime > TimeSpan.Zero)
+        // Step away: breaks and interruptions apart (design J).
+        if (record.AwayTimeOf(AwayKind.Break) is { } breaks && breaks > TimeSpan.Zero)
         {
-            outcome += $" · stepped away {FormatDuration(record.AwayTime)}";
+            outcome += $" · stepped away {FormatDuration(breaks)}";
+        }
+
+        if (record.AwayTimeOf(AwayKind.Interrupted) is { } interrupted && interrupted > TimeSpan.Zero)
+        {
+            outcome += $" · interrupted {FormatDuration(interrupted)}";
         }
 
         bool omitted = _omitted.IsOmitted(record.StartedAt);
