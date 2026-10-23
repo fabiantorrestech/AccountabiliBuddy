@@ -239,7 +239,7 @@ public partial class App : Application
         _ = _quickSession.EnsureDefaultProfileAsync();
         // Step away: the countdown pauses until any input, the shortcut again or "I'm back".
         _stepAwayHotkey = new Win32GlobalHotkey();
-        _stepAway = new StepAwayService(_sessions, new Win32UserIdleDetector(), _stepAwayHotkey, documents, time);
+        _stepAway = new StepAwayService(_sessions, new Win32UserIdleDetector(), new Win32CursorPosition(), _stepAwayHotkey, documents, time);
         _stepAway.LoadBlocking();
         // M6 screen reading and M7 activity history.
         var privacy = new PrivacySettingsService(documents);

@@ -8,7 +8,8 @@ namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
 /// Step away during a session: the countdown pauses (<see cref="SessionController.StepAway"/>) until the user is back,
-/// which is any keyboard or mouse input, the shortcut again, or "I'm back". It never shortens a wait or ends the
+/// which is a key press, click or scroll, the mouse moved a real distance (a bumped desk or a twitch isn't "back"),
+/// the shortcut again, or "I'm back". It never shortens a wait or ends the
 /// session. Optionally steps away by itself after a few idle minutes (off by default). Use from the UI thread only
 /// (the shortcut is marshalled here).
 /// </summary>
@@ -19,8 +20,12 @@ public sealed class StepAwayService : IDisposable
     // The click or key press that stepped away lands just after it; input in this window isn't "back".
     private static readonly TimeSpan PressGrace = TimeSpan.FromSeconds(2);
 
+    // How far (in screen pixels, straight line) the pointer must move from where it was when stepping away.
+    private const int MouseBackPixels = 300;
+
     private readonly SessionController _sessions;
     private readonly IUserIdleDetector _idle;
+    private readonly ICursorPosition _cursor;
     private readonly IGlobalHotkey _hotkey;
     private readonly SqliteJsonDocumentStore _store;
     private readonly TimeProvider _time;
@@ -28,10 +33,17 @@ public sealed class StepAwayService : IDisposable
     // Input from before the app started (a session resumed while away) isn't "back".
     private readonly DateTimeOffset _startedAt;
 
-    public StepAwayService(SessionController sessions, IUserIdleDetector idle, IGlobalHotkey hotkey, SqliteJsonDocumentStore store, TimeProvider time)
+    // While away: where the pointer was at the start, where it was on the last check, and the input seen then.
+    private (int X, int Y)? _awayAnchor;
+    private (int X, int Y)? _lastCursor;
+    private DateTimeOffset _lastSeenInput;
+
+    public StepAwayService(
+        SessionController sessions, IUserIdleDetector idle, ICursorPosition cursor, IGlobalHotkey hotkey, SqliteJsonDocumentStore store, TimeProvider time)
     {
         _sessions = sessions;
         _idle = idle;
+        _cursor = cursor;
         _hotkey = hotkey;
         _store = store;
         _time = time;
@@ -109,20 +121,52 @@ public sealed class StepAwayService : IDisposable
 
         if (state.AwaySince is DateTimeOffset since)
         {
-            DateTimeOffset ignoreUntil = (since > _startedAt ? since : _startedAt) + PressGrace;
-            if (lastInput > ignoreUntil)
+            if (IsBack(lastInput, (since > _startedAt ? since : _startedAt) + PressGrace))
             {
+                _awayAnchor = null;
                 Return();
             }
 
             return;
         }
 
+        _awayAnchor = null;
+
         if (Settings.AutoAfterIdle && idleFor >= TimeSpan.FromMinutes(Settings.IdleMinutes))
         {
             // From now, not from the last input: the minutes before count as focus.
             StepAway(AwayKind.Break);
         }
+    }
+
+    // New input with the pointer where it was = a key, click or scroll: back. New input with the pointer moved =
+    // mouse movement: back only once it's MouseBackPixels from where it was when stepping away.
+    private bool IsBack(DateTimeOffset lastInput, DateTimeOffset ignoreUntil)
+    {
+        (int X, int Y)? cursor = _cursor.Get();
+        if (_awayAnchor is null)
+        {
+            _awayAnchor = cursor;
+            _lastCursor = cursor;
+            _lastSeenInput = ignoreUntil;
+        }
+
+        if (lastInput <= ignoreUntil || lastInput <= _lastSeenInput)
+        {
+            _lastCursor = cursor;
+            return false;
+        }
+
+        bool moved = cursor != _lastCursor;
+        _lastSeenInput = lastInput;
+        _lastCursor = cursor;
+        if (!moved || cursor is not (int x, int y) || _awayAnchor is not (int anchorX, int anchorY))
+        {
+            return true;
+        }
+
+        long dx = x - anchorX, dy = y - anchorY;
+        return dx * dx + dy * dy >= (long)MouseBackPixels * MouseBackPixels;
     }
 
     /// <returns>Null on success, otherwise why the shortcut could not be used (the previous one stays active).</returns>
