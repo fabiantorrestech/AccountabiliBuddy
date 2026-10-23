@@ -73,6 +73,10 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>The Unlock card.</summary>
     public UnlockViewModel Unlock { get; }
 
+    /// <summary>The review card after a session (sites and apps with no rule); null when there's none.</summary>
+    [ObservableProperty]
+    public partial SessionReviewViewModel? Review { get; set; }
+
     /// <summary>Focus mode: what the page shows while a session runs (set by the app).</summary>
     public FocusViewModel? Focus { get; set; }
 

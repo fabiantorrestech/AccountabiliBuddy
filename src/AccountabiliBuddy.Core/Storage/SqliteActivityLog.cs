@@ -161,6 +161,37 @@ public sealed class SqliteActivityLog : IActivityLog
         return new UsageSummary(focus, onTrack, distracted, unknown, topDistractions, appsAndSites);
     }
 
+    /// <summary>
+    /// Time with no rule (Unknown) inside focus sessions in a period, one entry per site (any section) or, without a site,
+    /// per app; longest first. For the end-of-session review (redesign phase 2).
+    /// </summary>
+    public async Task<IReadOnlyList<AppSiteUsage>> GetUnknownUsageAsync(
+        DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
+    {
+        await using SqliteConnection connection = await _database.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT MIN(process_name), domain, SUM(duration_ms) AS total
+            FROM activity_segments
+            WHERE in_focus = 1 AND classification = 'Unknown' AND started_at >= $from AND started_at < $to
+            GROUP BY domain, CASE WHEN domain IS NULL THEN process_name END
+            ORDER BY total DESC;
+            """;
+        AddRange(command, from, to);
+
+        var usage = new List<AppSiteUsage>();
+        await using SqliteDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            usage.Add(new AppSiteUsage(
+                reader.GetString(0),
+                reader.IsDBNull(1) ? null : reader.GetString(1),
+                TimeSpan.FromMilliseconds(reader.GetInt64(2))));
+        }
+
+        return usage;
+    }
+
     public async Task<IReadOnlyList<DriftStretch>> GetDriftAsync(
         DateTimeOffset from,
         DateTimeOffset to,

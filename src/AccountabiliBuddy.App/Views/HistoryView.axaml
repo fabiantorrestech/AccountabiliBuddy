@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.HistoryView"
              x:DataType="vm:HistoryViewModel">
     <UserControl.Resources>
@@ -137,6 +138,17 @@
 
     <ScrollViewer>
         <StackPanel Margin="16" Spacing="14" MaxWidth="900" HorizontalAlignment="Left">
+            <!-- New this week: sites and apps used in focus with no rule, turned into rules here. -->
+            <StackPanel Spacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button Content="Review new this week" Command="{Binding ReviewWeekCommand}" />
+                    <TextBlock Text="{Binding WeekReviewNote}" Opacity="0.75" VerticalAlignment="Center" TextWrapping="Wrap"
+                               IsVisible="{Binding WeekReviewNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+                <Panel IsVisible="{Binding WeekReview, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <views:SessionReviewView DataContext="{Binding WeekReview}" />
+                </Panel>
+            </StackPanel>
             <Border IsVisible="{Binding IsLoggingOff}" Background="#33F59E0B" Padding="12,8" CornerRadius="6">
                 <TextBlock Text="Activity history is turned off, so nothing new is being recorded. Turn it on in Setup." TextWrapping="Wrap" />
             </Border>

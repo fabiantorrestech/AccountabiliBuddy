@@ -20,6 +20,11 @@
                         IsVisible="{Binding IsVisible, FallbackValue=False}" HorizontalAlignment="Left" />
             </Panel>
 
+            <!-- After a session: what it used with no rule, as rules (Distracting / Fine / Ignore). -->
+            <Panel IsVisible="{Binding Review, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <views:SessionReviewView DataContext="{Binding Review}" />
+            </Panel>
+
             <!-- New here: no profiles yet. -->
             <Border IsVisible="{Binding ShowsWelcome}" Padding="20" CornerRadius="10"
                     Background="#1A808080" BorderBrush="#33808080" BorderThickness="1">

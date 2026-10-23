@@ -83,6 +83,7 @@ public partial class App : Application
     private QuickSessionService? _quickSession;
     private StepAwayService? _stepAway;
     private PlanFirstService? _planFirst;
+    private SessionReviewService? _sessionReview;
     private Win32GlobalHotkey? _stepAwayHotkey;
     private InstanceSignals? _instanceSignals;
     private ActivityRecorder? _recorder;
@@ -336,6 +337,9 @@ public partial class App : Application
                 profiles.Where(profile => profile.Id != state.ProfileId).Select(ProfileOption.From).ToList());
         };
         _sessionOverlay.SetPlanFirst(_planFirst);
+        // The review card after each session: what it used with no rule, as rules.
+        _sessionReview = new SessionReviewService(activityLog, _configuration, documents, _sessions, () => exemptionDefaults.PreTicked);
+        _sessionReview.LoadBlocking();
         // ADR 25: every task ticked: offer to end the session now (when it may), else just say so.
         sessionTasks.AllDoneReached += (_, _) =>
         {
@@ -486,6 +490,8 @@ public partial class App : Application
             ColdTurkey = new ColdTurkeyStatusViewModel(_coldTurkey, _sessions),
         };
         // Focus mode: the Today page while a session runs (the main window's day bar is the one it reads).
+        sessionViewModel.Review = _sessionReview!.Pending;
+        _sessionReview.Changed += (_, _) => sessionViewModel.Review = _sessionReview.Pending;
         sessionViewModel.Focus = new FocusViewModel(
             _sessions, _configuration, _stepAway, sessionViewModel.Tasks, _dayBar, () => _endFlow.TryEndSessionAsync(VisibleMainWindow()))
         {
@@ -497,7 +503,10 @@ public partial class App : Application
             new DayPlanViewModel(_configuration, _sessions),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
             new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time,
-                _programPaths, desktopShell, isSessionRunning: () => _sessions!.State.IsActive),
+                _programPaths, desktopShell, isSessionRunning: () => _sessions!.State.IsActive)
+            {
+                ReviewService = _sessionReview,
+            },
             setupViewModel,
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
             new SettingsViewModel(
@@ -1100,6 +1109,7 @@ public partial class App : Application
         _hotkey?.Dispose();
         _stepAway?.Dispose();
         _planFirst?.Dispose();
+        _sessionReview?.Dispose();
         _stepAwayHotkey?.Dispose();
         _enforcement?.Dispose();
         _recorder?.Dispose();

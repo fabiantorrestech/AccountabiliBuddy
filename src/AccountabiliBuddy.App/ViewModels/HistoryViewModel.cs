@@ -55,6 +55,35 @@ public sealed partial class HistoryViewModel : ObservableObject
     // The other devices' parts (ADR 22); null until the sync services are built.
     private ReceivedDevicesService? _received;
 
+    /// <summary>Builds "New this week" (set by the app).</summary>
+    public SessionReviewService? ReviewService { get; set; }
+
+    /// <summary>"New this week": the week's sites and apps with no rule, shown after "Review new this week".</summary>
+    [ObservableProperty]
+    public partial SessionReviewViewModel? WeekReview { get; set; }
+
+    /// <summary>Shown when the week had nothing to review.</summary>
+    [ObservableProperty]
+    public partial string? WeekReviewNote { get; set; }
+
+    [RelayCommand]
+    private async Task ReviewWeekAsync()
+    {
+        if (ReviewService is null)
+        {
+            return;
+        }
+
+        SessionReviewViewModel? card = await ReviewService.BuildWeekAsync();
+        if (card is not null)
+        {
+            card.Closed += (_, _) => WeekReview = null;
+        }
+
+        WeekReview = card;
+        WeekReviewNote = card is null ? "Nothing new this week: every site and app used in focus has a rule." : null;
+    }
+
     public HistoryViewModel(
         IActivityLog log,
         ActivityRecorder recorder,
