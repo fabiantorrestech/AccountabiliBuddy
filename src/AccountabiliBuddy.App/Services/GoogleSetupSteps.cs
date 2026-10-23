@@ -85,9 +85,9 @@ public static class GoogleSetupSteps
             "Add yourself as a test user",
             new[]
             {
-                "Open the page. Leave the publishing status on Testing.",
+                "Open the page. The publishing status starts on Testing (the last step can publish it, so sign-ins stop ending).",
                 "Under Test users press Add users, type the email of every Google account you'll sign in with (e.g. your calendar's, if it isn't this one), Save.",
-                "While the project is in Testing, Google ends the sign-in after 7 days; the app tells you when to connect again.",
+                "While the project is in Testing, Google ends the sign-in after 7 days; the step \"Stop the 7-day sign-out\" below ends that.",
             },
             "https://console.cloud.google.com/auth/audience",
             Array.Empty<GoogleSetupCopyValue>()),
@@ -130,6 +130,18 @@ public static class GoogleSetupSteps
                 "The secret is stored encrypted on this computer only.",
             },
             null,
+            Array.Empty<GoogleSetupCopyValue>()),
+
+        new GoogleSetupStep(
+            "publish",
+            "Stop the 7-day sign-out (recommended)",
+            new[]
+            {
+                "Open the page and press Publish app, then Confirm. The status changes from Testing to In production.",
+                "Google then stops ending your sign-in every 7 days, so you connect once.",
+                "No review is needed for your own use: at sign-in Google may say it hasn't verified the app. It's your own project: press Advanced, then Go to AccountabiliBuddy.",
+            },
+            "https://console.cloud.google.com/auth/audience",
             Array.Empty<GoogleSetupCopyValue>()),
 
         new GoogleSetupStep(

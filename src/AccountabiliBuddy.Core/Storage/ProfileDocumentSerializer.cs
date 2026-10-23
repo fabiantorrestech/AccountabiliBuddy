@@ -14,6 +14,7 @@ public static class ProfileDocumentSerializer
     private const string SchemaVersionProperty = "schemaVersion";
     private const int DayPlanSchemaVersion = 5;
     private const int CommsSchemaVersion = 6;
+    private const int PreWorkSchemaVersion = 7;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -53,6 +54,12 @@ public static class ProfileDocumentSerializer
         {
             // v6: comms windows (an untouched starting plan gets them; an edited plan the category only).
             document = document with { DayPlan = CommsMigration.Upgrade(document.DayPlan) };
+        }
+
+        if (version >= DayPlanSchemaVersion && version < PreWorkSchemaVersion)
+        {
+            // v7: the Pre-Work category (ADR 31), no parts.
+            document = document with { DayPlan = PreWorkMigration.Upgrade(document.DayPlan) };
         }
 
         return version < ProfileDocument.CurrentSchemaVersion

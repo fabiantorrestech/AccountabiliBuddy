@@ -34,6 +34,7 @@ import java.util.UUID
 object ProfileDocumentParser {
     private const val DAY_PLAN_SCHEMA_VERSION = 5
     private const val COMMS_SCHEMA_VERSION = 6
+    private const val PRE_WORK_SCHEMA_VERSION = 7
 
     fun parse(json: String): ProfileDocument {
         val root = try {
@@ -54,7 +55,13 @@ object ProfileDocumentParser {
         val profiles = (root["profiles"] as? JsonArray).orEmpty().map { profile(it.jsonObject) }
         val read = if (version < DAY_PLAN_SCHEMA_VERSION) DayPlan.Default else root.obj("dayPlan")?.let(::dayPlan) ?: DayPlan.Default
         // v6 (comms windows): a v5 plan gains the Comms category; the PC itself upgrades an untouched starting plan.
-        val plan = if (version < COMMS_SCHEMA_VERSION && read.categories.none { it.behavior == CategoryBehavior.Comms }) read.copy(categories = read.categories + DayPlan.comms) else read
+        val withComms = if (version < COMMS_SCHEMA_VERSION && read.categories.none { it.behavior == CategoryBehavior.Comms }) read.copy(categories = read.categories + DayPlan.comms) else read
+        // v7 (ADR 31): every plan gets the Pre-Work category, with no parts.
+        val plan = if (version < PRE_WORK_SCHEMA_VERSION && withComms.categories.none { it.behavior == CategoryBehavior.PreWork }) {
+            withComms.copy(categories = withComms.categories + DayPlan.preWork)
+        } else {
+            withComms
+        }
         return ProfileDocument(ProfileDocument.CURRENT_SCHEMA_VERSION, profiles, plan)
     }
 

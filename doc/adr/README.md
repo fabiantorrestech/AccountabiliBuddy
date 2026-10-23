@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0031](0031-guard-pre-work-parts.md) | Guard Pre-Work parts | Accepted | — |
 | [0030](0030-carry-come-backs-to-the-users-devices.md) | Carry come-backs to the user's devices | Accepted | — |
 | [0029](0029-share-the-daily-goal-with-paired-devices.md) | Share the daily goal with paired devices | Accepted | — |
 | [0028](0028-close-the-work-hours-guards-free-exits.md) | Close the work-hours guard's free exits | Accepted | [27](0027-guard-work-hours-on-a-personal-pc.md) |

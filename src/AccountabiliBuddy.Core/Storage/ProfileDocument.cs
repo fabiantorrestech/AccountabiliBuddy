@@ -17,7 +17,7 @@ public sealed record ProfileDocument(
     EscalationSettings Escalation,
     BypassSettings Bypass)
 {
-    public const int CurrentSchemaVersion = 6;
+    public const int CurrentSchemaVersion = 7;
 
     public LockSettings Locks { get; init; } = LockSettings.Default;
 

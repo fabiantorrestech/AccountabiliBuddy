@@ -77,6 +77,8 @@ object Refresher {
             val running = focus?.running
             val pickups = running?.let { app.sync.unlocksSince(it.startedAt)?.size }
             ParkedNotice.check(context, running, pickups, clock)
+            val preWork = PreWorkNotice.part(focus, java.time.Instant.now())
+            PreWorkNotice.check(context, preWork, preWork?.let { app.sync.unlocksSince(it.start)?.size }, clock)
             if (running != null && pickups != null && pickups != lastPickups) {
                 lastPickups = pickups
                 app.sendSyncFilesToPc()

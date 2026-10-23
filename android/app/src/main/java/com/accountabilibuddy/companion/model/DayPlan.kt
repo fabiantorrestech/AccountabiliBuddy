@@ -11,7 +11,10 @@ import java.util.UUID
  * chat: planned work like Watch.
  */
 enum class CategoryBehavior {
-    Watch, Rest, Sleep, Comms;
+    Watch, Rest, Sleep, Comms,
+
+    /** A guarded warm-up before work (schema v7, ADR 31): not planned work; the phone shows a quiet notice in it. */
+    PreWork;
 
     /** Planned work: Watch and Comms parts. */
     val isWork: Boolean get() = this == Watch || this == Comms
@@ -141,9 +144,12 @@ data class DayPlan(
         /** Mail and chat windows (schema v6), the PC's same id. */
         val comms = DayCategory(UUID.fromString("8b1f0c52-0007-4c6e-9a51-3f2d7c000007"), "Comms", "#0EA5E9", CategoryBehavior.Comms)
 
+        /** The guarded warm-up before work (schema v7, ADR 31), the PC's same id; no parts by default. */
+        val preWork = DayCategory(UUID.fromString("8b1f0c52-0008-4c6e-9a51-3f2d7c000008"), "Pre-Work", "#D97706", CategoryBehavior.PreWork)
+
         /** The PC's starting plan (same ids, two comms windows since schema v6), used for documents from before schema v5. */
         val Default = DayPlan(
-            categories = listOf(work, extraWork, lunch, evenings, freeTime, sleep, comms),
+            categories = listOf(work, extraWork, lunch, evenings, freeTime, sleep, comms, preWork),
             workdays = setOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY),
             workday = DayTemplate(
                 listOf(

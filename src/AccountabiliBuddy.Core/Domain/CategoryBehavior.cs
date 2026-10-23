@@ -17,4 +17,10 @@ public enum CategoryBehavior
     /// mail and chat (Engine.CommsApps) are on track inside them and distracting during a session outside them.
     /// </summary>
     Comms,
+
+    /// <summary>
+    /// A guarded warm-up before work (schema v7, ADR 31): not planned work; with no session running, work tools and the
+    /// default profile's distractions are minimized once the user says today is a work day.
+    /// </summary>
+    PreWork,
 }

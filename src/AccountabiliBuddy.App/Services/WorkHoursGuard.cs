@@ -84,6 +84,15 @@ public sealed class WorkHoursGuard : IDisposable
             .Any(focus => focus.Window.End > now && focus.Window.Start < endOfDay);
     }
 
+    /// <summary>
+    /// Today is a day off on this computer (ADR 31: chosen in a Pre-Work part after its ten-minute wait): stops guarding
+    /// until tomorrow without the end-early wait, which the day off has paid.
+    /// </summary>
+    public Task TakeDayOffAsync()
+    {
+        return SaveAsync(Settings with { StoppedOn = Today() });
+    }
+
     /// <summary>How long stopping for today waits (the end-early wait).</summary>
     public TimeSpan StopWait => _configuration.Current.Bypass.WaitDuration;
 

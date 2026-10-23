@@ -67,6 +67,7 @@ object PhoneSnapshot {
                 CategoryBehavior.Watch, CategoryBehavior.Comms -> "watch"
                 CategoryBehavior.Sleep -> "sleep"
                 CategoryBehavior.Rest -> "rest"
+                CategoryBehavior.PreWork -> "prework"
             }
             FocusPart(part.name, part.category.name, part.category.color, kind,
                 part.window.start.atZone(zone).toInstant(), part.window.end.atZone(zone).toInstant())

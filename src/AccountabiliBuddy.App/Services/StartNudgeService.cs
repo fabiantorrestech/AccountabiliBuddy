@@ -35,6 +35,9 @@ public sealed class StartNudgeService
 
     public StartNudgeSettings Settings { get; private set; } = StartNudgeSettings.Default;
 
+    /// <summary>True on a day off on this computer (ADR 31); then nothing steers. Set by the app.</summary>
+    public Func<bool> IsDayOff { get; set; } = () => false;
+
     /// <summary>Time to steer: the app opens Today with the task box ready.</summary>
     public event EventHandler? Due;
 
@@ -59,7 +62,7 @@ public sealed class StartNudgeService
     /// <summary>Runs every second.</summary>
     public void CheckNow()
     {
-        bool inWork = Settings.On && !_sessions.State.IsActive && InWorkPart();
+        bool inWork = Settings.On && !_sessions.State.IsActive && !IsDayOff() && InWorkPart();
         if (!inWork)
         {
             _wasInWork = false;

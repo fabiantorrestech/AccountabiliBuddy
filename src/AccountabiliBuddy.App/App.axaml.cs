@@ -97,6 +97,8 @@ public partial class App : Application
     private CaptureService? _capture;
     private WorkGateService? _workGate;
     private WorkGateWindow? _workGateWindow;
+    private PreWorkService? _preWork;
+    private PreWorkWindow? _preWorkWindow;
     private Win32GlobalHotkey? _stepAwayHotkey;
     private InstanceSignals? _instanceSignals;
     private ActivityRecorder? _recorder;
@@ -386,6 +388,19 @@ public partial class App : Application
         // The gate: reaching for a dev tool once work starts, or after 3 idle minutes, asks what you were about to do (ADR 28).
         _workGate = new WorkGateService(_workHours, new Win32UserIdleDetector(), _comebacks, _sessions);
         _workGate.Changed += (_, _) => ShowWorkGate(monitorLocator);
+        // ADR 31: Pre-Work parts ask whether today is a work day, then hold work tools and distractions back.
+        _preWork = new PreWorkService(
+            _sessions, _configuration, documents, new DpapiDataProtector(), new Win32UserIdleDetector(), windowsEnforcer,
+            () => _activityWatcher.CaptureCurrent(),
+            () => _configuration.Current.Profiles.FirstOrDefault(profile => profile.Id == _quickSession!.CountUpProfileId)
+                ?? _configuration.Current.Profiles.FirstOrDefault(profile => profile.Name == _quickSession!.CountUpProfileName),
+            () => _workHours.Settings.Apps.ToList(),
+            presenter.ShowNotice);
+        _preWork.LoadBlocking();
+        _preWork.Changed += (_, _) => ShowPreWork(monitorLocator);
+        _preWork.DayOffTaken += (_, _) => _ = _workHours.TakeDayOffAsync();
+        _startNudge!.IsDayOff = () => _preWork.IsDayOff;
+        _activityWatcher.ActivityChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => _preWork.OnActivity(snapshot));
         // The review card after each session: what it used with no rule, as rules.
         _sessionReview = new SessionReviewService(activityLog, _configuration, documents, _sessions, () => exemptionDefaults.PreTicked)
         {
@@ -1041,6 +1056,44 @@ public partial class App : Application
 
         TrayIcon.SetIcons(this, new TrayIcons { _trayIcon });
         UpdateTray();
+    }
+
+    /// <summary>Shows or closes the Pre-Work window (ADR 31) as the service opens or closes it.</summary>
+    private void ShowPreWork(IMonitorLocator monitors)
+    {
+        PreWorkPromptViewModel? prompt = _preWork?.Prompt;
+        if (prompt is null)
+        {
+            PreWorkWindow? open = _preWorkWindow;
+            _preWorkWindow = null;
+            open?.Close();
+            return;
+        }
+
+        if (_preWorkWindow is not null)
+        {
+            return;
+        }
+
+        prompt.AddComeback = text => _comebacks!.AddAsync(text);
+        var window = new PreWorkWindow { DataContext = prompt };
+        window.Closed += (_, _) =>
+        {
+            if (_preWorkWindow == window)
+            {
+                // Closed some other way: it opens again at the next check while still unanswered.
+                _preWorkWindow = null;
+                Dispatcher.UIThread.Post(() => ShowPreWork(monitors));
+            }
+        };
+        if (monitors.Find(monitors.FindMonitorUnderCursor()) is MonitorArea area)
+        {
+            MonitorPlacement.Center(window, area);
+        }
+
+        _preWorkWindow = window;
+        window.Show();
+        window.Activate();
     }
 
     /// <summary>Shows or closes the work-hours gate (ADR 27) as the service opens or closes it.</summary>

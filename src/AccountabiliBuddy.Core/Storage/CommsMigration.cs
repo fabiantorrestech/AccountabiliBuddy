@@ -15,7 +15,9 @@ public static class CommsMigration
     /// <summary>The starting plan as v5 had it (before comms windows).</summary>
     public static DayPlan V5Default { get; } = DayPlan.Default with
     {
-        Categories = DayPlan.Default.Categories.Where(category => category.Id != DayPlan.CommsCategory.Id).ToList(),
+        Categories = DayPlan.Default.Categories
+            .Where(category => category.Id != DayPlan.CommsCategory.Id && category.Id != DayPlan.PreWorkCategory.Id)
+            .ToList(),
         Workday = new DayTemplate(
         [
             new PlanPart(Guid.Parse("5c7a2e10-0001-4b3d-8f6e-1a9c40000001"), Work, new TimeOnly(9, 0), new TimeOnly(12, 0)),

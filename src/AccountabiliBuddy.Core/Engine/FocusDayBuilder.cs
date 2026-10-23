@@ -160,6 +160,7 @@ public static class FocusDayBuilder
         {
             CategoryBehavior.Watch or CategoryBehavior.Comms => "watch",
             CategoryBehavior.Sleep => "sleep",
+            CategoryBehavior.PreWork => "prework",
             _ => "rest",
         };
     }

@@ -59,6 +59,7 @@ object DayPlanJson {
         part.label?.let { put("label", it) }
     }
 
-    /** "WATCH" → "watch", "MONDAY" → "monday", "Rest" → "rest": the PC's camelCase enum names. */
-    private fun camel(name: String): String = name.lowercase()
+    /** "MONDAY" → "monday", "Rest" → "rest", "PreWork" → "preWork": the PC's camelCase enum names. */
+    private fun camel(name: String): String =
+        if (name == name.uppercase()) name.lowercase() else name.replaceFirstChar { it.lowercase() }
 }

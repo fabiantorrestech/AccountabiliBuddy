@@ -23,12 +23,15 @@ public sealed record DayPlan(
     /// <summary>Mail and chat windows (schema v6); the same id everywhere it's created.</summary>
     public static DayCategory CommsCategory { get; } = new(Guid.Parse("8b1f0c52-0007-4c6e-9a51-3f2d7c000007"), "Comms", "#0EA5E9", CategoryBehavior.Comms);
 
+    /// <summary>The guarded warm-up before work (schema v7, ADR 31); the same id everywhere it's created. No parts by default.</summary>
+    public static DayCategory PreWorkCategory { get; } = new(Guid.Parse("8b1f0c52-0008-4c6e-9a51-3f2d7c000008"), "Pre-Work", "#D97706", CategoryBehavior.PreWork);
+
     /// <summary>
     /// The starting plan: a 9-to-5 workday with two 15-minute comms windows (11:30, 16:00), lunch, evening extra work and
     /// sleep; free other days.
     /// </summary>
     public static DayPlan Default { get; } = new(
-        new[] { WorkCategory, ExtraWorkCategory, LunchCategory, EveningsCategory, FreeTimeCategory, SleepCategory, CommsCategory },
+        new[] { WorkCategory, ExtraWorkCategory, LunchCategory, EveningsCategory, FreeTimeCategory, SleepCategory, CommsCategory, PreWorkCategory },
         new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday },
         new DayTemplate(new[]
         {

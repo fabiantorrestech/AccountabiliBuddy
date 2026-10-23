@@ -1,0 +1,58 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.PreWorkWindow"
+        x:DataType="vm:PreWorkPromptViewModel"
+        Title="Pre-work"
+        Width="580" SizeToContent="Height"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="True"
+        WindowStartupLocation="Manual">
+    <!-- ADR 31: the first activity in a Pre-Work part asks whether today is a work day. -->
+    <Border Padding="24,20" Background="#FF15191E" BorderBrush="#AAD97706" BorderThickness="2" CornerRadius="10">
+        <StackPanel Spacing="12">
+            <TextBlock Text="{Binding UntilText}" FontSize="24" FontWeight="SemiBold" />
+
+            <!-- The question. -->
+            <StackPanel Spacing="10" IsVisible="{Binding IsAsking}">
+                <TextBlock Text="Is today a work day?" FontSize="18" />
+                <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                           Text="On a work day, work tools and distractions wait until this part ends or you start a session. Everything else is free: plan, read, get ready." />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Yes, a work day" Command="{Binding WorkDayCommand}" Classes="accent" />
+                    <Button Content="No, a day off (10-minute wait)" Command="{Binding DayOffCommand}" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- The day-off wait: plan the day meanwhile. -->
+            <StackPanel Spacing="10" IsVisible="{Binding IsWaiting}">
+                <TextBlock Text="A day off: what do you want to do with it?" FontSize="18" TextWrapping="Wrap" />
+                <TextBox x:Name="PlansBox" Text="{Binding Plans}" AcceptsReturn="True" MinHeight="90" TextWrapping="Wrap"
+                         PlaceholderText="One per line, e.g. groceries, call mom, finish the book. They wait under Come back to." />
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="{Binding WaitText}" VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
+                    <Button Grid.Column="1" Content="Start my day off" Command="{Binding TakeDayOffCommand}" Classes="accent" />
+                </Grid>
+            </StackPanel>
+
+            <!-- Emergency unlock: rare and deliberately slow. -->
+            <Button Content="Emergency unlock…" Command="{Binding ToggleUnlockCommand}" Classes="link" Opacity="0.6" FontSize="11" HorizontalAlignment="Left" />
+            <StackPanel Spacing="8" IsVisible="{Binding ShowsUnlock}">
+                <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.8"
+                           Text="Only when you truly need this computer right now. It lifts Pre-Work until this part ends and is kept with its reason. Need it unguarded at set times? Schedule an off day in the Calendar tab instead." />
+                <TextBlock Text="{Binding UnlocksText}" FontSize="12" Foreground="#F4A261" />
+                <TextBox Text="{Binding Reason}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60"
+                         PlaceholderText="Why, right now? (at least 40 characters)" />
+                <TextBlock FontSize="12" Opacity="0.8">
+                    <Run Text="Type this code: " />
+                    <Run Text="{Binding UnlockCode}" FontFamily="Consolas,monospace" FontWeight="SemiBold" />
+                </TextBlock>
+                <!-- No pasting: the code is typed by hand. -->
+                <TextBox x:Name="CodeBox" Text="{Binding TypedCode}" FontFamily="Consolas,monospace" PlaceholderText="the code above" />
+                <Button Content="Unlock" Command="{Binding UnlockCommand}" HorizontalAlignment="Left" />
+                <TextBlock Text="{Binding Message}" Foreground="#F4A261" TextWrapping="Wrap"
+                           IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

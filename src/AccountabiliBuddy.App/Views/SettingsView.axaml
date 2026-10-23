@@ -353,7 +353,7 @@
                             <TextBlock TextWrapping="Wrap" Text="4. Create an OAuth client of type Desktop app." />
                             <TextBlock TextWrapping="Wrap" Text="5. Paste its client ID and secret below." />
                             <TextBlock TextWrapping="Wrap" Margin="0,4,0,0"
-                                       Text="While the project is in Testing, Google ends the sign-in after 7 days. The secret is stored encrypted on this computer." />
+                                       Text="While the project is in Testing, Google ends the sign-in after 7 days: publish it (Audience → Publish app) to stop that; the step-by-step guide shows how. The secret is stored encrypted on this computer." />
                         </StackPanel>
                         <TextBox Text="{Binding GoogleClientId}" PlaceholderText="Client ID (…apps.googleusercontent.com)" />
                         <TextBox Text="{Binding GoogleClientSecret}" PasswordChar="•" PlaceholderText="{Binding GoogleClientSecretHint}" />
