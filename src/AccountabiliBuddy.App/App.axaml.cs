@@ -77,6 +77,7 @@ public partial class App : Application
     private ColdTurkeyService? _coldTurkey;
     private AccountabiliBuddy.App.Services.Link.LinkService? _link;
     private AccountabiliBuddy.App.Services.Sync.SyncFolderService? _syncFolder;
+    private AccountabiliBuddy.App.Services.Sync.SyncDriveService? _syncDrive;
     private AccountabiliBuddy.App.Services.Sync.QrSyncService? _qrSync;
     private NamedPipeBrowserSource? _browserSource;
     private Win32GlobalHotkey? _hotkey;
@@ -462,6 +463,18 @@ public partial class App : Application
         timelineDay.UseTasks(sessionTasks);
         timelineDay.UseReceived(receivedDevices);
         _syncFolder = new AccountabiliBuddy.App.Services.Sync.SyncFolderService(syncCoordinator, syncSettings, syncIdentity, receivedDevices, _sessions);
+        // Google Drive (ADR 26): signed in with the user's own Google client, drive.file only, through CalendarNetwork.
+        GoogleEndpoints googleEndpoints = GoogleEndpointsFromEnvironment();
+        var driveAccount = new AccountabiliBuddy.App.Services.Sync.DriveAccountService(
+            new GoogleCalendarClient(_calendarNetwork, googleEndpoints, time), calendars, documents, dataProtector, time);
+        driveAccount.LoadBlocking();
+        _syncDrive = new AccountabiliBuddy.App.Services.Sync.SyncDriveService(
+            syncCoordinator, syncSettings, syncIdentity, receivedDevices, _sessions,
+            new AccountabiliBuddy.App.Services.Sync.GoogleDriveFiles(_calendarNetwork, googleEndpoints, driveAccount.GetAccessTokenAsync))
+        {
+            IsSignedIn = () => driveAccount.IsSignedIn,
+        };
+        driveAccount.Changed += (_, _) => _syncDrive.Restart();
 
         var setupViewModel = new SetupViewModel(
             startupRegistrar,
@@ -677,9 +690,12 @@ public partial class App : Application
         devices.Import = syncImport;
         devices.PairedDevices = () => _link.Devices;
         devices.UnpairDevice = _link.UnpairAsync;
+        devices.DriveAccount = driveAccount;
+        devices.OpenBrowser = OpenInBrowser;
         devices.SyncNow = async () =>
         {
             await _syncFolder!.WriteNowAsync();
+            await _syncDrive!.WriteNowAsync();
             // Seals this PC's file again for the link, which hands it to connected devices.
             syncCoordinator.NotifyHistoryChanged();
         };
@@ -768,6 +784,7 @@ public partial class App : Application
         _ = _link.StartIfEnabledAsync();
         syncCoordinator.ClashRaised += (_, request) => ShowDayPlanClash(syncCoordinator, request, presenter, time);
         _syncFolder.Start();
+        _syncDrive.Start();
         _qrSync?.Start();
         _activityWatcher.ActivityChanged += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(_sessionOverlay.OnActivityChanged);
         _dayBar.Start();
@@ -1293,6 +1310,7 @@ public partial class App : Application
         _coldTurkey?.Dispose();
         _link?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
         _syncFolder?.Dispose();
+        _syncDrive?.Dispose();
         _qrSync?.Dispose();
         _clockAnchors?.Dispose();
         _unlocks?.Dispose();

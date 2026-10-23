@@ -8,4 +8,10 @@ public sealed record GoogleEndpoints(Uri Authorize, Uri Token, Uri Revoke, Uri C
         new Uri("https://oauth2.googleapis.com/token"),
         new Uri("https://oauth2.googleapis.com/revoke"),
         new Uri("https://www.googleapis.com/calendar/v3/"));
+
+    /// <summary>Drive v3's metadata calls (ADR 26).</summary>
+    public Uri DriveApi { get; init; } = new("https://www.googleapis.com/drive/v3/");
+
+    /// <summary>Drive v3's content uploads.</summary>
+    public Uri DriveUpload { get; init; } = new("https://www.googleapis.com/upload/drive/v3/");
 }

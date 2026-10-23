@@ -19,7 +19,8 @@ public sealed record SyncSettings(
     bool QrOn = false,
     TimeOnly? ReminderAt = null,
     int SnoozeMinutes = 15,
-    bool FileShareOn = false)
+    bool FileShareOn = false,
+    bool DriveOn = false)
 {
     public static SyncSettings Default { get; } = new();
 }

@@ -47,4 +47,7 @@ public sealed record SyncDeviceCard(
 
     /// <summary>A sync file the user shares or imports by hand.</summary>
     public const string MethodFile = "file";
+
+    /// <summary>The app's own Google Drive folder (ADR 26).</summary>
+    public const string MethodDrive = "drive";
 }

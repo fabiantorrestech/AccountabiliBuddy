@@ -34,6 +34,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
 
     // True while the switches are set from the saved settings (not by the user).
     private bool _loading;
+    private DriveAccountService? _driveAccount;
 
     public DevicesViewModel(
         SyncIdentityService identity,
@@ -50,6 +51,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         _sessions = sessions;
         _time = time;
         CombinedTodayText = string.Empty;
+        DriveStatusText = string.Empty;
         JoinCode = string.Empty;
         IsLocked = sessions.IsEnforcing;
         sessions.StateChanged += (_, _) => IsLocked = sessions.IsEnforcing;
@@ -73,6 +75,25 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
 
     /// <summary>Takes in sync files and pictures of the phone's codes; set by the app.</summary>
     public SyncImportService? Import { get; set; }
+
+    /// <summary>The Drive sign-in (ADR 26); set by the app.</summary>
+    public DriveAccountService? DriveAccount
+    {
+        get => _driveAccount;
+        set
+        {
+            _driveAccount = value;
+            if (value is not null)
+            {
+                value.Changed += (_, _) => Refresh();
+            }
+
+            Refresh();
+        }
+    }
+
+    /// <summary>Opens Google's sign-in page in the browser; set by the app.</summary>
+    public Func<Uri, bool>? OpenBrowser { get; set; }
 
     /// <summary>The devices paired over the network link (a watch there merges into its phone's watch row); set by the app.</summary>
     public Func<IReadOnlyList<PairedDevice>>? PairedDevices { get; set; }
@@ -121,6 +142,17 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool FileShareOn { get; set; }
 
+    /// <summary>The Google Drive method (ADR 26).</summary>
+    [ObservableProperty]
+    public partial bool DriveOn { get; set; }
+
+    /// <summary>"Signed in to Google Drive", or what's missing before Drive can be used.</summary>
+    [ObservableProperty]
+    public partial string DriveStatusText { get; set; }
+
+    [ObservableProperty]
+    public partial bool DriveSignedIn { get; set; }
+
     /// <summary>The sync interval as the list's index: Instant, 1 min, 5 min, 15 min.</summary>
     [ObservableProperty]
     public partial int IntervalIndex { get; set; }
@@ -149,6 +181,13 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         FolderPath = settings.FolderPath;
         QrOn = settings.QrOn;
         FileShareOn = settings.FileShareOn;
+        DriveOn = settings.DriveOn;
+        DriveSignedIn = _driveAccount?.IsSignedIn == true;
+        DriveStatusText = _driveAccount is null || !_driveAccount.HasClient && !DriveSignedIn
+            ? "Set up your Google client first: Settings → Calendars → Google setup guide (turn on the Drive API there too)."
+            : DriveSignedIn
+                ? $"Signed in to Google Drive. The app sees only the files it made, in the folder \"{GoogleDriveFiles.FolderName}\"."
+                : "Not signed in to Google Drive.";
         IntervalIndex = (int)settings.Interval;
         ReminderAtWorkEnd = settings.ReminderAt is null;
         ReminderAt = settings.ReminderAt?.ToTimeSpan() ?? new TimeSpan(17, 0, 0);
@@ -356,6 +395,62 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     partial void OnQrOnChanged(bool value) => _ = ApplyAsync(settings => settings with { QrOn = value });
 
     partial void OnFileShareOnChanged(bool value) => _ = ApplyAsync(settings => settings with { FileShareOn = value });
+
+    partial void OnDriveOnChanged(bool value)
+    {
+        if (!_loading && value && _driveAccount?.IsSignedIn != true)
+        {
+            Message = "Sign in to Google Drive first.";
+            Refresh();
+            return;
+        }
+
+        _ = ApplyAsync(settings => settings with { DriveOn = value });
+    }
+
+    [RelayCommand]
+    private async Task SignInDriveAsync()
+    {
+        if (_driveAccount is null || OpenBrowser is null)
+        {
+            return;
+        }
+
+        try
+        {
+            Message = "Finish signing in in your browser…";
+            await _driveAccount.SignInAsync(OpenBrowser, CancellationToken.None);
+            await _settings.SaveAsync(_settings.Current with { DriveOn = true });
+            Message = "Signed in: this PC now syncs through Google Drive.";
+        }
+        catch (GoogleSignInException ex)
+        {
+            Message = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            Message = "Couldn't reach Google. Try again when you're online.";
+        }
+    }
+
+    [RelayCommand]
+    private async Task SignOutDriveAsync()
+    {
+        if (_driveAccount is null)
+        {
+            return;
+        }
+
+        if (IsLocked)
+        {
+            Message = LockedMessage;
+            return;
+        }
+
+        await _settings.SaveAsync(_settings.Current with { DriveOn = false });
+        await _driveAccount.SignOutAsync();
+        Message = "Signed out of Google Drive. The files already there stay until you delete them in Drive.";
+    }
 
     partial void OnIntervalIndexChanged(int value) => _ = ApplyAsync(settings => settings with { Interval = (SyncInterval)Math.Clamp(value, 0, 3) });
 

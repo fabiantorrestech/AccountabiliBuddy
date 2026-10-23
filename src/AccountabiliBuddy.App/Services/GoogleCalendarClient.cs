@@ -37,8 +37,9 @@ public sealed class GoogleCalendarClient
 
     /// <param name="openBrowser">Opens the sign-in page; returns false if it couldn't.</param>
     /// <exception cref="GoogleSignInException">Cancelled, denied, timed out, or Google returned no refresh token.</exception>
+    /// <param name="scope">The access asked for; Calendar read-only unless given (Drive sync asks for drive.file, ADR 26).</param>
     public async Task<GoogleTokens> SignInAsync(
-        string clientId, string clientSecret, Func<Uri, bool> openBrowser, CancellationToken cancellationToken)
+        string clientId, string clientSecret, Func<Uri, bool> openBrowser, CancellationToken cancellationToken, string? scope = null)
     {
         string verifier = Base64Url(RandomNumberGenerator.GetBytes(32));
         string challenge = Base64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
@@ -55,7 +56,7 @@ public sealed class GoogleCalendarClient
                 ["client_id"] = clientId,
                 ["redirect_uri"] = redirectUri,
                 ["response_type"] = "code",
-                ["scope"] = Scope,
+                ["scope"] = scope ?? Scope,
                 ["code_challenge"] = challenge,
                 ["code_challenge_method"] = "S256",
                 ["state"] = state,
