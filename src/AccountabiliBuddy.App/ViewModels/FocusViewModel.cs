@@ -59,6 +59,44 @@ public sealed partial class FocusViewModel : ObservableObject
         Refresh();
     }
 
+    private PlanFirstService? _planFirst;
+
+    /// <summary>Plan first: "Planning · 4:12 left" and "I'm ready" while it lasts. Set by the app.</summary>
+    public PlanFirstService? PlanFirst
+    {
+        get => _planFirst;
+        set
+        {
+            _planFirst = value;
+            if (value is not null)
+            {
+                value.Changed += (_, _) => RefreshPlanning();
+            }
+
+            RefreshPlanning();
+        }
+    }
+
+    /// <summary>A session's planning minutes: unknown sites aren't asked about yet.</summary>
+    [ObservableProperty]
+    public partial bool IsPlanning { get; set; }
+
+    /// <summary>E.g. "Planning · 4:12 left · new sites are asked about after".</summary>
+    [ObservableProperty]
+    public partial string PlanningText { get; set; } = string.Empty;
+
+    [RelayCommand]
+    private void Ready()
+    {
+        _planFirst?.Ready();
+    }
+
+    private void RefreshPlanning()
+    {
+        IsPlanning = _planFirst is { IsPlanning: true };
+        PlanningText = IsPlanning ? $"Planning · {_planFirst!.LeftText} left · new sites are asked about after" : string.Empty;
+    }
+
     /// <summary>The running session's checklist; null when the app doesn't offer guided sessions.</summary>
     public ChecklistViewModel? Checklist { get; }
 

@@ -29,6 +29,7 @@ public sealed class SessionOverlayService : IDisposable
 
     private SessionOverlayWindow? _window;
     private StepAwayService? _stepAway;
+    private PlanFirstService? _planFirst;
     private DateTimeOffset _hiddenUntil = DateTimeOffset.MinValue;
 
     // After a session ran out, the window stays a few seconds (glowing) even if nothing else would show.
@@ -146,6 +147,13 @@ public sealed class SessionOverlayService : IDisposable
         _viewModel.RefreshTasks(_sessions.State.IsActive);
     }
 
+    /// <summary>Plan first: "Planning · 4:12 left" on the bar and "I'm ready" with Ctrl+Alt.</summary>
+    public void SetPlanFirst(PlanFirstService planFirst)
+    {
+        _planFirst = planFirst;
+        planFirst.Changed += (_, _) => Update();
+    }
+
     /// <summary>Step away: the Ctrl+Alt button and the "Away · 4:12" badge.</summary>
     public void SetStepAway(StepAwayService stepAway)
     {
@@ -253,6 +261,11 @@ public sealed class SessionOverlayService : IDisposable
         if (_stepAway is not null)
         {
             _viewModel.SetAway(state.IsAway ? _stepAway.AwayText : null, state.IsActive);
+        }
+
+        if (_planFirst is not null)
+        {
+            _viewModel.SetPlanning(_planFirst.IsPlanning ? $"Planning · {_planFirst.LeftText} left" : null, _planFirst.Ready);
         }
 
         DateTime localNow = TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime;

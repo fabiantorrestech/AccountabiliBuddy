@@ -82,6 +82,7 @@ public partial class App : Application
     private Win32GlobalHotkey? _hotkey;
     private QuickSessionService? _quickSession;
     private StepAwayService? _stepAway;
+    private PlanFirstService? _planFirst;
     private Win32GlobalHotkey? _stepAwayHotkey;
     private InstanceSignals? _instanceSignals;
     private ActivityRecorder? _recorder;
@@ -316,6 +317,10 @@ public partial class App : Application
         _sessionOverlay.SetTonightWake(tonightWake);
         _sessionOverlay.SetChecklist(new ChecklistViewModel(sessionTasks, ChecklistMode.Compact, time));
         _sessionOverlay.SetStepAway(_stepAway);
+        // Plan first: a session's first 7 minutes hold unknowns (rules still enforce).
+        _planFirst = new PlanFirstService(_sessions, sessionTasks);
+        _enforcement.PlanFirst = _planFirst;
+        _sessionOverlay.SetPlanFirst(_planFirst);
         // ADR 25: every task ticked: offer to end the session now (when it may), else just say so.
         sessionTasks.AllDoneReached += (_, _) =>
         {
@@ -467,7 +472,10 @@ public partial class App : Application
         };
         // Focus mode: the Today page while a session runs (the main window's day bar is the one it reads).
         sessionViewModel.Focus = new FocusViewModel(
-            _sessions, _configuration, _stepAway, sessionViewModel.Tasks, _dayBar, () => _endFlow.TryEndSessionAsync(VisibleMainWindow()));
+            _sessions, _configuration, _stepAway, sessionViewModel.Tasks, _dayBar, () => _endFlow.TryEndSessionAsync(VisibleMainWindow()))
+        {
+            PlanFirst = _planFirst,
+        };
         var mainViewModel = new MainWindowViewModel(
             sessionViewModel,
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, _link, exemptionDefaults),
@@ -1076,6 +1084,7 @@ public partial class App : Application
         _instanceSignals?.Dispose();
         _hotkey?.Dispose();
         _stepAway?.Dispose();
+        _planFirst?.Dispose();
         _stepAwayHotkey?.Dispose();
         _enforcement?.Dispose();
         _recorder?.Dispose();

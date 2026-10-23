@@ -43,6 +43,9 @@
                     BorderBrush="{Binding OutlineBrush}" BorderThickness="1.5" Opacity="{Binding PanelOpacity}">
                 <Grid RowDefinitions="Auto,Auto,Auto">
                     <StackPanel Grid.Row="1" Spacing="8" HorizontalAlignment="{Binding MainAlignment}">
+                        <!-- Plan first: the session's first minutes. -->
+                        <TextBlock Text="{Binding PlanningText}" IsVisible="{Binding ShowsPlanning}" Foreground="#E6FFFFFF" FontSize="11"
+                                   Width="{x:Static vm:SessionOverlayViewModel.BarLength}" TextTrimming="CharacterEllipsis" />
                         <!-- Stepped away: the countdown is paused until any input. -->
                         <Border IsVisible="{Binding ShowsAway}" Background="#33FFFFFF" CornerRadius="6" Padding="8,2" HorizontalAlignment="Left">
                             <TextBlock Text="{Binding AwayText}" Foreground="White" FontSize="12" FontWeight="SemiBold" />
@@ -212,6 +215,11 @@
                                            VerticalAlignment="Center" TextAlignment="Right" />
                             </Grid>
                           </Panel>
+                        </Panel>
+                        <Panel IsVisible="{Binding ShowsDetails}">
+                            <Button Content="I'm ready" Command="{Binding ReadyCommand}" IsVisible="{Binding ShowsPlanning}"
+                                    ToolTip.Tip="End the planning minutes now"
+                                    Padding="8,2" FontSize="11" Foreground="White" Background="#4D0F766E" CornerRadius="5" HorizontalAlignment="Left" />
                         </Panel>
                         <!-- Step away: pauses the countdown until any key or mouse movement. -->
                         <Panel IsVisible="{Binding ShowsDetails}">

@@ -34,6 +34,23 @@ public sealed class EnforcementCoordinator : IDisposable
 
     private readonly Dictionary<string, ActivitySnapshot> _latestByMonitor = new(StringComparer.Ordinal);
 
+    private PlanFirstService? _planFirst;
+
+    /// <summary>Plan first: its hold on unknowns, and where unknowns seen while planning are noted. Set by the app.</summary>
+    public PlanFirstService? PlanFirst
+    {
+        get => _planFirst;
+        set
+        {
+            _planFirst = value;
+            if (value is not null)
+            {
+                // Planning over: unknowns can be asked about now.
+                value.Ended += (_, _) => Reevaluate();
+            }
+        }
+    }
+
     // What was decided last; kept for the recorder while the user has stepped away (nothing is decided then).
     private IReadOnlyList<MonitorEnforcement> _lastDecisions = Array.Empty<MonitorEnforcement>();
     private readonly ScreenTextCache _screenText = new();
@@ -211,6 +228,7 @@ public sealed class EnforcementCoordinator : IDisposable
             .Select(snapshot => readScreens ? WithScreenText(snapshot) : snapshot)
             .ToList();
 
+        _engine.HoldUnknownsUntil = _planFirst?.EndsAt;
         IReadOnlyList<MonitorEnforcement> decisions = _engine.Evaluate(
             state,
             profile,
@@ -226,6 +244,13 @@ public sealed class EnforcementCoordinator : IDisposable
         _presenter.Apply(decisions, profileName, SessionStatusFormatter.Detail(state, now), otherProfiles);
         _recorder.Observe(decisions, state, now);
         _lastDecisions = decisions;
+        if (_planFirst is { IsPlanning: true } planning && state.IsEnforcing)
+        {
+            foreach (MonitorEnforcement decision in decisions.Where(decision => decision.Classification == Classification.Unknown))
+            {
+                planning.NoteUnknown(decision.Snapshot);
+            }
+        }
 
         if (readScreens)
         {

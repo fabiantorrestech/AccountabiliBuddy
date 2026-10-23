@@ -19,7 +19,10 @@ public sealed class DriftTracker
         _policy = policy;
     }
 
-    public DriftAssessment Observe(ActivitySnapshot snapshot, ClassificationResult result, TimeSpan unknownGracePeriod)
+    /// <param name="holdUnknownsUntil">Plan first: until then unknown activity isn't asked about or escalated, and its
+    /// grace period counts from then.</param>
+    public DriftAssessment Observe(
+        ActivitySnapshot snapshot, ClassificationResult result, TimeSpan unknownGracePeriod, DateTimeOffset? holdUnknownsUntil = null)
     {
         bool hasPrevious = _driftByMonitor.TryGetValue(snapshot.MonitorId, out MonitorDrift? drift);
         bool classificationChanged = !hasPrevious
@@ -34,13 +37,16 @@ public sealed class DriftTracker
 
         TimeSpan duration = snapshot.Timestamp - drift!.Since;
 
+        // Unknown time counts from the later of when it started and the end of the plan-first hold.
+        DateTimeOffset unknownSince = holdUnknownsUntil is DateTimeOffset hold && hold > drift.Since ? hold : drift.Since;
+        TimeSpan unknownFor = snapshot.Timestamp - unknownSince;
         bool needsClassification = result.Classification == Classification.Unknown
-            && duration >= unknownGracePeriod;
+            && unknownFor >= unknownGracePeriod;
 
         EscalationLevel level = result.Classification switch
         {
             Classification.Distracting => _policy.Decide(duration),
-            Classification.Unknown when needsClassification => _policy.Decide(duration - unknownGracePeriod),
+            Classification.Unknown when needsClassification => _policy.Decide(unknownFor - unknownGracePeriod),
             _ => EscalationLevel.None,
         };
 

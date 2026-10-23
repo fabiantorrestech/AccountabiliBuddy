@@ -44,6 +44,12 @@ public sealed class EnforcementEngine
     /// </summary>
     public EscalationLevel MaxLevel { get; set; } = EscalationLevel.Enforce;
 
+    /// <summary>
+    /// Plan first (a session's first minutes): until then unknown activity isn't asked about or escalated, and its grace
+    /// period starts then. Rules still enforce. Null: no hold.
+    /// </summary>
+    public DateTimeOffset? HoldUnknownsUntil { get; set; }
+
     /// <param name="profile">The session's profile, or null if it no longer exists.</param>
     /// <param name="snapshots">The latest snapshot of every connected monitor.</param>
     public IReadOnlyList<MonitorEnforcement> Evaluate(
@@ -99,7 +105,7 @@ public sealed class EnforcementEngine
             ? new ClassificationResult(Classification.OnTrack, null)
             : BrowserWithoutPrivateAccess.Apply(snapshot, UnseenBrowserWindow.Apply(snapshot, _evaluator.Evaluate(profile, snapshot)));
 
-        DriftAssessment drift = tracker.Observe(snapshot, result, profile.UnknownGracePeriod);
+        DriftAssessment drift = tracker.Observe(snapshot, result, profile.UnknownGracePeriod, HoldUnknownsUntil);
 
         if (result.Classification == Classification.Unknown && drift.Level > EscalationLevel.None)
         {

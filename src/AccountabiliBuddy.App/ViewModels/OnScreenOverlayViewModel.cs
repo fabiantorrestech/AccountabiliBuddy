@@ -270,6 +270,29 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ShowsStepAway { get; set; }
 
+    private Action? _ready;
+
+    /// <summary>"Planning · 4:12 left" during a session's planning minutes, else empty.</summary>
+    [ObservableProperty]
+    public partial string PlanningText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool ShowsPlanning { get; set; }
+
+    /// <summary>Plan first: the line on the bar and what "I'm ready" does (set by the service).</summary>
+    public void SetPlanning(string? text, Action? ready)
+    {
+        PlanningText = text ?? string.Empty;
+        ShowsPlanning = text is not null;
+        _ready = ready;
+    }
+
+    [RelayCommand]
+    private void Ready()
+    {
+        _ready?.Invoke();
+    }
+
     /// <summary>What the Step away button does (set by the service): step away, or back while away.</summary>
     public void SetStepAway(Action toggle)
     {
