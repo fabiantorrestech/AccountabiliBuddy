@@ -8,9 +8,32 @@ namespace AccountabiliBuddy.App.Views;
 
 public partial class ChecklistView : UserControl
 {
+    private ChecklistViewModel? _subscribed;
+
     public ChecklistView()
     {
         InitializeComponent();
+    }
+
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+        if (_subscribed is not null)
+        {
+            _subscribed.FocusEntryRequested -= OnFocusEntryRequested;
+        }
+
+        _subscribed = DataContext as ChecklistViewModel;
+        if (_subscribed is not null)
+        {
+            _subscribed.FocusEntryRequested += OnFocusEntryRequested;
+        }
+    }
+
+    // The start nudge: the keyboard goes to "Add a task" once the window shows.
+    private void OnFocusEntryRequested(object? sender, EventArgs e)
+    {
+        Dispatcher.UIThread.Post(() => NewTaskBox.Focus(), DispatcherPriority.Background);
     }
 
     // Rename: the box takes the keyboard as it opens, with the old name selected.

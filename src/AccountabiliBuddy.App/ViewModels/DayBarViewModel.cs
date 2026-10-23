@@ -710,7 +710,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         PlannedFocus? current = planned.FirstOrDefault(focus => focus.Window.Contains(now));
         if (current is not null)
         {
-            return $"{current.Name} until {current.Window.End:t} · no focus session running";
+            return $"{current.Name} until {current.Window.End:t} · no session yet: plan 3 tasks and start";
         }
 
         PlannedFocus? next = planned.FirstOrDefault(focus => focus.Window.Start > now && focus.Window.Start < range.End);

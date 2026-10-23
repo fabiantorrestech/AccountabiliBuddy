@@ -215,6 +215,14 @@
                 <StackPanel Spacing="16" IsVisible="{Binding Groups[1].IsSelected}"
                             search:SearchArea.Name="Your day" search:SearchArea.SettingsGroup="1">
                     <TextBlock Text="Your day" Classes="groupTitle" />
+                    <Border Classes="card" search:SearchArea.Name="Steer me to start" IsVisible="{Binding HasStartNudge}">
+                    <StackPanel Spacing="6" DataContext="{Binding StartNudge}" x:DataType="vm:StartNudgeViewModel">
+                        <TextBlock Text="Steer me to start" Classes="sectionTitle" />
+                        <CheckBox IsChecked="{Binding IsOn}" Content="During work parts with no session, open Today with the task box ready" />
+                        <TextBlock Opacity="0.75" TextWrapping="Wrap"
+                                   Text="When a work part starts, when the app starts during one, and when you come back after 10 minutes away. Once each time; never during a session." />
+                    </StackPanel>
+                    </Border>
                     <!-- ADR 27: a personal computer can hold dev tools during the plan's work parts. -->
                     <Border Classes="card" search:SearchArea.Name="Work hours on this computer" IsVisible="{Binding HasWorkHours}">
                     <StackPanel Spacing="8" DataContext="{Binding WorkHours}" x:DataType="vm:WorkHoursViewModel">
@@ -337,10 +345,18 @@
                             <TextBlock Text="Google client (for Connect Google account)" VerticalAlignment="Center" />
                             <Button Content="Set up Google step by step…" Command="{Binding OpenGoogleGuideCommand}" />
                         </StackPanel>
+                        <StackPanel Spacing="2" Opacity="0.75">
+                            <TextBlock TextWrapping="Wrap" Text="In your own Google Cloud project:" />
+                            <TextBlock TextWrapping="Wrap" Text="1. Turn on the Google Calendar API (and the Google Drive API for Drive sync)." />
+                            <TextBlock TextWrapping="Wrap" Text="2. Set up the OAuth consent screen and add yourself as a test user." />
+                            <TextBlock TextWrapping="Wrap" Text="3. Add the scopes: Calendar read-only (and drive.file for Drive sync)." />
+                            <TextBlock TextWrapping="Wrap" Text="4. Create an OAuth client of type Desktop app." />
+                            <TextBlock TextWrapping="Wrap" Text="5. Paste its client ID and secret below." />
+                            <TextBlock TextWrapping="Wrap" Margin="0,4,0,0"
+                                       Text="While the project is in Testing, Google ends the sign-in after 7 days. The secret is stored encrypted on this computer." />
+                        </StackPanel>
                         <TextBox Text="{Binding GoogleClientId}" PlaceholderText="Client ID (…apps.googleusercontent.com)" />
                         <TextBox Text="{Binding GoogleClientSecret}" PasswordChar="•" PlaceholderText="{Binding GoogleClientSecretHint}" />
-                        <TextBlock Opacity="0.75" TextWrapping="Wrap"
-                                   Text="Create these in your own Google Cloud project: enable the Google Calendar API, set up the OAuth consent screen (add yourself as a test user), then create an OAuth client of type Desktop app. While the project is in Testing, Google ends the sign-in after 7 days. The secret is stored encrypted on this computer." />
                     </StackPanel>
                     </Border>
                 </StackPanel>

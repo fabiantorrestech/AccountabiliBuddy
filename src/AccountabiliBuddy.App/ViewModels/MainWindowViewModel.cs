@@ -111,9 +111,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         if (newValue == MoreTab)
         {
-            // "More" has no page: it folds or unfolds, and the page stays where it was. It stays open while one of its
-            // pages shows (folding would hide the tab of the page showing).
-            IsMoreOpen = MainTabs.IsUnderMore((MainTab)oldValue) || !IsMoreOpen;
+            // "More" has no page: each click folds or unfolds it, and the page stays where it was (also one of its own,
+            // whose tab hides while folded).
+            IsMoreOpen = !IsMoreOpen;
             SelectedTab = oldValue == MoreTab ? (int)MainTab.Today : oldValue;
             return;
         }

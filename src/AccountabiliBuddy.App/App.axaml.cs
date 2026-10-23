@@ -87,6 +87,7 @@ public partial class App : Application
     private SessionReviewService? _sessionReview;
     private WorkHoursGuard? _workHours;
     private HyperfocusGuard? _hyperfocus;
+    private StartNudgeService? _startNudge;
     private DeepWorkService? _deepWork;
     private DeepWorkHistoryViewModel? _deepWorkHistory;
     private ShutdownService? _shutdown;
@@ -375,6 +376,9 @@ public partial class App : Application
         _hyperfocus = new HyperfocusGuard(_sessions, documents, (title, message) =>
             presenter.ShowReminder(title, message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A9D8F"))));
         _hyperfocus.LoadBlocking();
+        // Steer toward starting: Today with the task box ready when work starts, at launch, and on coming back.
+        _startNudge = new StartNudgeService(_sessions, _configuration, new Win32UserIdleDetector(), documents);
+        _startNudge.LoadBlocking();
         // ADR 28: while it guards, a day plan change that frees some of today's work waits like a looser change.
         _configuration.DayPlanHold = _workHours.DescribeCut;
         _activityWatcher.ActivityChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => _workHours.OnActivity(snapshot));
@@ -645,6 +649,7 @@ public partial class App : Application
                 StepAway = _stepAway,
                 WorkHours = new WorkHoursViewModel(_workHours!, _sessions),
                 Hyperfocus = new HyperfocusViewModel(_hyperfocus!, _configuration),
+                StartNudge = new StartNudgeViewModel(_startNudge!),
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
                 Updates = new UpdatesViewModel(_updates),
                 EnforcementLimit = enforcementLimit,
@@ -711,6 +716,13 @@ public partial class App : Application
         mainViewModel.NoisePlayer = noisePlayer;
         mainViewModel.Settings.OpenDayPlan = () => mainViewModel.SelectedTab = MainWindowViewModel.DayPlanTab;
         _mainWindow = new MainWindow { DataContext = mainViewModel };
+        // The start nudge: Today, with the keyboard in "Add a task".
+        _startNudge!.Due += (_, _) =>
+        {
+            mainViewModel.SelectedTab = (int)MainTab.Today;
+            ShowMainWindow();
+            sessionViewModel.QuickStart.Checklist?.RequestFocus();
+        };
         // Sync files and pictures of the phone's codes dropped on the window (ADR 22), when their method is on.
         _mainWindow.FilesDropped += async (_, paths) =>
             presenter.ShowNotice("Sync", await ImportDroppedAsync(syncImport, syncSettings.Current, paths));

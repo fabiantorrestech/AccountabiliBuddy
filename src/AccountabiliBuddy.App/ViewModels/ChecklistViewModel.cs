@@ -92,6 +92,14 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
         CanEndAtOnce = Mode != ChecklistMode.Draft && _tasks.CanEndAtOnce;
     }
 
+    /// <summary>Raised to put the keyboard in the "Add a task" box (the start nudge).</summary>
+    public event EventHandler? FocusEntryRequested;
+
+    public void RequestFocus()
+    {
+        FocusEntryRequested?.Invoke(this, EventArgs.Empty);
+    }
+
     public void Dispose()
     {
         _tasks.Changed -= OnChanged;

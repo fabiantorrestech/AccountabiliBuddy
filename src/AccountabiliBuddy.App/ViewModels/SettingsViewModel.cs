@@ -617,6 +617,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The hyperfocus reminder card; null hides it.</summary>
     public HyperfocusViewModel? Hyperfocus { get; init; }
 
+    public StartNudgeViewModel? StartNudge { get; init; }
+
+    public bool HasStartNudge => StartNudge is not null;
+
     public bool HasHyperfocus => Hyperfocus is not null;
 
     /// <summary>Step away's shortcut and idle switch (Focus sessions); set by the app.</summary>

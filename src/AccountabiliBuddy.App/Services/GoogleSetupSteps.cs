@@ -10,6 +10,7 @@ public static class GoogleSetupSteps
     public const string AppName = "AccountabiliBuddy";
     public const string CalendarScope = GoogleCalendarClient.Scope;
     public const string SleepScope = "https://www.googleapis.com/auth/googlehealth.sleep.readonly";
+    public const string DriveScope = AccountabiliBuddy.App.Services.Sync.DriveAccountService.Scope;
 
     public const string PasteClientId = "paste-client";
     public const string TestId = "test";
@@ -38,6 +39,17 @@ public static class GoogleSetupSteps
                 "Press Enable. If it says Manage instead, it's already on.",
             },
             "https://console.cloud.google.com/apis/library/calendar-json.googleapis.com",
+            Array.Empty<GoogleSetupCopyValue>()),
+
+        new GoogleSetupStep(
+            "drive-api",
+            "Turn on the Google Drive API (for Drive sync)",
+            new[]
+            {
+                "Open the page and press Enable. If it says Manage instead, it's already on.",
+                "Drive sync (Devices → Google Drive) keeps your devices' encrypted sync files in one folder the app makes; it can't see your other files.",
+            },
+            "https://console.cloud.google.com/apis/library/drive.googleapis.com",
             Array.Empty<GoogleSetupCopyValue>()),
 
         new GoogleSetupStep(
@@ -86,13 +98,14 @@ public static class GoogleSetupSteps
             {
                 "Open the page and press Add or remove scopes.",
                 "At the bottom, in Manually add scopes, paste the scope(s) below (one per line), press Add to table, then Update.",
-                "Press Save. These are read-only: the app can never change your calendar or health data.",
+                "Press Save. Calendar and sleep are read-only: the app can never change them. drive.file reaches only the files the app made.",
             },
             "https://console.cloud.google.com/auth/scopes",
             new[]
             {
                 new GoogleSetupCopyValue("Calendar (read-only)", CalendarScope),
                 new GoogleSetupCopyValue("Sleep (read-only)", SleepScope),
+                new GoogleSetupCopyValue("Drive sync (only the app's files)", DriveScope),
             }),
 
         new GoogleSetupStep(

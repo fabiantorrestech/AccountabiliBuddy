@@ -136,7 +136,7 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <TextBox Classes="taskEntry" Text="{Binding NewTaskTitle}" PlaceholderText="Add a task (Enter)" IsVisible="{Binding CanEdit}">
+        <TextBox x:Name="NewTaskBox" Classes="taskEntry" Text="{Binding NewTaskTitle}" PlaceholderText="Add a task (Enter)" IsVisible="{Binding CanEdit}">
             <TextBox.KeyBindings>
                 <KeyBinding Gesture="Enter" Command="{Binding AddTaskCommand}" />
             </TextBox.KeyBindings>
