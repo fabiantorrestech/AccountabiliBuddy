@@ -8,6 +8,7 @@ package com.accountabilibuddy.companion.noise
  * @property systemControls Play as media: Android's media controls drive it and it pauses for other audio. Off (the
  * default): no media session and no audio focus, so other audio such as a YouTube video plays over it.
  * @property widgetButton Play/pause on the home-screen widget (on by default).
+ * @property widgetVolume Volume down and up (10 at a time, as the PC's shortcuts) on the widget (on by default).
  */
 data class NoiseSettings(
     val folderUri: String? = null,
@@ -16,4 +17,5 @@ data class NoiseSettings(
     val lastFile: String? = null,
     val systemControls: Boolean = false,
     val widgetButton: Boolean = true,
+    val widgetVolume: Boolean = true,
 )

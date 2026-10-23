@@ -100,6 +100,17 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
         player?.setVolume(level / 100f, level / 100f)
     }
 
+    /** Volume down or up by [step] (the widget's − and +). */
+    fun nudgeVolume(step: Int) {
+        setVolume(store.settings.value.volume + step)
+        onChanged?.invoke()
+    }
+
+    fun setWidgetVolume(on: Boolean) {
+        store.save(store.settings.value.copy(widgetVolume = on))
+        onChanged?.invoke()
+    }
+
     fun setRepeat(repeat: Boolean) {
         store.save(store.settings.value.copy(repeat = repeat))
         player?.isLooping = repeat

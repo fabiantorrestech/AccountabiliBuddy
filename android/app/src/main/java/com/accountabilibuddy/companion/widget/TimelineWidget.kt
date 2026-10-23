@@ -14,7 +14,11 @@ import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.action.actionStartActivity
+import androidx.glance.appwidget.action.actionSendBroadcast
 import androidx.glance.appwidget.action.actionStartService
+import androidx.glance.layout.Alignment
+import androidx.glance.layout.Row
+import com.accountabilibuddy.companion.noise.NoiseVolumeReceiver
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -46,7 +50,8 @@ class TimelineWidget : GlanceAppWidget() {
         val upcoming = Upcoming.items(LocalDateTime.now(), state, clock)
         val noise = (context.applicationContext as CompanionApp).noise
         val noiseState = noise.state.value
-        val showsNoise = noise.settings.value.widgetButton && noiseState.hasFolder && noiseState.fileCount > 0
+        val noiseSettings = noise.settings.value
+        val showsNoise = (noiseSettings.widgetButton || noiseSettings.widgetVolume) && noiseState.hasFolder && noiseState.fileCount > 0
         val toggleNoise = android.content.Intent(context, com.accountabilibuddy.companion.noise.NoiseService::class.java)
             .setAction(com.accountabilibuddy.companion.noise.NoiseService.ACTION_TOGGLE)
 
@@ -75,12 +80,24 @@ class TimelineWidget : GlanceAppWidget() {
 
                 // The noise player's play/pause (Settings → Noise player → Play/pause on the widget).
                 if (showsNoise) {
-                    Text(
-                        text = "${if (noiseState.playing) "⏸︎" else "▶︎"}  ${noiseState.title ?: "Noise"}",
-                        maxLines = 1,
-                        style = TextStyle(color = ColorProvider(Color(0xFF5EEAD4)), fontSize = 13.sp, fontWeight = FontWeight.Medium),
-                        modifier = GlanceModifier.padding(top = 4.dp).clickable(actionStartService(toggleNoise, isForegroundService = true)),
-                    )
+                    Row(modifier = GlanceModifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        val style = TextStyle(color = ColorProvider(Color(0xFF5EEAD4)), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        if (noiseSettings.widgetButton) {
+                            Text(
+                                text = "${if (noiseState.playing) "\u23F8\uFE0E" else "\u25B6\uFE0E"}  ${noiseState.title ?: "Noise"}",
+                                maxLines = 1,
+                                style = style,
+                                modifier = GlanceModifier.defaultWeight().clickable(actionStartService(toggleNoise, isForegroundService = true)),
+                            )
+                        } else {
+                            Text(text = noiseState.title ?: "Noise", maxLines = 1, style = style, modifier = GlanceModifier.defaultWeight())
+                        }
+                        if (noiseSettings.widgetVolume) {
+                            Text("  \u2212  ", style = style, modifier = GlanceModifier.clickable(actionSendBroadcast(volume(context, NoiseVolumeReceiver.ACTION_DOWN))))
+                            Text("${noiseSettings.volume}%", style = TextStyle(color = ColorProvider(Color(0xCCFFFFFF)), fontSize = 12.sp))
+                            Text("  +  ", style = style, modifier = GlanceModifier.clickable(actionSendBroadcast(volume(context, NoiseVolumeReceiver.ACTION_UP))))
+                        }
+                    }
                 }
 
                 // Whatever height is left: what's coming up.
@@ -97,4 +114,7 @@ class TimelineWidget : GlanceAppWidget() {
         }
 
     }
+
+    private fun volume(context: Context, action: String): android.content.Intent =
+        android.content.Intent(context, NoiseVolumeReceiver::class.java).setAction(action)
 }

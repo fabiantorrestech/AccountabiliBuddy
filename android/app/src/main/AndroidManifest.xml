@@ -141,6 +141,11 @@
                 android:value="Keeps the user's day-at-a-glance timeline notification pinned above other notifications" />
         </service>
 
+        <!-- The widget's noise volume − and +. -->
+        <receiver
+            android:name=".noise.NoiseVolumeReceiver"
+            android:exported="false" />
+
         <!-- The noise player while it plays (its notification has previous, play/pause, next). -->
         <service
             android:name=".noise.NoiseService"

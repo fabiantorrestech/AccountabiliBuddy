@@ -153,6 +153,7 @@ private fun NoiseSection(player: com.accountabilibuddy.companion.noise.NoisePlay
             settings.systemControls, onChange = player::setSystemControls,
         )
         ToggleRow("Play/pause on the widget", "A button on the home-screen widget", settings.widgetButton, onChange = player::setWidgetButton)
+        ToggleRow("Volume buttons on the widget", "− and + on the home-screen widget", settings.widgetVolume, onChange = player::setWidgetVolume)
     }
 }
 

@@ -1,4 +1,4 @@
-# Redesign phase 3: Drive-only sync (DRAFT, needs the user)
+# Redesign phase 3: Drive-only sync
 
 > **Status:** approved by the user 2026-10-23 (option 1: full plan, play-services-auth on the phone). ADR 26 Accepted. Deleting the Wi-Fi link (Task 9) still needs the user's explicit OK at the time.
 

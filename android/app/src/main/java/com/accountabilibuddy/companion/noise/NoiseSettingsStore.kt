@@ -19,6 +19,7 @@ class NoiseSettingsStore(context: Context) {
             .putString(LAST, settings.lastFile)
             .putBoolean(SYSTEM, settings.systemControls)
             .putBoolean(WIDGET, settings.widgetButton)
+            .putBoolean(WIDGET_VOLUME, settings.widgetVolume)
             .apply()
         _settings.value = settings
     }
@@ -30,6 +31,7 @@ class NoiseSettingsStore(context: Context) {
         lastFile = prefs.getString(LAST, null),
         systemControls = prefs.getBoolean(SYSTEM, false),
         widgetButton = prefs.getBoolean(WIDGET, true),
+        widgetVolume = prefs.getBoolean(WIDGET_VOLUME, true),
     )
 
     private companion object {
@@ -39,5 +41,6 @@ class NoiseSettingsStore(context: Context) {
         const val LAST = "last"
         const val SYSTEM = "systemControls"
         const val WIDGET = "widgetButton"
+        const val WIDGET_VOLUME = "widgetVolume"
     }
 }
