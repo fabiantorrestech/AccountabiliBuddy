@@ -52,7 +52,8 @@
                         </Border>
                         <!-- Guided sessions: how far along and the task now on one line ("2/5 ▸ Fix tests"), its subtask
                              under it (2 lines then "…", all of it while Ctrl+Alt is held). -->
-                        <StackPanel Spacing="1" IsVisible="{Binding ShowsTasks}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
+                        <StackPanel Spacing="1" IsVisible="{Binding TaskLineShown}" Opacity="{Binding TaskLineOpacity}"
+                                    Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
                             <!-- While Ctrl+Alt is held, a box by each line ticks it right here. -->
                             <Grid ColumnDefinitions="Auto,*">
                                 <Button Classes="tick" Command="{Binding Checklist.TickCurrentTaskCommand}" IsVisible="{Binding ShowsDetails}"

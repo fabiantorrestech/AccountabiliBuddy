@@ -811,6 +811,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool TimerQuietMarks { get; set; }
 
+    /// <summary>The current task line shows only while Ctrl+Alt is held (<see cref="OverlaySettings.TaskOnlyWithCtrlAlt"/>).</summary>
+    [ObservableProperty]
+    public partial bool TaskOnlyWithCtrlAlt { get; set; }
+
+    /// <summary>Its opacity then, 20–100%.</summary>
+    [ObservableProperty]
+    public partial double TaskOpacityPercent { get; set; } = 100;
+
     /// <summary>20–100.</summary>
     [ObservableProperty]
     public partial double TimerOpacityPercent { get; set; }
@@ -1191,6 +1199,8 @@ public sealed partial class SettingsViewModel : ObservableObject
             FillUp = TimerFillUp,
             Quiet = TimerColourIndex != 1,
             QuietMarks = TimerQuietMarks,
+            TaskOnlyWithCtrlAlt = TaskOnlyWithCtrlAlt,
+            TaskOpacity = Math.Clamp(TaskOpacityPercent, 20, 100) / 100,
             DefaultTimer = new ProfileOverlay(DefaultTimerOn, DefaultTimerColor.Hex),
             ShowTimeline = ShowTimeline,
             TimelineInFocus = TimelineStaysInFocus ? TimelineInFocus.ShowBoth : TimelineInFocus.SwapForTimer,
@@ -1299,6 +1309,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         TimerFillUp = overlay.FillUp;
         TimerColourIndex = overlay.Quiet ? 0 : 1;
         TimerQuietMarks = overlay.QuietMarks;
+        TaskOnlyWithCtrlAlt = overlay.TaskOnlyWithCtrlAlt;
+        TaskOpacityPercent = Math.Round(overlay.TaskOpacity * 100);
         ProfileOverlay defaultTimer = overlay.DefaultTimer ?? ProfileOverlay.Off;
         DefaultTimerOn = defaultTimer.Enabled;
         DefaultTimerColor = TimerColorOption.Match(DefaultTimerColors, defaultTimer.Color);

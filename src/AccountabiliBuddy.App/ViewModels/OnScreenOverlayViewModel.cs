@@ -151,6 +151,7 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(ShowsTemporary));
         OnPropertyChanged(nameof(SubtaskMaxLines));
+        RefreshTaskLine();
         if (value)
         {
             // "Tonight" moves on at each wake time; read it again when the details open.
@@ -349,6 +350,7 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     {
         bool loud = (_showsTimer && Timer.IsLoud) || GlowOpacity > 0 || ShowsDone;
         IsQuiet = _settings.Quiet && !ShowsDetails && !_settleTimer.IsEnabled && !loud;
+        RefreshTaskLine();
         QuietMarks = _settings.QuietMarks;
         PanelOpacity = IsQuiet ? Math.Min(_settings.Opacity, QuietOpacity) : _settings.Opacity;
     }
@@ -396,6 +398,21 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     /// <summary>Up to 2 lines, then "…"; the whole name while Ctrl+Alt is held (0 = no limit).</summary>
     public int SubtaskMaxLines => ShowsDetails ? 0 : 2;
 
+    /// <summary>The task line shows: tasks exist, and Ctrl+Alt is held when it's set to show only then.</summary>
+    [ObservableProperty]
+    public partial bool TaskLineShown { get; set; }
+
+    /// <summary>How opaque the task line is (the setting's value when it shows only with Ctrl+Alt, else full).</summary>
+    [ObservableProperty]
+    public partial double TaskLineOpacity { get; set; } = 1;
+
+    private void RefreshTaskLine()
+    {
+        bool onlyWithCtrlAlt = _settings.TaskOnlyWithCtrlAlt;
+        TaskLineShown = ShowsTasks && (!onlyWithCtrlAlt || ShowsDetails);
+        TaskLineOpacity = onlyWithCtrlAlt ? Math.Clamp(_settings.TaskOpacity, 0.2, 1) : 1;
+    }
+
     /// <summary>The checklist and whether a session runs: the task line and the details follow.</summary>
     public void RefreshTasks(bool sessionActive)
     {
@@ -404,6 +421,7 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
         TaskLine = checklist is null ? string.Empty : $"{checklist.ProgressText} ▸ {checklist.CurrentTaskText}";
         SubtaskLine = checklist is { CurrentSubtaskText.Length: > 0 } ? $"↳ {checklist.CurrentSubtaskText}" : string.Empty;
         ShowsSubtaskLine = ShowsTasks && SubtaskLine.Length > 0;
+        RefreshTaskLine();
         checklist?.RefreshEndAtOnce();
     }
 

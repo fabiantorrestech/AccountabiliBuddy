@@ -413,6 +413,12 @@
                         <CheckBox IsChecked="{Binding TimerFillUp}" Content="Fill up as time passes (instead of counting down from a full bar)" />
                         <CheckBox IsChecked="{Binding TimerQuietMarks}"
                                   Content="Quiet at rest dulls the timeline's red too (drift marks, now line), 3 seconds after Ctrl+Alt is let go" />
+                        <CheckBox IsChecked="{Binding TaskOnlyWithCtrlAlt}" Content="Hide the current task unless Ctrl+Alt is held" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,0,0,0" IsVisible="{Binding TaskOnlyWithCtrlAlt}">
+                            <TextBlock Text="Opacity while held" VerticalAlignment="Center" />
+                            <Slider Minimum="20" Maximum="100" Value="{Binding TaskOpacityPercent}" Width="200" />
+                            <TextBlock Text="{Binding TaskOpacityPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" />
+                        </StackPanel>
                         <Grid ColumnDefinitions="240,Auto" ColumnSpacing="8">
                             <CheckBox IsChecked="{Binding MoveForMaximizedApps}" VerticalAlignment="Center">
                                 <TextBlock Text="Move in from the corner while a maximized app is in front (keeps its buttons and bars clickable)" TextWrapping="Wrap" />
