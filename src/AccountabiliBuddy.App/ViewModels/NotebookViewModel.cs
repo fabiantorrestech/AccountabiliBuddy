@@ -65,8 +65,8 @@ public sealed partial class NotebookViewModel : ObservableObject
             {
                 "Come-backs" => item.Kind == ComebackKind,
                 "Notes" => item.Kind == NoteKind,
-                "Unfinished tasks" => item.Kind == UnfinishedKind,
-                "Done tasks" => item.Kind == DoneKind,
+                "Unfinished tasks" => item.Kind is UnfinishedKind or UnfinishedSubtaskKind,
+                "Done tasks" => item.Kind is DoneKind or DoneSubtaskKind,
                 _ => true,
             })
             .Where(item => search.Length == 0 || item.Text.Contains(search, StringComparison.OrdinalIgnoreCase))
@@ -84,6 +84,8 @@ public sealed partial class NotebookViewModel : ObservableObject
     private const string NoteKind = "Note";
     private const string UnfinishedKind = "Unfinished task";
     private const string DoneKind = "Done task";
+    private const string UnfinishedSubtaskKind = "Unfinished subtask";
+    private const string DoneSubtaskKind = "Done subtask";
 
     private IEnumerable<NotebookItemViewModel> Comebacks()
     {
@@ -100,7 +102,8 @@ public sealed partial class NotebookViewModel : ObservableObject
         return _notes.All.Select(note => new NotebookItemViewModel(NoteKind, note.Text, $"Noted {When(note.At)}", note.At));
     }
 
-    // Ended sessions' checklists: what was done, and what was left open when the session ended.
+    // Ended sessions' checklists: what was done, and what was left open when the session ended. Each task is followed by
+    // its subtasks (set in, just after it), and both can be renamed or deleted.
     private IEnumerable<NotebookItemViewModel> Tasks()
     {
         foreach (SessionChecklist checklist in _tasks.History.Where(checklist => checklist.SessionStart is not null))
@@ -108,11 +111,28 @@ public sealed partial class NotebookViewModel : ObservableObject
             DateTimeOffset start = checklist.SessionStart!.Value;
             foreach (SessionTask task in checklist.Tasks)
             {
-                string subtasks = task.Subtasks.Count == 0 ? string.Empty
-                    : $" ({task.Subtasks.Count(subtask => subtask.DoneAt is not null)}/{task.Subtasks.Count} subtasks)";
-                yield return task.DoneAt is DateTimeOffset done
-                    ? new NotebookItemViewModel(DoneKind, task.Title + subtasks, $"Session of {When(start)} · done {When(done)}", done)
-                    : new NotebookItemViewModel(UnfinishedKind, task.Title + subtasks, $"Session of {When(start)} · left open", start);
+                DateTimeOffset sort = task.DoneAt ?? start;
+                yield return new NotebookItemViewModel(
+                    task.DoneAt is null ? UnfinishedKind : DoneKind,
+                    task.Title,
+                    task.DoneAt is DateTimeOffset done ? $"Session of {When(start)} · done {When(done)}" : $"Session of {When(start)} · left open",
+                    sort,
+                    rename: title => _tasks.EditHistoryAsync(task.Id, title),
+                    delete: () => _tasks.EditHistoryAsync(task.Id, null));
+                int order = 0;
+                foreach (SessionSubtask subtask in task.Subtasks)
+                {
+                    // Just after its task in the newest-first list.
+                    order++;
+                    yield return new NotebookItemViewModel(
+                        subtask.DoneAt is null ? UnfinishedSubtaskKind : DoneSubtaskKind,
+                        subtask.Title,
+                        subtask.DoneAt is DateTimeOffset subDone ? $"Done {When(subDone)}" : "Left open",
+                        sort - TimeSpan.FromTicks(order),
+                        rename: title => _tasks.EditHistoryAsync(subtask.Id, title),
+                        delete: () => _tasks.EditHistoryAsync(subtask.Id, null),
+                        isSubtask: true);
+                }
             }
         }
     }

@@ -169,6 +169,31 @@ public sealed class SessionTasksService : IDisposable
         _ = active ? SetAsync(Current.Started(state.PhaseStartedAt ?? _time.GetUtcNow())) : ArchiveAsync();
     }
 
+    /// <summary>
+    /// Renames a task or subtask of an ended session's checklist (the Notebook), or deletes it when
+    /// <paramref name="title"/> is null (a task goes with its subtasks).
+    /// </summary>
+    public async Task EditHistoryAsync(Guid id, string? title)
+    {
+        static SessionTask Apply(SessionTask task, Guid id, string? title) => task with
+        {
+            Subtasks = task.Subtasks
+                .Where(subtask => subtask.Id != id || title is not null)
+                .Select(subtask => subtask.Id == id ? subtask with { Title = title! } : subtask)
+                .ToList(),
+        };
+
+        _history = _history.Select(checklist => checklist with
+        {
+            Tasks = checklist.Tasks
+                .Where(task => task.Id != id || title is not null)
+                .Select(task => task.Id == id ? task with { Title = title! } : Apply(task, id, title))
+                .ToList(),
+        }).ToList();
+        await _store.SaveAsync(HistoryKey, _history.Select(item => new StoredHistory(Seal(item))).ToList());
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     private async Task ArchiveAsync()
     {
         if (Current.HasTasks)

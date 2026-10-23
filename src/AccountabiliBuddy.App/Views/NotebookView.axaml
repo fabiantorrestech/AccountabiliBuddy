@@ -19,14 +19,34 @@
             <ItemsControl ItemsSource="{Binding Items}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:NotebookItemViewModel">
-                        <Border Padding="12,8" Margin="0,0,0,6" CornerRadius="8" Background="#12808080" BorderBrush="#26808080" BorderThickness="1">
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                        <Border Padding="12,8" Margin="0,0,0,6" CornerRadius="8" Background="#12808080" BorderBrush="#26808080" BorderThickness="1"
+                                Classes.sub="{Binding IsSubtask}">
+                            <Border.Styles>
+                                <Style Selector="Border.sub">
+                                    <Setter Property="Margin" Value="28,-2,0,6" />
+                                </Style>
+                            </Border.Styles>
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
                                 <CheckBox Command="{Binding Tick}" IsVisible="{Binding CanTick}" ToolTip.Tip="Done: tick it off" VerticalAlignment="Top" />
                                 <StackPanel Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding IsNotEditing}" />
+                                    <TextBox Text="{Binding EditText}" IsVisible="{Binding IsEditing}">
+                                        <TextBox.KeyBindings>
+                                            <KeyBinding Gesture="Enter" Command="{Binding SaveCommand}" />
+                                            <KeyBinding Gesture="Escape" Command="{Binding CancelCommand}" />
+                                        </TextBox.KeyBindings>
+                                    </TextBox>
                                     <TextBlock Text="{Binding WhenText}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
                                 </StackPanel>
                                 <TextBlock Grid.Column="2" Text="{Binding Kind}" FontSize="11" Opacity="0.55" VerticalAlignment="Top" />
+                                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2" IsVisible="{Binding CanEdit}" VerticalAlignment="Top">
+                                    <Button Content="✎" Command="{Binding EditCommand}" IsVisible="{Binding IsNotEditing}" ToolTip.Tip="Rename"
+                                            Background="Transparent" Padding="6,0" />
+                                    <Button Content="✓" Command="{Binding SaveCommand}" IsVisible="{Binding IsEditing}" ToolTip.Tip="Keep the new name"
+                                            Background="Transparent" Padding="6,0" />
+                                    <Button Content="✕" Command="{Binding DeleteCommand}" ToolTip.Tip="Delete (a task goes with its subtasks)"
+                                            Background="Transparent" Padding="6,0" />
+                                </StackPanel>
                             </Grid>
                         </Border>
                     </DataTemplate>
