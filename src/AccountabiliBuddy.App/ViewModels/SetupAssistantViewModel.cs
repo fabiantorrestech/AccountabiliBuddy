@@ -13,7 +13,8 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// The setup assistant: welcome → link to your other devices → what kind of computer → bring your blocks (other blockers found on this PC, a LeechBlock file, or a pasted
+/// The setup assistant. The first run asks three questions (<see cref="BeginQuick"/>: what kind of computer → link to your
+/// other devices → a daily goal → done); the full setup (More → Setup) is: welcome → link to your other devices → what kind of computer → bring your blocks (other blockers found on this PC, a LeechBlock file, or a pasted
 /// list) → your usage (suggestions from Cold Turkey's statistics, optional copy into History) → review (profiles and
 /// their rules) → browsers → basics → done. The import is saved when leaving the review page, in one
 /// change through <see cref="ConfigurationService"/>; it only adds profiles. Importing is locked during a
@@ -82,6 +83,73 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     /// <summary>This PC's place in a device group (ADR 22); null skips the link step.</summary>
     public SyncIdentityService? Identity { get; init; }
+
+    /// <summary>The daily focus goal the first run asks for; null skips saving it.</summary>
+    public GoalService? Goal { get; init; }
+
+    /// <summary>Work hours on this computer (ADR 28), offered with the Personal type; null hides the offer.</summary>
+    public WorkHoursGuard? WorkHours { get; init; }
+
+    public bool HasWorkHours => WorkHours is not null;
+
+    /// <summary>The first run's three questions instead of every page.</summary>
+    [ObservableProperty]
+    public partial bool IsQuick { get; set; }
+
+    /// <summary>"Guard work hours here", offered with the Personal type.</summary>
+    [ObservableProperty]
+    public partial bool GuardWorkHours { get; set; }
+
+    /// <summary>Minutes of focus a day (the Goal page): 30, 60, 120 or 240.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsGoal30), nameof(IsGoal60), nameof(IsGoal120), nameof(IsGoal240))]
+    public partial int GoalMinutes { get; set; } = 60;
+
+    public bool IsGoal30
+    {
+        get => GoalMinutes == 30;
+        set => ChooseGoal(30, value);
+    }
+
+    public bool IsGoal60
+    {
+        get => GoalMinutes == 60;
+        set => ChooseGoal(60, value);
+    }
+
+    public bool IsGoal120
+    {
+        get => GoalMinutes == 120;
+        set => ChooseGoal(120, value);
+    }
+
+    public bool IsGoal240
+    {
+        get => GoalMinutes == 240;
+        set => ChooseGoal(240, value);
+    }
+
+    /// <summary>Opens on the first run's three questions.</summary>
+    public void BeginQuick()
+    {
+        IsQuick = true;
+        GoalMinutes = Goal?.Current.DailyMinutes ?? 60;
+        if (Types is not null)
+        {
+            SelectedType = Types.Current ?? ComputerType.Personal;
+            RefreshTypeSummary();
+        }
+
+        Step = VisibleSteps()[0];
+    }
+
+    private void ChooseGoal(int minutes, bool selected)
+    {
+        if (selected)
+        {
+            GoalMinutes = minutes;
+        }
+    }
 
     // Joined a device group in the link step: the profiles come from the other devices, so "Bring your blocks" is skipped.
     private bool _joined;
@@ -191,7 +259,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsLinkFirst), nameof(IsComputerType), nameof(IsImport), nameof(IsUsage), nameof(IsReview), nameof(IsBrowsers),
-        nameof(IsBasics), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
+        nameof(IsBasics), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(BackCommand))]
     public partial AssistantStep Step { get; set; }
 
@@ -241,6 +309,8 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     public bool IsBasics => Step == AssistantStep.Basics;
 
+    public bool IsGoal => Step == AssistantStep.Goal;
+
     public bool IsDone => Step == AssistantStep.Done;
 
     public string StepTitle => Step switch
@@ -253,6 +323,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.Review => "Review",
         AssistantStep.Browsers => "Browsers",
         AssistantStep.Basics => "Basics",
+        AssistantStep.Goal => "How much focus a day?",
         _ => "All set",
     };
 
@@ -270,6 +341,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.Welcome => "Get started",
         AssistantStep.Review => PlannedProfiles.Any(row => row.IsIncluded) ? "Import" : "Skip import",
         AssistantStep.Basics => "Finish",
+        AssistantStep.Goal => "Finish",
         AssistantStep.Done => "Close",
         _ => "Next",
     };
@@ -277,7 +349,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     private bool CanGoNext => !IsBusy && !(IsLocked && Step == AssistantStep.Review && PlannedProfiles.Any(row => row.IsIncluded));
 
     // Once the import is saved, going back to it would import it twice.
-    private bool CanGoBack => !IsBusy && Step != AssistantStep.Welcome && Step != AssistantStep.Done
+    private bool CanGoBack => !IsBusy && Step != VisibleSteps()[0] && Step != AssistantStep.Done
                               && !(_hasImported && Step == AssistantStep.Browsers);
 
     private bool CanEditSources => !IsBusy;
@@ -306,6 +378,13 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
             case AssistantStep.Welcome:
                 await GoToTypeOrImportAsync();
                 break;
+            case AssistantStep.LinkFirst when IsQuick:
+                if (await JoinIfAskedAsync())
+                {
+                    GoToNextQuickStep();
+                }
+
+                break;
             case AssistantStep.LinkFirst:
                 if (await JoinIfAskedAsync())
                 {
@@ -319,7 +398,29 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
                     await Types.ApplyAsync(SelectedType);
                 }
 
-                await GoToImportAsync();
+                if (WorkHours is not null && GuardWorkHours && SelectedType == ComputerType.Personal)
+                {
+                    await WorkHours.TurnOnAsync();
+                }
+
+                if (IsQuick)
+                {
+                    GoToNextQuickStep();
+                }
+                else
+                {
+                    await GoToImportAsync();
+                }
+
+                break;
+            case AssistantStep.Goal:
+                if (Goal is not null)
+                {
+                    await Goal.SetAsync(GoalMinutes);
+                }
+
+                Summary = $"Aiming for {GoalText(GoalMinutes)} of focus a day.";
+                Step = AssistantStep.Done;
                 break;
             case AssistantStep.Import:
                 if (HasUsage)
@@ -406,6 +507,18 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         {
             await ScanAsync();
         }
+    }
+
+    private void GoToNextQuickStep()
+    {
+        List<AssistantStep> steps = VisibleSteps();
+        int index = steps.IndexOf(Step);
+        Step = index >= 0 && index + 1 < steps.Count ? steps[index + 1] : AssistantStep.Done;
+    }
+
+    private static string GoalText(int minutes)
+    {
+        return minutes < 60 ? $"{minutes} minutes" : minutes == 60 ? "1 hour" : $"{minutes / 60} hours";
     }
 
     [RelayCommand(CanExecute = nameof(CanGoBack))]
@@ -735,12 +848,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     private List<AssistantStep> VisibleSteps()
     {
-        return Enum.GetValues<AssistantStep>()
-            .Where(step => step != AssistantStep.Usage || HasUsage)
-            .Where(step => step != AssistantStep.LinkFirst || Identity is not null)
-            .Where(step => step != AssistantStep.ComputerType || Types is not null)
-            .Where(step => !_joined || step is not (AssistantStep.Import or AssistantStep.Usage or AssistantStep.Review))
-            .ToList();
+        return AssistantFlow.Steps(IsQuick, Identity is not null, Types is not null, HasUsage, _joined).ToList();
     }
 
     private void OnSessionStateChanged(object? sender, SessionState state)

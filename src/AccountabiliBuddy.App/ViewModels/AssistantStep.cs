@@ -15,5 +15,8 @@ public enum AssistantStep
     Review,
     Browsers,
     Basics,
+
+    /// <summary>The first run's last question: how much focus a day (redesign phase 2).</summary>
+    Goal,
     Done,
 }

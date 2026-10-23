@@ -279,11 +279,16 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ShowsPlanning { get; set; }
 
+    /// <summary>"I'm ready" shows (not while a first session learns).</summary>
+    [ObservableProperty]
+    public partial bool ShowsReady { get; set; }
+
     /// <summary>Plan first: the line on the bar and what "I'm ready" does (set by the service).</summary>
     public void SetPlanning(string? text, Action? ready)
     {
         PlanningText = text ?? string.Empty;
         ShowsPlanning = text is not null;
+        ShowsReady = text is not null && ready is not null;
         _ready = ready;
     }
 

@@ -109,6 +109,12 @@
                     </RadioButton>
                     <Button Content="Choose the sync folder…" Command="{Binding ChooseSyncFolderCommand}" IsVisible="{Binding IsWorkType}"
                             ToolTip.Tip="E.g. a folder inside Google Drive for desktop" />
+                    <Panel IsVisible="{Binding HasWorkHours}">
+                        <CheckBox IsChecked="{Binding GuardWorkHours}" IsVisible="{Binding IsPersonalType}" Margin="28,0,0,0">
+                            <TextBlock TextWrapping="Wrap"
+                                       Text="Guard work hours here: Claude Code, terminals and editors wait during your day plan's work parts (for a personal computer next to a work one)." />
+                        </CheckBox>
+                    </Panel>
                     <TextBlock Text="What this computer will do" Classes="title" />
                     <ItemsControl ItemsSource="{Binding TypeSummary}">
                         <ItemsControl.ItemTemplate>
@@ -311,13 +317,26 @@
                 </StackPanel>
                 </Panel>
 
+                <!-- First run: the daily goal -->
+                <StackPanel IsVisible="{Binding IsGoal}" Spacing="12" MaxWidth="720" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" Text="Counted focus a day you'd be happy with. Start small; you can change it later." />
+                    <RadioButton GroupName="goal" IsChecked="{Binding IsGoal30}" Content="30 minutes" />
+                    <RadioButton GroupName="goal" IsChecked="{Binding IsGoal60}" Content="1 hour" />
+                    <RadioButton GroupName="goal" IsChecked="{Binding IsGoal120}" Content="2 hours" />
+                    <RadioButton GroupName="goal" IsChecked="{Binding IsGoal240}" Content="4 hours" />
+                </StackPanel>
+
                 <!-- 7. Done -->
                 <StackPanel IsVisible="{Binding IsDone}" Spacing="12" MaxWidth="720" HorizontalAlignment="Left">
                     <TextBlock Classes="body" Text="{Binding Summary}" />
                     <TextBlock Text="What's next" Classes="title" />
                     <TextBlock Classes="body" Text="• Start a session from the Today tab, or press Ctrl+Alt+F anywhere." />
-                    <TextBlock Classes="body" Text="• Your day plan is in the Day plan tab; a day planned differently is in Exceptions." />
-                    <TextBlock Classes="body" Text="• Run this assistant again any time from the Setup tab." />
+                    <TextBlock Classes="body" IsVisible="{Binding IsQuick}"
+                               Text="• Your first session learns: it asks about nothing new, and at its end you sort what you used on Today." />
+                    <TextBlock Classes="body" Text="• Your day plan is in the Day plan tab; a day planned differently is in Calendar." />
+                    <TextBlock Classes="body" IsVisible="{Binding IsQuick}"
+                               Text="• Imports from other blockers and browser extensions: More → Setup → Full setup." />
+                    <TextBlock Classes="body" IsVisible="{Binding !IsQuick}" Text="• Run this assistant again any time from More → Setup." />
                 </StackPanel>
             </Panel>
         </ScrollViewer>

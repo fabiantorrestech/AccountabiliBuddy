@@ -265,7 +265,9 @@ public sealed class SessionOverlayService : IDisposable
 
         if (_planFirst is not null)
         {
-            _viewModel.SetPlanning(_planFirst.IsPlanning ? $"Planning · {_planFirst.LeftText} left" : null, _planFirst.Ready);
+            _viewModel.SetPlanning(
+                !_planFirst.IsPlanning ? null : _planFirst.IsLearning ? "Learning · first session" : $"Planning · {_planFirst.LeftText} left",
+                _planFirst.IsLearning ? null : _planFirst.Ready);
         }
 
         DateTime localNow = TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime;

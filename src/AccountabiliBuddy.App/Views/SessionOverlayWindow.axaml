@@ -217,7 +217,7 @@
                           </Panel>
                         </Panel>
                         <Panel IsVisible="{Binding ShowsDetails}">
-                            <Button Content="I'm ready" Command="{Binding ReadyCommand}" IsVisible="{Binding ShowsPlanning}"
+                            <Button Content="I'm ready" Command="{Binding ReadyCommand}" IsVisible="{Binding ShowsReady}"
                                     ToolTip.Tip="End the planning minutes now"
                                     Padding="8,2" FontSize="11" Foreground="White" Background="#4D0F766E" CornerRadius="5" HorizontalAlignment="Left" />
                         </Panel>

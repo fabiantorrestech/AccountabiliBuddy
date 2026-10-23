@@ -28,7 +28,7 @@
                 <Border IsVisible="{Binding IsPlanning}" Background="#33FFFFFF" CornerRadius="6" Padding="10,6">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                         <TextBlock Text="{Binding PlanningText}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        <Button Grid.Column="1" Content="I'm ready" Command="{Binding ReadyCommand}" Classes="accent" />
+                        <Button Grid.Column="1" Content="I'm ready" Command="{Binding ReadyCommand}" Classes="accent" IsVisible="{Binding CanReady}" />
                     </Grid>
                 </Border>
                 <!-- Stepped away: the countdown is paused until any input. -->

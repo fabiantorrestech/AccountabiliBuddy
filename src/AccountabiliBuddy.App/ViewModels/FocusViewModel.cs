@@ -81,6 +81,10 @@ public sealed partial class FocusViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsPlanning { get; set; }
 
+    /// <summary>"I'm ready" shows: planning, not a first session's learning (which only the session's end ends).</summary>
+    [ObservableProperty]
+    public partial bool CanReady { get; set; }
+
     /// <summary>E.g. "Planning · 4:12 left · new sites are asked about after".</summary>
     [ObservableProperty]
     public partial string PlanningText { get; set; } = string.Empty;
@@ -94,7 +98,11 @@ public sealed partial class FocusViewModel : ObservableObject
     private void RefreshPlanning()
     {
         IsPlanning = _planFirst is { IsPlanning: true };
-        PlanningText = IsPlanning ? $"Planning · {_planFirst!.LeftText} left · new sites are asked about after" : string.Empty;
+        bool learning = _planFirst is { IsLearning: true };
+        CanReady = IsPlanning && !learning;
+        PlanningText = !IsPlanning ? string.Empty
+            : learning ? "First session: nothing new is asked · sort what you used on Today at the end"
+            : $"Planning · {_planFirst!.LeftText} left · new sites are asked about after";
     }
 
     /// <summary>The running session's checklist; null when the app doesn't offer guided sessions.</summary>

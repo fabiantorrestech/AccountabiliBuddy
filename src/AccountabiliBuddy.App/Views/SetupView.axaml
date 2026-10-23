@@ -35,7 +35,7 @@
                 <TextBlock Text="Everything AccountabiliBuddy is allowed to do on this computer. Revoke anything outside a focus session."
                            Classes="muted" VerticalAlignment="Center" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                    <Button Content="Run setup assistant…" Command="{Binding RunAssistantCommand}" />
+                    <Button Content="Full setup (imports, browsers)…" Command="{Binding RunAssistantCommand}" />
                     <Button Content="Refresh" Command="{Binding RefreshAllCommand}" />
                 </StackPanel>
             </Grid>

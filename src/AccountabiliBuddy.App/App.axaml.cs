@@ -147,7 +147,7 @@ public partial class App : Application
                 // First launch: offer to bring over other blockers' blocks and set up browsers.
                 if (_setupAssistant is { HasBeenShown: false } && _sessions is { State.IsActive: false })
                 {
-                    ShowSetupAssistant();
+                    ShowSetupAssistant(quick: true);
                 }
             }
 
@@ -325,7 +325,10 @@ public partial class App : Application
         _sessionOverlay.SetChecklist(new ChecklistViewModel(sessionTasks, ChecklistMode.Compact, time));
         _sessionOverlay.SetStepAway(_stepAway);
         // Plan first: a session's first 7 minutes hold unknowns (rules still enforce).
-        _planFirst = new PlanFirstService(_sessions, sessionTasks);
+        // A fresh install's first session learns instead of asking (begun below once the setup assistant's state is known).
+        var learnMode = new LearnModeService(documents);
+        learnMode.LoadBlocking();
+        _planFirst = new PlanFirstService(_sessions, sessionTasks, learnMode);
         _enforcement.PlanFirst = _planFirst;
         // The session the stacked prompt was for ended: it goes (the review card has those unknowns).
         _sessions.StateChanged += (_, state) =>
@@ -448,6 +451,9 @@ public partial class App : Application
             _privateAccess);
         _setupAssistant = new SetupAssistantService(documents, time);
         _setupAssistant.LoadBlocking();
+        _ = learnMode.BeginIfFirstRunAsync(_setupAssistant.HasBeenShown);
+        var goal = new GoalService(documents);
+        goal.LoadBlocking();
         var blockerLocator = new WindowsBlockerSourceLocator();
         ConfigurationService configuration = _configuration;
         SessionController sessions = _sessions;
@@ -461,8 +467,10 @@ public partial class App : Application
         {
             Types = computerTypes,
             Identity = syncIdentity,
+            Goal = goal,
+            WorkHours = _workHours,
         };
-        setupViewModel.OpenAssistant = ShowSetupAssistant;
+        setupViewModel.OpenAssistant = () => ShowSetupAssistant(quick: false);
 
         // Search reads the user's things when asked: History's apps and sites (last 90 days, re-read at most once a minute),
         // the calendar's events around today, profiles and the day plan.
@@ -1056,7 +1064,8 @@ public partial class App : Application
         _desktop?.Shutdown();
     }
 
-    private void ShowSetupAssistant()
+    /// <param name="quick">The first run's three questions; otherwise the full setup.</param>
+    private void ShowSetupAssistant(bool quick)
     {
         if (_assistantWindow is not null)
         {
@@ -1070,6 +1079,11 @@ public partial class App : Application
         }
 
         SetupAssistantViewModel viewModel = _createAssistant();
+        if (quick)
+        {
+            viewModel.BeginQuick();
+        }
+
         _assistantWindow = new SetupAssistantWindow { DataContext = viewModel };
         _assistantWindow.Closed += (_, _) =>
         {
