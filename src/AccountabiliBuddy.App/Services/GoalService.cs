@@ -17,6 +17,9 @@ public sealed class GoalService
 
     public GoalSettings Current { get; private set; } = GoalSettings.Default;
 
+    /// <summary>Raised after the goal changed.</summary>
+    public event EventHandler? Changed;
+
     public void LoadBlocking()
     {
         try
@@ -33,6 +36,7 @@ public sealed class GoalService
     public async Task SetAsync(int dailyMinutes)
     {
         Current = new GoalSettings(Math.Max(1, dailyMinutes));
+        Changed?.Invoke(this, EventArgs.Empty);
         await _store.SaveAsync(DocumentKey, Current);
     }
 }

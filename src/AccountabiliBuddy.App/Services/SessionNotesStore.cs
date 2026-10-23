@@ -21,12 +21,18 @@ public sealed class SessionNotesStore
     private readonly TimeProvider _time;
     private List<SessionNote> _all = [];
 
+    // Saves run one after another, so an older list never overwrites a newer one.
+    private Task _saving = Task.CompletedTask;
+
     public SessionNotesStore(SqliteJsonDocumentStore store, IDataProtector protector, TimeProvider time)
     {
         _store = store;
         _protector = protector;
         _time = time;
     }
+
+    /// <summary>Completes when every save asked for so far is written.</summary>
+    public Task WhenSaved => _saving;
 
     /// <summary>Every note kept, oldest first.</summary>
     public IReadOnlyList<SessionNote> All => _all;
@@ -72,7 +78,20 @@ public sealed class SessionNotesStore
         _all = _all.Where(note => note.At > cutoff).ToList();
         Changed?.Invoke(this, EventArgs.Empty);
         string sealedList = Convert.ToBase64String(_protector.Protect(JsonSerializer.Serialize(_all, JsonOptions)));
-        return _store.SaveAsync(DocumentKey, new Stored(sealedList));
+        _saving = _saving.ContinueWith(
+            async _ =>
+            {
+                try
+                {
+                    await _store.SaveAsync(DocumentKey, new Stored(sealedList));
+                }
+                catch (SqliteException)
+                {
+                    // Best effort: the note stays in memory until the next save.
+                }
+            },
+            TaskScheduler.Default).Unwrap();
+        return _saving;
     }
 
     private sealed record Stored(string Data);

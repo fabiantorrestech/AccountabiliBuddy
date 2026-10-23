@@ -561,13 +561,17 @@ public partial class App : Application
                 DateTimeOffset now = time.GetUtcNow();
                 return SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(now.AddDays(-2), now.AddDays(1)));
             },
-            () => receivedDevices.Devices.SelectMany(device => device.File.Sessions),
+            () => AccountabiliBuddy.App.Services.Sync.ReceivedSessions.Closed(receivedDevices.Devices),
             omittedSessions.IsOmitted);
+        // Read again once the log has the session's start or end (not on the state change, which comes first).
+        _recorder!.LogChanged += (_, _) => Dispatcher.UIThread.Post(() => _deepWork?.NotifyLogChanged());
+        receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(() => _deepWork?.NotifyLogChanged());
+        goal.Changed += (_, _) => linkHost.NotifyHistoryChanged();
         _deepWork.GoalReached += (_, progress) =>
             presenter.ShowReminder(progress.Text, "Today's deep-work goal is reached. Anything more is a bonus.",
                 new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A9D8F")));
         _deepWork.Changed += (_, _) => _sessionOverlay?.SetGoalText($"Goal · {_deepWork.Progress.Text}");
-        sessionViewModel.Goal = new GoalCardViewModel(_deepWork, goal);
+        sessionViewModel.Goal = new GoalCardViewModel(_deepWork, goal) { LowerWaits = () => _workHours?.HasWorkLeftToday == true };
         // The shutdown routine (redesign phase 5): one card on Today once the day's work is over.
         _shutdown = new ShutdownService(_sessions, _configuration, sessionTasks, _comebacks!, documents);
         _shutdown.LoadBlocking();
@@ -581,10 +585,11 @@ public partial class App : Application
         };
         _deepWorkHistory = new DeepWorkHistoryViewModel(
             async (from, to) => SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(from, to)),
-            () => receivedDevices.Devices.SelectMany(device => device.File.Sessions),
+            () => AccountabiliBuddy.App.Services.Sync.ReceivedSessions.Closed(receivedDevices.Devices),
             omittedSessions.IsOmitted,
             goal,
-            time);
+            time,
+            () => _sessions!.State.IsActive);
         _sessions.StateChanged += (_, state) =>
         {
             if (!state.IsActive)
@@ -595,7 +600,7 @@ public partial class App : Application
         receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(() => _ = _deepWorkHistory.RefreshAsync());
         _ = _deepWorkHistory.RefreshAsync();
         // Earned time (design K): today's goal met across the user's devices opens this computer's work hours.
-        _workHours!.Goal = () => _deepWork?.Progress;
+        _workHours!.Goal = () => _deepWork?.UnlockProgress;
         _ = _deepWork.ReloadAsync();
         sessionViewModel.Review = _sessionReview!.Pending;
         _sessionReview.Changed += (_, _) => sessionViewModel.Review = _sessionReview.Pending;

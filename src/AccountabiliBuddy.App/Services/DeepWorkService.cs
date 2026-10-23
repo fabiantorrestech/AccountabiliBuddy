@@ -24,6 +24,8 @@ public sealed class DeepWorkService : IDisposable
     private DateOnly? _announcedOn;
     private bool _computed;
     private bool _reloading;
+    private bool _loaded;
+    private int _loadNumber;
 
     /// <param name="loadRecords">This PC's sessions around today, newest first (<see cref="SessionHistoryBuilder.Build"/>).</param>
     /// <param name="others">The other devices' sessions (ADR 22).</param>
@@ -40,11 +42,16 @@ public sealed class DeepWorkService : IDisposable
         _loadRecords = loadRecords;
         _others = others;
         _isOmitted = isOmitted;
-        _sessions.StateChanged += OnStateChanged;
         _sessions.Ticked += OnTicked;
     }
 
     public GoalProgress Progress { get; private set; } = new(TimeSpan.Zero, GoalSettings.Default.DailyMinutes);
+
+    /// <summary>
+    /// What earns the work-hours unlock (design K): only the other devices' recorded sessions, never this PC's own
+    /// nor sessions added by hand, so the personal PC opens when the work PC reports the goal met.
+    /// </summary>
+    public GoalProgress UnlockProgress { get; private set; } = new(TimeSpan.Zero, GoalSettings.Default.DailyMinutes);
 
     /// <summary>Raised when <see cref="Progress"/> changes (at most once a minute while a session runs).</summary>
     public event EventHandler? Changed;
@@ -55,11 +62,19 @@ public sealed class DeepWorkService : IDisposable
     /// <summary>Reads this PC's sessions again, then recomputes.</summary>
     public async Task ReloadAsync()
     {
+        int number = ++_loadNumber;
         _reloading = true;
         try
         {
-            _records = await _loadRecords();
+            IReadOnlyList<SessionRecord> records = await _loadRecords();
+            if (number != _loadNumber)
+            {
+                return; // A newer load is on its way.
+            }
+
+            _records = records;
             _loadedAt = _sessions.Now;
+            _loaded = true;
         }
         finally
         {
@@ -69,14 +84,30 @@ public sealed class DeepWorkService : IDisposable
         CheckNow();
     }
 
+    /// <summary>The activity log was written (a session started or ended, or one was added): read it again.</summary>
+    public void NotifyLogChanged()
+    {
+        _ = ReloadAsync();
+    }
+
     /// <summary>Recomputes today's progress. Runs every second.</summary>
     public void CheckNow()
     {
+        if (!_loaded)
+        {
+            return; // Nothing to count yet: no "Goal met" or unlock from an empty list.
+        }
+
         DateTimeOffset now = _sessions.Now;
         TimeZoneInfo zone = _sessions.TimeProvider.LocalTimeZone;
         DateOnly today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
-        DeepWorkDay day = DeepWork.Days(_records, _others(), _isOmitted, _sessions.State.IsActive, today, today, now, zone)[0];
+        // Only the other devices' sessions near today (each device keeps up to 90 days).
+        DateTimeOffset from = now.AddDays(-2);
+        List<SyncSession> others = _others().Where(session => (session.End ?? now) > from).ToList();
+        DeepWorkDay day = DeepWork.Days(_records, others, _isOmitted, _sessions.State.IsActive, today, today, now, zone)[0];
         var progress = new GoalProgress(TimeSpan.FromMinutes(Math.Floor(day.Focused.TotalMinutes)), _goal.Current.DailyMinutes);
+        DeepWorkDay earned = DeepWork.Days([], others.Where(session => !session.Added), _isOmitted, false, today, today, now, zone)[0];
+        UnlockProgress = new GoalProgress(TimeSpan.FromMinutes(Math.Floor(earned.Focused.TotalMinutes)), _goal.Current.DailyMinutes);
 
         bool firstTime = !_computed;
         _computed = true;
@@ -98,13 +129,7 @@ public sealed class DeepWorkService : IDisposable
 
     public void Dispose()
     {
-        _sessions.StateChanged -= OnStateChanged;
         _sessions.Ticked -= OnTicked;
-    }
-
-    private void OnStateChanged(object? sender, SessionState state)
-    {
-        _ = ReloadAsync();
     }
 
     private void OnTicked(object? sender, EventArgs e)

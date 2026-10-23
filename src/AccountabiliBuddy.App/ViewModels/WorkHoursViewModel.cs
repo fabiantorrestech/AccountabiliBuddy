@@ -86,6 +86,12 @@ public sealed partial class WorkHoursViewModel : ObservableObject
     private void BeginStop()
     {
         _stopAskedAt = _sessions.Now;
+        if (_guard.IsGoalMet)
+        {
+            // Earned time: today's goal is met, so stopping for today costs nothing.
+            _ = ConfirmStopAsync();
+            return;
+        }
         IsStopping = true;
         RefreshStopWait();
     }

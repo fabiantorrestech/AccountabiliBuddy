@@ -19,6 +19,8 @@ public sealed partial class DeepWorkHistoryViewModel : ObservableObject
     private readonly Func<DateTimeOffset, bool> _isOmitted;
     private readonly GoalService _goal;
     private readonly TimeProvider _time;
+    private readonly Func<bool> _isRunning;
+    private int _refreshNumber;
 
     /// <param name="loadRecords">This PC's sessions between two times, newest first.</param>
     /// <param name="others">The other devices' sessions (ADR 22).</param>
@@ -27,8 +29,10 @@ public sealed partial class DeepWorkHistoryViewModel : ObservableObject
         Func<IEnumerable<SyncSession>> others,
         Func<DateTimeOffset, bool> isOmitted,
         GoalService goal,
-        TimeProvider time)
+        TimeProvider time,
+        Func<bool>? isRunning = null)
     {
+        _isRunning = isRunning ?? (() => false);
         _loadRecords = loadRecords;
         _others = others;
         _isOmitted = isOmitted;
@@ -59,6 +63,7 @@ public sealed partial class DeepWorkHistoryViewModel : ObservableObject
 
     public async Task RefreshAsync()
     {
+        int number = ++_refreshNumber;
         int count = ShowsMonth ? 30 : 7;
         DateTimeOffset now = _time.GetUtcNow();
         TimeZoneInfo zone = _time.LocalTimeZone;
@@ -74,8 +79,13 @@ public sealed partial class DeepWorkHistoryViewModel : ObservableObject
             return; // Keep what was shown.
         }
 
+        if (number != _refreshNumber)
+        {
+            return; // A newer refresh is on its way.
+        }
+
         // A session still running on this PC is the newest one without an end (the same rule as the day bar).
-        IReadOnlyList<DeepWorkDay> days = DeepWork.Days(records, _others(), _isOmitted, sessionRunning: true, from, today, now, zone);
+        IReadOnlyList<DeepWorkDay> days = DeepWork.Days(records, _others(), _isOmitted, _isRunning(), from, today, now, zone);
         TimeSpan goal = TimeSpan.FromMinutes(Math.Max(1, _goal.Current.DailyMinutes));
         double scale = Math.Max(goal.TotalMinutes * 1.25, days.Max(day => day.Focused.TotalMinutes));
         Bars = days.Select(day => new DeepWorkBar(

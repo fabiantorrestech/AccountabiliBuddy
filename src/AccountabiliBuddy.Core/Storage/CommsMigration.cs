@@ -4,9 +4,8 @@ using AccountabiliBuddy.Core.Engine;
 namespace AccountabiliBuddy.Core.Storage;
 
 /// <summary>
-/// Profile schema v5 to v6 (comms windows): a day plan still exactly the v5 starting plan becomes the new starting plan
-/// (with its two comms windows); an edited plan only gains the Comms category, so nothing about the user's days changes
-/// until they add comms parts themselves.
+/// Profile schema v5 to v6 (comms windows): every existing plan gains only the Comms category, so nothing about the
+/// user's days changes until they add comms parts themselves (only a fresh install's starting plan has two windows).
 /// </summary>
 public static class CommsMigration
 {
@@ -28,11 +27,6 @@ public static class CommsMigration
 
     public static DayPlan Upgrade(DayPlan plan)
     {
-        if (DayPlanVersion.Of(plan) == DayPlanVersion.Of(V5Default))
-        {
-            return DayPlan.Default;
-        }
-
         return plan.Categories.Any(category => category.Behavior == CategoryBehavior.Comms)
             ? plan
             : plan with { Categories = [.. plan.Categories, DayPlan.CommsCategory] };

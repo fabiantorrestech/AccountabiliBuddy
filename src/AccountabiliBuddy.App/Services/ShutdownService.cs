@@ -9,11 +9,15 @@ namespace AccountabiliBuddy.App.Services;
 /// <summary>
 /// The shutdown routine (redesign phase 5, design J): once the day's last work part is over and no session runs, one
 /// card on Today with the open come-backs, the tasks left open in today's sessions and a box for tomorrow's first task.
-/// It shows once a day at most (documents key "shutdown"), on days with work parts only. Use from the UI thread only.
+/// It shows once per plan date at most (documents key "shutdown": the date whose work it wraps up, so work ending after
+/// midnight still gets its card), on days with work parts only, up to 6 hours after the work ended. Use from the UI thread only.
 /// </summary>
 public sealed class ShutdownService : IDisposable
 {
     private const string DocumentKey = "shutdown";
+
+    // A day's card still comes this long after its work ended (e.g. the app was closed then); later it's skipped.
+    private static readonly TimeSpan LateLimit = TimeSpan.FromHours(6);
 
     private readonly SessionController _sessions;
     private readonly ConfigurationService _configuration;
@@ -54,26 +58,49 @@ public sealed class ShutdownService : IDisposable
     /// <summary>Opens the card once the day's work is over. Runs every second.</summary>
     public void CheckNow()
     {
+        if (Current is not null || _sessions.State.IsActive)
+        {
+            return;
+        }
+
         DateTime now = TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime;
         DateOnly today = DateOnly.FromDateTime(now);
-        if (Current is not null || _state.LastShownOn == today || _sessions.State.IsActive)
+        // Yesterday's too: a last work part that ends at or after midnight belongs to the day it started on.
+        foreach (DateOnly date in new[] { today.AddDays(-1), today })
         {
+            if ((_state.LastShownOn is DateOnly shown && shown >= date) || WorkEnd(date) is not DateTime end || now < end || now - end > LateLimit)
+            {
+                continue;
+            }
+
+            Open(date);
             return;
         }
+    }
 
-        var day = new LocalWindow(now.Date, now.Date.AddDays(1));
-        IReadOnlyList<PlannedFocus> work = DayTimeline.Planned(_configuration.Current.DayPlan, day);
-        if (work.Count == 0 || now < work.Max(part => part.Window.End))
-        {
-            return;
-        }
+    public void Dispose()
+    {
+        _sessions.Ticked -= OnTicked;
+    }
 
-        _state = new ShutdownState(today);
+    // When the last work part that starts on [date] ends; null on a day without work parts.
+    private DateTime? WorkEnd(DateOnly date)
+    {
+        DateTime start = date.ToDateTime(TimeOnly.MinValue);
+        List<PlannedFocus> work = DayTimeline.Planned(_configuration.Current.DayPlan, new LocalWindow(start, start.AddDays(2)))
+            .Where(part => DateOnly.FromDateTime(part.Window.Start) == date)
+            .ToList();
+        return work.Count == 0 ? null : work.Max(part => part.Window.End);
+    }
+
+    private void Open(DateOnly date)
+    {
+        _state = new ShutdownState(date);
         _ = SaveAsync();
         List<string> waiting = _tasks.Current.Tasks.Select(task => task.Title).ToList();
         List<ShutdownTaskRow> unfinished = _tasks.History
             .Where(checklist => checklist.SessionStart is DateTimeOffset start
-                && DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(start, _sessions.TimeProvider.LocalTimeZone).DateTime) == today)
+                && DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(start, _sessions.TimeProvider.LocalTimeZone).DateTime) == date)
             .SelectMany(checklist => checklist.Tasks.Where(task => !task.IsDone).Select(task => task.Title))
             .Distinct(StringComparer.Ordinal)
             .Where(title => !waiting.Contains(title))
@@ -82,11 +109,6 @@ public sealed class ShutdownService : IDisposable
         List<ShutdownComebackRow> comebacks = _comebacks.Open.Select(comeback => new ShutdownComebackRow(comeback.Id, comeback.Text)).ToList();
         Current = new ShutdownCardViewModel(comebacks, unfinished, ApplyAsync, CloseAsync);
         Changed?.Invoke(this, EventArgs.Empty);
-    }
-
-    public void Dispose()
-    {
-        _sessions.Ticked -= OnTicked;
     }
 
     private async Task ApplyAsync(ShutdownCardViewModel card)

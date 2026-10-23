@@ -61,13 +61,14 @@ public sealed class WorkHoursGuard : IDisposable
     /// </summary>
     public Func<GoalProgress?>? Goal { get; set; }
 
-    private bool GoalMet => Goal?.Invoke() is { Met: true };
+    /// <summary>Today's goal is met (earned time): the guard has lifted, and stopping for today costs nothing.</summary>
+    public bool IsGoalMet => Goal?.Invoke() is { Met: true };
 
     /// <summary>
     /// On, not stopped for today, and a work part still to come or under way today, whether or not a session runs or it's a
     /// break: turning it off or taking an app off the list then waits (stop for today first).
     /// </summary>
-    public bool HasWorkLeftToday => !GoalMet && WorkLeftToday();
+    public bool HasWorkLeftToday => WorkLeftToday();
 
     // On, not stopped for today, and a work part still to come or under way today (the goal aside).
     private bool WorkLeftToday()
@@ -148,7 +149,7 @@ public sealed class WorkHoursGuard : IDisposable
     public async Task<bool> StopForTodayAsync(string reason, DateTimeOffset requestedAt)
     {
         var policy = new BypassPolicy(_configuration.Current.Bypass);
-        if (policy.Check(requestedAt, _sessions.Now, reason) != BypassCheckResult.Allowed)
+        if (!IsGoalMet && policy.Check(requestedAt, _sessions.Now, reason) != BypassCheckResult.Allowed)
         {
             return false;
         }
@@ -213,7 +214,7 @@ public sealed class WorkHoursGuard : IDisposable
     /// </summary>
     public string? DescribeCut(DayPlan before, DayPlan after)
     {
-        if (!Settings.On || Settings.StoppedOn == Today() || GoalMet)
+        if (!Settings.On || Settings.StoppedOn == Today() || IsGoalMet)
         {
             return null;
         }
@@ -237,7 +238,7 @@ public sealed class WorkHoursGuard : IDisposable
     /// <summary>The end of the work part now, when guarding; null otherwise.</summary>
     private DateTime? GuardingUntil()
     {
-        if (!Settings.On || Settings.StoppedOn == Today() || GoalMet)
+        if (!Settings.On || Settings.StoppedOn == Today() || IsGoalMet)
         {
             return null;
         }

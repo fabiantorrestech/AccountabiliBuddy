@@ -456,7 +456,8 @@ public sealed class LinkServer : IAsyncDisposable
     /// <summary>A watch shows the running session only (ADR 21): it doesn't get the list of profiles to start.</summary>
     private static LinkState StateFor(Connection connection, LinkState state)
     {
-        return connection.IsWatch ? state with { Profiles = Array.Empty<LinkProfile>(), CountUpProfileId = null } : state;
+        // A watch gets neither the profile list nor come-backs (ADR 21, ADR 30).
+        return connection.IsWatch ? state with { Profiles = Array.Empty<LinkProfile>(), CountUpProfileId = null, Comebacks = null } : state;
     }
 
     private void OnSettingsChanged(object? sender, EventArgs e)

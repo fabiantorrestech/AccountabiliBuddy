@@ -23,6 +23,7 @@ public sealed class PlanFirstService : IDisposable
     private readonly HashSet<string> _heldSubjects = new(StringComparer.OrdinalIgnoreCase);
     private bool _planning;
     private bool _learning;
+    private bool _sawSession;
     private int _doneAtStart;
 
     // When planning ended in the session still running: unknowns' grace counts from then (null once the session ends).
@@ -135,8 +136,15 @@ public sealed class PlanFirstService : IDisposable
         {
             End();
             _endedAt = null;
+            if (_sawSession)
+            {
+                _ = _learn?.FinishAsync(); // Also a session resumed after a crash: learning happens once.
+            }
+
             return;
         }
+
+        _sawSession = true;
 
         if (!_planning && state.Phase == SessionPhase.Focus && state.CompletedFocusCycles == 0 && !_sessions.IsResuming
             && state.PhaseStartedAt is DateTimeOffset start && _sessions.Now - start < TimeSpan.FromSeconds(5))

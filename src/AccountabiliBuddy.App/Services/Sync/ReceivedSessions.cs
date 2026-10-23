@@ -27,6 +27,13 @@ public static class ReceivedSessions
             .ToList();
     }
 
+    /// <summary>The received devices' sessions, each one still open ending when its device's file was written.</summary>
+    public static IEnumerable<AccountabiliBuddy.Core.Sync.SyncSession> Closed(IReadOnlyList<ReceivedDevice> devices)
+    {
+        return devices.SelectMany(device => device.File.Sessions.Select(session =>
+            session.End is null ? session with { End = device.File.Device.WrittenAt } : session));
+    }
+
     /// <summary>
     /// The focus time the received sessions add inside [<paramref name="from"/>, <paramref name="to"/>) on top of
     /// <paramref name="local"/>: only what no local session (or another received one) already covers.

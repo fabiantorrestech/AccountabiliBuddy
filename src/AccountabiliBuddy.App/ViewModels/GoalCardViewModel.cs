@@ -39,6 +39,13 @@ public sealed partial class GoalCardViewModel : ObservableObject
     [ObservableProperty]
     public partial decimal? GoalMinutes { get; set; }
 
+    /// <summary>Why a change wasn't saved; null when it was.</summary>
+    [ObservableProperty]
+    public partial string? Message { get; set; }
+
+    /// <summary>True while lowering the goal has to wait (the work-hours guard has work left today: earned time).</summary>
+    public Func<bool>? LowerWaits { get; init; }
+
     [RelayCommand]
     private void Edit()
     {
@@ -49,7 +56,15 @@ public sealed partial class GoalCardViewModel : ObservableObject
     [RelayCommand]
     private async Task SaveAsync()
     {
-        await _goal.SetAsync((int)Math.Clamp(GoalMinutes ?? 60, 30, 480));
+        int minutes = (int)Math.Clamp(GoalMinutes ?? 60, 30, 480);
+        if (minutes < _goal.Current.DailyMinutes && LowerWaits?.Invoke() == true)
+        {
+            Message = "Lowering the goal waits until today's work hours are over (raising it is fine).";
+            return;
+        }
+
+        await _goal.SetAsync(minutes);
+        Message = null;
         IsEditing = false;
         _deepWork.CheckNow();
         Refresh();
@@ -58,6 +73,7 @@ public sealed partial class GoalCardViewModel : ObservableObject
     [RelayCommand]
     private void Cancel()
     {
+        Message = null;
         IsEditing = false;
     }
 

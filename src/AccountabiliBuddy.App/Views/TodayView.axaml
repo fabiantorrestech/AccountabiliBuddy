@@ -65,6 +65,8 @@
                         <Button Grid.Column="2" Content="✎" Command="{Binding EditCommand}" ToolTip.Tip="Change the daily goal" Padding="8,2" />
                     </Grid>
                     <ProgressBar Value="{Binding Percent}" Minimum="0" Maximum="100" Height="8" Foreground="#2A9D8F" />
+                    <TextBlock Text="{Binding Message}" FontSize="12" Foreground="#F4A261" TextWrapping="Wrap"
+                               IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsEditing}">
                         <TextBlock Text="Daily goal" VerticalAlignment="Center" />
                         <NumericUpDown Value="{Binding GoalMinutes}" Minimum="30" Maximum="480" Increment="15" FormatString="0" Width="120" />

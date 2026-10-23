@@ -283,11 +283,11 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ShowsReady { get; set; }
 
-    /// <summary>Plan first: the line on the bar and what "I'm ready" does (set by the service).</summary>
     /// <summary>Today's deep work against the goal, in the Ctrl+Alt details ("Goal · 40m of 1h"); empty hides it.</summary>
     [ObservableProperty]
     public partial string GoalText { get; set; } = string.Empty;
 
+    /// <summary>Plan first: the line on the bar and what "I'm ready" does (set by the service).</summary>
     public void SetPlanning(string? text, Action? ready)
     {
         PlanningText = text ?? string.Empty;
