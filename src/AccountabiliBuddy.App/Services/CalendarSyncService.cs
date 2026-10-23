@@ -115,18 +115,22 @@ public sealed class CalendarSyncService : IDisposable
             GoogleTokens tokens = await _google.SignInAsync(clientId, clientSecret, openBrowser, cancellationToken);
             IReadOnlyList<GoogleCalendarEntry> calendars = await _google.ListCalendarsAsync(tokens.AccessToken, cancellationToken);
             string account = calendars.FirstOrDefault(calendar => calendar.IsPrimary)?.Id ?? "Google account";
+            string name = $"Google · {account}";
 
-            string sourceId = "google:" + Guid.NewGuid().ToString("N");
+            // The same account again: keep the one there (its colours and choices) with the new sign-in, not a second copy.
+            CalendarSource? existing = _calendars.Sources.FirstOrDefault(candidate =>
+                candidate.Kind == CalendarSourceKind.Google && string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase));
+            string sourceId = existing?.Id ?? "google:" + Guid.NewGuid().ToString("N");
             _accessTokens[sourceId] = (tokens.AccessToken, tokens.AccessTokenExpiresAt);
             var source = new CalendarSource(
                 sourceId,
                 CalendarSourceKind.Google,
-                $"Google · {account}",
-                calendars.Select(calendar => ToCalendarInfo(sourceId, calendar)).ToList(),
+                name,
+                calendars.Select(calendar => existing?.Calendars.FirstOrDefault(known => known.Id == $"{sourceId}|{calendar.Id}") ?? ToCalendarInfo(sourceId, calendar)).ToList(),
                 Protect(tokens.RefreshToken));
             _calendars.SaveSource(source);
             await FetchAsync(source, full: true);
-            return null;
+            return existing is null ? null : $"{account} was already connected: its sign-in was renewed, no second copy added.";
         }
         catch (GoogleSignInException ex)
         {

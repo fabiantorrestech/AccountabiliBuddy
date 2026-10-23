@@ -342,7 +342,7 @@
                         <TextBlock Opacity="0.75" TextWrapping="Wrap"
                                    Text="5 minutes or more. Links are also checked when you press Refresh calendars and when the window opens. Google accounts check for changes every 30 seconds." />
                         <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
-                            <TextBlock Text="Google client (for Connect Google account)" VerticalAlignment="Center" />
+                            <TextBlock Text="Google client (for Connect a Google account)" VerticalAlignment="Center" />
                             <Button Content="Set up Google step by step…" Command="{Binding OpenGoogleGuideCommand}" />
                         </StackPanel>
                         <StackPanel Spacing="2" Opacity="0.75">

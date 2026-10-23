@@ -22,7 +22,8 @@ public static class GoogleSetupSteps
             "Create a Google Cloud project",
             new[]
             {
-                "Open the page and sign in with the Google account whose calendar (and watch) you use.",
+                "Open the page and sign in with any Google account you own: it holds the project. Use the same one on every page after this.",
+                "The account whose calendar (and watch) you link is picked later, when you sign in at the end or on the Calendar tab; it can be a different one.",
                 $"Project name: {AppName}. Leave the rest as it is and press Create.",
                 "Wait a few seconds, then make sure the new project is selected in the bar at the top of the page.",
                 "Already have a project for AccountabiliBuddy? Just select it and go on.",
@@ -85,7 +86,7 @@ public static class GoogleSetupSteps
             new[]
             {
                 "Open the page. Leave the publishing status on Testing.",
-                "Under Test users press Add users, type your Google email, Save.",
+                "Under Test users press Add users, type the email of every Google account you'll sign in with (e.g. your calendar's, if it isn't this one), Save.",
                 "While the project is in Testing, Google ends the sign-in after 7 days; the app tells you when to connect again.",
             },
             "https://console.cloud.google.com/auth/audience",
@@ -136,7 +137,7 @@ public static class GoogleSetupSteps
             "Connect and test",
             new[]
             {
-                "Press Connect Google Calendar. Your browser opens Google's sign-in.",
+                "Press Connect a Google account. Your browser opens Google's sign-in: pick the account whose calendar you want (any of the test users).",
                 "Google warns that it hasn't verified the app: that's expected for your own project. Press Continue.",
                 "Allow the read-only access. Your calendars then show in the Calendar tab.",
             },

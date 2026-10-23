@@ -188,8 +188,8 @@
                                      AutomationProperties.Name="Group name" />
                             <Button Content="Add link" Command="{Binding AddLinkCommand}" />
 
-                            <Button Content="Connect Google account…" Command="{Binding ConnectGoogleCommand}" Margin="0,6,0,0"
-                                    ToolTip.Tip="Lists all calendars of the account; changes show up within about 30 seconds. Needs your Google client ID in Settings." />
+                            <Button Content="Connect a Google account…" Command="{Binding ConnectGoogleCommand}" Margin="0,6,0,0"
+                                    ToolTip.Tip="Add one Google account at a time (press again for another). Lists all calendars of the account; changes show up within about 30 seconds. Needs your Google client ID in Settings." />
                             <TextBlock Text="{Binding CalendarMessage}" TextWrapping="Wrap" FontSize="12"
                                        IsVisible="{Binding CalendarMessage, Converter={x:Static ObjectConverters.IsNotNull}}" />
                         </StackPanel>
