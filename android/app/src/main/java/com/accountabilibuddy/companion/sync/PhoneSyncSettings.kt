@@ -30,6 +30,8 @@ data class PhoneSyncSettings(
     val alarmOn: Boolean = true,
     /** The app whose alarms are the wake-up alarm, pinned by the user; null: learned ([WakeAlarm]). */
     val alarmApp: String? = null,
+    /** Sync through the app's Google Drive folder (ADR 26); on once signed in. */
+    val driveOn: Boolean = false,
 )
 
 /** [PhoneSyncSettings] in sync-settings.json in the app's private folder. */
@@ -49,6 +51,7 @@ class PhoneSyncSettingsStore(private val file: File) {
             put("folderMinutes", settings.folderMinutes)
             put("alarmOn", settings.alarmOn)
             settings.alarmApp?.let { put("alarmApp", it) }
+            put("driveOn", settings.driveOn)
         }
         file.parentFile?.mkdirs()
         val temporary = File(file.parentFile, "${file.name}.tmp")
@@ -66,6 +69,7 @@ class PhoneSyncSettingsStore(private val file: File) {
         return PhoneSyncSettings(
             json.bool("qrOn", true), json.bool("fileOn", true), json.bool("linkOn", true), json.bool("folderOn", false),
             json.string("folderUri"), json.int("folderMinutes") ?: 15, json.bool("alarmOn", true), json.string("alarmApp"),
+            json.bool("driveOn", false),
         )
     }
 }

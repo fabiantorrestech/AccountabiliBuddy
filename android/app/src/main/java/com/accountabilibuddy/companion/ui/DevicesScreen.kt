@@ -2,6 +2,7 @@ package com.accountabilibuddy.companion.ui
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -33,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.link.LinkStatus
 import com.accountabilibuddy.companion.link.LinkedPc
 import com.accountabilibuddy.companion.sync.DriveFolderSource
+import com.accountabilibuddy.companion.sync.DriveSyncSource
 import com.accountabilibuddy.companion.sync.FolderStatus
 import com.accountabilibuddy.companion.sync.PhoneSyncSettings
 import com.accountabilibuddy.companion.sync.ReceivedDevice
@@ -58,6 +61,7 @@ import com.accountabilibuddy.shared.sync.SyncState
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+import kotlinx.coroutines.launch
 
 /** What the Devices tab shows (ADR 22): this phone, the other devices and how fresh each is, and today across them. */
 data class DevicesState(
@@ -70,6 +74,8 @@ data class DevicesState(
     val pcConnected: Boolean,
     /** The sync folder's last result (ADR 22, way B). */
     val folder: FolderStatus = FolderStatus(),
+    /** Google Drive's last result (ADR 26). */
+    val drive: FolderStatus = FolderStatus(),
     /** Apps seen setting alarms (id to name), and the one learned as the wake-up alarm. */
     val alarmApps: List<Pair<String, String>> = emptyList(),
     val learnedAlarmApp: String? = null,
@@ -86,6 +92,10 @@ data class DevicesActions(
     /** A folder chosen with Android's folder picker (a tree uri). */
     val onFolderChosen: (Uri) -> Unit = {},
     val onSyncFolderNow: () -> Unit = {},
+    /** Starts the Drive sign-in: Google's screen to show, or null when nothing needs showing. */
+    val beginDriveSignIn: suspend () -> android.app.PendingIntent? = { null },
+    val onDriveSignInResult: (android.content.Intent?) -> Unit = {},
+    val onSyncDriveNow: () -> Unit = {},
 )
 
 /**
@@ -141,6 +151,7 @@ fun DevicesScreen(
                 "QR".takeIf { devices.settings.qrOn },
                 "files".takeIf { devices.settings.fileOn },
                 "link".takeIf { devices.settings.linkOn },
+                "Drive".takeIf { devices.settings.driveOn },
                 "folder".takeIf { devices.settings.folderOn },
             )
             Section("How this phone shares", summary = if (methods.isEmpty()) "Nothing on" else methods.joinToString(" · ")) {
@@ -165,6 +176,7 @@ fun DevicesScreen(
                 OutlinedButton(onClick = { dialog = DevicesDialog.Picture }, enabled = devices.joined && devices.settings.qrOn) {
                     Text("Show as picture")
                 }
+                DriveSection(devices, actions, now)
                 FolderSection(devices, actions, now) { pickFolder.launch(null) }
                 ToggleRow(
                     "Next alarm as wake time",
@@ -235,6 +247,45 @@ private fun AlarmAppPicker(devices: DevicesState, onPick: (String?) -> Unit) {
             devices.alarmApps.filter { !it.first.contains("calendar", ignoreCase = true) }.forEach { (app, appName) ->
                 DropdownMenuItem(text = { Text(appName) }, onClick = { open = false; onPick(app) })
             }
+        }
+    }
+}
+
+/** Google Drive (ADR 26): the app's own Drive folder, the one the PCs use; off until signed in. */
+@Composable
+private fun DriveSection(devices: DevicesState, actions: DevicesActions, now: Instant) {
+    val settings = devices.settings
+    val scope = rememberCoroutineScope()
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { actions.onDriveSignInResult(it.data) }
+    val signIn: () -> Unit = {
+        scope.launch {
+            actions.beginDriveSignIn()?.let { ask.launch(IntentSenderRequest.Builder(it).build()) }
+        }
+    }
+
+    ToggleRow(
+        "Google Drive",
+        "Sync through the app's own Drive folder, the one your PCs use, at home, at work or on mobile data. Every 30 s " +
+            "while a session runs or the timeline is pinned, else 15 min. The app sees only the files it made.",
+        settings.driveOn,
+        enabled = devices.joined,
+    ) { on ->
+        if (on) signIn() else actions.onSettings(settings.copy(driveOn = false))
+    }
+    if (!settings.driveOn) {
+        return
+    }
+
+    val status = devices.drive
+    Text(
+        status.problem ?: status.lastSyncAt?.let { "Synced ${DevicesModel.ago(Duration.between(it, now))}" } ?: "Not synced yet.",
+        style = MaterialTheme.typography.bodySmall,
+        color = if (status.problem != null) Color(0xFFFCA5A5) else MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = actions.onSyncDriveNow) { Text("Sync now") }
+        if (status.problem == DriveSyncSource.SIGN_IN_AGAIN) {
+            OutlinedButton(onClick = signIn) { Text("Sign in again") }
         }
     }
 }

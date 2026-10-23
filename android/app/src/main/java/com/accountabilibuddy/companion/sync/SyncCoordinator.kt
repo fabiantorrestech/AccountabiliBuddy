@@ -177,14 +177,14 @@ class SyncCoordinator(
     fun cardOf(bytes: ByteArray): SyncDeviceCard? = identity.key.value?.let { SyncFileCodec.open(bytes, it)?.device }
 
     /**
-     * For the sync folder: this phone's own file, and what it carries that didn't come from the folder and is newer
-     * than that device's file there ([inFolder]), each under its device's folder name.
+     * For the sync folder (or Drive, [cameBy]): this phone's own file, and what it carries that didn't come that way and
+     * is newer than that device's file there ([inFolder]), each under its device's folder name.
      */
-    fun filesForFolder(inFolder: Map<UUID, Instant>): List<FolderFile> {
+    fun filesForFolder(inFolder: Map<UUID, Instant>, cameBy: String = SyncDeviceCard.METHOD_FOLDER): List<FolderFile> {
         val key = identity.key.value ?: return emptyList()
         val own = ownFile()
         val carried = store.devices.value
-            .filter { it.method != SyncDeviceCard.METHOD_FOLDER }
+            .filter { it.method != cameBy }
             .filter { device -> inFolder[device.file.device.deviceId]?.let { device.file.device.writtenAt > it } ?: true }
             .map { FolderFile(SyncFolder.fileNameFor(key.groupId, it.file.device.deviceId), it.file.device.deviceId, it.file.device.writtenAt, it.sealed) }
         return listOf(FolderFile(SyncFolder.fileNameFor(key.groupId, identity.deviceId), identity.deviceId, own.device.writtenAt, SyncFileCodec.seal(own, key))) + carried

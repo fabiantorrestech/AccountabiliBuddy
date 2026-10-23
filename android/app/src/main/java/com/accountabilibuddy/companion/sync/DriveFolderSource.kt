@@ -41,7 +41,7 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
     /** Starts or stops the 15-minute background sync to match the folder switch. */
     fun schedule() {
         val work = WorkManager.getInstance(context)
-        if (isOn()) {
+        if (backgroundOn()) {
             val request = PeriodicWorkRequestBuilder<DriveFolderWorker>(15, TimeUnit.MINUTES).build()
             work.enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
         } else {
@@ -80,6 +80,9 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
     }
 
     private fun isOn(): Boolean = sync.settings.value.let { it.folderOn && it.folderUri != null } && sync.isJoined
+
+    // The background work also runs Drive's 15-minute sync (ADR 26).
+    private fun backgroundOn(): Boolean = (isOn() || sync.settings.value.driveOn) && sync.isJoined
 
     // True when a file couldn't be read (another group's, or damaged).
     private fun read(tree: Uri, ownName: String): Boolean {

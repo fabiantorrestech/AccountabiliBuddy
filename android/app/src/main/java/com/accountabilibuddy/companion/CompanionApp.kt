@@ -66,6 +66,11 @@ class CompanionApp : Application() {
     lateinit var folderSource: DriveFolderSource
         private set
 
+    /** Google Drive (ADR 26): the app's own Drive folder, the one the PCs use. */
+    lateinit var driveSource: com.accountabilibuddy.companion.sync.DriveSyncSource
+        private set
+    val driveSignIn by lazy { com.accountabilibuddy.companion.sync.DriveSignIn(this) }
+
     /** The noise player (sounds from a folder the user picks), as on the PC. */
     lateinit var noise: com.accountabilibuddy.companion.noise.NoisePlayer
         private set
@@ -113,6 +118,9 @@ class CompanionApp : Application() {
         sync.nextAlarm = { wakeAlarm }
         watchBridge.onLinkChanged = { sendSyncFilesToPc() }
         folderSource = DriveFolderSource(this, sync)
+        driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn)
+        // Drive (ADR 26): every 30 s while a session runs or the timeline is pinned, else 15 min.
+        appScope.launch { driveSource.loop { driveBusy() } }
         noise = com.accountabilibuddy.companion.noise.NoisePlayer(this, com.accountabilibuddy.companion.noise.NoiseSettingsStore(this), appScope)
         // The widget's play/pause follows the player.
         noise.onChanged = {
@@ -125,6 +133,7 @@ class CompanionApp : Application() {
                 refreshWakeAlarm()
                 folderSource.schedule()
                 folderSource.syncNow()
+                if (it.driveOn) driveSource.syncNow() else driveSource.forget()
             }
         }
         // The header follows the PC's session and the devices' focus: redraw (at most every 2 s) when they change.
@@ -142,7 +151,21 @@ class CompanionApp : Application() {
         sendSyncFilesToPc()
         appScope.launch {
             folderSource.syncNow()
+            driveSource.syncNow()
             Refresher.refresh(this@CompanionApp)
+        }
+    }
+
+    // A session runs somewhere (the linked PC, or a device's file from the last 12 hours) or the timeline is pinned.
+    private fun driveBusy(): Boolean {
+        if (com.accountabilibuddy.companion.notify.PinnedTimelineService.isRunning || link.lastState.value?.state?.isActive == true) {
+            return true
+        }
+
+        val now = java.time.Instant.now()
+        return sync.received.value.any { device ->
+            java.time.Duration.between(device.file.device.writtenAt, now) <= java.time.Duration.ofHours(12) &&
+                device.file.sessions.any { it.end == null }
         }
     }
 

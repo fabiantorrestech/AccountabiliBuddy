@@ -49,6 +49,7 @@ fun MainScreen(
     val curbox by viewModel.curbox.collectAsStateWithLifecycle()
     val linkStatus by viewModel.linkStatus.collectAsStateWithLifecycle()
     val folderStatus by viewModel.folderStatus.collectAsStateWithLifecycle()
+    val driveStatus by viewModel.driveStatus.collectAsStateWithLifecycle()
     val runningTasks by viewModel.runningTasks.collectAsStateWithLifecycle()
     val comebacks by viewModel.comebacks.collectAsStateWithLifecycle()
     val pairedPc by viewModel.pairedPc.collectAsStateWithLifecycle()
@@ -154,6 +155,7 @@ fun MainScreen(
                         pcName = pairedPc?.pcName,
                         pcConnected = (linkStatus as? LinkStatus.Connected)?.state != null,
                         folder = folderStatus,
+                        drive = driveStatus,
                         alarmApps = viewModel.alarmApps(),
                         learnedAlarmApp = viewModel.learnedAlarmApp(),
                     ),
@@ -166,6 +168,9 @@ fun MainScreen(
                         onSettings = viewModel::saveSyncSettings,
                         onFolderChosen = viewModel::chooseSyncFolder,
                         onSyncFolderNow = viewModel::syncFolderNow,
+                        beginDriveSignIn = viewModel::beginDriveSignIn,
+                        onDriveSignInResult = viewModel::finishDriveSignIn,
+                        onSyncDriveNow = viewModel::syncDriveNow,
                     ),
                     pcStatus = linkStatus,
                     pairedPc = pairedPc,

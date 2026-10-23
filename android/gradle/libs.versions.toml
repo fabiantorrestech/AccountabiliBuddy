@@ -13,6 +13,8 @@ work = "2.12.0"
 # ADR 21 (user-approved 2026-10-21): the phone-watch link and the watch app.
 zxingCore = "3.5.3"
 playServicesWearable = "20.0.1"
+# ADR 26 (user-approved 2026-10-23): the phone's Google sign-in for Drive sync.
+playServicesAuth = "22.0.0"
 wearCompose = "1.7.1"
 wearTiles = "1.6.2"
 wearProtolayout = "1.4.2"
@@ -33,6 +35,7 @@ androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidge
 androidx-health-connect = { group = "androidx.health.connect", name = "connect-client", version.ref = "healthConnect" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }
+play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
 play-services-wearable = { group = "com.google.android.gms", name = "play-services-wearable", version.ref = "playServicesWearable" }
 wear-compose-material3 = { group = "androidx.wear.compose", name = "compose-material3", version.ref = "wearCompose" }
 wear-compose-foundation = { group = "androidx.wear.compose", name = "compose-foundation", version.ref = "wearCompose" }

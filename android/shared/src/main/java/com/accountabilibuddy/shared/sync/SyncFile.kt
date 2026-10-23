@@ -75,6 +75,9 @@ data class SyncDeviceCard(
 
         /** A sync file the user shares or imports by hand. */
         const val METHOD_FILE = "file"
+
+        /** The app's own Google Drive folder (ADR 26). */
+        const val METHOD_DRIVE = "drive"
     }
 }
 

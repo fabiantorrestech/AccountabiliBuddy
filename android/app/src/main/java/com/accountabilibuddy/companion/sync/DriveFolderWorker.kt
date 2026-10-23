@@ -5,10 +5,12 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.accountabilibuddy.companion.CompanionApp
 
-/** The sync folder's background sync, every 15 minutes while its switch is on ([DriveFolderSource.schedule]). */
+/** The background sync of the sync folder and Google Drive, every 15 minutes while either switch is on ([DriveFolderSource.schedule]). */
 class DriveFolderWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result {
-        (applicationContext as CompanionApp).folderSource.syncNow()
+        val app = applicationContext as CompanionApp
+        app.folderSource.syncNow()
+        app.driveSource.syncNow()
         return Result.success()
     }
 }

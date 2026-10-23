@@ -274,6 +274,43 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         sync.saveSettings(sync.settings.value.copy(folderOn = true, folderUri = uri.toString()))
     }
 
+    private val driveSource = (application as CompanionApp).driveSource
+    private val driveSignIn = (application as CompanionApp).driveSignIn
+
+    /** Google Drive's last result (ADR 26). */
+    val driveStatus = driveSource.status
+
+    /** Starts the Drive sign-in: null when access was granted at once (Drive is turned on), else Google's screen to show. */
+    suspend fun beginDriveSignIn(): android.app.PendingIntent? =
+        when (val step = driveSignIn.begin()) {
+            is com.accountabilibuddy.companion.sync.DriveSignInStep.Token -> {
+                turnDriveOn()
+                null
+            }
+            is com.accountabilibuddy.companion.sync.DriveSignInStep.Ask -> step.intent
+            is com.accountabilibuddy.companion.sync.DriveSignInStep.Failed -> {
+                message.value = step.message
+                null
+            }
+        }
+
+    /** Google's sign-in screen answered. */
+    fun finishDriveSignIn(data: android.content.Intent?) {
+        if (driveSignIn.tokenFrom(data) != null) turnDriveOn() else message.value = "Google Drive wasn't allowed."
+    }
+
+    private fun turnDriveOn() {
+        sync.saveSettings(sync.settings.value.copy(driveOn = true))
+        message.value = "Signed in: this phone syncs through Google Drive."
+    }
+
+    fun syncDriveNow() {
+        viewModelScope.launch {
+            driveSource.syncNow()
+            message.value = driveSource.status.value.problem ?: "Synced with Google Drive."
+        }
+    }
+
     fun syncFolderNow() {
         viewModelScope.launch {
             folderSource.syncNow()
