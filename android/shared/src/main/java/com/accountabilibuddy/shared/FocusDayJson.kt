@@ -29,6 +29,7 @@ object FocusDayJson {
             focusedMinutes = json.int("focusedMinutes") ?: 0,
             plannedMinutes = json.int("plannedMinutes") ?: 0,
             week = json.objects("week").mapNotNull(::readTotal),
+            goalMinutes = json.int("goalMinutes")?.takeIf { it > 0 },
         )
     }
 
@@ -40,6 +41,7 @@ object FocusDayJson {
         put("focusedMinutes", day.focusedMinutes)
         put("plannedMinutes", day.plannedMinutes)
         put("week", buildJsonArray { day.week.forEach { add(writeTotal(it)) } })
+        day.goalMinutes?.let { put("goalMinutes", it) }
     }
 
     internal fun writePart(part: FocusPart): JsonObject = buildJsonObject {

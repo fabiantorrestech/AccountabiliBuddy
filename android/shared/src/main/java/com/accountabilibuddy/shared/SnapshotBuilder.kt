@@ -80,6 +80,8 @@ object SnapshotBuilder {
             dataAt = if (input.pcConnected) input.now else listOfNotNull(input.focusDayAt, input.runningAt).maxOrNull() ?: input.now,
             relayAllowed = input.relayAllowed,
             sources = input.sources,
+            // The goal is a setting, not today's data: an older focus day's goal still holds.
+            goalMinutes = input.focusDay?.goalMinutes,
         )
 
         // The PC's totals for the days before today (dated, so an older focus day still counts), and today live.

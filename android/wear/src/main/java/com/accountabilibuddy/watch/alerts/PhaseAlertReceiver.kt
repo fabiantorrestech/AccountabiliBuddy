@@ -17,7 +17,7 @@ class PhaseAlertReceiver : BroadcastReceiver() {
             context.getSystemService(VibratorManager::class.java)?.defaultVibrator?.vibrate(effect(strength, kind))
         }
 
-        if (kind == PhaseAlert.Kind.End && AlertSettings.sound(context)) {
+        if (kind != PhaseAlert.Kind.Warning && AlertSettings.sound(context)) {
             runCatching { RingtoneManager.getRingtone(context, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))?.play() }
         }
     }

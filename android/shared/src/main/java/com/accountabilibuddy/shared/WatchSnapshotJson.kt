@@ -26,6 +26,7 @@ object WatchSnapshotJson {
         put("wifiAllowed", snapshot.wifiAllowed)
         put("dataAt", snapshot.dataAt.toString())
         put("relayAllowed", snapshot.relayAllowed)
+        snapshot.goalMinutes?.let { put("goalMinutes", it) }
         if (snapshot.sources.isNotEmpty()) {
             put("sources", buildJsonArray {
                 snapshot.sources.forEach { source ->
@@ -75,6 +76,7 @@ object WatchSnapshotJson {
                 val dataAt = source.instant("dataAt") ?: return@mapNotNull null
                 DataSource(source.string("name") ?: return@mapNotNull null, dataAt)
             },
+            goalMinutes = json.int("goalMinutes")?.takeIf { it > 0 },
         )
     }
 

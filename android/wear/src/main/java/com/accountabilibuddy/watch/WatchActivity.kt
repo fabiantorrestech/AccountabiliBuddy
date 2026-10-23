@@ -127,7 +127,7 @@ private fun WatchApp(stored: WatchSnapshot?, phoneReachable: Boolean?, pcPaired:
                     ScreenScaffold {
                         when (pages[page]) {
                             Page.Today -> TodayPage(TodayView.from(snapshot, now, zone, use24HourClock))
-                            Page.Session -> SessionPage(SessionView.from(snapshot.running, now, zone, use24HourClock, dataAt = snapshot.dataAt))
+                            Page.Session -> SessionPage(SessionView.from(snapshot.running, now, zone, use24HourClock, dataAt = snapshot.dataAt, goalFraction = snapshot.goalFraction(now, zone)))
                             Page.Week -> WeekPage(WeekView.from(snapshot, now, zone))
                             Page.Alerts -> AlertsPage(onChanged = { PhaseAlertScheduler.schedule(context, stored) })
                             Page.Link -> LinkPage(

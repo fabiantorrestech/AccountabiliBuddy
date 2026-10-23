@@ -16,6 +16,8 @@ data class FocusDay(
     val focusedMinutes: Int,
     val plannedMinutes: Int,
     val week: List<DayTotal>,
+    /** The PC's daily deep-work goal in minutes (ADR 29); null from a PC that doesn't send it. */
+    val goalMinutes: Int? = null,
 )
 
 /** A part of the day plan on [FocusDay.date], cut to that day. [kind] is "watch" (planned work), "rest" or "sleep". */

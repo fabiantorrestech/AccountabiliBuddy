@@ -461,6 +461,8 @@ public partial class App : Application
         _ = learnMode.BeginIfFirstRunAsync(_setupAssistant.HasBeenShown);
         var goal = new GoalService(documents);
         goal.LoadBlocking();
+        // ADR 29: the daily goal goes to paired devices with today's focus.
+        linkHost.GoalMinutes = () => goal.Current.DailyMinutes;
         var blockerLocator = new WindowsBlockerSourceLocator();
         ConfigurationService configuration = _configuration;
         SessionController sessions = _sessions;

@@ -47,7 +47,10 @@ data class TodayView(
 
             val focused = snapshot.focusedMinutes(now, zone)
             val planned = snapshot.plannedMinutes
+            val goal = snapshot.goalMinutes
             val (headline, detail) = when {
+                goal != null && focused >= goal -> WatchText.duration(focused) to "Goal met"
+                goal != null -> (if (focused == 0) "No focus yet" else WatchText.duration(focused)) to "of ${WatchText.duration(goal)} goal"
                 focused == 0 -> "No focus yet" to if (planned > 0) "${WatchText.duration(planned)} planned" else "Nothing planned today"
                 planned > 0 -> WatchText.duration(focused) to "of ${WatchText.duration(planned)} planned"
                 else -> WatchText.duration(focused) to "focused today"
@@ -86,10 +89,12 @@ data class SessionView(
     val updated: String? = null,
     /** The guided checklist: "▸ Fix tests · 1/3", "All tasks done · 3/3"; null without one. */
     val task: String? = null,
+    /** Today's focus as a share of the daily goal (ADR 29): the thin outer ring; null without a goal. */
+    val goalFraction: Float? = null,
 ) {
     companion object {
-        fun from(running: RunningSession?, now: Instant, zone: ZoneId, use24Hour: Boolean, dataAt: Instant? = null): SessionView =
-            build(running, now, zone, use24Hour).copy(updated = dataAt?.let { WatchText.updatedAgo(it, now) })
+        fun from(running: RunningSession?, now: Instant, zone: ZoneId, use24Hour: Boolean, dataAt: Instant? = null, goalFraction: Float? = null): SessionView =
+            build(running, now, zone, use24Hour).copy(updated = dataAt?.let { WatchText.updatedAgo(it, now) }, goalFraction = goalFraction)
 
         private fun build(running: RunningSession?, now: Instant, zone: ZoneId, use24Hour: Boolean): SessionView {
             val session = running?.takeIf { it.endsAt == null || it.endsAt.isAfter(now) }

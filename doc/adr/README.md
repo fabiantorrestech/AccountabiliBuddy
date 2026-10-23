@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0029](0029-share-the-daily-goal-with-paired-devices.md) | Share the daily goal with paired devices | Accepted | — |
 | [0028](0028-close-the-work-hours-guards-free-exits.md) | Close the work-hours guard's free exits | Accepted | [27](0027-guard-work-hours-on-a-personal-pc.md) |
 | [0027](0027-guard-work-hours-on-a-personal-pc.md) | ~~Guard work hours on a personal PC~~ | Superseded by [28](0028-close-the-work-hours-guards-free-exits.md) | — |
 | [0025](0025-end-a-session-at-once-when-its-checklist-is-done.md) | End a session at once when its checklist is done | Accepted | — |

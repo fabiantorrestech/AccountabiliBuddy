@@ -13,4 +13,8 @@ public sealed record LinkFocusDay(
     IReadOnlyList<LinkWindow> Drift,
     int FocusedMinutes,
     int PlannedMinutes,
-    IReadOnlyList<LinkDayTotal> Week);
+    IReadOnlyList<LinkDayTotal> Week)
+{
+    /// <summary>The daily deep-work goal in minutes (ADR 29); null when this PC has none to send.</summary>
+    public int? GoalMinutes { get; init; }
+}

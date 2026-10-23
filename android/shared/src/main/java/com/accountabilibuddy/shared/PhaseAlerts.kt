@@ -3,9 +3,9 @@ package com.accountabilibuddy.shared
 import java.time.Duration
 import java.time.Instant
 
-/** A buzz the watch gives for the running phase: a minute before it ends, or when it ends. */
+/** A buzz the watch gives for the running phase: a minute before it ends, when it ends, or when the daily goal is reached. */
 data class PhaseAlert(val at: Instant, val kind: Kind, val onBreak: Boolean) {
-    enum class Kind { Warning, End }
+    enum class Kind { Warning, End, Goal }
 }
 
 /** When the watch buzzes for the running session's phase (focus or break): at its end, and a minute before when wanted. */
@@ -20,5 +20,21 @@ object PhaseAlerts {
             PhaseAlert(warnAt, PhaseAlert.Kind.Warning, running.onBreak).takeIf { warning && warnAt.isAfter(now) },
             PhaseAlert(endsAt, PhaseAlert.Kind.End, running.onBreak),
         )
+    }
+
+    /**
+     * When today's focus reaches the daily goal (ADR 29), while a focus session runs and before it ends: focus grows a
+     * minute a minute from now. Null without a goal, when it's already met, on a break or when the session ends first.
+     */
+    fun goal(snapshot: WatchSnapshot?, now: Instant, zone: java.time.ZoneId): PhaseAlert? {
+        val goal = snapshot?.goalMinutes?.takeIf { it > 0 } ?: return null
+        val running = snapshot.running?.takeIf { !it.onBreak && (it.endsAt == null || it.endsAt.isAfter(now)) } ?: return null
+        val left = goal - snapshot.focusedMinutes(now, zone)
+        if (left <= 0) {
+            return null
+        }
+
+        val at = now.plus(Duration.ofMinutes(left.toLong()))
+        return if (running.endsAt != null && running.endsAt.isBefore(at)) null else PhaseAlert(at, PhaseAlert.Kind.Goal, onBreak = false)
     }
 }

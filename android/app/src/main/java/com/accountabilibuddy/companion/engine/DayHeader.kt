@@ -138,7 +138,11 @@ object DayHeader {
         val plannedMinutes = focus?.plannedMinutes?.takeIf { it > 0 } ?: watchMinutesToday(input)
         val focused = focus?.focusedMinutes(nowInstant, input.zone) ?: 0
         val parts = mutableListOf<String>()
+        // ADR 29: the PC's daily goal, when it sent one (a setting: an older focus day's goal still holds).
+        val goal = input.focus?.goalMinutes
         when {
+            goal != null && focused >= goal -> parts += "Goal met · ${minutesText(focused)}"
+            goal != null -> parts += "${minutesText(focused)} of ${minutesText(goal)} goal"
             focused > 0 && plannedMinutes > 0 -> parts += "${minutesText(focused)} of ${minutesText(plannedMinutes)} focused"
             focused > 0 -> parts += "${minutesText(focused)} focused"
             plannedMinutes > 0 -> parts += "${minutesText(plannedMinutes)} planned"

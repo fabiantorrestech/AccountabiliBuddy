@@ -55,7 +55,13 @@ data class WatchSnapshot(
     val relayAllowed: Boolean = true,
     /** The devices whose focus is in it, with their data's age (the linked PC first); empty in snapshots from before. */
     val sources: List<DataSource> = emptyList(),
+    /** The daily deep-work goal in minutes (ADR 29): the outer ring and a buzz when reached; null when the PC sent none. */
+    val goalMinutes: Int? = null,
 ) {
+    /** Today's focus as a share of the goal (ADR 29), 0 to 1; null without a goal. */
+    fun goalFraction(now: Instant, zone: ZoneId): Float? =
+        goalMinutes?.takeIf { it > 0 }?.let { (focusedMinutes(now, zone).toFloat() / it).coerceIn(0f, 1f) }
+
     /**
      * Focused on [date] up to [now]: each session cut to the day, one with no end until [now] (or the running session's
      * end, when that has passed), overlaps counted once.

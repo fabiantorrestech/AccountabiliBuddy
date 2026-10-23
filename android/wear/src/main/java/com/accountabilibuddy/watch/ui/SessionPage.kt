@@ -35,6 +35,13 @@ fun SessionPage(view: SessionView) {
             val radius = size.minDimension / 2 - 22.dp.toPx() - ring / 2
             ringTrack(radius, ring, Color(0x26FFFFFF))
             progressArc(view.fraction, radius, ring, color)
+            // The daily goal (ADR 29): a thin ring outside, amber until met, teal once it is.
+            view.goalFraction?.let { goal ->
+                val thin = 4.dp.toPx()
+                val outside = radius + ring / 2 + 4.dp.toPx() + thin / 2
+                ringTrack(outside, thin, Color(0x1AFFFFFF))
+                progressArc(goal, outside, thin, if (goal >= 1f) Color(FOCUS_COLOR) else Color(0xFFF4A261))
+            }
         }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {

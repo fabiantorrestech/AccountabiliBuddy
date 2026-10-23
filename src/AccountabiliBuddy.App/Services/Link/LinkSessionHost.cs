@@ -207,7 +207,7 @@ public sealed class LinkSessionHost : ILinkSessionHost
 
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
         return FocusDayBuilder.Build(today, records, drift, _configuration.Current.DayPlan, _omitted.IsOmitted,
-            id => ProfileOptions.NameOf(profiles, id), _sessions.State.IsActive, now, zone);
+            id => ProfileOptions.NameOf(profiles, id), _sessions.State.IsActive, now, zone) with { GoalMinutes = GoalMinutes?.Invoke() };
     }
 
     /// <summary>Every few minutes while a session runs, and when the date changes.</summary>
@@ -371,6 +371,9 @@ public sealed class LinkSessionHost : ILinkSessionHost
             return new LinkEndEarlyTerms((int)Math.Ceiling(bypass.WaitDuration.TotalSeconds), bypass.MinReasonLength, now + bypass.WaitDuration, null);
         }).GetTask();
     }
+
+    /// <summary>The daily deep-work goal sent with today's focus (ADR 29); null sends none.</summary>
+    public Func<int?>? GoalMinutes { get; set; }
 
     public Task<LinkDayPlanAnswer> ApplyDayPlanAsync(LinkDayPlanEdit edit)
     {

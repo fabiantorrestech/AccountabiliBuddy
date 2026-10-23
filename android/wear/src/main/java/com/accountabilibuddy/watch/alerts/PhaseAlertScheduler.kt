@@ -22,7 +22,10 @@ object PhaseAlertScheduler {
             return
         }
 
-        for (alert in PhaseAlerts.due(snapshot?.running, Instant.now(), AlertSettings.warning(context))) {
+        val now = Instant.now()
+        val alerts = PhaseAlerts.due(snapshot?.running, now, AlertSettings.warning(context)) +
+            listOfNotNull(PhaseAlerts.goal(snapshot, now, java.time.ZoneId.systemDefault()))
+        for (alert in alerts) {
             val pending = intent(context, alert.kind, alert.onBreak)
             val at = alert.at.toEpochMilli()
             if (alarms.canScheduleExactAlarms()) {
