@@ -61,6 +61,9 @@ public sealed partial class HistoryViewModel : ObservableObject
     /// <summary>Deep work against the daily goal over days (redesign phase 4); null hides the card.</summary>
     public DeepWorkHistoryViewModel? DeepWork { get; set; }
 
+    /// <summary>Notes kept between two times (redesign phase 5), shown under their session; null: none.</summary>
+    public Func<DateTimeOffset, DateTimeOffset, IReadOnlyList<string>>? NotesBetween { get; set; }
+
     /// <summary>"New this week": the week's sites and apps with no rule, shown after "Review new this week".</summary>
     [ObservableProperty]
     public partial SessionReviewViewModel? WeekReview { get; set; }
@@ -542,7 +545,8 @@ public sealed partial class HistoryViewModel : ObservableObject
             outcome = "Omitted · " + outcome;
         }
 
-        return new SessionRowViewModel(when, $"{profile} · {mode}", length, outcome, record.Reason, record.StartedAt, omitted);
+        IReadOnlyList<string>? notes = NotesBetween?.Invoke(record.StartedAt, record.EndedAt ?? DateTimeOffset.MaxValue);
+        return new SessionRowViewModel(when, $"{profile} · {mode}", length, outcome, record.Reason, record.StartedAt, omitted, Notes: notes);
     }
 
     /// <summary>Raised after a session was added, edited or deleted by hand, so the day bar reloads.</summary>

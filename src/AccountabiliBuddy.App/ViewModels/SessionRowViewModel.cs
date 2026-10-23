@@ -17,8 +17,14 @@ public sealed record SessionRowViewModel(
     bool IsAdded = false,
     DateTimeOffset? EndedAt = null,
     bool ConfirmingDelete = false,
-    string? DeviceName = null)
+    string? DeviceName = null,
+    IReadOnlyList<string>? Notes = null)
 {
+    /// <summary>Notes kept during the session (redesign phase 5).</summary>
+    public bool HasNotes => Notes is { Count: > 0 };
+
+    public string NotesText => Notes is null ? string.Empty : string.Join("\n", Notes.Select(note => $"✎ {note}"));
+
     /// <summary>Counted on another device: shown with its tag; omitted, edited or deleted only there.</summary>
     public bool IsReceived => DeviceName is not null;
 

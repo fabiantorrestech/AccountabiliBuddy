@@ -89,6 +89,7 @@ public partial class App : Application
     private DeepWorkService? _deepWork;
     private DeepWorkHistoryViewModel? _deepWorkHistory;
     private ComebackStore? _comebacks;
+    private SessionNotesStore? _sessionNotes;
     private CaptureService? _capture;
     private WorkGateService? _workGate;
     private WorkGateWindow? _workGateWindow;
@@ -361,6 +362,9 @@ public partial class App : Application
         // Capture at the source: Ctrl+Alt+N parks an idea as a come-back (this computer, encrypted).
         _comebacks = new ComebackStore(documents, new DpapiDataProtector(), time);
         _comebacks.LoadBlocking();
+        // Notes kept in Focus mode (redesign phase 5): this computer only, sealed.
+        _sessionNotes = new SessionNotesStore(documents, new DpapiDataProtector(), time);
+        _sessionNotes.LoadBlocking();
         _capture = new CaptureService(_comebacks, new Win32GlobalHotkey(), monitorLocator);
         // ADR 27: work hours on this computer (off unless turned on in Settings).
         _workHours = new WorkHoursGuard(_sessions, _configuration, documents, windowsEnforcer, () => _activityWatcher.CaptureCurrent(), presenter.ShowNotice);
@@ -376,7 +380,10 @@ public partial class App : Application
         _workGate = new WorkGateService(_workHours, new Win32UserIdleDetector(), _comebacks, _sessions);
         _workGate.Changed += (_, _) => ShowWorkGate(monitorLocator);
         // The review card after each session: what it used with no rule, as rules.
-        _sessionReview = new SessionReviewService(activityLog, _configuration, documents, _sessions, () => exemptionDefaults.PreTicked);
+        _sessionReview = new SessionReviewService(activityLog, _configuration, documents, _sessions, () => exemptionDefaults.PreTicked)
+        {
+            NotesBetween = _sessionNotes.Between,
+        };
         _sessionReview.LoadBlocking();
         // ADR 25: every task ticked: offer to end the session now (when it may), else just say so.
         sessionTasks.AllDoneReached += (_, _) =>
@@ -577,6 +584,8 @@ public partial class App : Application
         {
             PlanFirst = _planFirst,
         };
+        // Capture in Focus mode (redesign phase 5): notes for the session's review, come-backs with ⚑ or "!".
+        sessionViewModel.Focus.Capture = new CaptureBoxViewModel(_sessionNotes!, _comebacks!);
         var mainViewModel = new MainWindowViewModel(
             sessionViewModel,
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, _link, exemptionDefaults),
@@ -587,6 +596,7 @@ public partial class App : Application
             {
                 ReviewService = _sessionReview,
                 DeepWork = _deepWorkHistory,
+                NotesBetween = _sessionNotes.Between,
             },
             setupViewModel,
             new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),

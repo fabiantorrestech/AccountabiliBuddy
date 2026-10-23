@@ -359,6 +359,8 @@
                                         </StackPanel>
                                         <TextBlock Text="{Binding ReasonText}" IsVisible="{Binding HasReason}"
                                                    FontSize="12" Opacity="0.7" TextWrapping="Wrap" FontStyle="Italic" />
+                                        <TextBlock Text="{Binding NotesText}" IsVisible="{Binding HasNotes}"
+                                                   FontSize="12" Opacity="0.8" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <TextBlock Grid.Column="2" Text="{Binding LengthText}" HorizontalAlignment="Right" />
                                     <TextBlock Grid.Column="3" Text="{Binding OutcomeText}" HorizontalAlignment="Right" Opacity="0.8"

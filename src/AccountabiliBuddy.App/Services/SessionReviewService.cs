@@ -43,6 +43,9 @@ public sealed class SessionReviewService : IDisposable
         _sessions.StateChanged += OnStateChanged;
     }
 
+    /// <summary>The notes kept between two times (redesign phase 5), shown on the session's card; null: none.</summary>
+    public Func<DateTimeOffset, DateTimeOffset, IReadOnlyList<string>>? NotesBetween { get; init; }
+
     /// <summary>The card waiting on Today, or null.</summary>
     public SessionReviewViewModel? Pending { get; private set; }
 
@@ -122,8 +125,10 @@ public sealed class SessionReviewService : IDisposable
     {
         List<ReviewRowViewModel> rows = await RowsAsync(start, end);
         List<PromoteRowViewModel> promotions = await PromotionsAsync(end);
-        SetPending(rows.Count == 0 && promotions.Count == 0 ? null
-            : new SessionReviewViewModel("Last session: what had no rule", rows, profileId, null, card => ApplyAsync(card, closesPending: true), promotions));
+        IReadOnlyList<string> notes = NotesBetween?.Invoke(start, end) ?? [];
+        string heading = rows.Count == 0 && promotions.Count == 0 ? "Last session: your notes" : "Last session: what had no rule";
+        SetPending(rows.Count == 0 && promotions.Count == 0 && notes.Count == 0 ? null
+            : new SessionReviewViewModel(heading, rows, profileId, null, card => ApplyAsync(card, closesPending: true), promotions, notes));
     }
 
     /// <summary>Sites and apps called on track in three sessions of the last 30 days, not offered before.</summary>

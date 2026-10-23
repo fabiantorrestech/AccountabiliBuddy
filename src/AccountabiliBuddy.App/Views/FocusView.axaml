@@ -59,5 +59,25 @@
                 <views:ChecklistView DataContext="{Binding Checklist}" />
             </StackPanel>
         </Border>
+
+        <!-- Capture (redesign phase 5): a thought goes here instead of into a new tab. -->
+        <Border Padding="16,12" CornerRadius="10" Background="#1A808080" BorderBrush="#33808080" BorderThickness="1"
+                DataContext="{Binding Capture}" x:DataType="vm:CaptureBoxViewModel"
+                IsVisible="{Binding $parent[UserControl].((vm:FocusViewModel)DataContext).Capture, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
+            <StackPanel Spacing="6">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBox Text="{Binding Text}" PlaceholderText="A thought? Type it, Enter keeps it for later">
+                        <TextBox.KeyBindings>
+                            <KeyBinding Gesture="Enter" Command="{Binding SaveCommand}" />
+                        </TextBox.KeyBindings>
+                    </TextBox>
+                    <ToggleButton Grid.Column="1" Content="⚑" IsChecked="{Binding IsComeback}"
+                                  ToolTip.Tip="Must not drift: park it under Come back to (or start the line with !)" />
+                </Grid>
+                <TextBlock Text="{Binding Message}" FontSize="11" Opacity="0.7"
+                           IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <TextBlock Text="Enter keeps a note for this session's review · ⚑ or a leading ! parks it under Come back to" FontSize="11" Opacity="0.55" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
     </StackPanel>
 </UserControl>

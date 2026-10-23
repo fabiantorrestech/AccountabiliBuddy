@@ -17,9 +17,10 @@ public sealed partial class SessionReviewViewModel : ObservableObject
     /// <param name="apply">Writes the choices (set by the service).</param>
     public SessionReviewViewModel(
         string heading, IReadOnlyList<ReviewRowViewModel> rows, Guid profileId, IReadOnlyList<ProfileOption>? profiles, Func<SessionReviewViewModel, Task> apply,
-        IReadOnlyList<PromoteRowViewModel>? promotions = null)
+        IReadOnlyList<PromoteRowViewModel>? promotions = null, IReadOnlyList<string>? notes = null)
     {
         Heading = heading;
+        Notes = notes ?? [];
         Rows = rows;
         Promotions = promotions ?? [];
         _apply = apply;
@@ -40,6 +41,11 @@ public sealed partial class SessionReviewViewModel : ObservableObject
     public bool HasRows => Rows.Count > 0;
 
     public bool HasPromotions => Promotions.Count > 0;
+
+    /// <summary>Notes kept during the session (redesign phase 5), shown once here.</summary>
+    public IReadOnlyList<string> Notes { get; }
+
+    public bool HasNotes => Notes.Count > 0;
 
     public IReadOnlyList<ProfileOption> ProfileChoices { get; }
 

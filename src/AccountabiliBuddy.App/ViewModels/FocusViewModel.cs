@@ -108,6 +108,9 @@ public sealed partial class FocusViewModel : ObservableObject
     /// <summary>The running session's checklist; null when the app doesn't offer guided sessions.</summary>
     public ChecklistViewModel? Checklist { get; }
 
+    /// <summary>The capture line (redesign phase 5): a note for this session, or a come-back with ⚑ or "!"; null hides it.</summary>
+    public CaptureBoxViewModel? Capture { get; set; }
+
     public bool HasStepAway => _stepAway is not null;
 
     /// <summary>True while a session runs (the page shows this instead of the start card).</summary>
