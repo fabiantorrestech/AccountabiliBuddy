@@ -161,7 +161,7 @@
 
                 <Grid Margin="12,8,8,8">
                 <Panel x:Name="Pages">
-                    <views:SessionView DataContext="{Binding Session}" />
+                    <views:TodayView DataContext="{Binding Session}" />
                     <views:ProfilesView DataContext="{Binding Profiles}" IsVisible="False" />
                     <views:DayPlanView DataContext="{Binding DayPlan}" IsVisible="False" />
                     <views:ExceptionsView DataContext="{Binding Exceptions}" IsVisible="False" />

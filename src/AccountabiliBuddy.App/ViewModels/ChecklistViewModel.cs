@@ -148,7 +148,7 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
         CurrentTaskText = checklist.Shown?.Task.Title ?? (checklist.AllDone ? "All tasks done" : string.Empty);
         CurrentSubtaskText = checklist.Shown?.Subtask?.Title ?? string.Empty;
         Heading = Mode == ChecklistMode.Draft
-            ? "Tasks for this session (optional)"
+            ? "What are you doing first? (optional)"
             : checklist.HasTasks ? $"Tasks · {ProgressText}" : "Tasks";
         RefreshEndAtOnce();
     }

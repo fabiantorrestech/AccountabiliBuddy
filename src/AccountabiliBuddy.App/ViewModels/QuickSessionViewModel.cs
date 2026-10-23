@@ -101,6 +101,10 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
     [NotifyPropertyChangedFor(nameof(QuickStartLabel))]
     public partial ProfileOption? SelectedProfile { get; set; }
 
+    /// <summary>"More options" (profile, length, break) unfolded; folded by default so starting is one click.</summary>
+    [ObservableProperty]
+    public partial bool ShowsOptions { get; set; }
+
     /// <summary>True while Shift is held: the slider and arrow keys move in 1-minute steps.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SliderStep))]

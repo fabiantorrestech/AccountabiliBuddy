@@ -115,6 +115,16 @@ public static class TimelineRowsBuilder
             if (DayTimeline.Clip(session.Window, day.Range) is LocalWindow shown)
             {
                 spans.Add(ToSpan(shown, day.Range, session.Tip) with { ProfileId = session.ProfileId, Hatched = session.Added, Color = session.Color });
+
+                // Stepped away: hatched slate over the session, after it so it draws on top.
+                foreach (LocalWindow away in session.Away ?? [])
+                {
+                    if (DayTimeline.Clip(away, shown) is LocalWindow awayShown)
+                    {
+                        spans.Add(ToSpan(awayShown, day.Range, $"Away · {Times(away)} ({Duration(away.End - away.Start)})")
+                            with { Color = NotInSessionColor, Hatched = true, IsAway = true });
+                    }
+                }
             }
         }
 

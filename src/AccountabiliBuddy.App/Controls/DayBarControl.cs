@@ -60,6 +60,9 @@ public sealed class DayBarControl : Control
     private static readonly IPen AddedStripePen = new Pen(new SolidColorBrush(Color.FromRgb(45, 212, 191), 0.55), 2);
     private static readonly IBrush NowBrush = new SolidColorBrush(Color.FromRgb(220, 38, 38));
 
+    private static readonly IBrush AwayBrush = new SolidColorBrush(Color.FromRgb(100, 116, 139));
+    private static readonly IPen AwayStripePen = new Pen(new SolidColorBrush(Color.FromRgb(21, 25, 30), 0.7), 2);
+
     /// <summary>Every span in <see cref="Quiet"/>: one muted slate (drift and task marks keep their colours).</summary>
     public static readonly IBrush QuietBrush = new SolidColorBrush(Color.FromRgb(100, 116, 139), 0.55);
     private static readonly IBrush NightBrush = new SolidColorBrush(Color.FromRgb(79, 70, 229), 0.28);
@@ -245,8 +248,18 @@ public sealed class DayBarControl : Control
         foreach (DayBarSpan span in row.Spans)
         {
             Rect box = SpanRect(size, span, top);
-            IBrush brush = Quiet ? QuietBrush : span.Hatched ? AddedBrush : BrushFor(span.Color) ?? DefaultBrush(row.Kind);
+            IBrush brush = span.IsAway ? BrushFor(span.Color) ?? AwayBrush
+                : Quiet ? QuietBrush
+                : span.Hatched ? AddedBrush
+                : BrushFor(span.Color) ?? DefaultBrush(row.Kind);
             context.DrawRectangle(brush, null, box, 3, 3);
+
+            if (span.IsAway)
+            {
+                // Stepped away: slate with dark stripes over the session, quiet or not (it's a gap in the focus).
+                DrawStripes(context, box, AwayStripePen);
+                continue;
+            }
 
             if (Quiet)
             {

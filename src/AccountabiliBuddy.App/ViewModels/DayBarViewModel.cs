@@ -358,12 +358,16 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 
         LocalWindow range = settings.Range == DayBarRange.FullDay ? day : DayTimeline.FitTo(day, content, span);
 
-        List<TimelineSession> sessions = actual.Select(item => new TimelineSession(item.Window, item.Tip, item.ProfileId, item.Added)).ToList();
+        List<LocalWindow> awayWindows = AwayWindows(now);
+        List<TimelineSession> sessions = actual
+            .Select(item => new TimelineSession(item.Window, item.Tip, item.ProfileId, item.Added,
+                Away: awayWindows.Select(away => DayTimeline.Clip(away, item.Window)).OfType<LocalWindow>().ToList()))
+            .ToList();
         List<TimelineSession> received = ReceivedOnBar(span);
         // Totals add up across devices; time two devices both had in focus counts once (the union of the windows).
         // Time the user stepped away from this PC's sessions doesn't count.
         TimeSpan focused = Total(DayTimeline.Subtract(
-                actual.Select(item => item.Window).Concat(received.Select(session => session.Window)), AwayWindows(now)),
+                actual.Select(item => item.Window).Concat(received.Select(session => session.Window)), awayWindows),
             range with { End = now < range.End ? now : range.End });
         // Drift is this PC's own: it stays inside this PC's sessions.
         IReadOnlyList<TimelineItem> drift = TimelineRowsBuilder.DriftOnBar(DriftItems(), sessions, range);
