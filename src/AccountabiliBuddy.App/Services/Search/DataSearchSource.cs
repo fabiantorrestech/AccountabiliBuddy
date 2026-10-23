@@ -68,9 +68,9 @@ public static class DataSearchSource
         foreach (OneOffDay day in plan.OneOffDays)
         {
             string date = day.Date.ToString("ddd M/d/yyyy");
-            var target = new SearchTarget(SearchTabs.Exceptions, Date: day.Date);
-            entries.Add(new SearchEntry(day.Note is null ? $"One-off day {date}" : $"{day.Note} · one-off day {date}", "Exceptions › One-off days", SearchKinds.Plan, target));
-            AddTemplate(entries, plan, day.Template, $"Exceptions › {date}", target);
+            var target = new SearchTarget(SearchTabs.Calendar, Date: day.Date);
+            entries.Add(new SearchEntry(day.Note is null ? $"One-off day {date}" : $"{day.Note} · one-off day {date}", "Calendar › One-off days", SearchKinds.Plan, target));
+            AddTemplate(entries, plan, day.Template, $"Calendar › {date}", target);
         }
     }
 
@@ -96,8 +96,8 @@ public static class DataSearchSource
         {
             DateOnly date = DateOnly.FromDateTime(calendarEvent.LocalStart);
             string when = calendarEvent.IsAllDay ? date.ToString("ddd M/d") : $"{date:ddd M/d}, {calendarEvent.LocalStart:t}";
-            entries.Add(new SearchEntry($"{calendarEvent.Title} · {when}", "Exceptions › Calendar", SearchKinds.Calendar,
-                new SearchTarget(SearchTabs.Exceptions, Date: date)));
+            entries.Add(new SearchEntry($"{calendarEvent.Title} · {when}", "Calendar › Events", SearchKinds.Calendar,
+                new SearchTarget(SearchTabs.Calendar, Date: date)));
         }
     }
 

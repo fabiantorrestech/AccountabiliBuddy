@@ -103,7 +103,7 @@
                         <controls:HotkeyBox Text="{Binding HotkeyText}" Width="220" HorizontalAlignment="Left" />
                         <TextBlock Text="{Binding HotkeyStatus}" TextWrapping="Wrap" />
                         <TextBlock Text="Quick Start with Default" FontWeight="SemiBold" Margin="0,8,0,0" />
-                        <TextBlock Text="The big &quot;Quick Start with Default&quot; button (quick session and Session tab) starts this profile with no set end: the on-screen bar fills each hour and glows every 30 minutes with how long you've been at it (hold Ctrl+Alt to see it any time). &quot;Quick Start&quot; does the same with the profile picked there."
+                        <TextBlock Text="The big &quot;Quick Start with Default&quot; button (quick session and Today tab) starts this profile with no set end: the on-screen bar fills each hour and glows every 30 minutes with how long you've been at it (hold Ctrl+Alt to see it any time). &quot;Quick Start&quot; does the same with the profile picked there."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <ComboBox ItemsSource="{Binding CountUpChoices}" SelectedItem="{Binding SelectedCountUp}" MinWidth="300" />
                     </StackPanel>
@@ -219,7 +219,7 @@
                         </ItemsControl>
 
                         <TextBlock Text="Calendars on the timeline" FontWeight="SemiBold" Margin="0,8,0,0" />
-                        <TextBlock Text="No calendars to show yet: add them in the Exceptions tab (hidden calendars aren't listed)."
+                        <TextBlock Text="No calendars to show yet: add them in the Calendar tab (hidden calendars aren't listed)."
                                    IsVisible="{Binding !HasTimelineCalendars}" Opacity="0.75" TextWrapping="Wrap" />
                         <ItemsControl ItemsSource="{Binding TimelineCalendars}">
                             <ItemsControl.ItemTemplate>

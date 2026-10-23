@@ -230,7 +230,7 @@
 
                                 <TextBlock Text="Unlock options" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,0" />
                                 <TextBlock TextWrapping="Wrap" Opacity="0.75"
-                                           Text="Ways to lift this profile's blocks (Session tab → Unlock). You wait the time shown and give a reason; then the session ends until it relocks (midnight by default, see Settings). Can't be changed during focus." />
+                                           Text="Ways to lift this profile's blocks (Today tab → Unlock). You wait the time shown and give a reason; then the session ends until it relocks (midnight by default, see Settings). Can't be changed during focus." />
                                 <ItemsControl ItemsSource="{Binding UnlockOptions}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:UnlockOptionEditorViewModel">

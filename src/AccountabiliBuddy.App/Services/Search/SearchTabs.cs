@@ -1,16 +1,18 @@
+using AccountabiliBuddy.App.ViewModels;
+
 namespace AccountabiliBuddy.App.Services.Search;
 
-/// <summary>The main window's tabs by index (the same order as its tab list and pages).</summary>
+/// <summary>The main window's tabs by index (<see cref="MainTab"/>, the same order as its tab list and pages).</summary>
 public static class SearchTabs
 {
-    public const int Session = 0;
-    public const int Profiles = 1;
-    public const int DayPlan = 2;
-    public const int Exceptions = 3;
-    public const int History = 4;
-    public const int Devices = 5;
-    public const int Setup = 6;
-    public const int Integrations = 7;
-    public const int Settings = 8;
-    public const int About = 9;
+    public const int Today = (int)MainTab.Today;
+    public const int Profiles = (int)MainTab.Profiles;
+    public const int DayPlan = (int)MainTab.DayPlan;
+    public const int Calendar = (int)MainTab.Calendar;
+    public const int History = (int)MainTab.History;
+    public const int Devices = (int)MainTab.Devices;
+    public const int Setup = (int)MainTab.Setup;
+    public const int Integrations = (int)MainTab.Integrations;
+    public const int Settings = (int)MainTab.Settings;
+    public const int About = (int)MainTab.About;
 }

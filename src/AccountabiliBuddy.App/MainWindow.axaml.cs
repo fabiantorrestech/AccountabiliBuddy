@@ -154,6 +154,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        // "More" only unfolds the tabs under it; the view model puts the selection back on the page showing.
+        if (Tabs.SelectedIndex == (int)MainTab.More)
+        {
+            return;
+        }
+
         // Settings with unsaved changes: stay there while it asks Save / Discard / Stay.
         if (DataContext is MainWindowViewModel viewModel && !viewModel.MayLeaveTab(_shownTab, Tabs.SelectedIndex))
         {

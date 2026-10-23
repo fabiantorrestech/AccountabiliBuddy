@@ -125,7 +125,7 @@ public static class GoogleSetupSteps
             {
                 "Press Connect Google Calendar. Your browser opens Google's sign-in.",
                 "Google warns that it hasn't verified the app: that's expected for your own project. Press Continue.",
-                "Allow the read-only access. Your calendars then show in the Exceptions tab.",
+                "Allow the read-only access. Your calendars then show in the Calendar tab.",
             },
             null,
             Array.Empty<GoogleSetupCopyValue>()),

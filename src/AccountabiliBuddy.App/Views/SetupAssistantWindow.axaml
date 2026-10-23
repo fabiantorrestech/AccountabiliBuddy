@@ -315,7 +315,7 @@
                 <StackPanel IsVisible="{Binding IsDone}" Spacing="12" MaxWidth="720" HorizontalAlignment="Left">
                     <TextBlock Classes="body" Text="{Binding Summary}" />
                     <TextBlock Text="What's next" Classes="title" />
-                    <TextBlock Classes="body" Text="• Start a session from the Session tab, or press Ctrl+Alt+F anywhere." />
+                    <TextBlock Classes="body" Text="• Start a session from the Today tab, or press Ctrl+Alt+F anywhere." />
                     <TextBlock Classes="body" Text="• Your day plan is in the Day plan tab; a day planned differently is in Exceptions." />
                     <TextBlock Classes="body" Text="• Run this assistant again any time from the Setup tab." />
                 </StackPanel>

@@ -34,10 +34,40 @@ public sealed partial class MainWindowViewModel : ObservableObject
         session.OpenProfilesRequested += (_, _) => SelectedTab = ProfilesTab;
     }
 
-    private const int ProfilesTab = 1;
-    public const int DayPlanTab = 2;
-    public const int HistoryTab = 4;
-    public const int SettingsTab = 8;
+    private const int ProfilesTab = (int)MainTab.Profiles;
+    public const int DayPlanTab = (int)MainTab.DayPlan;
+    public const int HistoryTab = (int)MainTab.History;
+    public const int SettingsTab = (int)MainTab.Settings;
+    private const int MoreTab = (int)MainTab.More;
+
+    /// <summary>"More" in the sidebar is unfolded: Setup, Integrations, Settings and About show under it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MoreHeader))]
+    public partial bool IsMoreOpen { get; set; }
+
+    public string MoreHeader => IsMoreOpen ? "More  ▾" : "More  ▸";
+
+    /// <summary>The day bar shows above the page only on Today and History.</summary>
+    [ObservableProperty]
+    public partial bool ShowsTimeline { get; set; } = true;
+
+    partial void OnSelectedTabChanged(int oldValue, int newValue)
+    {
+        if (newValue == MoreTab)
+        {
+            // "More" has no page: it folds or unfolds, and the page stays where it was.
+            IsMoreOpen = !IsMoreOpen;
+            SelectedTab = oldValue == MoreTab ? (int)MainTab.Today : oldValue;
+            return;
+        }
+
+        if (MainTabs.IsUnderMore((MainTab)newValue))
+        {
+            IsMoreOpen = true;
+        }
+
+        ShowsTimeline = MainTabs.ShowsTimeline((MainTab)newValue);
+    }
 
     // Where the user was going when Settings had unsaved changes: a tab, or null = hiding the window.
     private int? _leaveTarget;
@@ -55,7 +85,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     /// <param name="to">The tab being opened, or null when the window is being closed.</param>
     public bool MayLeaveTab(int from, int? to)
     {
-        if (from != SettingsTab || to == SettingsTab || !Settings.HasUnsavedChanges)
+        if (from != SettingsTab || to == SettingsTab || to == MoreTab || !Settings.HasUnsavedChanges)
         {
             return true;
         }
@@ -106,7 +136,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _leaveTarget = null;
     }
 
-    /// <summary>Index of the tab shown, in sidebar order (Session, Profiles, Day plan, …).</summary>
+    /// <summary>Index of the tab shown, in sidebar order (<see cref="MainTab"/>).</summary>
     [ObservableProperty]
     public partial int SelectedTab { get; set; }
 

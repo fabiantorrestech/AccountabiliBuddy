@@ -170,7 +170,7 @@ public sealed partial class GoogleSetupViewModel : ObservableObject
             {
                 Message = IncludeSleep
                     ? "Google Calendar connected. Sleep data is tested once the Sleep tab arrives (this project is ready for it)."
-                    : "Google Calendar connected. Your calendars are in the Exceptions tab.";
+                    : "Google Calendar connected. Your calendars are in the Calendar tab.";
                 if (Current is not null)
                 {
                     MarkDone(Current);

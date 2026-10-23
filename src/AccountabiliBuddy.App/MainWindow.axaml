@@ -49,18 +49,26 @@
                         <Style Selector="TabItem:pointerover /template/ Border#PART_LayoutRoot">
                             <Setter Property="Background" Value="#14808080" />
                         </Style>
+                        <!-- Under More: smaller and set in. -->
+                        <Style Selector="TabItem.under">
+                            <Setter Property="FontSize" Value="14" />
+                            <Setter Property="MinHeight" Value="34" />
+                            <Setter Property="Padding" Value="32,0,24,0" />
+                        </Style>
                     </TabControl.Styles>
-                    <!-- Same order as Pages below. -->
-                    <TabItem Header="Session" />
+                    <!-- Same order as Pages below (MainTab). Three tiers: daily, sometimes, and the ones set once under More. -->
+                    <TabItem Header="Today" />
                     <TabItem Header="Profiles" />
                     <TabItem Header="Day plan" />
-                    <TabItem Header="Exceptions" />
-                    <TabItem Header="History" />
+                    <TabItem Header="Calendar" />
+                    <TabItem Header="History" Margin="0,10,0,0" />
                     <TabItem Header="Devices" />
-                    <TabItem Header="Setup" />
-                    <TabItem Header="Integrations" />
-                    <TabItem Header="Settings" />
-                    <TabItem Header="About" />
+                    <!-- No page of its own: selecting it unfolds the four under it (the view model puts the selection back). -->
+                    <TabItem Header="{Binding MoreHeader}" Margin="0,10,0,0" Opacity="0.8" />
+                    <TabItem Header="Setup" Classes="under" IsVisible="{Binding IsMoreOpen}" />
+                    <TabItem Header="Integrations" Classes="under" IsVisible="{Binding IsMoreOpen}" />
+                    <TabItem Header="Settings" Classes="under" IsVisible="{Binding IsMoreOpen}" />
+                    <TabItem Header="About" Classes="under" IsVisible="{Binding IsMoreOpen}" />
                     <TabItem Header="Activity (dev)" IsVisible="{Binding ShowDevTools}" />
                 </TabControl>
             </DockPanel>
@@ -86,8 +94,10 @@
                     <TextBlock Text="{Binding ClockNotice}" TextWrapping="Wrap" />
                 </Border>
 
-                <!-- Today at a glance: the rows chosen in Settings (calendar, plan, focus, blockers) and a live "now" line. -->
-                <Border DockPanel.Dock="Top" DataContext="{Binding DayBar}" x:DataType="vm:DayBarViewModel"
+                <!-- Today at a glance: the rows chosen in Settings (calendar, plan, focus, blockers) and a live "now" line.
+                     Only on Today and History: the other pages are for doing, not for watching the day. -->
+                <Panel DockPanel.Dock="Top" IsVisible="{Binding ShowsTimeline}">
+                <Border DataContext="{Binding DayBar}" x:DataType="vm:DayBarViewModel"
                         IsVisible="{Binding IsVisible, FallbackValue=False}" Padding="12,14,16,4">
                     <StackPanel Spacing="6">
                         <!-- The day's numbers are in the legend under the bar. -->
@@ -147,6 +157,7 @@
                         </Border>
                     </StackPanel>
                 </Border>
+                </Panel>
 
                 <Grid Margin="12,8,8,8">
                 <Panel x:Name="Pages">
@@ -156,6 +167,8 @@
                     <views:ExceptionsView DataContext="{Binding Exceptions}" IsVisible="False" />
                     <views:HistoryView DataContext="{Binding History}" IsVisible="False" />
                     <views:DevicesView DataContext="{Binding Devices}" IsVisible="False" />
+                    <!-- "More" has no page; this keeps the pages lined up with the tabs. -->
+                    <Panel IsVisible="False" />
                     <views:SetupView DataContext="{Binding Setup}" IsVisible="False" />
                     <views:IntegrationsView DataContext="{Binding Integrations}" IsVisible="False" />
                     <views:SettingsView DataContext="{Binding Settings}" IsVisible="False" />
