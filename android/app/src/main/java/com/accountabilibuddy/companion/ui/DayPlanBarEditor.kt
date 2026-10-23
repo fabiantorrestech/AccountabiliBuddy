@@ -82,7 +82,7 @@ fun DayPlanBarEditor(
                     }
 
                     val category = currentCategories.firstOrNull { it.behavior == CategoryBehavior.Rest } ?: currentCategories.firstOrNull()
-                    val added = category?.let { DayTemplateEditing.addAt(currentTemplate, minute, it.id) }
+                    val added = category?.let { DayTemplateEditing.addAt(currentTemplate, minute, it.id, currentCategories) }
                     if (added == null) {
                         refuse("There's no free time there for a new part.")
                     } else {
@@ -110,12 +110,12 @@ fun DayPlanBarEditor(
                         change.consume()
                         val minute = (change.position.x / size.width * MINUTES_PER_DAY).toInt().coerceIn(0, MINUTES_PER_DAY)
                         val moved = when (current.kind) {
-                            BarGrabKind.Start -> DayTemplateEditing.move(currentTemplate, current.partId, minute, current.end, current.crossesMidnight)
-                            BarGrabKind.End -> DayTemplateEditing.move(currentTemplate, current.partId, current.start, minute, current.crossesMidnight)
+                            BarGrabKind.Start -> DayTemplateEditing.move(currentTemplate, current.partId, minute, current.end, current.crossesMidnight, currentCategories)
+                            BarGrabKind.End -> DayTemplateEditing.move(currentTemplate, current.partId, current.start, minute, current.crossesMidnight, currentCategories)
                             BarGrabKind.Whole -> {
                                 val length = current.end - current.start
                                 val start = DayTemplateEditing.snap((minute - current.grabOffset).toDouble()).coerceIn(0, MINUTES_PER_DAY - length)
-                                DayTemplateEditing.move(currentTemplate, current.partId, start, start + length, crossesMidnight = false)
+                                DayTemplateEditing.move(currentTemplate, current.partId, start, start + length, crossesMidnight = false, categories = currentCategories)
                                     ?.takeIf { result ->
                                         val part = result.parts.first { it.id == current.partId }
                                         DayTemplateEditing.endMinutes(part) - DayTemplateEditing.minutesOf(part.start) == length

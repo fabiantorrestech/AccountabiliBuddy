@@ -135,6 +135,8 @@ class CompanionApp : Application() {
         // The widget's play/pause follows the player.
         noise.onChanged = {
             appScope.launch { runCatching { com.accountabilibuddy.companion.widget.TimelineWidget().updateAll(this@CompanionApp) } }
+            // The timeline card's play/pause follows too.
+            appScope.launch { Refresher.refresh(this@CompanionApp) }
         }
         refreshWakeAlarm()
         // The background sync follows the folder switch; a change of folder or interval syncs at once.

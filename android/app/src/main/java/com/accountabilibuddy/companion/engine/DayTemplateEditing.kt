@@ -1,5 +1,7 @@
 package com.accountabilibuddy.companion.engine
 
+import com.accountabilibuddy.companion.model.CategoryBehavior
+import com.accountabilibuddy.companion.model.DayCategory
 import com.accountabilibuddy.companion.model.DayTemplate
 import com.accountabilibuddy.companion.model.PlanPart
 import java.time.LocalTime
@@ -32,9 +34,16 @@ object DayTemplateEditing {
      * A new hour-long part from [startMinute] (rounded down to 15 minutes), shortened to end where the next part starts.
      * Null when that time already has a part or less than 15 minutes are free.
      */
-    fun addAt(template: DayTemplate, startMinute: Int, categoryId: UUID): DayTemplate? {
+    /** A Pre-Work part may sit over Sleep (ADR 31), as on the PC; nothing else overlaps. */
+    fun mayOverlap(a: UUID, b: UUID, categories: List<DayCategory>): Boolean {
+        val first = categories.firstOrNull { it.id == a }?.behavior
+        val second = categories.firstOrNull { it.id == b }?.behavior
+        return (first == CategoryBehavior.PreWork && second == CategoryBehavior.Sleep) || (first == CategoryBehavior.Sleep && second == CategoryBehavior.PreWork)
+    }
+
+    fun addAt(template: DayTemplate, startMinute: Int, categoryId: UUID, categories: List<DayCategory> = emptyList()): DayTemplate? {
         val start = (startMinute / SNAP_MINUTES * SNAP_MINUTES).coerceIn(0, MINUTES_PER_DAY - SNAP_MINUTES)
-        val taken = template.parts.flatMap(::ranges)
+        val taken = template.parts.filterNot { mayOverlap(categoryId, it.categoryId, categories) }.flatMap(::ranges)
         if (taken.any { it.first <= start && start < it.second }) {
             return null
         }
@@ -52,11 +61,13 @@ object DayTemplateEditing {
      * [crossesMidnight] is decided when the drag starts: a night part stays a night part, a day part a day part.
      * Null when the change is refused or less than 15 minutes would be left.
      */
-    fun move(template: DayTemplate, partId: UUID, startMinute: Int, endMinute: Int, crossesMidnight: Boolean): DayTemplate? {
+    fun move(
+        template: DayTemplate, partId: UUID, startMinute: Int, endMinute: Int, crossesMidnight: Boolean, categories: List<DayCategory> = emptyList(),
+    ): DayTemplate? {
         val part = template.parts.firstOrNull { it.id == partId } ?: return null
         var start = min(snap(startMinute.toDouble()), MINUTES_PER_DAY - SNAP_MINUTES)
         var end = snap(endMinute.toDouble())
-        val others = template.parts.filter { it.id != partId }.flatMap(::ranges).sortedBy { it.first }
+        val others = template.parts.filter { it.id != partId && !mayOverlap(part.categoryId, it.categoryId, categories) }.flatMap(::ranges).sortedBy { it.first }
 
         if (!crossesMidnight) {
             if (start >= end) {

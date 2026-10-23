@@ -30,7 +30,9 @@ object DayPlanValidator {
 
         for (i in template.parts.indices) {
             for (j in i + 1 until template.parts.size) {
-                if (overlap(template.parts[i], template.parts[j])) {
+                if (overlap(template.parts[i], template.parts[j]) &&
+                    !DayTemplateEditing.mayOverlap(template.parts[i].categoryId, template.parts[j].categoryId, categories)
+                ) {
                     return "${describe(template.parts[i], categories)} overlaps ${describe(template.parts[j], categories)}."
                 }
             }

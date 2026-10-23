@@ -25,6 +25,9 @@ import com.accountabilibuddy.companion.ui.DayBarPainter
  * bar is drawn once, for that colour; the pinned service posts the card again when the theme changes.
  */
 object TimelineNotifier {
+    // The noise button's width on the collapsed card.
+    private const val NOISE_BUTTON_DP = 44
+
     const val ID = 1
 
     private const val CARD_NIGHT = 0xFF134E4A.toInt()
@@ -45,15 +48,19 @@ object TimelineNotifier {
         val text = if (night) 0xFFFFFFFF.toInt() else 0xFF042F2E.toInt()
         val subtle = if (night) 0xCCFFFFFF.toInt() else 0xB3042F2E.toInt()
 
+        val noise = noiseButton(context)
         val collapsed = RemoteViews(context.packageName, R.layout.notification_timeline).apply {
             val counting = setCountdown(this, model, text)
             setTextViewText(R.id.timeline_title, if (counting) "${model.dateText} · " else "${model.dateText} · ${model.statusText}")
             setTextColor(R.id.timeline_title, text)
-            setBar(this, model, width, metrics.density, night, compact = true)
+            // The bar is narrower by the noise button when it shows.
+            setBar(this, model, if (noise != null) width - (NOISE_BUTTON_DP * metrics.density).toInt() else width, metrics.density, night, compact = true)
+            showNoise(this, noise, text)
         }
         val expanded = RemoteViews(context.packageName, R.layout.notification_timeline_expanded).apply {
             setTextViewText(R.id.timeline_title, model.dateText)
             setTextColor(R.id.timeline_title, text)
+            showNoise(this, noise, text)
             val counting = setCountdown(this, model, text)
             val status = if (counting) listOf(model.summaryText) else listOf(model.statusText, model.summaryText)
             setTextViewText(R.id.timeline_status, status.filter { it.isNotEmpty() }.joinToString(" · "))
@@ -114,6 +121,34 @@ object TimelineNotifier {
     }
 
     /** The live countdown (a session's time left, a part's start) in the views' chronometer; false when nothing counts down. */
+    // The noise player's play/pause: "▶" or "⏸" and what a tap does; null while no sound folder is chosen.
+    private fun noiseButton(context: Context): Pair<String, android.app.PendingIntent>? {
+        val player = (context.applicationContext as? com.accountabilibuddy.companion.CompanionApp)?.noise ?: return null
+        if (player.settings.value.folderUri == null) {
+            return null
+        }
+
+        val toggle = android.app.PendingIntent.getForegroundService(
+            context, 41,
+            android.content.Intent(context, com.accountabilibuddy.companion.noise.NoiseService::class.java)
+                .setAction(com.accountabilibuddy.companion.noise.NoiseService.ACTION_TOGGLE),
+            android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        return (if (player.state.value.playing) "⏸\uFE0E" else "▶\uFE0E") to toggle
+    }
+
+    private fun showNoise(views: RemoteViews, noise: Pair<String, android.app.PendingIntent>?, color: Int) {
+        if (noise == null) {
+            views.setViewVisibility(R.id.timeline_noise, View.GONE)
+            return
+        }
+
+        views.setViewVisibility(R.id.timeline_noise, View.VISIBLE)
+        views.setTextViewText(R.id.timeline_noise, noise.first)
+        views.setTextColor(R.id.timeline_noise, color)
+        views.setOnClickPendingIntent(R.id.timeline_noise, noise.second)
+    }
+
     private fun setCountdown(views: RemoteViews, model: DayBarModel, color: Int): Boolean {
         val end = model.countdownTo
         val format = model.countdownFormat

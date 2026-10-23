@@ -50,7 +50,8 @@ fun NoiseBar(state: NoiseState, settings: NoiseSettings, player: NoisePlayer, on
                     style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                 )
                 TextButton(onClick = player::previous) { Text("⏮︎", fontSize = 18.sp) }
-                TextButton(onClick = player::toggle) { Text(if (state.playing) "⏸︎" else "▶︎", fontSize = 18.sp) }
+                // Play/pause is the big one.
+                TextButton(onClick = player::toggle) { Text(if (state.playing) "⏸︎" else "▶︎", fontSize = 30.sp) }
                 TextButton(onClick = player::next) { Text("⏭︎", fontSize = 18.sp) }
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

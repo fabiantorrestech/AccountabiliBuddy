@@ -3,4 +3,5 @@
     <string name="app_name">AccountabiliBuddy</string>
     <string name="timeline_description">Today\'s timeline</string>
     <string name="widget_description">Today\'s timeline, what\'s next and the sleep line</string>
+    <string name="noise_toggle">Play or pause the noise</string>
 </resources>

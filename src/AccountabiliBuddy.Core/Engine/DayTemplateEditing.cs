@@ -25,10 +25,13 @@ public static class DayTemplateEditing
     /// the next part starts.
     /// </summary>
     /// <returns>The template with the new part; null when that time already has a part or less than 15 minutes are free.</returns>
-    public static DayTemplate? AddAt(DayTemplate template, int startMinute, Guid categoryId)
+    /// <param name="categories">The plan's categories, so a Pre-Work part may sit over Sleep (ADR 31); none: no overlaps.</param>
+    public static DayTemplate? AddAt(DayTemplate template, int startMinute, Guid categoryId, IReadOnlyList<DayCategory>? categories = null)
     {
         int start = Math.Clamp(startMinute / SnapMinutes * SnapMinutes, 0, MinutesPerDay - SnapMinutes);
-        List<(int Start, int End)> taken = template.Parts.SelectMany(Ranges).ToList();
+        List<(int Start, int End)> taken = template.Parts
+            .Where(other => !MayOverlap(categoryId, other.CategoryId, categories))
+            .SelectMany(Ranges).ToList();
         if (taken.Any(range => range.Start <= start && start < range.End))
         {
             return null;
@@ -54,7 +57,8 @@ public static class DayTemplateEditing
     /// </summary>
     /// <param name="crossesMidnight">Whether the part crossed midnight when the drag started.</param>
     /// <returns>The changed template; null when the change is refused or less than 15 minutes would be left.</returns>
-    public static DayTemplate? Move(DayTemplate template, Guid partId, int startMinute, int endMinute, bool crossesMidnight)
+    public static DayTemplate? Move(
+        DayTemplate template, Guid partId, int startMinute, int endMinute, bool crossesMidnight, IReadOnlyList<DayCategory>? categories = null)
     {
         PlanPart? part = template.Parts.FirstOrDefault(candidate => candidate.Id == partId);
         if (part is null)
@@ -64,7 +68,8 @@ public static class DayTemplateEditing
 
         int start = Math.Min(Snap(startMinute), MinutesPerDay - SnapMinutes);
         int end = Snap(endMinute);
-        List<(int Start, int End)> others = template.Parts.Where(other => other.Id != partId)
+        List<(int Start, int End)> others = template.Parts
+            .Where(other => other.Id != partId && !MayOverlap(part.CategoryId, other.CategoryId, categories))
             .SelectMany(Ranges)
             .OrderBy(range => range.Start)
             .ToList();
@@ -120,6 +125,17 @@ public static class DayTemplateEditing
 
         PlanPart moved = part with { Start = TimeOf(start), End = TimeOf(end) };
         return new DayTemplate(template.Parts.Select(candidate => candidate.Id == partId ? moved : candidate).ToList());
+    }
+
+    /// <summary>
+    /// True when parts of these two categories may overlap: a Pre-Work part over Sleep (ADR 31), so an early start is
+    /// guarded even before the planned wake time.
+    /// </summary>
+    public static bool MayOverlap(Guid a, Guid b, IReadOnlyList<DayCategory>? categories)
+    {
+        CategoryBehavior? first = categories?.FirstOrDefault(category => category.Id == a)?.Behavior;
+        CategoryBehavior? second = categories?.FirstOrDefault(category => category.Id == b)?.Behavior;
+        return (first, second) is (CategoryBehavior.PreWork, CategoryBehavior.Sleep) or (CategoryBehavior.Sleep, CategoryBehavior.PreWork);
     }
 
     /// <summary>A part as minute ranges within one day; a midnight-crossing part is its start to midnight plus midnight to its end.</summary>

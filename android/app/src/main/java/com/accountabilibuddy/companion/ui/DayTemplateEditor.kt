@@ -83,7 +83,7 @@ fun DayTemplateEditor(
                 // The first free quarter hour from 8 AM on (wrapping past midnight).
                 val category = categories.firstOrNull { it.behavior == CategoryBehavior.Rest } ?: categories.firstOrNull()
                 val added = category?.let { chosen ->
-                    (0 until 96).asSequence().map { (8 * 60 + it * 15) % (24 * 60) }.firstNotNullOfOrNull { DayTemplateEditing.addAt(template, it, chosen.id) }
+                    (0 until 96).asSequence().map { (8 * 60 + it * 15) % (24 * 60) }.firstNotNullOfOrNull { DayTemplateEditing.addAt(template, it, chosen.id, categories) }
                 }
                 if (added == null) {
                     onMessage("There's no free time left in this day.")

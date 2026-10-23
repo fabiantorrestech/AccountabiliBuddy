@@ -87,7 +87,7 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
             return;
         }
 
-        DayTemplate? next = DayTemplateEditing.AddAt(ToTemplate(), startMinute, category.Id);
+        DayTemplate? next = DayTemplateEditing.AddAt(ToTemplate(), startMinute, category.Id, Categories);
         if (next is null)
         {
             Error = "There's no free time there for a new part.";
@@ -104,7 +104,7 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
     /// <returns>False when the change was refused (less than 15 minutes would be left).</returns>
     public bool Move(Guid partId, int startMinute, int endMinute, bool crossesMidnight)
     {
-        DayTemplate? next = DayTemplateEditing.Move(ToTemplate(), partId, startMinute, endMinute, crossesMidnight);
+        DayTemplate? next = DayTemplateEditing.Move(ToTemplate(), partId, startMinute, endMinute, crossesMidnight, Categories);
         return next is not null && Show(next, partId);
     }
 
@@ -112,7 +112,7 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
     public bool MoveWhole(Guid partId, int startMinute, int lengthMinutes)
     {
         int start = Math.Clamp(DayTemplateEditing.Snap(startMinute), 0, 24 * 60 - lengthMinutes);
-        DayTemplate? next = DayTemplateEditing.Move(ToTemplate(), partId, start, start + lengthMinutes, crossesMidnight: false);
+        DayTemplate? next = DayTemplateEditing.Move(ToTemplate(), partId, start, start + lengthMinutes, crossesMidnight: false, Categories);
         PlanPart? moved = next?.Parts.First(part => part.Id == partId);
         if (moved is null || (moved.EndMinutes - (int)moved.Start.ToTimeSpan().TotalMinutes) != lengthMinutes)
         {
