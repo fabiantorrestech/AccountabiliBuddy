@@ -6,6 +6,9 @@
     <!-- The Wi-Fi network's broadcast address, to find the paired PC when its address changed (ADR 14). -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- "Pause in the car": tells a car's Bluetooth (by its class) from other devices; asked only when that switch is turned on. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Holding the timeline notification pinned at the top (see PinnedTimelineService). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -162,6 +165,17 @@
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/pc-paired" />
             </intent-filter>
         </service>
+
+        <receiver
+            android:name=".pause.CarReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
+                <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" />
+                <action android:name="android.app.action.ENTER_CAR_MODE" />
+                <action android:name="android.app.action.EXIT_CAR_MODE" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".widget.TimelineWidgetReceiver"

@@ -45,6 +45,7 @@ import java.util.Locale
 @Composable
 fun DayPlanEditorScreen(
     draft: DayPlanDraft,
+    startTab: Int = 0,
     pcName: String?,
     clock: ClockFormat,
     onChange: (DayPlan) -> Unit,
@@ -53,7 +54,7 @@ fun DayPlanEditorScreen(
     onMessage: (String) -> Unit,
 ) {
     val plan = draft.plan
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    var tab by rememberSaveable { mutableIntStateOf(startTab) }
     var confirmingDiscard by remember { mutableStateOf(false) }
     val leave = { if (draft.changed) confirmingDiscard = true else onClose() }
     BackHandler(onBack = leave)

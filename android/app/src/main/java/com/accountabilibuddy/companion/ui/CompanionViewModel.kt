@@ -274,6 +274,31 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         sync.saveSettings(sync.settings.value.copy(folderOn = true, folderUri = uri.toString()))
     }
 
+    private val pause = (application as CompanionApp).pause
+
+    /** The phone's master switch and car pause. */
+    val pauseState = pause.state
+
+    fun requestPause(length: com.accountabilibuddy.companion.pause.PauseLength, waitMinutes: Int, untilTime: java.time.LocalTime) {
+        pause.requestOff(length, waitMinutes, untilTime)
+        message.value = "Turning off in $waitMinutes min unless you cancel."
+        refreshSoon()
+    }
+
+    fun turnPauseOff() {
+        pause.turnOn()
+        message.value = "AccountabiliBuddy is on."
+        refreshSoon()
+    }
+
+    fun setCarPause(on: Boolean) {
+        pause.setCarPause(on)
+    }
+
+    private fun refreshSoon() {
+        viewModelScope.launch { com.accountabilibuddy.companion.notify.Refresher.refresh(getApplication()) }
+    }
+
     private val driveSource = (application as CompanionApp).driveSource
     private val driveSignIn = (application as CompanionApp).driveSignIn
 
@@ -416,7 +441,12 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
      * Opens the editor on the plan shown, building on the PC plan the phone has now (or on the waiting edit's
      * starting point). Null when it opened, otherwise why not.
      */
-    fun openPlanEditor(): String? {
+    /** The editor's first tab when it opens (2: one-off days, from the pause switch's "Plan off days"). */
+    var planEditorTab: Int = 0
+        private set
+
+    fun openPlanEditor(startTab: Int = 0): String? {
+        planEditorTab = startTab
         val state = store.state.value
         val pending = state.pendingPlan
         val baseVersion = pending?.baseVersion ?: state.pcPlanVersion

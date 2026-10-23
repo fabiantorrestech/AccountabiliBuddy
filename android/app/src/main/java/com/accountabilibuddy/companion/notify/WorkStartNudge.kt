@@ -23,6 +23,8 @@ object WorkStartNudge {
 
     fun check(context: Context, focus: WatchSnapshot?, now: Instant = Instant.now()) {
         if (focus == null) {
+            // Nothing known, or the phone is paused: no nudge, and an old one goes.
+            NotificationManagerCompat.from(context).cancel(ID)
             return
         }
 

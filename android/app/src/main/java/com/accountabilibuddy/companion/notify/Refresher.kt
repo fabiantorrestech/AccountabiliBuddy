@@ -70,9 +70,14 @@ object Refresher {
                 runCatching { TimelineWidget().updateAll(context) }
             }
 
-            BedtimeReminder.check(context, app.store, clock, now)
+            // The master switch (and the car): while quiet, nothing nudges, parks or reminds.
+            val quiet = app.pause.isQuiet
+            com.accountabilibuddy.companion.pause.PauseReminder.check(context, app.pause)
+            if (!quiet) {
+                BedtimeReminder.check(context, app.store, clock, now)
+            }
             // Steering (start nudge, parked phone, pickups to the PC): from the devices' combined focus.
-            val focus = HeaderSource.focus(app, now)
+            val focus = HeaderSource.focus(app, now)?.takeUnless { quiet }
             WorkStartNudge.check(context, focus)
             val running = focus?.running
             val pickups = running?.let { app.sync.unlocksSince(it.startedAt)?.size }

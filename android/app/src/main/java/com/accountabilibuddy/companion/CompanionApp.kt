@@ -71,6 +71,9 @@ class CompanionApp : Application() {
         private set
     val driveSignIn by lazy { com.accountabilibuddy.companion.sync.DriveSignIn(this) }
 
+    /** The phone's master switch and car pause. */
+    val pause by lazy { com.accountabilibuddy.companion.pause.PauseStore(this) }
+
     /** The noise player (sounds from a folder the user picks), as on the PC. */
     lateinit var noise: com.accountabilibuddy.companion.noise.NoisePlayer
         private set
@@ -117,7 +120,12 @@ class CompanionApp : Application() {
         sync.companions = { watchBridge.companions() }
         sync.nextAlarm = { wakeAlarm }
         // Pickups during the other devices' sessions (ADR 26): unlock times from Usage access, when allowed.
-        sync.unlocksSince = { from -> com.accountabilibuddy.companion.usage.PhoneUsageReader(this).unlocks(from, java.time.Instant.now()) }
+        // Unlocks while the phone was paused or in the car aren't pickups.
+        sync.unlocksSince = { from ->
+            val state = pause.advance()
+            com.accountabilibuddy.companion.usage.PhoneUsageReader(this).unlocks(from, java.time.Instant.now())
+                ?.filterNot { com.accountabilibuddy.companion.pause.PauseRules.inQuiet(state, it) }
+        }
         watchBridge.onLinkChanged = { sendSyncFilesToPc() }
         folderSource = DriveFolderSource(this, sync)
         driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn)

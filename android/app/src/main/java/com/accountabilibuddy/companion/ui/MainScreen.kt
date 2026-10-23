@@ -50,6 +50,7 @@ fun MainScreen(
     val linkStatus by viewModel.linkStatus.collectAsStateWithLifecycle()
     val folderStatus by viewModel.folderStatus.collectAsStateWithLifecycle()
     val driveStatus by viewModel.driveStatus.collectAsStateWithLifecycle()
+    val pauseState by viewModel.pauseState.collectAsStateWithLifecycle()
     val runningTasks by viewModel.runningTasks.collectAsStateWithLifecycle()
     val comebacks by viewModel.comebacks.collectAsStateWithLifecycle()
     val pairedPc by viewModel.pairedPc.collectAsStateWithLifecycle()
@@ -107,6 +108,7 @@ fun MainScreen(
             planDraft?.let { draft ->
                 DayPlanEditorScreen(
                     draft = draft,
+                    startTab = viewModel.planEditorTab,
                     pcName = pairedPc?.pcName,
                     clock = viewModel.clock,
                     onChange = viewModel::updatePlanDraft,
@@ -205,6 +207,13 @@ fun MainScreen(
                         onConnectCurbox = onConnectCurbox,
                         noise = noise,
                         noiseSettings = noiseSettings,
+                        pause = pauseState,
+                        pauseActions = PauseActions(
+                            onRequestOff = viewModel::requestPause,
+                            onTurnOn = viewModel::turnPauseOff,
+                            onCarPause = viewModel::setCarPause,
+                            onPlanOffDays = { viewModel.openPlanEditor(startTab = 2)?.let { viewModel.message.value = it } },
+                        ),
                     )
                 }
                 else -> AboutScreen(pcName = pairedPc?.pcName)

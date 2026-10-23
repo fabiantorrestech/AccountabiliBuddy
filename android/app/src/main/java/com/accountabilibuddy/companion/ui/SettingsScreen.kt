@@ -67,8 +67,23 @@ fun SettingsScreen(
     onConnectCurbox: () -> Unit,
     noise: com.accountabilibuddy.companion.noise.NoisePlayer? = null,
     noiseSettings: com.accountabilibuddy.companion.noise.NoiseSettings = com.accountabilibuddy.companion.noise.NoiseSettings(),
+    pause: com.accountabilibuddy.companion.pause.PauseState? = null,
+    pauseActions: PauseActions = PauseActions(),
 ) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        if (pause != null) {
+            item {
+                // Ticks the wait down while it's shown.
+                var now by remember { mutableStateOf(java.time.Instant.now()) }
+                LaunchedEffect(pause) {
+                    while (true) {
+                        now = java.time.Instant.now()
+                        kotlinx.coroutines.delay(1_000)
+                    }
+                }
+                PauseSection(pause, now, clock, pauseActions)
+            }
+        }
         item {
             Section("Profiles from the PC", summary = if (state.hasImport) "Imported ${state.importedAt}" else "Nothing imported") {
                 Text(
