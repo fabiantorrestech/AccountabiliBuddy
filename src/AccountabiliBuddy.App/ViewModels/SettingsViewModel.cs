@@ -614,6 +614,11 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public bool HasWorkHours => WorkHours is not null;
 
+    /// <summary>The hyperfocus reminder card; null hides it.</summary>
+    public HyperfocusViewModel? Hyperfocus { get; init; }
+
+    public bool HasHyperfocus => Hyperfocus is not null;
+
     /// <summary>Step away's shortcut and idle switch (Focus sessions); set by the app.</summary>
     public StepAwayService? StepAway
     {

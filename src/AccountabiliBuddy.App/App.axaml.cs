@@ -85,6 +85,7 @@ public partial class App : Application
     private PlanFirstService? _planFirst;
     private SessionReviewService? _sessionReview;
     private WorkHoursGuard? _workHours;
+    private HyperfocusGuard? _hyperfocus;
     private ComebackStore? _comebacks;
     private CaptureService? _capture;
     private WorkGateService? _workGate;
@@ -362,6 +363,10 @@ public partial class App : Application
         // ADR 27: work hours on this computer (off unless turned on in Settings).
         _workHours = new WorkHoursGuard(_sessions, _configuration, documents, windowsEnforcer, () => _activityWatcher.CaptureCurrent(), presenter.ShowNotice);
         _workHours.LoadBlocking();
+        // Hyperfocus guard: one quiet reminder after 90 minutes of unbroken focus.
+        _hyperfocus = new HyperfocusGuard(_sessions, documents, (title, message) =>
+            presenter.ShowReminder(title, message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A9D8F"))));
+        _hyperfocus.LoadBlocking();
         // ADR 28: while it guards, a day plan change that frees some of today's work waits like a looser change.
         _configuration.DayPlanHold = _workHours.DescribeCut;
         _activityWatcher.ActivityChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => _workHours.OnActivity(snapshot));
@@ -552,6 +557,7 @@ public partial class App : Application
             {
                 StepAway = _stepAway,
                 WorkHours = new WorkHoursViewModel(_workHours!, _sessions),
+                Hyperfocus = new HyperfocusViewModel(_hyperfocus!, _configuration),
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
                 Updates = new UpdatesViewModel(_updates),
                 EnforcementLimit = enforcementLimit,
@@ -1194,6 +1200,7 @@ public partial class App : Application
         _workHours?.Dispose();
         _capture?.Dispose();
         _workGate?.Dispose();
+        _hyperfocus?.Dispose();
         _stepAwayHotkey?.Dispose();
         _enforcement?.Dispose();
         _recorder?.Dispose();

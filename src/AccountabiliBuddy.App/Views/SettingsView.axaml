@@ -124,6 +124,31 @@
                         <TextBlock Text="The idle minutes before it starts still count as focus." Opacity="0.75" TextWrapping="Wrap" />
                     </StackPanel>
                     </Border>
+                    <Border Classes="card" search:SearchArea.Name="Hyperfocus reminder" IsVisible="{Binding HasHyperfocus}">
+                    <StackPanel Spacing="6" DataContext="{Binding Hyperfocus}" x:DataType="vm:HyperfocusViewModel">
+                        <TextBlock Text="Hyperfocus reminder" Classes="sectionTitle" />
+                        <TextBlock Text="One quiet reminder after a long stretch of focus with no break: water, stand, eat. Coming back from Step away starts the stretch over."
+                                   Opacity="0.75" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <CheckBox Content="Remind me after" IsChecked="{Binding IsOn}" />
+                            <NumericUpDown Value="{Binding IntervalMinutes}" Minimum="15" Maximum="240" Increment="15" FormatString="0"
+                                           Width="110" IsEnabled="{Binding IsOn}" />
+                            <TextBlock Text="minutes of unbroken focus" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Text="During these profiles:" Opacity="0.75" />
+                        <ItemsControl ItemsSource="{Binding Profiles}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:HyperfocusProfileRowViewModel">
+                                    <CheckBox IsChecked="{Binding Reminds}" Content="{Binding Name}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Save reminder" Command="{Binding SaveCommand}" />
+                            <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Opacity="0.75" />
+                        </StackPanel>
+                    </StackPanel>
+                    </Border>
                     <Border Classes="card" search:SearchArea.Name="Pomodoro defaults">
                     <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
                         <TextBlock Text="Pomodoro defaults" Classes="sectionTitle" />
