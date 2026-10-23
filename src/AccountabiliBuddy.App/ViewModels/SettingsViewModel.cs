@@ -799,6 +799,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial int TimerColourIndex { get; set; }
 
+    /// <summary>Quiet mode dulls the timeline's red marks and now line at rest too (<see cref="OverlaySettings.QuietMarks"/>).</summary>
+    [ObservableProperty]
+    public partial bool TimerQuietMarks { get; set; }
+
     /// <summary>20–100.</summary>
     [ObservableProperty]
     public partial double TimerOpacityPercent { get; set; }
@@ -1178,6 +1182,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             HideInFullscreen = TimerHideInFullscreen,
             FillUp = TimerFillUp,
             Quiet = TimerColourIndex != 1,
+            QuietMarks = TimerQuietMarks,
             DefaultTimer = new ProfileOverlay(DefaultTimerOn, DefaultTimerColor.Hex),
             ShowTimeline = ShowTimeline,
             TimelineInFocus = TimelineStaysInFocus ? TimelineInFocus.ShowBoth : TimelineInFocus.SwapForTimer,
@@ -1285,6 +1290,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         TimerHideInFullscreen = overlay.HideInFullscreen;
         TimerFillUp = overlay.FillUp;
         TimerColourIndex = overlay.Quiet ? 0 : 1;
+        TimerQuietMarks = overlay.QuietMarks;
         ProfileOverlay defaultTimer = overlay.DefaultTimer ?? ProfileOverlay.Off;
         DefaultTimerOn = defaultTimer.Enabled;
         DefaultTimerColor = TimerColorOption.Match(DefaultTimerColors, defaultTimer.Color);

@@ -30,6 +30,8 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="Corner">The corner it sits in by default; bottom corners stay above the taskbar while it shows.</param>
 /// <param name="Quiet">At rest it's muted (60%, slate colours, red marks kept); full colour while Ctrl+Alt is held and for
 /// loud moments (the last 2 minutes, time up). On by default; settings saved before it existed read as on.</param>
+/// <param name="QuietMarks">In quiet mode, the timeline's red (drift marks, the now line) and task marks are dulled at
+/// rest too, instead of staying in full colour. On by default.</param>
 public sealed record OverlaySettings(
     OverlayStyle Style,
     double Opacity,
@@ -52,7 +54,8 @@ public sealed record OverlaySettings(
     IReadOnlyDictionary<string, int>? AppDrops = null,
     IReadOnlyDictionary<string, int>? AppShifts = null,
     OverlayCorner Corner = OverlayCorner.BottomRight,
-    bool Quiet = true)
+    bool Quiet = true,
+    bool QuietMarks = true)
 {
     /// <summary>Default vertical distance for maximized apps from a top corner (clears tabs, toolbars, window buttons).</summary>
     public const int TopCornerDrop = 110;

@@ -380,6 +380,8 @@
                         <CheckBox IsChecked="{Binding TimerPulseAtMarks}" Content="Brighten softly once when passing a mark" />
                         <CheckBox IsChecked="{Binding TimerHideInFullscreen}" Content="Hide while a fullscreen app is in front (videos, presentations, games)" />
                         <CheckBox IsChecked="{Binding TimerFillUp}" Content="Fill up as time passes (instead of counting down from a full bar)" />
+                        <CheckBox IsChecked="{Binding TimerQuietMarks}"
+                                  Content="Quiet at rest dulls the timeline's red too (drift marks, now line), 3 seconds after Ctrl+Alt is let go" />
                         <Grid ColumnDefinitions="240,Auto" ColumnSpacing="8">
                             <CheckBox IsChecked="{Binding MoveForMaximizedApps}" VerticalAlignment="Center">
                                 <TextBlock Text="Move in from the corner while a maximized app is in front (keeps its buttons and bars clickable)" TextWrapping="Wrap" />

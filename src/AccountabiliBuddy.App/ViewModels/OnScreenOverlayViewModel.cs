@@ -32,7 +32,11 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     private const double GlowBrightness = 0.75;
     private static readonly TimeSpan GlowHold = TimeSpan.FromSeconds(1.4);
 
+    // After Ctrl+Alt is let go, full colour stays this long before going quiet again.
+    private static readonly TimeSpan QuietAfterDetails = TimeSpan.FromSeconds(3);
+
     private readonly DispatcherTimer _glowTimer;
+    private readonly DispatcherTimer _settleTimer;
 
     private readonly Action _hideBriefly;
     private readonly Action _backToDefaultSpot;
@@ -52,6 +56,12 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
         AppDropText = string.Empty;
         KeepText = "Keep this spot";
         UseDefaultText = string.Empty;
+        _settleTimer = new DispatcherTimer { Interval = QuietAfterDetails };
+        _settleTimer.Tick += (_, _) =>
+        {
+            _settleTimer.Stop();
+            ApplyQuiet();
+        };
         _glowTimer = new DispatcherTimer { Interval = GlowHold };
         _glowTimer.Tick += (_, _) =>
         {
@@ -246,14 +256,25 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     public void SetDragReady(bool ready)
     {
         OutlineBrush = ready ? DragOutline : Brushes.Transparent;
+        bool wasShowing = ShowsDetails;
         ShowsDetails = ready;
         Timer.SetDragReady(ready);
+        if (wasShowing && !ready)
+        {
+            _settleTimer.Stop();
+            _settleTimer.Start();
+        }
+
         ApplyQuiet();
     }
 
     /// <summary>Muted at rest (quiet mode): not while Ctrl+Alt is held, in a phase's last 2 minutes, glowing or saying "done".</summary>
     [ObservableProperty]
     public partial bool IsQuiet { get; set; }
+
+    /// <summary>At rest the timeline's marks and now line are dulled too (<see cref="OverlaySettings.QuietMarks"/>).</summary>
+    [ObservableProperty]
+    public partial bool QuietMarks { get; set; }
 
     /// <summary>"Away · 4:12" while the user stepped away.</summary>
     [ObservableProperty]
@@ -327,7 +348,8 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     private void ApplyQuiet()
     {
         bool loud = (_showsTimer && Timer.IsLoud) || GlowOpacity > 0 || ShowsDone;
-        IsQuiet = _settings.Quiet && !ShowsDetails && !loud;
+        IsQuiet = _settings.Quiet && !ShowsDetails && !_settleTimer.IsEnabled && !loud;
+        QuietMarks = _settings.QuietMarks;
         PanelOpacity = IsQuiet ? Math.Min(_settings.Opacity, QuietOpacity) : _settings.Opacity;
     }
 

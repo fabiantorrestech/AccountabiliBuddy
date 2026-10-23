@@ -74,7 +74,7 @@
 
                         <!-- All-day timeline: a small copy of the day bar, with the next block under it. -->
                         <StackPanel Spacing="2" IsVisible="{Binding ShowsTimeline}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
-                            <controls:DayBarControl Layout="{Binding Day.Layout}" Compact="True" Quiet="{Binding IsQuiet}"
+                            <controls:DayBarControl Layout="{Binding Day.Layout}" Compact="True" Quiet="{Binding IsQuiet}" QuietMarks="{Binding QuietMarks}"
                                                     NowFraction="{Binding Day.NowFraction}" />
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Text="{Binding Day.StatusText}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"

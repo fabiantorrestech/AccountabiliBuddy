@@ -37,6 +37,9 @@ public sealed class DayBarControl : Control
     public static readonly StyledProperty<bool> QuietProperty =
         AvaloniaProperty.Register<DayBarControl, bool>(nameof(Quiet));
 
+    public static readonly StyledProperty<bool> QuietMarksProperty =
+        AvaloniaProperty.Register<DayBarControl, bool>(nameof(QuietMarks));
+
     public static readonly StyledProperty<double> NowFractionProperty =
         AvaloniaProperty.Register<DayBarControl, double>(nameof(NowFraction), double.NaN);
 
@@ -59,6 +62,10 @@ public sealed class DayBarControl : Control
     private static readonly IBrush AddedBrush = new SolidColorBrush(FocusColor, 0.45);
     private static readonly IPen AddedStripePen = new Pen(new SolidColorBrush(Color.FromRgb(45, 212, 191), 0.55), 2);
     private static readonly IBrush NowBrush = new SolidColorBrush(Color.FromRgb(220, 38, 38));
+    private static readonly IBrush QuietNowBrush = new SolidColorBrush(Color.FromRgb(220, 38, 38), 0.4);
+
+    // Marks at rest when they're dulled too (QuietMarks): same colours, mostly see-through.
+    private const double QuietMarkOpacity = 0.35;
 
     private static readonly IBrush AwayBrush = new SolidColorBrush(Color.FromRgb(100, 116, 139));
     private static readonly IPen AwayStripePen = new Pen(new SolidColorBrush(Color.FromRgb(21, 25, 30), 0.7), 2);
@@ -78,7 +85,7 @@ public sealed class DayBarControl : Control
 
     static DayBarControl()
     {
-        AffectsRender<DayBarControl>(LayoutProperty, CompactProperty, QuietProperty, NowFractionProperty);
+        AffectsRender<DayBarControl>(LayoutProperty, CompactProperty, QuietProperty, QuietMarksProperty, NowFractionProperty);
         AffectsMeasure<DayBarControl>(LayoutProperty, CompactProperty);
     }
 
@@ -121,6 +128,15 @@ public sealed class DayBarControl : Control
         get => GetValue(QuietProperty);
         set => SetValue(QuietProperty, value);
     }
+
+    /// <summary>With <see cref="Quiet"/>: drift and task marks and the now line are dulled too.</summary>
+    public bool QuietMarks
+    {
+        get => GetValue(QuietMarksProperty);
+        set => SetValue(QuietMarksProperty, value);
+    }
+
+    private bool DullsMarks => Quiet && QuietMarks;
 
     /// <summary>Where the now line is drawn (0–1), moved every second so it glides; NaN = the layout's own.</summary>
     public double NowFraction
@@ -193,7 +209,7 @@ public sealed class DayBarControl : Control
         double now = double.IsNaN(NowFraction) ? layout.Now : NowFraction;
         double nowX = BarLeft(size) + (Math.Clamp(now, 0, 1) * BarWidth(size));
         nowX = Math.Clamp(nowX, BarLeft(size) + 1, Math.Max(BarLeft(size) + 1, Bounds.Width - 1));
-        context.DrawLine(new Pen(NowBrush, 2), new Point(nowX, size.RowTop - size.NowOverhang), new Point(nowX, rowsBottom + size.NowOverhang));
+        context.DrawLine(new Pen(DullsMarks ? QuietNowBrush : NowBrush, 2), new Point(nowX, size.RowTop - size.NowOverhang), new Point(nowX, rowsBottom + size.NowOverhang));
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)
@@ -296,8 +312,11 @@ public sealed class DayBarControl : Control
                 box = box.WithWidth(DayBarHitTest.MinMarkWidth);
             }
 
-            // Drift in red; a ticked task (ADR 24) in its own colour.
-            context.DrawRectangle(BrushFor(mark.Color) ?? DriftBrush, null, box, 1, 1);
+            // Drift in red; a ticked task (ADR 24) in its own colour; both dulled at rest with QuietMarks.
+            using (context.PushOpacity(DullsMarks ? QuietMarkOpacity : 1))
+            {
+                context.DrawRectangle(BrushFor(mark.Color) ?? DriftBrush, null, box, 1, 1);
+            }
         }
     }
 
