@@ -116,6 +116,8 @@ class CompanionApp : Application() {
         // The phone's card names its linked watch (Task 18); linking or unlinking it tells the PC at once.
         sync.companions = { watchBridge.companions() }
         sync.nextAlarm = { wakeAlarm }
+        // Pickups during the other devices' sessions (ADR 26): unlock times from Usage access, when allowed.
+        sync.unlocksSince = { from -> com.accountabilibuddy.companion.usage.PhoneUsageReader(this).unlocks(from, java.time.Instant.now()) }
         watchBridge.onLinkChanged = { sendSyncFilesToPc() }
         folderSource = DriveFolderSource(this, sync)
         driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn)
@@ -207,7 +209,7 @@ class CompanionApp : Application() {
     }
 
     /** Hands the PC this phone's file and what it carries now, when a PC is paired (and connected), after checking the watch link. */
-    private fun sendSyncFilesToPc() {
+    fun sendSyncFilesToPc() {
         val pc = link.pairedPc.value ?: return
         appScope.launch {
             watchBridge.refreshKnownWatches()

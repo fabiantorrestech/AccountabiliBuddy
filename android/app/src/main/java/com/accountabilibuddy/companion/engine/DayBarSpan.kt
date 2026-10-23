@@ -14,4 +14,6 @@ data class DayBarSpan(
     val profileId: UUID? = null,
     val color: Int? = null,
     val name: String? = null,
+    /** An all-day event (the Calendar row): a thin sliver along the top of the row, not a full block. */
+    val allDay: Boolean = false,
 )

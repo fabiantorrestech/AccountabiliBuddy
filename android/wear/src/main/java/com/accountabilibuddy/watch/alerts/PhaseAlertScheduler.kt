@@ -11,7 +11,8 @@ import java.time.Instant
 
 /**
  * Sets the watch's buzzes for the running phase ([PhaseAlerts]) each time a snapshot arrives or the alert choices
- * change: at the phase's end and a minute before, at the exact time (the app may use exact alarms: it's a timer).
+ * change: at the phase's end and a minute before, at the exact time (the app may use exact alarms: it's a timer), and
+ * when planned work starts with no session running (the start nudge; a session starting first cancels it).
  * The buzz then comes even when the phone is out of reach.
  */
 object PhaseAlertScheduler {
@@ -24,7 +25,7 @@ object PhaseAlertScheduler {
 
         val now = Instant.now()
         val alerts = PhaseAlerts.due(snapshot?.running, now, AlertSettings.warning(context)) +
-            listOfNotNull(PhaseAlerts.goal(snapshot, now, java.time.ZoneId.systemDefault()))
+            listOfNotNull(PhaseAlerts.goal(snapshot, now, java.time.ZoneId.systemDefault()), PhaseAlerts.workStart(snapshot, now))
         for (alert in alerts) {
             val pending = intent(context, alert.kind, alert.onBreak)
             val at = alert.at.toEpochMilli()

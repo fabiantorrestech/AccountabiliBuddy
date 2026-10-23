@@ -37,6 +37,8 @@
                 </Border>
                 <TextBlock Text="{Binding FocusedTodayText}" Opacity="0.75" TextWrapping="Wrap"
                            IsVisible="{Binding FocusedTodayText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <TextBlock Text="{Binding PhoneText}" Opacity="0.75" TextWrapping="Wrap" Foreground="#22C55E"
+                           IsVisible="{Binding PhoneText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasStepAway}">
                     <Button Classes="away" Content="{Binding StepAwayText}" Command="{Binding StepAwayCommand}"
                             ToolTip.Tip="A bathroom break: the countdown pauses; any key or mouse movement brings you back" />

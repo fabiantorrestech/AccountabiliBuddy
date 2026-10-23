@@ -33,6 +33,10 @@ object Refresher {
     @Volatile
     private var countdownEnd: java.time.Instant? = null
 
+    // The pickups last sent to the PC for the running session (sent again only when they change).
+    @Volatile
+    private var lastPickups: Int? = null
+
     fun start(context: Context) {
         Channels.create(context)
         schedule(context)
@@ -67,6 +71,16 @@ object Refresher {
             }
 
             BedtimeReminder.check(context, app.store, clock, now)
+            // Steering (start nudge, parked phone, pickups to the PC): from the devices' combined focus.
+            val focus = HeaderSource.focus(app, now)
+            WorkStartNudge.check(context, focus)
+            val running = focus?.running
+            val pickups = running?.let { app.sync.unlocksSince(it.startedAt)?.size }
+            ParkedNotice.check(context, running, pickups, clock)
+            if (running != null && pickups != null && pickups != lastPickups) {
+                lastPickups = pickups
+                app.sendSyncFilesToPc()
+            }
             schedule(context)
         }
     }

@@ -71,6 +71,9 @@ public sealed class DayBarControl : Control
     private static readonly IPen AwayStripePen = new Pen(new SolidColorBrush(Color.FromRgb(21, 25, 30), 0.7), 2);
 
     /// <summary>Every span in <see cref="Quiet"/>: one muted slate (drift and task marks keep their colours).</summary>
+    // An all-day event's height, as a share of its row.
+    private const double AllDaySliver = 0.2;
+
     public static readonly IBrush QuietBrush = new SolidColorBrush(Color.FromRgb(100, 116, 139), 0.55);
     private static readonly IBrush NightBrush = new SolidColorBrush(Color.FromRgb(79, 70, 229), 0.28);
     private static readonly IBrush MissedBrush = new SolidColorBrush(Color.FromRgb(220, 38, 38), 0.35);
@@ -486,7 +489,9 @@ public sealed class DayBarControl : Control
     {
         double left = BarLeft(size) + (Math.Clamp(span.Start, 0, 1) * BarWidth(size));
         double right = BarLeft(size) + (Math.Clamp(span.End, 0, 1) * BarWidth(size));
-        return new Rect(left, top, Math.Max(1, right - left), size.RowHeight);
+        // An all-day event: a thin strip along the top of the row, so the day's timed events stay readable.
+        double height = span.IsSliver ? Math.Max(2, size.RowHeight * AllDaySliver) : size.RowHeight;
+        return new Rect(left, top, Math.Max(1, right - left), height);
     }
 
     private double RowsBottom(Sizes size)

@@ -3,6 +3,7 @@ package com.accountabilibuddy.companion.sync
 import com.accountabilibuddy.shared.sync.SyncCompanion
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFile
+import com.accountabilibuddy.shared.sync.SyncPickup
 import com.accountabilibuddy.shared.sync.SyncFileCodec
 import com.accountabilibuddy.shared.sync.SyncFolder
 import com.accountabilibuddy.shared.sync.SyncKey
@@ -61,6 +62,7 @@ class SyncCoordinator(
             SyncDeviceCard.METHOD_QR.takeIf { settings.qrOn },
             SyncDeviceCard.METHOD_FILE.takeIf { settings.fileOn },
             SyncDeviceCard.METHOD_FOLDER.takeIf { settings.folderOn && settings.folderUri != null },
+            SyncDeviceCard.METHOD_DRIVE.takeIf { settings.driveOn },
         )
     }
 
@@ -72,6 +74,20 @@ class SyncCoordinator(
 
     /** The phone's next alarm for its card (ADR 23); null when there's none. */
     var nextAlarm: () -> Instant? = { null }
+
+    /** The phone's unlock times since a moment (ADR 26 pickups); null without Usage access. */
+    var unlocksSince: (Instant) -> List<Instant>? = { null }
+
+    /** The pickups during the other devices' counted sessions of the last 14 days; null without Usage access. */
+    fun pickups(): List<SyncPickup>? {
+        val now = now()
+        val sessions = store.devices.value
+            .filter { it.file.device.kind != SyncDeviceCard.KIND_PHONE }
+            .flatMap { device -> device.file.sessions.map { device.file.device.deviceId to it } }
+        val from = sessions.minOfOrNull { it.second.start } ?: return emptyList()
+        val unlocks = unlocksSince(from) ?: return null
+        return SyncPickup.count(sessions, unlocks, now)
+    }
 
     /** Joins the group of [code] (from the PC's link code); a new group drops the old one's copies. False when invalid. */
     fun join(code: String): Boolean {
@@ -149,6 +165,7 @@ class SyncCoordinator(
             nextAlarm().takeIf { settingsStore.settings.value.alarmOn },
         ),
         emptyList(), emptyList(), null, emptyList(),
+        pickups = runCatching { pickups() }.getOrNull(),
     )
 
     /** Everything to hand over by [method] (Drive or a share): this phone's own file first, then what it carries. */

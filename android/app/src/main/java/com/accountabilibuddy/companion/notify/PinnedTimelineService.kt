@@ -49,7 +49,9 @@ class PinnedTimelineService : Service() {
         super.onCreate()
         isRunning = true
         lastNight = isNight(resources.configuration)
-        ContextCompat.registerReceiver(this, screenOn, IntentFilter(Intent.ACTION_SCREEN_ON), ContextCompat.RECEIVER_NOT_EXPORTED)
+        // Unlocking too: a pickup during a session updates the parked notice and goes to the PC at once.
+        val filter = IntentFilter(Intent.ACTION_SCREEN_ON).apply { addAction(Intent.ACTION_USER_PRESENT) }
+        ContextCompat.registerReceiver(this, screenOn, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         // The sync folder at its chosen 1 or 5 minutes, which Android allows only while this service runs (ADR 22).
         scope.launch { (application as CompanionApp).folderSource.syncWhilePinned() }
     }

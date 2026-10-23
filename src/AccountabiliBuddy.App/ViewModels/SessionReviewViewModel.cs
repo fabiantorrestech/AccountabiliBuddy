@@ -30,6 +30,13 @@ public sealed partial class SessionReviewViewModel : ObservableObject
         Reason = string.Empty;
     }
 
+    /// <summary>When the reviewed session started (null for the week's card).</summary>
+    public DateTimeOffset? SessionStart { get; init; }
+
+    /// <summary>"Phone: picked up 2× · longest down 18m" (ADR 26); empty until the phone's file comes.</summary>
+    [ObservableProperty]
+    public partial string PhoneText { get; set; } = string.Empty;
+
     /// <summary>E.g. "Last session: what had no rule".</summary>
     public string Heading { get; }
 

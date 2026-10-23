@@ -130,6 +130,13 @@ public sealed partial class FocusViewModel : ObservableObject
     [ObservableProperty]
     public partial string FocusedTodayText { get; set; }
 
+    /// <summary>"Phone: not picked up · down 34m", from the phone's sync file (ADR 26); empty when none came.</summary>
+    [ObservableProperty]
+    public partial string PhoneText { get; set; } = string.Empty;
+
+    /// <summary>The phone's line for the running session; set by the app.</summary>
+    public Func<string?>? PhoneLine { get; set; }
+
     /// <summary>"Now · 1 of 3 done"; empty without tasks.</summary>
     [ObservableProperty]
     public partial string NowText { get; set; }
@@ -215,6 +222,7 @@ public sealed partial class FocusViewModel : ObservableObject
         AwayText = _stepAway?.AwayText ?? string.Empty;
         StepAwayText = state.IsAway ? "I'm back" : "Step away";
         FocusedTodayText = _day?.SummaryText ?? string.Empty;
+        PhoneText = PhoneLine?.Invoke() ?? string.Empty;
         RefreshTasks();
     }
 

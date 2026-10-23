@@ -106,7 +106,9 @@ object DayBarPainter {
 
         tops[BarRow.Calendar]?.let { top ->
             for (event in model.events) {
-                spans(canvas, paint, listOf(event), event.color ?: EVENT, width, dp(top), dp(sizes.calendar), dp(1f))
+                // An all-day event is a thin sliver along the top, so the day's timed events stay readable.
+                val height = if (event.allDay) maxOf(dp(2f), dp(sizes.calendar) * 0.2f) else dp(sizes.calendar)
+                spans(canvas, paint, listOf(event), event.color ?: EVENT, width, dp(top), height, dp(1f))
             }
         }
         tops[BarRow.Plan]?.let { top ->

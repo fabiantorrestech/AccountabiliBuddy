@@ -203,9 +203,9 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
             val end = if (event.localEnd.isAfter(event.localStart)) event.localEnd else event.localStart.plusMinutes(1)
             val window = LocalWindow(event.localStart, end)
             DayTimeline.clip(window, range)?.let {
-                toSpan(it, range, "${event.title} · ${if (event.isAllDay) "all day" else times(window)}").copy(color = event.color)
+                toSpan(it, range, "${event.title} · ${if (event.isAllDay) "all day" else times(window)}").copy(color = event.color, allDay = event.isAllDay)
             }
-        }
+        }.sortedByDescending { it.allDay } // All-day slivers first, so timed events draw over them.
 
     private fun status(now: LocalDateTime, range: LocalWindow, planned: List<PlannedFocus>, document: ProfileDocument): String {
         val current = planned.firstOrNull { it.window.contains(now) }

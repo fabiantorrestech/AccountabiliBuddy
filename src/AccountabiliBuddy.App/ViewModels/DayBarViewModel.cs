@@ -382,6 +382,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             actual.Select(item => item.Window).Concat(received.Select(session => session.Window)));
         TimeSpan distracted = DistractedTime(sessions, soFar);
         IReadOnlyList<TimelineItem> taskMarks = TaskMarks(range);
+        IReadOnlyList<TimelineItem> phoneFree = PhoneFreeMarks(sessions, range);
         var timelineDay = new TimelineDay(
             range,
             TimelineRowsBuilder.PartsAround(_configuration.Current.DayPlan, span),
@@ -392,7 +393,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             settings.ShowColdTurkey && _coldTurkey.Blocks is ColdTurkeyBlocks blocks ? BlockerTimeline.ColdTurkey(blocks, range) : null,
             focused,
             unfocused,
-            taskMarks);
+            taskMarks.Concat(phoneFree).ToList());
 
         (List<DayBarSpan> night, List<DayBarSpan> missed) = SleepSpans(now, range);
         IReadOnlyList<TimelineRowChoice> rows = settings.RowsInOrder();
@@ -406,7 +407,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         DateText = $"{date.ToString("ddd", CultureInfo.CurrentCulture)} ({date:M/d})";
         StatusText = Status(now, range, planned);
         SummaryText = Summary(range, planned, focused, drift.Count);
-        UpdateLegend(range, planned, focused, distracted, Total(unfocused, range), taskMarks.Count, rows);
+        UpdateLegend(range, planned, focused, distracted, Total(unfocused, range), taskMarks.Count, rows, phoneFree.Count);
     }
 
     /// <summary>Time on distracting sites inside this PC's sessions (each visit's own time, overlaps once).</summary>
@@ -420,6 +421,27 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         }
 
         return Total(inSessions, range);
+    }
+
+    /// <summary>The starts of this PC's sessions the phone saw no pickup in (ADR 26); set by the app.</summary>
+    public Func<IReadOnlyList<DateTimeOffset>>? PhoneFreeSessions { get; set; }
+
+    public const string PhoneFreeColor = "#22C55E";
+
+    /// <summary>A green mark at the end of each of this PC's phone-free sessions in the range.</summary>
+    private IReadOnlyList<TimelineItem> PhoneFreeMarks(IReadOnlyList<TimelineSession> sessions, LocalWindow range)
+    {
+        List<DateTime> starts = PhoneFreeSessions?.Invoke().Select(start => ToLocal(start)).ToList() ?? [];
+        if (starts.Count == 0)
+        {
+            return Array.Empty<TimelineItem>();
+        }
+
+        return sessions
+            .Where(session => !session.Added && starts.Any(start => (start - session.Window.Start).Duration() <= TimeSpan.FromSeconds(5)))
+            .Where(session => session.Window.End >= range.Start && session.Window.End <= range.End)
+            .Select(session => new TimelineItem(new LocalWindow(session.Window.End, session.Window.End), "Phone-free session", PhoneFreeColor))
+            .ToList();
     }
 
     /// <summary>Guided sessions' ticked tasks (ADR 24) in the range: "✓ Write intro · 25m" (since the last tick or the start).</summary>
@@ -452,7 +474,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 
     // The legend under the bar, lined up with its row labels: planned work by kind, and the focus so far.
     private void UpdateLegend(LocalWindow range, IReadOnlyList<PlannedFocus> planned, TimeSpan focused, TimeSpan distracted,
-        TimeSpan notInSession, int tasksDone, IReadOnlyList<TimelineRowChoice> rows)
+        TimeSpan notInSession, int tasksDone, IReadOnlyList<TimelineRowChoice> rows, int phoneFree)
     {
         List<PlanTotal> totals = DayTimeline.PlannedByName(planned, range)
             .Select(entry => new PlanTotal($"{entry.Name} {Duration(entry.Length)}", BrushOf(planned.First(focus => focus.Name == entry.Name).Color)))
@@ -482,6 +504,11 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             focus.Add(new PlanTotal(tasksDone == 1 ? "1 task done" : $"{tasksDone} tasks done", TaskBrush));
         }
 
+        if (phoneFree > 0)
+        {
+            focus.Add(new PlanTotal(phoneFree == 1 ? "1 phone-free" : $"{phoneFree} phone-free", PhoneFreeBrush));
+        }
+
         if (!focus.Select(KeyOf).SequenceEqual(FocusTotals.Select(KeyOf)))
         {
             FocusTotals = focus;
@@ -492,6 +519,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     private static readonly IBrush DistractedBrush = new SolidColorBrush(Color.Parse("#EF4444"));
     private static readonly IBrush NotInSessionBrush = new SolidColorBrush(Color.Parse(TimelineRowsBuilder.NotInSessionColor));
     private static readonly IBrush TaskBrush = new SolidColorBrush(Color.Parse(TimelineRowsBuilder.TaskMarkColor));
+    private static readonly IBrush PhoneFreeBrush = new SolidColorBrush(Color.Parse(PhoneFreeColor));
 
     private static IBrush BrushOf(string color)
     {
@@ -683,7 +711,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
                     ? calendarEvent.LocalEnd
                     : calendarEvent.LocalStart.AddMinutes(1));
                 string when = calendarEvent.IsAllDay ? "all day" : Times(window);
-                items.Add(new TimelineItem(window, $"{calendarEvent.Title} · {when}", entry.Calendar.Color));
+                items.Add(new TimelineItem(window, $"{calendarEvent.Title} · {when}", entry.Calendar.Color, calendarEvent.IsAllDay));
             }
         }
 

@@ -3,9 +3,12 @@ package com.accountabilibuddy.shared
 import java.time.Duration
 import java.time.Instant
 
-/** A buzz the watch gives for the running phase: a minute before it ends, when it ends, or when the daily goal is reached. */
+/**
+ * A buzz the watch gives for the running phase: a minute before it ends, when it ends, when the daily goal is reached,
+ * or when planned work starts with no session running.
+ */
 data class PhaseAlert(val at: Instant, val kind: Kind, val onBreak: Boolean) {
-    enum class Kind { Warning, End, Goal }
+    enum class Kind { Warning, End, Goal, WorkStart }
 }
 
 /** When the watch buzzes for the running session's phase (focus or break): at its end, and a minute before when wanted. */
@@ -26,6 +29,10 @@ object PhaseAlerts {
      * When today's focus reaches the daily goal (ADR 29), while a focus session runs and before it ends: focus grows a
      * minute a minute from now. Null without a goal, when it's already met, on a break or when the session ends first.
      */
+    /** The next work stretch's start while no session runs (the start nudge, [WorkStart]); null for none. */
+    fun workStart(snapshot: WatchSnapshot?, now: Instant): PhaseAlert? =
+        WorkStart.next(snapshot, now)?.let { PhaseAlert(it, PhaseAlert.Kind.WorkStart, onBreak = false) }
+
     fun goal(snapshot: WatchSnapshot?, now: Instant, zone: java.time.ZoneId): PhaseAlert? {
         val goal = snapshot?.goalMinutes?.takeIf { it > 0 } ?: return null
         val running = snapshot.running?.takeIf { !it.onBreak && (it.endsAt == null || it.endsAt.isAfter(now)) } ?: return null

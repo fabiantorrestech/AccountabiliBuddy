@@ -8,6 +8,7 @@ namespace AccountabiliBuddy.App.Controls;
 /// <param name="Hatched">Drawn lighter with stripes: a focus session added by hand (ADR 20).</param>
 /// <param name="IsGap">Work time with no focus session (the Focus row): empty time for "add a session" clicks.</param>
 /// <param name="IsAway">The user had stepped away (the Focus row): drawn hatched in slate over its session.</param>
+/// <param name="IsSliver">An all-day event (the Calendar row): a thin sliver along the top of the row.</param>
 public sealed record DayBarSpan(
     double Start, double End, string Tip, Guid? ProfileId = null, string? Color = null, string? Label = null, bool Hatched = false,
-    bool IsGap = false, bool IsAway = false);
+    bool IsGap = false, bool IsAway = false, bool IsSliver = false);

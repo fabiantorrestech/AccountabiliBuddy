@@ -28,6 +28,8 @@ data class SyncFile(
     val coversFrom: Instant? = null,
     /** The PC's open come-backs (ADR 30); null for none or an older app. */
     val comebacks: List<SyncComeback>? = null,
+    /** A phone's pickups during the other devices' sessions (ADR 26); null for none or an older app. */
+    val pickups: List<SyncPickup>? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1

@@ -65,6 +65,34 @@ class PhoneUsageReader(private val context: Context) {
         return PhoneUsage(UsageIntervals.total(all), UsageIntervals.inside(all, focus), apps)
     }
 
+    /** The phone's unlocks (pickups) between [from] and [to], oldest first; null without Usage access or before Android 9. */
+    fun unlocks(from: Instant, to: Instant): List<Instant>? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P || !hasAccess()) {
+            return null
+        }
+
+        if (!to.isAfter(from)) {
+            return emptyList()
+        }
+
+        val manager = context.getSystemService(UsageStatsManager::class.java)
+        val events = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            manager.queryEvents(from.toEpochMilli(), to.toEpochMilli())
+        } else {
+            manager.queryEvents(UsageEventsQuery.Builder(from.toEpochMilli(), to.toEpochMilli()).setEventTypes(UsageEvents.Event.KEYGUARD_HIDDEN).build())
+        } ?: return emptyList()
+        val unlocks = mutableListOf<Instant>()
+        val event = UsageEvents.Event()
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            if (event.eventType == UsageEvents.Event.KEYGUARD_HIDDEN) {
+                unlocks += Instant.ofEpochMilli(event.timeStamp)
+            }
+        }
+
+        return unlocks
+    }
+
     /** Only the event types used above; Android 15+ leaves the others out before handing them over. Null: none. */
     private fun query(from: Long, to: Long): UsageEvents? {
         val manager = context.getSystemService(UsageStatsManager::class.java)

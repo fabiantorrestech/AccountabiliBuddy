@@ -139,15 +139,16 @@ public static class TimelineRowsBuilder
         {
             if (DayTimeline.Clip(item.Window, range) is LocalWindow shown)
             {
-                spans.Add(ToSpan(shown, range, item.Tip) with { Color = item.Color });
+                spans.Add(ToSpan(shown, range, item.Tip) with { Color = item.Color, IsSliver = item.AllDay });
             }
             else if (allowEmpty && item.Window.Start >= range.Start && item.Window.Start <= range.End)
             {
-                spans.Add(ToSpan(item.Window, range, item.Tip) with { Color = item.Color });
+                spans.Add(ToSpan(item.Window, range, item.Tip) with { Color = item.Color, IsSliver = item.AllDay });
             }
         }
 
-        return spans;
+        // All-day slivers first, so timed events draw over them.
+        return spans.OrderByDescending(span => span.IsSliver).ToList();
     }
 
     private static List<DayBarSpan> BlockerSpans(IReadOnlyList<BlockerWindow> blockers, LocalWindow range)

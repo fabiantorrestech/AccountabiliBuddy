@@ -88,6 +88,7 @@ public partial class App : Application
     private WorkHoursGuard? _workHours;
     private HyperfocusGuard? _hyperfocus;
     private StartNudgeService? _startNudge;
+    private AccountabiliBuddy.App.Services.Sync.PhonePickups? _phonePickups;
     private DeepWorkService? _deepWork;
     private DeepWorkHistoryViewModel? _deepWorkHistory;
     private ShutdownService? _shutdown;
@@ -389,6 +390,7 @@ public partial class App : Application
         _sessionReview = new SessionReviewService(activityLog, _configuration, documents, _sessions, () => exemptionDefaults.PreTicked)
         {
             NotesBetween = _sessionNotes.Between,
+            PhoneCounting = () => _phonePickups?.IsCounting == true,
         };
         _sessionReview.LoadBlocking();
         // ADR 25: every task ticked: offer to end the session now (when it may), else just say so.
@@ -436,6 +438,8 @@ public partial class App : Application
         receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(FollowPhoneAlarm);
         FollowPhoneAlarm();
         var syncIdentity = new AccountabiliBuddy.App.Services.Sync.SyncIdentityService(documents, dataProtector, receivedDevices);
+        // The phone's pickups during this PC's sessions (ADR 26), from its sync file.
+        _phonePickups = new AccountabiliBuddy.App.Services.Sync.PhonePickups(receivedDevices, syncIdentity, time);
         syncIdentity.LoadBlocking();
         var syncEditTimes = new AccountabiliBuddy.App.Services.Sync.SyncEditTimesService(_configuration, sleepSettings, dayBarSettings, documents, time);
         syncEditTimes.LoadBlocking();
@@ -588,7 +592,23 @@ public partial class App : Application
             presenter.ShowReminder(progress.Text, "Today's deep-work goal is reached. Anything more is a bonus.",
                 new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A9D8F")));
         _deepWork.Changed += (_, _) => _sessionOverlay?.SetGoalText($"Goal · {_deepWork.Progress.Text}");
-        sessionViewModel.Goal = new GoalCardViewModel(_deepWork, goal) { LowerWaits = () => _workHours?.HasWorkLeftToday == true };
+        sessionViewModel.Goal = new GoalCardViewModel(_deepWork, goal)
+        {
+            LowerWaits = () => _workHours?.HasWorkLeftToday == true,
+            PhoneLine = _phonePickups!.SummaryText,
+        };
+        sessionViewModel.Goal.RefreshPhone();
+        // A phone's file arrived: its pickups show on Today, the review card and the Focus row.
+        receivedDevices.Changed += (_, _) =>
+        {
+            sessionViewModel.Goal?.RefreshPhone();
+            if (sessionViewModel.Review is { SessionStart: DateTimeOffset reviewed } card)
+            {
+                card.PhoneText = _phonePickups.Describe(reviewed) ?? string.Empty;
+            }
+        };
+        _dayBar.PhoneFreeSessions = _phonePickups.PhoneFreeSessions;
+        timelineDay.PhoneFreeSessions = _phonePickups.PhoneFreeSessions;
         // The shutdown routine (redesign phase 5): one card on Today once the day's work is over.
         _shutdown = new ShutdownService(_sessions, _configuration, sessionTasks, _comebacks!, documents);
         _shutdown.LoadBlocking();
@@ -620,11 +640,19 @@ public partial class App : Application
         _workHours!.Goal = () => _deepWork?.UnlockProgress;
         _ = _deepWork.ReloadAsync();
         sessionViewModel.Review = _sessionReview!.Pending;
-        _sessionReview.Changed += (_, _) => sessionViewModel.Review = _sessionReview.Pending;
+        _sessionReview.Changed += (_, _) =>
+        {
+            sessionViewModel.Review = _sessionReview.Pending;
+            if (_sessionReview.Pending is { SessionStart: DateTimeOffset reviewed } card)
+            {
+                card.PhoneText = _phonePickups?.Describe(reviewed) ?? string.Empty;
+            }
+        };
         sessionViewModel.Focus = new FocusViewModel(
             _sessions, _configuration, _stepAway, sessionViewModel.Tasks, _dayBar, () => _endFlow.TryEndSessionAsync(VisibleMainWindow()))
         {
             PlanFirst = _planFirst,
+            PhoneLine = () => sessionTasks.Current.SessionStart is DateTimeOffset started ? _phonePickups!.Describe(started) : null,
         };
         // Capture in Focus mode (redesign phase 5): notes for the session's review, come-backs with ⚑ or "!".
         sessionViewModel.Focus.Capture = new CaptureBoxViewModel(_sessionNotes!, _comebacks!);

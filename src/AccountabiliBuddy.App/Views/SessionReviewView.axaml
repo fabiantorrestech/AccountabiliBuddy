@@ -7,6 +7,8 @@
     <Border Padding="20" CornerRadius="10" Background="#1A2A9D8F" BorderBrush="#552A9D8F" BorderThickness="1">
         <StackPanel Spacing="10">
             <TextBlock Text="{Binding Heading}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding PhoneText}" Foreground="#22C55E" TextWrapping="Wrap"
+                       IsVisible="{Binding PhoneText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             <!-- Notes kept during the session (redesign phase 5): shown once, here. -->
             <StackPanel Spacing="2" IsVisible="{Binding HasNotes}">
                 <TextBlock Text="Noted during the session" Opacity="0.8" />

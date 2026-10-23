@@ -22,6 +22,13 @@ public sealed partial class GoalCardViewModel : ObservableObject
         _deepWork.Changed += (_, _) => Refresh();
     }
 
+    /// <summary>"Phone-free: 2 sessions today · 3-day streak" (ADR 26); empty when no phone counts.</summary>
+    [ObservableProperty]
+    public partial string PhoneText { get; set; } = string.Empty;
+
+    /// <summary>The phone-free line; set by the app.</summary>
+    public Func<string>? PhoneLine { get; set; }
+
     /// <summary>"40m of 1h", then "Goal met · 1h 05m".</summary>
     [ObservableProperty]
     public partial string Text { get; set; }
@@ -82,5 +89,12 @@ public sealed partial class GoalCardViewModel : ObservableObject
         Text = _deepWork.Progress.Text;
         Percent = _deepWork.Progress.Fraction * 100;
         IsMet = _deepWork.Progress.Met;
+        RefreshPhone();
+    }
+
+    /// <summary>Reads the phone-free line again (a phone's file arrived).</summary>
+    public void RefreshPhone()
+    {
+        PhoneText = PhoneLine?.Invoke() ?? string.Empty;
     }
 }

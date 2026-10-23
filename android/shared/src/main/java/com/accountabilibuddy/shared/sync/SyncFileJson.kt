@@ -59,6 +59,17 @@ object SyncFileJson {
                 }
             }))
         }
+        file.pickups?.let { list ->
+            put("pickups", JsonArray(list.map { pickup ->
+                buildJsonObject {
+                    put("deviceId", pickup.deviceId.toString())
+                    put("sessionStart", writeTime(pickup.sessionStart))
+                    put("count", pickup.count)
+                    put("longestDownMinutes", pickup.longestDownMinutes)
+                    put("countedUntil", writeTime(pickup.countedUntil))
+                }
+            }))
+        }
     }
 
     /** Null when the JSON isn't a complete sync file this app can read (see the class comment). */
@@ -141,6 +152,7 @@ object SyncFileJson {
             json.requiredObjects("documents").map(::readDocument),
             json.optionalTime("coversFrom"),
             readComebacks(json["comebacks"]),
+            readPickups(json["pickups"]),
         )
     }
 
@@ -150,6 +162,20 @@ object SyncFileJson {
         return array.mapNotNull { element ->
             val item = element as? JsonObject ?: return@mapNotNull null
             runCatching { SyncComeback(item.requiredString("id"), item.requiredString("text"), item.requiredTime("createdAt")) }.getOrNull()
+        }
+    }
+
+    // ADR 26: an optional list; an entry that can't be read is left out rather than failing the file.
+    private fun readPickups(value: kotlinx.serialization.json.JsonElement?): List<SyncPickup>? {
+        val array = value as? JsonArray ?: return null
+        return array.mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            runCatching {
+                SyncPickup(
+                    readDeviceId(item.requiredString("deviceId")), item.requiredTime("sessionStart"), item.requiredInt("count"),
+                    item.requiredInt("longestDownMinutes"), item.requiredTime("countedUntil"),
+                )
+            }.getOrNull()
         }
     }
 
