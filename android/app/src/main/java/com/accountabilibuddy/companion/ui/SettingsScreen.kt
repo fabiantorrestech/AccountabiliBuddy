@@ -65,6 +65,8 @@ fun SettingsScreen(
     onAddWidget: () -> Unit,
     curbox: CurboxStatus,
     onConnectCurbox: () -> Unit,
+    noise: com.accountabilibuddy.companion.noise.NoisePlayer? = null,
+    noiseSettings: com.accountabilibuddy.companion.noise.NoiseSettings = com.accountabilibuddy.companion.noise.NoiseSettings(),
 ) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
@@ -113,6 +115,11 @@ fun SettingsScreen(
             }
         }
 
+        noise?.let { player ->
+            item { HorizontalDivider() }
+            item { NoiseSection(player, noiseSettings) }
+        }
+
         item { HorizontalDivider() }
         item { CurboxSection(curbox, onConnectCurbox) }
 
@@ -124,6 +131,28 @@ fun SettingsScreen(
                 label = "Privacy: what leaves this phone",
             )
         }
+    }
+}
+
+/** The noise player's folder and switches (the bar above the tabs plays it). */
+@Composable
+private fun NoiseSection(player: com.accountabilibuddy.companion.noise.NoisePlayer, settings: com.accountabilibuddy.companion.noise.NoiseSettings) {
+    val pickFolder = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri?.let(player::chooseFolder)
+    }
+    val folder = settings.folderUri?.let { com.accountabilibuddy.companion.sync.DriveFolderSource.displayName(it) }
+    Section("Noise player", summary = folder?.let { "Folder: $it" } ?: "No folder yet") {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(folder?.let { "Folder: $it" } ?: "No folder chosen", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            OutlinedButton(onClick = { pickFolder.launch(null) }) { Text(if (folder == null) "Choose folder" else "Change") }
+        }
+        ToggleRow("Repeat", "Play the same sound again and again", settings.repeat, onChange = player::setRepeat)
+        ToggleRow(
+            "Use Android's media controls",
+            "On: it shows in the media controls, headset buttons work, and it pauses when other audio plays. Off: other audio, like a YouTube video, plays over it.",
+            settings.systemControls, onChange = player::setSystemControls,
+        )
+        ToggleRow("Play/pause on the widget", "A button on the home-screen widget", settings.widgetButton, onChange = player::setWidgetButton)
     }
 }
 

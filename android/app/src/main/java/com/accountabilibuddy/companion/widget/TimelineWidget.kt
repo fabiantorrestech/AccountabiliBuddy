@@ -14,6 +14,7 @@ import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.action.actionStartActivity
+import androidx.glance.appwidget.action.actionStartService
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -43,6 +44,11 @@ class TimelineWidget : GlanceAppWidget() {
         val model = DayBarBuilder(clock).build(LocalDateTime.now(), state.document, state.events, state.dayBar, state.sleep, state.slept)
         val density = context.resources.displayMetrics.density
         val upcoming = Upcoming.items(LocalDateTime.now(), state, clock)
+        val noise = (context.applicationContext as CompanionApp).noise
+        val noiseState = noise.state.value
+        val showsNoise = noise.settings.value.widgetButton && noiseState.hasFolder && noiseState.fileCount > 0
+        val toggleNoise = android.content.Intent(context, com.accountabilibuddy.companion.noise.NoiseService::class.java)
+            .setAction(com.accountabilibuddy.companion.noise.NoiseService.ACTION_TOGGLE)
 
         provideContent {
             val size = LocalSize.current
@@ -67,8 +73,18 @@ class TimelineWidget : GlanceAppWidget() {
                     )
                 }
 
+                // The noise player's play/pause (Settings → Noise player → Play/pause on the widget).
+                if (showsNoise) {
+                    Text(
+                        text = "${if (noiseState.playing) "⏸︎" else "▶︎"}  ${noiseState.title ?: "Noise"}",
+                        maxLines = 1,
+                        style = TextStyle(color = ColorProvider(Color(0xFF5EEAD4)), fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                        modifier = GlanceModifier.padding(top = 4.dp).clickable(actionStartService(toggleNoise, isForegroundService = true)),
+                    )
+                }
+
                 // Whatever height is left: what's coming up.
-                val rows = ((size.height.value - 120) / 20).toInt().coerceIn(0, upcoming.size)
+                val rows = ((size.height.value - (if (showsNoise) 140 else 120)) / 20).toInt().coerceIn(0, upcoming.size)
                 upcoming.take(rows).forEach { item ->
                     Text(
                         text = item,

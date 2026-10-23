@@ -10,6 +10,8 @@
     <!-- Holding the timeline notification pinned at the top (see PinnedTimelineService). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- The noise player keeps playing in the background like any music app. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
     <!-- Which app was in front, for today's phone use (granted by the user in Settings > Usage access). -->
     <uses-permission
@@ -138,6 +140,12 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps the user's day-at-a-glance timeline notification pinned above other notifications" />
         </service>
+
+        <!-- The noise player while it plays (its notification has previous, play/pause, next). -->
+        <service
+            android:name=".noise.NoiseService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
 
         <!-- The watch app asks for news, or says how pairing with the PC went (ADR 21): wakes the app to answer. -->
         <service

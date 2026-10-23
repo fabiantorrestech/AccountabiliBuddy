@@ -27,6 +27,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.debounce
@@ -63,6 +64,10 @@ class CompanionApp : Application() {
 
     /** The sync folder another app keeps in step with Google Drive (ADR 22, way B). */
     lateinit var folderSource: DriveFolderSource
+        private set
+
+    /** The noise player (sounds from a folder the user picks), as on the PC. */
+    lateinit var noise: com.accountabilibuddy.companion.noise.NoisePlayer
         private set
 
     /** True while a screen of the app is showing (set by the screens' view model). */
@@ -108,6 +113,11 @@ class CompanionApp : Application() {
         sync.nextAlarm = { wakeAlarm }
         watchBridge.onLinkChanged = { sendSyncFilesToPc() }
         folderSource = DriveFolderSource(this, sync)
+        noise = com.accountabilibuddy.companion.noise.NoisePlayer(this, com.accountabilibuddy.companion.noise.NoiseSettingsStore(this), appScope)
+        // The widget's play/pause follows the player.
+        noise.onChanged = {
+            appScope.launch { runCatching { com.accountabilibuddy.companion.widget.TimelineWidget().updateAll(this@CompanionApp) } }
+        }
         refreshWakeAlarm()
         // The background sync follows the folder switch; a change of folder or interval syncs at once.
         appScope.launch {

@@ -67,6 +67,9 @@ fun MainScreen(
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val planDraft by viewModel.planDraft.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    val noise = (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).noise
+    val noiseState by noise.state.collectAsStateWithLifecycle()
+    val noiseSettings by noise.settings.collectAsStateWithLifecycle()
 
     LaunchedEffect(message) {
         message?.let {
@@ -80,7 +83,9 @@ fun MainScreen(
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
             // Hidden while the day plan editor is open: its own Save and Cancel lead out.
-            if (planDraft == null) NavigationBar {
+            if (planDraft == null) Column {
+            NoiseBar(noiseState, noiseSettings, noise) { viewModel.message.value = it }
+            NavigationBar {
                 listOf(
                     "Today" to R.drawable.ic_tab_today, "Profiles" to R.drawable.ic_tab_profiles,
                     "Devices" to R.drawable.ic_tab_devices, "Settings" to R.drawable.ic_tab_settings, "About" to R.drawable.ic_tab_about,
@@ -93,6 +98,7 @@ fun MainScreen(
                             label = { Text(label) },
                         )
                     }
+            }
             }
         },
     ) { padding ->
@@ -192,6 +198,8 @@ fun MainScreen(
                         onAddWidget = onAddWidget,
                         curbox = curbox,
                         onConnectCurbox = onConnectCurbox,
+                        noise = noise,
+                        noiseSettings = noiseSettings,
                     )
                 }
                 else -> AboutScreen(pcName = pairedPc?.pcName)
