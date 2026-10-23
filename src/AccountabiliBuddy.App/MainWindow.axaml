@@ -117,7 +117,24 @@
 
                 <!-- Today at a glance: the rows chosen in Settings (calendar, plan, focus, blockers) and a live "now" line.
                      Only on Today and History: the other pages are for doing, not for watching the day. -->
-                <Panel DockPanel.Dock="Top" IsVisible="{Binding ShowsTimeline}">
+                <!-- In focus mode (a session running) it fades away and comes back while the pointer is over the top. -->
+                <Panel DockPanel.Dock="Top" IsVisible="{Binding ShowsTimeline}" Background="Transparent"
+                       Classes="timeline" Classes.calm="{Binding IsFocusMode}">
+                <Panel.Styles>
+                    <Style Selector="Panel.timeline">
+                        <Setter Property="Transitions">
+                            <Transitions>
+                                <DoubleTransition Property="Opacity" Duration="0:0:0.3" />
+                            </Transitions>
+                        </Setter>
+                    </Style>
+                    <Style Selector="Panel.timeline.calm">
+                        <Setter Property="Opacity" Value="0.04" />
+                    </Style>
+                    <Style Selector="Panel.timeline.calm:pointerover">
+                        <Setter Property="Opacity" Value="1" />
+                    </Style>
+                </Panel.Styles>
                 <Border DataContext="{Binding DayBar}" x:DataType="vm:DayBarViewModel"
                         IsVisible="{Binding IsVisible, FallbackValue=False}" Padding="12,14,16,4">
                     <StackPanel Spacing="6">
