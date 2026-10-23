@@ -49,6 +49,7 @@ object PreWorkNotice {
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle())
             .setOngoing(true)
+            .setDeleteIntent(RefreshReceiver.dismissedIntent(context, 107))
             .setSilent(true)
             .setOnlyAlertOnce(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)

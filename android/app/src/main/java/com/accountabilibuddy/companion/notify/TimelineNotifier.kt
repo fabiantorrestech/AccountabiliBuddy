@@ -91,6 +91,8 @@ object TimelineNotifier {
             .setColorized(true)
             .setColor(if (night) CARD_NIGHT else CARD_DAY)
             .setOngoing(true)
+            // Swiped away (Android 14+ allows it): posted again at once.
+            .setDeleteIntent(RefreshReceiver.dismissedIntent(context, 100))
             .setSilent(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)

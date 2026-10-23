@@ -7,8 +7,24 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-/** The refresh alarm, boot, app update and clock changes: draw the notification and widget again. */
+/**
+ * The refresh alarm, boot, app update and clock changes: draw the notification and widget again. Also a swiped-away
+ * timeline, parked or pre-work card ([dismissedIntent]): Android 14+ lets an ongoing notification be swiped, so it's
+ * simply posted again (as MyCalendarWidget does).
+ */
 class RefreshReceiver : BroadcastReceiver() {
+    companion object {
+        const val ACTION_DISMISSED = "com.accountabilibuddy.companion.NOTIFICATION_DISMISSED"
+
+        /** Posted back at once when swiped away. */
+        fun dismissedIntent(context: Context, requestCode: Int): android.app.PendingIntent =
+            android.app.PendingIntent.getBroadcast(
+                context, requestCode,
+                Intent(context, RefreshReceiver::class.java).setAction(ACTION_DISMISSED),
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE,
+            )
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         val pending = goAsync()
         CoroutineScope(Dispatchers.Default).launch {

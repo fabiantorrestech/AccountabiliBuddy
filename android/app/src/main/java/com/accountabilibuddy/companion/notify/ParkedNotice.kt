@@ -45,6 +45,7 @@ object ParkedNotice {
             .setContentTitle(title)
             .setContentText(text)
             .setOngoing(true)
+            .setDeleteIntent(RefreshReceiver.dismissedIntent(context, 106))
             .setSilent(true)
             .setOnlyAlertOnce(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
