@@ -88,6 +88,7 @@ public partial class App : Application
     private HyperfocusGuard? _hyperfocus;
     private DeepWorkService? _deepWork;
     private DeepWorkHistoryViewModel? _deepWorkHistory;
+    private ShutdownService? _shutdown;
     private ComebackStore? _comebacks;
     private SessionNotesStore? _sessionNotes;
     private CaptureService? _capture;
@@ -567,6 +568,17 @@ public partial class App : Application
                 new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A9D8F")));
         _deepWork.Changed += (_, _) => _sessionOverlay?.SetGoalText($"Goal · {_deepWork.Progress.Text}");
         sessionViewModel.Goal = new GoalCardViewModel(_deepWork, goal);
+        // The shutdown routine (redesign phase 5): one card on Today once the day's work is over.
+        _shutdown = new ShutdownService(_sessions, _configuration, sessionTasks, _comebacks!, documents);
+        _shutdown.LoadBlocking();
+        _shutdown.Changed += (_, _) =>
+        {
+            sessionViewModel.Shutdown = _shutdown.Current;
+            if (_shutdown.Current is not null)
+            {
+                presenter.ShowNotice("Work's done for today", "A one-minute wrap-up is waiting on Today: come-backs, open tasks, tomorrow's first task.");
+            }
+        };
         _deepWorkHistory = new DeepWorkHistoryViewModel(
             async (from, to) => SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(from, to)),
             () => receivedDevices.Devices.SelectMany(device => device.File.Sessions),
@@ -1259,6 +1271,7 @@ public partial class App : Application
         _workGate?.Dispose();
         _hyperfocus?.Dispose();
         _deepWork?.Dispose();
+        _shutdown?.Dispose();
         _stepAwayHotkey?.Dispose();
         _enforcement?.Dispose();
         _recorder?.Dispose();

@@ -20,6 +20,40 @@
                         IsVisible="{Binding IsVisible, FallbackValue=False}" HorizontalAlignment="Left" />
             </Panel>
 
+            <!-- The shutdown card (redesign phase 5): once after the day's last work part. -->
+            <Border Padding="16,12" CornerRadius="10" Background="#1A6366F1" BorderBrush="#556366F1" BorderThickness="1"
+                    DataContext="{Binding Shutdown}" x:DataType="vm:ShutdownCardViewModel"
+                    IsVisible="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).Shutdown, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Wrap up the day" FontWeight="SemiBold" FontSize="16" />
+                    <StackPanel Spacing="2" IsVisible="{Binding HasComebacks}">
+                        <TextBlock Text="Come-backs: tick the ones that are done" Opacity="0.8" />
+                        <ItemsControl ItemsSource="{Binding Comebacks}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ShutdownComebackRow">
+                                    <CheckBox IsChecked="{Binding IsDone}" Content="{Binding Text}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                    <StackPanel Spacing="2" IsVisible="{Binding HasUnfinished}">
+                        <TextBlock Text="Left open today: ticked ones carry into tomorrow's checklist" Opacity="0.8" />
+                        <ItemsControl ItemsSource="{Binding Unfinished}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ShutdownTaskRow">
+                                    <CheckBox IsChecked="{Binding Carry}" Content="{Binding Title}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                    <TextBox Text="{Binding TomorrowTask}" PlaceholderText="Tomorrow's first task (it waits at the top of Today's checklist)" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Done for today" Command="{Binding DoneCommand}" Classes="accent" />
+                        <Button Content="Skip" Command="{Binding SkipCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <!-- Today's deep work against the daily goal (redesign phase 4). -->
             <Border Padding="16,12" CornerRadius="10" Background="#1A2A9D8F" BorderBrush="#552A9D8F" BorderThickness="1"
                     DataContext="{Binding Goal}" x:DataType="vm:GoalCardViewModel"

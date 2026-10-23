@@ -76,6 +76,10 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>"Come back to": ideas parked with Ctrl+Alt+N or the work-hours gate (set by the app).</summary>
     public ComebacksViewModel? Comebacks { get; set; }
 
+    /// <summary>The shutdown card after the day's last work part (redesign phase 5); null hides it.</summary>
+    [ObservableProperty]
+    public partial ShutdownCardViewModel? Shutdown { get; set; }
+
     /// <summary>Today's deep work against the daily goal (redesign phase 4); null hides the card.</summary>
     public GoalCardViewModel? Goal { get; set; }
 
