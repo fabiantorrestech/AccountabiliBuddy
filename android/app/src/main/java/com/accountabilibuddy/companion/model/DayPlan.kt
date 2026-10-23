@@ -6,8 +6,16 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.UUID
 
-/** What a day-plan category asks of the buddy (the PC's CategoryBehavior). */
-enum class CategoryBehavior { Watch, Rest, Sleep }
+/**
+ * What a day-plan category asks of the buddy (the PC's CategoryBehavior). Comms (schema v6) is work time for mail and
+ * chat: planned work like Watch.
+ */
+enum class CategoryBehavior {
+    Watch, Rest, Sleep, Comms;
+
+    /** Planned work: Watch and Comms parts. */
+    val isWork: Boolean get() = this == Watch || this == Comms
+}
 
 /** A kind of time in the day plan, e.g. Work, Extra Work, Lunch or Sleep. [color] is "#RRGGBB". */
 data class DayCategory(val id: UUID, val name: String, val color: String, val behavior: CategoryBehavior) {
@@ -130,15 +138,22 @@ data class DayPlan(
         private val freeTime = DayCategory(UUID.fromString("8b1f0c52-0005-4c6e-9a51-3f2d7c000005"), "Free time", "#16A34A", CategoryBehavior.Rest)
         private val sleep = DayCategory(UUID.fromString("8b1f0c52-0006-4c6e-9a51-3f2d7c000006"), "Sleep", "#334155", CategoryBehavior.Sleep)
 
-        /** The PC's starting plan (same ids), used for documents from before schema v5. */
+        /** Mail and chat windows (schema v6), the PC's same id. */
+        val comms = DayCategory(UUID.fromString("8b1f0c52-0007-4c6e-9a51-3f2d7c000007"), "Comms", "#0EA5E9", CategoryBehavior.Comms)
+
+        /** The PC's starting plan (same ids, two comms windows since schema v6), used for documents from before schema v5. */
         val Default = DayPlan(
-            categories = listOf(work, extraWork, lunch, evenings, freeTime, sleep),
+            categories = listOf(work, extraWork, lunch, evenings, freeTime, sleep, comms),
             workdays = setOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY),
             workday = DayTemplate(
                 listOf(
-                    PlanPart(UUID.fromString("5c7a2e10-0001-4b3d-8f6e-1a9c40000001"), work.id, LocalTime.of(9, 0), LocalTime.of(12, 0)),
+                    PlanPart(UUID.fromString("5c7a2e10-0001-4b3d-8f6e-1a9c40000001"), work.id, LocalTime.of(9, 0), LocalTime.of(11, 30)),
+                    PlanPart(UUID.fromString("5c7a2e10-0008-4b3d-8f6e-1a9c40000008"), comms.id, LocalTime.of(11, 30), LocalTime.of(11, 45)),
+                    PlanPart(UUID.fromString("5c7a2e10-0009-4b3d-8f6e-1a9c40000009"), work.id, LocalTime.of(11, 45), LocalTime.of(12, 0)),
                     PlanPart(UUID.fromString("5c7a2e10-0002-4b3d-8f6e-1a9c40000002"), lunch.id, LocalTime.of(12, 0), LocalTime.of(13, 0)),
-                    PlanPart(UUID.fromString("5c7a2e10-0003-4b3d-8f6e-1a9c40000003"), work.id, LocalTime.of(13, 0), LocalTime.of(17, 0)),
+                    PlanPart(UUID.fromString("5c7a2e10-0003-4b3d-8f6e-1a9c40000003"), work.id, LocalTime.of(13, 0), LocalTime.of(16, 0)),
+                    PlanPart(UUID.fromString("5c7a2e10-000a-4b3d-8f6e-1a9c4000000a"), comms.id, LocalTime.of(16, 0), LocalTime.of(16, 15)),
+                    PlanPart(UUID.fromString("5c7a2e10-000b-4b3d-8f6e-1a9c4000000b"), work.id, LocalTime.of(16, 15), LocalTime.of(17, 0)),
                     PlanPart(UUID.fromString("5c7a2e10-0004-4b3d-8f6e-1a9c40000004"), extraWork.id, LocalTime.of(18, 0), LocalTime.of(20, 0)),
                     PlanPart(UUID.fromString("5c7a2e10-0005-4b3d-8f6e-1a9c40000005"), sleep.id, LocalTime.of(23, 0), LocalTime.of(7, 0)),
                 ),

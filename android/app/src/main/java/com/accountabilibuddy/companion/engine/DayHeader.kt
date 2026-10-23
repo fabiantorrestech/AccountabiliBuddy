@@ -83,9 +83,9 @@ object DayHeader {
             return HeaderText(if (beforeMidnight) "Past bedtime · up $wake" else "Sleep · up $wake", "")
         }
 
-        val watch = input.parts.filter { it.category.behavior == CategoryBehavior.Watch }
+        val watch = input.parts.filter { it.category.behavior.isWork }
         input.parts.firstOrNull { it.window.contains(now) && it.category.behavior != CategoryBehavior.Sleep }?.let { current ->
-            if (current.category.behavior == CategoryBehavior.Watch) {
+            if (current.category.behavior.isWork) {
                 return HeaderText("${current.name} until ${clock.time(current.window.end)} · no session", "")
             }
 
@@ -149,7 +149,7 @@ object DayHeader {
 
         // The evening (no more work today), until the "sleep if you go now" line takes over.
         val night = input.night
-        val workLeft = input.parts.any { it.category.behavior == CategoryBehavior.Watch && it.window.end.isAfter(now) && it.window.start.toLocalDate() == now.toLocalDate() }
+        val workLeft = input.parts.any { it.category.behavior.isWork && it.window.end.isAfter(now) && it.window.start.toLocalDate() == now.toLocalDate() }
         if (night != null && !workLeft && now.isBefore(night.start) && !SleepSchedule.showsCountdown(now, night, input.sleepGoal)) {
             parts += "up ${wakeText(night, input, clock)}"
             parts += "${DayBarBuilder.duration(Duration.between(night.start, night.end))} sleep"
@@ -166,7 +166,7 @@ object DayHeader {
     private fun watchMinutesToday(input: HeaderInput): Int {
         val start = input.now.toLocalDate().atStartOfDay()
         val today = LocalWindow(start, start.plusDays(1))
-        val windows = input.parts.filter { it.category.behavior == CategoryBehavior.Watch }.mapNotNull { DayTimeline.clip(it.window, today) }
+        val windows = input.parts.filter { it.category.behavior.isWork }.mapNotNull { DayTimeline.clip(it.window, today) }
         return DayTimeline.union(windows).sumOf { Duration.between(it.start, it.end).toMinutes() }.toInt()
     }
 

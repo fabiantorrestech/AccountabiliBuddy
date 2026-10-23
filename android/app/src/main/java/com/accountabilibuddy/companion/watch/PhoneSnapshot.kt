@@ -64,7 +64,7 @@ object PhoneSnapshot {
         val start = date.atStartOfDay()
         return plan.partsIn(LocalWindow(start, start.plusDays(1))).map { part ->
             val kind = when (part.category.behavior) {
-                CategoryBehavior.Watch -> "watch"
+                CategoryBehavior.Watch, CategoryBehavior.Comms -> "watch"
                 CategoryBehavior.Sleep -> "sleep"
                 CategoryBehavior.Rest -> "rest"
             }

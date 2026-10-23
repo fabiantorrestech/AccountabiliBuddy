@@ -234,9 +234,12 @@ public sealed class WorkHoursGuard : IDisposable
 
         DateTime now = LocalNow();
         var around = new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2));
-        PlannedFocus? part = DayTimeline.Planned(_configuration.Current.DayPlan, around)
-            .FirstOrDefault(focus => focus.Window.Start <= now && now < focus.Window.End);
-        return part?.Window.End;
+        // Work parts that touch (Work, then Comms, then Work) are one stretch of work hours.
+        LocalWindow? stretch = DayTimeline.Union(DayTimeline.Planned(_configuration.Current.DayPlan, around).Select(focus => focus.Window))
+            .Where(window => window.Start <= now && now < window.End)
+            .Select(window => (LocalWindow?)window)
+            .FirstOrDefault();
+        return stretch?.End;
     }
 
     private async Task SaveAsync(WorkHoursSettings settings)

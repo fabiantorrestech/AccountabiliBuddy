@@ -59,10 +59,10 @@ object DayTimeline {
         return LocalWindow(maxOf(start, limit.start), minOf(end, limit.end))
     }
 
-    /** The day plan's Watch parts (Work, Extra Work…) overlapping [range], cut to it, earliest first. */
+    /** The day plan's work parts (Watch and Comms) overlapping [range], cut to it, earliest first. */
     fun planned(plan: DayPlan, range: LocalWindow): List<PlannedFocus> =
         plan.partsIn(range)
-            .filter { it.category.behavior == CategoryBehavior.Watch }
+            .filter { it.category.behavior.isWork }
             .map { PlannedFocus(it.name, it.category.argb, it.window) }
 
     /** Merges overlapping and touching windows, earliest first. */

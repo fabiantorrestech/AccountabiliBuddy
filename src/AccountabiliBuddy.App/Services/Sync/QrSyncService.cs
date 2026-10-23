@@ -124,7 +124,7 @@ public sealed class QrSyncService : IDisposable
         }
 
         DateTime? lastWorkEnd = _configuration.Current.DayPlan.PartsIn(new LocalWindow(day, day.AddDays(1)))
-            .Where(part => part.Category.Behavior == CategoryBehavior.Watch)
+            .Where(part => part.Category.Behavior.IsWork())
             .Select(part => (DateTime?)part.Window.End)
             .Max();
         return lastWorkEnd is DateTime end ? new DateTimeOffset(end, zone.GetUtcOffset(end)) : null;

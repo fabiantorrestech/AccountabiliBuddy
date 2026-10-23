@@ -13,6 +13,7 @@ public static class ProfileDocumentSerializer
 {
     private const string SchemaVersionProperty = "schemaVersion";
     private const int DayPlanSchemaVersion = 5;
+    private const int CommsSchemaVersion = 6;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -48,6 +49,12 @@ public static class ProfileDocumentSerializer
         // Older versions: the fields added since are absent and take their defaults (v2: no unlock options, relock at
         // midnight; v3: looser changes wait 10 minutes, ask about unlisted sites; v5: the starting day plan); the
         // document is written back in the current version on the next save.
+        if (version >= DayPlanSchemaVersion && version < CommsSchemaVersion)
+        {
+            // v6: comms windows (an untouched starting plan gets them; an edited plan the category only).
+            document = document with { DayPlan = CommsMigration.Upgrade(document.DayPlan) };
+        }
+
         return version < ProfileDocument.CurrentSchemaVersion
             ? document with { SchemaVersion = ProfileDocument.CurrentSchemaVersion }
             : document;

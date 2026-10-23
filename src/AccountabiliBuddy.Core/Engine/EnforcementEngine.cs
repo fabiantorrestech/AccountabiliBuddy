@@ -50,6 +50,12 @@ public sealed class EnforcementEngine
     /// </summary>
     public DateTimeOffset? HoldUnknownsUntil { get; set; }
 
+    /// <summary>
+    /// Comms windows (schema v6): null when today's plan has none (the profile decides about mail and chat); true inside
+    /// one (mail and chat are on track); false outside (they are distracting, whatever the profile allows).
+    /// </summary>
+    public bool? InCommsWindow { get; set; }
+
     /// <param name="profile">The session's profile, or null if it no longer exists.</param>
     /// <param name="snapshots">The latest snapshot of every connected monitor.</param>
     public IReadOnlyList<MonitorEnforcement> Evaluate(
@@ -104,6 +110,12 @@ public sealed class EnforcementEngine
         ClassificationResult result = snapshot.IsEmptyDesktop || snapshot.IsBrowserExtensionPage
             ? new ClassificationResult(Classification.OnTrack, null)
             : BrowserWithoutPrivateAccess.Apply(snapshot, UnseenBrowserWindow.Apply(snapshot, _evaluator.Evaluate(profile, snapshot)));
+        if (InCommsWindow is bool inWindow && !snapshot.IsEmptyDesktop && CommsApps.IsComms(snapshot))
+        {
+            result = inWindow
+                ? new ClassificationResult(Classification.OnTrack, null)
+                : new ClassificationResult(Classification.Distracting, CommsApps.RuleFor(snapshot));
+        }
 
         DriftAssessment drift = tracker.Observe(snapshot, result, profile.UnknownGracePeriod, HoldUnknownsUntil);
 

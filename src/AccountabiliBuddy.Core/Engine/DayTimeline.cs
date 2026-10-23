@@ -64,11 +64,11 @@ public static class DayTimeline
         return new LocalWindow(Max(start, limit.Start), Min(end, limit.End));
     }
 
-    /// <summary>The day plan's Watch parts (Work, Extra Work…) overlapping <paramref name="range"/>, cut to it, earliest first.</summary>
+    /// <summary>The day plan's work parts (Watch and Comms: Work, Extra Work, Comms…) overlapping <paramref name="range"/>, cut to it, earliest first.</summary>
     public static IReadOnlyList<PlannedFocus> Planned(DayPlan plan, LocalWindow range)
     {
         return plan.PartsIn(range)
-            .Where(part => part.Category.Behavior == CategoryBehavior.Watch)
+            .Where(part => part.Category.Behavior.IsWork())
             .Select(part => new PlannedFocus(part.Name, part.Category.Color, part.Window))
             .ToList();
     }

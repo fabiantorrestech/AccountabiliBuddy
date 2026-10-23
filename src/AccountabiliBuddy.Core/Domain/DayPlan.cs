@@ -20,15 +20,25 @@ public sealed record DayPlan(
     private static readonly DayCategory FreeTimeCategory = new(Guid.Parse("8b1f0c52-0005-4c6e-9a51-3f2d7c000005"), "Free time", "#16A34A", CategoryBehavior.Rest);
     private static readonly DayCategory SleepCategory = new(Guid.Parse("8b1f0c52-0006-4c6e-9a51-3f2d7c000006"), "Sleep", "#334155", CategoryBehavior.Sleep);
 
-    /// <summary>The starting plan: a 9-to-5 workday with lunch, evening extra work and sleep; free other days.</summary>
+    /// <summary>Mail and chat windows (schema v6); the same id everywhere it's created.</summary>
+    public static DayCategory CommsCategory { get; } = new(Guid.Parse("8b1f0c52-0007-4c6e-9a51-3f2d7c000007"), "Comms", "#0EA5E9", CategoryBehavior.Comms);
+
+    /// <summary>
+    /// The starting plan: a 9-to-5 workday with two 15-minute comms windows (11:30, 16:00), lunch, evening extra work and
+    /// sleep; free other days.
+    /// </summary>
     public static DayPlan Default { get; } = new(
-        new[] { WorkCategory, ExtraWorkCategory, LunchCategory, EveningsCategory, FreeTimeCategory, SleepCategory },
+        new[] { WorkCategory, ExtraWorkCategory, LunchCategory, EveningsCategory, FreeTimeCategory, SleepCategory, CommsCategory },
         new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday },
         new DayTemplate(new[]
         {
-            new PlanPart(Guid.Parse("5c7a2e10-0001-4b3d-8f6e-1a9c40000001"), WorkCategory.Id, new TimeOnly(9, 0), new TimeOnly(12, 0)),
+            new PlanPart(Guid.Parse("5c7a2e10-0001-4b3d-8f6e-1a9c40000001"), WorkCategory.Id, new TimeOnly(9, 0), new TimeOnly(11, 30)),
+            new PlanPart(Guid.Parse("5c7a2e10-0008-4b3d-8f6e-1a9c40000008"), CommsCategory.Id, new TimeOnly(11, 30), new TimeOnly(11, 45)),
+            new PlanPart(Guid.Parse("5c7a2e10-0009-4b3d-8f6e-1a9c40000009"), WorkCategory.Id, new TimeOnly(11, 45), new TimeOnly(12, 0)),
             new PlanPart(Guid.Parse("5c7a2e10-0002-4b3d-8f6e-1a9c40000002"), LunchCategory.Id, new TimeOnly(12, 0), new TimeOnly(13, 0)),
-            new PlanPart(Guid.Parse("5c7a2e10-0003-4b3d-8f6e-1a9c40000003"), WorkCategory.Id, new TimeOnly(13, 0), new TimeOnly(17, 0)),
+            new PlanPart(Guid.Parse("5c7a2e10-0003-4b3d-8f6e-1a9c40000003"), WorkCategory.Id, new TimeOnly(13, 0), new TimeOnly(16, 0)),
+            new PlanPart(Guid.Parse("5c7a2e10-000a-4b3d-8f6e-1a9c4000000a"), CommsCategory.Id, new TimeOnly(16, 0), new TimeOnly(16, 15)),
+            new PlanPart(Guid.Parse("5c7a2e10-000b-4b3d-8f6e-1a9c4000000b"), WorkCategory.Id, new TimeOnly(16, 15), new TimeOnly(17, 0)),
             new PlanPart(Guid.Parse("5c7a2e10-0004-4b3d-8f6e-1a9c40000004"), ExtraWorkCategory.Id, new TimeOnly(18, 0), new TimeOnly(20, 0)),
             new PlanPart(Guid.Parse("5c7a2e10-0005-4b3d-8f6e-1a9c40000005"), SleepCategory.Id, new TimeOnly(23, 0), new TimeOnly(7, 0)),
         }),

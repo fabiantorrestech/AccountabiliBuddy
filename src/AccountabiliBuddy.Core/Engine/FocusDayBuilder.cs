@@ -158,7 +158,7 @@ public static class FocusDayBuilder
     {
         return behavior switch
         {
-            CategoryBehavior.Watch => "watch",
+            CategoryBehavior.Watch or CategoryBehavior.Comms => "watch",
             CategoryBehavior.Sleep => "sleep",
             _ => "rest",
         };

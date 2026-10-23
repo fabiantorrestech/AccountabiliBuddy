@@ -20,7 +20,7 @@
         <ScrollViewer>
             <StackPanel Spacing="18" MaxWidth="1000" HorizontalAlignment="Left" IsEnabled="{Binding !IsLocked}">
                 <TextBlock TextWrapping="Wrap" Opacity="0.75"
-                           Text="How your days are meant to go. Watch parts are when the buddy asks about new sites and counts drift, Rest parts are breaks, and Sleep sets bedtime and wake time. A part that crosses midnight is the night before the day it ends on. Single dates are changed in Exceptions." />
+                           Text="How your days are meant to go. Watch parts are when the buddy asks about new sites and counts drift, Comms parts are work time for mail and chat, Rest parts are breaks, and Sleep sets bedtime and wake time. A part that crosses midnight is the night before the day it ends on. Single dates are changed in Exceptions." />
 
                 <StackPanel Spacing="6">
                     <TextBlock Text="Workdays" FontSize="16" FontWeight="SemiBold" />
@@ -49,7 +49,7 @@
 
                 <StackPanel Spacing="6">
                     <TextBlock Text="Categories" FontSize="16" FontWeight="SemiBold" />
-                    <TextBlock Text="Watch: the buddy asks about new sites and counts drift · Rest: no asking; parked Today items come up · Sleep: bedtime reminder and the shaded night."
+                    <TextBlock Text="Watch: the buddy asks about new sites and counts drift · Comms: work time for mail and chat (on a day with Comms parts, mail and chat are distracting in a session outside them) · Rest: no asking; parked Today items come up · Sleep: bedtime reminder and the shaded night."
                                Opacity="0.75" TextWrapping="Wrap" />
                     <ItemsControl ItemsSource="{Binding Categories}">
                         <ItemsControl.ItemTemplate>
