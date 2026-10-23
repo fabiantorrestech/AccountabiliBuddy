@@ -25,7 +25,8 @@ public sealed record SyncFile(
     IReadOnlyList<SyncDrift> Drift,
     SyncDayPlan? DayPlan,
     IReadOnlyList<SyncDocument> Documents,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? CoversFrom = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? CoversFrom = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncComeback>? Comebacks = null)
 {
     public const int CurrentFormatVersion = 1;
 }

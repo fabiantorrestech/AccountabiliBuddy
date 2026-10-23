@@ -25,7 +25,9 @@ public sealed record LinkState(
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     IReadOnlyList<AccountabiliBuddy.Core.Domain.SessionTask>? Tasks = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    Guid? CurrentTask = null)
+    Guid? CurrentTask = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<LinkComeback>? Comebacks = null)
 {
     public bool IsActive => Mode is not null;
 }

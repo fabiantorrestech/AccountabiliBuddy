@@ -50,6 +50,15 @@ object SyncFileJson {
         put("dayPlan", file.dayPlan?.let(::writeDayPlan) ?: JsonNull)
         put("documents", JsonArray(file.documents.map(::writeDocument)))
         file.coversFrom?.let { put("coversFrom", writeTime(it)) }
+        file.comebacks?.let { list ->
+            put("comebacks", JsonArray(list.map { comeback ->
+                buildJsonObject {
+                    put("id", comeback.id)
+                    put("text", comeback.text)
+                    put("createdAt", writeTime(comeback.createdAt))
+                }
+            }))
+        }
     }
 
     /** Null when the JSON isn't a complete sync file this app can read (see the class comment). */
@@ -131,7 +140,17 @@ object SyncFileJson {
             json.optionalObject("dayPlan")?.let(::readDayPlan),
             json.requiredObjects("documents").map(::readDocument),
             json.optionalTime("coversFrom"),
+            readComebacks(json["comebacks"]),
         )
+    }
+
+    // ADR 30: an optional list; an entry that can't be read is left out rather than failing the file.
+    private fun readComebacks(value: kotlinx.serialization.json.JsonElement?): List<SyncComeback>? {
+        val array = value as? JsonArray ?: return null
+        return array.mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            runCatching { SyncComeback(item.requiredString("id"), item.requiredString("text"), item.requiredTime("createdAt")) }.getOrNull()
+        }
     }
 
     private fun readDevice(json: JsonObject): SyncDeviceCard {

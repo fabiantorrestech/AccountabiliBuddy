@@ -228,6 +228,14 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
             )
         }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    /** The PC's open come-backs (ADR 30), from the link or the newest received file; shown read-only on Today. */
+    val comebacks: StateFlow<com.accountabilibuddy.companion.sync.OpenComebacks?> =
+        combine(link.status, link.lastState, sync.received) { status, last, received ->
+            com.accountabilibuddy.companion.sync.OpenComebacks.of(
+                link.pairedPc.value?.pcName, (status as? LinkStatus.Connected)?.state ?: last?.state, received, java.time.Instant.now(),
+            )
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     /** The Devices tab (ADR 22): the other devices' parts, the group's key and the phone's method switches. */
     val syncReceived = sync.received
     val syncKey = sync.key

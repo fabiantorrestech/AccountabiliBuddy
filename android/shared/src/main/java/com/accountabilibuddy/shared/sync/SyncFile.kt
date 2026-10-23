@@ -26,6 +26,8 @@ data class SyncFile(
     val dayPlan: SyncDayPlan?,
     val documents: List<SyncDocument>,
     val coversFrom: Instant? = null,
+    /** The PC's open come-backs (ADR 30); null for none or an older app. */
+    val comebacks: List<SyncComeback>? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1

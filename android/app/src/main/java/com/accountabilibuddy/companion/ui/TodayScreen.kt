@@ -64,6 +64,8 @@ fun TodayScreen(
     onDiscardPlanEdit: () -> Unit = {},
     /** The running session's checklist (ADR 24), from the linked PC or a sync file; null hides the card. */
     runningTasks: com.accountabilibuddy.companion.sync.RunningTasks? = null,
+    /** The PC's open come-backs (ADR 30); null hides the card. */
+    comebacks: com.accountabilibuddy.companion.sync.OpenComebacks? = null,
 ) {
     val dark = isSystemInDarkTheme()
     val now = LocalDateTime.now()
@@ -122,6 +124,9 @@ fun TodayScreen(
         }
         runningTasks?.let { tasks ->
             item { TasksCard(tasks) }
+        }
+        comebacks?.let { list ->
+            item { ComebacksCard(list) }
         }
         item { SleepCard(state, clock, health, onConnectHealth, onRefreshSleep) }
         item { PhoneCard(phoneUsage, onAllowUsage) }

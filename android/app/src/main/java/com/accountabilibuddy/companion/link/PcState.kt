@@ -31,6 +31,8 @@ data class PcState(
     val tasks: List<SessionTaskItem> = emptyList(),
     /** The task or subtask picked on the PC to show; null for none (the first open task shows). */
     val currentTask: String? = null,
+    /** The PC's open come-backs (ADR 30); empty for none or an older PC. */
+    val comebacks: List<com.accountabilibuddy.shared.sync.SyncComeback> = emptyList(),
 ) {
     val isActive: Boolean get() = mode != null
     val isBreak: Boolean get() = phase == "shortBreak" || phase == "longBreak"
@@ -53,6 +55,12 @@ data class PcState(
             countUpProfileId = body.string("countUpProfileId"),
             tasks = SessionTaskItem.read(body["tasks"] as? JsonArray),
             currentTask = body.string("currentTask"),
+            comebacks = (body["comebacks"] as? JsonArray).orEmpty().mapNotNull { element ->
+                val item = element as? JsonObject ?: return@mapNotNull null
+                val text = item.string("text") ?: return@mapNotNull null
+                val createdAt = item.string("createdAt")?.let { runCatching { OffsetDateTime.parse(it).toInstant() }.getOrNull() } ?: return@mapNotNull null
+                com.accountabilibuddy.shared.sync.SyncComeback(item.string("id") ?: "", text, createdAt)
+            },
         )
     }
 }

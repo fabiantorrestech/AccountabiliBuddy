@@ -50,6 +50,7 @@ fun MainScreen(
     val linkStatus by viewModel.linkStatus.collectAsStateWithLifecycle()
     val folderStatus by viewModel.folderStatus.collectAsStateWithLifecycle()
     val runningTasks by viewModel.runningTasks.collectAsStateWithLifecycle()
+    val comebacks by viewModel.comebacks.collectAsStateWithLifecycle()
     val pairedPc by viewModel.pairedPc.collectAsStateWithLifecycle()
     val watchSettings by viewModel.watchSettings.collectAsStateWithLifecycle()
     val detectedWatches by viewModel.detectedWatches.collectAsStateWithLifecycle()
@@ -128,6 +129,7 @@ fun MainScreen(
                     },
                     onDiscardPlanEdit = viewModel::discardDayPlanEdit,
                     runningTasks = runningTasks,
+                    comebacks = comebacks,
                 )
                 1 -> ProfilesScreen(
                     state,

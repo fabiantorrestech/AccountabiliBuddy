@@ -445,6 +445,14 @@ public partial class App : Application
             linkHost.NotifyTasksChanged();
             syncCoordinator.NotifyHistoryChanged();
         };
+        // Come-backs (ADR 30): the open ones go to paired devices in the link's state and in this PC's sync file.
+        linkHost.Comebacks = () => _comebacks!.Open.Select(comeback => new AccountabiliBuddy.Core.Link.LinkComeback(comeback.Id, comeback.Text, comeback.CreatedAt)).ToList();
+        syncCoordinator.Comebacks = () => _comebacks!.Open.Select(comeback => new AccountabiliBuddy.Core.Sync.SyncComeback(comeback.Id, comeback.Text, comeback.CreatedAt)).ToList();
+        _comebacks!.Changed += (_, _) =>
+        {
+            linkHost.NotifyTasksChanged();
+            syncCoordinator.NotifyHistoryChanged();
+        };
         syncCoordinator.LoadBlocking();
         linkHost.UseSync(syncCoordinator, receivedDevices, syncIdentity, syncSettings);
         // The running log (ADR 22): the other devices' sessions on both day bars (History gets them below).

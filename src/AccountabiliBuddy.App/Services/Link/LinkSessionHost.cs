@@ -453,8 +453,12 @@ public sealed class LinkSessionHost : ILinkSessionHost
             _quickSession.CountUpProfileId,
             _sessions.Now,
             state.IsActive ? Tasks?.Invoke() : null,
-            state.IsActive ? CurrentTask?.Invoke() : null);
+            state.IsActive ? CurrentTask?.Invoke() : null,
+            Comebacks?.Invoke());
     }
+
+    /// <summary>The PC's open come-backs for paired devices (ADR 30); set by the app.</summary>
+    public Func<IReadOnlyList<LinkComeback>?>? Comebacks { get; set; }
 
     /// <summary>Guided sessions (ADR 24): the running session's checklist for the phone; set by the app.</summary>
     public Func<IReadOnlyList<SessionTask>?>? Tasks { get; set; }

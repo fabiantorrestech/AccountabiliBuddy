@@ -216,8 +216,11 @@ public sealed class SyncCoordinator
 
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
         return SyncFileBuilder.Build(card, records, drift, _omitted.IsOmitted, id => ProfileOptions.NameOf(profiles, id),
-            _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf);
+            _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf) with { Comebacks = Comebacks?.Invoke() };
     }
+
+    /// <summary>The PC's open come-backs for its sync file (ADR 30); set by the app.</summary>
+    public Func<IReadOnlyList<SyncComeback>?>? Comebacks { get; set; }
 
     private async Task<string?> AcceptOnUiThreadAsync(byte[] sealedBytes, string method)
     {
