@@ -26,6 +26,10 @@ class RefreshReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED && !StartOnBoot.isOn(context)) {
+            return
+        }
+
         val pending = goAsync()
         CoroutineScope(Dispatchers.Default).launch {
             try {

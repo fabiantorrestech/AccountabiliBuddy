@@ -185,6 +185,15 @@ public sealed class PreWorkService
         DayOffTaken?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// "No, a day off" undone (tapped by mistake), during the wait or after: back to a normal day, asked again at the next
+    /// activity in a Pre-Work part. Being stricter needs no wait.
+    /// </summary>
+    public async Task CancelDayOffAsync()
+    {
+        await SaveAsync(_state with { DayOffAskedAt = null, DayOffOn = null });
+    }
+
     /// <summary>A new random code to retype for an emergency unlock (12 letters and digits, no look-alikes).</summary>
     public static string NewUnlockCode()
     {

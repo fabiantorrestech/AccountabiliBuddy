@@ -246,6 +246,25 @@ class CompanionApp : Application() {
         appScope.launch { Refresher.refresh(this@CompanionApp) }
     }
 
+    /**
+     * The header's refresh: connects to the PC (which sends its state and settings), swaps sync files with it, reads
+     * the sync folder and Drive, then redraws. [onDone] gets what to say.
+     */
+    fun refreshNow(onDone: (String) -> Unit) {
+        appScope.launch {
+            link.connect()
+            sendSyncFilesToPc()
+            val problems = listOfNotNull(
+                runCatching { folderSource.syncNow() }.exceptionOrNull()?.let { "sync folder: ${it.message}" },
+                runCatching { driveSource.syncNow() }.exceptionOrNull()?.let { "Drive: ${it.message}" },
+            )
+            Refresher.refresh(this@CompanionApp)
+            val at = java.time.LocalTime.now().withSecond(0).withNano(0)
+            val text = if (problems.isEmpty()) "Up to date · refreshed $at" else "Refreshed $at, but ${problems.joinToString("; ")}"
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onDone(text) }
+        }
+    }
+
     fun sendSyncFilesToPc() {
         val pc = link.pairedPc.value ?: return
         appScope.launch {

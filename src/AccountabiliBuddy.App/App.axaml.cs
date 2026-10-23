@@ -621,6 +621,7 @@ public partial class App : Application
         // Focus mode: the Today page while a session runs (the main window's day bar is the one it reads).
         sessionViewModel.Comebacks = new ComebacksViewModel(_comebacks!);
         sessionViewModel.Lunch = new LunchCardViewModel(_lunch!, _sessions);
+        sessionViewModel.DayOff = new DayOffCardViewModel(_preWork!);
         // Deep work against the daily goal (redesign phase 4): Today's card, the on-screen details, "Goal met" once a day.
         _deepWork = new DeepWorkService(
             _sessions,
@@ -745,6 +746,36 @@ public partial class App : Application
             DayBar = _dayBar,
             Search = new SearchViewModel(SearchDataAsync),
             Devices = devices,
+        };
+        // The top-right refresh: every sync method that's on, calendars, then the day bar and History read again.
+        mainViewModel.RefreshAll = async () =>
+        {
+            var problems = new List<string>();
+            async Task Step(string name, Func<Task>? step)
+            {
+                if (step is null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await step();
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or HttpRequestException or InvalidOperationException)
+                {
+                    problems.Add($"{name}: {ex.Message}");
+                }
+            }
+
+            await Step("sync folder", _syncFolder is null ? null : async () => { await _syncFolder.WriteNowAsync(); await _syncFolder.ReadNowAsync(); });
+            await Step("Google Drive", _syncDrive is null ? null : async () => { await _syncDrive.WriteNowAsync(); await _syncDrive.ReadNowAsync(); });
+            linkHost.PushAll();
+            await Step("calendars", _calendarSync is null ? null : _calendarSync.RefreshAllAsync);
+            _dayBar?.ReloadHistory();
+            await mainViewModel.History.RefreshCommand.ExecuteAsync(null);
+            string at = time.GetLocalNow().ToString("t");
+            return problems.Count == 0 ? $"Up to date · refreshed {at}" : $"Refreshed {at}, but: " + string.Join("; ", problems);
         };
 
         // A session added, edited or deleted by hand (ADR 20): both day bars read the history again, and linked devices get it.

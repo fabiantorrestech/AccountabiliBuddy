@@ -145,6 +145,7 @@ fun MainScreen(
             ) { shown ->
             when (shown) {
                 0 -> Column {
+                    DayOffCard()
                     LunchCard(
                         flex = state.document.dayPlan.flexibleBreakOn(java.time.LocalDate.now()),
                         taken = lunchTaken?.takeIf { it.start.atZone(java.time.ZoneId.systemDefault()).toLocalDate() == java.time.LocalDate.now() },

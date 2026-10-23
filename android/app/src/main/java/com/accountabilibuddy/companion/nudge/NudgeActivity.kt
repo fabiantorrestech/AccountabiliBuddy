@@ -108,6 +108,10 @@ private fun NudgeCard(store: NudgeStore, untilText: String?, parked: List<String
                 if (seconds <= 0) {
                     Button(onClick = { save(state.copy(dayOff = today)); onDone() }, modifier = Modifier.fillMaxWidth()) { Text("Close") }
                 }
+                // Tapped by mistake: back to the card's choices (being stricter needs no wait).
+                OutlinedButton(onClick = { save(state.copy(dayOffAskedAt = null, dayOff = null)) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Cancel: I am working today")
+                }
                 return@Column
             }
 

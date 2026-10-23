@@ -6,7 +6,9 @@ import android.content.Context
 
 /** Notification channels; both silent (no sound, no vibration). */
 object Channels {
-    const val TIMELINE = "timeline"
+    // "timeline_top" since the channel went to high importance (a channel's importance can't change once made).
+    const val TIMELINE = "timeline_top"
+    private const val OLD_TIMELINE = "timeline"
     const val BEDTIME = "bedtime"
     const val NOISE = "noise"
     const val NUDGE = "nudge"
@@ -17,8 +19,11 @@ object Channels {
 
     fun create(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
-        // Default importance (silenced) keeps the timeline near the top, unlike "low", which sinks it.
-        manager.createNotificationChannel(silent(TIMELINE, "Today's timeline", "Always-on timeline of your day", NotificationManager.IMPORTANCE_DEFAULT))
+        // High importance (silenced, alerting once) ranks the timeline above other apps' default-importance pinned
+        // cards, such as a calendar widget's; it never pops down because it never makes a sound or buzz.
+        manager.createNotificationChannel(silent(TIMELINE, "Today's timeline", "Always-on timeline of your day", NotificationManager.IMPORTANCE_HIGH))
+        // Refused while its card is still pinned by the service; tried again at the next start.
+        runCatching { manager.deleteNotificationChannel(OLD_TIMELINE) }
         manager.createNotificationChannel(silent(BEDTIME, "Bedtime reminder", "Two hours before bedtime", NotificationManager.IMPORTANCE_DEFAULT))
         manager.createNotificationChannel(silent(NOISE, "Noise player", "While a sound plays", NotificationManager.IMPORTANCE_LOW))
         // The start nudge buzzes once (no sound): it's meant to be noticed.

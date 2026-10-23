@@ -96,6 +96,15 @@ public sealed partial class PreWorkPromptViewModel : ObservableObject
     [RelayCommand]
     private Task DayOffAsync() => _service.AskDayOffAsync();
 
+    /// <summary>"No, a day off" was a mistake: back to the question.</summary>
+    [RelayCommand]
+    private async Task CancelDayOffAsync()
+    {
+        await _service.CancelDayOffAsync();
+        _dayOffAskedAt = null;
+        IsWaiting = false;
+    }
+
     [RelayCommand(CanExecute = nameof(CanTakeDayOff))]
     private Task TakeDayOffAsync() =>
         _service.TakeDayOffAsync(Plans.Split('\n'), AddComeback ?? (_ => Task.CompletedTask));

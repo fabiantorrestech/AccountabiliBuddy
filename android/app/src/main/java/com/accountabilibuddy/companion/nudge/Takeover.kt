@@ -3,8 +3,15 @@ package com.accountabilibuddy.companion.nudge
 import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.PixelFormat
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
+import android.util.Log
+import android.view.Gravity
+import android.view.View
+import android.view.WindowManager
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.notify.WorkStartNudge
@@ -27,6 +34,7 @@ object Takeover {
     /** @param focus the devices' combined focus; null while the phone is paused (then nothing shows). */
     fun maybeShow(context: Context, focus: WatchSnapshot?, clock: ClockFormat, now: Instant = Instant.now()) {
         if (focus == null || !canShow(context) || !inUse(context)) {
+            Log.d(TAG, "not shown: focus=${focus != null} overlay=${canShow(context)} inUse=${inUse(context)}")
             return
         }
 
@@ -35,6 +43,7 @@ object Takeover {
         val state = store.load()
         val stretch = WorkStart.current(focus, now)
         if (!NudgeRules.due(state, stretch != null, stretch, now, LocalDate.now(zone), WorkStartNudge.repeatMinutes(context))) {
+            Log.d(TAG, "not due: inWork=${stretch != null} last=${state.lastShown}")
             return
         }
 
@@ -48,8 +57,48 @@ object Takeover {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             .putExtra(NudgeActivity.EXTRA_UNTIL, until)
             .putStringArrayListExtra(NudgeActivity.EXTRA_PARKED, ArrayList(parked))
-        runCatching { context.startActivity(intent) }
+        open(context, intent)
     }
+
+    /**
+     * Opens the card. Android lets an app open a screen from the background only while one of its windows is
+     * showing, so with "Display over other apps" a tiny invisible window is put up for that moment, then removed.
+     */
+    private fun open(context: Context, intent: Intent) {
+        val app = context.applicationContext as CompanionApp
+        Handler(Looper.getMainLooper()).post {
+            if (app.appOnScreen) {
+                start(context, intent)
+                return@post
+            }
+
+            val windows = context.getSystemService(WindowManager::class.java)
+            val view = View(context)
+            val params = WindowManager.LayoutParams(
+                1, 1, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                PixelFormat.TRANSLUCENT,
+            ).apply { gravity = Gravity.TOP or Gravity.START }
+            if (runCatching { windows.addView(view, params) }.isFailure) {
+                start(context, intent)
+                return@post
+            }
+
+            // Once it's on screen: open the card, then take the window away.
+            view.postDelayed({
+                start(context, intent)
+                view.postDelayed({ runCatching { windows.removeView(view) } }, WINDOW_KEPT_MS)
+            }, WINDOW_SETTLE_MS)
+        }
+    }
+
+    private fun start(context: Context, intent: Intent) {
+        runCatching { context.startActivity(intent) }.onFailure { Log.w(TAG, "work card not opened", it) }
+    }
+
+    private const val TAG = "Takeover"
+    private const val WINDOW_SETTLE_MS = 150L
+    private const val WINDOW_KEPT_MS = 1_500L
 
     /** True on a day the user said "Not working today" on the card (no phone nudges then). */
     fun isDayOff(context: Context): Boolean = NudgeStore(context).load().dayOff == LocalDate.now()

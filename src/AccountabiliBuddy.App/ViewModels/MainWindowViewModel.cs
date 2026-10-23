@@ -233,6 +233,45 @@ public sealed partial class MainWindowViewModel : ObservableObject
     /// <summary>The Notebook tab; set by the app.</summary>
     public NotebookViewModel? Notebook { get; init; }
 
+    /// <summary>
+    /// The top-right refresh: syncs now by every method that's on, reads calendars again and reloads the day bar and
+    /// History. Returns what to say ("Up to date · 4:05 PM" or what failed). Set by the app.
+    /// </summary>
+    public Func<Task<string>>? RefreshAll { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RefreshNowCommand))]
+    public partial bool IsRefreshing { get; set; }
+
+    /// <summary>The refresh button's tip: what it does, then the last result.</summary>
+    [ObservableProperty]
+    public partial string RefreshTip { get; set; } = "Refresh: sync with your other devices now and reload settings, calendars and history";
+
+    private bool CanRefresh => !IsRefreshing;
+
+    [RelayCommand(CanExecute = nameof(CanRefresh))]
+    private async Task RefreshNowAsync()
+    {
+        if (RefreshAll is null)
+        {
+            return;
+        }
+
+        IsRefreshing = true;
+        try
+        {
+            RefreshTip = await RefreshAll();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or HttpRequestException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            RefreshTip = $"Refresh didn't finish: {ex.Message}";
+        }
+        finally
+        {
+            IsRefreshing = false;
+        }
+    }
+
     public SetupViewModel Setup { get; }
 
     public IntegrationsViewModel Integrations { get; }

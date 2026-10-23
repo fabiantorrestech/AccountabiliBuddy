@@ -102,6 +102,15 @@
                         <!-- Today's sync QR codes for the phone (ADR 22), while the QR code method is on. -->
                         <Button Content="Sync phone" Command="{Binding ShowSyncQrCodesCommand}" IsVisible="{Binding ShowsQrButton}"
                                 ToolTip.Tip="Show today's QR codes for your phone to scan" VerticalAlignment="Center" />
+                        <!-- Sync now and reload everything, for a manual check that all is in step. -->
+                        <Button Content="⟳" Command="{Binding RefreshNowCommand}" ToolTip.Tip="{Binding RefreshTip}" FontSize="16" Padding="10,2"
+                                VerticalAlignment="Center" AutomationProperties.Name="Refresh and sync now" Classes.busy="{Binding IsRefreshing}">
+                            <Button.Styles>
+                                <Style Selector="Button.busy">
+                                    <Setter Property="Opacity" Value="0.5" />
+                                </Style>
+                            </Button.Styles>
+                        </Button>
                         <views:SearchBox x:Name="Search" DataContext="{Binding Search}"
                                          IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).Search, Converter={x:Static ObjectConverters.IsNotNull}}" />
                     </StackPanel>

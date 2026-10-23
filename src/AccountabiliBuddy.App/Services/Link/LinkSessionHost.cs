@@ -131,6 +131,13 @@ public sealed class LinkSessionHost : ILinkSessionHost
 
     public event EventHandler? FocusDayChanged;
 
+    /// <summary>The manual refresh: sends the paired devices the settings and today's focus again.</summary>
+    public void PushAll()
+    {
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
+        FocusDayChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public event EventHandler? SyncFilesChanged;
 
     /// <summary>Raised (on the UI thread) with the reason when a linked device ended the session early.</summary>

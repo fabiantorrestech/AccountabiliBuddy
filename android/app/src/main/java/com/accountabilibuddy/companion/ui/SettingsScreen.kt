@@ -82,6 +82,7 @@ fun SettingsScreen(
             }
         }
         item { AppearanceSection() }
+        item { StartupSection() }
         if (pause != null) {
             item {
                 // Ticks the wait down while it's shown.

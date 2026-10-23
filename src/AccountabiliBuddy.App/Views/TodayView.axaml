@@ -54,6 +54,16 @@
                 </StackPanel>
             </Border>
 
+            <!-- A day off taken in the Pre-Work window: Undo if it was a mistake. -->
+            <Border Padding="16,10" CornerRadius="10" Background="#1AF4A261" BorderBrush="#55F4A261" BorderThickness="1"
+                    DataContext="{Binding DayOff}" x:DataType="vm:DayOffCardViewModel"
+                    IsVisible="{Binding IsVisible, FallbackValue=False}">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <TextBlock Text="Day off on this computer: no Pre-Work, work-hours guard or start nudges today." VerticalAlignment="Center" TextWrapping="Wrap" />
+                    <Button Grid.Column="1" Content="Undo" Command="{Binding UndoCommand}" />
+                </Grid>
+            </Border>
+
             <!-- Flexible lunch (schema v8): start it any time; then the time left and "I'm back". -->
             <Border Padding="16,12" CornerRadius="10" Background="#1ACA8A04" BorderBrush="#55CA8A04" BorderThickness="1"
                     DataContext="{Binding Lunch}" x:DataType="vm:LunchCardViewModel"

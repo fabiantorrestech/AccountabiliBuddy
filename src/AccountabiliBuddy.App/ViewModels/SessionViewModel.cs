@@ -74,6 +74,10 @@ public sealed partial class SessionViewModel : ObservableObject
     [ObservableProperty]
     public partial LunchCardViewModel? Lunch { get; set; }
 
+    /// <summary>"Day off on this computer · Undo" after the Pre-Work window's day off.</summary>
+    [ObservableProperty]
+    public partial DayOffCardViewModel? DayOff { get; set; }
+
     /// <summary>The Unlock card.</summary>
     public UnlockViewModel Unlock { get; }
 

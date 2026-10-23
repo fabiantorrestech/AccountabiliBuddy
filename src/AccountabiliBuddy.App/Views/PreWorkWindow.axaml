@@ -33,6 +33,7 @@
                     <TextBlock Text="{Binding WaitText}" VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
                     <Button Grid.Column="1" Content="Start my day off" Command="{Binding TakeDayOffCommand}" Classes="accent" />
                 </Grid>
+                <Button Content="Cancel: I am working today" Command="{Binding CancelDayOffCommand}" HorizontalAlignment="Left" />
             </StackPanel>
 
             <!-- Emergency unlock: rare and deliberately slow. -->
