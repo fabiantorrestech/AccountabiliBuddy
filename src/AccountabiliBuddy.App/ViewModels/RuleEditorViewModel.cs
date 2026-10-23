@@ -48,6 +48,20 @@ public sealed partial class RuleEditorViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
 
+    /// <summary>Its place in the profile's list, from 1 (set by the profile).</summary>
+    [ObservableProperty]
+    public partial int Number { get; set; }
+
+    /// <summary>False while the list's search or filters leave it out.</summary>
+    [ObservableProperty]
+    public partial bool IsShown { get; set; } = true;
+
+    /// <summary>True when the search text is in its pattern or note (any case), or the search is empty.</summary>
+    public bool Matches(string search) =>
+        search.Length == 0
+        || Pattern.Contains(search, StringComparison.OrdinalIgnoreCase)
+        || Note.Contains(search, StringComparison.OrdinalIgnoreCase);
+
     [RelayCommand]
     private void Remove()
     {

@@ -172,9 +172,21 @@
                                     </StackPanel>
                                 </Border>
 
+                                <!-- Search and filters (the numbers stay each rule's place in the whole list). -->
+                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                                    <TextBox Text="{Binding RuleSearch}" Width="240" PlaceholderText="Search rules (pattern or note)"
+                                             AutomationProperties.Name="Search rules" />
+                                    <TextBlock Text="Match on" VerticalAlignment="Center" Opacity="0.75" />
+                                    <ComboBox ItemsSource="{x:Static vm:ProfileEditorViewModel.TargetFilters}" SelectedItem="{Binding TargetFilter}" MinWidth="130" />
+                                    <TextBlock Text="Verdict" VerticalAlignment="Center" Opacity="0.75" />
+                                    <ComboBox ItemsSource="{x:Static vm:ProfileEditorViewModel.VerdictFilters}" SelectedItem="{Binding VerdictFilter}" MinWidth="100" />
+                                    <TextBlock Text="{Binding FilterText}" VerticalAlignment="Center" Opacity="0.75" />
+                                </StackPanel>
+
                                 <Grid Margin="0,4,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="28" />
+                                        <ColumnDefinition Width="36" />
                                         <ColumnDefinition Width="140" />
                                         <ColumnDefinition Width="110" />
                                         <ColumnDefinition Width="2*" MinWidth="140" />
@@ -183,20 +195,22 @@
                                         <ColumnDefinition Width="40" />
                                     </Grid.ColumnDefinitions>
                                     <CheckBox Grid.Column="0" IsChecked="{Binding AllRulesSelected}" MinWidth="0" Padding="0"
-                                              ToolTip.Tip="Select all (to copy or move them to another profile)" AutomationProperties.Name="Select all rules" />
-                                    <TextBlock Grid.Column="1" Text="Match on" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="2" Text="How" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="3" Text="Pattern" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="4" Text="Verdict" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="5" Text="Note" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                              ToolTip.Tip="Select all shown (to copy or move them to another profile)" AutomationProperties.Name="Select all rules" />
+                                    <TextBlock Grid.Column="1" Text="#" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="Match on" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="3" Text="How" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="4" Text="Pattern" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="5" Text="Verdict" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="6" Text="Note" FontWeight="SemiBold" VerticalAlignment="Center" />
                                 </Grid>
 
                                 <ItemsControl ItemsSource="{Binding Rules}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:RuleEditorViewModel">
-                                            <Grid Margin="0,2">
+                                            <Grid Margin="0,2" IsVisible="{Binding IsShown}">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="28" />
+                                                    <ColumnDefinition Width="36" />
                                                     <ColumnDefinition Width="140" />
                                                     <ColumnDefinition Width="110" />
                                                     <ColumnDefinition Width="2*" MinWidth="140" />
@@ -206,20 +220,21 @@
                                                 </Grid.ColumnDefinitions>
                                                 <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" MinWidth="0" Padding="0" VerticalAlignment="Center"
                                                           ToolTip.Tip="Tick to copy or move it to another profile" AutomationProperties.Name="{Binding Pattern}" />
-                                                <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" Margin="0,0,4,0"
+                                                <TextBlock Grid.Column="1" Text="{Binding Number}" Opacity="0.6" VerticalAlignment="Center" />
+                                                <ComboBox Grid.Column="2" HorizontalAlignment="Stretch" Margin="0,0,4,0"
                                                           ItemsSource="{x:Static vm:RuleEditorViewModel.Targets}"
                                                           SelectedItem="{Binding Target}" />
-                                                <ComboBox Grid.Column="2" HorizontalAlignment="Stretch" Margin="0,0,4,0"
+                                                <ComboBox Grid.Column="3" HorizontalAlignment="Stretch" Margin="0,0,4,0"
                                                           ItemsSource="{x:Static vm:RuleEditorViewModel.Kinds}"
                                                           SelectedItem="{Binding Kind}" />
-                                                <TextBox Grid.Column="3" Text="{Binding Pattern}" Margin="0,0,4,0"
+                                                <TextBox Grid.Column="4" Text="{Binding Pattern}" Margin="0,0,4,0"
                                                          PlaceholderText="e.g. youtube.com/shorts" />
-                                                <ComboBox Grid.Column="4" HorizontalAlignment="Stretch" Margin="0,0,4,0"
+                                                <ComboBox Grid.Column="5" HorizontalAlignment="Stretch" Margin="0,0,4,0"
                                                           ItemsSource="{x:Static vm:RuleEditorViewModel.Verdicts}"
                                                           SelectedItem="{Binding Verdict}" />
-                                                <TextBox Grid.Column="5" Text="{Binding Note}" Margin="0,0,4,0"
+                                                <TextBox Grid.Column="6" Text="{Binding Note}" Margin="0,0,4,0"
                                                          PlaceholderText="optional" />
-                                                <Button Grid.Column="6" Content="✕" Command="{Binding RemoveCommand}"
+                                                <Button Grid.Column="7" Content="✕" Command="{Binding RemoveCommand}"
                                                         ToolTip.Tip="Remove rule" />
                                             </Grid>
                                         </DataTemplate>

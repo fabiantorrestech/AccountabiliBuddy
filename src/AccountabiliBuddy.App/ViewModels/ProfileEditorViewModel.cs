@@ -73,6 +73,51 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
 
     public ObservableCollection<RuleEditorViewModel> Rules { get; } = new();
 
+    /// <summary>Filters the rules list by pattern or note (any case).</summary>
+    [ObservableProperty]
+    public partial string RuleSearch { get; set; } = string.Empty;
+
+    /// <summary>The "Match on" filter: "All" or one <see cref="MatchTarget"/>.</summary>
+    public static IReadOnlyList<string> TargetFilters { get; } = ["All", .. Enum.GetNames<MatchTarget>()];
+
+    [ObservableProperty]
+    public partial string TargetFilter { get; set; } = "All";
+
+    /// <summary>The verdict filter: "All" or one <see cref="RuleVerdict"/>.</summary>
+    public static IReadOnlyList<string> VerdictFilters { get; } = ["All", .. Enum.GetNames<RuleVerdict>()];
+
+    [ObservableProperty]
+    public partial string VerdictFilter { get; set; } = "All";
+
+    /// <summary>E.g. "Showing 4 of 37 rules"; empty when nothing is filtered out.</summary>
+    [ObservableProperty]
+    public partial string FilterText { get; set; } = string.Empty;
+
+    partial void OnRuleSearchChanged(string value) => ApplyFilter();
+
+    partial void OnTargetFilterChanged(string value) => ApplyFilter();
+
+    partial void OnVerdictFilterChanged(string value) => ApplyFilter();
+
+    /// <summary>Numbers the rules from 1 and shows the ones the search and filters let through.</summary>
+    private void ApplyFilter()
+    {
+        string search = RuleSearch.Trim();
+        int shown = 0;
+        for (int index = 0; index < Rules.Count; index++)
+        {
+            RuleEditorViewModel rule = Rules[index];
+            rule.Number = index + 1;
+            rule.IsShown = rule.Matches(search)
+                && (TargetFilter == "All" || rule.Target.ToString() == TargetFilter)
+                && (VerdictFilter == "All" || rule.Verdict.ToString() == VerdictFilter);
+            shown += rule.IsShown ? 1 : 0;
+        }
+
+        FilterText = shown == Rules.Count ? string.Empty : $"Showing {shown} of {Rules.Count} rules";
+        OnSelectionChanged();
+    }
+
     /// <summary>The ticked rules, to copy or move to another profile.</summary>
     public IReadOnlyList<RuleEditorViewModel> SelectedRules => Rules.Where(rule => rule.IsSelected).ToList();
 
@@ -81,13 +126,13 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
     /// <summary>E.g. "3 selected".</summary>
     public string SelectionText => $"{Rules.Count(rule => rule.IsSelected)} selected";
 
-    /// <summary>"Select all": ticked when every rule is; ticking or unticking it does all of them.</summary>
+    /// <summary>"Select all": ticked when every rule shown is; ticking or unticking it does all the shown ones.</summary>
     public bool AllRulesSelected
     {
-        get => Rules.Count > 0 && Rules.All(rule => rule.IsSelected);
+        get => Rules.Any(rule => rule.IsShown) && Rules.Where(rule => rule.IsShown).All(rule => rule.IsSelected);
         set
         {
-            foreach (RuleEditorViewModel rule in Rules)
+            foreach (RuleEditorViewModel rule in Rules.Where(rule => rule.IsShown))
             {
                 rule.IsSelected = value;
             }
@@ -281,7 +326,7 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
             rule.PropertyChanged += OnRulePropertyChanged;
         }
 
-        OnSelectionChanged();
+        ApplyFilter();
     }
 
     private void OnRulePropertyChanged(object? sender, PropertyChangedEventArgs e)
