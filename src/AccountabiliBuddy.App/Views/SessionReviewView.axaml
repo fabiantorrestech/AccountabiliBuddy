@@ -25,7 +25,17 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <TextBox Text="{Binding Reason}" PlaceholderText="Why are the Fine ones fine? (needed to allow them)" />
+            <!-- On track in three sessions: offered once as always allowed. -->
+            <StackPanel Spacing="4" IsVisible="{Binding HasPromotions}">
+                <ItemsControl ItemsSource="{Binding Promotions}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:PromoteRowViewModel">
+                            <CheckBox Content="{Binding Text}" IsChecked="{Binding IsYes}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+            <TextBox Text="{Binding Reason}" PlaceholderText="Why is what you allow fine? (needed to allow it)" />
             <TextBlock Text="{Binding Error}" Foreground="#E76F51" TextWrapping="Wrap"
                        IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
             <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">

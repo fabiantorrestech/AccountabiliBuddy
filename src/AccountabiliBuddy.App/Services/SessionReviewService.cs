@@ -1,5 +1,6 @@
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Storage;
 using Microsoft.Data.Sqlite;
 
@@ -15,6 +16,8 @@ public sealed class SessionReviewService : IDisposable
 {
     public const int MaxRows = 8;
     private const string IgnoredKey = "review.ignored";
+    private const string PromotedKey = "review.promoted";
+    private static readonly TimeSpan RepeatWindow = TimeSpan.FromDays(30);
     private static readonly TimeSpan MinimumTime = TimeSpan.FromMinutes(1);
 
     private readonly SqliteActivityLog _log;
@@ -23,6 +26,7 @@ public sealed class SessionReviewService : IDisposable
     private readonly SessionController _sessions;
     private readonly Func<IReadOnlySet<Guid>> _preTicked;
     private HashSet<string> _ignored = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _promoted = new(StringComparer.OrdinalIgnoreCase);
     private DateTimeOffset? _sessionStart;
     private Guid? _sessionProfile;
     private Task _building = Task.CompletedTask;
@@ -51,10 +55,13 @@ public sealed class SessionReviewService : IDisposable
         {
             List<string>? saved = Task.Run(() => _store.LoadAsync<List<string>>(IgnoredKey)).GetAwaiter().GetResult();
             _ignored = new HashSet<string>(saved ?? [], StringComparer.OrdinalIgnoreCase);
+            List<string>? offered = Task.Run(() => _store.LoadAsync<List<string>>(PromotedKey)).GetAwaiter().GetResult();
+            _promoted = new HashSet<string>(offered ?? [], StringComparer.OrdinalIgnoreCase);
         }
         catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
         {
             _ignored = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            _promoted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
 
         if (_sessions.State.IsActive)
@@ -114,8 +121,23 @@ public sealed class SessionReviewService : IDisposable
     private async Task BuildSessionAsync(DateTimeOffset start, DateTimeOffset end, Guid profileId)
     {
         List<ReviewRowViewModel> rows = await RowsAsync(start, end);
-        SetPending(rows.Count == 0 ? null
-            : new SessionReviewViewModel("Last session: what had no rule", rows, profileId, null, card => ApplyAsync(card, closesPending: true)));
+        List<PromoteRowViewModel> promotions = await PromotionsAsync(end);
+        SetPending(rows.Count == 0 && promotions.Count == 0 ? null
+            : new SessionReviewViewModel("Last session: what had no rule", rows, profileId, null, card => ApplyAsync(card, closesPending: true), promotions));
+    }
+
+    /// <summary>Sites and apps called on track in three sessions of the last 30 days, not offered before.</summary>
+    private async Task<List<PromoteRowViewModel>> PromotionsAsync(DateTimeOffset now)
+    {
+        IReadOnlyList<SessionAllowLabel> labels = await _log.GetSessionAllowsAsync(now - RepeatWindow, now);
+        if (labels.Count == 0)
+        {
+            return [];
+        }
+
+        IReadOnlyList<SessionEvent> events = await _log.GetSessionEventsAsync(now - RepeatWindow - TimeSpan.FromDays(1), now);
+        IReadOnlyList<SessionRecord> sessions = SessionHistoryBuilder.Build(events);
+        return RepeatAllows.Find(labels, sessions, _promoted, now).Select(offer => new PromoteRowViewModel(offer)).ToList();
     }
 
     private async Task<List<ReviewRowViewModel>> RowsAsync(DateTimeOffset from, DateTimeOffset to)
@@ -156,6 +178,13 @@ public sealed class SessionReviewService : IDisposable
             }
         }
 
+        foreach (PromoteRowViewModel promotion in card.Promotions.Where(promotion => promotion.IsYes))
+        {
+            Rule allow = promotion.Offer.SuggestedRule with { Id = Guid.NewGuid(), Note = $"On track in three sessions: {reason}" };
+            await _configuration.AddRuleNowAsync(_preTicked().Prepend(card.ProfileId).Distinct().ToList(), allow);
+        }
+
+        await MarkOfferedAsync(card);
         await _store.SaveAsync(IgnoredKey, _ignored.Order(StringComparer.OrdinalIgnoreCase).ToList());
         if (closesPending)
         {
@@ -163,10 +192,27 @@ public sealed class SessionReviewService : IDisposable
         }
     }
 
+    /// <summary>Offers are made once, whatever the answer (Skip included).</summary>
+    private async Task MarkOfferedAsync(SessionReviewViewModel card)
+    {
+        if (card.Promotions.Count == 0)
+        {
+            return;
+        }
+
+        foreach (PromoteRowViewModel promotion in card.Promotions)
+        {
+            _promoted.Add(promotion.Offer.Key);
+        }
+
+        await _store.SaveAsync(PromotedKey, _promoted.Order(StringComparer.OrdinalIgnoreCase).ToList());
+    }
+
     private void SetPending(SessionReviewViewModel? card)
     {
         if (card is not null)
         {
+            card.Skipped += (_, _) => _ = MarkOfferedAsync(card);
             card.Closed += (_, _) =>
             {
                 if (Pending == card)

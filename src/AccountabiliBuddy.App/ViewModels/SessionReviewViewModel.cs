@@ -16,10 +16,12 @@ public sealed partial class SessionReviewViewModel : ObservableObject
     /// <param name="profiles">The profiles a week's rows can be written to; null for one session (its own profile).</param>
     /// <param name="apply">Writes the choices (set by the service).</param>
     public SessionReviewViewModel(
-        string heading, IReadOnlyList<ReviewRowViewModel> rows, Guid profileId, IReadOnlyList<ProfileOption>? profiles, Func<SessionReviewViewModel, Task> apply)
+        string heading, IReadOnlyList<ReviewRowViewModel> rows, Guid profileId, IReadOnlyList<ProfileOption>? profiles, Func<SessionReviewViewModel, Task> apply,
+        IReadOnlyList<PromoteRowViewModel>? promotions = null)
     {
         Heading = heading;
         Rows = rows;
+        Promotions = promotions ?? [];
         _apply = apply;
         ProfileChoices = profiles ?? [];
         SelectedProfile = ProfileChoices.FirstOrDefault(profile => profile.Id == profileId) ?? ProfileChoices.FirstOrDefault();
@@ -31,6 +33,13 @@ public sealed partial class SessionReviewViewModel : ObservableObject
     public string Heading { get; }
 
     public IReadOnlyList<ReviewRowViewModel> Rows { get; }
+
+    /// <summary>Sites and apps called on track in three sessions, offered once as permanent exemptions.</summary>
+    public IReadOnlyList<PromoteRowViewModel> Promotions { get; }
+
+    public bool HasRows => Rows.Count > 0;
+
+    public bool HasPromotions => Promotions.Count > 0;
 
     public IReadOnlyList<ProfileOption> ProfileChoices { get; }
 
@@ -66,9 +75,9 @@ public sealed partial class SessionReviewViewModel : ObservableObject
     /// <summary>Writes the choices; false (with <see cref="Error"/>) when a Fine row has no reason.</summary>
     public async Task<bool> ApplyAsync()
     {
-        if (Rows.Any(row => row.Choice == ReviewChoice.Fine) && !Reason.Any(char.IsLetterOrDigit))
+        if ((Rows.Any(row => row.Choice == ReviewChoice.Fine) || Promotions.Any(row => row.IsYes)) && !Reason.Any(char.IsLetterOrDigit))
         {
-            Error = "Write why for the Fine rows (one word is enough).";
+            Error = "Write why for what you allow (one word is enough).";
             return false;
         }
 
@@ -89,9 +98,13 @@ public sealed partial class SessionReviewViewModel : ObservableObject
     }
 
     /// <summary>Nothing written; the rows may come up again.</summary>
+    /// <summary>Raised on Skip (the service still marks the offers as made: they're offered once).</summary>
+    public event EventHandler? Skipped;
+
     [RelayCommand]
     private void Skip()
     {
+        Skipped?.Invoke(this, EventArgs.Empty);
         Closed?.Invoke(this, EventArgs.Empty);
     }
 }

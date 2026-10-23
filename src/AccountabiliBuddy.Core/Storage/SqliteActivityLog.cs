@@ -192,6 +192,30 @@ public sealed class SqliteActivityLog : IActivityLog
         return usage;
     }
 
+    /// <summary>"On track (this session)" answers in a period, by their readable columns (when, app, site).</summary>
+    public async Task<IReadOnlyList<SessionAllowLabel>> GetSessionAllowsAsync(
+        DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
+    {
+        await using SqliteConnection connection = await _database.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT created_at, process_name, domain
+            FROM activity_labels
+            WHERE verdict = 'Allow' AND lifetime = 'Session' AND created_at >= $from AND created_at < $to
+            ORDER BY created_at;
+            """;
+        AddRange(command, from, to);
+
+        var labels = new List<SessionAllowLabel>();
+        await using SqliteDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            labels.Add(new SessionAllowLabel(Parse(reader.GetString(0)), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2)));
+        }
+
+        return labels;
+    }
+
     public async Task<IReadOnlyList<DriftStretch>> GetDriftAsync(
         DateTimeOffset from,
         DateTimeOffset to,
