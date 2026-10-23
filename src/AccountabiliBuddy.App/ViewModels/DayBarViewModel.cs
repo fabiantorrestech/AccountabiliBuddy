@@ -315,6 +315,24 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         Redraw();
     }
 
+    /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
+    public SessionGapsService? Gaps
+    {
+        get => _gaps;
+        set
+        {
+            _gaps = value;
+            if (value is not null)
+            {
+                value.Changed += (_, _) => _ = ReloadHistoryAsync();
+            }
+        }
+    }
+
+    private SessionGapsService? _gaps;
+
+    private IReadOnlyList<SessionRecord> WithGaps(IReadOnlyList<SessionRecord> records) => _gaps?.Apply(records) ?? records;
+
     private async Task ReloadHistoryAsync()
     {
         if (_paused)
@@ -327,7 +345,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         {
             // A day either side, so a session that ran into or out of the bar has both its start and end.
             IReadOnlyList<SessionEvent> events = await _log.GetSessionEventsAsync(ToOffset(span.Start.AddDays(-1)), ToOffset(span.End.AddDays(1)));
-            _records = SessionHistoryBuilder.Build(events);
+            _records = WithGaps(SessionHistoryBuilder.Build(events));
             _drift = await _log.GetDriftAsync(ToOffset(span.Start), ToOffset(span.End), LeftOut(), _deleted.Parts);
             _historySpan = span;
             _historyLoadedAt = _time.GetUtcNow();
@@ -364,7 +382,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             planned = planned.SelectMany(focus => DayTimeline.Subtract([focus.Window], [lunch.Window]).Select(window => focus with { Window = window })).ToList();
         }
 
-        List<(LocalWindow Window, string Tip, Guid? ProfileId, bool Added, IReadOnlyList<LocalWindow> Away)> actual = ActualSessions(now, span);
+        List<(LocalWindow Window, string Tip, Guid? ProfileId, bool Added, IReadOnlyList<LocalWindow> Away, IReadOnlyList<LocalWindow> Distracted)> actual = ActualSessions(now, span);
 
         IEnumerable<LocalWindow> content = planned.Select(focus => focus.Window).Concat(actual.Select(item => item.Window));
         if (_sleep.Current.Enabled)
@@ -376,13 +394,13 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         LocalWindow range = settings.Range == DayBarRange.FullDay ? day : DayTimeline.FitTo(day, content, span);
 
         List<TimelineSession> sessions = actual
-            .Select(item => new TimelineSession(item.Window, item.Tip, item.ProfileId, item.Added, Away: item.Away))
+            .Select(item => new TimelineSession(item.Window, item.Tip, item.ProfileId, item.Added, Away: item.Away, Distracted: item.Distracted))
             .ToList();
         List<TimelineSession> received = ReceivedOnBar(span);
         // Totals add up across devices; time two devices both had in focus counts once (the union of the windows).
         // Time the user stepped away from one of this PC's sessions doesn't count (each session's own stretches).
         TimeSpan focused = Total(
-            actual.SelectMany(item => DayTimeline.Subtract([item.Window], item.Away)).Concat(received.Select(session => session.Window)),
+            actual.SelectMany(item => DayTimeline.Subtract([item.Window], item.Away.Concat(item.Distracted))).Concat(received.Select(session => session.Window)),
             range with { End = now < range.End ? now : range.End });
         // Drift is this PC's own: it stays inside this PC's sessions.
         IReadOnlyList<TimelineItem> drift = TimelineRowsBuilder.DriftOnBar(DriftItems(), sessions, range);
@@ -655,9 +673,9 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         SleepText = $"Sleep if you go now: {Duration(sleep)} · up {night.End:t}" + (schedule.WakesByAlarm(evening) ? " (phone alarm)" : "");
     }
 
-    private List<(LocalWindow Window, string Tip, Guid? ProfileId, bool Added, IReadOnlyList<LocalWindow> Away)> ActualSessions(DateTime now, LocalWindow span)
+    private List<(LocalWindow Window, string Tip, Guid? ProfileId, bool Added, IReadOnlyList<LocalWindow> Away, IReadOnlyList<LocalWindow> Distracted)> ActualSessions(DateTime now, LocalWindow span)
     {
-        var sessions = new List<(LocalWindow Window, string Tip, Guid? ProfileId, bool Added, IReadOnlyList<LocalWindow> Away)>();
+        var sessions = new List<(LocalWindow Window, string Tip, Guid? ProfileId, bool Added, IReadOnlyList<LocalWindow> Away, IReadOnlyList<LocalWindow> Distracted)>();
         SessionState state = _sessions.State;
         bool runningShown = false;
         // The session running now is the newest one the app recorded (an added one never runs).
@@ -692,18 +710,18 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
                 // Added by hand in History (ADR 20): counted like the others, drawn striped, no profile to open.
                 var window = new LocalWindow(start, ToLocal(addedEnd));
                 string note = record.Reason is null ? string.Empty : $" · “{record.Reason}”";
-                sessions.Add((window, $"Added by hand · {Times(window)}{note}", null, true, []));
+                sessions.Add((window, $"Added by hand · {Times(window)}{note}", null, true, [], AwayIn(record, window, distracted: true)));
             }
             else if (record.EndedAt is DateTimeOffset ended)
             {
                 var window = new LocalWindow(start, ToLocal(ended));
-                sessions.Add((window, $"{profile} · ran {Times(window)}", record.ProfileId, false, AwayIn(record, window)));
+                sessions.Add((window, $"{profile} · ran {Times(window)}", record.ProfileId, false, AwayIn(record, window), AwayIn(record, window, distracted: true)));
             }
             else if (i == newestRecorded && state.IsActive)
             {
                 // The newest session without an end is the one running now.
                 var running = new LocalWindow(start, now);
-                sessions.Add((running, $"{profile} · running since {start:t}", record.ProfileId, false, AwayIn(record, running)));
+                sessions.Add((running, $"{profile} · running since {start:t}", record.ProfileId, false, AwayIn(record, running), []));
                 runningShown = true;
             }
 
@@ -714,7 +732,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         {
             // Not in the history (history off, or not written yet): show the current phase.
             DateTime start = state.PhaseStartedAt is DateTimeOffset phaseStart ? ToLocal(phaseStart) : now;
-            sessions.Add((new LocalWindow(start, now), $"{ProfileName(state.ProfileId)} · running since {start:t}", state.ProfileId, false, []));
+            sessions.Add((new LocalWindow(start, now), $"{ProfileName(state.ProfileId)} · running since {start:t}", state.ProfileId, false, [], []));
         }
 
         return sessions.Where(item => DayTimeline.Clip(item.Window, span) is not null).ToList();
@@ -804,13 +822,14 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// The stretches the user stepped away during <paramref name="record"/>, in local time and cut to its window on the
-    /// bar (one still going, or one an unresumed session never closed, ends with the window).
+    /// The stretches the user stepped away during <paramref name="record"/> (or, with <paramref name="distracted"/>,
+    /// the ones marked distracted in History), in local time and cut to its window on the bar (one still going, or one
+    /// an unresumed session never closed, ends with the window).
     /// </summary>
-    private List<LocalWindow> AwayIn(SessionRecord record, LocalWindow window)
+    private List<LocalWindow> AwayIn(SessionRecord record, LocalWindow window, bool distracted = false)
     {
         var away = new List<LocalWindow>();
-        foreach (AwayStretch stretch in record.Away ?? [])
+        foreach (AwayStretch stretch in (record.Away ?? []).Where(stretch => (stretch.Kind == AwayKind.Distracted) == distracted))
         {
             DateTime from = ToLocal(stretch.From);
             DateTime to = stretch.To == DateTimeOffset.MaxValue ? window.End : ToLocal(stretch.To);

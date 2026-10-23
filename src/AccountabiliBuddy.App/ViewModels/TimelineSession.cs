@@ -8,4 +8,5 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="Color">"#RRGGBB" for another device's session (ADR 22, its shade); null = the Focus row's own colour.</param>
 /// <param name="Away">Stretches the user had stepped away during it: drawn hatched over it, left out of the focused time.</param>
 public sealed record TimelineSession(
-    LocalWindow Window, string Tip, Guid? ProfileId, bool Added = false, string? Color = null, IReadOnlyList<LocalWindow>? Away = null);
+    LocalWindow Window, string Tip, Guid? ProfileId, bool Added = false, string? Color = null, IReadOnlyList<LocalWindow>? Away = null,
+    IReadOnlyList<LocalWindow>? Distracted = null);

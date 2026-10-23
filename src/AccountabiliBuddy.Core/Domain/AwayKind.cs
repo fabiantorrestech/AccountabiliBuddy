@@ -8,4 +8,10 @@ public enum AwayKind
 
     /// <summary>Someone or something needed the user: a colleague, a call.</summary>
     Interrupted,
+
+    /// <summary>
+    /// Marked distracted afterwards in History (<see cref="SessionGap"/>); never written as a session event, only
+    /// folded into a record by <see cref="Engine.SessionGaps.Apply"/>.
+    /// </summary>
+    Distracted,
 }

@@ -374,6 +374,24 @@ public sealed partial class HistoryViewModel : ObservableObject
         ShowAllOverall = !ShowAllOverall;
     }
 
+    /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
+    public SessionGapsService? Gaps
+    {
+        get => _gaps;
+        set
+        {
+            _gaps = value;
+            if (value is not null)
+            {
+                value.Changed += (_, _) => _ = RefreshAsync();
+            }
+        }
+    }
+
+    private SessionGapsService? _gaps;
+
+    private IReadOnlyList<SessionRecord> WithGaps(IReadOnlyList<SessionRecord> records) => _gaps?.Apply(records) ?? records;
+
     [RelayCommand]
     private async Task RefreshAsync()
     {
@@ -398,12 +416,13 @@ public sealed partial class HistoryViewModel : ObservableObject
         };
 
         UsageSummary summary;
+        UsageSummary totals;
         IReadOnlyList<SessionRecord> records;
         IReadOnlyList<SessionRecord> around;
         try
         {
             // A day either side, so a session running into or out of the period is whole; the list shows those started in it.
-            around = SessionHistoryBuilder.Build(await _log.GetSessionEventsAsync(from.AddDays(-1), to.AddDays(1)));
+            around = WithGaps(SessionHistoryBuilder.Build(await _log.GetSessionEventsAsync(from.AddDays(-1), to.AddDays(1))));
             records = around.Where(record => record.StartedAt >= from && record.StartedAt < to).ToList();
 
             // Omitted sessions don't count, and scheduled blocks block but aren't focus: both are left out of the
@@ -413,6 +432,9 @@ public sealed partial class HistoryViewModel : ObservableObject
                 .Select(record => new TimeRange(record.StartedAt, record.EndedAt ?? localNow))
                 .ToList();
             summary = await _log.GetSummaryAsync(from, to, leftOut, _deleted.Parts);
+            // Time marked distracted on recorded sessions: out of the focus numbers (the lists keep what was used).
+            List<TimeRange> marked = MarkedGaps(around.Where(record => record.Mode is not SessionMode.Added and not SessionMode.Scheduled));
+            totals = marked.Count == 0 ? summary : await _log.GetSummaryAsync(from, to, [.. leftOut, .. marked], _deleted.Parts);
             ErrorText = null;
         }
         catch (SqliteException ex)
@@ -427,6 +449,16 @@ public sealed partial class HistoryViewModel : ObservableObject
             .Select(record => (record.EndedAt!.Value < to ? record.EndedAt.Value : to) - (record.StartedAt > from ? record.StartedAt : from))
             .Where(length => length > TimeSpan.Zero)
             .Aggregate(TimeSpan.Zero, (sum, length) => sum + length);
+        // Marked distracted (recorded and added sessions alike), inside the period.
+        TimeSpan markedTime = MarkedGaps(around.Where(record => record.Mode != SessionMode.Scheduled && !_omitted.IsOmitted(record.StartedAt)))
+            .Select(gap => (gap.To < to ? gap.To : to) - (gap.From > from ? gap.From : from))
+            .Where(length => length > TimeSpan.Zero)
+            .Aggregate(TimeSpan.Zero, (sum, length) => sum + length);
+        TimeSpan addedMarked = MarkedGaps(around.Where(record => record.Mode == SessionMode.Added && !_omitted.IsOmitted(record.StartedAt)))
+            .Select(gap => (gap.To < to ? gap.To : to) - (gap.From > from ? gap.From : from))
+            .Where(length => length > TimeSpan.Zero)
+            .Aggregate(TimeSpan.Zero, (sum, length) => sum + length);
+        addedTime -= addedMarked;
 
         // The other devices' sessions (ADR 22) add the time no local session covered; "This PC" leaves them out.
         HasReceivedDevices = _received is { Devices.Count: > 0 };
@@ -437,10 +469,11 @@ public sealed partial class HistoryViewModel : ObservableObject
             .Where(record => record.Mode != SessionMode.Scheduled && !_omitted.IsOmitted(record.StartedAt))
             .Select(record => new TimeRange(record.StartedAt, record.EndedAt ?? localNow));
         TimeSpan receivedTime = ReceivedSessions.ExtraTime(counted, received, from, to);
-        FocusTimeText = FormatDuration(summary.FocusTime + addedTime + receivedTime);
-        OnTrackText = $"{FormatDuration(summary.OnTrackTime)} ({Percent(summary.OnTrackTime, summary.FocusTime)})";
-        DistractedText = $"{FormatDuration(summary.DistractedTime)} ({Percent(summary.DistractedTime, summary.FocusTime)})";
-        UnknownText = FormatDuration(summary.UnknownTime);
+        FocusTimeText = FormatDuration(totals.FocusTime + addedTime + receivedTime);
+        TimeSpan inSessions = totals.FocusTime + markedTime;
+        OnTrackText = $"{FormatDuration(totals.OnTrackTime)} ({Percent(totals.OnTrackTime, inSessions)})";
+        DistractedText = $"{FormatDuration(totals.DistractedTime + markedTime)} ({Percent(totals.DistractedTime + markedTime, inSessions)})";
+        UnknownText = FormatDuration(totals.UnknownTime);
 
         // Distractions are named by site, or by app when there was no site; the period's sites tell them apart.
         var siteNames = summary.AppsAndSites.Where(entry => entry.Site is not null).Select(entry => entry.Site!)
@@ -511,8 +544,8 @@ public sealed partial class HistoryViewModel : ObservableObject
         if (record.Mode == SessionMode.Added)
         {
             string addedLength = record.Length is TimeSpan addedDuration ? FormatDuration(addedDuration) : "—";
-            return new SessionRowViewModel(when, "Added by hand", addedLength, "Added in History", record.Reason, record.StartedAt,
-                _omitted.IsOmitted(record.StartedAt), IsAdded: true, EndedAt: record.EndedAt);
+            return new SessionRowViewModel(when, "Added by hand", addedLength, "Added in History" + MarkedText(record), record.Reason, record.StartedAt,
+                _omitted.IsOmitted(record.StartedAt), IsAdded: true, EndedAt: record.EndedAt, CanMarkDistracted: record.EndedAt is not null);
         }
 
         string length = record.Length is TimeSpan duration ? FormatDuration(duration) : "—";
@@ -539,6 +572,7 @@ public sealed partial class HistoryViewModel : ObservableObject
             outcome += $" · interrupted {FormatDuration(interrupted)}";
         }
 
+        outcome += MarkedText(record);
         bool omitted = _omitted.IsOmitted(record.StartedAt);
         if (omitted)
         {
@@ -546,7 +580,134 @@ public sealed partial class HistoryViewModel : ObservableObject
         }
 
         IReadOnlyList<string>? notes = NotesBetween?.Invoke(record.StartedAt, record.EndedAt ?? DateTimeOffset.MaxValue);
-        return new SessionRowViewModel(when, $"{profile} · {mode}", length, outcome, record.Reason, record.StartedAt, omitted, Notes: notes);
+        return new SessionRowViewModel(when, $"{profile} · {mode}", length, outcome, record.Reason, record.StartedAt, omitted,
+            EndedAt: record.EndedAt, Notes: notes, CanMarkDistracted: record.EndedAt is not null && record.Mode != SessionMode.Scheduled);
+    }
+
+    private static List<TimeRange> MarkedGaps(IEnumerable<SessionRecord> records) => records
+        .SelectMany(record => record.Away ?? [])
+        .Where(stretch => stretch.Kind == AwayKind.Distracted)
+        .Select(stretch => new TimeRange(stretch.From, stretch.To))
+        .ToList();
+
+    private static string MarkedText(SessionRecord record) =>
+        record.AwayTimeOf(AwayKind.Distracted) is { } marked && marked > TimeSpan.Zero ? $" · marked distracted {FormatDuration(marked)}" : string.Empty;
+
+    // ---- Distracted time: stretches of a past session marked by hand (out of focus, counted as distracted) ----
+
+    private DateTimeOffset _gapSessionStart;
+    private DateTimeOffset _gapSessionEnd;
+
+    [ObservableProperty]
+    public partial bool IsGapFormOpen { get; set; }
+
+    /// <summary>E.g. "Distracted time in Coding · Thu 10/23 9:00 AM – 11:30 AM".</summary>
+    [ObservableProperty]
+    public partial string GapFormTitle { get; set; } = string.Empty;
+
+    public ObservableCollection<GapRowViewModel> GapRows { get; } = new();
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasGapFormError))]
+    public partial string? GapFormError { get; set; }
+
+    public bool HasGapFormError => GapFormError is not null;
+
+    [RelayCommand]
+    private void OpenGaps(SessionRowViewModel? row)
+    {
+        if (row is not { CanMarkDistracted: true, EndedAt: DateTimeOffset end } || _gaps is null)
+        {
+            return;
+        }
+
+        _gapSessionStart = row.StartedAt;
+        _gapSessionEnd = end;
+        DateTime localStart = LocalOf(row.StartedAt);
+        DateTime localEnd = LocalOf(end);
+        GapFormTitle = $"Distracted time in {row.Title} · {localStart:ddd M/d t} – {localEnd:t}";
+        GapRows.Clear();
+        foreach (SessionGap gap in _gaps.GapsOf(row.StartedAt))
+        {
+            GapRows.Add(new GapRowViewModel(LocalOf(gap.From).TimeOfDay, LocalOf(gap.To).TimeOfDay, RemoveGapRow));
+        }
+
+        if (GapRows.Count == 0)
+        {
+            AddGapRow();
+        }
+
+        GapFormError = null;
+        IsGapFormOpen = true;
+    }
+
+    [RelayCommand]
+    private void AddGapRow()
+    {
+        DateTime start = LocalOf(_gapSessionStart);
+        DateTime end = LocalOf(_gapSessionEnd);
+        DateTime to = start.AddMinutes(15) < end ? start.AddMinutes(15) : end;
+        GapRows.Add(new GapRowViewModel(start.TimeOfDay, to.TimeOfDay, RemoveGapRow));
+    }
+
+    private void RemoveGapRow(GapRowViewModel row) => GapRows.Remove(row);
+
+    [RelayCommand]
+    private void CancelGaps()
+    {
+        IsGapFormOpen = false;
+        GapRows.Clear();
+        GapFormError = null;
+    }
+
+    [RelayCommand]
+    private async Task SaveGapsAsync()
+    {
+        if (_gaps is null)
+        {
+            return;
+        }
+
+        if (GapRows.Any(row => row.From is null || row.To is null))
+        {
+            GapFormError = "Pick a start and an end for each stretch, or remove it.";
+            return;
+        }
+
+        List<SessionGap> gaps = GapRows.Select(row => new SessionGap(OnSessionDay(row.From!.Value), OnSessionDay(row.To!.Value))).ToList();
+        if (SessionGaps.Validate(_gapSessionStart, _gapSessionEnd, gaps) is string problem)
+        {
+            GapFormError = problem;
+            return;
+        }
+
+        try
+        {
+            await _gaps.SaveAsync(_gapSessionStart, gaps);
+        }
+        catch (SqliteException ex)
+        {
+            GapFormError = $"It could not be saved ({ex.Message}).";
+            return;
+        }
+
+        CancelGaps();
+        AddedSessionsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private DateTime LocalOf(DateTimeOffset time) => TimeZoneInfo.ConvertTime(time, _timeProvider.LocalTimeZone).DateTime;
+
+    // A time of day inside the session: on its start's date, or the next day for a session past midnight.
+    private DateTimeOffset OnSessionDay(TimeSpan timeOfDay)
+    {
+        DateTime start = LocalOf(_gapSessionStart);
+        DateTime local = start.Date + timeOfDay;
+        if (local < start.AddMinutes(-1))
+        {
+            local = local.AddDays(1);
+        }
+
+        return new DateTimeOffset(local, _timeProvider.LocalTimeZone.GetUtcOffset(local));
     }
 
     /// <summary>Raised after a session was added, edited or deleted by hand, so the day bar reloads.</summary>

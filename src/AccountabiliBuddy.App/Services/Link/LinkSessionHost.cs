@@ -55,6 +55,24 @@ public sealed class LinkSessionHost : ILinkSessionHost
     private byte[]? _ownSyncFile;
     private int _ownSyncFileGeneration;
 
+    /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
+    public SessionGapsService? Gaps
+    {
+        get => _gaps;
+        set
+        {
+            _gaps = value;
+            if (value is not null)
+            {
+                value.Changed += (_, _) => FocusDayChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+    }
+
+    private SessionGapsService? _gaps;
+
+    private IReadOnlyList<SessionRecord> WithGaps(IReadOnlyList<SessionRecord> records) => _gaps?.Apply(records) ?? records;
+
     public LinkSessionHost(
         SessionController sessions,
         ConfigurationService configuration,
@@ -197,7 +215,7 @@ public sealed class LinkSessionHost : ILinkSessionHost
         if (_privacy.Current.ActivityLogEnabled)
         {
             // The week and the day before it, so a session that ran into the first day has its start.
-            records = SessionHistoryBuilder.Build(await _log.GetSessionEventsAsync(At(todayStart.AddDays(-7), zone), At(todayStart.AddDays(2), zone)));
+            records = WithGaps(SessionHistoryBuilder.Build(await _log.GetSessionEventsAsync(At(todayStart.AddDays(-7), zone), At(todayStart.AddDays(2), zone))));
             List<TimeRange> leftOut = records
                 .Where(record => _omitted.IsOmitted(record.StartedAt) || record.Mode == SessionMode.Scheduled)
                 .Select(record => new TimeRange(record.StartedAt, record.EndedAt ?? now))

@@ -205,7 +205,7 @@ public sealed class SyncCoordinator
             // Off the UI thread: Microsoft.Data.Sqlite's async calls run synchronously.
             IReadOnlyList<SessionEvent> events = await Task.Run(() => _log.GetSessionEventsAsync(now - SyncMerge.KeptFor - TimeSpan.FromDays(1), to));
             oldestSessionStart = events.Count > 0 ? events[0].At : null;
-            records = SessionHistoryBuilder.Build(events.Where(sessionEvent => sessionEvent.At >= from));
+            records = WithGaps(SessionHistoryBuilder.Build(events.Where(sessionEvent => sessionEvent.At >= from)));
             List<TimeRange> leftOut = records
                 .Where(record => _omitted.IsOmitted(record.StartedAt) || record.Mode == SessionMode.Scheduled)
                 .Select(record => new TimeRange(record.StartedAt, record.EndedAt ?? now))
@@ -218,6 +218,24 @@ public sealed class SyncCoordinator
         return SyncFileBuilder.Build(card, records, drift, _omitted.IsOmitted, id => ProfileOptions.NameOf(profiles, id),
             _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke() };
     }
+
+    /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
+    public SessionGapsService? Gaps
+    {
+        get => _gaps;
+        set
+        {
+            _gaps = value;
+            if (value is not null)
+            {
+                value.Changed += (_, _) => RaiseOwnDataChanged();
+            }
+        }
+    }
+
+    private SessionGapsService? _gaps;
+
+    private IReadOnlyList<SessionRecord> WithGaps(IReadOnlyList<SessionRecord> records) => _gaps?.Apply(records) ?? records;
 
     /// <summary>The PC's open come-backs for its sync file (ADR 30); set by the app.</summary>
     public Func<IReadOnlyList<SyncComeback>?>? Comebacks { get; set; }

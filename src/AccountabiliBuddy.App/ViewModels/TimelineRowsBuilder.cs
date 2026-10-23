@@ -20,6 +20,9 @@ public static class TimelineRowsBuilder
     /// <summary>White: a guided session's ticked task on the Focus row.</summary>
     public const string TaskMarkColor = "#FFFFFF";
 
+    /// <summary>Time marked distracted in History: drift's red, over the session.</summary>
+    public const string MarkedDistractedColor = "#EF4444";
+
     /// <param name="rows">Every row in order with whether it shows (<see cref="DayBarSettings.RowsInOrder"/>).</param>
     public static IReadOnlyList<DayBarRow> Build(TimelineDay day, IReadOnlyList<TimelineRowChoice> rows)
     {
@@ -159,6 +162,16 @@ public static class TimelineRowsBuilder
                     {
                         spans.Add(ToSpan(awayShown, day.Range, $"Away · {Times(away)} ({Duration(away.End - away.Start)})")
                             with { Color = NotInSessionColor, Hatched = true, IsAway = true });
+                    }
+                }
+
+                // Marked distracted in History: red over the session, like drift.
+                foreach (LocalWindow distracted in session.Distracted ?? [])
+                {
+                    if (DayTimeline.Clip(distracted, shown) is LocalWindow distractedShown)
+                    {
+                        spans.Add(ToSpan(distractedShown, day.Range, $"Marked distracted · {Times(distracted)} ({Duration(distracted.End - distracted.Start)})")
+                            with { Color = MarkedDistractedColor });
                     }
                 }
             }

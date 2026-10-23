@@ -299,6 +299,8 @@ public partial class App : Application
         _bedtimeReminder.LoadBlocking();
         var omittedSessions = new OmittedSessionsService(documents);
         omittedSessions.LoadBlocking();
+        var sessionGaps = new SessionGapsService(documents);
+        sessionGaps.LoadBlocking();
         var displayNames = new DisplayNamesService(documents);
         displayNames.LoadBlocking();
         var hiddenUsage = new HiddenUsageService(documents);
@@ -325,6 +327,7 @@ public partial class App : Application
             _sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), timelineDay, _sessionCues);
         _dayBar = new DayBarViewModel(
             _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, _coldTurkey, deletedUsage, time);
+        _dayBar.Gaps = sessionGaps;
         _noiseSettings = new NoiseSettingsService(documents);
         _noiseSettings.LoadBlocking();
         _noise = new NoisePlayerService(
@@ -453,6 +456,7 @@ public partial class App : Application
         // Linked devices (ADR 14): off until turned on in Setup.
         var linkHost = new AccountabiliBuddy.App.Services.Link.LinkSessionHost(
             _sessions, _configuration, _quickSession, documents, calendars, sleepSettings, dayBarSettings, activityLog, omittedSessions, deletedUsage, privacy);
+        linkHost.Gaps = sessionGaps;
         // New activity and "Delete my data" change what paired devices were sent (ADR 15).
         _recorder.LogChanged += (_, _) => linkHost.NotifyHistoryChanged();
         _link = new AccountabiliBuddy.App.Services.Link.LinkService(
@@ -476,6 +480,7 @@ public partial class App : Application
         var syncCoordinator = new AccountabiliBuddy.App.Services.Sync.SyncCoordinator(
             _sessions, _configuration, activityLog, omittedSessions, deletedUsage, privacy, sleepSettings, dayBarSettings, documents, syncSettings,
             syncIdentity, receivedDevices, syncEditTimes);
+        syncCoordinator.Gaps = sessionGaps;
         // Guided sessions (ADR 24): the checklist goes to paired devices in the link's state and in this PC's sync file.
         linkHost.Tasks = () => sessionTasks.IsLive ? sessionTasks.Current.Tasks : null;
         linkHost.CurrentTask = () => sessionTasks.IsLive ? sessionTasks.Current.CurrentId : null;
@@ -623,7 +628,7 @@ public partial class App : Application
             async () =>
             {
                 DateTimeOffset now = time.GetUtcNow();
-                return SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(now.AddDays(-2), now.AddDays(1)));
+                return sessionGaps.Apply(SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(now.AddDays(-2), now.AddDays(1))));
             },
             () => AccountabiliBuddy.App.Services.Sync.ReceivedSessions.Closed(receivedDevices.Devices),
             omittedSessions.IsOmitted);
@@ -664,7 +669,7 @@ public partial class App : Application
             }
         };
         _deepWorkHistory = new DeepWorkHistoryViewModel(
-            async (from, to) => SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(from, to)),
+            async (from, to) => sessionGaps.Apply(SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(from, to))),
             () => AccountabiliBuddy.App.Services.Sync.ReceivedSessions.Closed(receivedDevices.Devices),
             omittedSessions.IsOmitted,
             goal,
@@ -709,6 +714,7 @@ public partial class App : Application
                 _programPaths, desktopShell, isSessionRunning: () => _sessions!.State.IsActive)
             {
                 ReviewService = _sessionReview,
+                Gaps = sessionGaps,
                 DeepWork = _deepWorkHistory,
                 NotesBetween = _sessionNotes.Between,
             },

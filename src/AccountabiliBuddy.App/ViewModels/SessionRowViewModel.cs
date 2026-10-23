@@ -18,7 +18,8 @@ public sealed record SessionRowViewModel(
     DateTimeOffset? EndedAt = null,
     bool ConfirmingDelete = false,
     string? DeviceName = null,
-    IReadOnlyList<string>? Notes = null)
+    IReadOnlyList<string>? Notes = null,
+    bool CanMarkDistracted = false)
 {
     /// <summary>Notes kept during the session (redesign phase 5).</summary>
     public bool HasNotes => Notes is { Count: > 0 };

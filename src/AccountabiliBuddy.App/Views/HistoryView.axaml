@@ -341,6 +341,35 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Distracted time marked by hand on a past session: out of focus, counted as distracted. -->
+                    <Border IsVisible="{Binding IsGapFormOpen}" Background="#0F808080" BorderBrush="#26808080" BorderThickness="1"
+                            CornerRadius="8" Padding="14,12">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding GapFormTitle}" FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap" />
+                            <TextBlock Text="Mark the stretches you were distracted. They come out of focus time and count as distracted; the session itself stays as recorded, so removing one gives the time back."
+                                       Classes="muted" TextWrapping="Wrap" />
+                            <ItemsControl ItemsSource="{Binding GapRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:GapRowViewModel">
+                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
+                                            <TextBlock Text="From" VerticalAlignment="Center" />
+                                            <TimePicker SelectedTime="{Binding From}" MinuteIncrement="1" />
+                                            <TextBlock Text="to" VerticalAlignment="Center" />
+                                            <TimePicker SelectedTime="{Binding To}" MinuteIncrement="1" />
+                                            <Button Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this stretch" Padding="8,2" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="+ Add a stretch" Command="{Binding AddGapRowCommand}" Padding="8,2" />
+                            <TextBlock Text="{Binding GapFormError}" IsVisible="{Binding HasGapFormError}" Foreground="#E5484D" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Save" Command="{Binding SaveGapsCommand}" Classes="accent" />
+                                <Button Content="Cancel" Command="{Binding CancelGapsCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
                     <TextBlock Text="No sessions in this period." Classes="muted" IsVisible="{Binding HasNoSessions}" />
                     <ItemsControl ItemsSource="{Binding Sessions}">
                         <ItemsControl.ItemTemplate>
@@ -361,6 +390,10 @@
                                                    FontSize="12" Opacity="0.7" TextWrapping="Wrap" FontStyle="Italic" />
                                         <TextBlock Text="{Binding NotesText}" IsVisible="{Binding HasNotes}"
                                                    FontSize="12" Opacity="0.8" TextWrapping="Wrap" />
+                                        <Button Content="Distracted time…" IsVisible="{Binding CanMarkDistracted}" HorizontalAlignment="Left"
+                                                Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).OpenGapsCommand}"
+                                                CommandParameter="{Binding}" Padding="6,1" FontSize="11" Background="Transparent" Opacity="0.75"
+                                                ToolTip.Tip="Mark stretches of this session you were distracted (out of focus time)" />
                                     </StackPanel>
                                     <TextBlock Grid.Column="2" Text="{Binding LengthText}" HorizontalAlignment="Right" />
                                     <TextBlock Grid.Column="3" Text="{Binding OutcomeText}" HorizontalAlignment="Right" Opacity="0.8"
