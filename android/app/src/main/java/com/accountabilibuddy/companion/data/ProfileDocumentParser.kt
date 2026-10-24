@@ -122,6 +122,7 @@ object ProfileDocumentParser {
                 label = p.string("label"),
                 flexMinutes = p.int("flexMinutes"),
                 hintAt = p.string("hintAt")?.let(JsonValues::time),
+                wakeByAlarm = (p["wakeByAlarm"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true",
             )
         },
     )

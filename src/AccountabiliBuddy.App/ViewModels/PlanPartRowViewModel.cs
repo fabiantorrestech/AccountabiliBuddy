@@ -28,7 +28,7 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
     public IReadOnlyList<DayCategory> Categories => _owner.Categories;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Name), nameof(ColorBrush), nameof(Color))]
+    [NotifyPropertyChangedFor(nameof(Name), nameof(ColorBrush), nameof(Color), nameof(IsSleep), nameof(EndEditable))]
     public partial DayCategory? Category { get; set; }
 
     /// <summary>Shown instead of the category's name (e.g. "After-office work"); empty = the category's name.</summary>
@@ -56,6 +56,20 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
     [ObservableProperty]
     public partial TimeSpan? HintAt { get; set; }
 
+    /// <summary>
+    /// A Sleep part woken by the alarm (schema v9, ADR 33): only the bedtime is set; the end follows bedtime plus the
+    /// sleep goal and the morning's alarm sets the real wake time.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EndEditable))]
+    public partial bool WakeByAlarm { get; set; }
+
+    /// <summary>A Sleep part: it can wake by the alarm.</summary>
+    public bool IsSleep => Category?.Behavior == CategoryBehavior.Sleep;
+
+    /// <summary>The end is set by hand (not a Sleep part woken by the alarm).</summary>
+    public bool EndEditable => !(IsSleep && WakeByAlarm);
+
     public string Name => string.IsNullOrWhiteSpace(Label) ? Category?.Name ?? "?" : Label.Trim();
 
     /// <summary>"#RRGGBB", for drawing on the bar.</summary>
@@ -74,7 +88,8 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
         return new PlanPart(Id, Category.Id, TimeOnly.FromTimeSpan(start), TimeOnly.FromTimeSpan(end),
             string.IsNullOrWhiteSpace(Label) ? null : Label.Trim(),
             IsFlexible ? (int)Math.Clamp(FlexMinutes ?? 60, 15, 240) : null,
-            IsFlexible && HintAt is TimeSpan hint ? TimeOnly.FromTimeSpan(hint) : null);
+            IsFlexible && HintAt is TimeSpan hint ? TimeOnly.FromTimeSpan(hint) : null,
+            IsSleep && WakeByAlarm);
     }
 
     internal void Show(PlanPart part)
@@ -87,6 +102,7 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
         IsFlexible = part.IsFlexible;
         FlexMinutes = part.FlexMinutes ?? 60;
         HintAt = part.HintAt?.ToTimeSpan() ?? (part.IsFlexible ? null : new TimeSpan(13, 0, 0));
+        WakeByAlarm = part.WakeByAlarm;
         _showing = false;
     }
 
@@ -112,6 +128,7 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
 
     partial void OnStartChanged(TimeSpan? value)
     {
+        FollowGoal();
         Edited();
     }
 
@@ -133,6 +150,24 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
     partial void OnHintAtChanged(TimeSpan? value)
     {
         Edited();
+    }
+
+    partial void OnWakeByAlarmChanged(bool value)
+    {
+        FollowGoal();
+        Edited();
+    }
+
+    // Woken by the alarm: the end is bedtime plus the sleep goal (what the night is when no alarm is set).
+    private void FollowGoal()
+    {
+        if (_showing || !IsSleep || !WakeByAlarm || Start is not TimeSpan start)
+        {
+            return;
+        }
+
+        TimeSpan end = start + _owner.SleepGoal();
+        End = TimeSpan.FromMinutes(Math.Round(end.TotalMinutes) % (24 * 60));
     }
 
     private void Edited()

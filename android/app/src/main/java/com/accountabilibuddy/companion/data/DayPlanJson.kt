@@ -59,6 +59,7 @@ object DayPlanJson {
         part.label?.let { put("label", it) }
         part.flexMinutes?.let { put("flexMinutes", it) }
         part.hintAt?.let { put("hintAt", it.format(time)) }
+        if (part.wakeByAlarm) put("wakeByAlarm", true)
     }
 
     /** "MONDAY" → "monday", "Rest" → "rest", "PreWork" → "preWork": the PC's camelCase enum names. */

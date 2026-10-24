@@ -37,6 +37,7 @@ public sealed record SleepSettings(
             SameEveryNight ? Weeknights : Weekends,
             plan is null ? null : day => DayPlanSleep.NightBefore(plan, day),
             WakeOnce,
-            UsePhoneAlarm ? phoneAlarm : null);
+            UsePhoneAlarm ? phoneAlarm : null,
+            Goal);
     }
 }

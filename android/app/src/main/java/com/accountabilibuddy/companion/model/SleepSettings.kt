@@ -29,6 +29,7 @@ data class SleepSettings(
             plan?.let { p -> { day: java.time.LocalDate -> p.nightBefore(day) } },
             wakeOnce,
             alarm,
+            goal,
         )
 
     companion object {

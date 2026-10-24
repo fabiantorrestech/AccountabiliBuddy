@@ -13,7 +13,7 @@ public static class DayPlanSleep
     public static SleepTimes? SleepOf(DayTemplate template, DayPlan plan)
     {
         PlanPart? sleep = SleepPart(template, plan);
-        return sleep is null ? null : new SleepTimes(sleep.Start, sleep.End);
+        return sleep is null ? null : new SleepTimes(sleep.Start, sleep.End, sleep.WakeByAlarm);
     }
 
     /// <summary>The night before <paramref name="day"/> as the plan has it for that day (one-off days included).</summary>

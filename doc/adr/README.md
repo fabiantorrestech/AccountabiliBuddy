@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0033](0033-plan-sleep-by-bedtime-and-wake-by-alarm.md) | Plan sleep by bedtime and wake by the alarm | Accepted | — |
 | [0032](0032-use-material-icon-libraries.md) | Use Material icon libraries for UI icons | Accepted | — |
 | [0031](0031-guard-pre-work-parts.md) | Guard Pre-Work parts | Accepted | — |
 | [0030](0030-carry-come-backs-to-the-users-devices.md) | Carry come-backs to the user's devices | Accepted | — |

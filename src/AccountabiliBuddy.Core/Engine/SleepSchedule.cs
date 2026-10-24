@@ -9,7 +9,8 @@ namespace AccountabiliBuddy.Core.Engine;
 /// plan has no night, Friday and Saturday nights use the weekend times. A wake time changed for one night
 /// (<see cref="WakeOnce"/>) moves only that morning. The phone's next alarm (ADR 23) sets the wake time of the morning it
 /// falls on, between the night's bedtime and noon, over a one-night change unless that change was confirmed over the
-/// alarm. All times are local wall-clock times.
+/// alarm. A night whose wake is the alarm (<see cref="SleepTimes.WakeByAlarm"/>, ADR 33) with no alarm that morning
+/// ends at bedtime plus the sleep goal. All times are local wall-clock times.
 /// </summary>
 public sealed class SleepSchedule
 {
@@ -27,13 +28,17 @@ public sealed class SleepSchedule
     private readonly Func<DateOnly, SleepTimes?>? _nightBefore;
     private readonly WakeOnce? _wakeOnce;
     private readonly DateTime? _alarm;
+    private readonly TimeSpan _goal;
 
     /// <param name="nightBefore">The times of the night before a day, from the day plan; null when it has none.</param>
     /// <param name="wakeOnce">A wake time changed for one morning only, or null.</param>
     /// <param name="alarm">The phone's next alarm (local time), or null.</param>
+    /// <param name="goal">The sleep goal: the wake of a night woken by the alarm when there's none (8 hours when null).</param>
     public SleepSchedule(
-        SleepTimes weeknights, SleepTimes weekends, Func<DateOnly, SleepTimes?>? nightBefore = null, WakeOnce? wakeOnce = null, DateTime? alarm = null)
+        SleepTimes weeknights, SleepTimes weekends, Func<DateOnly, SleepTimes?>? nightBefore = null, WakeOnce? wakeOnce = null, DateTime? alarm = null,
+        TimeSpan? goal = null)
     {
+        _goal = goal ?? DefaultGoal;
         _weeknights = weeknights;
         _weekends = weekends;
         _nightBefore = nightBefore;
@@ -88,7 +93,7 @@ public sealed class SleepSchedule
     }
 
     // The morning's wake time: the alarm when it falls between bedtime and noon (unless a one-night change was confirmed
-    // over it), else a one-night change, else the plan's.
+    // over it), else a one-night change, else bedtime plus the goal for a night woken by the alarm, else the plan's.
     private (DateTime Wake, bool ByAlarm) WakeOf(DateOnly evening, DateTime bed, SleepTimes times)
     {
         DateOnly morning = evening.AddDays(1);
@@ -97,6 +102,11 @@ public sealed class SleepSchedule
         if (_alarm is DateTime alarm && alarm > bed && alarm < noon && once?.OverridesAlarm != true)
         {
             return (alarm, true);
+        }
+
+        if (once is null && times.WakeByAlarm)
+        {
+            return (bed + _goal, false);
         }
 
         TimeOnly wakeTime = once?.Wake ?? times.Wake;

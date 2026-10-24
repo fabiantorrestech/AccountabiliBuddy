@@ -40,6 +40,8 @@ data class PlanPart(
     val flexMinutes: Int? = null,
     /** A flexible break not started by then gets one hint; null = none. */
     val hintAt: LocalTime? = null,
+    /** A Sleep part woken by the wake-up alarm (schema v9, ADR 33): the alarm, else bedtime plus the goal; its end follows bedtime plus the goal. */
+    val wakeByAlarm: Boolean = false,
 ) {
     val endsAtMidnight: Boolean get() = end == LocalTime.MIDNIGHT
     val crossesMidnight: Boolean get() = !endsAtMidnight && !end.isAfter(start)
@@ -132,7 +134,7 @@ data class DayPlan(
         val sleeps = templateFor(day).parts.filter { category(it.categoryId)?.behavior == CategoryBehavior.Sleep }
         val night = sleeps.firstOrNull { it.crossesMidnight }
             ?: sleeps.filter { it.start.isBefore(LocalTime.NOON) }.minByOrNull { it.start }
-        return night?.let { SleepTimes(it.start, it.end) }
+        return night?.let { SleepTimes(it.start, it.end, it.wakeByAlarm) }
     }
 
     fun partAt(time: LocalDateTime): PlannedPart? =

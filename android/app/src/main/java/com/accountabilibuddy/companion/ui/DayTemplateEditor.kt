@@ -106,6 +106,10 @@ private fun PartRow(part: PlanPart, categories: List<DayCategory>, clock: ClockF
     var categoryMenu by remember { mutableStateOf(false) }
     var picking by remember { mutableStateOf<String?>(null) }
     val category = categories.firstOrNull { it.id == part.categoryId }
+    val isSleep = category?.behavior == CategoryBehavior.Sleep
+    // The sleep goal, for a part woken by the alarm (its end is bedtime plus this).
+    val sleepGoal = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp)
+        .store.state.value.sleep.goal
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         OutlinedTextField(
@@ -129,8 +133,20 @@ private fun PartRow(part: PlanPart, categories: List<DayCategory>, clock: ClockF
             }
             OutlinedButton(onClick = { picking = "start" }) { Text(clock.time(part.start.atDate(LocalDate.now()))) }
             Text("–")
-            OutlinedButton(onClick = { picking = "end" }) { Text(clock.time(part.end.atDate(LocalDate.now()))) }
+            OutlinedButton(onClick = { picking = "end" }, enabled = !(isSleep && part.wakeByAlarm)) {
+                Text(if (isSleep && part.wakeByAlarm) "alarm" else clock.time(part.end.atDate(LocalDate.now())))
+            }
             TextButton(onClick = onDelete, modifier = Modifier.width(48.dp)) { Text("✕") }
+        }
+        // A Sleep part woken by the alarm (ADR 33): only the bedtime is set; the end follows bedtime plus the goal.
+        if (isSleep) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                androidx.compose.material3.Checkbox(
+                    checked = part.wakeByAlarm,
+                    onCheckedChange = { on -> onChange(part.copy(wakeByAlarm = on, end = if (on) part.start.plus(sleepGoal) else part.end)) },
+                )
+                Text("Wake = my alarm (none set: bedtime + sleep goal)", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+            }
         }
         // A flexible break (e.g. lunch): the times are its window, it starts when you press Start lunch.
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -155,7 +171,13 @@ private fun PartRow(part: PlanPart, categories: List<DayCategory>, clock: ClockF
             is24Hour = clock.is24Hour,
             isStart = which == "start",
             onPick = { time ->
-                onChange(if (which == "start") part.copy(start = time) else part.copy(end = time))
+                onChange(
+                    when {
+                        which != "start" -> part.copy(end = time)
+                        isSleep && part.wakeByAlarm -> part.copy(start = time, end = time.plus(sleepGoal))
+                        else -> part.copy(start = time)
+                    },
+                )
                 picking = null
             },
             onDismiss = { picking = null },

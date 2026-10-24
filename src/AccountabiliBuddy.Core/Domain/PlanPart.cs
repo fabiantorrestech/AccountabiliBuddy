@@ -14,6 +14,11 @@ namespace AccountabiliBuddy.Core.Domain;
 /// started ("Start lunch", on any device). Until then the window counts as the work around it. Null = fixed hours.
 /// </param>
 /// <param name="HintAt">A flexible break not started by this time gets one hint; null = none.</param>
+/// <param name="WakeByAlarm">
+/// A Sleep part whose wake time is the wake-up alarm (schema v9, ADR 33): the morning's alarm when one is set, else
+/// bedtime plus the sleep goal. Only its start (bed by) is the user's; its end is kept at bedtime plus the goal for
+/// drawing. False = the end is the wake time.
+/// </param>
 public sealed record PlanPart(
     Guid Id,
     Guid CategoryId,
@@ -21,7 +26,8 @@ public sealed record PlanPart(
     TimeOnly End,
     string? Label = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? FlexMinutes = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] TimeOnly? HintAt = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] TimeOnly? HintAt = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool WakeByAlarm = false)
 {
     /// <summary>A flexible break: its times are a window, it lasts <see cref="FlexMinutes"/> once started.</summary>
     [JsonIgnore]

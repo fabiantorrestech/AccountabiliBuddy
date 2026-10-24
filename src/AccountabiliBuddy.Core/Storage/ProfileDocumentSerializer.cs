@@ -17,6 +17,7 @@ public static class ProfileDocumentSerializer
     private const int PreWorkSchemaVersion = 7;
 
     // v8: flexible breaks (a part's FlexMinutes and HintAt, optional): nothing to migrate, older plans have none.
+    // v9: a Sleep part's WakeByAlarm (optional, ADR 33): nothing to migrate, older plans wake at the part's end.
 
     private static readonly JsonSerializerOptions Options = new()
     {

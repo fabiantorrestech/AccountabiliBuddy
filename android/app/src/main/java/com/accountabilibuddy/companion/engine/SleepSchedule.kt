@@ -16,7 +16,8 @@ import java.time.LocalTime
  * the night leads into; otherwise, and for a day whose plan has no night, Friday and Saturday nights use the weekend
  * times. A wake time changed for one night ([wakeOnce]) moves only that morning. The phone's next alarm ([alarm], ADR 23)
  * sets the wake time of the morning it falls on, between the night's bedtime and noon, over a one-night change unless
- * that change was confirmed over the alarm.
+ * that change was confirmed over the alarm. A night woken by the alarm ([SleepTimes.wakeByAlarm], ADR 33) with no alarm
+ * that morning ends at bedtime plus [goal].
  */
 class SleepSchedule(
     private val weeknights: SleepTimes,
@@ -24,6 +25,7 @@ class SleepSchedule(
     private val nightBefore: ((LocalDate) -> SleepTimes?)? = null,
     private val wakeOnce: WakeOnce? = null,
     private val alarm: java.time.LocalDateTime? = null,
+    private val goal: Duration = DefaultGoal,
 ) {
     /** From bedtime to wake time of the night starting on [evening]. */
     fun night(evening: LocalDate): LocalWindow {
@@ -56,6 +58,10 @@ class SleepSchedule(
         val alarm = alarm
         if (alarm != null && alarm.isAfter(bed) && alarm.isBefore(morning.atTime(NOON)) && once?.overridesAlarm != true) {
             return alarm to true
+        }
+
+        if (once == null && times.wakeByAlarm) {
+            return bed.plus(goal) to false
         }
 
         return morning.atTime(once?.wake ?: times.wake) to false

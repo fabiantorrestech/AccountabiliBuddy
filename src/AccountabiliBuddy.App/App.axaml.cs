@@ -749,7 +749,7 @@ public partial class App : Application
         var mainViewModel = new MainWindowViewModel(
             sessionViewModel,
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, _link, exemptionDefaults),
-            new DayPlanViewModel(_configuration, _sessions),
+            WithSleepGoal(new DayPlanViewModel(_configuration, _sessions), sleepSettings),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
             new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time,
                 _programPaths, desktopShell, isSessionRunning: () => _sessions!.State.IsActive)
@@ -987,6 +987,14 @@ public partial class App : Application
         }
 
         return null;
+    }
+
+    // The Day plan tab's Sleep parts woken by the alarm end at bedtime plus the current sleep goal (ADR 33).
+    private static DayPlanViewModel WithSleepGoal(DayPlanViewModel dayPlan, SleepSettingsService sleep)
+    {
+        dayPlan.Workday.SleepGoal = () => sleep.Current.Goal;
+        dayPlan.OtherDay.SleepGoal = () => sleep.Current.Goal;
+        return dayPlan;
     }
 
     /// <summary>
