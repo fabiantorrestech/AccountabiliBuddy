@@ -23,7 +23,7 @@ import com.accountabilibuddy.companion.engine.NightKind
  * wake time, 15 minutes earlier after each week made on most nights.
  */
 @Composable
-internal fun SmartBedtimeSection(clock: ClockFormat) {
+internal fun SmartBedtimeSection(clock: ClockFormat, needs: @Composable () -> Unit = {}) {
     val app = LocalContext.current.applicationContext as CompanionApp
     val service = app.smartBedtime
     // Bumped on every change, so the section reads the store again.
@@ -47,8 +47,12 @@ internal fun SmartBedtimeSection(clock: ClockFormat) {
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         NightKind.entries.forEach { kind ->
-            ToggleRow(label(kind), service.status(kind, clock), sleep.smartOn(kind)) { value -> save(sleep.withSmart(kind, value)) }
+            val on = sleep.smartOn(kind)
+            ToggleRow(label(kind), if (on) "On" else "Off", on) { value -> save(sleep.withSmart(kind, value)) }
+            // What it learned, in full (not behind ⓘ): the point of the switch.
+            if (on) Text(service.status(kind, clock), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        needs()
         Text("Minimum sleep", style = MaterialTheme.typography.labelLarge)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf(5.5, 6.0, 6.5, 7.0, 7.5).forEach { hours ->

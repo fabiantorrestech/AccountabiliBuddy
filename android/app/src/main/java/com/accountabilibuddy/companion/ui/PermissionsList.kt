@@ -40,7 +40,7 @@ private data class PermissionRow(val title: String, val why: String, val granted
 /**
  * Every permission the phone app asks for, each with whether it's on and an Allow button that opens the right
  * screen: notifications, unrestricted battery, usage access, display over other apps, nearby devices (the car pause)
- * and Health Connect sleep. Checked again whenever the app comes back to the front. Used by Settings → Permissions and
+ * and Health Connect sleep. Checked again whenever the app comes back to the front. Used by Settings → Permissions & setup and
  * the first-run setup.
  */
 @Composable
@@ -67,11 +67,11 @@ fun PermissionsList(health: HealthStatus, onConnectHealth: () -> Unit, onAllowUs
                 open(context, Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}")))
             },
             PermissionRow(
-                "Usage access", "Phone screen time against your plan, and pickups (unlocks) during your computer's sessions.",
+                "Usage access", "Used by Essentials, smart bedtime (when you put the phone down), phone screen time and pickups during your computer's sessions.",
                 PhoneUsageReader(context).hasAccess(), onAllowUsage,
             ),
             PermissionRow(
-                "Display over other apps", "The full-screen work nudge when you unlock the phone during work time with no session.",
+                "Display over other apps", "Used by the work card: the full-screen nudge when you unlock during work time with no session.",
                 Takeover.canShow(context),
             ) {
                 open(context, Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")))
@@ -84,7 +84,7 @@ fun PermissionsList(health: HealthStatus, onConnectHealth: () -> Unit, onAllowUs
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) nearby.launch(Manifest.permission.BLUETOOTH_CONNECT)
             },
             PermissionRow(
-                "Health Connect sleep", "Real sleep from your watch or sleep app on the timeline.",
+                "Health Connect sleep", "Used by the timeline's sleep strip, this week's sleep and smart bedtime (your measured sleep from the watch).",
                 health == HealthStatus.Connected || health == HealthStatus.NotAvailable,
                 onConnectHealth,
             ),
@@ -118,7 +118,7 @@ fun permissionsSummary(context: Context, health: HealthStatus): String {
             ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED,
         health == HealthStatus.Connected || health == HealthStatus.NotAvailable,
     ).count { it }
-    return "$on of 6 on"
+    return "$on of 6 allowed"
 }
 
 private fun open(context: Context, intent: Intent) {

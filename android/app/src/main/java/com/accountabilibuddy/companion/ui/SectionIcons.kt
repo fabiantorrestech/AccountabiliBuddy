@@ -5,6 +5,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bedtime
+import androidx.compose.material.icons.outlined.Backup
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Computer
 import androidx.compose.material.icons.outlined.Devices
@@ -49,6 +56,14 @@ object SectionIcons {
         "Appearance" to Icons.Outlined.Palette,
         "Startup" to Icons.Outlined.PowerSettingsNew,
         "Sleep" to Icons.Outlined.Bedtime,
+        "Smart bedtime" to Icons.Outlined.Bedtime,
+        "Wake-up alarm" to Icons.Outlined.Alarm,
+        "Bedtime reminder" to Icons.Outlined.NotificationsActive,
+        "Timeline notification" to Icons.Outlined.Notifications,
+        "Setup" to Icons.Outlined.Checklist,
+        "Essentials" to Icons.Outlined.Apps,
+        "Emergency phone time" to Icons.Outlined.Timer,
+        "Backup" to Icons.Outlined.Backup,
         "Noise player" to Icons.Outlined.MusicNote,
         "Play when headphones connect" to Icons.Outlined.Headphones,
         "Curbox" to Icons.Outlined.PhoneAndroid,

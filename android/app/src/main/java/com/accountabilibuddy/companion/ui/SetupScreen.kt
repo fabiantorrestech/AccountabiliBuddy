@@ -16,7 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-/** The phone's first-run setup: every permission in one place, then into the app. Shown once; Settings → Permissions keeps the list. */
+/** The phone's first-run setup: every permission in one place, then into the app. Shown once; Settings → Permissions & setup keeps the list. */
 @Composable
 fun SetupScreen(health: HealthStatus, onConnectHealth: () -> Unit, onAllowUsage: () -> Unit, onDone: () -> Unit) {
     Column(
@@ -26,7 +26,7 @@ fun SetupScreen(health: HealthStatus, onConnectHealth: () -> Unit, onAllowUsage:
         Text("Set up AccountabiliBuddy", style = MaterialTheme.typography.headlineSmall)
         Text(
             "Allow what you want the phone to do. Each one opens Android's own screen; come back here afterwards. " +
-                "You can change any of them later in Settings → Permissions.",
+                "You can change any of them later in Settings → Permissions & setup.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

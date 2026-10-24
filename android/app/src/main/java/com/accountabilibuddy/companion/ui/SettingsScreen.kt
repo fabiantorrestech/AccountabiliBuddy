@@ -5,6 +5,7 @@ import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -75,92 +76,163 @@ fun SettingsScreen(
     pauseActions: PauseActions = PauseActions(),
     onAllowUsage: () -> Unit = {},
     onOpenSetup: () -> Unit = {},
+    /** The wake-up alarm rows (from the Devices tab's sync settings), shown on the Sleep page. */
+    wakeAlarm: @Composable () -> Unit = {},
+    /** "On · Clock" or "Off": the Wake-up alarm card's summary. */
+    wakeAlarmSummary: String = "",
+    /** "Drive synced 2m ago · 1 PC": the Devices & sync row's status. */
+    devicesSummary: String = "",
+    onOpenDevices: () -> Unit = {},
 ) {
+    // A list of categories, each opening its own page; Back returns to the list.
+    var category by rememberSaveable { mutableStateOf<SettingsCategory?>(null) }
+    androidx.activity.compose.BackHandler(enabled = category != null) { category = null }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val usageAccess = remember(category) { com.accountabilibuddy.companion.usage.PhoneUsageReader(context).hasAccess() }
+    val healthOk = health == HealthStatus.Connected
+    val healthNeed = Need("Health Connect", healthOk || health == HealthStatus.NotAvailable, onConnectHealth)
+    val usageNeed = Need("Usage access", usageAccess, onAllowUsage)
+
+    Column {
+    category?.let { open -> Box(Modifier.padding(start = 8.dp, top = 8.dp)) { CategoryHeader(open) { category = null } } }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        item {
-            val context = androidx.compose.ui.platform.LocalContext.current
-            Section("Permissions", summary = permissionsSummary(context, health)) {
-                PermissionsList(health, onConnectHealth, onAllowUsage)
-                androidx.compose.material3.TextButton(onClick = onOpenSetup) { Text("Open the setup again") }
-            }
-        }
-        item { AppearanceSection() }
-        item { StartupSection() }
-        item { EssentialsSection() }
-        item { EmergencySection() }
-        item { BackupSection() }
-        if (pause != null) {
-            item {
-                // Ticks the wait down while it's shown.
-                var now by remember { mutableStateOf(java.time.Instant.now()) }
-                LaunchedEffect(pause) {
-                    while (true) {
-                        now = java.time.Instant.now()
-                        kotlinx.coroutines.delay(1_000)
+        when (val open = category) {
+            null -> {
+                val sleep = state.sleep
+                val summaries = mapOf(
+                    SettingsCategory.Sleep to listOfNotNull(
+                        if (sleep.enabled) "Sleep mode on" else "Sleep mode off",
+                        "smart bedtime on".takeIf { sleep.smartWorkdays || sleep.smartOffDays },
+                        "reminder".takeIf { state.bedtimeReminderOn },
+                    ).joinToString(" · "),
+                    SettingsCategory.PhoneGuard to listOfNotNull(
+                        pause?.let { if (it.pausedAt != null) "Paused" else "Guarding" },
+                        "work card".takeIf { pauseActions.takeoverOn },
+                        "Curbox".takeIf { curbox.granted },
+                    ).joinToString(" · "),
+                    SettingsCategory.Devices to devicesSummary,
+                    SettingsCategory.Notification to if (state.timelineNotificationOn) "Timeline pinned" else "Timeline off",
+                    SettingsCategory.Sound to (if (noise != null) "Noise player · headphones" else "Headphones"),
+                    SettingsCategory.Permissions to permissionsSummary(context, health),
+                    SettingsCategory.App to "Look · startup · backup",
+                )
+                SettingsCategory.entries.forEach { entry ->
+                    item(key = entry.name) {
+                        CategoryRow(entry, summaries[entry].orEmpty()) {
+                            if (entry == SettingsCategory.Devices) onOpenDevices() else category = entry
+                        }
                     }
                 }
-                PauseSection(pause, now, clock, pauseActions)
+                item {
+                    Hint(
+                        "Local only: the app talks only to your linked PC, on your own network and encrypted, to your linked watch " +
+                            "(through Google's encrypted relay only if you allow it in Devices) and, with Google Drive on, to the app's own Drive folder. Nothing else goes to the internet.",
+                        label = "Privacy: what leaves this phone",
+                    )
+                }
             }
-        }
-        item {
-            Section("Profiles from the PC", summary = if (state.hasImport) "Imported ${state.importedAt}" else "Nothing imported") {
-                Text(
-                    if (state.hasImport) "${state.importedFrom}; imported ${state.importedAt}." else "Nothing imported yet.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Hint("On the PC: Settings → Backup → Export, without secrets or with a password. Open the .abbackup file here. The phone keeps it to itself.")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onImport, enabled = !importing) { Text(if (importing) "Importing…" else "Import backup file") }
-                    if (state.hasImport) {
-                        OutlinedButton(onClick = onClearImport) { Text("Remove") }
+            else -> {
+                when (open) {
+                    SettingsCategory.Sleep -> {
+                        item { SleepSection(state.sleep, clock, onSaveSleep) }
+                        item {
+                            Section("Wake-up alarm", summary = wakeAlarmSummary) { wakeAlarm() }
+                        }
+                        item {
+                            SmartBedtimeSection(clock) { if (state.sleep.smartWorkdays || state.sleep.smartOffDays) NeedsLine(listOf(healthNeed, usageNeed), forWhat = "Smart bedtime") }
+                        }
+                        item {
+                            Section("Bedtime reminder", summary = if (state.bedtimeReminderOn) "On" else "Off") {
+                                ToggleRow("Bedtime reminder", "Once a night, two hours before bedtime", state.bedtimeReminderOn, onChange = onBedtimeReminder)
+                                Text(
+                                    when (health) {
+                                        HealthStatus.Connected -> "Health Connect: reading your measured sleep."
+                                        HealthStatus.NeedsPermission -> "Health Connect: not connected (the timeline's sleep strip and smart bedtime use it)."
+                                        HealthStatus.NotAvailable -> "Health Connect isn't available on this phone."
+                                        HealthStatus.Checking -> "Health Connect: checking…"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                                if (health == HealthStatus.NeedsPermission) {
+                                    OutlinedButton(onClick = onConnectHealth) { Text("Connect Health Connect") }
+                                }
+                            }
+                        }
                     }
+                    SettingsCategory.PhoneGuard -> {
+                        if (pause != null) {
+                            item {
+                                // Ticks the wait down while it's shown.
+                                var now by remember { mutableStateOf(java.time.Instant.now()) }
+                                LaunchedEffect(pause) {
+                                    while (true) {
+                                        now = java.time.Instant.now()
+                                        kotlinx.coroutines.delay(1_000)
+                                    }
+                                }
+                                PauseSection(pause, now, clock, pauseActions)
+                            }
+                        }
+                        item {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                NeedsLine(listOf(usageNeed), forWhat = "Essentials")
+                                EssentialsSection()
+                            }
+                        }
+                        item { EmergencySection() }
+                        item { CurboxSection(curbox, onConnectCurbox) }
+                    }
+                    SettingsCategory.Notification -> {
+                        item {
+                            Section("Timeline notification", summary = if (state.timelineNotificationOn) "Pinned" else "Off", startOpen = true) {
+                                ToggleRow("Timeline notification", "Always on, silent, pinned near the top", state.timelineNotificationOn, onChange = onTimelineNotification)
+                                OutlinedButton(onClick = onAddWidget) { Text("Add timeline widget to home screen") }
+                            }
+                        }
+                    }
+                    SettingsCategory.Sound -> {
+                        noise?.let { player -> item { NoiseSection(player, noiseSettings) } }
+                        item { HeadphonesSection() }
+                    }
+                    SettingsCategory.Permissions -> {
+                        item {
+                            Section("Permissions", summary = permissionsSummary(context, health), startOpen = true) {
+                                PermissionsList(health, onConnectHealth, onAllowUsage)
+                            }
+                        }
+                        item {
+                            Section("Setup", summary = "The first-run questions", startOpen = true) {
+                                Text("Walks through linking, permissions and the basics again; nothing is lost.", style = MaterialTheme.typography.bodySmall)
+                                androidx.compose.material3.TextButton(onClick = onOpenSetup) { Text("Open the setup again") }
+                                androidx.compose.material3.TextButton(onClick = onOpenDevices) { Text("Google Drive setup (Devices → Google Drive)") }
+                            }
+                        }
+                    }
+                    SettingsCategory.App -> {
+                        item { AppearanceSection() }
+                        item { StartupSection() }
+                        item { BackupSection() }
+                        item {
+                            Section("Profiles from the PC", summary = if (state.hasImport) "Imported ${state.importedAt}" else "Old way: a backup file") {
+                                Text(
+                                    if (state.hasImport) "${state.importedFrom}; imported ${state.importedAt}." else "Nothing imported. Linking your devices brings the PC's profiles by itself.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                Hint("On the PC: Settings → Backup → Export, without secrets or with a password. Open the .abbackup file here. The phone keeps it to itself.")
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(onClick = onImport, enabled = !importing) { Text(if (importing) "Importing…" else "Import backup file") }
+                                    if (state.hasImport) {
+                                        OutlinedButton(onClick = onClearImport) { Text("Remove") }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    SettingsCategory.Devices -> Unit
                 }
             }
         }
-
-        item { SleepSection(state.sleep, clock, onSaveSleep) }
-        item { SmartBedtimeSection(clock) }
-
-        item {
-            Section(
-                "On the phone",
-                summary = listOf(
-                    "Notification ${if (state.timelineNotificationOn) "on" else "off"}",
-                    "Reminder ${if (state.bedtimeReminderOn) "on" else "off"}",
-                ).joinToString(" · "),
-            ) {
-                ToggleRow("Timeline notification", "Always on, silent, pinned near the top", state.timelineNotificationOn, onChange = onTimelineNotification)
-                ToggleRow("Bedtime reminder", "Once a night, two hours before bedtime", state.bedtimeReminderOn, onChange = onBedtimeReminder)
-                OutlinedButton(onClick = onAddWidget) { Text("Add timeline widget to home screen") }
-                Text(
-                    when (health) {
-                        HealthStatus.Connected -> "Health Connect: reading sleep."
-                        HealthStatus.NeedsPermission -> "Health Connect: not connected."
-                        HealthStatus.NotAvailable -> "Health Connect isn't available on this phone."
-                        HealthStatus.Checking -> "Health Connect: checking…"
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                if (health == HealthStatus.NeedsPermission) {
-                    OutlinedButton(onClick = onConnectHealth) { Text("Connect Health Connect") }
-                }
-            }
-        }
-
-        noise?.let { player ->
-                item { NoiseSection(player, noiseSettings) }
-            item { HeadphonesSection() }
-        }
-
-        item { CurboxSection(curbox, onConnectCurbox) }
-
-        item {
-            Hint(
-                "Local only: the app talks only to your linked PC, on your own network and encrypted, and to your linked watch " +
-                    "(through Google's encrypted relay only if you allow it in Devices). Nothing else goes to the internet.",
-                label = "Privacy: what leaves this phone",
-            )
-        }
+    }
     }
 }
 
@@ -450,7 +522,7 @@ private fun SleepSection(saved: SleepSettings, clock: ClockFormat, onSave: (Slee
     var editing by remember { mutableStateOf<SleepField?>(null) }
 
     val summary = if (!saved.enabled) "Off" else "Bed ${clock.time(LocalDate.now().atTime(saved.weeknights.bedtime))} · up ${clock.time(LocalDate.now().atTime(saved.weeknights.wake))}"
-    Section("Sleep", summary = summary) {
+    Section("Sleep times", summary = summary) {
         Hint("The bar runs from wake time to bedtime and shades the night; from two hours before bedtime it says how much sleep you'll get if you go now. Comes from the PC: over the link when it's paired, or from a backup.")
         ToggleRow("Sleep mode", "Bedtime and wake time on the timeline", saved.enabled) { onSave(saved.copy(enabled = it)) }
         ToggleRow("Same every night", "Off: Friday and Saturday nights use the weekend times", saved.sameEveryNight) { onSave(saved.copy(sameEveryNight = it)) }

@@ -178,14 +178,6 @@ fun DevicesScreen(
                 }
                 DriveSection(devices, actions, now)
                 FolderSection(devices, actions, now) { pickFolder.launch(null) }
-                ToggleRow(
-                    "Next alarm as wake time",
-                    "Your next alarm (Clock, QR Alarm…) is your wake time here and on your PCs, which get it in this phone's sync file. It wins over a one-night change.",
-                    devices.settings.alarmOn,
-                ) { actions.onSettings(devices.settings.copy(alarmOn = it)) }
-                if (devices.settings.alarmOn) {
-                    AlarmAppPicker(devices) { app -> actions.onSettings(devices.settings.copy(alarmApp = app)) }
-                }
             }
         }
 
@@ -233,18 +225,38 @@ fun DevicesScreen(
 private enum class DevicesDialog { Scan, Picture, LinkDevice, Leave }
 
 /** Which app's alarms are the wake-up alarm: learned (calendar apps never count) or pinned. */
+/**
+ * Settings → Sleep → Wake-up alarm (moved from Devices): the phone's next alarm as the wake time (ADR 23), here and
+ * on the PCs, and which app's alarms count.
+ */
 @Composable
-private fun AlarmAppPicker(devices: DevicesState, onPick: (String?) -> Unit) {
+internal fun WakeAlarmRows(
+    settings: com.accountabilibuddy.companion.sync.PhoneSyncSettings,
+    alarmApps: List<Pair<String, String>>,
+    learnedAlarmApp: String?,
+    onSettings: (com.accountabilibuddy.companion.sync.PhoneSyncSettings) -> Unit,
+) {
+    ToggleRow(
+        "Next alarm as wake time",
+        "Your next alarm (Clock, QR Alarm…) is your wake time here and on your PCs, which get it in this phone's sync file. It wins over a one-night change.",
+        settings.alarmOn,
+    ) { onSettings(settings.copy(alarmOn = it)) }
+    if (settings.alarmOn) {
+        AlarmAppPicker(settings.alarmApp, alarmApps, learnedAlarmApp) { app -> onSettings(settings.copy(alarmApp = app)) }
+    }
+}
+
+@Composable
+private fun AlarmAppPicker(pinned: String?, alarmApps: List<Pair<String, String>>, learnedAlarmApp: String?, onPick: (String?) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    fun name(app: String?) = devices.alarmApps.firstOrNull { it.first == app }?.second ?: app ?: "none yet"
-    val pinned = devices.settings.alarmApp
-    val label = if (pinned != null) "Wake-up alarm: ${name(pinned)} (pinned)"
-    else "Wake-up alarm: Auto · ${devices.learnedAlarmApp?.let(::name) ?: "learning (any alarm but calendars)"}"
+    fun name(app: String?) = alarmApps.firstOrNull { it.first == app }?.second ?: app ?: "none yet"
+        val label = if (pinned != null) "Wake-up alarm: ${name(pinned)} (pinned)"
+    else "Wake-up alarm: Auto · ${learnedAlarmApp?.let(::name) ?: "learning (any alarm but calendars)"}"
     Column {
         TextButton(onClick = { open = true }) { Text("$label ▾") }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(text = { Text("Auto (learn from my mornings)") }, onClick = { open = false; onPick(null) })
-            devices.alarmApps.filter { !it.first.contains("calendar", ignoreCase = true) }.forEach { (app, appName) ->
+            alarmApps.filter { !it.first.contains("calendar", ignoreCase = true) }.forEach { (app, appName) ->
                 DropdownMenuItem(text = { Text(appName) }, onClick = { open = false; onPick(app) })
             }
         }

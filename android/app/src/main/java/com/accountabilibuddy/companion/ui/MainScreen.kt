@@ -245,6 +245,14 @@ fun MainScreen(
                         pause = pauseState,
                         onAllowUsage = onAllowUsage,
                         onOpenSetup = { showSetup = true },
+                        wakeAlarm = { WakeAlarmRows(syncSettings, viewModel.alarmApps(), viewModel.learnedAlarmApp(), viewModel::saveSyncSettings) },
+                        wakeAlarmSummary = if (syncSettings.alarmOn) "On: your next alarm is the wake time" else "Off: the Sleep part's wake time",
+                        devicesSummary = listOfNotNull(
+                            if (syncKey != null) "In your device group" else "Not linked yet",
+                            "Drive".takeIf { syncSettings.driveOn },
+                            pairedPc?.pcName,
+                        ).joinToString(" · "),
+                        onOpenDevices = { tab = 2 },
                         pauseActions = PauseActions(
                             onRequestOff = viewModel::requestPause,
                             onTurnOn = viewModel::turnPauseOff,
