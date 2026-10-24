@@ -18,6 +18,14 @@
                            FontSize="20" FontStyle="Italic" TextWrapping="Wrap" TextAlignment="Center" LineHeight="30" />
             </Border>
 
+            <!-- What the app is for, in the user's words. -->
+            <StackPanel Spacing="12" Margin="8,0,8,8" MaxWidth="640">
+                    <TextBlock Text="AccountabiliBuddy is a companion you install on the devices you use every day (your phone, tablet, personal computer and work computer) to help you use your time on purpose. It notices when you drift or get derailed, and gives you a few other productivity tools to make sitting down and getting sh*t done as straightforward as possible." TextWrapping="Wrap" Opacity="0.85" LineHeight="22" />
+                    <TextBlock Text="It works best alongside a blocker for each platform when you really want to shut distractions out (e.g. Curbox on Android, Cold Turkey on Windows)." TextWrapping="Wrap" Opacity="0.85" LineHeight="22" />
+                    <TextBlock Text="It's not perfect; no tool can be." TextWrapping="Wrap" Opacity="0.85" LineHeight="22" />
+                    <TextBlock Text="It's hard to focus in a world of digital noise, with everything vying for your attention. We're fighting back, to help you reach your goals and reclaim your time and attention. (:" TextWrapping="Wrap" Opacity="0.85" LineHeight="22" />
+            </StackPanel>
+
             <Border Background="#0F808080" BorderBrush="#26808080" BorderThickness="1" CornerRadius="10" Padding="18,16"
                     search:SearchArea.Name="Updates">
                 <StackPanel Spacing="6">

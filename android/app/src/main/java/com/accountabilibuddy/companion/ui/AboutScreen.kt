@@ -54,7 +54,33 @@ fun AboutScreen(pcName: String?) {
             style = MaterialTheme.typography.titleMedium.copy(fontStyle = FontStyle.Italic, lineHeight = 28.sp),
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(24.dp))
+        // What the app is for, in the user's words.
+        Text(
+            "AccountabiliBuddy is a companion you install on the devices you use every day (your phone, tablet, personal computer and work computer) to help you use your time on purpose. It notices when you drift or get derailed, and gives you a few other productivity tools to make sitting down and getting sh*t done as straightforward as possible.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "It works best alongside a blocker for each platform when you really want to shut distractions out (e.g. Curbox on Android, Cold Turkey on Windows).",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "It's not perfect; no tool can be.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "It's hard to focus in a world of digital noise, with everything vying for your attention. We're fighting back, to help you reach your goals and reclaim your time and attention. (:",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(22.dp))
         Text(
             if (pcName == null) "Not linked to a PC. Link one from Settings." else "Linked to $pcName. Updates for the PC app are in its About tab.",
             style = MaterialTheme.typography.bodySmall,
