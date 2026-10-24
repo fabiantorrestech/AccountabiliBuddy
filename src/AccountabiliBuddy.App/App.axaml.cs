@@ -500,6 +500,10 @@ public partial class App : Application
             documents, receivedDevices, syncIdentity, sessionTasks, _comebacks!, _stepAway!, time);
         syncActions.LoadBlocking();
         syncCoordinator.Acks = () => syncActions.Acks;
+        // Calendar events in this PC's file too (ADR 26), so the phone's Calendar row stays current on Drive alone.
+        syncCoordinator.Events = () => System.Text.Json.JsonSerializer.SerializeToElement(
+            AccountabiliBuddy.App.Services.Link.DeviceCalendarEvents.Build(calendars, DateOnly.FromDateTime(time.GetLocalNow().DateTime)));
+        calendars.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         syncActions.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() => _ = syncActions.ApplyAsync());
         _lunch!.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();

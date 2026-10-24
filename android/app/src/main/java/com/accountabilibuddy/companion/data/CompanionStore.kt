@@ -43,7 +43,10 @@ class CompanionStore(private val folder: File) {
         write(PROFILES, data.profilesJson)
         data.sleepJson?.let { write(SLEEP, it) }
         data.dayBarJson?.let { write(DAY_BAR, it) }
-        data.eventsJson?.let { write(EVENTS, it) }
+        data.eventsJson?.let {
+            write(EVENTS, it)
+            write(EVENTS_AT, buildJsonObject { put("at", Instant.now().toString()) })
+        }
         if (data.dayPlanVersion != null) {
             write(PLAN_META, buildJsonObject {
                 put("version", data.dayPlanVersion)
@@ -77,6 +80,21 @@ class CompanionStore(private val folder: File) {
             )
         }
         savePhone()
+    }
+
+    /**
+     * A PC's calendar events from its sync file (ADR 26), taken when written after the events the phone has (from the
+     * link or an older file), so the Calendar row stays current with Drive and no link.
+     */
+    fun eventsFromFile(json: JsonArray, writtenAt: Instant) = synchronized(lock) {
+        val have = (read(EVENTS_AT) as? JsonObject)?.string("at")?.let { runCatching { Instant.parse(it) }.getOrNull() }
+        if (have != null && !writtenAt.isAfter(have)) {
+            return@synchronized
+        }
+
+        write(EVENTS, json)
+        write(EVENTS_AT, buildJsonObject { put("at", writtenAt.toString()) })
+        _state.update { it.copy(events = SettingsJson.events(json)) }
     }
 
     /** This phone's next alarm as its wake time (ADR 23), or null; kept with the sleep settings in memory only. */
@@ -282,6 +300,7 @@ class CompanionStore(private val folder: File) {
         private const val SLEEP = "sleep.json"
         private const val DAY_BAR = "daybar.json"
         private const val EVENTS = "events.json"
+        private const val EVENTS_AT = "events-at.json"
         private const val PHONE = "phone.json"
         private const val PLAN_META = "dayplan-meta.json"
         private const val PENDING_PLAN = "dayplan-pending.json"

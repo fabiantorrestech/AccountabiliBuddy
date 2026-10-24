@@ -72,6 +72,7 @@ object SyncFileJson {
             }))
         }
         file.acks?.let { list -> put("acks", JsonArray(list.map { kotlinx.serialization.json.JsonPrimitive(it) })) }
+        file.events?.let { put("events", it) }
         file.running?.let { running ->
             put("running", buildJsonObject {
                 running.profile?.let { put("profile", it) }
@@ -195,6 +196,7 @@ object SyncFileJson {
                     )
                 }.getOrNull()
             },
+            json["events"] as? JsonArray,
         )
     }
 

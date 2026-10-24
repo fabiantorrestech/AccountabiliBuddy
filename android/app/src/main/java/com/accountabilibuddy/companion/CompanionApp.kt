@@ -150,6 +150,10 @@ class CompanionApp : Application() {
             sync.received.collect { devices ->
                 devices.mapNotNull { it.file.lunch }.forEach { lunch.receive(it) }
                 actions.prune(devices)
+                // The newest PC file's calendar events, when newer than what the phone has (ADR 26).
+                devices.filter { it.file.device.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC && it.file.events != null }
+                    .maxByOrNull { it.file.device.writtenAt }
+                    ?.let { store.eventsFromFile(it.file.events!!, it.file.device.writtenAt) }
             }
         }
         // Pickups during the other devices' sessions (ADR 26): unlock times from Usage access, when allowed.

@@ -27,7 +27,6 @@ public sealed class LinkSessionHost : ILinkSessionHost
     private static readonly string[] SettingsKeys = { "sleep", "daybar" };
 
     // Events from yesterday to this many days ahead, as the PC's day bar shows them (visible calendars).
-    private const int EventDaysAhead = 14;
 
     // While a session runs its time and drift grow, so today's focus is sent again this often (and at midnight).
     private static readonly TimeSpan FocusDayRefresh = TimeSpan.FromMinutes(5);
@@ -168,20 +167,7 @@ public sealed class LinkSessionHost : ILinkSessionHost
 
         DateOnly today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime);
         // Each event with its calendar's colour, for the phone's Calendar row (an older phone ignores "color").
-        var events = new List<System.Text.Json.Nodes.JsonObject>();
-        var seen = new HashSet<(string, string)>();
-        for (int day = -1; day <= EventDaysAhead; day++)
-        {
-            foreach (CalendarEntry entry in _calendars.EventsOn(today.AddDays(day)))
-            {
-                if (seen.Add((entry.Event.CalendarId, entry.Event.Id)))
-                {
-                    System.Text.Json.Nodes.JsonObject json = System.Text.Json.JsonSerializer.SerializeToNode(entry.Event, LinkFraming.JsonOptions)!.AsObject();
-                    json["color"] = entry.Calendar.Color;
-                    events.Add(json);
-                }
-            }
-        }
+        List<System.Text.Json.Nodes.JsonObject> events = DeviceCalendarEvents.Build(_calendars, today);
 
         var content = new
         {

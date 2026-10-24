@@ -87,6 +87,8 @@ public static class SyncFileBuilder
     public static SyncFile ForQr(SyncFile file, TimeZoneInfo zone, int maxCodes = SyncQr.MaxCodes)
     {
         int maxBytes = maxCodes * SyncQr.BytesPerCode;
+        // Calendar events stay out of QR codes (the phone reads its calendars from Drive or the link instead).
+        file = file with { Events = null };
         DateTimeOffset writtenAt = file.Device.WrittenAt;
         DateTimeOffset todayStart = StartOfDay(writtenAt, zone);
         List<SyncSession> sessions = file.Sessions

@@ -38,6 +38,8 @@ data class SyncFile(
     val acks: List<String>? = null,
     /** A PC's running session (ADR 26), so the countdown works with Drive and no link; null when none runs. */
     val running: SyncRunning? = null,
+    /** A PC's calendar events (ADR 26), in the link's settings shape; null when not sent. */
+    val events: kotlinx.serialization.json.JsonArray? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1

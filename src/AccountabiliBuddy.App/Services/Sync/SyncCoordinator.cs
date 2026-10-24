@@ -216,7 +216,7 @@ public sealed class SyncCoordinator
 
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
         return SyncFileBuilder.Build(card, records, drift, _omitted.IsOmitted, id => ProfileOptions.NameOf(profiles, id),
-            _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles) };
+            _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles), Events = Events?.Invoke() };
     }
 
     /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
@@ -251,6 +251,9 @@ public sealed class SyncCoordinator
 
         return new SyncRunning(ProfileOptions.NameOf(profiles, state.ProfileId), started, state.PhaseEndsAt, state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak, state.AwaySince);
     }
+
+    /// <summary>The visible calendars' events for the other devices (ADR 26, the link's shape); set by the app.</summary>
+    public Func<JsonElement?>? Events { get; set; }
 
     /// <summary>The phone's actions this PC applied (ADR 26), acknowledged in its file; set by the app.</summary>
     public Func<IReadOnlyList<Guid>>? Acks { get; set; }
