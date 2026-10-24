@@ -400,6 +400,8 @@ public partial class App : Application
         // Animations at the chosen speed, or none (Settings → On screen & sound).
         _motion = new Motion(documents);
         _motion.LoadBlocking();
+        var appTheme = new AppTheme(documents);
+        appTheme.LoadBlocking();
         _motion.Apply();
         // ADR 28: while it guards, a day plan change that frees some of today's work waits like a looser change.
         _configuration.DayPlanHold = _workHours.DescribeCut;
@@ -753,7 +755,7 @@ public partial class App : Application
                 WorkHours = new WorkHoursViewModel(_workHours!, _sessions),
                 Hyperfocus = new HyperfocusViewModel(_hyperfocus!, _configuration),
                 StartNudge = new StartNudgeViewModel(_startNudge!),
-                Motion = new MotionViewModel(_motion!),
+                Motion = new MotionViewModel(_motion!) { Theme = appTheme },
                 Headphones = new HeadphoneSettingsViewModel(_headphones!),
                 LightsOut = new LightsOutViewModel(_lightsOut!),
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),

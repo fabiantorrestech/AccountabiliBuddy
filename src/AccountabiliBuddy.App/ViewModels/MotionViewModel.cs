@@ -8,6 +8,34 @@ public sealed partial class MotionViewModel : ObservableObject
 {
     private readonly Motion _motion;
 
+    /// <summary>The theme: as Windows, light or dark (set by the app).</summary>
+    public AccountabiliBuddy.App.Services.AppTheme? Theme
+    {
+        get => _theme;
+        init
+        {
+            _theme = value;
+            _themeIndex = value?.Choice ?? 0;
+        }
+    }
+
+    private readonly AccountabiliBuddy.App.Services.AppTheme? _theme;
+    private int _themeIndex;
+
+    public static IReadOnlyList<string> ThemeNames => AccountabiliBuddy.App.Services.AppTheme.Names;
+
+    public int ThemeIndex
+    {
+        get => _themeIndex;
+        set
+        {
+            if (SetProperty(ref _themeIndex, value) && _theme is not null)
+            {
+                _ = _theme.SetAsync(value);
+            }
+        }
+    }
+
     public MotionViewModel(Motion motion)
     {
         _motion = motion;
