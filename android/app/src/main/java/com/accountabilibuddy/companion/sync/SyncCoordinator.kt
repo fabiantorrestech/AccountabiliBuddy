@@ -78,6 +78,9 @@ class SyncCoordinator(
     /** Today's flexible lunch (schema v8), when started here or taken from another device. */
     var lunch: () -> com.accountabilibuddy.shared.sync.SyncLunch? = { null }
 
+    /** What the user did here for a PC, waiting for its ack (ADR 26); set by the app. */
+    var actions: () -> List<com.accountabilibuddy.shared.sync.SyncAction> = { emptyList() }
+
     /** The phone's unlock times since a moment (ADR 26 pickups); null without Usage access. */
     var unlocksSince: (Instant) -> List<Instant>? = { null }
 
@@ -170,6 +173,7 @@ class SyncCoordinator(
         emptyList(), emptyList(), null, emptyList(),
         pickups = runCatching { pickups() }.getOrNull(),
         lunch = lunch(),
+        actions = actions().takeIf { it.isNotEmpty() },
     )
 
     /** Everything to hand over by [method] (Drive or a share): this phone's own file first, then what it carries. */

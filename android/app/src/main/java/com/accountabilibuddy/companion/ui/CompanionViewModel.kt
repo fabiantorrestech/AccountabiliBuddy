@@ -233,7 +233,9 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         combine(link.status, link.lastState, sync.received) { status, last, received ->
             com.accountabilibuddy.companion.sync.OpenComebacks.of(
                 link.pairedPc.value?.pcName, (status as? LinkStatus.Connected)?.state ?: last?.state, received, java.time.Instant.now(),
-            )
+            ) ?: (link.pairedPc.value?.pcName
+                ?: received.filter { it.file.device.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC }.maxByOrNull { it.file.device.writtenAt }?.file?.device?.name)
+                ?.let { com.accountabilibuddy.companion.sync.OpenComebacks(it, emptyList()) }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /** The Devices tab (ADR 22): the other devices' parts, the group's key and the phone's method switches. */

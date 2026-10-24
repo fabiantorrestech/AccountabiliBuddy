@@ -495,6 +495,13 @@ public partial class App : Application
         syncCoordinator.Comebacks = () => _comebacks!.Open.Select(comeback => new AccountabiliBuddy.Core.Sync.SyncComeback(comeback.Id, comeback.Text, comeback.CreatedAt)).ToList();
         // Lunch is the user's, not this PC's: started here or on another device, every device takes the newest.
         syncCoordinator.Lunch = () => _lunch!.Taken;
+        // What the user did on the phone for this PC (ADR 26): applied once each, acknowledged in this PC's file.
+        var syncActions = new AccountabiliBuddy.App.Services.Sync.SyncActionsService(
+            documents, receivedDevices, syncIdentity, sessionTasks, _comebacks!, _stepAway!, time);
+        syncActions.LoadBlocking();
+        syncCoordinator.Acks = () => syncActions.Acks;
+        syncActions.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
+        receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() => _ = syncActions.ApplyAsync());
         _lunch!.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {

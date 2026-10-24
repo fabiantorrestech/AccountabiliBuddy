@@ -32,6 +32,10 @@ data class SyncFile(
     val pickups: List<SyncPickup>? = null,
     /** Today's flexible lunch as this device started or took it (schema v8); null for none or an older app. */
     val lunch: SyncLunch? = null,
+    /** What the user did on this phone for a PC (ADR 26), kept until that PC acknowledges it; null for none. */
+    val actions: List<SyncAction>? = null,
+    /** The action ids a PC applied (ADR 26); null for none. */
+    val acks: List<String>? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1
@@ -171,3 +175,24 @@ data class SyncCompanion(val name: String, val kind: String, val linked: Boolean
 }
 /** A flexible lunch: when it started and ends. Every device takes the newest one for the day. */
 data class SyncLunch(val start: java.time.Instant, val end: java.time.Instant)
+
+/**
+ * Something the user did on the phone for a PC (ADR 26): tick a task, park a thought, tick a come-back, step away or
+ * come back. [target] is that PC's sync device id; [item] the task, subtask or come-back; [text] the thought to park.
+ */
+data class SyncAction(
+    val id: String,
+    val kind: String,
+    val target: java.util.UUID,
+    val item: String? = null,
+    val text: String? = null,
+    val at: java.time.Instant,
+) {
+    companion object {
+        const val TICK_TASK = "tickTask"
+        const val PARK = "park"
+        const val TICK_COMEBACK = "tickComeback"
+        const val STEP_AWAY = "stepAway"
+        const val BACK = "back"
+    }
+}

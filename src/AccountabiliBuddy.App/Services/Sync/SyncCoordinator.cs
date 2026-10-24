@@ -216,7 +216,7 @@ public sealed class SyncCoordinator
 
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
         return SyncFileBuilder.Build(card, records, drift, _omitted.IsOmitted, id => ProfileOptions.NameOf(profiles, id),
-            _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke() };
+            _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null };
     }
 
     /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
@@ -239,6 +239,9 @@ public sealed class SyncCoordinator
 
     /// <summary>The PC's open come-backs for its sync file (ADR 30); set by the app.</summary>
     public Func<IReadOnlyList<SyncComeback>?>? Comebacks { get; set; }
+
+    /// <summary>The phone's actions this PC applied (ADR 26), acknowledged in its file; set by the app.</summary>
+    public Func<IReadOnlyList<Guid>>? Acks { get; set; }
 
     /// <summary>Today's flexible lunch once started on this PC or taken from another device (schema v8); set by the app.</summary>
     public Func<SyncLunch?>? Lunch { get; set; }

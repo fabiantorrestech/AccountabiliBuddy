@@ -59,6 +59,19 @@ object SyncFileJson {
                 }
             }))
         }
+        file.actions?.let { list ->
+            put("actions", JsonArray(list.map { action ->
+                buildJsonObject {
+                    put("id", action.id)
+                    put("kind", action.kind)
+                    put("target", action.target.toString())
+                    action.item?.let { put("item", it) }
+                    action.text?.let { put("text", it) }
+                    put("at", writeTime(action.at))
+                }
+            }))
+        }
+        file.acks?.let { list -> put("acks", JsonArray(list.map { kotlinx.serialization.json.JsonPrimitive(it) })) }
         file.lunch?.let { lunch ->
             put("lunch", buildJsonObject {
                 put("start", writeTime(lunch.start))
@@ -160,7 +173,25 @@ object SyncFileJson {
             readComebacks(json["comebacks"]),
             readPickups(json["pickups"]),
             json.optionalObject("lunch")?.let { lunch -> runCatching { SyncLunch(lunch.requiredTime("start"), lunch.requiredTime("end")) }.getOrNull() },
+            readActions(json["actions"]),
+            (json["acks"] as? JsonArray)?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { p -> p.isString }?.content },
         )
+    }
+
+    // ADR 26: an optional list; an entry that can't be read is left out rather than failing the file.
+    private fun readActions(value: kotlinx.serialization.json.JsonElement?): List<SyncAction>? {
+        val array = value as? JsonArray ?: return null
+        return array.mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            runCatching {
+                SyncAction(
+                    item.requiredString("id"), item.requiredString("kind"), readDeviceId(item.requiredString("target")),
+                    (item["item"] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content,
+                    (item["text"] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content,
+                    item.requiredTime("at"),
+                )
+            }.getOrNull()
+        }
     }
 
     // ADR 30: an optional list; an entry that can't be read is left out rather than failing the file.

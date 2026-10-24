@@ -5,7 +5,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.Card
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.companion.sync.deviceIdOf
+import com.accountabilibuddy.shared.sync.SyncAction
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,6 +33,13 @@ import com.accountabilibuddy.shared.sync.SessionTaskItem
  */
 @Composable
 fun TasksCard(running: RunningTasks) {
+    val app = LocalContext.current.applicationContext as CompanionApp
+    val received by app.sync.received.collectAsState()
+    val pending by app.actions.pending.collectAsState()
+    // Ticking goes to the PC through the sync files (ADR 26); without them (no device group) the list is read-only.
+    val target = deviceIdOf(running.source, received)
+    val ticking: (String?) -> Boolean = { id -> target != null && id != null && pending.any { it.target == target && it.item == id && it.kind == SyncAction.TICK_TASK } }
+    val onTick: ((String) -> Unit)? = target?.let { pc -> { id -> app.actions.add(SyncAction.TICK_TASK, pc, item = id) } }
     var showDone by remember { mutableStateOf(false) }
     val open = running.tasks.filter { !it.isDone }
     val done = running.tasks.filter { it.isDone }
@@ -36,11 +50,11 @@ fun TasksCard(running: RunningTasks) {
                 Text("All tasks done", style = MaterialTheme.typography.bodyMedium)
             }
 
-            open.forEach { task -> TaskLine(task, indent = false, markedId = running.markedId) }
+            open.forEach { task -> TaskLine(task, indent = false, markedId = running.markedId, ticking, onTick) }
             if (done.isNotEmpty()) {
                 TextButton(onClick = { showDone = !showDone }) { Text(if (showDone) "Hide done (${done.size})" else "Done (${done.size})") }
                 if (showDone) {
-                    done.forEach { task -> TaskLine(task, indent = false, markedId = null) }
+                    done.forEach { task -> TaskLine(task, indent = false, markedId = null, ticking, null) }
                 }
             }
         }
@@ -48,15 +62,22 @@ fun TasksCard(running: RunningTasks) {
 }
 
 // [markedId]: the task or subtask the PC's bar shows, marked ▸.
+// [onTick]: ticks an open line on the PC (null: read-only); a line ticked here shows done until the PC catches up.
 @Composable
-private fun TaskLine(task: SessionTaskItem, indent: Boolean, markedId: String?) {
-    Row(Modifier.padding(start = if (indent) 20.dp else 0.dp)) {
+private fun TaskLine(task: SessionTaskItem, indent: Boolean, markedId: String?, ticking: (String?) -> Boolean, onTick: ((String) -> Unit)?) {
+    val done = task.isDone || ticking(task.id)
+    val canTick = !done && onTick != null && task.id != null
+    Row(
+        Modifier.padding(start = if (indent) 20.dp else 0.dp).fillMaxWidth()
+            .clickable(enabled = canTick) { onTick?.invoke(task.id!!) }.padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Text(
-            (if (task.isDone) "☑ " else "☐ ") + (if (task.id != null && task.id == markedId) "▸ " else "") + task.title,
+            (if (done) "☑ " else "☐ ") + (if (task.id != null && task.id == markedId) "▸ " else "") + task.title,
             style = MaterialTheme.typography.bodyMedium,
-            textDecoration = if (task.isDone) TextDecoration.LineThrough else null,
-            color = if (task.isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+            textDecoration = if (done) TextDecoration.LineThrough else null,
+            color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
         )
     }
-    task.subtasks.forEach { subtask -> TaskLine(subtask, indent = true, markedId = markedId) }
+    task.subtasks.forEach { subtask -> TaskLine(subtask, indent = true, markedId = markedId, ticking, onTick) }
 }

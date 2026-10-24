@@ -81,6 +81,9 @@ class CompanionApp : Application() {
     lateinit var noise: com.accountabilibuddy.companion.noise.NoisePlayer
         private set
 
+    /** What the user did here for a PC (ADR 26), until that PC acknowledges it. */
+    val actions by lazy { com.accountabilibuddy.companion.sync.ActionStore(this) }
+
     /** "Play when headphones connect" (Settings → Noise player). */
     val headphones by lazy { com.accountabilibuddy.companion.noise.HeadphoneStore(this) }
 
@@ -127,6 +130,15 @@ class CompanionApp : Application() {
         sync.nextAlarm = { wakeAlarm }
         // Lunch is the user's: this phone's goes out in its file; one from another device is taken here.
         sync.lunch = { lunch.today() }
+        sync.actions = { actions.pending.value }
+        // A tick or a parked thought goes to the PC at once (link, Drive), and shows ticked here meanwhile.
+        actions.onChanged = {
+            sendSyncFilesToPc()
+            appScope.launch {
+                driveSource.syncNow()
+                Refresher.refresh(this@CompanionApp)
+            }
+        }
         lunch.onChanged = {
             sendSyncFilesToPc()
             appScope.launch {
@@ -137,6 +149,7 @@ class CompanionApp : Application() {
         appScope.launch {
             sync.received.collect { devices ->
                 devices.mapNotNull { it.file.lunch }.forEach { lunch.receive(it) }
+                actions.prune(devices)
             }
         }
         // Pickups during the other devices' sessions (ADR 26): unlock times from Usage access, when allowed.
