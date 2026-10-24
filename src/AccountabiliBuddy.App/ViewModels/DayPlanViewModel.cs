@@ -10,7 +10,7 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// Day plan tab (design part B, ADR 18): the categories, which days are workdays, and the Workdays and Other days
+/// Day plan tab (design part B, ADR 18): the categories, which days are workdays, and the Workdays and Off-Days
 /// templates, each edited with a drag bar and a list. Saved at once (the plan never waits), locked during a focus
 /// session the user started. One-off days are edited in the Exceptions tab.
 /// </summary>
@@ -74,7 +74,7 @@ public sealed partial class DayPlanViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(SaveCommand), nameof(RevertCommand), nameof(AddCategoryCommand))]
     public partial bool IsLocked { get; set; }
 
-    /// <summary>The inner tab showing: 0 = Workdays, 1 = Other days (search can switch it).</summary>
+    /// <summary>The inner tab showing: 0 = Workdays, 1 = Off-Days (search can switch it).</summary>
     [ObservableProperty]
     public partial int SelectedTemplateIndex { get; set; }
 

@@ -42,7 +42,7 @@
                     <TabItem Header="Workdays">
                         <views:DayPlanEditorView DataContext="{Binding Workday}" Margin="0,8,0,0" />
                     </TabItem>
-                    <TabItem Header="Other days">
+                    <TabItem Header="Off-Days">
                         <views:DayPlanEditorView DataContext="{Binding OtherDay}" Margin="0,8,0,0" />
                     </TabItem>
                 </TabControl>

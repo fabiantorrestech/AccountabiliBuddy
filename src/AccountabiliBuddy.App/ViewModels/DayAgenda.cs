@@ -22,7 +22,7 @@ public static class DayAgenda
             .ToList();
     }
 
-    /// <summary>The plan a date follows when it has no one-off day: Workdays on a workday, else Other days.</summary>
+    /// <summary>The plan a date follows when it has no one-off day: Workdays on a workday, else Off-Days.</summary>
     public static DayTemplate DefaultFor(DayPlan plan, DateOnly date)
     {
         return plan.Workdays.Contains(date.DayOfWeek) ? plan.Workday : plan.OtherDay;

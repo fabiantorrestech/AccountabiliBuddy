@@ -7,7 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// Edits one day template (workdays, other days or a one-off day): a 24-hour bar whose parts are dragged, and a list
+/// Edits one day template (Workdays, Off-Days or a one-off day): a 24-hour bar whose parts are dragged, and a list
 /// that shows the selected part (or all of them when none is selected). Both stay in step; the drag math is
 /// <see cref="DayTemplateEditing"/>.
 /// </summary>

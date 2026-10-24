@@ -73,7 +73,7 @@ public static class DayPlanValidator
         }
 
         return Validate(plan.Workday, plan.Categories) is string workday ? $"Workdays: {workday}"
-            : Validate(plan.OtherDay, plan.Categories) is string other ? $"Other days: {other}"
+            : Validate(plan.OtherDay, plan.Categories) is string other ? $"Off-Days: {other}"
             : plan.OneOffDays.Select(day => Validate(day.Template, plan.Categories) is string problem ? $"{day.Date:ddd d MMM}: {problem}" : null)
                 .FirstOrDefault(problem => problem is not null);
     }

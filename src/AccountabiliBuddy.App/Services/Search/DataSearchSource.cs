@@ -63,7 +63,7 @@ public static class DataSearchSource
         }
 
         AddTemplate(entries, plan, plan.Workday, "Day plan › Workdays", planTab with { PlanTemplate = 0 });
-        AddTemplate(entries, plan, plan.OtherDay, "Day plan › Other days", planTab with { PlanTemplate = 1 });
+        AddTemplate(entries, plan, plan.OtherDay, "Day plan › Off-Days", planTab with { PlanTemplate = 1 });
 
         foreach (OneOffDay day in plan.OneOffDays)
         {

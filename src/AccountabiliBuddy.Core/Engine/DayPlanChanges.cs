@@ -16,7 +16,7 @@ public static class DayPlanChanges
         Categories(basePlan, edited, lines);
         Workdays(basePlan, edited, lines);
         Template("Workdays", basePlan.Workday, edited.Workday, basePlan, edited, lines);
-        Template("Other days", basePlan.OtherDay, edited.OtherDay, basePlan, edited, lines);
+        Template("Off-Days", basePlan.OtherDay, edited.OtherDay, basePlan, edited, lines);
         OneOffDays(basePlan, edited, lines);
         return lines.Count > 0 ? lines : new[] { "No changes" };
     }

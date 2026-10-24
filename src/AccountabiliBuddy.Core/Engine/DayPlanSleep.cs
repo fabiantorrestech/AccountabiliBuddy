@@ -4,7 +4,7 @@ namespace AccountabiliBuddy.Core.Engine;
 
 /// <summary>
 /// Sleep mode's bedtime and wake time live in the day plan's Sleep parts: the Workday template's Sleep is the night
-/// before a workday ("weeknights"), the Other-days template's the night before any other day ("weekends").
+/// before a workday ("weeknights"), the Off-Days template's the night before any other day ("weekends").
 /// </summary>
 public static class DayPlanSleep
 {

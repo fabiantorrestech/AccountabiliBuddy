@@ -38,7 +38,7 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 /**
- * Edits the whole day plan on the phone (ADR 19): Workdays (with which days are workdays), Other days, one-off days
+ * Edits the whole day plan on the phone (ADR 19): Workdays (with which days are workdays), Off-Days, one-off days
  * and categories. The draft lives in the view model (it survives rotation); Save checks it by the PC's rules and
  * sends it to the PC (now, or when they next connect); leaving with changes asks first.
  */
@@ -83,7 +83,7 @@ fun DayPlanEditorScreen(
             modifier = Modifier.padding(horizontal = 16.dp),
         )
         TabRow(selectedTabIndex = tab, modifier = Modifier.padding(top = 8.dp)) {
-            listOf("Workdays", "Other days", "One-off", "Categories").forEachIndexed { index, title ->
+            listOf("Workdays", "Off-Days", "One-off", "Categories").forEachIndexed { index, title ->
                 Tab(selected = tab == index, onClick = { tab = index }, text = { Text(title) })
             }
         }
@@ -109,7 +109,7 @@ fun DayPlanEditorScreen(
     }
 }
 
-/** Which days use the Workdays plan (the rest use Other days). */
+/** Which days use the Workdays plan (the rest use Off-Days). */
 @Composable
 private fun WorkdayChips(plan: DayPlan, onChange: (DayPlan) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

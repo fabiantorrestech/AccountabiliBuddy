@@ -6,7 +6,7 @@ namespace AccountabiliBuddy.App.Services.Search;
 /// <param name="Date">The day to show in Calendar.</param>
 /// <param name="SettingsGroup">The Settings group to switch to.</param>
 /// <param name="Control">The control the text was found in, to bring into view (an app word).</param>
-/// <param name="PlanTemplate">The Day plan tab's inner tab: 0 = Workdays, 1 = Other days.</param>
+/// <param name="PlanTemplate">The Day plan tab's inner tab: 0 = Workdays, 1 = Off-Days.</param>
 public sealed record SearchTarget(
     int Tab,
     Guid? ProfileId = null,

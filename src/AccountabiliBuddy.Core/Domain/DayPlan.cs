@@ -2,7 +2,7 @@ namespace AccountabiliBuddy.Core.Domain;
 
 /// <summary>
 /// How the user's days are meant to go (schema v5, replacing the weekly schedule of profiles, ADR 18): categories,
-/// one template for workdays and one for the other days, and one-off days that replace a single date's template.
+/// one template for Workdays and one for Off-Days (every other day), and one-off days that replace a single date's template.
 /// </summary>
 /// <param name="Workdays">The days that use <see cref="Workday"/>; every other day uses <see cref="OtherDay"/>.</param>
 public sealed record DayPlan(

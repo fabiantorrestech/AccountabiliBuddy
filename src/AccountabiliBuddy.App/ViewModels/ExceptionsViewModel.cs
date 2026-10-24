@@ -543,7 +543,7 @@ public sealed partial class ExceptionsViewModel : ObservableObject
         OneOffDay? own = plan.OneOffDays.FirstOrDefault(day => day.Date == SelectedDate);
         SelectedHasOwnPlan = own is not null;
         SelectedIsAdjusted = IsAdjusted(plan, SelectedDate);
-        string usual = plan.Workdays.Contains(SelectedDate.DayOfWeek) ? "Workdays" : "Other days";
+        string usual = plan.Workdays.Contains(SelectedDate.DayOfWeek) ? "Workdays" : "Off-Days";
         SelectedDayPlanText = SelectedIsAdjusted ? "Adjusted plan for this day" : $"Default day plan ({usual})";
         SelectedDayAgenda.Clear();
         foreach (AgendaRow row in DayAgenda.For(plan, SelectedDate))

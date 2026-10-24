@@ -20,7 +20,7 @@ object DayPlanChanges {
         categories(base, edited, lines)
         workdays(base, edited, lines)
         template("Workdays", base.workday, edited.workday, base, edited, lines)
-        template("Other days", base.otherDay, edited.otherDay, base, edited, lines)
+        template("Off-Days", base.otherDay, edited.otherDay, base, edited, lines)
         oneOffDays(base, edited, lines)
         return lines.ifEmpty { listOf("No changes") }
     }

@@ -51,7 +51,7 @@ object DayPlanValidator {
         if (plan.oneOffDays.groupBy { it.date }.any { it.value.size > 1 }) return "Two one-off days are on the same date."
 
         validate(plan.workday, plan.categories)?.let { return "Workdays: $it" }
-        validate(plan.otherDay, plan.categories)?.let { return "Other days: $it" }
+        validate(plan.otherDay, plan.categories)?.let { return "Off-Days: $it" }
         for (day in plan.oneOffDays) {
             validate(day.template, plan.categories)?.let { return "${day.date.format(dayFormat)}: $it" }
         }

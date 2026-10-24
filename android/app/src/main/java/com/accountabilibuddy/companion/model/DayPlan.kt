@@ -62,7 +62,7 @@ data class PlannedPart(val part: PlanPart, val category: DayCategory, val window
 }
 
 /**
- * The PC's day plan (schema v5, ADR 18): categories, a template for workdays and one for the other days, and one-off
+ * The PC's day plan (schema v5, ADR 18): categories, a template for Workdays and one for Off-Days (every other day), and one-off
  * days. A port of the Windows Core's DayPlan (same rules, kept in step by hand).
  */
 data class DayPlan(
