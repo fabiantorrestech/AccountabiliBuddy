@@ -30,6 +30,7 @@
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/snapshot" />
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/unlink" />
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/pc-offer" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/noise" />
             </intent-filter>
         </service>
 

@@ -195,6 +195,7 @@
                 <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/hello" />
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/pc-paired" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/noise-command" />
             </intent-filter>
         </service>
 

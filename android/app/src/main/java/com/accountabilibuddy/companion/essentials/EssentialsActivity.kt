@@ -97,10 +97,15 @@ class EssentialsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val app = application as CompanionApp
         val arranging = intent.getBooleanExtra(EXTRA_ARRANGE, false)
+        // A test (Settings → Essentials → Try it for 1 minute) closes by itself when its minute is up.
+        val testUntil = intent.getLongExtra(EXTRA_TEST_UNTIL, 0L).takeIf { it > 0 }?.let(Instant::ofEpochMilli)
+        testUntil?.let { until ->
+            window.decorView.postDelayed({ finish() }, Duration.between(Instant.now(), until).toMillis().coerceAtLeast(0))
+        }
         setContent {
             CompanionTheme {
                 androidx.compose.runtime.key(resetKey) {
-                    EssentialsScreen(app, arranging, onOpen = ::openApp, onDial = ::dial, onDone = ::finish)
+                    EssentialsScreen(app, arranging, onOpen = ::openApp, onDial = ::dial, onDone = ::finish, testUntil = testUntil)
                 }
             }
         }
@@ -129,6 +134,7 @@ class EssentialsActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_ARRANGE = "arrange"
+        const val EXTRA_TEST_UNTIL = "testUntil"
 
         /** Opens the essentials screen (from the work card, emergency time, or an unlock during a session). */
         fun intent(context: Context): Intent =
@@ -136,6 +142,9 @@ class EssentialsActivity : ComponentActivity() {
 
         /** The same screen to arrange (Settings → Essentials). */
         fun arrangeIntent(context: Context): Intent = intent(context).putExtra(EXTRA_ARRANGE, true)
+
+        /** The screen as it is in a session, for one minute: to try it out. */
+        fun testIntent(context: Context): Intent = intent(context).putExtra(EXTRA_TEST_UNTIL, Instant.now().plusSeconds(60).toEpochMilli())
     }
 }
 
@@ -153,7 +162,7 @@ fun launchableApps(context: Context, withIcons: Boolean): List<LaunchableApp> {
 }
 
 @Composable
-private fun EssentialsScreen(app: CompanionApp, arranging: Boolean, onOpen: (String) -> Unit, onDial: () -> Unit, onDone: () -> Unit) {
+private fun EssentialsScreen(app: CompanionApp, arranging: Boolean, onOpen: (String) -> Unit, onDial: () -> Unit, onDone: () -> Unit, testUntil: Instant? = null) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val store = app.essentials
     val essentials by store.essentials.collectAsState()
@@ -190,7 +199,7 @@ private fun EssentialsScreen(app: CompanionApp, arranging: Boolean, onOpen: (Str
             }
             Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
                 Text(LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm", Locale.US)), color = Color.White, fontSize = 56.sp, modifier = Modifier.weight(1f))
-                timeLeft(app, now)?.let { Text(it, color = Color(0xCCFFFFFF), fontSize = 16.sp, modifier = Modifier.padding(top = 18.dp)) }
+                (testUntil?.let { "Test · ${Duration.between(now, it).seconds.coerceAtLeast(0)} s left" } ?: timeLeft(app, now))?.let { Text(it, color = Color(0xCCFFFFFF), fontSize = 16.sp, modifier = Modifier.padding(top = 18.dp)) }
             }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 item { Spacer(Modifier.height(40.dp)) }

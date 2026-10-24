@@ -38,6 +38,7 @@ object EssentialsLaunch {
     /** A session started on another device: asks LockMyPhone-Extended to start the hardcore profile, once per session. */
     fun maybeStartHardcore(context: Context, now: Instant = Instant.now()) {
         val app = context.applicationContext as CompanionApp
+        if (!app.essentials.useLockMyPhone) return
         val profile = app.essentials.hardcoreProfile ?: return
         val (start, endsAt) = runningSessionStart(app, now) ?: return
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

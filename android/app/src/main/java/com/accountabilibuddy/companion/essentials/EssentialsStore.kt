@@ -62,8 +62,19 @@ class EssentialsStore(context: Context) {
 
     // LockMyPhone-Extended's "Accountabilibuddy" profile follows the essentials: sent when first used after a start, then on each change.
     init {
-        ProfileSync.send(appContext, _essentials.value)
+        if (useLockMyPhone) ProfileSync.send(appContext, _essentials.value)
     }
+
+    /**
+     * Whether AccountabiliBuddy uses LockMyPhone-Extended at all (on by default): the hardcore profile for each session
+     * and its "Accountabilibuddy" profile kept in step with the essentials. Off = neither.
+     */
+    var useLockMyPhone: Boolean
+        get() = prefs.getBoolean(KEY_USE_LMP, true)
+        set(value) {
+            prefs.edit().putBoolean(KEY_USE_LMP, value).apply()
+            if (value) ProfileSync.send(appContext, _essentials.value)
+        }
 
     /** The essentials screen on unlocking during a session on another device (on by default). */
     var onUnlockInSession: Boolean
@@ -91,7 +102,7 @@ class EssentialsStore(context: Context) {
         val next = change(_essentials.value)
         _essentials.value = next
         prefs.edit().putString(KEY_DATA, write(next).toString()).apply()
-        ProfileSync.send(appContext, next)
+        if (useLockMyPhone) ProfileSync.send(appContext, next)
     }
 
     fun setAllowed(packageName: String, on: Boolean) = update { e ->
@@ -185,6 +196,7 @@ class EssentialsStore(context: Context) {
         private const val KEY_ICONS = "showIcons"
         private const val KEY_PHONE = "phoneCorner"
         private const val KEY_HARDCORE = "hardcoreProfile"
+        private const val KEY_USE_LMP = "useLockMyPhone"
 
         /** Google's phone, messages, maps, clock, calendar and authenticator; banking apps are added in Settings. */
         val DEFAULT_APPS = setOf(

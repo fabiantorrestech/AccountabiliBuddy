@@ -58,17 +58,23 @@ internal fun EssentialsSection() {
     var onUnlock by remember { mutableStateOf(store.onUnlockInSession) }
     var icons by remember { mutableStateOf(store.showIcons) }
     var hardcore by remember { mutableStateOf(store.hardcoreProfile.orEmpty()) }
+    var useLmp by remember { mutableStateOf(store.useLockMyPhone) }
     var newFolder by remember { mutableStateOf("") }
     var partsOpen by remember { mutableStateOf<String?>(null) }
     val reader = remember { PhoneUsageReader(context) }
 
-    Section("Essentials", summary = "${essentials.apps.size} apps · ${essentials.folders.size} folders${if (store.hardcoreProfile != null) " · hardcore on" else ""}") {
+    Section("Essentials", summary = "${essentials.apps.size} apps · ${essentials.folders.size} folders${if (store.useLockMyPhone && store.hardcoreProfile != null) " · hardcore on" else ""}") {
         Text("Essentials are always allowed (no work card, not a pickup) and listed on the essentials screen, which comes up on unlocking during a session on another device or emergency time, and from the work card. Everything else is behind a search that shows nothing until Enter.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         ToggleRow("On unlocking during a session", "On another device, unlocking the phone lands on the essentials screen", onUnlock) {
             store.onUnlockInSession = it; onUnlock = it
         }
         ToggleRow("App icons", "Icons next to the names on the essentials screen", icons) { store.showIcons = it; icons = it }
+        // The screen as it is in a session, for one minute (it closes by itself).
+        androidx.compose.material3.OutlinedButton(
+            onClick = { context.startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.testIntent(context)) },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Try the essentials screen for 1 minute") }
         // The real screen with ↑ ↓ on every row: the order of apps and folders, apps inside folders, the Phone corner.
         androidx.compose.material3.Button(
             onClick = { context.startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.arrangeIntent(context)) },
@@ -77,7 +83,12 @@ internal fun EssentialsSection() {
 
         // Hardcore: LockMyPhone-Extended really locks the phone for the session.
         Text("Hardcore (LockMyPhone-Extended)", style = MaterialTheme.typography.labelLarge)
-        OutlinedTextField(
+        ToggleRow(
+            "Use LockMyPhone-Extended",
+            "Off: AccountabiliBuddy never starts its profiles or keeps its \"${ProfileSync.PROFILE_NAME}\" profile in step",
+            useLmp,
+        ) { store.useLockMyPhone = it; useLmp = it }
+        if (useLmp) OutlinedTextField(
             value = hardcore, onValueChange = { hardcore = it; store.hardcoreProfile = it }, singleLine = true,
             label = { Text("Its profile to start for each session (empty = off)") }, modifier = Modifier.fillMaxWidth(),
         )
@@ -86,7 +97,7 @@ internal fun EssentialsSection() {
             else "LockMyPhone-Extended isn't installed on this phone.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (EssentialsLaunch.lockMyPhoneInstalled(context) && hardcore != ProfileSync.PROFILE_NAME) {
+        if (useLmp && EssentialsLaunch.lockMyPhoneInstalled(context) && hardcore != ProfileSync.PROFILE_NAME) {
             androidx.compose.material3.TextButton(onClick = { hardcore = ProfileSync.PROFILE_NAME; store.hardcoreProfile = ProfileSync.PROFILE_NAME }) {
                 Text("Use \"${ProfileSync.PROFILE_NAME}\" (kept in sync with these essentials)")
             }
