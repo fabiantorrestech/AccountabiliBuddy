@@ -10,7 +10,7 @@ data class DayBarModel(
     val day: com.accountabilibuddy.companion.model.LocalWindow,
     val dateText: String,
     val statusText: String,
-    /** A shorter status for a narrow line (the collapsed card); null = [statusText]. */
+    /** The collapsed card's line; null = [statusText]. */
     val statusCompact: String? = null,
     val summaryText: String,
     val planned: List<DayBarSpan>,

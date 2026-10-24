@@ -40,7 +40,7 @@ data class HeaderText(
     val countdownFormat: String? = null,
     /** The text changes by the minute (the sleep left near and past bedtime): the card is redrawn every minute. */
     val refreshMinutely: Boolean = false,
-    /** A shorter [status] for a narrow line (the collapsed card), e.g. "7h 52m - 6:45 AM"; null = the same. */
+    /** The collapsed card's line, e.g. "Sleep: 7h 52m • Wake: 6:45 AM"; null = [status]. */
     val compactStatus: String? = null,
 )
 
@@ -92,7 +92,7 @@ object DayHeader {
             val wake = wakeText(night, input, clock)
             // "Sleep • 7h 52m • 6:45 AM": the sleep left if you go now, by the minute, and the wake time.
             val left = minutesText(Duration.between(now, night.end))
-            return HeaderText("Sleep • $left • $wake", "", refreshMinutely = true, compactStatus = "$left - $wake")
+            return HeaderText("Sleep • $left • $wake", "", refreshMinutely = true, compactStatus = "Sleep: $left • Wake: $wake")
         }
 
         val watch = input.parts.filter { it.category.behavior.isWork }
@@ -117,7 +117,7 @@ object DayHeader {
             // Close to bedtime: the sleep you'd get if you went now, by the minute.
             val wake = wakeText(night, input, clock)
             val left = minutesText(Duration.between(now, night.end))
-            return HeaderText("Sleep • $left • $wake", "Bedtime in ${minutesText(bedtimeIn)}", refreshMinutely = true, compactStatus = "$left - $wake")
+            return HeaderText("Sleep • $left • $wake", "Bedtime in ${minutesText(bedtimeIn)}", refreshMinutely = true, compactStatus = "Sleep: $left • Wake: $wake")
         }
 
         watch.firstOrNull { it.window.start.isAfter(now) && it.window.start.toLocalDate() == today }?.let { next ->

@@ -3,7 +3,8 @@ namespace AccountabiliBuddy.App.Services;
 /// <summary>
 /// The steps of the Google setup guide, with every Google Cloud Console link and scope in one place, so they can be
 /// fixed here when Google moves a page or renames a scope. The steps set up the user's own Google Cloud project
-/// for read-only Calendar access (ADR 9) and, when wanted, read-only sleep data (ADR 11).
+/// for read-only Calendar access (ADR 9), Drive sync for this computer and the phone (ADR 26) and, when wanted,
+/// read-only sleep data (ADR 11).
 /// </summary>
 public static class GoogleSetupSteps
 {
@@ -11,6 +12,15 @@ public static class GoogleSetupSteps
     public const string CalendarScope = GoogleCalendarClient.Scope;
     public const string SleepScope = "https://www.googleapis.com/auth/googlehealth.sleep.readonly";
     public const string DriveScope = AccountabiliBuddy.App.Services.Sync.DriveAccountService.Scope;
+
+    /// <summary>The phone app's package name, for its Android client.</summary>
+    public const string PhonePackage = "com.accountabilibuddy.companion";
+
+    /// <summary>
+    /// The SHA-1 of the key the phone app is signed with when built on the developer's PC (debug and release builds use
+    /// the same key). A build signed elsewhere shows its own in the phone's Devices → Google Drive.
+    /// </summary>
+    public const string PhoneSha1 = "96:76:77:E7:FC:87:65:0E:36:CA:30:A1:29:58:59:81:35:6C:CB:16";
 
     public const string PasteClientId = "paste-client";
     public const string TestId = "test";
@@ -131,6 +141,25 @@ public static class GoogleSetupSteps
             },
             null,
             Array.Empty<GoogleSetupCopyValue>()),
+
+        new GoogleSetupStep(
+            "phone-client",
+            "Let the phone sign in (for the phone's Drive sync)",
+            new[]
+            {
+                "Skip this if you don't use the phone app's Google Drive switch (Devices → Google Drive on the phone).",
+                "Open the page. Application type: Android.",
+                $"Name: {AppName} phone. Package name and SHA-1 certificate fingerprint: copy them from below. Press Create.",
+                "Nothing to paste anywhere: the phone finds this client by its package name and key. It uses the same project, so the Drive API, the drive.file scope and your test users above already apply to it.",
+                "On the phone, turn on Devices → Google Drive and pick an account that's a test user. \"Google Drive wasn't allowed\" means this client, the Drive API or the test user is missing.",
+            },
+            "https://console.cloud.google.com/auth/clients/create",
+            new[]
+            {
+                new GoogleSetupCopyValue("Client name", $"{AppName} phone"),
+                new GoogleSetupCopyValue("Package name", PhonePackage),
+                new GoogleSetupCopyValue("SHA-1 certificate fingerprint", PhoneSha1),
+            }),
 
         new GoogleSetupStep(
             "publish",

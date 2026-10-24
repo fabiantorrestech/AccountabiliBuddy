@@ -99,7 +99,7 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
             missed = missed,
             ticks = ticks(range),
             now = fraction(now, range),
-            sleepLine = sleepLine(now, sleep, document.dayPlan),
+            sleepLine = sleepLine(now, sleep, document.dayPlan, slept),
             countdownTo = header?.countdownTo,
             countdownFormat = header?.countdownFormat,
             rows = settings.visibleRows(),
@@ -166,8 +166,12 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
         return nights to missed
     }
 
-    /** From when going to bed would give the sleep goal until wake time: the sleep left counts down, with the wake time. */
-    fun sleepLine(now: LocalDateTime, sleep: SleepSettings, plan: DayPlan): SleepLine? {
+    /**
+     * From when going to bed would give the sleep goal until wake time (the header then says the sleep left and the wake
+     * time): this week's measured sleep from [slept], "Last night 6h 40m · week avg 7h 05m", coloured against the goal.
+     * Null with nothing measured.
+     */
+    fun sleepLine(now: LocalDateTime, sleep: SleepSettings, plan: DayPlan, slept: List<LocalWindow> = emptyList()): SleepLine? {
         if (!sleep.enabled) {
             return null
         }
@@ -177,10 +181,13 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
             return null
         }
 
-        val left = SleepSchedule.sleepIfBedNow(now, night)
-        // An alarm clock rather than "(alarm)": the notification's sleep line has one line, and the word wrapped out of sight.
-        val byAlarm = sleep.toSchedule(plan).wakesByAlarm(night.end.toLocalDate().minusDays(1))
-        return SleepLine("Sleep if you go now: ${duration(left)} · up ${clock.time(night.end)}" + (if (byAlarm) " ⏰" else ""), SleepSchedule.rate(left, sleep.goal))
+        val week = SleepWeek.of(slept, now) ?: return null
+        val parts = listOfNotNull(
+            week.lastNight?.let { "Last night ${duration(it)}" },
+            week.average?.takeIf { week.nights > 1 }?.let { "week avg ${duration(it)}" },
+        )
+        val rated = week.average ?: week.lastNight ?: return null
+        return SleepLine(parts.joinToString(" · "), SleepSchedule.rate(rated, sleep.goal))
     }
 
     // Focused, distracted (drift inside the sessions, overlaps once) and not in a session, each from 1 minute.
