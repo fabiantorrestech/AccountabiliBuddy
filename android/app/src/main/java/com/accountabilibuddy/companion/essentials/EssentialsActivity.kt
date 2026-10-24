@@ -6,12 +6,19 @@ import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,11 +42,10 @@ import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -55,7 +61,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -72,8 +83,9 @@ import java.util.Locale
  * The essentials screen (in LockMyPhone-Extended's style; soft: nothing is blocked): during a session on another device,
  * work time or emergency phone time, unlocking lands here. Black, a big clock and the time left, the shown folders
  * (open on a tap, shut again when an app opens or the phone locks) and the essentials in the order arranged in
- * Settings, the Phone shortcut in a bottom corner (or in the list), and a search that shows nothing until Enter and then
- * only near-exact names ([AppMatch]). With [EXTRA_ARRANGE] it's the same screen with ↑ ↓ on every row, folder and app
+ * Settings, the Phone shortcut in a bottom corner (or in the list), and a faint search icon in the other bottom corner,
+ * like LockMyPhone-Extended's allowed-apps list: no text box, the typed text shows across the bottom above the
+ * keyboard, and Enter shows only near-exact names ([AppMatch]) just above it. Back or a tap anywhere else cancels. With [EXTRA_ARRANGE] it's the same screen with ↑ ↓ on every row, folder and app
  * inside a folder, and the Phone corner to choose. Opening anything that isn't an essential still brings the work
  * card back and counts as a pickup.
  */
@@ -155,13 +167,9 @@ private fun EssentialsScreen(app: CompanionApp, arranging: Boolean, onOpen: (Str
             kotlinx.coroutines.delay(1_000)
         }
     }
-    var query by remember { mutableStateOf("") }
-    var searched by remember { mutableStateOf<String?>(null) }
+    var searching by remember { mutableStateOf(false) }
     val open = remember { mutableStateOf(setOf<String>()) }
     val keys = essentials.homeKeys { byPackage[it]?.name ?: it }
-    val results = searched?.let { text ->
-        Pair(essentials.folders.filter { AppMatch.matches(text, it.name) }, all.filter { AppMatch.matches(text, it.name) })
-    }
     val moves = if (arranging) Moves(store, keys) else null
     // Hidden apps never show on the screen, not even inside a folder: only the search finds them.
     val hidden = essentials.apps.filter { it.hidden }.map { it.packageName }.toSet()
@@ -189,48 +197,111 @@ private fun EssentialsScreen(app: CompanionApp, arranging: Boolean, onOpen: (Str
                 if (corner == "list") {
                     item { PhoneRow(onDial) }
                 }
-                if (results != null && !arranging) {
-                    if (results.first.isEmpty() && results.second.isEmpty()) {
-                        item { Text("Nothing called \"$searched\". Type its name.", color = Color(0x99FFFFFF), modifier = Modifier.padding(vertical = 12.dp)) }
-                    }
-                    results.first.forEach { folder -> folderItems(folder, byPackage, open, onOpen, null, hidden) }
-                    results.second.forEach { found -> item(key = "r-" + found.packageName) { AppRow(found, onOpen, null) } }
-                } else {
-                    keys.forEach { key ->
-                        when {
-                            key.startsWith("folder:") -> essentials.folders.firstOrNull { Essentials.folderKey(it.id) == key }
-                                ?.let { folder -> folderItems(folder, byPackage, open, onOpen, moves, hidden) }
-                            else -> byPackage[key.removePrefix("app:")]?.let { found ->
-                                item(key = key) { AppRow(found, onOpen, moves?.let { m -> { by: Int -> m.row(key, by) } }) }
-                            }
+                keys.forEach { key ->
+                    when {
+                        key.startsWith("folder:") -> essentials.folders.firstOrNull { Essentials.folderKey(it.id) == key }
+                            ?.let { folder -> folderItems(folder, byPackage, open, onOpen, moves, hidden) }
+                        else -> byPackage[key.removePrefix("app:")]?.let { found ->
+                            item(key = key) { AppRow(found, onOpen, moves?.let { m -> { by: Int -> m.row(key, by) } }) }
                         }
                     }
                 }
-                item { Spacer(Modifier.height(72.dp)) }
-            }
-            if (!arranging) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it; searched = null },
-                    singleLine = true,
-                    placeholder = { Text("Type an app's name, then Enter", color = Color(0x66FFFFFF)) },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { searched = query.trim().takeIf { it.isNotEmpty() } }),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                )
+                // Room for the corner buttons, so the last row stays reachable.
+                item { Spacer(Modifier.height(96.dp)) }
             }
         }
-        // The Phone shortcut in a bottom corner, above the search box.
+        // The Phone shortcut in a bottom corner.
         if (corner != "list") {
             Surface(
                 shape = CircleShape, color = Color(0xFF1F2937),
                 modifier = Modifier.align(if (corner == "left") Alignment.BottomStart else Alignment.BottomEnd)
-                    .padding(start = 24.dp, end = 24.dp, bottom = if (arranging) 24.dp else 92.dp).size(60.dp).clickable(onClick = onDial),
+                    .padding(24.dp).size(60.dp).clickable(onClick = onDial),
             ) {
                 Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Call, contentDescription = "Phone", tint = Color.White, modifier = Modifier.size(30.dp)) }
             }
         }
+        if (!arranging) {
+            val searchCorner = if (corner == "left") Alignment.BottomEnd else Alignment.BottomStart
+            if (!searching) {
+                // Faint on purpose: it's there when you look for it, not an invitation.
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.align(searchCorner).padding(24.dp).size(60.dp).clickable { searching = true },
+                ) {
+                    Icon(Icons.Outlined.Search, contentDescription = "Search", tint = Color(0x2EFFFFFF), modifier = Modifier.size(28.dp))
+                }
+            } else {
+                SearchBand(
+                    folders = essentials.folders,
+                    apps = all,
+                    onOpenFolder = { folder -> open.value = open.value + folder.id; searching = false },
+                    onOpen = onOpen,
+                    onCancel = { searching = false },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The open search: a tap anywhere outside it cancels; the typed text shows across the bottom on a black band (no text
+ * box), and Enter shows the near-exact matches just above it. Back cancels too, and so does closing the keyboard (that's
+ * what the first Back does while it's up), so one Back is enough.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BoxScope.SearchBand(
+    folders: List<AppFolder>,
+    apps: List<LaunchableApp>,
+    onOpenFolder: (AppFolder) -> Unit,
+    onOpen: (String) -> Unit,
+    onCancel: () -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    var searched by remember { mutableStateOf<String?>(null) }
+    val focus = remember { FocusRequester() }
+    BackHandler(onBack = onCancel)
+    val imeVisible = WindowInsets.isImeVisible
+    var imeSeen by remember { mutableStateOf(false) }
+    LaunchedEffect(imeVisible) { if (imeVisible) imeSeen = true else if (imeSeen) onCancel() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+
+    Box(Modifier.matchParentSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onCancel))
+    Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black).padding(horizontal = 24.dp, vertical = 12.dp)) {
+        searched?.let { text ->
+            val foundFolders = folders.filter { AppMatch.matches(text, it.name) }
+            val foundApps = apps.filter { AppMatch.matches(text, it.name) }
+            if (foundFolders.isEmpty() && foundApps.isEmpty()) {
+                Text(
+                    "Nothing called \"$text\". Type its name.", color = Color(0x99FFFFFF), textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                )
+            }
+            foundFolders.forEach { folder ->
+                Row(Modifier.fillMaxWidth().clickable { onOpenFolder(folder) }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.Folder, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
+                    Spacer(Modifier.size(14.dp))
+                    Text(folder.name, color = Color.White, fontSize = 20.sp)
+                }
+            }
+            foundApps.forEach { found -> AppRow(found, onOpen, null) }
+        }
+        BasicTextField(
+            value = query,
+            onValueChange = { query = it; searched = null },
+            singleLine = true,
+            textStyle = TextStyle(color = Color.White, fontSize = 22.sp, textAlign = TextAlign.Center),
+            cursorBrush = SolidColor(Color(0xFF7DD3C0)),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { searched = query.trim().takeIf { it.isNotEmpty() } }),
+            decorationBox = { field ->
+                Box(contentAlignment = Alignment.Center) {
+                    if (query.isEmpty()) Text("Type an app's name, then Enter", color = Color(0x66FFFFFF), fontSize = 16.sp)
+                    field()
+                }
+            },
+            modifier = Modifier.fillMaxWidth().focusRequester(focus),
+        )
     }
 }
 
