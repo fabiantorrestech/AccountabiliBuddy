@@ -28,6 +28,8 @@
 
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
+        <!-- The hardcore profile: LockMyPhone-Extended's public intent API (only asked to start a lock). -->
+        <package android:name="com.fabiantorrestech.lockmyphone_extended" />
         <!-- App names for phone use, and home screens to leave out of it. -->
         <intent>
             <action android:name="android.intent.action.MAIN" />
@@ -114,6 +116,15 @@
             android:excludeFromRecents="true"
             android:launchMode="singleTask"
             android:taskAffinity="com.accountabilibuddy.companion.nudge" />
+
+        <!-- The essentials screen (LockMyPhone-Extended style, soft). -->
+        <activity
+            android:name=".essentials.EssentialsActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
+            android:taskAffinity="com.accountabilibuddy.companion.essentials" />
 
         <!-- "Need my phone" from the parked notice: the emergency chooser on its own. -->
         <activity

@@ -86,6 +86,7 @@ fun SettingsScreen(
         }
         item { AppearanceSection() }
         item { StartupSection() }
+        item { EssentialsSection() }
         item { EmergencySection() }
         if (pause != null) {
             item {

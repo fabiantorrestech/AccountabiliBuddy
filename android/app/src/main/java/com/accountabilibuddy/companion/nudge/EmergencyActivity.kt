@@ -24,6 +24,7 @@ class EmergencyActivity : ComponentActivity() {
                 Box(Modifier.fillMaxSize().background(Color(0xFF0B1F1E)).padding(28.dp), contentAlignment = Alignment.Center) {
                     EmergencyChooser(app.emergency, onStarted = {
                         app.refreshSoon()
+                        startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.intent(this@EmergencyActivity))
                         finish()
                     }, onBack = { finish() })
                 }

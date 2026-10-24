@@ -81,7 +81,10 @@ class CompanionApp : Application() {
     lateinit var noise: com.accountabilibuddy.companion.noise.NoisePlayer
         private set
 
-    /** "I need my phone for a bit" and the always-allowed apps. */
+    /** The essential apps (allowed, the essentials screen), folders, and the LockMyPhone-Extended hardcore profile. */
+    val essentials by lazy { com.accountabilibuddy.companion.essentials.EssentialsStore(this) }
+
+    /** "I need my phone for a bit". */
     val emergency by lazy { com.accountabilibuddy.companion.nudge.EmergencyStore(this) }
 
     /** What the user did here for a PC (ADR 26), until that PC acknowledges it. */
@@ -93,6 +96,10 @@ class CompanionApp : Application() {
     /** True while a screen of the app is showing (set by the screens' view model). */
     @Volatile
     var appOnScreen: Boolean = false
+
+    /** True while the essentials screen is showing (no work card over it). */
+    @Volatile
+    var essentialsOnScreen: Boolean = false
 
     // Lives as long as the app; the link reads from the PC here.
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -165,12 +172,12 @@ class CompanionApp : Application() {
             val state = pause.advance()
             val reader = com.accountabilibuddy.companion.usage.PhoneUsageReader(this)
             val uses = emergency.all()
-            val allowed = emergency.allowedApps
+            val allowed = essentials.essentials.value
             reader.unlocks(from, java.time.Instant.now())
                 ?.filterNot { com.accountabilibuddy.companion.pause.PauseRules.inQuiet(state, it) }
                 // Emergency time and unlocks into an always-allowed app (a call, a text) are shown apart, not as pickups.
                 ?.filterNot { unlock -> uses.any { !unlock.isBefore(it.start) && unlock.isBefore(it.end) } }
-                ?.filterNot { unlock -> reader.appAfter(unlock) in allowed }
+                ?.filterNot { unlock -> reader.appAfter(unlock)?.let { (app, screen) -> allowed.isAllowed(app, screen) } == true }
         }
         sync.emergencyWindows = { emergency.all().map { it.start to minOf(it.end, java.time.Instant.now()) } }
         watchBridge.onLinkChanged = { sendSyncFilesToPc() }

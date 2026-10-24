@@ -14,7 +14,7 @@ data class EmergencyUse(val reason: String, val start: Instant, val minutes: Int
 /**
  * "I need my phone for a bit" (inside "Not working today" and on the parked notice): a reason and 5–60 minutes
  * without the work card or nudges, from a daily allowance (45 minutes by default), shown apart from pickups on the PC.
- * Also the always-allowed apps: unlocking into one never brings up the card or counts as a pickup. Prefs "emergency".
+ * (The always-allowed apps are the essentials, [com.accountabilibuddy.companion.essentials.EssentialsStore].) Prefs "emergency".
  */
 class EmergencyStore(context: Context) {
     private val prefs = context.getSharedPreferences("emergency", Context.MODE_PRIVATE)
@@ -24,10 +24,6 @@ class EmergencyStore(context: Context) {
         get() = prefs.getInt(KEY_DAILY, DEFAULT_DAILY)
         set(value) = prefs.edit().putInt(KEY_DAILY, value.coerceIn(0, 240)).apply()
 
-    /** Package names that never bring up the work card (calls, messages, maps, clock, calendar, authenticators…). */
-    var allowedApps: Set<String>
-        get() = prefs.getStringSet(KEY_APPS, null) ?: DEFAULT_APPS
-        set(value) = prefs.edit().putStringSet(KEY_APPS, value).apply()
 
     /** Today's uses (older days are dropped as they're read). */
     fun usesOn(date: LocalDate, zone: ZoneId = ZoneId.systemDefault()): List<EmergencyUse> =
@@ -75,15 +71,8 @@ class EmergencyStore(context: Context) {
         val LENGTHS = listOf(5, 15, 30, 60)
         val REASONS = listOf("Interview or call", "Urgent message", "Directions")
         private const val KEY_DAILY = "dailyMinutes"
-        private const val KEY_APPS = "allowedApps"
         private const val KEY_USES = "uses"
         private const val SEPARATOR = "|"
 
-        /** Google's phone, messages, maps, clock, calendar and authenticator; banking apps are added in Settings. */
-        val DEFAULT_APPS = setOf(
-            "com.google.android.dialer", "com.google.android.apps.messaging", "com.google.android.apps.maps",
-            "com.google.android.deskclock", "com.google.android.calendar", "com.google.android.apps.authenticator2",
-            "com.android.server.telecom",
-        )
     }
 }

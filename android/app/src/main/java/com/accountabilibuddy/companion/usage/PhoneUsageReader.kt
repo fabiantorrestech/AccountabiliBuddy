@@ -66,24 +66,44 @@ class PhoneUsageReader(private val context: Context) {
     }
 
     /** The phone's unlocks (pickups) between [from] and [to], oldest first; null without Usage access or before Android 9. */
-    /** The app that came to the front last in the 30 seconds before [to] (null without Usage access or none). */
-    fun foregroundApp(to: Instant = Instant.now()): String? = firstResumedBetween(to.minusSeconds(30), to, last = true)
+    /** The app (and its screen) that came to the front last in the 30 seconds before [to]; null without Usage access or none. */
+    fun foregroundApp(to: Instant = Instant.now()): Pair<String, String?>? = firstResumedBetween(to.minusSeconds(30), to, last = true)
 
-    /** The first app opened within 20 seconds after [unlock] (null without Usage access or none). */
-    fun appAfter(unlock: Instant): String? = firstResumedBetween(unlock, unlock.plusSeconds(20), last = false)
+    /** The first app (and its screen) opened within 20 seconds after [unlock]; null without Usage access or none. */
+    fun appAfter(unlock: Instant): Pair<String, String?>? = firstResumedBetween(unlock, unlock.plusSeconds(20), last = false)
 
-    private fun firstResumedBetween(from: Instant, to: Instant, last: Boolean): String? {
+    /** The screens (activity class names) of [packageName] opened in the last [days] days, for choosing allowed parts. */
+    fun screensOf(packageName: String, days: Long = 10): List<String> {
+        if (!hasAccess()) {
+            return emptyList()
+        }
+
+        val to = Instant.now()
+        val events = context.getSystemService(UsageStatsManager::class.java).queryEvents(to.minusSeconds(days * 86_400).toEpochMilli(), to.toEpochMilli()) ?: return emptyList()
+        val event = UsageEvents.Event()
+        val seen = linkedSetOf<String>()
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED && event.packageName == packageName) {
+                event.className?.let(seen::add)
+            }
+        }
+
+        return seen.toList()
+    }
+
+    private fun firstResumedBetween(from: Instant, to: Instant, last: Boolean): Pair<String, String?>? {
         if (!hasAccess()) {
             return null
         }
 
         val events = context.getSystemService(UsageStatsManager::class.java).queryEvents(from.toEpochMilli(), to.toEpochMilli()) ?: return null
         val event = UsageEvents.Event()
-        var found: String? = null
+        var found: Pair<String, String?>? = null
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
             if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED && event.packageName != context.packageName) {
-                found = event.packageName
+                found = event.packageName to event.className
                 if (!last) {
                     return found
                 }

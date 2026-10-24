@@ -99,6 +99,8 @@ object Refresher {
             com.accountabilibuddy.companion.nudge.Takeover.maybeShow(context, nudgeFocus, clock)
             nudgeAt = WorkStartNudge.nextAt(context, nudgeFocus)
             val running = focus?.running
+            // Hardcore: a session started on another device asks LockMyPhone-Extended for the chosen profile.
+            if (running != null) com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartHardcore(context)
             val pickups = running?.let { app.sync.unlocksSince(it.startedAt)?.size }
             ParkedNotice.check(context, running, pickups, clock)
             val preWork = PreWorkNotice.part(focus, java.time.Instant.now())

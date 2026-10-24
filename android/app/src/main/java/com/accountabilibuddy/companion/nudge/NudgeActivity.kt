@@ -54,7 +54,9 @@ class NudgeActivity : ComponentActivity() {
         }
         setContent {
             CompanionTheme {
-                NudgeCard(store, app.emergency, untilText, parked, bonus, onDone = {
+                NudgeCard(store, app.emergency, untilText, parked, bonus, onEssentials = {
+                    startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.intent(this))
+                }, onDone = {
                     finish()
                     app.refreshSoon()
                 })
@@ -72,7 +74,10 @@ class NudgeActivity : ComponentActivity() {
 }
 
 @Composable
-private fun NudgeCard(store: NudgeStore, emergency: EmergencyStore, untilText: String?, parked: List<String>, bonus: GoalBonus?, onDone: () -> Unit) {
+private fun NudgeCard(
+    store: NudgeStore, emergency: EmergencyStore, untilText: String?, parked: List<String>, bonus: GoalBonus?, onDone: () -> Unit,
+    onEssentials: () -> Unit,
+) {
     // "Not working today" opens a choice: a day off, or the phone for a bit (emergency).
     var menu by remember { mutableStateOf<String?>(null) }
     val zone = ZoneId.systemDefault()
@@ -96,7 +101,7 @@ private fun NudgeCard(store: NudgeStore, emergency: EmergencyStore, untilText: S
     Box(Modifier.fillMaxSize().background(Color(0xFF0B1F1E)), contentAlignment = Alignment.Center) {
         Column(Modifier.fillMaxWidth().padding(28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (menu == MENU_EMERGENCY) {
-                EmergencyChooser(emergency, onStarted = onDone, onBack = { menu = MENU_CHOOSE })
+                EmergencyChooser(emergency, onStarted = { onDone(); onEssentials() }, onBack = { menu = MENU_CHOOSE })
                 return@Column
             }
 
@@ -160,6 +165,9 @@ private fun NudgeCard(store: NudgeStore, emergency: EmergencyStore, untilText: S
                 OutlinedButton(onClick = { save(state.copy(snoozedUntil = now.plusSeconds(GoalBonus.REPEAT_MINUTES * 60L))); onDone() }, modifier = Modifier.fillMaxWidth()) {
                     Text("Not now", color = Color.White)
                 }
+                OutlinedButton(onClick = { onDone(); onEssentials() }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Essentials only", color = Color.White)
+                }
                 TextButton(onClick = { menu = MENU_CHOOSE }, modifier = Modifier.fillMaxWidth()) {
                     Text("Not working today · need my phone", color = Color(0x99FFFFFF))
                 }
@@ -190,6 +198,10 @@ private fun NudgeCard(store: NudgeStore, emergency: EmergencyStore, untilText: S
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(if (needsReason) "Snooze 5 min (needs a reason)" else "Snooze 5 min ($left free left today)", color = Color.White)
+            }
+            // Just the essentials (calls, messages, maps…), without leaving work time behind.
+            OutlinedButton(onClick = { onDone(); onEssentials() }, modifier = Modifier.fillMaxWidth()) {
+                Text("Essentials only", color = Color.White)
             }
             TextButton(onClick = { menu = MENU_CHOOSE }, modifier = Modifier.fillMaxWidth()) {
                 Text("Not working today · need my phone", color = Color(0x99FFFFFF))

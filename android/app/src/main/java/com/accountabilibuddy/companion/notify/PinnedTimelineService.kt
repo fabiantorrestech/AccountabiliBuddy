@@ -39,6 +39,10 @@ class PinnedTimelineService : Service() {
 
     private val screenOn = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == Intent.ACTION_USER_PRESENT) {
+                // During a session on another device or emergency time, unlocking lands on the essentials screen.
+                com.accountabilibuddy.companion.essentials.EssentialsLaunch.onUnlock(applicationContext)
+            }
             scope.launch { Refresher.refresh(applicationContext) }
         }
     }

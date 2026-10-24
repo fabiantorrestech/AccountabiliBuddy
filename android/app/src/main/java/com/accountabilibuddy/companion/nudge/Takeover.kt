@@ -45,7 +45,7 @@ object Takeover {
         val app = context.applicationContext as CompanionApp
         // Emergency time, or unlocked into an always-allowed app (a call, a text, directions): no card.
         val inFront = com.accountabilibuddy.companion.usage.PhoneUsageReader(context).foregroundApp(now)
-        if (app.emergency.isActive(now) || (inFront != null && inFront in app.emergency.allowedApps)) {
+        if (app.emergency.isActive(now) || app.essentialsOnScreen || (inFront != null && app.essentials.isAllowed(inFront.first, inFront.second))) {
             Log.d(TAG, "not shown: emergency or allowed app ($inFront)")
             return
         }
@@ -80,6 +80,9 @@ object Takeover {
      * Opens the card. Android lets an app open a screen from the background only while one of its windows is
      * showing, so with "Display over other apps" a tiny invisible window is put up for that moment, then removed.
      */
+    /** Starts [intent]'s screen from the background (the essentials screen too), the same way. */
+    fun startFromBackground(context: Context, intent: Intent) = open(context, intent)
+
     private fun open(context: Context, intent: Intent) {
         val app = context.applicationContext as CompanionApp
         Handler(Looper.getMainLooper()).post {
