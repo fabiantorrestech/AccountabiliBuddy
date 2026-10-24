@@ -32,7 +32,8 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncAction>? Actions = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<Guid>? Acks = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncRunning? Running = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] System.Text.Json.JsonElement? Events = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] System.Text.Json.JsonElement? Events = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncInputRun>? InputRuns = null)
 {
     public const int CurrentFormatVersion = 1;
 }

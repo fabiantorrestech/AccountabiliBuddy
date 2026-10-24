@@ -514,6 +514,13 @@ public partial class App : Application
             documents, receivedDevices, syncIdentity, sessionTasks, _comebacks!, _stepAway!, time);
         syncActions.LoadBlocking();
         syncCoordinator.Acks = () => syncActions.Acks;
+        // Pickups across PCs (design K): back at this PC during another PC's session, or straight from it during work hours.
+        var pcPickups = new AccountabiliBuddy.App.Services.Sync.PcPickupsService(
+            documents, _sessions, new Win32UserIdleDetector(), receivedDevices, syncIdentity,
+            isGuarded: () => _workHours?.IsGuarding == true, notify: presenter.ShowNotice);
+        pcPickups.LoadBlocking();
+        syncCoordinator.PcPickups = pcPickups;
+        pcPickups.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         // Calendar events in this PC's file too (ADR 26), so the phone's Calendar row stays current on Drive alone.
         syncCoordinator.Events = () => System.Text.Json.JsonSerializer.SerializeToElement(
             AccountabiliBuddy.App.Services.Link.DeviceCalendarEvents.Build(calendars, DateOnly.FromDateTime(time.GetLocalNow().DateTime)));
@@ -553,6 +560,13 @@ public partial class App : Application
             new AccountabiliBuddy.App.Services.Sync.GoogleDriveFiles(_calendarNetwork, googleEndpoints, driveAccount.GetAccessTokenAsync))
         {
             IsSignedIn = () => driveAccount.IsSignedIn,
+            // Every 10 seconds during work parts too, for pickups across PCs (design K).
+            InWorkHours = () =>
+            {
+                DateTime now = time.GetLocalNow().DateTime;
+                return DayTimeline.Planned(_configuration.Current.DayPlan, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)))
+                    .Any(focus => focus.Window.Start <= now && now < focus.Window.End);
+            },
         };
         driveAccount.Changed += (_, _) => _syncDrive.Restart();
 

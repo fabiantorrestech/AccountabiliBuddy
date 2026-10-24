@@ -216,7 +216,8 @@ public sealed class SyncCoordinator
 
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
         return SyncFileBuilder.Build(card, records, drift, _omitted.IsOmitted, id => ProfileOptions.NameOf(profiles, id),
-            _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles), Events = Events?.Invoke() };
+            _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles), Events = Events?.Invoke(),
+                Pickups = PcPickups?.PickupsForOtherPcs(), InputRuns = PcPickups?.InputRunsToday() };
     }
 
     /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
@@ -251,6 +252,9 @@ public sealed class SyncCoordinator
 
         return new SyncRunning(ProfileOptions.NameOf(profiles, state.ProfileId), started, state.PhaseEndsAt, state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak, state.AwaySince);
     }
+
+    /// <summary>This PC's pickups during the other PCs' sessions and today's input stretches (design K); set by the app.</summary>
+    public PcPickupsService? PcPickups { get; set; }
 
     /// <summary>The visible calendars' events for the other devices (ADR 26, the link's shape); set by the app.</summary>
     public Func<JsonElement?>? Events { get; set; }

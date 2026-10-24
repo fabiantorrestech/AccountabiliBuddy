@@ -36,18 +36,35 @@ public sealed class PhonePickups
     /// <summary>E.g. "Phone: not picked up · down 34m" or "Phone: picked up 2× · longest down 18m"; null when nothing came.</summary>
     public string? Describe(DateTimeOffset sessionStart)
     {
+        string? others = DescribeOtherPcs(sessionStart);
         if (For(sessionStart) is not SyncPickup pickup)
         {
-            return null;
+            return others;
         }
 
         string down = SessionStatusFormatter.FormatDuration(TimeSpan.FromMinutes(pickup.LongestDownMinutes));
         string emergency = pickup.EmergencyMinutes > 0
             ? $" · emergency {SessionStatusFormatter.FormatDuration(TimeSpan.FromMinutes(pickup.EmergencyMinutes))}"
             : string.Empty;
-        return pickup.Count == 0
+        string phone = pickup.Count == 0
             ? $"Phone: not picked up · down {down}{emergency}"
             : $"Phone: picked up {pickup.Count}× · longest down {down}{emergency}";
+        return others is null ? phone : $"{phone} · {others}";
+    }
+
+    /// <summary>E.g. "DESK-PC: used 2×" for each other PC that went back to during the session (design K); null for none.</summary>
+    public string? DescribeOtherPcs(DateTimeOffset sessionStart)
+    {
+        Guid me = _identity.DeviceId;
+        List<string> parts = _received.Devices
+            .Where(device => device.File.Device.Kind == SyncDeviceCard.KindPc && device.File.Device.DeviceId != me)
+            .Select(device => (device.File.Device.Name, Pickup: (device.File.Pickups ?? [])
+                .Where(entry => entry.DeviceId == me && (entry.SessionStart - sessionStart).Duration() <= StartTolerance)
+                .MaxBy(entry => entry.CountedUntil)))
+            .Where(entry => entry.Pickup is { Count: > 0 })
+            .Select(entry => $"{entry.Name}: used {entry.Pickup!.Count}×")
+            .ToList();
+        return parts.Count == 0 ? null : string.Join(" · ", parts);
     }
 
     /// <summary>True when the session that started at <paramref name="sessionStart"/> was phone-free (so far).</summary>

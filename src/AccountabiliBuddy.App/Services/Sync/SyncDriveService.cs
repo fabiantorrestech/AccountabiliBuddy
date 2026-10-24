@@ -15,7 +15,7 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// </summary>
 public sealed class SyncDriveService : IDisposable
 {
-    private static readonly TimeSpan BusyPoll = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan BusyPoll = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan IdlePoll = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan OwnChangeDelay = TimeSpan.FromSeconds(5);
 
@@ -56,7 +56,10 @@ public sealed class SyncDriveService : IDisposable
     public Func<bool> IsSignedIn { get; set; } = () => true;
 
     /// <summary>How often it writes and reads now: 20 seconds while a session runs, else 5 minutes.</summary>
-    public TimeSpan PollInterval => _sessions.State.IsActive ? BusyPoll : IdlePoll;
+    public TimeSpan PollInterval => _sessions.State.IsActive || InWorkHours?.Invoke() == true ? BusyPoll : IdlePoll;
+
+    /// <summary>True during the day plan's work parts (polled as often as in a session); set by the app.</summary>
+    public Func<bool>? InWorkHours { get; set; }
 
     public void Start()
     {
