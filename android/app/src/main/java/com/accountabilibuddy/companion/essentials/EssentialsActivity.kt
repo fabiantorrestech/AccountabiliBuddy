@@ -24,20 +24,29 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ArrowDownward
+import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -61,10 +70,12 @@ import java.util.Locale
 
 /**
  * The essentials screen (in LockMyPhone-Extended's style; soft: nothing is blocked): during a session on another device,
- * work time or emergency phone time, unlocking lands here. Black, a big clock and the time left, Phone, the shown
- * folders (open on a tap, shut again when an app opens or the phone locks), the essentials A–Z, and a search that
- * shows nothing until Enter and then only near-exact names ([AppMatch]). Opening anything that isn't an essential
- * still brings the work card back and counts as a pickup.
+ * work time or emergency phone time, unlocking lands here. Black, a big clock and the time left, the shown folders
+ * (open on a tap, shut again when an app opens or the phone locks) and the essentials in the order arranged in
+ * Settings, the Phone shortcut in a bottom corner (or in the list), and a search that shows nothing until Enter and then
+ * only near-exact names ([AppMatch]). With [EXTRA_ARRANGE] it's the same screen with ↑ ↓ on every row, folder and app
+ * inside a folder, and the Phone corner to choose. Opening anything that isn't an essential still brings the work
+ * card back and counts as a pickup.
  */
 class EssentialsActivity : ComponentActivity() {
     // Bumped when the screen goes away (an app opened, the phone locked): folders shut, the search clears.
@@ -73,10 +84,11 @@ class EssentialsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val app = application as CompanionApp
+        val arranging = intent.getBooleanExtra(EXTRA_ARRANGE, false)
         setContent {
             CompanionTheme {
                 androidx.compose.runtime.key(resetKey) {
-                    EssentialsScreen(app, onOpen = ::openApp, onDial = ::dial)
+                    EssentialsScreen(app, arranging, onOpen = ::openApp, onDial = ::dial, onDone = ::finish)
                 }
             }
         }
@@ -104,9 +116,14 @@ class EssentialsActivity : ComponentActivity() {
     }
 
     companion object {
+        const val EXTRA_ARRANGE = "arrange"
+
         /** Opens the essentials screen (from the work card, emergency time, or an unlock during a session). */
         fun intent(context: Context): Intent =
             Intent(context, EssentialsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+
+        /** The same screen to arrange (Settings → Essentials). */
+        fun arrangeIntent(context: Context): Intent = intent(context).putExtra(EXTRA_ARRANGE, true)
     }
 }
 
@@ -124,10 +141,11 @@ fun launchableApps(context: Context, withIcons: Boolean): List<LaunchableApp> {
 }
 
 @Composable
-private fun EssentialsScreen(app: CompanionApp, onOpen: (String) -> Unit, onDial: () -> Unit) {
+private fun EssentialsScreen(app: CompanionApp, arranging: Boolean, onOpen: (String) -> Unit, onDial: () -> Unit, onDone: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val store = app.essentials
-    val essentials = store.essentials.value
+    val essentials by store.essentials.collectAsState()
+    var corner by remember { mutableStateOf(store.phoneCorner) }
     val all = remember { launchableApps(context, store.showIcons) }
     val byPackage = remember(all) { all.associateBy { it.packageName } }
     var now by remember { mutableStateOf(Instant.now()) }
@@ -140,56 +158,97 @@ private fun EssentialsScreen(app: CompanionApp, onOpen: (String) -> Unit, onDial
     var query by remember { mutableStateOf("") }
     var searched by remember { mutableStateOf<String?>(null) }
     val open = remember { mutableStateOf(setOf<String>()) }
-
-    val shownApps = essentials.apps.filter { !it.hidden }.mapNotNull { byPackage[it.packageName] }.sortedBy { it.name.lowercase() }
-    val shownFolders = essentials.folders.filter { it.shown }
+    val keys = essentials.homeKeys { byPackage[it]?.name ?: it }
     val results = searched?.let { text ->
-        Pair(
-            essentials.folders.filter { AppMatch.matches(text, it.name) },
-            all.filter { AppMatch.matches(text, it.name) },
-        )
+        Pair(essentials.folders.filter { AppMatch.matches(text, it.name) }, all.filter { AppMatch.matches(text, it.name) })
     }
+    val moves = if (arranging) Moves(store, keys) else null
 
     Box(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding().imePadding()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
+            if (arranging) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                    Text("Arrange · ↑ ↓ to move", color = Color(0xFF7DD3C0), fontSize = 16.sp, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onDone) { Text("Done", color = Color.White) }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Phone:", color = Color(0xCCFFFFFF))
+                    listOf("left" to "Bottom left", "right" to "Bottom right", "list" to "In the list").forEach { (value, label) ->
+                        FilterChip(selected = corner == value, onClick = { store.phoneCorner = value; corner = value }, label = { Text(label) })
+                    }
+                }
+            }
             Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
                 Text(LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm", Locale.US)), color = Color.White, fontSize = 56.sp, modifier = Modifier.weight(1f))
                 timeLeft(app, now)?.let { Text(it, color = Color(0xCCFFFFFF), fontSize = 16.sp, modifier = Modifier.padding(top = 18.dp)) }
             }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 item { Spacer(Modifier.height(40.dp)) }
-                item { Row(Modifier.fillMaxWidth().clickable(onClick = onDial).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Call, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
-                    Spacer(Modifier.size(14.dp))
-                    Text("Phone", color = Color.White, fontSize = 20.sp)
-                } }
-                if (results != null) {
+                if (corner == "list") {
+                    item { PhoneRow(onDial) }
+                }
+                if (results != null && !arranging) {
                     if (results.first.isEmpty() && results.second.isEmpty()) {
                         item { Text("Nothing called \"$searched\". Type its name.", color = Color(0x99FFFFFF), modifier = Modifier.padding(vertical = 12.dp)) }
                     }
-                    results.first.forEach { folder -> folderItems(folder, byPackage, open, onOpen) }
-                    items(results.second, key = { "r-" + it.packageName }) { AppRow(it, onOpen) }
+                    results.first.forEach { folder -> folderItems(folder, byPackage, open, onOpen, null) }
+                    results.second.forEach { found -> item(key = "r-" + found.packageName) { AppRow(found, onOpen, null) } }
                 } else {
-                    shownFolders.forEach { folder -> folderItems(folder, byPackage, open, onOpen) }
-                    items(shownApps, key = { it.packageName }) { AppRow(it, onOpen) }
+                    keys.forEach { key ->
+                        when {
+                            key.startsWith("folder:") -> essentials.folders.firstOrNull { Essentials.folderKey(it.id) == key }
+                                ?.let { folder -> folderItems(folder, byPackage, open, onOpen, moves) }
+                            else -> byPackage[key.removePrefix("app:")]?.let { found ->
+                                item(key = key) { AppRow(found, onOpen, moves?.let { m -> { by: Int -> m.row(key, by) } }) }
+                            }
+                        }
+                    }
                 }
+                item { Spacer(Modifier.height(72.dp)) }
             }
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it; searched = null },
-                singleLine = true,
-                placeholder = { Text("Type an app's name, then Enter", color = Color(0x66FFFFFF)) },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { searched = query.trim().takeIf { it.isNotEmpty() } }),
-                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White),
-                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-            )
+            if (!arranging) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it; searched = null },
+                    singleLine = true,
+                    placeholder = { Text("Type an app's name, then Enter", color = Color(0x66FFFFFF)) },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { searched = query.trim().takeIf { it.isNotEmpty() } }),
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                )
+            }
+        }
+        // The Phone shortcut in a bottom corner, above the search box.
+        if (corner != "list") {
+            Surface(
+                shape = CircleShape, color = Color(0xFF1F2937),
+                modifier = Modifier.align(if (corner == "left") Alignment.BottomStart else Alignment.BottomEnd)
+                    .padding(start = 24.dp, end = 24.dp, bottom = if (arranging) 24.dp else 92.dp).size(60.dp).clickable(onClick = onDial),
+            ) {
+                Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Call, contentDescription = "Phone", tint = Color.White, modifier = Modifier.size(30.dp)) }
+            }
         }
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.folderItems(
-    folder: AppFolder, byPackage: Map<String, LaunchableApp>, open: androidx.compose.runtime.MutableState<Set<String>>, onOpen: (String) -> Unit,
+/** ↑ ↓ for the screen's rows and the apps inside folders (arrange mode). */
+private class Moves(val store: EssentialsStore, val keys: List<String>) {
+    fun row(key: String, by: Int) = store.moveHome(keys, key, by)
+    fun inFolder(folderId: String, packageName: String, by: Int) = store.moveInFolder(folderId, packageName, by)
+}
+
+@Composable
+private fun PhoneRow(onDial: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onDial).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Outlined.Call, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
+        Spacer(Modifier.size(14.dp))
+        Text("Phone", color = Color.White, fontSize = 20.sp)
+    }
+}
+
+private fun LazyListScope.folderItems(
+    folder: AppFolder, byPackage: Map<String, LaunchableApp>, open: MutableState<Set<String>>, onOpen: (String) -> Unit, moves: Moves?,
 ) {
     val expanded = folder.id in open.value
     item(key = "f-" + folder.id) {
@@ -200,25 +259,41 @@ private fun androidx.compose.foundation.lazy.LazyListScope.folderItems(
             Icon(Icons.Outlined.Folder, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
             Spacer(Modifier.size(14.dp))
             Text(folder.name, color = Color.White, fontSize = 20.sp, modifier = Modifier.weight(1f))
+            moves?.let { MoveButtons { by -> it.row(Essentials.folderKey(folder.id), by) } }
             Icon(if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, contentDescription = null, tint = Color(0x99FFFFFF), modifier = Modifier.size(28.dp))
         }
     }
     if (expanded) {
-        folder.packages.mapNotNull { byPackage[it] }.sortedBy { it.name.lowercase() }.forEach { inside ->
-            item(key = "f-" + folder.id + "-" + inside.packageName) { Box(Modifier.padding(start = 28.dp)) { AppRow(inside, onOpen) } }
+        // Inside a folder: its own order (arranged here), else A–Z for apps added without arranging.
+        folder.packages.mapNotNull { byPackage[it] }.forEach { inside ->
+            item(key = "f-" + folder.id + "-" + inside.packageName) {
+                Box(Modifier.padding(start = 28.dp)) {
+                    AppRow(inside, onOpen, moves?.let { m -> { by: Int -> m.inFolder(folder.id, inside.packageName, by) } })
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun AppRow(app: LaunchableApp, onOpen: (String) -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable { onOpen(app.packageName) }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun AppRow(app: LaunchableApp, onOpen: (String) -> Unit, onMove: ((Int) -> Unit)?) {
+    Row(
+        Modifier.fillMaxWidth().clickable(enabled = onMove == null) { onOpen(app.packageName) }.padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         app.icon?.let { icon ->
             Image(icon.toBitmap(96, 96).asImageBitmap(), contentDescription = null, modifier = Modifier.size(32.dp))
             Spacer(Modifier.size(14.dp))
         }
-        Text(app.name, color = Color.White, fontSize = 20.sp)
+        Text(app.name, color = Color.White, fontSize = 20.sp, modifier = Modifier.weight(1f))
+        onMove?.let { MoveButtons(it) }
     }
+}
+
+@Composable
+private fun MoveButtons(onMove: (Int) -> Unit) {
+    IconButton(onClick = { onMove(-1) }) { Icon(Icons.Outlined.ArrowUpward, contentDescription = "Move up", tint = Color.White) }
+    IconButton(onClick = { onMove(1) }) { Icon(Icons.Outlined.ArrowDownward, contentDescription = "Move down", tint = Color.White) }
 }
 
 // The time left: the emergency time, else the session on another device (from its sync file), else nothing.

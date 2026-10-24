@@ -25,7 +25,23 @@ data class EssentialApp(val packageName: String, val hidden: Boolean = false, va
 /** A folder of apps: on the essentials screen as a folder that opens on a tap when [shown], else found only by searching its name. */
 data class AppFolder(val id: String, val name: String, val packages: List<String>, val shown: Boolean = true)
 
-data class Essentials(val apps: List<EssentialApp> = emptyList(), val folders: List<AppFolder> = emptyList()) {
+/**
+ * [order]: the essentials screen's order, as "folder:<id>" and "app:<package>" keys (arranged in Settings); shown
+ * folders and visible essentials not in it follow, folders first, then A–Z.
+ */
+data class Essentials(val apps: List<EssentialApp> = emptyList(), val folders: List<AppFolder> = emptyList(), val order: List<String> = emptyList()) {
+    /** The screen's rows in order: shown folders and visible essentials, as keys. */
+    fun homeKeys(nameOf: (String) -> String): List<String> {
+        val shown = folders.filter { it.shown }.map { folderKey(it.id) } +
+            apps.filter { !it.hidden }.sortedBy { nameOf(it.packageName).lowercase() }.map { appKey(it.packageName) }
+        return order.filter { it in shown } + shown.filter { it !in order }
+    }
+
+    companion object {
+        fun folderKey(id: String) = "folder:$id"
+        fun appKey(packageName: String) = "app:$packageName"
+    }
+
     fun isAllowed(packageName: String?, activity: String? = null): Boolean {
         val app = apps.firstOrNull { it.packageName == packageName } ?: return false
         return app.parts == null || activity == null || activity in app.parts
@@ -47,6 +63,11 @@ class EssentialsStore(context: Context) {
     var onUnlockInSession: Boolean
         get() = prefs.getBoolean(KEY_IN_SESSION, true)
         set(value) = prefs.edit().putBoolean(KEY_IN_SESSION, value).apply()
+
+    /** Where the Phone shortcut sits on the essentials screen: "right" (bottom right, the default), "left" or "list". */
+    var phoneCorner: String
+        get() = prefs.getString(KEY_PHONE, "right") ?: "right"
+        set(value) = prefs.edit().putString(KEY_PHONE, value).apply()
 
     /** Icons next to the names (on by default). */
     var showIcons: Boolean
@@ -103,6 +124,7 @@ class EssentialsStore(context: Context) {
                         (o["shown"] as? JsonPrimitive)?.boolean ?: true,
                     )
                 },
+                order = json["order"]?.jsonArray.orEmpty().map { it.jsonPrimitive.content },
             )
         }.getOrDefault(Essentials())
     }
@@ -127,12 +149,34 @@ class EssentialsStore(context: Context) {
                 })
             }
         })
+        put("order", JsonArray(e.order.map { JsonPrimitive(it) }))
+    }
+
+    /** Moves a row of the essentials screen up (-1) or down (+1); [keys] is the screen's order as shown. */
+    fun moveHome(keys: List<String>, key: String, by: Int) {
+        val index = keys.indexOf(key)
+        val target = index + by
+        if (index < 0 || target !in keys.indices) return
+        val moved = keys.toMutableList().apply { add(target, removeAt(index)) }
+        update { it.copy(order = moved) }
+    }
+
+    /** Moves an app inside a folder up (-1) or down (+1). */
+    fun moveInFolder(folderId: String, packageName: String, by: Int) = update { e ->
+        e.copy(folders = e.folders.map { folder ->
+            if (folder.id != folderId) return@map folder
+            val index = folder.packages.indexOf(packageName)
+            val target = index + by
+            if (index < 0 || target !in folder.packages.indices) folder
+            else folder.copy(packages = folder.packages.toMutableList().apply { add(target, removeAt(index)) })
+        })
     }
 
     companion object {
         private const val KEY_DATA = "data"
         private const val KEY_IN_SESSION = "onUnlockInSession"
         private const val KEY_ICONS = "showIcons"
+        private const val KEY_PHONE = "phoneCorner"
         private const val KEY_HARDCORE = "hardcoreProfile"
 
         /** Google's phone, messages, maps, clock, calendar and authenticator; banking apps are added in Settings. */

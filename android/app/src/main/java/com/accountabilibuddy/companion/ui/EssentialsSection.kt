@@ -68,6 +68,11 @@ internal fun EssentialsSection() {
             store.onUnlockInSession = it; onUnlock = it
         }
         ToggleRow("App icons", "Icons next to the names on the essentials screen", icons) { store.showIcons = it; icons = it }
+        // The real screen with ↑ ↓ on every row: the order of apps and folders, apps inside folders, the Phone corner.
+        androidx.compose.material3.Button(
+            onClick = { context.startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.arrangeIntent(context)) },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Arrange the essentials screen") }
 
         // Hardcore: LockMyPhone-Extended really locks the phone for the session.
         Text("Hardcore (LockMyPhone-Extended)", style = MaterialTheme.typography.labelLarge)
