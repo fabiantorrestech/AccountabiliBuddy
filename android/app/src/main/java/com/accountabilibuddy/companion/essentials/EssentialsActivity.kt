@@ -151,15 +151,8 @@ class EssentialsActivity : ComponentActivity() {
 /** A launchable app: package, name, icon (null until loaded or with icons off). */
 data class LaunchableApp(val packageName: String, val name: String, val icon: Drawable?)
 
-/** Every app with a launcher entry, named, A–Z (this app left out). */
-fun launchableApps(context: Context, withIcons: Boolean): List<LaunchableApp> {
-    val pm = context.packageManager
-    return pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), PackageManager.MATCH_ALL)
-        .filter { it.activityInfo.packageName != context.packageName }
-        .distinctBy { it.activityInfo.packageName }
-        .map { LaunchableApp(it.activityInfo.packageName, it.loadLabel(pm).toString(), if (withIcons) it.loadIcon(pm) else null) }
-        .sortedBy { it.name.lowercase() }
-}
+/** Whether rows show app icons (Settings → Essentials → App icons). */
+private val LocalShowIcons = androidx.compose.runtime.compositionLocalOf { true }
 
 @Composable
 private fun EssentialsScreen(app: CompanionApp, arranging: Boolean, onOpen: (String) -> Unit, onDial: () -> Unit, onDone: () -> Unit, testUntil: Instant? = null) {
@@ -167,8 +160,11 @@ private fun EssentialsScreen(app: CompanionApp, arranging: Boolean, onOpen: (Str
     val store = app.essentials
     val essentials by store.essentials.collectAsState()
     var corner by remember { mutableStateOf(store.phoneCorner) }
-    val all = remember { launchableApps(context, store.showIcons) }
+    // Read off the main thread (it froze the screen); the clock and the Phone button show at once.
+    var all by remember { mutableStateOf(emptyList<LaunchableApp>()) }
+    LaunchedEffect(Unit) { all = AppCatalog.apps(context) }
     val byPackage = remember(all) { all.associateBy { it.packageName } }
+    val showIcons = remember { store.showIcons }
     var now by remember { mutableStateOf(Instant.now()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -180,9 +176,11 @@ private fun EssentialsScreen(app: CompanionApp, arranging: Boolean, onOpen: (Str
     val open = remember { mutableStateOf(setOf<String>()) }
     val keys = essentials.homeKeys { byPackage[it]?.name ?: it }
     val moves = if (arranging) Moves(store, keys) else null
-    // Hidden apps never show on the screen, not even inside a folder: only the search finds them.
+    // Hidden apps never show on the screen, not even inside a folder: only the search finds them. Only essentials show.
     val hidden = essentials.apps.filter { it.hidden }.map { it.packageName }.toSet()
+    val essentialPackages = essentials.apps.map { it.packageName }.toSet()
 
+    androidx.compose.runtime.CompositionLocalProvider(LocalShowIcons provides showIcons) {
     Box(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding().imePadding()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
             if (arranging) {
@@ -209,7 +207,7 @@ private fun EssentialsScreen(app: CompanionApp, arranging: Boolean, onOpen: (Str
                 keys.forEach { key ->
                     when {
                         key.startsWith("folder:") -> essentials.folders.firstOrNull { Essentials.folderKey(it.id) == key }
-                            ?.let { folder -> folderItems(folder, byPackage, open, onOpen, moves, hidden) }
+                            ?.let { folder -> folderItems(folder, byPackage, open, onOpen, moves, hidden, essentialPackages) }
                         else -> byPackage[key.removePrefix("app:")]?.let { found ->
                             item(key = key) { AppRow(found, onOpen, moves?.let { m -> { by: Int -> m.row(key, by) } }) }
                         }
@@ -242,13 +240,15 @@ private fun EssentialsScreen(app: CompanionApp, arranging: Boolean, onOpen: (Str
             } else {
                 SearchBand(
                     folders = essentials.folders,
-                    apps = all,
+                    // Only your essentials (hidden ones included) and folders: anything else isn't on this screen.
+                    apps = all.filter { it.packageName in essentialPackages },
                     onOpenFolder = { folder -> open.value = open.value + folder.id; searching = false },
                     onOpen = onOpen,
                     onCancel = { searching = false },
                 )
             }
         }
+    }
     }
 }
 
@@ -331,7 +331,7 @@ private fun PhoneRow(onDial: () -> Unit) {
 
 private fun LazyListScope.folderItems(
     folder: AppFolder, byPackage: Map<String, LaunchableApp>, open: MutableState<Set<String>>, onOpen: (String) -> Unit, moves: Moves?,
-    hidden: Set<String>,
+    hidden: Set<String>, essentials: Set<String>,
 ) {
     val expanded = folder.id in open.value
     item(key = "f-" + folder.id) {
@@ -348,7 +348,7 @@ private fun LazyListScope.folderItems(
     }
     if (expanded) {
         // Inside a folder: its own order (arranged here), else A–Z for apps added without arranging.
-        folder.packages.filter { it !in hidden }.mapNotNull { byPackage[it] }.forEach { inside ->
+        folder.packages.filter { it in essentials && it !in hidden }.mapNotNull { byPackage[it] }.forEach { inside ->
             item(key = "f-" + folder.id + "-" + inside.packageName) {
                 Box(Modifier.padding(start = 28.dp)) {
                     AppRow(inside, onOpen, moves?.let { m -> { by: Int -> m.inFolder(folder.id, inside.packageName, by) } })
@@ -364,8 +364,13 @@ private fun AppRow(app: LaunchableApp, onOpen: (String) -> Unit, onMove: ((Int) 
         Modifier.fillMaxWidth().clickable(enabled = onMove == null) { onOpen(app.packageName) }.padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        app.icon?.let { icon ->
-            Image(icon.toBitmap(96, 96).asImageBitmap(), contentDescription = null, modifier = Modifier.size(32.dp))
+        if (LocalShowIcons.current) {
+            // Loaded off the main thread as the row shows.
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val icon by androidx.compose.runtime.produceState<android.graphics.drawable.Drawable?>(null, app.packageName) { value = AppCatalog.icon(context, app.packageName) }
+            Box(Modifier.size(32.dp)) {
+                icon?.let { Image(it.toBitmap(96, 96).asImageBitmap(), contentDescription = null, modifier = Modifier.size(32.dp)) }
+            }
             Spacer(Modifier.size(14.dp))
         }
         Text(app.name, color = Color.White, fontSize = 20.sp, modifier = Modifier.weight(1f))

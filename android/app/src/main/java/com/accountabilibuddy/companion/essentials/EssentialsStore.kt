@@ -30,10 +30,11 @@ data class AppFolder(val id: String, val name: String, val packages: List<String
  * folders and visible essentials not in it follow, folders first, then A–Z.
  */
 data class Essentials(val apps: List<EssentialApp> = emptyList(), val folders: List<AppFolder> = emptyList(), val order: List<String> = emptyList()) {
-    /** The screen's rows in order: shown folders and visible essentials, as keys. */
+    /** The screen's rows in order: shown folders and visible essentials that aren't in a folder, as keys. */
     fun homeKeys(nameOf: (String) -> String): List<String> {
+        val inFolders = folders.flatMap { it.packages }.toSet()
         val shown = folders.filter { it.shown }.map { folderKey(it.id) } +
-            apps.filter { !it.hidden }.sortedBy { nameOf(it.packageName).lowercase() }.map { appKey(it.packageName) }
+            apps.filter { !it.hidden && it.packageName !in inFolders }.sortedBy { nameOf(it.packageName).lowercase() }.map { appKey(it.packageName) }
         return order.filter { it in shown } + shown.filter { it !in order }
     }
 
@@ -107,7 +108,17 @@ class EssentialsStore(context: Context) {
 
     fun setAllowed(packageName: String, on: Boolean) = update { e ->
         if (on) e.copy(apps = e.apps.filterNot { it.packageName == packageName } + EssentialApp(packageName))
-        else e.copy(apps = e.apps.filterNot { it.packageName == packageName })
+        // No longer an essential: out of its folder too.
+        else e.copy(apps = e.apps.filterNot { it.packageName == packageName }, folders = e.folders.map { it.copy(packages = it.packages - packageName) })
+    }
+
+    /** Puts an app in [folderId] (out of any other; null = no folder). An app in a folder is an essential. */
+    fun setFolder(packageName: String, folderId: String?) = update { e ->
+        val apps = if (folderId != null && e.apps.none { it.packageName == packageName }) e.apps + EssentialApp(packageName) else e.apps
+        e.copy(apps = apps, folders = e.folders.map { f ->
+            val without = f.packages - packageName
+            if (f.id == folderId) f.copy(packages = without + packageName) else f.copy(packages = without)
+        })
     }
 
     fun setHidden(packageName: String, hidden: Boolean) = update { e -> e.copy(apps = e.apps.map { if (it.packageName == packageName) it.copy(hidden = hidden) else it }) }

@@ -36,7 +36,6 @@ import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.essentials.AppFolder
 import com.accountabilibuddy.companion.essentials.EssentialsLaunch
 import com.accountabilibuddy.companion.essentials.ProfileSync
-import com.accountabilibuddy.companion.essentials.launchableApps
 import com.accountabilibuddy.companion.usage.PhoneUsageReader
 import java.util.UUID
 
@@ -52,7 +51,8 @@ internal fun EssentialsSection() {
     val app = context.applicationContext as CompanionApp
     val store = app.essentials
     val essentials by store.essentials.collectAsState()
-    val all = remember { launchableApps(context, withIcons = false) }
+    var all by remember { mutableStateOf(emptyList<com.accountabilibuddy.companion.essentials.LaunchableApp>()) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { all = com.accountabilibuddy.companion.essentials.AppCatalog.apps(context, refresh = true) }
     val firstOrder = remember { store.essentials.value.apps.map { it.packageName }.toSet() }
     var search by remember { mutableStateOf("") }
     var onUnlock by remember { mutableStateOf(store.onUnlockInSession) }
@@ -125,13 +125,18 @@ internal fun EssentialsSection() {
             }) { Text("Add") }
         }
 
-        // Apps: the ticked ones first, then the rest.
+        // Apps: your essentials, then (only while searching) other apps to add. Listing every app at once was slow.
         Text("Apps", style = MaterialTheme.typography.labelLarge)
-        OutlinedTextField(value = search, onValueChange = { search = it }, singleLine = true, label = { Text("Find an app") }, modifier = Modifier.fillMaxWidth())
-        val filtered = all.filter { search.isBlank() || it.name.contains(search, ignoreCase = true) || it.packageName.contains(search, ignoreCase = true) }
-        val (first, rest) = filtered.partition { it.packageName in firstOrder }
-        Text("${essentials.apps.size} selected", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        (first + listOf(null) + rest).forEach { item ->
+        OutlinedTextField(value = search, onValueChange = { search = it }, singleLine = true, label = { Text("Find an app to add") }, modifier = Modifier.fillMaxWidth())
+        val selected = essentials.apps.map { it.packageName }.toSet() + firstOrder
+        val first = all.filter { it.packageName in selected && (search.isBlank() || it.name.contains(search, ignoreCase = true)) }
+        val rest = if (search.isBlank()) emptyList()
+        else all.filter { it.packageName !in selected && (it.name.contains(search, ignoreCase = true) || it.packageName.contains(search, ignoreCase = true)) }.take(30)
+        Text(
+            if (all.isEmpty()) "Loading apps…" else "${essentials.apps.size} selected" + if (search.isBlank()) " · type above to add more" else "",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        (first + (if (rest.isEmpty()) emptyList() else listOf(null)) + rest).forEach { item ->
             if (item == null) {
                 HorizontalDivider()
                 Text("Other apps", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -152,14 +157,8 @@ internal fun EssentialsSection() {
                         )
                         if (notes.isNotEmpty()) Text(notes.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    FolderMenu(essentials.folders, folder) { chosen ->
-                        store.update { e ->
-                            e.copy(folders = e.folders.map { f ->
-                                val without = f.packages - item.packageName
-                                if (f.id == chosen?.id) f.copy(packages = without + item.packageName) else f.copy(packages = without)
-                            })
-                        }
-                    }
+                    // Putting an app in a folder makes it an essential.
+                    FolderMenu(essentials.folders, folder) { chosen -> store.setFolder(item.packageName, chosen?.id) }
                     if (entry != null) {
                         IconButton(onClick = { store.setHidden(item.packageName, !entry.hidden) }) {
                             Icon(if (entry.hidden) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
