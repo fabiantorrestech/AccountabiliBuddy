@@ -52,7 +52,7 @@ object Refresher {
             val app = context.applicationContext as CompanionApp
             app.refreshWakeAlarm()
             val state = app.store.state.value
-            val clock = ClockFormat(DateFormat.is24HourFormat(context))
+            val clock = ClockFormat(is24Hour = false) /* always 12-hour AM/PM (project convention) */
             val now = LocalDateTime.now()
 
             if (isSeen(context)) {

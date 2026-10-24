@@ -20,6 +20,9 @@ public static class Program
             .OnBeforeUninstallFastCallback(_ => UninstallCleanup.Run())
             .Run();
 
+        // Times are always 12-hour with AM/PM, whatever the Windows region's clock (project convention).
+        AccountabiliBuddy.App.Services.TwelveHourClock.Apply();
+
         StartupOptions options = StartupOptions.Parse(args);
 
         using SingleInstanceGuard? guard = options.Restarted

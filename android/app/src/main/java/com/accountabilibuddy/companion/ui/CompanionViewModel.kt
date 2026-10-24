@@ -90,7 +90,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     /** Runs only while the app is on screen; the notification and widget have their own refresh. */
     private var ticker: Job? = null
 
-    val clock = ClockFormat(DateFormat.is24HourFormat(application))
+    val clock = ClockFormat(is24Hour = false) /* always 12-hour AM/PM (project convention) */
     private val builder = DayBarBuilder(clock)
     val state: StateFlow<CompanionState> = store.state
 

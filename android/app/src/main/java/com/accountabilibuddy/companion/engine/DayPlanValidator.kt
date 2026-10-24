@@ -13,7 +13,7 @@ import java.util.Locale
  */
 object DayPlanValidator {
     private const val SHORTEST_PART_MINUTES = 15
-    private val clock = DateTimeFormatter.ofPattern("HH:mm")
+    private val clock = DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.US)
     private val dayFormat = DateTimeFormatter.ofPattern("EEE d MMM", Locale.getDefault())
 
     /** Null when fine; otherwise what's wrong, e.g. "Work 12:00–13:00 overlaps Lunch 12:30–13:30." */

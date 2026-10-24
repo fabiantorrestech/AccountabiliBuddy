@@ -625,7 +625,7 @@ public sealed partial class HistoryViewModel : ObservableObject
         _gapSessionEnd = end;
         DateTime localStart = LocalOf(row.StartedAt);
         DateTime localEnd = LocalOf(end);
-        GapFormTitle = $"Distracted time in {row.Title} · {localStart:ddd M/d t} – {localEnd:t}";
+        GapFormTitle = $"Distracted time in {row.Title} · {localStart:ddd M/d h:mm tt} – {localEnd:t}";
         GapRows.Clear();
         foreach (SessionGap gap in _gaps.GapsOf(row.StartedAt))
         {

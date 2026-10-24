@@ -10,7 +10,7 @@ public sealed record MonitorActivityRow(string MonitorId, string ProcessName, st
     public static MonitorActivityRow From(ActivitySnapshot snapshot)
     {
         string processName = snapshot.IsEmptyDesktop ? EmptyDesktopLabel : snapshot.ProcessName;
-        string time = snapshot.Timestamp.ToLocalTime().ToString("HH:mm:ss");
+        string time = snapshot.Timestamp.ToLocalTime().ToString("h:mm:ss tt");
         return new MonitorActivityRow(snapshot.MonitorId, processName, snapshot.WindowTitle, time);
     }
 

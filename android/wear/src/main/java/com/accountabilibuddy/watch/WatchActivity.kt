@@ -52,7 +52,8 @@ import java.time.ZoneId
 class WatchActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        use24HourClock = DateFormat.is24HourFormat(this)
+        // Always 12-hour AM/PM (project convention), whatever the watch's setting.
+        use24HourClock = false
         val snapshots = SnapshotStore.snapshot(this)
         setContent {
             MaterialTheme {

@@ -96,7 +96,7 @@
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
                             <TextBlock Text="or pick" VerticalAlignment="Center" Opacity="0.6" FontSize="12" />
-                            <TimePicker SelectedTime="{Binding PickerTime}" MinuteIncrement="5" />
+                            <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding PickerTime}" MinuteIncrement="5" />
                         </StackPanel>
                         <TextBlock Text="{Binding UntilError}" IsVisible="{Binding HasUntilError}" Foreground="#E76F51"
                                    HorizontalAlignment="Right" TextWrapping="Wrap" />

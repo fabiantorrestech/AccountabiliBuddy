@@ -325,11 +325,11 @@
                                 </StackPanel>
                                 <StackPanel Spacing="2" Margin="0,0,12,6">
                                     <TextBlock Text="Start" FontSize="12" Opacity="0.75" />
-                                    <TimePicker SelectedTime="{Binding FormStart}" MinuteIncrement="5" />
+                                    <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding FormStart}" MinuteIncrement="5" />
                                 </StackPanel>
                                 <StackPanel Spacing="2" Margin="0,0,12,6">
                                     <TextBlock Text="End (before the start = the next day)" FontSize="12" Opacity="0.75" />
-                                    <TimePicker SelectedTime="{Binding FormEnd}" MinuteIncrement="5" />
+                                    <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding FormEnd}" MinuteIncrement="5" />
                                 </StackPanel>
                             </WrapPanel>
                             <TextBox Text="{Binding FormNote}" Watermark="Note (optional), e.g. Read the design doc at the library" />
@@ -353,9 +353,9 @@
                                     <DataTemplate x:DataType="vm:GapRowViewModel">
                                         <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
                                             <TextBlock Text="From" VerticalAlignment="Center" />
-                                            <TimePicker SelectedTime="{Binding From}" MinuteIncrement="1" />
+                                            <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding From}" MinuteIncrement="1" />
                                             <TextBlock Text="to" VerticalAlignment="Center" />
-                                            <TimePicker SelectedTime="{Binding To}" MinuteIncrement="1" />
+                                            <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding To}" MinuteIncrement="1" />
                                             <Button Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this stretch" Padding="8,2" />
                                         </StackPanel>
                                     </DataTemplate>

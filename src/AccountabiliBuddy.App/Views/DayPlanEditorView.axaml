@@ -26,9 +26,9 @@
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
                         </ComboBox>
-                        <TimePicker Grid.Column="3" SelectedTime="{Binding Start}" MinuteIncrement="15" MinWidth="0" Width="196" />
+                        <TimePicker ClockIdentifier="12HourClock" Grid.Column="3" SelectedTime="{Binding Start}" MinuteIncrement="15" MinWidth="0" Width="196" />
                         <TextBlock Grid.Column="4" Text="–" VerticalAlignment="Center" />
-                        <TimePicker Grid.Column="5" SelectedTime="{Binding End}" MinuteIncrement="15" MinWidth="0" Width="196" />
+                        <TimePicker ClockIdentifier="12HourClock" Grid.Column="5" SelectedTime="{Binding End}" MinuteIncrement="15" MinWidth="0" Width="196" />
                         <Button Grid.Column="6" Content="✕" ToolTip.Tip="Delete this part" Command="{Binding DeleteCommand}" />
                     </Grid>
                     <!-- A flexible break (e.g. lunch): the times are the window; it starts when you press Start lunch. -->
@@ -38,7 +38,7 @@
                         <NumericUpDown Value="{Binding FlexMinutes}" Minimum="15" Maximum="240" Increment="15" FormatString="0" Width="110"
                                        IsEnabled="{Binding IsFlexible}" />
                         <TextBlock Text="min · hint at" VerticalAlignment="Center" IsVisible="{Binding IsFlexible}" />
-                        <TimePicker SelectedTime="{Binding HintAt}" MinuteIncrement="15" MinWidth="0" Width="196" IsVisible="{Binding IsFlexible}" />
+                        <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding HintAt}" MinuteIncrement="15" MinWidth="0" Width="196" IsVisible="{Binding IsFlexible}" />
                     </StackPanel>
                     </StackPanel>
                 </DataTemplate>

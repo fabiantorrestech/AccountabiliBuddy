@@ -224,7 +224,7 @@ public sealed partial class UnlockViewModel : ObservableObject
 
         return local.Date == today ? local.ToString("t")
             : local.Date == today.AddDays(1) ? $"tomorrow {local:t}"
-            : local.ToString("ddd d MMM, t");
+            : local.ToString("ddd d MMM, h:mm tt");
     }
 
     private static string FormatWait(TimeSpan wait)

@@ -394,7 +394,7 @@ public sealed partial class ProfilesViewModel : ObservableObject
         foreach (AccountabiliBuddy.Core.Link.PairedDevice device in devices.OrderBy(device => device.PairedAt))
         {
             string seen = connected.Contains(device.Id) ? "connected now"
-                : device.LastSeenAt is DateTimeOffset at ? $"last seen {at.ToLocalTime():ddd d MMM, t}"
+                : device.LastSeenAt is DateTimeOffset at ? $"last seen {at.ToLocalTime():ddd d MMM, h:mm tt}"
                 : "not seen yet";
             LinkedDevices.Add(new DeviceProfilesRowViewModel(device.Id, device.Name, $"{names.Count} profiles (this PC's, synced) · {seen}", names)
             {

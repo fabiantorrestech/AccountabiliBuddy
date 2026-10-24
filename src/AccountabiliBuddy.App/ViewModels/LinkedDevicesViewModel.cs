@@ -174,7 +174,7 @@ public sealed partial class LinkedDevicesViewModel : ObservableObject, IDisposab
         foreach (PairedDevice device in _link.Devices.OrderBy(device => device.PairedAt))
         {
             string when = connected.Contains(device.Id) ? "connected now"
-                : device.LastSeenAt is DateTimeOffset seen ? $"last seen {seen.ToLocalTime():ddd d MMM, t}"
+                : device.LastSeenAt is DateTimeOffset seen ? $"last seen {seen.ToLocalTime():ddd d MMM, h:mm tt}"
                 : "not seen yet";
             Devices.Add(new LinkedDeviceRowViewModel(device.Id, device.Name, $"{device.Kind} · {when}", device.Kind == "watch" ? "⌚" : "📱"));
         }
