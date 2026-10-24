@@ -80,7 +80,9 @@ object DayHeader {
         if (night != null && !now.isBefore(night.start) && now.isBefore(night.end)) {
             val wake = wakeText(night, input, clock)
             val beforeMidnight = now.toLocalDate() == night.start.toLocalDate() && night.start.hour >= 12
-            return HeaderText(if (beforeMidnight) "Past bedtime · up $wake" else "Sleep · up $wake", "")
+            val label = if (beforeMidnight) "Past bedtime" else "Sleep"
+            // A live count of the sleep left if you go now: counts down to the wake time.
+            return HeaderText("$label · up $wake", "", night.end.atZone(input.zone).toInstant(), "$label · %s of sleep if you go now · up $wake")
         }
 
         val watch = input.parts.filter { it.category.behavior.isWork }
@@ -101,8 +103,11 @@ object DayHeader {
         }
 
         val bedtimeIn = night?.takeIf { now.isBefore(it.start) }?.let { Duration.between(now, it.start) }
-        if (bedtimeIn != null && bedtimeIn <= SOON) {
-            return HeaderText("Bedtime in ${minutesText(bedtimeIn)}", "")
+        if (night != null && bedtimeIn != null && bedtimeIn <= SOON) {
+            // Close to bedtime: the sleep you'd get if you went now, counting down live to the wake time.
+            val wake = wakeText(night, input, clock)
+            return HeaderText("Bedtime in ${minutesText(bedtimeIn)}", "", night.end.atZone(input.zone).toInstant(),
+                "Bedtime in ${minutesText(bedtimeIn)} · %s of sleep if you go now · up $wake")
         }
 
         watch.firstOrNull { it.window.start.isAfter(now) && it.window.start.toLocalDate() == today }?.let { next ->
