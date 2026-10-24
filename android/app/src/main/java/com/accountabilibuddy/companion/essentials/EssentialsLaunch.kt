@@ -18,7 +18,9 @@ import java.time.Instant
  */
 object EssentialsLaunch {
     private const val TAG = "Essentials"
-    private const val LMP_PACKAGE = "com.fabiantorrestech.lockmyphone_extended"
+    /** LockMyPhone-Extended's package. */
+    const val LOCK_MY_PHONE = "com.fabiantorrestech.lockmyphone_extended"
+    private const val LMP_PACKAGE = LOCK_MY_PHONE
     private const val LMP_START = "$LMP_PACKAGE.action.START_LOCK"
     private const val PREFS = "essentials-launch"
     private const val KEY_HARDCORE_FOR = "hardcoreFor"

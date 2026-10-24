@@ -40,21 +40,44 @@ import com.accountabilibuddy.companion.model.MatchTarget
 import com.accountabilibuddy.companion.model.RuleVerdict
 
 /**
- * The PC's profiles (read only for now): colour and rules. Tap to see the rules. Once a PC
- * is linked they're grouped by device: the PC (profile count, what it's running, when they synced), then this phone,
- * which uses the PC's profiles for now.
+ * Profiles by device, read only: this phone first with what actually guards it ([PhoneGuards]: Curbox, LockMyPhone,
+ * essentials, emergency time, the work card), then the PC's profiles (colour and rules; tap to see the rules; profile
+ * count, what it's running, when they synced).
  */
 @Composable
-fun ProfilesScreen(state: CompanionState, clock: ClockFormat, pcName: String? = null, pcState: PcState? = null, deviceName: String = "This phone") {
-    if (state.document.profiles.isEmpty()) {
-        Text("No profiles yet. Link the PC or import a backup from it in Settings.", modifier = Modifier.padding(16.dp))
-        return
-    }
-
+fun ProfilesScreen(
+    state: CompanionState,
+    clock: ClockFormat,
+    pcName: String? = null,
+    pcState: PcState? = null,
+    deviceName: String = "This phone",
+    curbox: com.accountabilibuddy.companion.curbox.CurboxStatus = com.accountabilibuddy.companion.curbox.CurboxStatus(),
+) {
     var pcExpanded by remember { mutableStateOf(true) }
-    var phoneExpanded by remember { mutableStateOf(false) }
+    var phoneExpanded by remember { mutableStateOf(true) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val guards = remember(curbox) { PhoneGuards.read(context, curbox) }
     val profiles = state.document.profiles
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // This phone first: what actually guards it.
+        item {
+            DeviceRow(
+                title = "$deviceName (this phone)",
+                icon = Icons.Outlined.Smartphone,
+                detail = PhoneGuards.summary(guards),
+                expanded = phoneExpanded,
+                onToggle = { phoneExpanded = !phoneExpanded },
+            )
+        }
+        if (phoneExpanded) {
+            item { PhoneGuardCards(guards, pcName) }
+        }
+
+        if (profiles.isEmpty()) {
+            item { Text("No PC profiles yet. Link the PC or import a backup from it in Settings.", modifier = Modifier.padding(top = 8.dp)) }
+            return@LazyColumn
+        }
+
         if (pcName == null) {
             item {
                 Text(
@@ -87,25 +110,6 @@ fun ProfilesScreen(state: CompanionState, clock: ClockFormat, pcName: String? = 
             }
         }
 
-        item {
-            DeviceRow(
-                title = "$deviceName (this phone)",
-                icon = Icons.Outlined.Smartphone,
-                detail = "uses $pcName's profiles",
-                expanded = phoneExpanded,
-                onToggle = { phoneExpanded = !phoneExpanded },
-            )
-        }
-        if (phoneExpanded) {
-            items(profiles, key = { "phone-${it.id}" }) { profile ->
-                Text(
-                    profile.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 28.dp),
-                )
-            }
-        }
     }
 }
 

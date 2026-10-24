@@ -180,6 +180,7 @@ fun MainScreen(
                     pcName = pairedPc?.pcName,
                     pcState = (linkStatus as? LinkStatus.Connected)?.state,
                     deviceName = viewModel.deviceName,
+                    curbox = curbox,
                 )
                 2 -> DevicesScreen(
                     devices = DevicesState(
