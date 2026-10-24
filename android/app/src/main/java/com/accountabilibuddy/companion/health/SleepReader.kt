@@ -6,6 +6,7 @@ import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
+import com.accountabilibuddy.companion.engine.SleepPieces
 import com.accountabilibuddy.companion.model.LocalWindow
 import java.time.Duration
 import java.time.Instant
@@ -32,11 +33,26 @@ class SleepReader(private val context: Context) {
             timeRangeFilter = TimeRangeFilter.between(now.minus(Duration.ofDays(21)), now),
         )
         val zone = ZoneId.systemDefault()
+        fun local(at: Instant) = LocalDateTime.ofInstant(at, zone)
         return client().readRecords(request).records
-            .map { LocalWindow(LocalDateTime.ofInstant(it.startTime, zone), LocalDateTime.ofInstant(it.endTime, zone)) }
+            .flatMap { record ->
+                // Awake stretches inside a session (e.g. up at 5:30, asleep again at 6:00) split it (SleepPieces).
+                val awake = record.stages
+                    .filter { it.stage in AWAKE_STAGES }
+                    .map { LocalWindow(local(it.startTime), local(it.endTime)) }
+                SleepPieces.split(LocalWindow(local(record.startTime), local(record.endTime)), awake)
+            }
             .filter { it.end.isAfter(it.start) }
             .sortedBy { it.start }
     }
 
     private fun client(): HealthConnectClient = HealthConnectClient.getOrCreate(context)
+
+    private companion object {
+        val AWAKE_STAGES = setOf(
+            SleepSessionRecord.STAGE_TYPE_AWAKE,
+            SleepSessionRecord.STAGE_TYPE_AWAKE_IN_BED,
+            SleepSessionRecord.STAGE_TYPE_OUT_OF_BED,
+        )
+    }
 }
