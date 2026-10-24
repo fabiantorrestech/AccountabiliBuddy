@@ -22,6 +22,8 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.launch
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -70,11 +72,22 @@ internal fun EssentialsSection() {
             store.onUnlockInSession = it; onUnlock = it
         }
         ToggleRow("App icons", "Icons next to the names on the essentials screen", icons) { store.showIcons = it; icons = it }
-        // The screen as it is in a session, for one minute (it closes by itself).
+        // What a session will look like, for one minute: LockMyPhone-Extended's real lock with the chosen profile when
+        // it's used (that's the lock a session gets), else this app's essentials screen (it closes by itself).
+        val lmpTest = useLmp && hardcore.isNotBlank() && EssentialsLaunch.lockMyPhoneInstalled(context)
         androidx.compose.material3.OutlinedButton(
-            onClick = { context.startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.testIntent(context)) },
+            onClick = {
+                if (lmpTest) EssentialsLaunch.startTestLock(context, hardcore)
+                else context.startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.testIntent(context))
+            },
             modifier = Modifier.fillMaxWidth(),
-        ) { Text("Try the essentials screen for 1 minute") }
+        ) { Text(if (lmpTest) "Try LockMyPhone-Extended's \"$hardcore\" lock for 1 minute" else "Try the essentials screen for 1 minute") }
+        if (lmpTest) {
+            Text(
+                "Asks LockMyPhone-Extended for a 1-minute lock with that profile. It won't start while a stronger lock (schedule, NFC, place…) runs, and a Limited profile gives free use first.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         // The real screen with ↑ ↓ on every row: the order of apps and folders, apps inside folders, the Phone corner.
         androidx.compose.material3.Button(
             onClick = { context.startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.arrangeIntent(context)) },
@@ -88,9 +101,10 @@ internal fun EssentialsSection() {
             "Off: AccountabiliBuddy never starts its profiles or keeps its \"${ProfileSync.PROFILE_NAME}\" profile in step",
             useLmp,
         ) { store.useLockMyPhone = it; useLmp = it }
-        if (useLmp) OutlinedTextField(
-            value = hardcore, onValueChange = { hardcore = it; store.hardcoreProfile = it }, singleLine = true,
-            label = { Text("Its profile to start for each session (empty = off)") }, modifier = Modifier.fillMaxWidth(),
+        LockMyPhoneProfilePicker(
+            selected = hardcore.ifBlank { null },
+            enabled = useLmp,
+            onPick = { name -> hardcore = name.orEmpty(); store.hardcoreProfile = name },
         )
         Text(
             if (EssentialsLaunch.lockMyPhoneInstalled(context)) "When a session starts on another device, LockMyPhone-Extended starts that profile for the session's length; it decides what's allowed. Its \"${ProfileSync.PROFILE_NAME}\" profile always allows exactly these essentials."
@@ -220,4 +234,50 @@ private fun screenLabel(className: String): String {
     val name = parts.lastOrNull().orEmpty()
     val parent = parts.dropLast(1).lastOrNull()
     return if (parent != null) "$name (…$parent)" else name
+}
+
+/**
+ * The LockMyPhone-Extended profile to start for each session: a dropdown of its profiles (read from it), greyed out
+ * while LockMyPhone-Extended isn't used, with a refresh for profiles made since. Too old a LockMyPhone-Extended to
+ * list them: the current name stays and it says to update.
+ */
+@Composable
+private fun LockMyPhoneProfilePicker(selected: String?, enabled: Boolean, onPick: (String?) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var names by remember { mutableStateOf<List<String>?>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var open by remember { mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    fun reload() = scope.launch {
+        loading = true
+        names = com.accountabilibuddy.companion.essentials.LockMyPhoneProfiles.names(context)
+        loading = false
+    }
+    androidx.compose.runtime.LaunchedEffect(Unit) { reload() }
+
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.weight(1f)) {
+            androidx.compose.material3.OutlinedButton(onClick = { open = true }, enabled = enabled && names != null, modifier = Modifier.fillMaxWidth()) {
+                Text(selected?.let { "Profile: $it" } ?: "Profile: none (no lock for sessions)", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                DropdownMenuItem(text = { Text("None (no lock for sessions)") }, onClick = { onPick(null); open = false })
+                names.orEmpty().forEach { name ->
+                    DropdownMenuItem(text = { Text(name) }, onClick = { onPick(name); open = false })
+                }
+            }
+        }
+        IconButton(onClick = { reload() }, enabled = enabled) {
+            Icon(androidx.compose.material.icons.Icons.Outlined.Refresh, contentDescription = "Look for new LockMyPhone-Extended profiles")
+        }
+    }
+    val note = when {
+        !enabled -> null
+        loading -> "Reading LockMyPhone-Extended's profiles…"
+        names == null -> "Update LockMyPhone-Extended to pick from its profiles (it needs to be installed before this app, or reinstall this app after it)."
+        names!!.isEmpty() -> "LockMyPhone-Extended has no profiles yet: make one there, then refresh."
+        selected != null && selected !in names!! -> "\"$selected\" isn't in LockMyPhone-Extended any more: pick another."
+        else -> null
+    }
+    note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
 }

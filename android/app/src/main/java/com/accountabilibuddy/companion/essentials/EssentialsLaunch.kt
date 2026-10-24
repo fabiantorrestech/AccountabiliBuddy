@@ -53,6 +53,13 @@ object EssentialsLaunch {
         Log.i(TAG, "hardcore: asked LockMyPhone-Extended for '$profile' until $endsAt")
     }
 
+    /** Starts a LockMyPhone-Extended lock with [profile] for [minutes] (Settings → Essentials → try it for 1 minute). */
+    fun startTestLock(context: Context, profile: String, minutes: Int = 1) {
+        val intent = Intent(LMP_START).setPackage(LMP_PACKAGE).putExtra("profile", profile).putExtra("duration_min", minutes)
+        runCatching { context.sendBroadcast(intent) }.onFailure { Log.w(TAG, "LockMyPhone-Extended not reached", it) }
+        Log.i(TAG, "test: asked LockMyPhone-Extended for '$profile' for $minutes min")
+    }
+
     /** True when LockMyPhone-Extended is installed. */
     fun lockMyPhoneInstalled(context: Context): Boolean =
         runCatching { context.packageManager.getPackageInfo(LMP_PACKAGE, 0) }.isSuccess

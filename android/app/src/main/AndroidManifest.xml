@@ -33,6 +33,8 @@
         <package android:name="com.google.android.apps.healthdata" />
         <!-- The hardcore profile: LockMyPhone-Extended's public intent API (only asked to start a lock). -->
         <package android:name="com.fabiantorrestech.lockmyphone_extended" />
+        <!-- Its profile names for the hardcore picker (read-only, guarded by its MANAGE_PROFILES permission). -->
+        <provider android:authorities="com.fabiantorrestech.lockmyphone_extended.profiles" />
         <!-- App names for phone use, and home screens to leave out of it. -->
         <intent>
             <action android:name="android.intent.action.MAIN" />
