@@ -104,6 +104,7 @@ class CompanionStore(private val folder: File) {
 
     fun saveSleep(settings: SleepSettings) = synchronized(lock) {
         write(SLEEP, SettingsJson.sleepJson(settings))
+        onSettingsSaved()
         _state.update { it.copy(sleep = settings.copy(alarm = it.sleep.alarm)) }
     }
 
@@ -221,7 +222,11 @@ class CompanionStore(private val folder: File) {
         savePhone()
     }
 
+    /** Called after this phone's own settings are saved (for the auto-backup). */
+    var onSettingsSaved: () -> Unit = {}
+
     private fun savePhone() {
+        onSettingsSaved()
         val state = _state.value
         write(PHONE, buildJsonObject {
             state.importedFrom?.let { put("importedFrom", it) }

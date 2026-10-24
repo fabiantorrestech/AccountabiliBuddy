@@ -31,6 +31,11 @@ class RefreshReceiver : BroadcastReceiver() {
         }
 
         val pending = goAsync()
+        if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            // The app was updated: back up this phone's settings (when a folder is chosen).
+            val app = context.applicationContext as com.accountabilibuddy.companion.CompanionApp
+            if (app.autoBackup.folder != null) runCatching { app.autoBackup.backUpNow("app updated") }
+        }
         CoroutineScope(Dispatchers.Default).launch {
             try {
                 Refresher.refresh(context.applicationContext)

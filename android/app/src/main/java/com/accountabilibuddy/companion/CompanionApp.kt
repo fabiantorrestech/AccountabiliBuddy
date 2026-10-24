@@ -84,6 +84,12 @@ class CompanionApp : Application() {
     /** The essential apps (allowed, the essentials screen), folders, and the LockMyPhone-Extended hardcore profile. */
     val essentials by lazy { com.accountabilibuddy.companion.essentials.EssentialsStore(this) }
 
+    /** Auto-backup of this phone's settings to a chosen folder. */
+    val autoBackup by lazy { com.accountabilibuddy.companion.backup.AutoBackup(this, appVersion()) }
+
+    /** This app's version, e.g. "0.1.99". */
+    fun versionName(): String = appVersion()
+
     /** "I need my phone for a bit". */
     val emergency by lazy { com.accountabilibuddy.companion.nudge.EmergencyStore(this) }
 
@@ -107,6 +113,9 @@ class CompanionApp : Application() {
     override fun onCreate() {
         super.onCreate()
         store = CompanionStore(File(filesDir, "companion"))
+        // A setting saved here or in a backed-up preference file: auto-backup a minute later.
+        store.onSettingsSaved = { autoBackup.soon() }
+        autoBackup.start()
         deviceName = readDeviceName()
         val linkStore = LinkStore(File(filesDir, "companion/link.json"))
         sync = SyncCoordinator(

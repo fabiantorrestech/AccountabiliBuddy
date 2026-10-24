@@ -163,6 +163,8 @@ private fun EssentialsScreen(app: CompanionApp, arranging: Boolean, onOpen: (Str
         Pair(essentials.folders.filter { AppMatch.matches(text, it.name) }, all.filter { AppMatch.matches(text, it.name) })
     }
     val moves = if (arranging) Moves(store, keys) else null
+    // Hidden apps never show on the screen, not even inside a folder: only the search finds them.
+    val hidden = essentials.apps.filter { it.hidden }.map { it.packageName }.toSet()
 
     Box(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding().imePadding()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
@@ -191,13 +193,13 @@ private fun EssentialsScreen(app: CompanionApp, arranging: Boolean, onOpen: (Str
                     if (results.first.isEmpty() && results.second.isEmpty()) {
                         item { Text("Nothing called \"$searched\". Type its name.", color = Color(0x99FFFFFF), modifier = Modifier.padding(vertical = 12.dp)) }
                     }
-                    results.first.forEach { folder -> folderItems(folder, byPackage, open, onOpen, null) }
+                    results.first.forEach { folder -> folderItems(folder, byPackage, open, onOpen, null, hidden) }
                     results.second.forEach { found -> item(key = "r-" + found.packageName) { AppRow(found, onOpen, null) } }
                 } else {
                     keys.forEach { key ->
                         when {
                             key.startsWith("folder:") -> essentials.folders.firstOrNull { Essentials.folderKey(it.id) == key }
-                                ?.let { folder -> folderItems(folder, byPackage, open, onOpen, moves) }
+                                ?.let { folder -> folderItems(folder, byPackage, open, onOpen, moves, hidden) }
                             else -> byPackage[key.removePrefix("app:")]?.let { found ->
                                 item(key = key) { AppRow(found, onOpen, moves?.let { m -> { by: Int -> m.row(key, by) } }) }
                             }
@@ -249,6 +251,7 @@ private fun PhoneRow(onDial: () -> Unit) {
 
 private fun LazyListScope.folderItems(
     folder: AppFolder, byPackage: Map<String, LaunchableApp>, open: MutableState<Set<String>>, onOpen: (String) -> Unit, moves: Moves?,
+    hidden: Set<String>,
 ) {
     val expanded = folder.id in open.value
     item(key = "f-" + folder.id) {
@@ -265,7 +268,7 @@ private fun LazyListScope.folderItems(
     }
     if (expanded) {
         // Inside a folder: its own order (arranged here), else A–Z for apps added without arranging.
-        folder.packages.mapNotNull { byPackage[it] }.forEach { inside ->
+        folder.packages.filter { it !in hidden }.mapNotNull { byPackage[it] }.forEach { inside ->
             item(key = "f-" + folder.id + "-" + inside.packageName) {
                 Box(Modifier.padding(start = 28.dp)) {
                     AppRow(inside, onOpen, moves?.let { m -> { by: Int -> m.inFolder(folder.id, inside.packageName, by) } })
