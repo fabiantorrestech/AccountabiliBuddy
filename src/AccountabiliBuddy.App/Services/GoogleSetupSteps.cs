@@ -144,10 +144,11 @@ public static class GoogleSetupSteps
 
         new GoogleSetupStep(
             "phone-client",
-            "Let the phone sign in (for the phone's Drive sync)",
+            "Let the phone sign in to Google Drive (no ID or secret on the phone)",
             new[]
             {
                 "Skip this if you don't use the phone app's Google Drive switch (Devices → Google Drive on the phone).",
+                "The phone has no box for a client ID or secret and needs none: Google recognises the app by its package name and signing key, registered here as an Android client.",
                 "Open the page. Application type: Android.",
                 $"Name: {AppName} phone. Package name and SHA-1 certificate fingerprint: copy them from below. Press Create.",
                 "Nothing to paste anywhere: the phone finds this client by its package name and key. It uses the same project, so the Drive API, the drive.file scope and your test users above already apply to it.",

@@ -272,6 +272,8 @@ private fun DriveSection(devices: DevicesState, actions: DevicesActions, now: In
     ) { on ->
         if (on) signIn() else actions.onSettings(settings.copy(driveOn = false))
     }
+    // Open while Drive isn't on yet (or sign-in failed): the steps are what's usually missing.
+    DriveSetupHelp(startOpen = false)
     if (!settings.driveOn) {
         return
     }

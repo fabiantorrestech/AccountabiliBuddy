@@ -323,7 +323,8 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     /** Google's sign-in screen answered. */
     fun finishDriveSignIn(data: android.content.Intent?) {
-        if (driveSignIn.tokenFrom(data) != null) turnDriveOn() else message.value = "Google Drive wasn't allowed."
+        if (driveSignIn.tokenFrom(data) != null) turnDriveOn()
+        else message.value = "Google Drive wasn't allowed. Devices → Google Drive → \"How to set up Google Drive\" lists what the Google Cloud project needs."
     }
 
     private fun turnDriveOn() {
