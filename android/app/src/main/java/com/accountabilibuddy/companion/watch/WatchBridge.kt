@@ -162,6 +162,9 @@ class WatchBridge(
      * that isn't the linked one is told it isn't linked. Nothing at all happens when no answer may go to that watch
      * (Data Layer off, or the relay off and the watch away), so the PC isn't woken for nothing.
      */
+    /** The watch link's settings (for the noise player on the watch, ADR 36). */
+    val linkSettings: StateFlow<WatchLinkSettings> get() = links.settings
+
     suspend fun answerHello(nodeId: String) {
         val settings = links.settings.value
         if (nodeId == settings.linkedNodeId) {

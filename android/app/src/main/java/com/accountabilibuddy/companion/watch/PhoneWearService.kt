@@ -24,9 +24,18 @@ class PhoneWearService : WearableListenerService() {
             return
         }
 
+        // ADR 36: the watch controls the noise player.
+        if (event.path == WatchPaths.NOISE_COMMAND) {
+            com.accountabilibuddy.shared.NoiseRemote.readCommand(event.data)?.let { (application as CompanionApp).noiseWatch.apply(event.sourceNodeId, it) }
+            return
+        }
+
         if (event.path != WatchPaths.HELLO) {
             return
         }
+
+        // The watch app opened: what's playing goes along with the snapshot.
+        (application as CompanionApp).noiseWatch.sendNow()
 
         // Called on a background thread; the answer may wait a few seconds for the PC.
         val bridge = (application as CompanionApp).watchBridge

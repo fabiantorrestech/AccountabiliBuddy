@@ -77,6 +77,9 @@ class CompanionApp : Application() {
     /** Today's flexible lunch, the same on every device (schema v8). */
     val lunch by lazy { com.accountabilibuddy.companion.lunch.LunchStore(this) }
 
+    /** The noise player on the linked watch (ADR 36). */
+    lateinit var noiseWatch: com.accountabilibuddy.companion.watch.NoiseWatchSync
+
     /** The noise player (sounds from a folder the user picks), as on the PC. */
     lateinit var noise: com.accountabilibuddy.companion.noise.NoisePlayer
         private set
@@ -215,6 +218,7 @@ class CompanionApp : Application() {
         appScope.launch { driveSource.loop { driveBusy() } }
         noise = com.accountabilibuddy.companion.noise.NoisePlayer(this, com.accountabilibuddy.companion.noise.NoiseSettingsStore(this), appScope)
         com.accountabilibuddy.companion.noise.HeadphoneWatcher(this, headphones, noise).start()
+        noiseWatch = com.accountabilibuddy.companion.watch.NoiseWatchSync(this, noise, watchBridge.linkSettings, appScope).also { it.start() }
         // The widget's play/pause follows the player.
         noise.onChanged = {
             appScope.launch { runCatching { com.accountabilibuddy.companion.widget.TimelineWidget().updateAll(this@CompanionApp) } }

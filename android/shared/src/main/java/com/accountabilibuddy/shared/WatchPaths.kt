@@ -17,6 +17,12 @@ object WatchPaths {
     /** The watch tells the phone how pairing with the PC went: `{ok, message}`. */
     const val PC_PAIRED = "/pc-paired"
 
+    /** The phone tells the watch what its noise player is doing ([NoiseRemote.State], ADR 36). */
+    const val NOISE = "/noise"
+
+    /** The watch controls the phone's noise player ([NoiseRemote.Command]). */
+    const val NOISE_COMMAND = "/noise-command"
+
     /** Advertised by the watch app (res/values/wear.xml), so the phone finds watches that have it. */
     const val WATCH_CAPABILITY = "accountabilibuddy_watch"
 

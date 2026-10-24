@@ -119,7 +119,7 @@ private fun WatchApp(stored: WatchSnapshot?, phoneReachable: Boolean?, pcPaired:
         // While a focus or break timer runs, its page comes first (the pager starts over when that changes).
         val running = snapshot.running?.let { it.endsAt?.isAfter(now) ?: true } == true
         val order = if (running) listOf(Page.Session, Page.Today) else listOf(Page.Today, Page.Session)
-        val pages = order + listOf(Page.Week, Page.Alerts, Page.Link)
+        val pages = order + listOf(Page.Noise, Page.Week, Page.Alerts, Page.Link)
         val context = LocalContext.current
         val pager = key(running) { rememberPagerState(pageCount = { pages.size }) }
         HorizontalPagerScaffold(pagerState = pager) {
@@ -130,6 +130,7 @@ private fun WatchApp(stored: WatchSnapshot?, phoneReachable: Boolean?, pcPaired:
                             Page.Today -> TodayPage(TodayView.from(snapshot, now, zone, use24HourClock))
                             Page.Session -> SessionPage(SessionView.from(snapshot.running, now, zone, use24HourClock, dataAt = snapshot.dataAt, goalFraction = snapshot.goalFraction(now, zone)))
                             Page.Week -> WeekPage(WeekView.from(snapshot, now, zone))
+                            Page.Noise -> com.accountabilibuddy.watch.ui.NoisePage(isCurrent = pager.currentPage == page)
                             Page.Alerts -> AlertsPage(onChanged = { PhaseAlertScheduler.schedule(context, stored) })
                             Page.Link -> LinkPage(
                                 pcName = snapshot.pcName,
@@ -148,4 +149,4 @@ private fun WatchApp(stored: WatchSnapshot?, phoneReachable: Boolean?, pcPaired:
     }
 }
 
-private enum class Page { Today, Session, Week, Alerts, Link }
+private enum class Page { Today, Session, Noise, Week, Alerts, Link }

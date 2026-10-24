@@ -38,6 +38,9 @@ class WatchListenerService : WearableListenerService() {
 
             WatchPaths.UNLINK -> forgetEverything()
 
+            // ADR 36: what the phone's noise player is doing.
+            WatchPaths.NOISE -> com.accountabilibuddy.shared.NoiseRemote.readState(event.data)?.let(NoiseLink::received)
+
             WatchPaths.PC_OFFER -> {
                 val json = runCatching { Json.parseToJsonElement(event.data.decodeToString()) as? JsonObject }.getOrNull() ?: return
                 val offer = PcOffer.read(json) ?: return
