@@ -119,6 +119,7 @@ fun SettingsScreen(
         }
 
         item { SleepSection(state.sleep, clock, onSaveSleep) }
+        item { SmartBedtimeSection(clock) }
 
         item {
             Section(

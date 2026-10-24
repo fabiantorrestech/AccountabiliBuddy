@@ -102,10 +102,15 @@ class CompanionStore(private val folder: File) {
         _state.update { it.copy(sleep = it.sleep.copy(alarm = alarm)) }
     }
 
+    /** The smart bedtime's levels now in use (ADR 34); kept in memory only, like the alarm. */
+    fun setSmartLevels(levels: Map<com.accountabilibuddy.companion.engine.NightKind, Int>) = synchronized(lock) {
+        _state.update { if (it.sleep.smartLevels == levels) it else it.copy(sleep = it.sleep.copy(smartLevels = levels)) }
+    }
+
     fun saveSleep(settings: SleepSettings) = synchronized(lock) {
         write(SLEEP, SettingsJson.sleepJson(settings))
         onSettingsSaved()
-        _state.update { it.copy(sleep = settings.copy(alarm = it.sleep.alarm)) }
+        _state.update { it.copy(sleep = settings.copy(alarm = it.sleep.alarm, smartLevels = it.sleep.smartLevels)) }
     }
 
     /** Today's focus from the linked PC (ADR 21), which arrived [at]; kept as a file so the watch has it after a restart. */

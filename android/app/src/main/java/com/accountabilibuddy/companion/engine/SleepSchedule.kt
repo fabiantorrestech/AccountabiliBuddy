@@ -17,7 +17,8 @@ import java.time.LocalTime
  * times. A wake time changed for one night ([wakeOnce]) moves only that morning. The phone's next alarm ([alarm], ADR 23)
  * sets the wake time of the morning it falls on, between the night's bedtime and noon, over a one-night change unless
  * that change was confirmed over the alarm. A night woken by the alarm ([SleepTimes.wakeByAlarm], ADR 33) with no alarm
- * that morning ends at bedtime plus [goal].
+ * that morning ends at bedtime plus [goal]. A smart bedtime ([bedLevel], ADR 34: minutes in bed before waking for the
+ * night leading into a day) moves only the bedtime, to the wake time minus that level.
  */
 class SleepSchedule(
     private val weeknights: SleepTimes,
@@ -26,6 +27,7 @@ class SleepSchedule(
     private val wakeOnce: WakeOnce? = null,
     private val alarm: java.time.LocalDateTime? = null,
     private val goal: Duration = DefaultGoal,
+    private val bedLevel: ((LocalDate) -> Int?)? = null,
 ) {
     /** From bedtime to wake time of the night starting on [evening]. */
     fun night(evening: LocalDate): LocalWindow {
@@ -36,6 +38,11 @@ class SleepSchedule(
         }
 
         val wake = wakeOf(evening, bed, times).first
+        // The smart bedtime moves only the bedtime; the wake is worked out from the planned one, as without it.
+        bedLevel?.invoke(evening.plusDays(1))?.let { level ->
+            val smart = wake.minusMinutes(level.toLong())
+            if (smart.isBefore(wake)) bed = smart
+        }
         return LocalWindow(bed, if (wake.isAfter(bed)) wake else bed)
     }
 

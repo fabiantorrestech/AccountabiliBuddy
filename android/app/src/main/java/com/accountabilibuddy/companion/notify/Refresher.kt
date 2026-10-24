@@ -55,6 +55,7 @@ object Refresher {
         drawing.withLock {
             val app = context.applicationContext as CompanionApp
             app.refreshWakeAlarm()
+            runCatching { app.smartBedtime.refresh() }
             val state = app.store.state.value
             val clock = ClockFormat(is24Hour = false) /* always 12-hour AM/PM (project convention) */
             val now = LocalDateTime.now()

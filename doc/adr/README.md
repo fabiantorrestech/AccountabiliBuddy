@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0034](0034-learn-a-smart-bedtime-on-the-phone.md) | Learn a smart bedtime on the phone | Accepted | — |
 | [0033](0033-plan-sleep-by-bedtime-and-wake-by-alarm.md) | Plan sleep by bedtime and wake by the alarm | Accepted | — |
 | [0032](0032-use-material-icon-libraries.md) | Use Material icon libraries for UI icons | Accepted | — |
 | [0031](0031-guard-pre-work-parts.md) | Guard Pre-Work parts | Accepted | — |

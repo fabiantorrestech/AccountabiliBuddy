@@ -17,6 +17,8 @@ data class SleepSettings(
     val wakeOnce: WakeOnce? = null,
     /** This phone's next alarm while "Next alarm as wake time" is on (ADR 23); set by the app, never saved. */
     val alarm: java.time.LocalDateTime? = null,
+    /** The smart bedtime's levels (minutes in bed before waking) for the kinds of night it's on for (ADR 34); set by the app, never saved. */
+    val smartLevels: Map<com.accountabilibuddy.companion.engine.NightKind, Int> = emptyMap(),
 ) {
     /** The goal as a length; 8 hours when the value makes no sense. */
     val goal: java.time.Duration
@@ -30,6 +32,8 @@ data class SleepSettings(
             wakeOnce,
             alarm,
             goal,
+            if (plan == null || smartLevels.isEmpty()) null
+            else { day: java.time.LocalDate -> smartLevels[com.accountabilibuddy.companion.engine.SmartBedtime.kindOf(day, plan.workdays)] },
         )
 
     companion object {

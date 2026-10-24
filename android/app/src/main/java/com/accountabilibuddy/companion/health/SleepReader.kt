@@ -25,11 +25,11 @@ class SleepReader(private val context: Context) {
     suspend fun hasPermission(): Boolean =
         isAvailable() && client().permissionController.getGrantedPermissions().containsAll(permissions)
 
-    /** Sleep sessions that ended in the last 8 days (the week's average), as local times, earliest first. */
+    /** Sleep sessions that ended in the last 21 days (the week's average, the smart bedtime), as local times, earliest first. */
     suspend fun recentSleep(now: Instant = Instant.now()): List<LocalWindow> {
         val request = ReadRecordsRequest(
             recordType = SleepSessionRecord::class,
-            timeRangeFilter = TimeRangeFilter.between(now.minus(Duration.ofDays(8)), now),
+            timeRangeFilter = TimeRangeFilter.between(now.minus(Duration.ofDays(21)), now),
         )
         val zone = ZoneId.systemDefault()
         return client().readRecords(request).records

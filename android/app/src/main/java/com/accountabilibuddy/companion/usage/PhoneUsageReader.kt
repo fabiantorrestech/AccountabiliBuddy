@@ -140,6 +140,24 @@ class PhoneUsageReader(private val context: Context) {
         return unlocks
     }
 
+    /** The phone's last screen-off (or lock) in [window], for the smart bedtime (ADR 34); null when none or no access. */
+    fun lastScreenOff(window: LocalWindow, zone: ZoneId = ZoneId.systemDefault()): LocalDateTime? {
+        if (!hasAccess()) return null
+        val from = window.start.atZone(zone).toInstant().toEpochMilli()
+        val to = window.end.atZone(zone).toInstant().toEpochMilli()
+        val events = query(from, to) ?: return null
+        var last: Long? = null
+        val event = UsageEvents.Event()
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            if (event.eventType == UsageEvents.Event.SCREEN_NON_INTERACTIVE || event.eventType == UsageEvents.Event.KEYGUARD_SHOWN) {
+                last = event.timeStamp
+            }
+        }
+
+        return last?.let { localTime(it, zone) }
+    }
+
     /** Only the event types used above; Android 15+ leaves the others out before handing them over. Null: none. */
     private fun query(from: Long, to: Long): UsageEvents? {
         val manager = context.getSystemService(UsageStatsManager::class.java)

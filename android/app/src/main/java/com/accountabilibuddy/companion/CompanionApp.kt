@@ -84,6 +84,9 @@ class CompanionApp : Application() {
     /** The essential apps (allowed, the essentials screen), folders, and the LockMyPhone-Extended hardcore profile. */
     val essentials by lazy { com.accountabilibuddy.companion.essentials.EssentialsStore(this) }
 
+    /** The smart bedtime (ADR 34): learns tonight's bedtime from measured sleep. */
+    val smartBedtime by lazy { com.accountabilibuddy.companion.engine.SmartBedtimeService(this) }
+
     /** Auto-backup of this phone's settings to a chosen folder. */
     val autoBackup by lazy { com.accountabilibuddy.companion.backup.AutoBackup(this, appVersion()) }
 
