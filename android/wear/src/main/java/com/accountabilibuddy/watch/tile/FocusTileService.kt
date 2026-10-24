@@ -39,7 +39,7 @@ import kotlin.time.Duration.Companion.minutes
  * The swipe-in Tile (ADR 21): today on a 24-hour ring like the app's Today page (the plan's parts in their colours on
  * the outer ring, focus with red drift ticks on the inner one, a white now tick), with today's focus against the plan
  * or the running session in the middle; tapping it opens the app. The now tick moves through one timeline entry per
- * 10 minutes for the next 2 hours; redrawn when a snapshot arrives.
+ * 10 minutes for the next 2 hours (the last one stays until the next drawing); redrawn when a snapshot arrives.
  */
 class FocusTileService : Material3TileService() {
     override suspend fun MaterialScope.tileResponse(requestParams: TileRequest): Tile {
@@ -49,10 +49,13 @@ class FocusTileService : Material3TileService() {
         val entries = (0 until ENTRY_COUNT).map { index ->
             val from = start.plus(ENTRY_LENGTH.multipliedBy(index.toLong()))
             val until = from.plus(ENTRY_LENGTH)
-            timelineEntry(
-                layoutAt(snapshot, from, zone),
-                TimeInterval.Builder().setStartMillis(if (index == 0) 0 else from.toEpochMilli()).setEndMillis(until.toEpochMilli()).build(),
-            )
+            // The last entry has no end: when the watch doesn't ask again for hours (overnight), it keeps showing it
+            // instead of going black once every entry has expired.
+            val interval = TimeInterval.Builder().setStartMillis(if (index == 0) 0 else from.toEpochMilli())
+            if (index < ENTRY_COUNT - 1) {
+                interval.setEndMillis(until.toEpochMilli())
+            }
+            timelineEntry(layoutAt(snapshot, from, zone), interval.build())
         }
         return tile(timeline = timeline(*entries.toTypedArray()), freshness = REFRESH)
     }
