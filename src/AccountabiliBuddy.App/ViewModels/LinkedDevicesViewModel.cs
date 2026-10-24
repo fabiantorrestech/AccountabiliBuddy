@@ -47,7 +47,21 @@ public sealed partial class LinkedDevicesViewModel : ObservableObject, IDisposab
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(TurnOnCommand), nameof(TurnOffCommand), nameof(PairCommand))]
+    [NotifyPropertyChangedFor(nameof(ShowsLink))]
     public partial bool IsEnabled { get; set; }
+
+    /// <summary>
+    /// The Wi-Fi link is being replaced by Google Drive sync (ADR 26): its card shows while it's on, else only after
+    /// "Wi-Fi link (old way)…" is pressed; the code goes once Drive sync has worked for a week.
+    /// </summary>
+    public bool ShowsLink => IsEnabled || IsOldLinkShown;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsLink))]
+    public partial bool IsOldLinkShown { get; set; }
+
+    [RelayCommand]
+    private void ShowOldLink() => IsOldLinkShown = !IsOldLinkShown;
 
     /// <summary>True during focus: turning off and unpairing are disabled.</summary>
     [ObservableProperty]

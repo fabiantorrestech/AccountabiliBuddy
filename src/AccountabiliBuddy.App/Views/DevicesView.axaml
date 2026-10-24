@@ -141,11 +141,17 @@
                 </StackPanel>
             </Border>
 
-            <!-- Phones, tablets and watches paired over the network link (ADR 14), moved here from Setup. -->
+            <!-- Phones, tablets and watches paired over the network link (ADR 14), being replaced by Drive sync (ADR 26):
+                 shown while it's on, else behind "Wi-Fi link (old way)…". -->
+            <Button DataContext="{Binding LinkedDevices}" x:DataType="vm:LinkedDevicesViewModel" Classes="link" HorizontalAlignment="Left" Opacity="0.7"
+                    Content="Wi-Fi link (old way, being replaced by Google Drive)…" Command="{Binding ShowOldLinkCommand}" IsVisible="{Binding !IsEnabled}" />
+            <StackPanel Spacing="8" DataContext="{Binding LinkedDevices}" x:DataType="vm:LinkedDevicesViewModel" IsVisible="{Binding ShowsLink}">
             <TextBlock Text="Paired over the network link" Classes="title" Margin="0,8,0,0" />
+            <TextBlock Classes="muted" Foreground="#F4A261"
+                       Text="Being replaced by Google Drive sync (above): sign in there on this PC and on the phone. The link stays until Drive sync has worked for a week." TextWrapping="Wrap" />
             <TextBlock Classes="muted"
                        Text="Lets your phone or tablet (the AccountabiliBuddy companion) show this PC's session and start or end one, with the same rules for ending as here. Only on your home network and encrypted; nothing goes through the internet. Windows Firewall asks once: allow it on private networks." />
-            <Border Classes="card" DataContext="{Binding LinkedDevices}" x:DataType="vm:LinkedDevicesViewModel">
+            <Border Classes="card">
                 <StackPanel Spacing="10">
                     <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
                         <TextBlock Text="Let phones and tablets link to this PC" Classes="title" />
@@ -191,6 +197,7 @@
                                IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 </StackPanel>
             </Border>
+            </StackPanel>
 
         </StackPanel>
     </ScrollViewer>

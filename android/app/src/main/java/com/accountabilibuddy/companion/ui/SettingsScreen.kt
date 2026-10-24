@@ -230,6 +230,9 @@ internal fun PcSection(status: LinkStatus, pc: LinkedPc?, onPaste: (String) -> B
         else -> "${pc.pcName} · not connected"
     }
     Section("PC", summary = summary) {
+        // The Wi-Fi link is being replaced by Google Drive sync (ADR 26); it stays until Drive has worked for a week.
+        Text("The Wi-Fi link is being replaced by Google Drive sync (Devices → Google Drive): sign in there on the phone and the PC.",
+            style = MaterialTheme.typography.bodySmall, color = Color(0xFFF4A261))
         if (pc == null) {
             Text("Not linked.", style = MaterialTheme.typography.bodyMedium)
             Hint(
