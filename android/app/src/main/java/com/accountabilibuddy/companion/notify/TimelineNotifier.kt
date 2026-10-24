@@ -51,18 +51,21 @@ object TimelineNotifier {
         val noise = noiseButton(context)
         val collapsed = RemoteViews(context.packageName, R.layout.notification_timeline).apply {
             val counting = setCountdown(this, model, text)
-            setTextViewText(R.id.timeline_title, if (counting) "${model.dateText} · " else "${model.dateText} · ${model.statusText}")
+            // The mode now first (the date is in the expanded card's small line).
+            setTextViewText(R.id.timeline_title, if (counting) "" else model.statusText)
             setTextColor(R.id.timeline_title, text)
             // The bar is narrower by the noise button when it shows.
             setBar(this, model, if (noise != null) width - (NOISE_BUTTON_DP * metrics.density).toInt() else width, metrics.density, night, compact = true)
             showNoise(this, noise, text)
         }
         val expanded = RemoteViews(context.packageName, R.layout.notification_timeline_expanded).apply {
-            setTextViewText(R.id.timeline_title, model.dateText)
+            val counting = setCountdown(this, model, text)
+            // The biggest line says what's going on now (the countdown takes it while one runs); the date goes small.
+            setTextViewText(R.id.timeline_title, if (counting) "" else model.statusText)
+            setViewVisibility(R.id.timeline_title, if (counting) View.GONE else View.VISIBLE)
             setTextColor(R.id.timeline_title, text)
             showNoise(this, noise, text)
-            val counting = setCountdown(this, model, text)
-            val status = if (counting) listOf(model.summaryText) else listOf(model.statusText, model.summaryText)
+            val status = listOf(model.dateText, model.summaryText)
             setTextViewText(R.id.timeline_status, status.filter { it.isNotEmpty() }.joinToString(" · "))
             setTextColor(R.id.timeline_status, subtle)
             setBar(this, model, width, metrics.density, night, compact = false)
@@ -83,7 +86,7 @@ object TimelineNotifier {
 
         val notification = NotificationCompat.Builder(context, Channels.TIMELINE)
             .setSmallIcon(R.drawable.ic_stat_timeline)
-            .setContentTitle("${model.dateText} · ${model.statusText}")
+            .setContentTitle(model.statusText)
             .setContentText(model.sleepLine?.text ?: model.summaryText)
             .setCustomContentView(collapsed)
             .setCustomBigContentView(expanded)

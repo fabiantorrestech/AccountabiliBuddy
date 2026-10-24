@@ -23,6 +23,10 @@ import java.time.LocalDateTime
  * and the pinned service redraws both when the screen comes on.
  */
 object Refresher {
+    // The header's text changes by the minute (the sleep left): redraw on the next minute.
+    @Volatile
+    private var minutely = false
+
     private const val INTERVAL_MS = 5 * 60 * 1000L
     private const val COUNTDOWN_GRACE_MS = 5_000L
 
@@ -61,6 +65,7 @@ object Refresher {
                 val header = HeaderSource.header(app, now, clock, HeaderSource.phoneMinutes(context, state, now, builder), focus)
                 val model = builder.build(now, state.document, state.events, state.dayBar, state.sleep, state.slept, header, focus, (app.lunch.today()?.let { com.accountabilibuddy.companion.model.LocalWindow(java.time.LocalDateTime.ofInstant(it.start, java.time.ZoneId.systemDefault()), java.time.LocalDateTime.ofInstant(it.end, java.time.ZoneId.systemDefault())) }))
                 countdownEnd = model.countdownTo
+                minutely = header?.refreshMinutely == true
                 if (state.timelineNotificationOn) {
                     TimelineNotifier.show(context, model)
                     if (!PinnedTimelineService.isRunning && TimelineNotifier.canPost(context)) {
@@ -125,7 +130,8 @@ object Refresher {
         )
         val untilCountdownEnd = countdownEnd?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         val untilNudge = nudgeAt?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
-        val delay = listOfNotNull(untilCountdownEnd, untilNudge).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
+        val untilMinute = if (minutely) 60_000L - System.currentTimeMillis() % 60_000L + 500L else null
+        val delay = listOfNotNull(untilCountdownEnd, untilNudge, untilMinute).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
         alarms.set(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + delay, intent)
     }
 }

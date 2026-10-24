@@ -33,7 +33,14 @@ data class HeaderInput(
  * While something counts down, [countdownTo] is when and [countdownFormat] the status with "%s" for the ticking time
  * (the notification's chronometer); other surfaces show [status] with whole minutes.
  */
-data class HeaderText(val status: String, val summary: String, val countdownTo: Instant? = null, val countdownFormat: String? = null)
+data class HeaderText(
+    val status: String,
+    val summary: String,
+    val countdownTo: Instant? = null,
+    val countdownFormat: String? = null,
+    /** The text changes by the minute (the sleep left near and past bedtime): the card is redrawn every minute. */
+    val refreshMinutely: Boolean = false,
+)
 
 /**
  * The context-aware header of the notification, the Today screen and the widget: a running session first (from the PC
@@ -81,8 +88,9 @@ object DayHeader {
             val wake = wakeText(night, input, clock)
             val beforeMidnight = now.toLocalDate() == night.start.toLocalDate() && night.start.hour >= 12
             val label = if (beforeMidnight) "Past bedtime" else "Sleep"
-            // A live count of the sleep left if you go now: counts down to the wake time.
-            return HeaderText("$label · up $wake", "", night.end.atZone(input.zone).toInstant(), "$label · %s of sleep if you go now · up $wake")
+            // The sleep left if you go now, by the minute.
+            val left = minutesText(Duration.between(now, night.end))
+            return HeaderText("$label · $left of sleep if you go now · up $wake", "", refreshMinutely = true)
         }
 
         val watch = input.parts.filter { it.category.behavior.isWork }
@@ -104,10 +112,10 @@ object DayHeader {
 
         val bedtimeIn = night?.takeIf { now.isBefore(it.start) }?.let { Duration.between(now, it.start) }
         if (night != null && bedtimeIn != null && bedtimeIn <= SOON) {
-            // Close to bedtime: the sleep you'd get if you went now, counting down live to the wake time.
+            // Close to bedtime: the sleep you'd get if you went now, by the minute.
             val wake = wakeText(night, input, clock)
-            return HeaderText("Bedtime in ${minutesText(bedtimeIn)}", "", night.end.atZone(input.zone).toInstant(),
-                "Bedtime in ${minutesText(bedtimeIn)} · %s of sleep if you go now · up $wake")
+            val left = minutesText(Duration.between(now, night.end))
+            return HeaderText("Bedtime in ${minutesText(bedtimeIn)} · $left of sleep if you go now · up $wake", "", refreshMinutely = true)
         }
 
         watch.firstOrNull { it.window.start.isAfter(now) && it.window.start.toLocalDate() == today }?.let { next ->
