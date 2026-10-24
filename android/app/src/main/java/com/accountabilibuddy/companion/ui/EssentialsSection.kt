@@ -132,7 +132,8 @@ internal fun EssentialsSection() {
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(value = newFolder, onValueChange = { newFolder = it }, singleLine = true, label = { Text("New folder") }, modifier = Modifier.weight(1f))
-            TextButton(enabled = newFolder.isNotBlank(), onClick = {
+            // Folder names are unique (LockMyPhone-Extended's synced profile names folders by name).
+            TextButton(enabled = newFolder.isNotBlank() && essentials.folders.none { it.name.equals(newFolder.trim(), ignoreCase = true) }, onClick = {
                 val name = newFolder.trim()
                 store.update { e -> e.copy(folders = e.folders + AppFolder(UUID.randomUUID().toString(), name, emptyList())) }
                 newFolder = ""
