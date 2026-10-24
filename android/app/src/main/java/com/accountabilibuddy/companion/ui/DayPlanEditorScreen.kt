@@ -133,5 +133,5 @@ private fun WorkdayChips(plan: DayPlan, onChange: (DayPlan) -> Unit) {
 @Composable
 private fun smartNote(kind: com.accountabilibuddy.companion.engine.NightKind, clock: ClockFormat): String? {
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp
-    return if (app.smartBedtime.store.isOn(kind)) app.smartBedtime.status(kind, clock) else null
+    return if (app.store.state.value.sleep.smartOn(kind)) app.smartBedtime.status(kind, clock) else null
 }

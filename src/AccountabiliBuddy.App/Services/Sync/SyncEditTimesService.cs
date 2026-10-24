@@ -141,9 +141,10 @@ public sealed class SyncEditTimesService
     }
 
     /// <summary>The parts of <see cref="SleepSettings"/> other devices take (SyncCoordinator's ApplySleepAsync).</summary>
-    private sealed record SharedSleep(bool Enabled, double GoalHours, WakeOnce? WakeOnce)
+    private sealed record SharedSleep(bool Enabled, double GoalHours, WakeOnce? WakeOnce, bool SmartWorkdays, bool SmartOffDays, double MinHours, double MaxHours)
     {
-        public static SharedSleep Of(SleepSettings settings) => new(settings.Enabled, settings.GoalHours, settings.WakeOnce);
+        public static SharedSleep Of(SleepSettings settings) => new(
+            settings.Enabled, settings.GoalHours, settings.WakeOnce, settings.SmartWorkdays, settings.SmartOffDays, settings.MinHours, settings.MaxHours);
     }
 
     private sealed class SuppressionScope(SyncEditTimesService owner) : IDisposable

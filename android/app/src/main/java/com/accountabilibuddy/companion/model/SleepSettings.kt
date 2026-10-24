@@ -17,9 +17,23 @@ data class SleepSettings(
     val wakeOnce: WakeOnce? = null,
     /** This phone's next alarm while "Next alarm as wake time" is on (ADR 23); set by the app, never saved. */
     val alarm: java.time.LocalDateTime? = null,
+    /** The smart bedtime on for nights before workdays / Off-Days (ADR 34, shared both ways, ADR 35). */
+    val smartWorkdays: Boolean = false,
+    val smartOffDays: Boolean = false,
+    /** The smart bedtime's minimum and maximum sleep, in hours. */
+    val minHours: Double = 6.5,
+    val maxHours: Double = 9.0,
     /** The smart bedtime's levels (minutes in bed before waking) for the kinds of night it's on for (ADR 34); set by the app, never saved. */
     val smartLevels: Map<com.accountabilibuddy.companion.engine.NightKind, Int> = emptyMap(),
 ) {
+    /** The smart bedtime is on for [kind]. */
+    fun smartOn(kind: com.accountabilibuddy.companion.engine.NightKind): Boolean =
+        if (kind == com.accountabilibuddy.companion.engine.NightKind.Workday) smartWorkdays else smartOffDays
+
+    /** [smartOn] changed for [kind]. */
+    fun withSmart(kind: com.accountabilibuddy.companion.engine.NightKind, on: Boolean): SleepSettings =
+        if (kind == com.accountabilibuddy.companion.engine.NightKind.Workday) copy(smartWorkdays = on) else copy(smartOffDays = on)
+
     /** The goal as a length; 8 hours when the value makes no sense. */
     val goal: java.time.Duration
         get() = if (goalHours in 4.0..12.0) java.time.Duration.ofMinutes((goalHours * 60).toLong()) else SleepSchedule.DefaultGoal

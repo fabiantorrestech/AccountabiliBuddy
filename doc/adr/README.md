@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0035](0035-share-sleep-settings-both-ways-and-ring-a-pc-alarm.md) | Share sleep settings both ways and ring a PC alarm | Accepted | — |
 | [0034](0034-learn-a-smart-bedtime-on-the-phone.md) | Learn a smart bedtime on the phone | Accepted | — |
 | [0033](0033-plan-sleep-by-bedtime-and-wake-by-alarm.md) | Plan sleep by bedtime and wake by the alarm | Accepted | — |
 | [0032](0032-use-material-icon-libraries.md) | Use Material icon libraries for UI icons | Accepted | — |

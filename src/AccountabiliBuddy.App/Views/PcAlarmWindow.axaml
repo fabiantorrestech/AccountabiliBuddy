@@ -1,0 +1,22 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.PcAlarmWindow"
+        x:DataType="vm:PcAlarmViewModel"
+        Title="Alarm"
+        Width="420" SizeToContent="Height"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="True"
+        WindowStartupLocation="CenterScreen">
+    <!-- ADR 35: this PC's alarm rings at the night's wake time. -->
+    <Border Padding="24,20" Background="#FF15191E" BorderBrush="#AAF59E0B" BorderThickness="2" CornerRadius="10">
+        <StackPanel Spacing="14">
+            <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
+            <TextBlock Text="Your wake time. Snooze rings again in 9 minutes." Opacity="0.8" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+                <Button Content="Snooze 9 min" Command="{Binding SnoozeCommand}" />
+                <Button Content="Stop" Command="{Binding StopCommand}" Classes="accent" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

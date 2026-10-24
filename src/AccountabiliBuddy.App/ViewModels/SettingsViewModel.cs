@@ -180,7 +180,22 @@ public sealed partial class SettingsViewModel : ObservableObject
         _calendars.Changed += (_, _) => ShowTimelineCalendars();
         TimelineRows.CollectionChanged += (_, _) => RefreshUnsaved();
         _sleep.Changed += (_, _) => RefreshUnsaved();
-        _sleep.PhoneAlarmChanged += (_, _) => OnPropertyChanged(nameof(PhoneBedtimeText));
+        _sleep.PhoneAlarmChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(PhoneBedtimeText));
+            OnPropertyChanged(nameof(CanUseSmartBedtime));
+            OnPropertyChanged(nameof(SmartBedtimeHint));
+        };
+        // Taken from the phone (ADR 35) or saved here: the switches show what's saved.
+        _sleep.Changed += (_, _) =>
+        {
+            OnPropertyChanged(nameof(SmartWorkdays));
+            OnPropertyChanged(nameof(SmartOffDays));
+            OnPropertyChanged(nameof(SmartMin));
+            OnPropertyChanged(nameof(SmartMax));
+            OnPropertyChanged(nameof(WakeSource));
+            OnPropertyChanged(nameof(PcAlarmNote));
+        };
         SelectedGroupIndex = 0;
         _ready = true;
         RefreshUnsaved();
@@ -434,6 +449,84 @@ public sealed partial class SettingsViewModel : ObservableObject
             _ = _sleep.SetUsePhoneBedtimeAsync(value);
             OnPropertyChanged();
         }
+    }
+
+    /// <summary>A phone is linked (paired, or its sync file received): only it measures sleep (ADR 35). Set by the app.</summary>
+    public Func<bool> HasLinkedPhone { get; set; } = () => false;
+
+    public bool CanUseSmartBedtime => HasLinkedPhone();
+
+    public string SmartBedtimeHint => CanUseSmartBedtime
+        ? "Your phone learns it from your measured sleep (Health Connect) and when you put it down; changes here reach it with the next sync."
+        : "Needs your linked phone: it measures your sleep. Link it in Devices.";
+
+    public bool SmartWorkdays
+    {
+        get => _sleep.Current.SmartWorkdays;
+        set => SaveSmart(value, _sleep.Current.SmartOffDays, _sleep.Current.MinHours, _sleep.Current.MaxHours);
+    }
+
+    public bool SmartOffDays
+    {
+        get => _sleep.Current.SmartOffDays;
+        set => SaveSmart(_sleep.Current.SmartWorkdays, value, _sleep.Current.MinHours, _sleep.Current.MaxHours);
+    }
+
+    /// <summary>The minimum and maximum sleep to pick from, in hours.</summary>
+    public IReadOnlyList<SleepGoalChoice> SmartMinChoices { get; } =
+        new[] { 5.5, 6, 6.5, 7, 7.5 }.Select(hours => new SleepGoalChoice(hours, Hours(TimeSpan.FromHours(hours)))).ToList();
+
+    public IReadOnlyList<SleepGoalChoice> SmartMaxChoices { get; } =
+        new[] { 8, 8.5, 9, 9.5, 10 }.Select(hours => new SleepGoalChoice(hours, Hours(TimeSpan.FromHours(hours)))).ToList();
+
+    public SleepGoalChoice? SmartMin
+    {
+        get => SmartMinChoices.FirstOrDefault(choice => choice.Hours == _sleep.Current.MinHours);
+        set
+        {
+            if (value is not null)
+            {
+                SaveSmart(_sleep.Current.SmartWorkdays, _sleep.Current.SmartOffDays, value.Hours, _sleep.Current.MaxHours);
+            }
+        }
+    }
+
+    public SleepGoalChoice? SmartMax
+    {
+        get => SmartMaxChoices.FirstOrDefault(choice => choice.Hours == _sleep.Current.MaxHours);
+        set
+        {
+            if (value is not null)
+            {
+                SaveSmart(_sleep.Current.SmartWorkdays, _sleep.Current.SmartOffDays, _sleep.Current.MinHours, value.Hours);
+            }
+        }
+    }
+
+    /// <summary>Where the wake time comes from (ADR 35): 0 = the phone's alarm, 1 = this PC's alarm, 2 = none (the plan's).</summary>
+    public int WakeSource
+    {
+        get => _sleep.Current.UsePcAlarm ? 1 : _sleep.Current.UsePhoneAlarm ? 0 : 2;
+        set
+        {
+            _ = _sleep.SetWakeSourceAsync(phoneAlarm: value == 0, pcAlarm: value == 1);
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(UsePhoneAlarm));
+        }
+    }
+
+    /// <summary>This PC's alarm: whether Windows lets it wake the PC; set by the app (ADR 35).</summary>
+    public Func<string?> PcAlarmWarning { get; set; } = () => null;
+
+    public string? PcAlarmNote => WakeSource == 1 ? PcAlarmWarning() : null;
+
+    private void SaveSmart(bool workdays, bool offDays, double minHours, double maxHours)
+    {
+        _ = _sleep.SetSmartAsync(workdays, offDays, minHours, maxHours);
+        OnPropertyChanged(nameof(SmartWorkdays));
+        OnPropertyChanged(nameof(SmartOffDays));
+        OnPropertyChanged(nameof(SmartMin));
+        OnPropertyChanged(nameof(SmartMax));
     }
 
     /// <summary>What the phone learned for each kind of night, e.g. "Workdays: 7 h 15 m in bed before waking · …".</summary>

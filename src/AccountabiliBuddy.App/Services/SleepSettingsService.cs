@@ -50,6 +50,20 @@ public sealed class SleepSettingsService
         PhoneAlarmChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>The smart bedtime's switches and limits (shared both ways, ADR 35); saved at once.</summary>
+    public Task SetSmartAsync(bool workdays, bool offDays, double minHours, double maxHours)
+    {
+        SleepSettings updated = Current with { SmartWorkdays = workdays, SmartOffDays = offDays, MinHours = minHours, MaxHours = maxHours };
+        return updated == Current ? Task.CompletedTask : SaveAsync(updated);
+    }
+
+    /// <summary>The wake source (ADR 35): the phone's alarm, this PC's alarm, or neither; this PC's own.</summary>
+    public Task SetWakeSourceAsync(bool phoneAlarm, bool pcAlarm)
+    {
+        SleepSettings updated = Current with { UsePhoneAlarm = phoneAlarm, UsePcAlarm = pcAlarm };
+        return updated == Current ? Task.CompletedTask : SaveAsync(updated);
+    }
+
     public Task SetUsePhoneBedtimeAsync(bool use)
     {
         return use == Current.UsePhoneBedtime ? Task.CompletedTask : SaveAsync(Current with { UsePhoneBedtime = use });

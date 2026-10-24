@@ -84,6 +84,9 @@ class CompanionApp : Application() {
     /** The essential apps (allowed, the essentials screen), folders, and the LockMyPhone-Extended hardcore profile. */
     val essentials by lazy { com.accountabilibuddy.companion.essentials.EssentialsStore(this) }
 
+    /** The sleep settings both ways with the PCs (ADR 35). */
+    val sleepSync by lazy { com.accountabilibuddy.companion.sync.SleepSettingsSync(this, store) }
+
     /** The smart bedtime (ADR 34): learns tonight's bedtime from measured sleep. */
     val smartBedtime by lazy { com.accountabilibuddy.companion.engine.SmartBedtimeService(this) }
 
@@ -151,6 +154,17 @@ class CompanionApp : Application() {
         sync.companions = { watchBridge.companions() }
         sync.nextAlarm = { wakeAlarm }
         sync.smartBedtime = { smartBedtime.forSyncFile() }
+        sync.sleepDocument = { sleepSync.document() }
+        // The smart bedtime's switches used to be kept apart (ADR 34): handed to the shared sleep settings once.
+        smartBedtime.store.takeOldSettings()?.let { old ->
+            if (old.workdays || old.offDays) {
+                sleepSync.saveEdit(store.state.value.sleep.copy(smartWorkdays = old.workdays, smartOffDays = old.offDays, minHours = old.minHours, maxHours = old.maxHours))
+            }
+        }
+        // A newer PC's sleep settings arriving in any sync file are taken here (ADR 35).
+        appScope.launch {
+            sync.received.collect { devices -> if (sleepSync.applyFrom(devices)) refreshSoon() }
+        }
         // Lunch is the user's: this phone's goes out in its file; one from another device is taken here.
         sync.lunch = { lunch.today() }
         sync.actions = { actions.pending.value }

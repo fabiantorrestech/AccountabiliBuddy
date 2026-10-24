@@ -15,24 +15,26 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 /**
- * The smart bedtime's settings and what it learned (ADR 34), in prefs "smartBedtime" (part of the settings backup):
- * the switches per kind of night (off by default), the minimum and maximum sleep, each kind's level, the measured
- * nights (60 days) and the bedtime asked each evening.
+ * What the smart bedtime learned (ADR 34), in prefs "smartBedtime" (part of the settings backup): each kind's level,
+ * the measured nights (60 days) and the bedtime asked each evening. Its switches and limits are in the shared sleep
+ * settings (ADR 35).
  */
 class SmartBedtimeStore(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    fun isOn(kind: NightKind): Boolean = prefs.getBoolean(if (kind == NightKind.Workday) KEY_WORKDAYS else KEY_OFF_DAYS, false)
+    /**
+     * The switches and limits kept here before they moved into the shared sleep settings (ADR 35): handed over once,
+     * then removed. Null when there's nothing to hand over.
+     */
+    fun takeOldSettings(): OldSettings? {
+        if (!prefs.contains(KEY_WORKDAYS) && !prefs.contains(KEY_OFF_DAYS) && !prefs.contains(KEY_MIN) && !prefs.contains(KEY_MAX)) return null
+        val old = OldSettings(prefs.getBoolean(KEY_WORKDAYS, false), prefs.getBoolean(KEY_OFF_DAYS, false), prefs.getFloat(KEY_MIN, 6.5f).toDouble(), prefs.getFloat(KEY_MAX, 9f).toDouble())
+        prefs.edit().remove(KEY_WORKDAYS).remove(KEY_OFF_DAYS).remove(KEY_MIN).remove(KEY_MAX).apply()
+        return old
+    }
 
-    fun setOn(kind: NightKind, on: Boolean) = prefs.edit().putBoolean(if (kind == NightKind.Workday) KEY_WORKDAYS else KEY_OFF_DAYS, on).apply()
-
-    var minHours: Double
-        get() = prefs.getFloat(KEY_MIN, 6.5f).toDouble()
-        set(value) = prefs.edit().putFloat(KEY_MIN, value.toFloat()).apply()
-
-    var maxHours: Double
-        get() = prefs.getFloat(KEY_MAX, 9f).toDouble()
-        set(value) = prefs.edit().putFloat(KEY_MAX, value.toFloat()).apply()
+    /** What [takeOldSettings] hands over. */
+    data class OldSettings(val workdays: Boolean, val offDays: Boolean, val minHours: Double, val maxHours: Double)
 
     fun level(kind: NightKind): SmartLevel = readObject(KEY_LEVELS)?.get(kind.name)?.let { element ->
         val o = element.jsonObject

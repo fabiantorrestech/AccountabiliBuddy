@@ -27,6 +27,9 @@ public sealed class SessionOverlayService : IDisposable
     private readonly DayBarViewModel _day;
     private readonly OnScreenOverlayViewModel _viewModel;
 
+    /// <summary>The white glow, e.g. for this PC's alarm (ADR 35).</summary>
+    public void Glow() => _viewModel.Glow();
+
     private SessionOverlayWindow? _window;
     private StepAwayService? _stepAway;
     private PlanFirstService? _planFirst;

@@ -617,7 +617,17 @@ public sealed class SyncCoordinator
         }
 
         SleepSettings current = _sleep.Current;
-        SleepSettings updated = current with { Enabled = received.Enabled, GoalHours = received.GoalHours, WakeOnce = received.WakeOnce };
+        // What sleep shares (ADR 22, 35): on/off, the goal, a one-night wake and the smart bedtime's switches and limits.
+        SleepSettings updated = current with
+        {
+            Enabled = received.Enabled,
+            GoalHours = received.GoalHours,
+            WakeOnce = received.WakeOnce,
+            SmartWorkdays = received.SmartWorkdays,
+            SmartOffDays = received.SmartOffDays,
+            MinHours = received.MinHours,
+            MaxHours = received.MaxHours,
+        };
         if (updated != current)
         {
             using (_editTimes.SuppressStamping())

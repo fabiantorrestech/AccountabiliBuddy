@@ -75,6 +75,9 @@ class SyncCoordinator(
     /** The phone's next alarm for its card (ADR 23); null when there's none. */
     var nextAlarm: () -> Instant? = { null }
 
+    /** This phone's sleep settings as a document, once changed here (ADR 35); null before. */
+    var sleepDocument: () -> com.accountabilibuddy.shared.sync.SyncDocument? = { null }
+
     /** The smart bedtime's share for the PCs (ADR 34); null when it's off. */
     var smartBedtime: () -> com.accountabilibuddy.shared.sync.SyncSmartBedtime? = { null }
 
@@ -176,7 +179,7 @@ class SyncCoordinator(
             identity.deviceId, deviceName, SyncDeviceCard.KIND_PHONE, appVersion, now(), methods(), false, SyncCarry.seen(store.devices.value), companions(),
             nextAlarm().takeIf { settingsStore.settings.value.alarmOn },
         ),
-        emptyList(), emptyList(), null, emptyList(),
+        emptyList(), emptyList(), null, listOfNotNull(runCatching { sleepDocument() }.getOrNull()),
         pickups = runCatching { pickups() }.getOrNull(),
         lunch = lunch(),
         actions = actions().takeIf { it.isNotEmpty() },

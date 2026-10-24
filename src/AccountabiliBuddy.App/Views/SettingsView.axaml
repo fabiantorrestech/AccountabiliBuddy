@@ -359,12 +359,49 @@
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <CheckBox IsChecked="{Binding SleepEnabled}" Content="Use sleep mode" />
                         <!-- ADR 23: the phone's next alarm (from its sync file) as the wake time, over a one-night change. -->
-                        <CheckBox IsChecked="{Binding UsePhoneAlarm}"
-                                  Content="Use my phone's alarm as wake time (it wins over a one-night change; changing tomorrow's wake then asks first)" />
+                        <!-- ADR 35: where the wake time comes from, this PC's own choice. -->
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <TextBlock Text="Wake time from" VerticalAlignment="Center" Width="240" />
+                            <ComboBox SelectedIndex="{Binding WakeSource}" MinWidth="260">
+                                <ComboBoxItem Content="My phone's alarm" />
+                                <ComboBoxItem Content="This PC's alarm (it rings here)" />
+                                <ComboBoxItem Content="Neither (the Sleep part's wake time)" />
+                            </ComboBox>
+                        </StackPanel>
+                        <TextBlock Text="My phone's alarm wins over a one-night change (changing tomorrow's wake then asks first). This PC's alarm rings at the night's wake time with Stop and Snooze 9 min; it can only wake you if the PC is on or Windows can wake it."
+                                   Opacity="0.75" TextWrapping="Wrap" Margin="28,0,0,0" />
+                        <TextBlock Text="{Binding PcAlarmNote}" IsVisible="{Binding PcAlarmNote, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                   Foreground="#F59E0B" TextWrapping="Wrap" Margin="28,0,0,0" />
                         <!-- ADR 34: the phone learns a smart bedtime; the PC takes its time in bed before waking. -->
                         <CheckBox IsChecked="{Binding UsePhoneBedtime}"
                                   Content="Use my phone's smart bedtime (it learns from your measured sleep and moves bedtime earlier as you earn it)" />
                         <TextBlock Text="{Binding PhoneBedtimeText}" Opacity="0.75" TextWrapping="Wrap" Margin="28,0,0,0" />
+                        <!-- ADR 34, 35: the smart bedtime's switches and limits, shared with the phone, which alone measures sleep. -->
+                        <StackPanel Spacing="6" Margin="28,0,0,0" IsEnabled="{Binding CanUseSmartBedtime}">
+                            <TextBlock Text="{Binding SmartBedtimeHint}" Opacity="0.75" TextWrapping="Wrap" />
+                            <CheckBox IsChecked="{Binding SmartWorkdays}" Content="Smart bedtime for Workdays (nights before a workday)" />
+                            <CheckBox IsChecked="{Binding SmartOffDays}" Content="Smart bedtime for Off-Days" />
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <TextBlock Text="Minimum sleep" VerticalAlignment="Center" Width="212" />
+                                <ComboBox ItemsSource="{Binding SmartMinChoices}" SelectedItem="{Binding SmartMin}" MinWidth="120">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:SleepGoalChoice">
+                                            <TextBlock Text="{Binding Text}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <TextBlock Text="Maximum sleep" VerticalAlignment="Center" Width="212" />
+                                <ComboBox ItemsSource="{Binding SmartMaxChoices}" SelectedItem="{Binding SmartMax}" MinWidth="120">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:SleepGoalChoice">
+                                            <TextBlock Text="{Binding Text}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                        </StackPanel>
                         <StackPanel Spacing="6" IsEnabled="{Binding SleepEnabled}">
                             <StackPanel Orientation="Horizontal" Spacing="12">
                                 <TextBlock Text="Sleep goal" VerticalAlignment="Center" Width="240" />

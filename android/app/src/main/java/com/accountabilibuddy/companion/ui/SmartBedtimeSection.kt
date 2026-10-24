@@ -6,6 +6,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -25,7 +26,6 @@ import com.accountabilibuddy.companion.engine.NightKind
 internal fun SmartBedtimeSection(clock: ClockFormat) {
     val app = LocalContext.current.applicationContext as CompanionApp
     val service = app.smartBedtime
-    val store = service.store
     // Bumped on every change, so the section reads the store again.
     var version by remember { mutableIntStateOf(0) }
     fun changed() {
@@ -34,7 +34,12 @@ internal fun SmartBedtimeSection(clock: ClockFormat) {
         app.refreshSoon()
     }
 
-    val on = NightKind.entries.filter { store.isOn(it) }
+    val sleep = app.store.state.collectAsState().value.sleep
+    fun save(settings: com.accountabilibuddy.companion.model.SleepSettings) {
+        app.sleepSync.saveEdit(settings)
+        changed()
+    }
+    val on = NightKind.entries.filter { sleep.smartOn(it) }
     Section("Smart bedtime", summary = if (on.isEmpty()) "Off" else on.joinToString(" · ") { label(it) }) {
         version.let { } // read so changes redraw
         Text(
@@ -42,21 +47,18 @@ internal fun SmartBedtimeSection(clock: ClockFormat) {
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         NightKind.entries.forEach { kind ->
-            ToggleRow(label(kind), service.status(kind, clock), store.isOn(kind)) { value ->
-                store.setOn(kind, value)
-                changed()
-            }
+            ToggleRow(label(kind), service.status(kind, clock), sleep.smartOn(kind)) { value -> save(sleep.withSmart(kind, value)) }
         }
         Text("Minimum sleep", style = MaterialTheme.typography.labelLarge)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf(5.5, 6.0, 6.5, 7.0, 7.5).forEach { hours ->
-                FilterChip(selected = store.minHours == hours, onClick = { store.minHours = hours; changed() }, label = { Text(hoursText(hours)) })
+                FilterChip(selected = sleep.minHours == hours, onClick = { save(sleep.copy(minHours = hours)) }, label = { Text(hoursText(hours)) })
             }
         }
         Text("Maximum sleep", style = MaterialTheme.typography.labelLarge)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf(8.0, 8.5, 9.0, 9.5, 10.0).forEach { hours ->
-                FilterChip(selected = store.maxHours == hours, onClick = { store.maxHours = hours; changed() }, label = { Text(hoursText(hours)) })
+                FilterChip(selected = sleep.maxHours == hours, onClick = { save(sleep.copy(maxHours = hours)) }, label = { Text(hoursText(hours)) })
             }
         }
     }

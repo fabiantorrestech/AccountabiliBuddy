@@ -18,16 +18,19 @@ class SmartBedtimeService(private val app: CompanionApp) {
     @Volatile
     private var lastLearned: LocalDateTime? = null
 
+    // The switches and limits are part of the shared sleep settings (ADR 35).
+    private fun sleep() = app.store.state.value.sleep
+
     /** The levels in use now, by kind (only kinds switched on and past learning). */
     fun levelsInUse(): Map<NightKind, Int> = NightKind.entries
-        .filter { store.isOn(it) }
+        .filter { sleep().smartOn(it) }
         .mapNotNull { kind -> store.level(kind).levelMinutes?.let { kind to it } }
         .toMap()
 
     fun refresh(now: LocalDateTime = LocalDateTime.now()) {
         val state = app.store.state.value
         val plan = state.document.dayPlan
-        if (NightKind.entries.none { store.isOn(it) }) {
+        if (NightKind.entries.none { sleep().smartOn(it) }) {
             app.store.setSmartLevels(emptyMap())
             return
         }
@@ -63,7 +66,7 @@ class SmartBedtimeService(private val app: CompanionApp) {
         store.saveNights(nights, now.toLocalDate())
 
         val goal = goal()
-        for (kind in NightKind.entries.filter { store.isOn(it) }) {
+        for (kind in NightKind.entries.filter { sleep().smartOn(it) }) {
             store.saveLevel(kind, SmartBedtime.update(store.level(kind), kind, nights, now.toLocalDate(), goal))
         }
     }
@@ -71,13 +74,13 @@ class SmartBedtimeService(private val app: CompanionApp) {
     /** The goal it grows toward: the sleep goal, never past the maximum. */
     private fun goal(): Duration {
         val goal = app.store.state.value.sleep.goal
-        val max = Duration.ofMinutes((store.maxHours * 60).toLong())
+        val max = Duration.ofMinutes((sleep().maxHours * 60).toLong())
         return if (goal > max) max else goal
     }
 
     /** "7 h 15 m in bed → tonight 11:30 PM · last 2 weeks asleep 11:48 PM avg, 6 h 52 m · this week 3 of 4 · next step Monday". */
     fun status(kind: NightKind, clock: ClockFormat, now: LocalDateTime = LocalDateTime.now()): String {
-        if (!store.isOn(kind)) return "Off"
+        if (!sleep().smartOn(kind)) return "Off"
         val today = now.toLocalDate()
         val nights = store.nights()
         val summary = SmartBedtime.summary(nights, kind, today)
@@ -91,8 +94,8 @@ class SmartBedtimeService(private val app: CompanionApp) {
             val tonight = nextNight(kind, now, plan.workdays)
             val bed = app.store.state.value.sleep.toSchedule(plan).night(tonight).start
             parts += "${DayBarBuilder.duration(Duration.ofMinutes(level.toLong()))} in bed → ${if (tonight == today || tonight == today.minusDays(1)) "tonight" else tonight.dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }} ${clock.time(bed)}"
-            val minimum = (store.minHours * 60).toInt() + summary.latencyMinutes
-            parts += if (level >= minimum) "minimum reached, growing toward ${DayBarBuilder.duration(goal())}" else "growing toward your ${DayBarBuilder.duration(Duration.ofMinutes((store.minHours * 60).toLong()))} minimum"
+            val minimum = (sleep().minHours * 60).toInt() + summary.latencyMinutes
+            parts += if (level >= minimum) "minimum reached, growing toward ${DayBarBuilder.duration(goal())}" else "growing toward your ${DayBarBuilder.duration(Duration.ofMinutes((sleep().minHours * 60).toLong()))} minimum"
         }
         summary.averageAsleep?.let { asleep ->
             parts += "last 2 weeks asleep ${clock.time(today.atTime(asleep))} avg" + (summary.averageSleptMinutes?.let { ", ${DayBarBuilder.duration(Duration.ofMinutes(it.toLong()))}" } ?: "")
@@ -114,7 +117,7 @@ class SmartBedtimeService(private val app: CompanionApp) {
 
     /** What the PCs get in the sync file (ADR 34): per kind, the level and the status numbers; null when it's off. */
     fun forSync(now: LocalDateTime = LocalDateTime.now()): Map<NightKind, SmartShare>? {
-        val kinds = NightKind.entries.filter { store.isOn(it) }
+        val kinds = NightKind.entries.filter { sleep().smartOn(it) }
         if (kinds.isEmpty()) return null
         val nights = store.nights()
         return kinds.associateWith { kind ->

@@ -119,3 +119,10 @@ NLM_ENUM_NETWORK
 NLM_NETWORK_CATEGORY
 LockWorkStation
 SetSuspendState
+CreateWaitableTimerEx
+SetWaitableTimer
+CancelWaitableTimer
+PowerGetActiveScheme
+PowerReadACValueIndex
+PowerReadDCValueIndex
+LocalFree

@@ -556,7 +556,8 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun saveSleep(settings: SleepSettings) {
-        store.saveSleep(settings)
+        // An edit here: stamped, so it goes to the PCs and wins over an older one there (ADR 35).
+        (getApplication<Application>() as com.accountabilibuddy.companion.CompanionApp).sleepSync.saveEdit(settings)
         refreshOutside()
     }
 

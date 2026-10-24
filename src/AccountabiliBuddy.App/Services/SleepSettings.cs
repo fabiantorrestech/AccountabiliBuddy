@@ -12,9 +12,15 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="WakeOnce">A wake time changed for one night from the on-screen window, or null (the plan's).</param>
 /// <param name="UsePhoneAlarm">The phone's next alarm sets the wake time (ADR 23); on by default.</param>
 /// <param name="UsePhoneBedtime">The phone's smart bedtime sets the bedtime (ADR 34); on by default.</param>
+/// <param name="SmartWorkdays">The smart bedtime is on for nights before workdays (shared both ways, ADR 35).</param>
+/// <param name="SmartOffDays">The smart bedtime is on for nights before Off-Days.</param>
+/// <param name="MinHours">The smart bedtime's minimum sleep.</param>
+/// <param name="MaxHours">The smart bedtime's maximum sleep.</param>
+/// <param name="UsePcAlarm">This PC rings its own alarm at the night's wake time, which is then the wake time (ADR 35); this PC's own, never shared.</param>
 public sealed record SleepSettings(
     bool Enabled, bool SameEveryNight, SleepTimes Weeknights, SleepTimes Weekends, double GoalHours = 8, WakeOnce? WakeOnce = null,
-    bool UsePhoneAlarm = true, bool UsePhoneBedtime = true)
+    bool UsePhoneAlarm = true, bool UsePhoneBedtime = true,
+    bool SmartWorkdays = false, bool SmartOffDays = false, double MinHours = 6.5, double MaxHours = 9, bool UsePcAlarm = false)
 {
     /// <summary>The goals Settings offers, in hours.</summary>
     public static IReadOnlyList<double> GoalChoices { get; } = new[] { 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10 };
@@ -47,7 +53,7 @@ public sealed record SleepSettings(
             SameEveryNight ? Weeknights : Weekends,
             plan is null ? null : day => DayPlanSleep.NightBefore(plan, day),
             WakeOnce,
-            UsePhoneAlarm ? phoneAlarm : null,
+            UsePhoneAlarm && !UsePcAlarm ? phoneAlarm : null,
             Goal,
             bedLevel);
     }

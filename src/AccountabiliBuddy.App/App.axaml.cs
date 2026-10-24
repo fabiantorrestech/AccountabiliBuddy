@@ -59,6 +59,7 @@ public partial class App : Application
     private WatchedBrowsersService? _watchedBrowsers;
     private UnlockService? _unlocks;
     private SessionOverlayService? _sessionOverlay;
+    private PcAlarmService? _pcAlarm;
     private NoisePlayerService? _noise;
     private NoiseSettingsService? _noiseSettings;
     private HeadphoneAutoPlayService? _headphones;
@@ -329,6 +330,10 @@ public partial class App : Application
             _sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), timelineDay, _sessionCues);
         _dayBar = new DayBarViewModel(
             _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, _coldTurkey, deletedUsage, time);
+        // ADR 35: this PC's alarm, when Settings → Sleep takes the wake time from it.
+        _pcAlarm = new PcAlarmService(
+            sleepSettings, _configuration, _sessionCues, new AccountabiliBuddy.Platform.Windows.Time.WindowsWakeTimer(), time, () => _sessionOverlay.Glow());
+        _pcAlarm.Start();
         _dayBar.Gaps = sessionGaps;
         _noiseSettings = new NoiseSettingsService(documents);
         _noiseSettings.LoadBlocking();
@@ -784,6 +789,10 @@ public partial class App : Application
                 ComputerTypes = computerTypes,
                 PrivacyChoices = privacy,
                 GoogleGuide = new GoogleSetupGuide(calendars, _calendarSync, dataProtector, documents, OpenInBrowser),
+                PcAlarmWarning = () => _pcAlarm!.WakeProblem(),
+                // ADR 35: only a linked phone measures sleep.
+                HasLinkedPhone = () => receivedDevices.Devices.Any(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone)
+                    || _link!.Devices.Any(device => device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone),
             },
             activityViewModel,
             Environment.GetEnvironmentVariable(DevToolsVariable) == "1",

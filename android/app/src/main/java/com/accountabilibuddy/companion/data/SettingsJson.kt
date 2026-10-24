@@ -36,6 +36,10 @@ object SettingsJson {
             weekends = times(json.obj("weekends")) ?: default.weekends,
             goalHours = (json["goalHours"] as? JsonPrimitive)?.doubleOrNull ?: default.goalHours,
             wakeOnce = wakeOnce(json.obj("wakeOnce")),
+            smartWorkdays = json.bool("smartWorkdays", default.smartWorkdays),
+            smartOffDays = json.bool("smartOffDays", default.smartOffDays),
+            minHours = (json["minHours"] as? JsonPrimitive)?.doubleOrNull ?: default.minHours,
+            maxHours = (json["maxHours"] as? JsonPrimitive)?.doubleOrNull ?: default.maxHours,
         )
     }
 
@@ -45,6 +49,10 @@ object SettingsJson {
         put("weeknights", timesJson(settings.weeknights))
         put("weekends", timesJson(settings.weekends))
         put("goalHours", settings.goalHours)
+        put("smartWorkdays", settings.smartWorkdays)
+        put("smartOffDays", settings.smartOffDays)
+        put("minHours", settings.minHours)
+        put("maxHours", settings.maxHours)
         settings.wakeOnce?.let { once ->
             put("wakeOnce", buildJsonObject {
                 put("morning", once.morning.toString())
