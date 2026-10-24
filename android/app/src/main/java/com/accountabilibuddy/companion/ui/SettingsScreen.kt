@@ -1,5 +1,8 @@
 package com.accountabilibuddy.companion.ui
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -113,9 +116,7 @@ fun SettingsScreen(
             }
         }
 
-        item { HorizontalDivider() }
         item { SleepSection(state.sleep, clock, onSaveSleep) }
-        item { HorizontalDivider() }
 
         item {
             Section(
@@ -144,15 +145,12 @@ fun SettingsScreen(
         }
 
         noise?.let { player ->
-            item { HorizontalDivider() }
-            item { NoiseSection(player, noiseSettings) }
+                item { NoiseSection(player, noiseSettings) }
             item { HeadphonesSection() }
         }
 
-        item { HorizontalDivider() }
         item { CurboxSection(curbox, onConnectCurbox) }
 
-        item { HorizontalDivider() }
         item {
             Hint(
                 "Local only: the app talks only to your linked PC, on your own network and encrypted, and to your linked watch " +
@@ -341,7 +339,13 @@ internal fun WatchSection(watch: WatchSectionState, actions: WatchSectionActions
 @Composable
 internal fun Section(title: String, summary: String? = null, startOpen: Boolean = false, content: @Composable () -> Unit) {
     var open by rememberSaveable(title) { mutableStateOf(summary == null || startOpen) }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Each section on its own tinted card, so one is easy to tell from the next.
+    androidx.compose.material3.Surface(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().clickable(enabled = summary != null) { open = !open },
@@ -354,7 +358,12 @@ internal fun Section(title: String, summary: String? = null, startOpen: Boolean 
                 }
             }
             if (summary != null) {
-                Text(if (open) "▾" else "▸", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                androidx.compose.material3.Icon(
+                    if (open) androidx.compose.material.icons.Icons.Outlined.ExpandLess else androidx.compose.material.icons.Icons.Outlined.ExpandMore,
+                    contentDescription = if (open) "Fold" else "Open",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(32.dp),
+                )
             }
         }
         // Folds open and shut smoothly (Settings → Appearance → Animations; at once when off).
@@ -366,6 +375,7 @@ internal fun Section(title: String, summary: String? = null, startOpen: Boolean 
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
         }
+    }
     }
 }
 
