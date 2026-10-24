@@ -49,9 +49,12 @@ class NudgeActivity : ComponentActivity() {
         val store = NudgeStore(this)
         val untilText = intent.getStringExtra(EXTRA_UNTIL)
         val parked = intent.getStringArrayListExtra(EXTRA_PARKED).orEmpty()
+        val bonus = intent.getIntExtra(EXTRA_BONUS_GOAL, 0).takeIf { it > 0 }?.let { goal ->
+            GoalBonus(goal, intent.getIntExtra(EXTRA_BONUS_FOCUSED, goal), intent.getIntExtra(EXTRA_BONUS_STREAK, 1))
+        }
         setContent {
             CompanionTheme {
-                NudgeCard(store, untilText, parked, onDone = {
+                NudgeCard(store, app.emergency, untilText, parked, bonus, onDone = {
                     finish()
                     app.refreshSoon()
                 })
@@ -62,11 +65,16 @@ class NudgeActivity : ComponentActivity() {
     companion object {
         const val EXTRA_UNTIL = "until"
         const val EXTRA_PARKED = "parked"
+        const val EXTRA_BONUS_FOCUSED = "bonusFocused"
+        const val EXTRA_BONUS_GOAL = "bonusGoal"
+        const val EXTRA_BONUS_STREAK = "bonusStreak"
     }
 }
 
 @Composable
-private fun NudgeCard(store: NudgeStore, untilText: String?, parked: List<String>, onDone: () -> Unit) {
+private fun NudgeCard(store: NudgeStore, emergency: EmergencyStore, untilText: String?, parked: List<String>, bonus: GoalBonus?, onDone: () -> Unit) {
+    // "Not working today" opens a choice: a day off, or the phone for a bit (emergency).
+    var menu by remember { mutableStateOf<String?>(null) }
     val zone = ZoneId.systemDefault()
     var state by remember { mutableStateOf(store.load()) }
     var now by remember { mutableStateOf(Instant.now()) }
@@ -87,12 +95,31 @@ private fun NudgeCard(store: NudgeStore, untilText: String?, parked: List<String
 
     Box(Modifier.fillMaxSize().background(Color(0xFF0B1F1E)), contentAlignment = Alignment.Center) {
         Column(Modifier.fillMaxWidth().padding(28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("Work time", color = Color(0xFF7DD3C0), fontSize = 18.sp)
-            Text("Plan 3 tasks and start", color = Color.White, fontSize = 32.sp, lineHeight = 38.sp)
-            Text(
-                listOfNotNull(untilText, "No session is running on any of your devices.").joinToString(" · "),
-                color = Color(0xCCFFFFFF), style = MaterialTheme.typography.bodyLarge,
-            )
+            if (menu == MENU_EMERGENCY) {
+                EmergencyChooser(emergency, onStarted = onDone, onBack = { menu = MENU_CHOOSE })
+                return@Column
+            }
+
+            if (bonus != null) {
+                // Goal met: framed as a bonus round, the extra counted up.
+                Text("Goal met ✓ · ${GoalBonus.duration(bonus.focusedMinutes)} today", color = Color(0xFF22C55E), fontSize = 18.sp)
+                Text("Bonus round?", color = Color.White, fontSize = 32.sp, lineHeight = 38.sp)
+                Text(
+                    listOfNotNull(
+                        if (bonus.bonusMinutes > 0) "+${GoalBonus.duration(bonus.bonusMinutes)} over your ${GoalBonus.duration(bonus.goalMinutes)} goal" else "Right on your ${GoalBonus.duration(bonus.goalMinutes)} goal",
+                        if (bonus.streakDays > 1) "${bonus.streakDays}-day streak" else null,
+                        untilText,
+                    ).joinToString(" · "),
+                    color = Color(0xCCFFFFFF), style = MaterialTheme.typography.bodyLarge,
+                )
+            } else {
+                Text("Work time", color = Color(0xFF7DD3C0), fontSize = 18.sp)
+                Text("Plan 3 tasks and start", color = Color.White, fontSize = 32.sp, lineHeight = 38.sp)
+                Text(
+                    listOfNotNull(untilText, "No session is running on any of your devices.").joinToString(" · "),
+                    color = Color(0xCCFFFFFF), style = MaterialTheme.typography.bodyLarge,
+                )
+            }
             if (parked.isNotEmpty()) {
                 Text("Parked for later:", color = Color(0x99FFFFFF), style = MaterialTheme.typography.bodyMedium)
                 parked.take(3).forEach { Text("• $it", color = Color(0xCCFFFFFF), style = MaterialTheme.typography.bodyMedium) }
@@ -111,6 +138,30 @@ private fun NudgeCard(store: NudgeStore, untilText: String?, parked: List<String
                 // Tapped by mistake: back to the card's choices (being stricter needs no wait).
                 OutlinedButton(onClick = { save(state.copy(dayOffAskedAt = null, dayOff = null)) }, modifier = Modifier.fillMaxWidth()) {
                     Text("Cancel: I am working today")
+                }
+                return@Column
+            }
+
+            if (menu == MENU_CHOOSE) {
+                Text("Not working today?", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                Button(onClick = { menu = MENU_EMERGENCY }, modifier = Modifier.fillMaxWidth()) { Text("I need my phone for a bit") }
+                OutlinedButton(onClick = { menu = null; save(state.copy(dayOffAskedAt = now)) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("A day off (10-minute wait)", color = Color.White)
+                }
+                TextButton(onClick = { menu = null }, modifier = Modifier.fillMaxWidth()) { Text("Back", color = Color(0x99FFFFFF)) }
+                return@Column
+            }
+
+            if (bonus != null) {
+                Button(onClick = { save(NudgeRules.starting(state, now)); onDone() }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Start a bonus block", fontSize = 18.sp)
+                }
+                // After the goal, "Not now" is free: no count, no reason.
+                OutlinedButton(onClick = { save(state.copy(snoozedUntil = now.plusSeconds(GoalBonus.REPEAT_MINUTES * 60L))); onDone() }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Not now", color = Color.White)
+                }
+                TextButton(onClick = { menu = MENU_CHOOSE }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Not working today · need my phone", color = Color(0x99FFFFFF))
                 }
                 return@Column
             }
@@ -140,9 +191,12 @@ private fun NudgeCard(store: NudgeStore, untilText: String?, parked: List<String
             ) {
                 Text(if (needsReason) "Snooze 5 min (needs a reason)" else "Snooze 5 min ($left free left today)", color = Color.White)
             }
-            TextButton(onClick = { save(state.copy(dayOffAskedAt = now)) }, modifier = Modifier.fillMaxWidth()) {
-                Text("Not working today (10-minute wait)", color = Color(0x99FFFFFF))
+            TextButton(onClick = { menu = MENU_CHOOSE }, modifier = Modifier.fillMaxWidth()) {
+                Text("Not working today · need my phone", color = Color(0x99FFFFFF))
             }
         }
     }
 }
+
+private const val MENU_CHOOSE = "choose"
+private const val MENU_EMERGENCY = "emergency"

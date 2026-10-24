@@ -83,7 +83,9 @@ object Refresher {
             // Steering (start nudge, parked phone, pickups to the PC): from the devices' combined focus.
             val focus = HeaderSource.focus(app, now)?.takeUnless { quiet }
             // "Not working today" on the full-screen card, or lunch: no work nudges on the phone.
-            val nudgeFocus = focus?.takeUnless { com.accountabilibuddy.companion.nudge.Takeover.isDayOff(context) || app.lunch.isOnLunch() }
+            val nudgeFocus = focus?.takeUnless {
+                com.accountabilibuddy.companion.nudge.Takeover.isDayOff(context) || app.lunch.isOnLunch() || app.emergency.isActive()
+            }
             // Lunch: "Lunch over!" once (its alarm may come late), and one hint when it isn't started by its time.
             com.accountabilibuddy.companion.lunch.LunchReceiver.tellOver(context)
             app.store.state.value.document.dayPlan.flexibleBreakOn(now.toLocalDate())?.let { flex ->

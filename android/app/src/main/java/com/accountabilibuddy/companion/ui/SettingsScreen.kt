@@ -83,6 +83,7 @@ fun SettingsScreen(
         }
         item { AppearanceSection() }
         item { StartupSection() }
+        item { EmergencySection() }
         if (pause != null) {
             item {
                 // Ticks the wait down while it's shown.

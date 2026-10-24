@@ -31,7 +31,7 @@ object WorkStartNudge {
 
     /** When the next nudge could come, for the next refresh. */
     fun nextAt(context: Context, focus: WatchSnapshot?, now: Instant = Instant.now()): Instant? =
-        WorkStart.nextNudgeAt(focus, now, lastNudge(context), repeatMinutes(context))
+        WorkStart.nextNudgeAt(focus, now, lastNudge(context), com.accountabilibuddy.companion.nudge.GoalBonus.repeatMinutes(focus, repeatMinutes(context), now))
 
     private fun lastNudge(context: Context): Instant? =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(LAST, null)?.let { runCatching { Instant.parse(it) }.getOrNull() }
@@ -48,7 +48,8 @@ object WorkStartNudge {
             return
         }
 
-        if (!WorkStart.nudgeDue(focus, now, lastNudge(context), repeatMinutes(context)) || !TimelineNotifier.canPost(context)) {
+        val repeat = com.accountabilibuddy.companion.nudge.GoalBonus.repeatMinutes(focus, repeatMinutes(context), now)
+        if (!WorkStart.nudgeDue(focus, now, lastNudge(context), repeat) || !TimelineNotifier.canPost(context)) {
             return
         }
 
@@ -61,8 +62,16 @@ object WorkStartNudge {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setSmallIcon(R.drawable.ic_stat_timeline)
-            .setContentTitle("Work time · plan 3 tasks and start")
-            .setContentText("No session is running yet. Write down what you're doing first, start on your computer, and put the phone away.")
+            .apply {
+                val bonus = com.accountabilibuddy.companion.nudge.GoalBonus.of(focus, now)
+                if (bonus != null) {
+                    setContentTitle("Goal met · bonus round?")
+                    setContentText("${com.accountabilibuddy.companion.nudge.GoalBonus.duration(bonus.focusedMinutes)} today. Time left in work hours: a bonus block counts extra.")
+                } else {
+                    setContentTitle("Work time · plan 3 tasks and start")
+                    setContentText("No session is running yet. Write down what you're doing first, start on your computer, and put the phone away.")
+                }
+            }
             .setStyle(NotificationCompat.BigTextStyle())
             .setAutoCancel(true)
             .setContentIntent(open)

@@ -9,4 +9,6 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="Count">Unlocks from the session's start until <paramref name="CountedUntil"/>.</param>
 /// <param name="LongestDownMinutes">The longest stretch in that time without an unlock.</param>
 /// <param name="CountedUntil">The session's end, or when the phone last counted a running one.</param>
-public sealed record SyncPickup(Guid DeviceId, DateTimeOffset SessionStart, int Count, int LongestDownMinutes, DateTimeOffset CountedUntil);
+/// <param name="EmergencyMinutes">"I need my phone for a bit" time in the session: shown apart, never a pickup (0 for none).</param>
+public sealed record SyncPickup(
+    Guid DeviceId, DateTimeOffset SessionStart, int Count, int LongestDownMinutes, DateTimeOffset CountedUntil, int EmergencyMinutes = 0);

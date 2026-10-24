@@ -84,6 +84,9 @@ class SyncCoordinator(
     /** The phone's unlock times since a moment (ADR 26 pickups); null without Usage access. */
     var unlocksSince: (Instant) -> List<Instant>? = { null }
 
+    /** Emergency phone time (start, end), counted apart from pickups; set by the app. */
+    var emergencyWindows: () -> List<Pair<Instant, Instant>> = { emptyList() }
+
     /** The pickups during the other devices' counted sessions of the last 14 days; null without Usage access. */
     fun pickups(): List<SyncPickup>? {
         val now = now()
@@ -92,7 +95,7 @@ class SyncCoordinator(
             .flatMap { device -> device.file.sessions.map { device.file.device.deviceId to it } }
         val from = sessions.minOfOrNull { it.second.start } ?: return emptyList()
         val unlocks = unlocksSince(from) ?: return null
-        return SyncPickup.count(sessions, unlocks, now)
+        return SyncPickup.count(sessions, unlocks, now, emergencyWindows())
     }
 
     /** Joins the group of [code] (from the PC's link code); a new group drops the old one's copies. False when invalid. */

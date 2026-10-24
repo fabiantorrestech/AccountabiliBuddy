@@ -14,7 +14,15 @@ import java.util.UUID
  * @property longestDownMinutes The longest stretch in that time without an unlock.
  * @property countedUntil The session's end, or when the phone last counted a running one.
  */
-data class SyncPickup(val deviceId: UUID, val sessionStart: Instant, val count: Int, val longestDownMinutes: Int, val countedUntil: Instant) {
+data class SyncPickup(
+    val deviceId: UUID,
+    val sessionStart: Instant,
+    val count: Int,
+    val longestDownMinutes: Int,
+    val countedUntil: Instant,
+    /** "I need my phone for a bit" minutes in the session: shown apart on the PC, never pickups. */
+    val emergencyMinutes: Int = 0,
+) {
     companion object {
         /** Sessions this old aren't counted (the files carry 14 days). */
         private val KEPT: Duration = Duration.ofDays(14)
@@ -23,7 +31,13 @@ data class SyncPickup(val deviceId: UUID, val sessionStart: Instant, val count: 
          * One entry per counted session of another device ([sessions]: device id and session; hand-added ones are left
          * out) that started in the last 14 days, from the phone's unlock times. A running session counts until [now].
          */
-        fun count(sessions: List<Pair<UUID, SyncSession>>, unlocks: List<Instant>, now: Instant): List<SyncPickup> {
+        fun count(
+            sessions: List<Pair<UUID, SyncSession>>,
+            unlocks: List<Instant>,
+            now: Instant,
+            /** Emergency phone time (start, end): its minutes inside each session are counted apart. */
+            emergency: List<Pair<Instant, Instant>> = emptyList(),
+        ): List<SyncPickup> {
             val sorted = unlocks.sorted()
             return sessions
                 .filter { (_, session) -> !session.added && session.start >= now.minus(KEPT) && session.start < now }
@@ -32,7 +46,12 @@ data class SyncPickup(val deviceId: UUID, val sessionStart: Instant, val count: 
                     val inside = sorted.filter { it >= session.start && it < end }
                     val marks = listOf(session.start) + inside + end
                     val longest = marks.zipWithNext { a, b -> Duration.between(a, b) }.maxOrNull() ?: Duration.ZERO
-                    SyncPickup(deviceId, session.start, inside.size, longest.toMinutes().toInt(), end)
+                    val emergencyMinutes = emergency.sumOf { (from, to) ->
+                        val overlapStart = maxOf(from, session.start)
+                        val overlapEnd = minOf(to, end)
+                        if (overlapEnd.isAfter(overlapStart)) Duration.between(overlapStart, overlapEnd).toMinutes() else 0L
+                    }.toInt()
+                    SyncPickup(deviceId, session.start, inside.size, longest.toMinutes().toInt(), end, emergencyMinutes)
                 }
         }
     }

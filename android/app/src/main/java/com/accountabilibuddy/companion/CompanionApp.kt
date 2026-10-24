@@ -81,6 +81,9 @@ class CompanionApp : Application() {
     lateinit var noise: com.accountabilibuddy.companion.noise.NoisePlayer
         private set
 
+    /** "I need my phone for a bit" and the always-allowed apps. */
+    val emergency by lazy { com.accountabilibuddy.companion.nudge.EmergencyStore(this) }
+
     /** What the user did here for a PC (ADR 26), until that PC acknowledges it. */
     val actions by lazy { com.accountabilibuddy.companion.sync.ActionStore(this) }
 
@@ -160,9 +163,16 @@ class CompanionApp : Application() {
         // Unlocks while the phone was paused or in the car aren't pickups.
         sync.unlocksSince = { from ->
             val state = pause.advance()
-            com.accountabilibuddy.companion.usage.PhoneUsageReader(this).unlocks(from, java.time.Instant.now())
+            val reader = com.accountabilibuddy.companion.usage.PhoneUsageReader(this)
+            val uses = emergency.all()
+            val allowed = emergency.allowedApps
+            reader.unlocks(from, java.time.Instant.now())
                 ?.filterNot { com.accountabilibuddy.companion.pause.PauseRules.inQuiet(state, it) }
+                // Emergency time and unlocks into an always-allowed app (a call, a text) are shown apart, not as pickups.
+                ?.filterNot { unlock -> uses.any { !unlock.isBefore(it.start) && unlock.isBefore(it.end) } }
+                ?.filterNot { unlock -> reader.appAfter(unlock) in allowed }
         }
+        sync.emergencyWindows = { emergency.all().map { it.start to minOf(it.end, java.time.Instant.now()) } }
         watchBridge.onLinkChanged = { sendSyncFilesToPc() }
         folderSource = DriveFolderSource(this, sync)
         com.accountabilibuddy.companion.ui.UiPrefs.load(this)

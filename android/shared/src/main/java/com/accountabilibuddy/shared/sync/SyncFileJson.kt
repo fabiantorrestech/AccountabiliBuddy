@@ -96,6 +96,7 @@ object SyncFileJson {
                     put("count", pickup.count)
                     put("longestDownMinutes", pickup.longestDownMinutes)
                     put("countedUntil", writeTime(pickup.countedUntil))
+                    if (pickup.emergencyMinutes > 0) put("emergencyMinutes", pickup.emergencyMinutes)
                 }
             }))
         }
@@ -234,6 +235,7 @@ object SyncFileJson {
                 SyncPickup(
                     readDeviceId(item.requiredString("deviceId")), item.requiredTime("sessionStart"), item.requiredInt("count"),
                     item.requiredInt("longestDownMinutes"), item.requiredTime("countedUntil"),
+                    (item["emergencyMinutes"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 0,
                 )
             }.getOrNull()
         }

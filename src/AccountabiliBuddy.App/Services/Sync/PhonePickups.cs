@@ -42,9 +42,12 @@ public sealed class PhonePickups
         }
 
         string down = SessionStatusFormatter.FormatDuration(TimeSpan.FromMinutes(pickup.LongestDownMinutes));
+        string emergency = pickup.EmergencyMinutes > 0
+            ? $" · emergency {SessionStatusFormatter.FormatDuration(TimeSpan.FromMinutes(pickup.EmergencyMinutes))}"
+            : string.Empty;
         return pickup.Count == 0
-            ? $"Phone: not picked up · down {down}"
-            : $"Phone: picked up {pickup.Count}× · longest down {down}";
+            ? $"Phone: not picked up · down {down}{emergency}"
+            : $"Phone: picked up {pickup.Count}× · longest down {down}{emergency}";
     }
 
     /// <summary>True when the session that started at <paramref name="sessionStart"/> was phone-free (so far).</summary>

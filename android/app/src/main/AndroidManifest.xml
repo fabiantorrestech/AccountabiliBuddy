@@ -115,6 +115,13 @@
             android:launchMode="singleTask"
             android:taskAffinity="com.accountabilibuddy.companion.nudge" />
 
+        <!-- "Need my phone" from the parked notice: the emergency chooser on its own. -->
+        <activity
+            android:name=".nudge.EmergencyActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.accountabilibuddy.companion.nudge" />
+
         <activity-alias
             android:name="ViewPermissionUsageActivity"
             android:exported="true"

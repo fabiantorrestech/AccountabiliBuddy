@@ -42,7 +42,17 @@ object Takeover {
         val store = NudgeStore(context)
         val state = store.load()
         val stretch = WorkStart.current(focus, now)
-        if (!NudgeRules.due(state, stretch != null, stretch, now, LocalDate.now(zone), WorkStartNudge.repeatMinutes(context))) {
+        val app = context.applicationContext as CompanionApp
+        // Emergency time, or unlocked into an always-allowed app (a call, a text, directions): no card.
+        val inFront = com.accountabilibuddy.companion.usage.PhoneUsageReader(context).foregroundApp(now)
+        if (app.emergency.isActive(now) || (inFront != null && inFront in app.emergency.allowedApps)) {
+            Log.d(TAG, "not shown: emergency or allowed app ($inFront)")
+            return
+        }
+
+        val bonus = GoalBonus.of(focus, now, zone)
+        val repeat = GoalBonus.repeatMinutes(focus, WorkStartNudge.repeatMinutes(context), now)
+        if (!NudgeRules.due(state, stretch != null, stretch, now, LocalDate.now(zone), repeat)) {
             Log.d(TAG, "not due: inWork=${stretch != null} last=${state.lastShown}")
             return
         }
@@ -50,13 +60,19 @@ object Takeover {
         store.save(state.copy(lastShown = now))
         val until = focus.parts.filter { it.kind == "watch" && it.start <= now && now < it.end }.maxOfOrNull { it.end }
             ?.let { "Work until ${clock.time(LocalDateTime.ofInstant(it, zone))}" }
-        val app = context.applicationContext as CompanionApp
         val parked = OpenComebacks.of(app.link.pairedPc.value?.pcName, app.link.lastState.value?.state, app.sync.received.value, now)
             ?.items?.map { it.text }.orEmpty()
         val intent = Intent(context, NudgeActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             .putExtra(NudgeActivity.EXTRA_UNTIL, until)
             .putStringArrayListExtra(NudgeActivity.EXTRA_PARKED, ArrayList(parked))
+            .apply {
+                if (bonus != null) {
+                    putExtra(NudgeActivity.EXTRA_BONUS_FOCUSED, bonus.focusedMinutes)
+                    putExtra(NudgeActivity.EXTRA_BONUS_GOAL, bonus.goalMinutes)
+                    putExtra(NudgeActivity.EXTRA_BONUS_STREAK, bonus.streakDays)
+                }
+            }
         open(context, intent)
     }
 

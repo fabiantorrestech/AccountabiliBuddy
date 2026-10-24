@@ -50,6 +50,10 @@ object ParkedNotice {
             .setOnlyAlertOnce(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(open)
+            .addAction(0, "Need my phone", PendingIntent.getActivity(
+                context, 7, Intent(context, com.accountabilibuddy.companion.nudge.EmergencyActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            ))
             .setColor(0xFF2A9D8F.toInt())
             .build()
         try {
