@@ -54,10 +54,16 @@ data class Essentials(val apps: List<EssentialApp> = emptyList(), val folders: L
  * takes the old always-allowed list (prefs "emergency").
  */
 class EssentialsStore(context: Context) {
+    private val appContext = context.applicationContext
     private val prefs = context.getSharedPreferences("essentials", Context.MODE_PRIVATE)
     private val legacy = context.getSharedPreferences("emergency", Context.MODE_PRIVATE)
     private val _essentials = MutableStateFlow(read())
     val essentials: StateFlow<Essentials> = _essentials.asStateFlow()
+
+    // LockMyPhone-Extended's "Accountabilibuddy" profile follows the essentials: sent when first used after a start, then on each change.
+    init {
+        ProfileSync.send(appContext, _essentials.value)
+    }
 
     /** The essentials screen on unlocking during a session on another device (on by default). */
     var onUnlockInSession: Boolean
@@ -85,6 +91,7 @@ class EssentialsStore(context: Context) {
         val next = change(_essentials.value)
         _essentials.value = next
         prefs.edit().putString(KEY_DATA, write(next).toString()).apply()
+        ProfileSync.send(appContext, next)
     }
 
     fun setAllowed(packageName: String, on: Boolean) = update { e ->

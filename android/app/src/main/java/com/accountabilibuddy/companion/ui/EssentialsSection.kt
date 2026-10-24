@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.essentials.AppFolder
 import com.accountabilibuddy.companion.essentials.EssentialsLaunch
+import com.accountabilibuddy.companion.essentials.ProfileSync
 import com.accountabilibuddy.companion.essentials.launchableApps
 import com.accountabilibuddy.companion.usage.PhoneUsageReader
 import java.util.UUID
@@ -81,10 +82,15 @@ internal fun EssentialsSection() {
             label = { Text("Its profile to start for each session (empty = off)") }, modifier = Modifier.fillMaxWidth(),
         )
         Text(
-            if (EssentialsLaunch.lockMyPhoneInstalled(context)) "When a session starts on another device, LockMyPhone-Extended starts that profile for the session's length; it decides what's allowed."
+            if (EssentialsLaunch.lockMyPhoneInstalled(context)) "When a session starts on another device, LockMyPhone-Extended starts that profile for the session's length; it decides what's allowed. Its \"${ProfileSync.PROFILE_NAME}\" profile always allows exactly these essentials."
             else "LockMyPhone-Extended isn't installed on this phone.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (EssentialsLaunch.lockMyPhoneInstalled(context) && hardcore != ProfileSync.PROFILE_NAME) {
+            androidx.compose.material3.TextButton(onClick = { hardcore = ProfileSync.PROFILE_NAME; store.hardcoreProfile = ProfileSync.PROFILE_NAME }) {
+                Text("Use \"${ProfileSync.PROFILE_NAME}\" (kept in sync with these essentials)")
+            }
+        }
 
         // Folders.
         Text("Folders", style = MaterialTheme.typography.labelLarge)

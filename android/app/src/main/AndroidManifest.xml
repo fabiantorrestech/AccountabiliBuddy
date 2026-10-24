@@ -20,6 +20,9 @@
     <!-- The noise player keeps playing in the background like any music app. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
+    <!-- Keeps LockMyPhone-Extended's "Accountabilibuddy" profile in sync with the essentials (ProfileSync). Granted only when
+         LockMyPhone-Extended, signed with the same key, was installed first. -->
+    <uses-permission android:name="com.fabiantorrestech.lockmyphone_extended.permission.MANAGE_PROFILES" />
     <!-- Which app was in front, for today's phone use (granted by the user in Settings > Usage access). -->
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
