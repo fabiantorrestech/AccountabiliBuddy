@@ -52,7 +52,7 @@ object TimelineNotifier {
         val collapsed = RemoteViews(context.packageName, R.layout.notification_timeline).apply {
             val counting = setCountdown(this, model, text)
             // The mode now first (the date is in the expanded card's small line).
-            setTextViewText(R.id.timeline_title, if (counting) "" else model.statusText)
+            setTextViewText(R.id.timeline_title, if (counting) "" else model.statusCompact ?: model.statusText)
             setTextColor(R.id.timeline_title, text)
             // The bar is narrower by the noise button when it shows.
             setBar(this, model, if (noise != null) width - (NOISE_BUTTON_DP * metrics.density).toInt() else width, metrics.density, night, compact = true)

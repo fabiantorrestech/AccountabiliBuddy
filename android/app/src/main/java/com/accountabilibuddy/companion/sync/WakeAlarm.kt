@@ -51,8 +51,8 @@ object WakeAlarm {
 
     /**
      * The wake-up alarm now: [pinned] (or else [learned])'s alarm, the one Android shows [next] or, while another app's
-     * is shown, the last one seen from it that's still ahead. With no app pinned or learned yet, the next alarm unless a
-     * calendar app set it.
+     * is shown, the last one seen from it that's still ahead; when it has none ahead, or with no app pinned or learned yet,
+     * the next alarm unless a calendar app set it.
      */
     fun choose(next: AlarmSighting?, history: List<AlarmSighting>, pinned: String?, learned: String?, now: Instant): Instant? {
         val app = pinned ?: learned
@@ -65,5 +65,7 @@ object WakeAlarm {
         }
 
         return history.filter { it.app == app && it.at.isAfter(now) }.maxByOrNull { it.seenAt }?.at
+            // The wake-up app has nothing ahead (e.g. a one-off alarm set in Clock): the next alarm, unless a calendar's.
+            ?: next?.takeIf { !isCalendar(it.app) && it.at.isAfter(now) }?.at
     }
 }

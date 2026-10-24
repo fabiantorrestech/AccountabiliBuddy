@@ -90,6 +90,7 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
             day = day,
             dateText = day.start.format(dateFormat),
             statusText = header?.status ?: status(now, range, planned, document),
+            statusCompact = header?.compactStatus,
             summaryText = header?.summary ?: summary(range, planned),
             planned = plannedSpans + lunchSpans,
             actual = actualSpans,

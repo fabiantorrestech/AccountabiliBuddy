@@ -40,6 +40,8 @@ data class HeaderText(
     val countdownFormat: String? = null,
     /** The text changes by the minute (the sleep left near and past bedtime): the card is redrawn every minute. */
     val refreshMinutely: Boolean = false,
+    /** A shorter [status] for a narrow line (the collapsed card), e.g. "7h 52m - 6:45 AM"; null = the same. */
+    val compactStatus: String? = null,
 )
 
 /**
@@ -57,7 +59,9 @@ object DayHeader {
 
     fun build(input: HeaderInput, clock: ClockFormat): HeaderText {
         val summary = summary(input, clock)
-        return status(input, clock).copy(summary = summary)
+        val status = status(input, clock)
+        // A status may bring a lead for the summary line (e.g. "Bedtime in 40m").
+        return status.copy(summary = listOf(status.summary, summary).filter { it.isNotEmpty() }.joinToString(" · "))
     }
 
     private fun status(input: HeaderInput, clock: ClockFormat): HeaderText {
@@ -86,11 +90,9 @@ object DayHeader {
         val night = input.night
         if (night != null && !now.isBefore(night.start) && now.isBefore(night.end)) {
             val wake = wakeText(night, input, clock)
-            val beforeMidnight = now.toLocalDate() == night.start.toLocalDate() && night.start.hour >= 12
-            val label = if (beforeMidnight) "Past bedtime" else "Sleep"
-            // The sleep left if you go now, by the minute.
+            // "Sleep • 7h 52m • 6:45 AM": the sleep left if you go now, by the minute, and the wake time.
             val left = minutesText(Duration.between(now, night.end))
-            return HeaderText("$label · $left of sleep if you go now · up $wake", "", refreshMinutely = true)
+            return HeaderText("Sleep • $left • $wake", "", refreshMinutely = true, compactStatus = "$left - $wake")
         }
 
         val watch = input.parts.filter { it.category.behavior.isWork }
@@ -115,7 +117,7 @@ object DayHeader {
             // Close to bedtime: the sleep you'd get if you went now, by the minute.
             val wake = wakeText(night, input, clock)
             val left = minutesText(Duration.between(now, night.end))
-            return HeaderText("Bedtime in ${minutesText(bedtimeIn)} · $left of sleep if you go now · up $wake", "", refreshMinutely = true)
+            return HeaderText("Sleep • $left • $wake", "Bedtime in ${minutesText(bedtimeIn)}", refreshMinutely = true, compactStatus = "$left - $wake")
         }
 
         watch.firstOrNull { it.window.start.isAfter(now) && it.window.start.toLocalDate() == today }?.let { next ->
