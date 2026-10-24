@@ -117,3 +117,5 @@ INetworkConnection
 IEnumNetworkConnections
 NLM_ENUM_NETWORK
 NLM_NETWORK_CATEGORY
+LockWorkStation
+SetSuspendState

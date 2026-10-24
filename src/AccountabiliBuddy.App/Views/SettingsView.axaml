@@ -284,6 +284,17 @@
                         <TextBlock Text="Apps that wait (process names, comma separated)" FontSize="12" Opacity="0.75" />
                         <TextBox Text="{Binding AppsText}" TextWrapping="Wrap" AcceptsReturn="False" />
                         <Button Content="Save apps" Command="{Binding SaveAppsCommand}" HorizontalAlignment="Left" />
+                        <!-- Lights out (design K, opt-in): only while work hours are kept here. -->
+                        <StackPanel Spacing="4" Margin="0,8,0,0"
+                                    DataContext="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).LightsOut}" x:DataType="vm:LightsOutViewModel"
+                                    IsVisible="{Binding CanUse, FallbackValue=False}">
+                            <CheckBox IsChecked="{Binding IsOn}" Content="Lights out: lock this computer when a work part starts and after 3 idle minutes during work hours" />
+                            <CheckBox IsChecked="{Binding UsesSleep}" Content="Sleep instead of locking (stronger; downloads pause)" Margin="28,0,0,0" IsVisible="{Binding IsOn}" />
+                            <TextBlock Text="Never while a session runs here, during a calendar event, on a day off or once today's goal is met. Waking lands on the gate."
+                                       Opacity="0.75" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="#F4A261"
+                                       IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
                         <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Opacity="0.85"
                                    IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     </StackPanel>

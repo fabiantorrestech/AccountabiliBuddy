@@ -62,6 +62,8 @@ public partial class App : Application
     private NoisePlayerService? _noise;
     private NoiseSettingsService? _noiseSettings;
     private HeadphoneAutoPlayService? _headphones;
+    private LightsOutService? _lightsOut;
+    private AccountabiliBuddy.App.Services.Setup.ComputerTypeService? _computerTypes;
     private SessionCueService? _sessionCues;
     private AppAndSiteIcons? _icons;
     private UpdateService? _updates;
@@ -404,6 +406,16 @@ public partial class App : Application
         _activityWatcher.ActivityChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => _workHours.OnActivity(snapshot));
         // The gate: reaching for a dev tool once work starts, or after 3 idle minutes, asks what you were about to do (ADR 28).
         _workGate = new WorkGateService(_workHours, new Win32UserIdleDetector(), _comebacks, _sessions);
+        // Lights out (design K, opt-in): lock or sleep at each work part's start and after 3 idle minutes.
+        _lightsOut = new LightsOutService(
+            documents, _workHours, _sessions, new Win32UserIdleDetector(), new AccountabiliBuddy.Platform.Windows.Activity.Win32ComputerLock(),
+            inCalendarEvent: () =>
+            {
+                DateTime now = time.GetLocalNow().DateTime;
+                return calendars.EventsOn(DateOnly.FromDateTime(now)).Any(entry => !entry.Event.IsAllDay && entry.Event.LocalStart <= now && now < entry.Event.LocalEnd);
+            },
+            isLocalOnly: () => _computerTypes?.Current == AccountabiliBuddy.App.Services.Setup.ComputerType.LocalOnly);
+        _lightsOut.LoadBlocking();
         _workGate.Changed += (_, _) => ShowWorkGate(monitorLocator);
         // ADR 31: Pre-Work parts ask whether today is a work day, then hold work tools and distractions back.
         _preWork = new PreWorkService(
@@ -564,6 +576,7 @@ public partial class App : Application
         var backups = new BackupService(_configuration, documents, activityLog, new DpapiDataProtector(), time, dataDirectory);
         // The computer types (ADR 22): the assistant applies one; Settings shows it and can apply one again.
         var computerTypes = new AccountabiliBuddy.App.Services.Setup.ComputerTypeService(documents, privacy, enforcementLimit, syncSettings, _updates);
+        _computerTypes = computerTypes;
         computerTypes.LoadBlocking();
         _createAssistant = () => new SetupAssistantViewModel(
             blockerLocator, configuration, sessions, activityLog, privacy, time, setupViewModel,
@@ -742,6 +755,7 @@ public partial class App : Application
                 StartNudge = new StartNudgeViewModel(_startNudge!),
                 Motion = new MotionViewModel(_motion!),
                 Headphones = new HeadphoneSettingsViewModel(_headphones!),
+                LightsOut = new LightsOutViewModel(_lightsOut!),
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
                 Updates = new UpdatesViewModel(_updates),
                 EnforcementLimit = enforcementLimit,

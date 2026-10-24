@@ -621,6 +621,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public MotionViewModel? Motion { get; init; }
 
+    /// <summary>Lights out during work hours (design K).</summary>
+    public LightsOutViewModel? LightsOut { get; init; }
+
     /// <summary>Play the noise when chosen headphones connect.</summary>
     public HeadphoneSettingsViewModel? Headphones { get; init; }
 
