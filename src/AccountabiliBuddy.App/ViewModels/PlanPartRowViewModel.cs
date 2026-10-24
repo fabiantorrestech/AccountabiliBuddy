@@ -67,6 +67,9 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
     /// <summary>A Sleep part: it can wake by the alarm.</summary>
     public bool IsSleep => Category?.Behavior == CategoryBehavior.Sleep;
 
+    /// <summary>"Smart bedtime: the phone sets this bedtime (…)", under a Sleep part while the phone shares one (ADR 34).</summary>
+    public string? SmartNote => IsSleep && _owner.SmartNote() is string note ? $"Smart bedtime: the phone sets this bedtime ({note}). Yours is used while it learns." : null;
+
     /// <summary>The end is set by hand (not a Sleep part woken by the alarm).</summary>
     public bool EndEditable => !(IsSleep && WakeByAlarm);
 

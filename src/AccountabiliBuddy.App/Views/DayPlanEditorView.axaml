@@ -36,6 +36,8 @@
                     <CheckBox Margin="24,0,0,0" IsVisible="{Binding IsSleep}" IsChecked="{Binding WakeByAlarm}"
                               Content="Wake = my alarm (no alarm set: bedtime + sleep goal)"
                               ToolTip.Tip="The wake-up alarm app chosen on the phone (Devices) sets the morning's wake time; set only when to be in bed by" />
+                    <TextBlock Margin="24,0,0,0" Text="{Binding SmartNote}" IsVisible="{Binding SmartNote, Converter={x:Static ObjectConverters.IsNotNull}}"
+                               Opacity="0.75" TextWrapping="Wrap" />
                     <!-- A flexible break (e.g. lunch): the times are the window; it starts when you press Start lunch. -->
                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="24,0,0,0">
                         <CheckBox IsChecked="{Binding IsFlexible}" Content="Flexible: start any time in this window, for"

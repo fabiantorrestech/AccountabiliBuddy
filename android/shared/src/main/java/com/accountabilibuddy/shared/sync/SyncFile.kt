@@ -40,6 +40,8 @@ data class SyncFile(
     val running: SyncRunning? = null,
     /** A PC's calendar events (ADR 26), in the link's settings shape; null when not sent. */
     val events: kotlinx.serialization.json.JsonArray? = null,
+    /** A phone's smart bedtime (ADR 34): derived numbers per kind of night; null when it's off. */
+    val smartBedtime: SyncSmartBedtime? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1
@@ -177,6 +179,23 @@ data class SyncCompanion(val name: String, val kind: String, val linked: Boolean
         const val KIND_WATCH = "watch"
     }
 }
+/** A phone's smart bedtime (ADR 34): per kind of night, null for a kind that's off. */
+data class SyncSmartBedtime(val workdays: SyncSmartLevel?, val offDays: SyncSmartLevel?)
+
+/**
+ * One kind of night's smart bedtime: [levelMinutes] in bed before waking (null while learning), and the status line's
+ * numbers ([averageAsleep] as "HH:mm"). Only derived numbers, never sleep sessions or times of phone use.
+ */
+data class SyncSmartLevel(
+    val levelMinutes: Int?,
+    val nights: Int,
+    val latencyMinutes: Int,
+    val averageAsleep: String?,
+    val averageSleptMinutes: Int?,
+    val madeThisWeek: Int,
+    val askedThisWeek: Int,
+)
+
 /** A flexible lunch: when it started and ends. Every device takes the newest one for the day. */
 data class SyncLunch(val start: java.time.Instant, val end: java.time.Instant)
 

@@ -482,7 +482,13 @@ public partial class App : Application
         var receivedDevices = new AccountabiliBuddy.App.Services.Sync.ReceivedDevicesService(documents, time);
         receivedDevices.LoadBlocking();
         // A paired phone's next alarm (ADR 23): the newest phone file's, while it's still ahead.
-        void FollowPhoneAlarm() => sleepSettings.SetPhoneAlarm(AccountabiliBuddy.App.Services.Sync.PhoneAlarm.Of(receivedDevices.Devices, time));
+        void FollowPhoneAlarm()
+        {
+            sleepSettings.SetPhoneAlarm(AccountabiliBuddy.App.Services.Sync.PhoneAlarm.Of(receivedDevices.Devices, time));
+            // ADR 34: the phone's smart bedtime, from the same files.
+            sleepSettings.SetPhoneBedtime(AccountabiliBuddy.App.Services.Sync.PhoneBedtime.Of(receivedDevices.Devices));
+        }
+
         receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(FollowPhoneAlarm);
         FollowPhoneAlarm();
         var syncIdentity = new AccountabiliBuddy.App.Services.Sync.SyncIdentityService(documents, dataProtector, receivedDevices);
@@ -994,6 +1000,11 @@ public partial class App : Application
     {
         dayPlan.Workday.SleepGoal = () => sleep.Current.Goal;
         dayPlan.OtherDay.SleepGoal = () => sleep.Current.Goal;
+        // ADR 34: the phone's smart bedtime under each template's Sleep part.
+        dayPlan.Workday.SmartNote = () => sleep.Current.UsePhoneBedtime && sleep.PhoneBedtime?.Workdays is { } level
+            ? AccountabiliBuddy.App.Services.Sync.PhoneBedtime.Describe(level) : null;
+        dayPlan.OtherDay.SmartNote = () => sleep.Current.UsePhoneBedtime && sleep.PhoneBedtime?.OffDays is { } level
+            ? AccountabiliBuddy.App.Services.Sync.PhoneBedtime.Describe(level) : null;
         return dayPlan;
     }
 

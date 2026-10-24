@@ -150,6 +150,7 @@ class CompanionApp : Application() {
         // The phone's card names its linked watch (Task 18); linking or unlinking it tells the PC at once.
         sync.companions = { watchBridge.companions() }
         sync.nextAlarm = { wakeAlarm }
+        sync.smartBedtime = { smartBedtime.forSyncFile() }
         // Lunch is the user's: this phone's goes out in its file; one from another device is taken here.
         sync.lunch = { lunch.today() }
         sync.actions = { actions.pending.value }

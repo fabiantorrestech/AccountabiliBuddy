@@ -24,6 +24,9 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
     /// <summary>The sleep goal, for a Sleep part woken by the alarm (its end is bedtime plus this); 8 hours unless set.</summary>
     public Func<TimeSpan> SleepGoal { get; set; } = () => AccountabiliBuddy.Core.Engine.SleepSchedule.DefaultGoal;
 
+    /// <summary>The phone's smart bedtime for this template's nights (ADR 34), shown under its Sleep part; null when none.</summary>
+    public Func<string?> SmartNote { get; set; } = () => null;
+
     public ObservableCollection<PlanPartRowViewModel> Parts { get; } = new();
 
     /// <summary>The selected part only, or every part (in the order of the day) when none is selected.</summary>

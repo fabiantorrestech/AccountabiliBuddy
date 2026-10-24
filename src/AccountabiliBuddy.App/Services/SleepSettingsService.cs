@@ -25,15 +25,34 @@ public sealed class SleepSettingsService
     /// <summary>A paired phone's next alarm (local time) from its sync file (ADR 23); not saved here.</summary>
     public DateTime? PhoneAlarm { get; private set; }
 
+    /// <summary>A paired phone's smart bedtime (ADR 34) from its sync file; not saved here.</summary>
+    public AccountabiliBuddy.Core.Sync.SyncSmartBedtime? PhoneBedtime { get; private set; }
+
     public event EventHandler<SleepSettings>? Changed;
 
-    /// <summary>The phone's alarm changed (not a change of the settings themselves).</summary>
+    /// <summary>The phone's alarm or smart bedtime changed (not a change of the settings themselves).</summary>
     public event EventHandler? PhoneAlarmChanged;
 
-    /// <summary>The nights with the day plan, a one-night change and the phone's alarm in their order.</summary>
+    /// <summary>The nights with the day plan, a one-night change, the phone's alarm and smart bedtime in their order.</summary>
     public SleepSchedule Schedule(DayPlan plan)
     {
-        return Current.ToSchedule(plan, PhoneAlarm);
+        return Current.ToSchedule(plan, PhoneAlarm, PhoneBedtime);
+    }
+
+    public void SetPhoneBedtime(AccountabiliBuddy.Core.Sync.SyncSmartBedtime? bedtime)
+    {
+        if (bedtime == PhoneBedtime)
+        {
+            return;
+        }
+
+        PhoneBedtime = bedtime;
+        PhoneAlarmChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public Task SetUsePhoneBedtimeAsync(bool use)
+    {
+        return use == Current.UsePhoneBedtime ? Task.CompletedTask : SaveAsync(Current with { UsePhoneBedtime = use });
     }
 
     public void SetPhoneAlarm(DateTime? alarm)

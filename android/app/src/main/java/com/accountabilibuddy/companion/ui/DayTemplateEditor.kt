@@ -47,6 +47,8 @@ fun DayTemplateEditor(
     clock: ClockFormat,
     onChange: (DayTemplate) -> Unit,
     onMessage: (String) -> Unit,
+    /** The smart bedtime's line for this template's nights (ADR 34), shown under its Sleep part; null when it's off. */
+    smartNote: String? = null,
 ) {
     var selected by remember { mutableStateOf<UUID?>(null) }
     if (selected != null && template.parts.none { it.id == selected }) {
@@ -66,7 +68,7 @@ fun DayTemplateEditor(
         val rows = if (selected != null) template.parts.filter { it.id == selected } else template.parts.sortedBy { if (it.crossesMidnight) -1 else DayTemplateEditing.minutesOf(it.start) }
         for (part in rows) {
             PartRow(
-                part, categories, clock,
+                part, categories, clock, smartNote,
                 onChange = ::update,
                 onDelete = {
                     onChange(DayTemplate(template.parts.filter { it.id != part.id }))
@@ -102,7 +104,7 @@ fun DayTemplateEditor(
 
 /** One part: its name (optional, else the category's), category, start and end. */
 @Composable
-private fun PartRow(part: PlanPart, categories: List<DayCategory>, clock: ClockFormat, onChange: (PlanPart) -> Unit, onDelete: () -> Unit) {
+private fun PartRow(part: PlanPart, categories: List<DayCategory>, clock: ClockFormat, smartNote: String?, onChange: (PlanPart) -> Unit, onDelete: () -> Unit) {
     var categoryMenu by remember { mutableStateOf(false) }
     var picking by remember { mutableStateOf<String?>(null) }
     val category = categories.firstOrNull { it.id == part.categoryId }
@@ -147,6 +149,10 @@ private fun PartRow(part: PlanPart, categories: List<DayCategory>, clock: ClockF
                 )
                 Text("Wake = my alarm (none set: bedtime + sleep goal)", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
             }
+        }
+        if (isSleep && smartNote != null) {
+            Text("Smart bedtime: $smartNote. This bedtime is used while it learns.",
+                style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
         }
         // A flexible break (e.g. lunch): the times are its window, it starts when you press Start lunch.
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

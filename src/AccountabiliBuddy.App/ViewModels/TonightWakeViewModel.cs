@@ -115,7 +115,7 @@ public sealed partial class TonightWakeViewModel : ObservableObject
     // The baseline (no one-night change) comes from the phone's alarm.
     private bool BaselineByAlarm(LocalWindow planNight)
     {
-        return (_sleep.Current with { WakeOnce = null }).ToSchedule(_configuration.Current.DayPlan, _sleep.PhoneAlarm)
+        return (_sleep.Current with { WakeOnce = null }).ToSchedule(_configuration.Current.DayPlan, _sleep.PhoneAlarm, _sleep.PhoneBedtime)
             .WakesByAlarm(DateOnly.FromDateTime(planNight.End).AddDays(-1));
     }
 
@@ -124,8 +124,8 @@ public sealed partial class TonightWakeViewModel : ObservableObject
     {
         DateTime now = _time.GetLocalNow().DateTime;
         SleepSettings settings = _sleep.Current;
-        LocalWindow planNight = (settings with { WakeOnce = null }).ToSchedule(_configuration.Current.DayPlan, _sleep.PhoneAlarm).NightAround(now);
-        LocalWindow night = settings.ToSchedule(_configuration.Current.DayPlan, _sleep.PhoneAlarm).NightAround(now);
+        LocalWindow planNight = (settings with { WakeOnce = null }).ToSchedule(_configuration.Current.DayPlan, _sleep.PhoneAlarm, _sleep.PhoneBedtime).NightAround(now);
+        LocalWindow night = settings.ToSchedule(_configuration.Current.DayPlan, _sleep.PhoneAlarm, _sleep.PhoneBedtime).NightAround(now);
         return (night, planNight);
     }
 }

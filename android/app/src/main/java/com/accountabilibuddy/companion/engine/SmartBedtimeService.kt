@@ -125,4 +125,17 @@ class SmartBedtimeService(private val app: CompanionApp) {
 
     /** One kind's share for the PCs. */
     data class SmartShare(val levelMinutes: Int?, val summary: SmartBedtime.Summary)
+
+    /** [forSync] in the sync file's shape. */
+    fun forSyncFile(now: LocalDateTime = LocalDateTime.now()): com.accountabilibuddy.shared.sync.SyncSmartBedtime? {
+        val shares = forSync(now) ?: return null
+        fun level(kind: NightKind) = shares[kind]?.let { share ->
+            com.accountabilibuddy.shared.sync.SyncSmartLevel(
+                share.levelMinutes, share.summary.nights, share.summary.latencyMinutes,
+                share.summary.averageAsleep?.let { "%02d:%02d".format(it.hour, it.minute) }, share.summary.averageSleptMinutes,
+                share.summary.madeThisWeek, share.summary.askedThisWeek,
+            )
+        }
+        return com.accountabilibuddy.shared.sync.SyncSmartBedtime(level(NightKind.Workday), level(NightKind.OffDay))
+    }
 }

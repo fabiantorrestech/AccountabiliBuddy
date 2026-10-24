@@ -10,7 +10,8 @@ namespace AccountabiliBuddy.Core.Engine;
 /// (<see cref="WakeOnce"/>) moves only that morning. The phone's next alarm (ADR 23) sets the wake time of the morning it
 /// falls on, between the night's bedtime and noon, over a one-night change unless that change was confirmed over the
 /// alarm. A night whose wake is the alarm (<see cref="SleepTimes.WakeByAlarm"/>, ADR 33) with no alarm that morning
-/// ends at bedtime plus the sleep goal. All times are local wall-clock times.
+/// ends at bedtime plus the sleep goal. A smart bedtime (ADR 34: time in bed before waking for the night leading into a
+/// day) moves only the bedtime, to the wake time minus that time. All times are local wall-clock times.
 /// </summary>
 public sealed class SleepSchedule
 {
@@ -29,15 +30,18 @@ public sealed class SleepSchedule
     private readonly WakeOnce? _wakeOnce;
     private readonly DateTime? _alarm;
     private readonly TimeSpan _goal;
+    private readonly Func<DateOnly, TimeSpan?>? _bedLevel;
 
     /// <param name="nightBefore">The times of the night before a day, from the day plan; null when it has none.</param>
     /// <param name="wakeOnce">A wake time changed for one morning only, or null.</param>
     /// <param name="alarm">The phone's next alarm (local time), or null.</param>
     /// <param name="goal">The sleep goal: the wake of a night woken by the alarm when there's none (8 hours when null).</param>
+    /// <param name="bedLevel">The smart bedtime's time in bed before waking for the night leading into a day, or null (ADR 34).</param>
     public SleepSchedule(
         SleepTimes weeknights, SleepTimes weekends, Func<DateOnly, SleepTimes?>? nightBefore = null, WakeOnce? wakeOnce = null, DateTime? alarm = null,
-        TimeSpan? goal = null)
+        TimeSpan? goal = null, Func<DateOnly, TimeSpan?>? bedLevel = null)
     {
+        _bedLevel = bedLevel;
         _goal = goal ?? DefaultGoal;
         _weeknights = weeknights;
         _weekends = weekends;
@@ -76,6 +80,12 @@ public sealed class SleepSchedule
         }
 
         (DateTime wake, _) = WakeOf(evening, bed, times);
+        // The smart bedtime moves only the bedtime; the wake is worked out from the planned one, as without it.
+        if (_bedLevel?.Invoke(evening.AddDays(1)) is TimeSpan level && level > TimeSpan.Zero)
+        {
+            bed = wake - level;
+        }
+
         return new LocalWindow(bed, wake > bed ? wake : bed);
     }
 

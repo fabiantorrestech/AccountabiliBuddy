@@ -180,6 +180,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _calendars.Changed += (_, _) => ShowTimelineCalendars();
         TimelineRows.CollectionChanged += (_, _) => RefreshUnsaved();
         _sleep.Changed += (_, _) => RefreshUnsaved();
+        _sleep.PhoneAlarmChanged += (_, _) => OnPropertyChanged(nameof(PhoneBedtimeText));
         SelectedGroupIndex = 0;
         _ready = true;
         RefreshUnsaved();
@@ -423,6 +424,22 @@ public sealed partial class SettingsViewModel : ObservableObject
             OnPropertyChanged();
         }
     }
+
+    /// <summary>The phone's smart bedtime sets the bedtime (ADR 34); saved at once.</summary>
+    public bool UsePhoneBedtime
+    {
+        get => _sleep.Current.UsePhoneBedtime;
+        set
+        {
+            _ = _sleep.SetUsePhoneBedtimeAsync(value);
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>What the phone learned for each kind of night, e.g. "Workdays: 7 h 15 m in bed before waking · …".</summary>
+    public string PhoneBedtimeText => _sleep.PhoneBedtime is null
+        ? "No phone shares a smart bedtime yet (turn it on in the phone's Settings → Smart bedtime)."
+        : $"Workdays: {AccountabiliBuddy.App.Services.Sync.PhoneBedtime.Describe(_sleep.PhoneBedtime.Workdays)}\nOff-Days: {AccountabiliBuddy.App.Services.Sync.PhoneBedtime.Describe(_sleep.PhoneBedtime.OffDays)}";
 
     /// <summary>The sleep goals to pick from, e.g. "8 h", "8 h 30 min".</summary>
     public IReadOnlyList<SleepGoalChoice> SleepGoalChoices { get; } =

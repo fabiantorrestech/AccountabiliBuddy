@@ -77,7 +77,7 @@ public sealed class BedtimeReminderService : IDisposable
         }
 
         DateTime now = TimeZoneInfo.ConvertTime(_time.GetUtcNow(), _time.LocalTimeZone).DateTime;
-        LocalWindow night = settings.ToSchedule(_plan(), _sleep.PhoneAlarm).NightAround(now);
+        LocalWindow night = settings.ToSchedule(_plan(), _sleep.PhoneAlarm, _sleep.PhoneBedtime).NightAround(now);
         TimeSpan untilBed = night.Start - now;
         if (night.End <= night.Start || untilBed <= TimeSpan.Zero || untilBed > Lead || _lastReminded == night.Start)
         {

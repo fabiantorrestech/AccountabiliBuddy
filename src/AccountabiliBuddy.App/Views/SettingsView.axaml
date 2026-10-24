@@ -361,6 +361,10 @@
                         <!-- ADR 23: the phone's next alarm (from its sync file) as the wake time, over a one-night change. -->
                         <CheckBox IsChecked="{Binding UsePhoneAlarm}"
                                   Content="Use my phone's alarm as wake time (it wins over a one-night change; changing tomorrow's wake then asks first)" />
+                        <!-- ADR 34: the phone learns a smart bedtime; the PC takes its time in bed before waking. -->
+                        <CheckBox IsChecked="{Binding UsePhoneBedtime}"
+                                  Content="Use my phone's smart bedtime (it learns from your measured sleep and moves bedtime earlier as you earn it)" />
+                        <TextBlock Text="{Binding PhoneBedtimeText}" Opacity="0.75" TextWrapping="Wrap" Margin="28,0,0,0" />
                         <StackPanel Spacing="6" IsEnabled="{Binding SleepEnabled}">
                             <StackPanel Orientation="Horizontal" Spacing="12">
                                 <TextBlock Text="Sleep goal" VerticalAlignment="Center" Width="240" />

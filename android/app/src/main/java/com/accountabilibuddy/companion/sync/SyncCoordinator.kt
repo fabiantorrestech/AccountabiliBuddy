@@ -75,6 +75,9 @@ class SyncCoordinator(
     /** The phone's next alarm for its card (ADR 23); null when there's none. */
     var nextAlarm: () -> Instant? = { null }
 
+    /** The smart bedtime's share for the PCs (ADR 34); null when it's off. */
+    var smartBedtime: () -> com.accountabilibuddy.shared.sync.SyncSmartBedtime? = { null }
+
     /** Today's flexible lunch (schema v8), when started here or taken from another device. */
     var lunch: () -> com.accountabilibuddy.shared.sync.SyncLunch? = { null }
 
@@ -177,6 +180,7 @@ class SyncCoordinator(
         pickups = runCatching { pickups() }.getOrNull(),
         lunch = lunch(),
         actions = actions().takeIf { it.isNotEmpty() },
+        smartBedtime = runCatching { smartBedtime() }.getOrNull(),
     )
 
     /** Everything to hand over by [method] (Drive or a share): this phone's own file first, then what it carries. */

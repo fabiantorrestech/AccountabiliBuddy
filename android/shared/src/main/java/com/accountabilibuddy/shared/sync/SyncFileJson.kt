@@ -73,6 +73,13 @@ object SyncFileJson {
         }
         file.acks?.let { list -> put("acks", JsonArray(list.map { kotlinx.serialization.json.JsonPrimitive(it) })) }
         file.events?.let { put("events", it) }
+        // Optional (ADR 34): a phone's smart bedtime.
+        file.smartBedtime?.let { smart ->
+            put("smartBedtime", buildJsonObject {
+                smart.workdays?.let { put("workdays", writeSmartLevel(it)) }
+                smart.offDays?.let { put("offDays", writeSmartLevel(it)) }
+            })
+        }
         file.running?.let { running ->
             put("running", buildJsonObject {
                 running.profile?.let { put("profile", it) }
@@ -198,8 +205,31 @@ object SyncFileJson {
                 }.getOrNull()
             },
             json["events"] as? JsonArray,
+            json.optionalObject("smartBedtime")?.let { smart ->
+                SyncSmartBedtime(smart.optionalObject("workdays")?.let(::readSmartLevel), smart.optionalObject("offDays")?.let(::readSmartLevel))
+            },
         )
     }
+
+    private fun writeSmartLevel(level: SyncSmartLevel): JsonObject = buildJsonObject {
+        level.levelMinutes?.let { put("levelMinutes", it) }
+        put("nights", level.nights)
+        put("latencyMinutes", level.latencyMinutes)
+        level.averageAsleep?.let { put("averageAsleep", it) }
+        level.averageSleptMinutes?.let { put("averageSleptMinutes", it) }
+        put("madeThisWeek", level.madeThisWeek)
+        put("askedThisWeek", level.askedThisWeek)
+    }
+
+    // ADR 34: a part that can't be read is left out rather than failing the file.
+    private fun readSmartLevel(json: JsonObject): SyncSmartLevel? = runCatching {
+        fun int(key: String): Int? = (json[key] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull()
+        SyncSmartLevel(
+            int("levelMinutes"), int("nights") ?: 0, int("latencyMinutes") ?: 15,
+            (json["averageAsleep"] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content,
+            int("averageSleptMinutes"), int("madeThisWeek") ?: 0, int("askedThisWeek") ?: 0,
+        )
+    }.getOrNull()
 
     // ADR 26: an optional list; an entry that can't be read is left out rather than failing the file.
     private fun readActions(value: kotlinx.serialization.json.JsonElement?): List<SyncAction>? {

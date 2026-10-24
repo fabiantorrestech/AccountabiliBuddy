@@ -95,9 +95,11 @@ fun DayPlanEditorScreen(
             when (tab) {
                 0 -> {
                     WorkdayChips(plan, onChange)
-                    DayTemplateEditor(plan.workday, plan.categories, clock, onChange = { onChange(plan.copy(workday = it)) }, onMessage = onMessage)
+                    DayTemplateEditor(plan.workday, plan.categories, clock, onChange = { onChange(plan.copy(workday = it)) }, onMessage = onMessage,
+                        smartNote = smartNote(com.accountabilibuddy.companion.engine.NightKind.Workday, clock))
                 }
-                1 -> DayTemplateEditor(plan.otherDay, plan.categories, clock, onChange = { onChange(plan.copy(otherDay = it)) }, onMessage = onMessage)
+                1 -> DayTemplateEditor(plan.otherDay, plan.categories, clock, onChange = { onChange(plan.copy(otherDay = it)) }, onMessage = onMessage,
+                    smartNote = smartNote(com.accountabilibuddy.companion.engine.NightKind.OffDay, clock))
                 2 -> OneOffDaysEditor(plan, clock, onChange = onChange, onMessage = onMessage)
                 else -> CategoriesEditor(plan, onChange = onChange, onMessage = onMessage)
             }
@@ -125,4 +127,11 @@ private fun WorkdayChips(plan: DayPlan, onChange: (DayPlan) -> Unit) {
             }
         }
     }
+}
+
+/** The smart bedtime's status for a kind of night (ADR 34); null when it's off. */
+@Composable
+private fun smartNote(kind: com.accountabilibuddy.companion.engine.NightKind, clock: ClockFormat): String? {
+    val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp
+    return if (app.smartBedtime.store.isOn(kind)) app.smartBedtime.status(kind, clock) else null
 }
