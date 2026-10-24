@@ -1,5 +1,10 @@
 package com.accountabilibuddy.companion.ui
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.PauseCircle
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -49,10 +54,21 @@ fun NoiseBar(state: NoiseState, settings: NoiseSettings, player: NoisePlayer, on
                     state.title ?: if (state.fileCount == 0) "No sounds in that folder" else "Noise",
                     style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = player::previous) { Text("⏮︎", fontSize = 18.sp) }
-                // Play/pause is the big one.
-                TextButton(onClick = player::toggle) { Text(if (state.playing) "⏸︎" else "▶︎", fontSize = 30.sp) }
-                TextButton(onClick = player::next) { Text("⏭︎", fontSize = 18.sp) }
+                // On the right: previous, next, then the big play/pause.
+                androidx.compose.material3.IconButton(onClick = player::previous) {
+                    androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.SkipPrevious, contentDescription = "Previous", modifier = Modifier.size(28.dp))
+                }
+                androidx.compose.material3.IconButton(onClick = player::next) {
+                    androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.SkipNext, contentDescription = "Next", modifier = Modifier.size(28.dp))
+                }
+                androidx.compose.material3.IconButton(onClick = player::toggle, modifier = Modifier.size(60.dp)) {
+                    androidx.compose.material3.Icon(
+                        if (state.playing) androidx.compose.material.icons.Icons.Filled.PauseCircle else androidx.compose.material.icons.Icons.Filled.PlayCircle,
+                        contentDescription = if (state.playing) "Pause" else "Play",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(52.dp),
+                    )
+                }
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("🔉︎", fontSize = 12.sp)
