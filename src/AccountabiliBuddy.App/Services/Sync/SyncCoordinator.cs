@@ -216,7 +216,7 @@ public sealed class SyncCoordinator
 
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
         return SyncFileBuilder.Build(card, records, drift, _omitted.IsOmitted, id => ProfileOptions.NameOf(profiles, id),
-            _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null };
+            _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles) };
     }
 
     /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
@@ -239,6 +239,18 @@ public sealed class SyncCoordinator
 
     /// <summary>The PC's open come-backs for its sync file (ADR 30); set by the app.</summary>
     public Func<IReadOnlyList<SyncComeback>?>? Comebacks { get; set; }
+
+    // The running session for the phone's countdown without the link (ADR 26); old scheduled blocks don't count.
+    private SyncRunning? RunningNow(IReadOnlyList<FocusProfile> profiles)
+    {
+        SessionState state = _sessions.State;
+        if (!state.IsActive || state.Mode == SessionMode.Scheduled || state.PhaseStartedAt is not DateTimeOffset started)
+        {
+            return null;
+        }
+
+        return new SyncRunning(ProfileOptions.NameOf(profiles, state.ProfileId), started, state.PhaseEndsAt, state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak, state.AwaySince);
+    }
 
     /// <summary>The phone's actions this PC applied (ADR 26), acknowledged in its file; set by the app.</summary>
     public Func<IReadOnlyList<Guid>>? Acks { get; set; }
@@ -395,11 +407,16 @@ public sealed class SyncCoordinator
         }
     }
 
+    private (SessionPhase, DateTimeOffset?, DateTimeOffset?) _lastPhase;
+
     private void OnSessionStateChanged(SessionState state)
     {
-        if (state.IsActive != _sessionActive)
+        // A session starting or ending, a new phase or stepping away/back: the file's running session changes (ADR 26).
+        var phase = (state.Phase, state.PhaseEndsAt, state.AwaySince);
+        if (state.IsActive != _sessionActive || phase != _lastPhase)
         {
             _sessionActive = state.IsActive;
+            _lastPhase = phase;
             RaiseOwnDataChanged();
         }
 

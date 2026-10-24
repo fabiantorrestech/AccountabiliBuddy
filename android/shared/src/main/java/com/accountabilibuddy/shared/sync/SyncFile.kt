@@ -36,6 +36,8 @@ data class SyncFile(
     val actions: List<SyncAction>? = null,
     /** The action ids a PC applied (ADR 26); null for none. */
     val acks: List<String>? = null,
+    /** A PC's running session (ADR 26), so the countdown works with Drive and no link; null when none runs. */
+    val running: SyncRunning? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1
@@ -196,3 +198,12 @@ data class SyncAction(
         const val BACK = "back"
     }
 }
+
+/** A PC's running session: the profile, the current phase's start and end (null: no set end), a break, stepped away since. */
+data class SyncRunning(
+    val profile: String?,
+    val phaseStartedAt: java.time.Instant,
+    val phaseEndsAt: java.time.Instant?,
+    val isBreak: Boolean,
+    val awaySince: java.time.Instant?,
+)

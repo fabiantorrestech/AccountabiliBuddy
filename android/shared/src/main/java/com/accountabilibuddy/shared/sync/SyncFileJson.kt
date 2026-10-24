@@ -72,6 +72,15 @@ object SyncFileJson {
             }))
         }
         file.acks?.let { list -> put("acks", JsonArray(list.map { kotlinx.serialization.json.JsonPrimitive(it) })) }
+        file.running?.let { running ->
+            put("running", buildJsonObject {
+                running.profile?.let { put("profile", it) }
+                put("phaseStartedAt", writeTime(running.phaseStartedAt))
+                running.phaseEndsAt?.let { put("phaseEndsAt", writeTime(it)) }
+                put("isBreak", running.isBreak)
+                running.awaySince?.let { put("awaySince", writeTime(it)) }
+            })
+        }
         file.lunch?.let { lunch ->
             put("lunch", buildJsonObject {
                 put("start", writeTime(lunch.start))
@@ -175,6 +184,17 @@ object SyncFileJson {
             json.optionalObject("lunch")?.let { lunch -> runCatching { SyncLunch(lunch.requiredTime("start"), lunch.requiredTime("end")) }.getOrNull() },
             readActions(json["actions"]),
             (json["acks"] as? JsonArray)?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { p -> p.isString }?.content },
+            json.optionalObject("running")?.let { running ->
+                runCatching {
+                    SyncRunning(
+                        (running["profile"] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content,
+                        running.requiredTime("phaseStartedAt"),
+                        running.optionalTime("phaseEndsAt"),
+                        (running["isBreak"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true",
+                        running.optionalTime("awaySince"),
+                    )
+                }.getOrNull()
+            },
         )
     }
 

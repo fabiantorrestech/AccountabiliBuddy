@@ -51,7 +51,8 @@ object PhoneSnapshot {
             focusDayAt = state.focusDayAt,
             sources = listOfNotNull(pcName?.let { name -> state.focusDayAt?.let { DataSource(name, it) } }) +
                 others.map { (name, file) -> DataSource(name, file.device.writtenAt) },
-            running = running(connected?.state ?: lastState),
+            running = running(connected?.state ?: lastState)?.takeUnless { !pcConnected && newerFileRunning(received, lastStateAt, now) != null }
+                ?: newerFileRunning(received, if (pcConnected) now else lastStateAt, now),
             pcConnected = pcConnected,
             wifiAllowed = wifiAllowed,
             runningAt = if (pcConnected) now else lastStateAt,
@@ -73,6 +74,25 @@ object PhoneSnapshot {
                 part.window.start.atZone(zone).toInstant(), part.window.end.atZone(zone).toInstant())
         }
     }
+
+    /**
+     * A PC's running session from its sync file (ADR 26) when that file is newer than [than] (the link's last state):
+     * the newest PC file written in the last 12 hours whose phase hasn't been over for more than 10 minutes (a PC that
+     * went off mid-session stops counting down). Its open session's checklist comes along.
+     */
+    fun newerFileRunning(received: List<Pair<String, SyncFile>>, than: Instant?, now: Instant): RunningSession? =
+        received
+            .map { it.second }
+            .filter { it.device.kind == SyncDeviceCard.KIND_PC && it.running != null }
+            .filter { than == null || it.device.writtenAt.isAfter(than) }
+            .filter { java.time.Duration.between(it.device.writtenAt, now) <= java.time.Duration.ofHours(12) }
+            .filter { file -> file.running!!.phaseEndsAt?.let { now.isBefore(it.plusSeconds(600)) } ?: true }
+            .maxByOrNull { it.device.writtenAt }
+            ?.let { file ->
+                val running = file.running!!
+                val tasks = file.sessions.lastOrNull { it.end == null }?.tasks.orEmpty()
+                RunningSession(running.profile, running.phaseStartedAt, running.phaseEndsAt, running.isBreak).withTasks(tasks)
+            }
 
     /** The PC's session when it's one that counts as focus (a scheduled block isn't); breaks belong to it. */
     fun running(state: PcState?): RunningSession? {
