@@ -23,6 +23,9 @@ object WatchPaths {
     /** The watch controls the phone's noise player ([NoiseRemote.Command]). */
     const val NOISE_COMMAND = "/noise-command"
 
+    /** The watch's Lunch page controls the phone's lunch ([LunchRemote]). */
+    const val LUNCH = "/lunch"
+
     /** The phone has the watch ring a bedtime reminder ([ReminderMessages.Ring], ADR 38). */
     const val REMINDER = "/reminder"
 

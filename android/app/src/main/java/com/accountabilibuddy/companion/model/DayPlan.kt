@@ -86,6 +86,15 @@ data class DayPlan(
         return FlexibleBreak(part.label ?: category.name, category.argb, LocalWindow(date.atTime(part.start), end), part.flexMinutes!!, part.hintAt?.let { date.atTime(it) })
     }
 
+    /**
+     * True on a workday (as the PC's LunchService.IsWorkdayToday): one of the plan's workdays, or a one-off day with
+     * work in it. A one-off day replaces a workday's template, so a one-off day off on a Monday isn't one.
+     */
+    fun isWorkday(date: LocalDate): Boolean {
+        val oneOff = oneOffDays.firstOrNull { it.date == date } ?: return date.dayOfWeek in workdays
+        return oneOff.template.parts.any { category(it.categoryId)?.behavior?.isWork == true }
+    }
+
     fun templateFor(date: LocalDate): DayTemplate =
         oneOffDays.firstOrNull { it.date == date }?.template ?: if (date.dayOfWeek in workdays) workday else otherDay
 

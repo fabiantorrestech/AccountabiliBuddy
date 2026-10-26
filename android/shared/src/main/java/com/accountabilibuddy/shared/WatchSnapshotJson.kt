@@ -27,6 +27,14 @@ object WatchSnapshotJson {
         put("dataAt", snapshot.dataAt.toString())
         put("relayAllowed", snapshot.relayAllowed)
         snapshot.goalMinutes?.let { put("goalMinutes", it) }
+        snapshot.lunch?.let { lunch ->
+            put("lunch", buildJsonObject {
+                put("workday", lunch.workday)
+                put("lengthMinutes", lunch.lengthMinutes)
+                lunch.start?.let { put("start", it.toString()) }
+                lunch.end?.let { put("end", it.toString()) }
+            })
+        }
         if (snapshot.sources.isNotEmpty()) {
             put("sources", buildJsonArray {
                 snapshot.sources.forEach { source ->
@@ -77,6 +85,17 @@ object WatchSnapshotJson {
                 DataSource(source.string("name") ?: return@mapNotNull null, dataAt)
             },
             goalMinutes = json.int("goalMinutes")?.takeIf { it > 0 },
+            // Snapshots from an older phone have no lunch: no Lunch page.
+            lunch = (json["lunch"] as? JsonObject)?.let(::lunch),
+        )
+    }
+
+    private fun lunch(json: JsonObject): WatchLunch {
+        val start = json.instant("start")
+        val end = json.instant("end")
+        return WatchLunch(
+            json.bool("workday"), json.int("lengthMinutes") ?: 60,
+            start.takeIf { end != null }, end.takeIf { start != null },
         )
     }
 

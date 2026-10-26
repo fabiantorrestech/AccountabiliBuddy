@@ -50,6 +50,9 @@ class WatchBridge(
     private val appOnScreen: () -> Boolean,
     /** The other devices' parts on the phone (ADR 22): their focus joins the watch's day, tagged with the device. */
     private val received: StateFlow<List<ReceivedDevice>> = MutableStateFlow(emptyList()),
+    /** Today's lunch for the watch's Lunch page, and what changes it (lunch started or changed, the length setting). */
+    private val lunch: () -> com.accountabilibuddy.shared.WatchLunch? = { null },
+    private val lunchChanges: kotlinx.coroutines.flow.Flow<Any?> = kotlinx.coroutines.flow.flowOf(Unit),
 ) {
     private val messages = Wearable.getMessageClient(context)
     private val capabilities = Wearable.getCapabilityClient(context)
@@ -96,7 +99,7 @@ class WatchBridge(
                     delay(RESEND_MS)
                 }
             }
-            combine(store.state, link.status, links.settings, link.lastState, ticker, received) { _ -> Unit }.collectLatest {
+            combine(store.state, link.status, links.settings, link.lastState, ticker, received, lunchChanges) { _ -> Unit }.collectLatest {
                 val snapshot = build() ?: return@collectLatest
                 val previous = lastSent
                 if (previous != null && sameContent(previous, snapshot)) {
@@ -105,7 +108,9 @@ class WatchBridge(
 
                 // A session starting or ending goes at once; anything else at most every 10 seconds (a newer change
                 // while waiting replaces this one).
-                val startedOrEnded = previous == null || (previous.running == null) != (snapshot.running == null)
+                // Lunch started, changed or ended (on any device, or from the watch) goes at once too.
+                val startedOrEnded = previous == null || (previous.running == null) != (snapshot.running == null) ||
+                    previous.lunch?.start != snapshot.lunch?.start || previous.lunch?.end != snapshot.lunch?.end
                 if (!startedOrEnded) {
                     delay((lastSentAt + MIN_GAP_MS - SystemClock.elapsedRealtime()).coerceAtLeast(0))
                 }
@@ -237,7 +242,7 @@ class WatchBridge(
                 store.state.value, link.status.value, linked = true, pcName, Instant.now(), ZoneId.systemDefault(),
                 wifiAllowed = settings.wifiFallbackOn, lastState = last?.state, lastStateAt = last?.at, relayAllowed = settings.relayOn,
                 received = received.value.map { it.file.device.name to it.file },
-            ),
+            ).copy(lunch = lunch()),
         )
     }
 

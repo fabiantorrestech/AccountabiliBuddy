@@ -53,6 +53,7 @@ fun MainScreen(
     val driveStatus by viewModel.driveStatus.collectAsStateWithLifecycle()
     val pauseState by viewModel.pauseState.collectAsStateWithLifecycle()
     val lunchTaken by (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.lunch.collectAsStateWithLifecycle()
+    val lunchLength by (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.lengthMinutes.collectAsStateWithLifecycle()
     val runningTasks by viewModel.runningTasks.collectAsStateWithLifecycle()
     val comebacks by viewModel.comebacks.collectAsStateWithLifecycle()
     val pairedPc by viewModel.pairedPc.collectAsStateWithLifecycle()
@@ -170,11 +171,14 @@ fun MainScreen(
                     WhatsNewCard(appVersion, onSetUp = { whatsNewOpen = true }, onDismissed = { whatsNewTick++ })
                     DayOffCard()
                     LunchCard(
+                        workday = state.document.dayPlan.isWorkday(java.time.LocalDate.now()),
                         flex = state.document.dayPlan.flexibleBreakOn(java.time.LocalDate.now()),
                         taken = lunchTaken?.takeIf { it.start.atZone(java.time.ZoneId.systemDefault()).toLocalDate() == java.time.LocalDate.now() },
+                        lengthMinutes = lunchLength,
                         clock = viewModel.clock,
-                        onStart = { minutes -> (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.start(minutes) },
+                        onStart = { (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.start() },
                         onBack = { (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.endNow() },
+                        onAdjust = { longer -> (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.adjust(longer) },
                     )
                     TodayScreen(
                     state, model, viewModel.clock, health, onPickFile, onConnectHealth, viewModel::refreshSleep, phoneUsage, onAllowUsage,

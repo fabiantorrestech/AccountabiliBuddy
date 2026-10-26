@@ -176,7 +176,12 @@ class CompanionApp : Application() {
         // ADR 40: the PC's settings (profiles, day plan, sleep, day bar, events) from its sync file when the Wi-Fi link
         // isn't bringing them.
         appScope.launch { sync.received.collect { devices -> applyPcFileSettings(devices.map { it.file }) } }
-        watchBridge = WatchBridge(this, store, link, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope, { appOnScreen }, sync.received)
+        watchBridge = WatchBridge(
+            this, store, link, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope, { appOnScreen }, sync.received,
+            // The watch's Lunch page: today's lunch and the length setting.
+            lunch = { lunch.forWatch(store.state.value.document.dayPlan) },
+            lunchChanges = kotlinx.coroutines.flow.combine(lunch.lunch, lunch.lengthMinutes) { taken, length -> taken to length },
+        )
             .also { it.start() }
         // The phone's card names its linked watch (Task 18); linking or unlinking it tells the PC at once.
         sync.companions = { watchBridge.companions() }
