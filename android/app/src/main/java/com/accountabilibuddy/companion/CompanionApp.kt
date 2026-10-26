@@ -79,6 +79,9 @@ class CompanionApp : Application() {
     /** Today's flexible lunch, the same on every device (schema v8). */
     val lunch by lazy { com.accountabilibuddy.companion.lunch.LunchStore(this) }
 
+    /** A test session to try the phone's settings (Today → More options); never counted, synced or sent to the watch. */
+    val testSession by lazy { com.accountabilibuddy.companion.session.TestSession(this).also { it.onChanged = ::refreshSoon } }
+
     /** Bedtime reminders between devices (ADR 38). */
     lateinit var reminderRelay: com.accountabilibuddy.companion.notify.ReminderRelay
 

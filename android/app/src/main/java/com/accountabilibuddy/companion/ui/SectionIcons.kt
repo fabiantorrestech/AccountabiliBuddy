@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Watch
 import androidx.compose.material.icons.outlined.BeachAccess
+import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Text
@@ -80,6 +81,8 @@ object SectionIcons {
         "Tasks" to Icons.Outlined.TaskAlt,
         "Lunch" to Icons.Outlined.Restaurant,
         "Not working today" to Icons.Outlined.BeachAccess,
+        "More options" to Icons.Outlined.Tune,
+        "Test session" to Icons.Outlined.Science,
     )
 
     fun of(title: String): ImageVector? =

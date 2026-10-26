@@ -110,8 +110,10 @@ object Refresher {
             com.accountabilibuddy.companion.nudge.Takeover.maybeShow(context, nudgeFocus, clock)
             nudgeAt = WorkStartNudge.nextAt(context, nudgeFocus)
             val running = focus?.running
-            // Hardcore: a session started on another device asks LockMyPhone-Extended for the chosen profile.
-            if (running != null) com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartHardcore(context)
+            // Hardcore: a session started on another device (or the phone's test session) asks LockMyPhone-Extended
+            // for the chosen profile.
+            val testRunning = !quiet && app.testSession.running() != null
+            if (running != null || testRunning) com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartHardcore(context)
             // The night's lock: LockMyPhone-Extended's profile from bedtime until the wake time.
             com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartBedtimeHardcore(context)
             bedtimeAt = app.bedtimeEssentials.hardcoreProfile?.let {
@@ -144,8 +146,11 @@ object Refresher {
         val untilCountdownEnd = countdownEnd?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         val untilNudge = nudgeAt?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         val untilBedtime = bedtimeAt?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
+        // The test session's end: the hard mode reactions (Curbox) are checked again then.
+        val testEnd = (context.applicationContext as CompanionApp).testSession.running()?.second
+        val untilTestEnd = testEnd?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         val untilMinute = if (minutely) 60_000L - System.currentTimeMillis() % 60_000L + 500L else null
-        val delay = listOfNotNull(untilCountdownEnd, untilNudge, untilBedtime, untilMinute).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
+        val delay = listOfNotNull(untilCountdownEnd, untilNudge, untilBedtime, untilTestEnd, untilMinute).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
         alarms.set(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + delay, intent)
     }
 }

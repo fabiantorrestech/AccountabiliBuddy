@@ -152,6 +152,9 @@ fun TodayScreen(
                 nextEvents.forEach { event -> item { EventRow(event, clock) } }
             }
         }
+
+        // Folded at the bottom: the test session (to try the phone's settings).
+        item { TestSessionCard() }
     }
 }
 

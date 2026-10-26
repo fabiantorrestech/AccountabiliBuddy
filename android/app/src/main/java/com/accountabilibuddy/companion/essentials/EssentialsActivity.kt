@@ -390,7 +390,7 @@ private fun MoveButtons(onMove: (Int) -> Unit) {
 }
 
 // The time left: the emergency time, else the night's wake time (bedtime list), else the session on another device
-// (from its sync file), else nothing.
+// (from its sync file), else the phone's test session, else nothing.
 private fun timeLeft(app: CompanionApp, kind: EssentialsKind, now: Instant): String? {
     app.emergency.active(now)?.let { return "Phone time · ${minutes(Duration.between(now, it.end))} left" }
     if (kind == EssentialsKind.Bedtime) {
@@ -403,7 +403,7 @@ private fun timeLeft(app: CompanionApp, kind: EssentialsKind, now: Instant): Str
         .mapNotNull { it.file.running }
         .filter { it.phaseEndsAt?.isAfter(now) ?: true }
         .maxByOrNull { it.phaseStartedAt }
-        ?: return null
+        ?: return app.testSession.running(now)?.let { (_, end) -> "Test session · ${minutes(Duration.between(now, end))} left" }
     return running.phaseEndsAt?.let { "${if (running.isBreak) "Break" else "Focus"} · ${minutes(Duration.between(now, it))} left" } ?: "Session running"
 }
 

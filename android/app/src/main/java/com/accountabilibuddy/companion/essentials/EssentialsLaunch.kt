@@ -17,6 +17,7 @@ import java.time.Instant
  * - Hardcore: when a session starts on another device, LockMyPhone-Extended's public intent API starts the named
  *   profile for the session's length; at bedtime, the night's profile until the wake time (that app enforces; this
  *   one only asks it).
+ * - The phone's test session (Today → More options) counts as a session on another device here, unless a real one runs.
  */
 object EssentialsLaunch {
     private const val TAG = "Essentials"
@@ -83,7 +84,8 @@ object EssentialsLaunch {
 
         prefs.edit().putString(KEY_HARDCORE_FOR, start.toString()).apply()
         val intent = Intent(LMP_START).setPackage(LMP_PACKAGE).putExtra("profile", profile)
-        endsAt?.let { end -> Duration.between(now, end).toMinutes().takeIf { it > 0 }?.let { intent.putExtra("duration_min", it.toInt()) } }
+        // Rounded up, so a 1-minute test asked a moment after it started still gets its minute.
+        endsAt?.let { end -> ceilMinutes(Duration.between(now, end)).takeIf { it > 0 }?.let { intent.putExtra("duration_min", it.toInt()) } }
         runCatching { context.sendBroadcast(intent) }.onFailure { Log.w(TAG, "LockMyPhone-Extended not reached", it) }
         Log.i(TAG, "hardcore: asked LockMyPhone-Extended for '$profile' until $endsAt")
     }
@@ -104,8 +106,15 @@ object EssentialsLaunch {
         runCatching { androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(context.packageManager.getPackageInfo(LMP_PACKAGE, 0)) }
             .getOrNull()?.let { it >= SLOTS_SINCE_VERSION_CODE } ?: false
 
+    /** Whole minutes in [left], rounded up. */
+    internal fun ceilMinutes(left: Duration): Long = (left.seconds + 59) / 60
+
+    // A session on another device (it always wins), else the phone's test session (Today → More options).
+    internal fun runningSessionStart(app: CompanionApp, now: Instant): Pair<Instant, Instant?>? =
+        realSessionStart(app, now) ?: app.testSession.running(now)
+
     // The newest PC file's running focus session (start, end), not a break, its phase not over; else the linked PC's.
-    internal fun runningSessionStart(app: CompanionApp, now: Instant): Pair<Instant, Instant?>? {
+    internal fun realSessionStart(app: CompanionApp, now: Instant): Pair<Instant, Instant?>? {
         val fromFile = app.sync.received.value
             .filter { it.file.device.kind == SyncDeviceCard.KIND_PC && Duration.between(it.file.device.writtenAt, now) <= Duration.ofHours(12) }
             .mapNotNull { it.file.running }
