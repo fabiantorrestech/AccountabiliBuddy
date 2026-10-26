@@ -4,6 +4,9 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.os.Bundle
+import com.accountabilibuddy.companion.model.BlockRef
+import com.accountabilibuddy.shared.sync.SyncBlocker
 import android.os.IBinder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -20,8 +23,9 @@ import kotlin.coroutines.resume
 
 /**
  * Talks to Curbox through its public API (a bound service on the phone; the user allows this app once in a
- * Curbox dialog). Read only for now: its status, today's screen time and its groups. Curbox is found by the
- * API's action, not a fixed package (debug and release builds differ).
+ * Curbox dialog): its status, today's screen time and its groups, and (ADR 37) its blocks' on/off, which the block
+ * rules turn back on; never a group's contents or schedule. Curbox is found by the API's action, not a fixed
+ * package (debug and release builds differ).
  */
 class CurboxClient(private val context: Context) {
     /** Curbox's package when it's installed with the API, else null. */
@@ -57,6 +61,53 @@ class CurboxClient(private val context: Context) {
                 )
             }
         } ?: CurboxStatus(installed = true, packageName = packageName, error = "Curbox didn't answer.")
+    }
+
+    /**
+     * Curbox's blocks and whether each is on (ADR 37): app blocker, keyword and grayscale groups, the keyword blocker
+     * and the reel blocker. Null when Curbox isn't there, hasn't allowed this app or doesn't answer.
+     */
+    suspend fun blockers(): List<SyncBlocker>? {
+        val packageName = findPackage() ?: return null
+        return withTimeoutOrNull(5_000) {
+            withBinding(packageName) { api ->
+                if (!api.isGranted) return@withBinding null
+                val list = mutableListOf<SyncBlocker>()
+                listOf(
+                    "APP_BLOCKER_GROUPS" to BlockRef.CURBOX_APP_GROUP,
+                    "KEYWORD_GROUPS" to BlockRef.CURBOX_KEYWORD_GROUP,
+                    "GRAYSCALE_GROUPS" to BlockRef.CURBOX_GRAYSCALE_GROUP,
+                ).forEach { (kind, ref) ->
+                    (parse(api.list(kind)) as? JsonArray).orEmpty().forEach { element ->
+                        val o = element as? JsonObject ?: return@forEach
+                        val id = (o["id"] as? JsonPrimitive)?.content ?: return@forEach
+                        list += SyncBlocker(ref, id, (o["name"] as? JsonPrimitive)?.content ?: id, (o["isActive"] as? JsonPrimitive)?.booleanOrNull == true)
+                    }
+                }
+                val status = parse(api.list("STATUS")) as? JsonObject
+                (status?.get("keywordBlocker") as? JsonPrimitive)?.booleanOrNull?.let { list += SyncBlocker(BlockRef.CURBOX_KEYWORD_BLOCKER, "keywordBlocker", "Keyword blocker", it) }
+                (status?.get("reelBlocker") as? JsonPrimitive)?.booleanOrNull?.let { list += SyncBlocker(BlockRef.CURBOX_REEL_BLOCKER, "reelBlocker", "Reel blocker", it) }
+                list
+            }
+        }
+    }
+
+    /** Turns one of Curbox's blocks on or off (ADR 37); true when Curbox says "OK". */
+    suspend fun set(kind: String, id: String, on: Boolean): Boolean {
+        val command = when (kind) {
+            BlockRef.CURBOX_APP_GROUP -> "SET_APP_BLOCKER_GROUP"
+            BlockRef.CURBOX_KEYWORD_GROUP -> "SET_KEYWORD_GROUP"
+            BlockRef.CURBOX_GRAYSCALE_GROUP -> "SET_GRAYSCALE_GROUP"
+            BlockRef.CURBOX_KEYWORD_BLOCKER -> "SET_KEYWORD_BLOCKER"
+            BlockRef.CURBOX_REEL_BLOCKER -> "SET_REEL_BLOCKER"
+            else -> return false
+        }
+        val packageName = findPackage() ?: return false
+        val args = Bundle().apply {
+            if (kind != BlockRef.CURBOX_KEYWORD_BLOCKER && kind != BlockRef.CURBOX_REEL_BLOCKER) putString("target", id)
+            putBoolean("enable", on)
+        }
+        return withTimeoutOrNull(5_000) { withBinding(packageName) { api -> api.execute(command, args) } } == "OK"
     }
 
     private fun groups(array: JsonArray?, label: String): List<CurboxGroup> = array.orEmpty().mapNotNull { element ->

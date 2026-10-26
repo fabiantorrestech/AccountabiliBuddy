@@ -78,6 +78,9 @@ class SyncCoordinator(
     /** This phone's sleep settings as a document, once changed here (ADR 35); null before. */
     var sleepDocument: () -> com.accountabilibuddy.shared.sync.SyncDocument? = { null }
 
+    /** Curbox's blocks as last read (ADR 37); null when never read. */
+    var blockers: () -> List<com.accountabilibuddy.shared.sync.SyncBlocker>? = { null }
+
     /** Bedtime reminders dismissed or snoozed here in the last day (ADR 38). */
     var reminderActions: () -> List<com.accountabilibuddy.shared.ReminderMessages.Action> = { emptyList() }
 
@@ -188,6 +191,7 @@ class SyncCoordinator(
         actions = actions().takeIf { it.isNotEmpty() },
         smartBedtime = runCatching { smartBedtime() }.getOrNull(),
         reminderActions = runCatching { reminderActions() }.getOrNull()?.takeIf { it.isNotEmpty() },
+        blockers = runCatching { blockers() }.getOrNull(),
     )
 
     /** Everything to hand over by [method] (Drive or a share): this phone's own file first, then what it carries. */

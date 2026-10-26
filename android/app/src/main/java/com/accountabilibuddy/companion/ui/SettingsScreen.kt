@@ -289,6 +289,20 @@ private fun CurboxSection(curbox: CurboxStatus, onConnect: () -> Unit) {
                     )
                 }
                 Hint("Importing the groups' apps and sites needs Curbox's API to share them; today it only shares counts.", label = "Why only counts")
+                // ADR 37: the day plan's block rules turn Curbox blocks back on.
+                val context = androidx.compose.ui.platform.LocalContext.current
+                var rearm by remember { mutableStateOf(com.accountabilibuddy.companion.blocks.BlockGuard.enabled(context)) }
+                ToggleRow(
+                    "Turn blocks back on",
+                    "A block you turn off comes back on at the day's re-enable time (midnight unless the day plan says otherwise), with a heads-up 5 minutes before.",
+                    rearm,
+                ) {
+                    rearm = it
+                    com.accountabilibuddy.companion.blocks.BlockGuard.setEnabled(context, it)
+                }
+                com.accountabilibuddy.companion.blocks.BlockGuard.history(context).take(5).forEach {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
         curbox.error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Color(0xFFFCA5A5)) }

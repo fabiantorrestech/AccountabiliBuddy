@@ -36,7 +36,8 @@ object BedtimeReminders {
     const val ACTION_SNOOZE = "com.accountabilibuddy.companion.BEDTIME_SNOOZE"
     const val EXTRA_NUMBER = "number"
     private const val COUNTDOWN_ID = 30
-    private const val REMINDER_ID = 31
+    // Reminder n posts as 60 + n, clear of the countdown (30), the alarm (32) and the block heads-up (50).
+    private const val REMINDER_ID = 60
     const val ALARM_ID = 32
     val SNOOZE: Duration = Duration.ofMinutes(5)
 

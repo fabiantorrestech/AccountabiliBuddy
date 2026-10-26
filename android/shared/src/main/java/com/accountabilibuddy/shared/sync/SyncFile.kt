@@ -44,6 +44,8 @@ data class SyncFile(
     val smartBedtime: SyncSmartBedtime? = null,
     /** Bedtime reminders dismissed or snoozed on this device in the last day (ADR 38); null for none. */
     val reminderActions: List<com.accountabilibuddy.shared.ReminderMessages.Action>? = null,
+    /** This device's blocks and whether each is on (ADR 37); null when it has no blocker. */
+    val blockers: List<SyncBlocker>? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1

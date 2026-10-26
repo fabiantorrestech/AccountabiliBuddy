@@ -38,6 +38,33 @@ object BlockRearm {
         return events.sortedBy { it.at }
     }
 
+    /** A block on this device as its blocker says now. */
+    data class Current(val ref: BlockRef, val on: Boolean, val locked: Boolean = false)
+
+    /**
+     * What to change after [events] (in time order): each block's last event decides whether it should be on; an
+     * event for "every guarded block" covers the blocks in [known] (seen on before). Locked blocks and blocks already
+     * as wanted are left out.
+     */
+    fun toApply(events: List<Event>, current: List<Current>, known: Set<String>): List<Pair<Current, Boolean>> {
+        val wanted = linkedMapOf<String, Boolean>()
+        for (event in events) {
+            targets(event, current, known).forEach { wanted[key(it.ref)] = event.turnOn }
+        }
+        return current.mapNotNull { block ->
+            val on = wanted[key(block.ref)] ?: return@mapNotNull null
+            if (block.locked || block.on == on) null else block to on
+        }
+    }
+
+    /** The blocks [event] covers on this device. */
+    fun targets(event: Event, current: List<Current>, known: Set<String>): List<Current> =
+        event.blocks?.let { refs -> current.filter { block -> refs.any { it.same(block.ref) } } }
+            ?: current.filter { key(it.ref) in known }
+
+    /** A block's key for [known]: "kind/id". */
+    fun key(ref: BlockRef): String = "${ref.kind}/${ref.id}"
+
     /** The events of the days around that fall in ([after], [until]]. */
     fun between(plan: DayPlan, device: String, after: LocalDateTime, until: LocalDateTime): List<Event> =
         around(plan, device, after, until).filter { it.at > after && it.at <= until }.sortedBy { it.at }

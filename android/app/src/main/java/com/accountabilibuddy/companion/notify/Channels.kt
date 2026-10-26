@@ -19,6 +19,9 @@ object Channels {
     const val WORK_NUDGE = "work_nudge"
     const val PARKED = "parked"
 
+    /** "Blocks come back on in 5 min" before the block rules turn blocks back on (ADR 37). */
+    const val BLOCKS = "blocks"
+
     fun create(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
         // High importance (silenced, alerting once) ranks the timeline above other apps' default-importance pinned
@@ -33,6 +36,11 @@ object Channels {
         // The alarm screen plays its own sound and vibration.
         manager.createNotificationChannel(silent(BEDTIME_ALARM, "Bedtime alarm", "A bedtime reminder that rings", NotificationManager.IMPORTANCE_HIGH))
         manager.createNotificationChannel(silent(NOISE, "Noise player", "While a sound plays", NotificationManager.IMPORTANCE_LOW))
+        manager.createNotificationChannel(
+            NotificationChannel(BLOCKS, "Blocks coming back on", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "A heads-up before your day plan turns blocks back on"
+            },
+        )
         // The start nudge buzzes once (no sound): it's meant to be noticed.
         manager.createNotificationChannel(
             NotificationChannel(NUDGE, "Work start", NotificationManager.IMPORTANCE_DEFAULT).apply {

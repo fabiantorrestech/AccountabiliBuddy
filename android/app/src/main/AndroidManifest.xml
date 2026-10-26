@@ -146,6 +146,8 @@
             android:taskAffinity="com.accountabilibuddy.companion.bedtime" />
 
         <receiver android:name=".notify.BedtimeReminderReceiver" android:exported="false" />
+        <!-- ADR 37: the block guard's exact alarm (heads-up, re-enable times). -->
+        <receiver android:name=".blocks.BlockGuardReceiver" android:exported="false" />
 
         <!-- "Need my phone" from the parked notice: the emergency chooser on its own. -->
         <activity

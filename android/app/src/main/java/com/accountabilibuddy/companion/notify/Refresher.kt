@@ -87,6 +87,8 @@ object Refresher {
                 // ADR 38: tonight's reminders follow bedtime; the countdown redraws every minute.
                 runCatching { BedtimeReminders.refresh(context, clock, now) }
             }
+            // ADR 37: the day plan's block rules for Curbox (re-enable times, lift windows, heads-ups).
+            runCatching { com.accountabilibuddy.companion.blocks.BlockGuard.run(context, now) }
             // Steering (start nudge, parked phone, pickups to the PC): from the devices' combined focus.
             val focus = HeaderSource.focus(app, now)?.takeUnless { quiet }
             // "Not working today" on the full-screen card, or lunch: no work nudges on the phone.

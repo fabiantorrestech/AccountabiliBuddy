@@ -229,6 +229,7 @@ class CompanionApp : Application() {
         noiseWatch = com.accountabilibuddy.companion.watch.NoiseWatchSync(this, noise, watchBridge.linkSettings, appScope).also { it.start() }
         reminderRelay = com.accountabilibuddy.companion.notify.ReminderRelay(this, watchBridge.linkSettings, appScope)
         sync.reminderActions = { reminderRelay.actions.value }
+        sync.blockers = { com.accountabilibuddy.companion.blocks.BlockGuard.lastBlockers(this) }
         // A PC's dismiss or snooze stops the reminder here (ADR 38).
         appScope.launch {
             sync.received.collect { devices -> devices.flatMap { it.file.reminderActions.orEmpty() }.forEach(reminderRelay::received) }

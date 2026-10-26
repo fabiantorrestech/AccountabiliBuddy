@@ -73,6 +73,18 @@ object SyncFileJson {
         }
         file.acks?.let { list -> put("acks", JsonArray(list.map { kotlinx.serialization.json.JsonPrimitive(it) })) }
         file.events?.let { put("events", it) }
+        // Optional (ADR 37): this device's blocks.
+        file.blockers?.let { list ->
+            put("blockers", JsonArray(list.map { b ->
+                buildJsonObject {
+                    put("kind", b.kind)
+                    put("id", b.id)
+                    put("name", b.name)
+                    put("on", b.on)
+                    put("locked", b.locked)
+                }
+            }))
+        }
         // Optional (ADR 38): bedtime reminders dismissed or snoozed.
         file.reminderActions?.takeIf { it.isNotEmpty() }?.let { list ->
             put("reminderActions", JsonArray(list.map { com.accountabilibuddy.shared.ReminderMessages.toJson(it) }))
@@ -213,6 +225,17 @@ object SyncFileJson {
                 SyncSmartBedtime(smart.optionalObject("workdays")?.let(::readSmartLevel), smart.optionalObject("offDays")?.let(::readSmartLevel))
             },
             (json["reminderActions"] as? JsonArray)?.mapNotNull { (it as? JsonObject)?.let(com.accountabilibuddy.shared.ReminderMessages::fromJson) },
+            (json["blockers"] as? JsonArray)?.mapNotNull { element ->
+                val b = element as? JsonObject ?: return@mapNotNull null
+                fun text(key: String) = (b[key] as? JsonPrimitive)?.content
+                SyncBlocker(
+                    text("kind") ?: return@mapNotNull null,
+                    text("id") ?: return@mapNotNull null,
+                    text("name") ?: "",
+                    text("on") == "true",
+                    text("locked") == "true",
+                )
+            },
         )
     }
 
