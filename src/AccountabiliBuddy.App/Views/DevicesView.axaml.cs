@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using AccountabiliBuddy.App.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -51,5 +53,38 @@ public partial class DevicesView : UserControl
         {
             await devices.SetFolderAsync(path);
         }
+    }
+
+    // The self-hosted sync guide ships next to the app (guides\); opened in whatever reads .md files, else Notepad.
+    private void OnOpenSelfHostedGuide(object? sender, RoutedEventArgs e)
+    {
+        string guide = Path.Combine(AppContext.BaseDirectory, "guides", "self-hosted-sync.md");
+        if (!File.Exists(guide))
+        {
+            ShowGuideProblem("The guide isn't next to the app. It's doc/guides/self-hosted-sync.md in AccountabiliBuddy's source.");
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(guide) { UseShellExecute = true });
+        }
+        catch (Win32Exception)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo("notepad.exe", $"\"{guide}\"") { UseShellExecute = false });
+            }
+            catch (Win32Exception)
+            {
+                ShowGuideProblem($"Couldn't open it. It's at {guide}");
+            }
+        }
+    }
+
+    private void ShowGuideProblem(string text)
+    {
+        GuideProblem.Text = text;
+        GuideProblem.IsVisible = true;
     }
 }

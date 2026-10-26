@@ -304,6 +304,17 @@ private fun DriveSection(devices: DevicesState, actions: DevicesActions, now: In
     }
 }
 
+/** The short steps for a sync folder kept in step through the user's own server; the full guide is on the PC. */
+private val SELF_HOSTED_STEPS = """
+    1. Install Syncthing-Fork here and Syncthing on your computers. Or, with Nextcloud, a two-way sync app such as Autosync for Nextcloud or FolderSync (Nextcloud's own auto upload only uploads).
+    2. Connect the devices (Syncthing: Show ID on one, Add Remote Device on the other) and let the app ignore battery optimisation.
+    3. Share one folder, e.g. "AccountabiliBuddy sync", as Send & Receive. On the phone keep it in internal storage, not the top of Download.
+    4. Here: switch on Sync folder (backup) and pick that folder in Android's folder picker.
+    5. On the PC: Devices → Sync folder → choose the same folder.
+    6. Away from home, let Syncthing's relays or a mesh VPN (Tailscale, WireGuard) carry it. Never open a file share to the internet.
+    The files are sealed, so the tool and any server only carry scrambled bytes. The full guide (always-on computer, safe access from outside, a small rented server): on the PC, Devices → Sync with your own server → Open the full guide.
+""".trimIndent()
+
 /** The sync folder (backup, off by default): a folder another app such as Autosync keeps in step with Google Drive. */
 @Composable
 private fun FolderSection(devices: DevicesState, actions: DevicesActions, now: Instant, onChoose: () -> Unit) {
@@ -317,6 +328,7 @@ private fun FolderSection(devices: DevicesState, actions: DevicesActions, now: I
     ) { on ->
         if (on && settings.folderUri == null) onChoose() else actions.onSettings(settings.copy(folderOn = on))
     }
+    Hint(SELF_HOSTED_STEPS, label = "Sync with your own server (Syncthing, Nextcloud)")
     if (!settings.folderOn) {
         return
     }
