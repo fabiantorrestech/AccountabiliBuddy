@@ -43,6 +43,7 @@ pwsh scripts/package.ps1 [-Version x.y.z] [-Publish]   # installer + portable zi
 cd android && JAVA_HOME="C:/Program Files/Android/Android Studio/jbr" ./gradlew assembleDebug   # phone and watch APKs (app/ and wear/build/outputs/apk/debug)
 cd android && JAVA_HOME="C:/Program Files/Android/Android Studio/jbr" ./gradlew assembleRelease   # small R8 build (~2.5 MB), signed with this PC's debug key so it installs over the debug build
 cd android && JAVA_HOME="C:/Program Files/Android/Android Studio/jbr" ./gradlew :wear:assembleDebug   # the watch app (wear/build/outputs/apk/debug); same app id as the phone app
+pwsh scripts/publish-apks.ps1 [-Tag vx.y.z]   # after a release build: phone + watch APKs onto that release (default the latest) in the public releases repo; never a release of their own (the desktop update feed needs releases.win.json on the latest)
 ```
 
 ## Roadmap
