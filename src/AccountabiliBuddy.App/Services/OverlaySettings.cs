@@ -84,7 +84,7 @@ public sealed record OverlaySettings(
     public const int MaxQuickHideSeconds = 600;
 
     public static OverlaySettings Default { get; } = new(
-        OverlayStyle.BarWithEndTime, DefaultOpacity,OverlaySize.Medium, null, null, new Dictionary<Guid, ProfileOverlay>(),
+        OverlayStyle.BarWithEndTime, DefaultOpacity, OverlaySize.Medium, null, null, new Dictionary<Guid, ProfileOverlay>(),
         DefaultTimer: ProfileOverlay.Off);
 
     /// <summary>How far to slide down for this maximized app: its own distance, or the default.</summary>

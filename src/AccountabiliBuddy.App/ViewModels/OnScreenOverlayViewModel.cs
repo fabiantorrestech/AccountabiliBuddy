@@ -21,7 +21,7 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     // With the mouse over it, it almost disappears, so what's under it can be seen (clicks already pass through).
     private const double HoveredFade = 0.12;
 
-    // Quiet mode at rest: no more than this opaque.
+    // Quiet mode at rest in a session: the timer is no more than this opaque (outside a session the timeline's own opacity shows).
     private const double QuietOpacity = 0.6;
 
     private OverlaySettings _settings = OverlaySettings.Default;
@@ -356,11 +356,16 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
         IsQuiet = _settings.Quiet && !ShowsDetails && !_settleTimer.IsEnabled && !loud;
         RefreshTaskLine();
         QuietMarks = _settings.QuietMarks;
-        double restOpacity = _noSession ? _settings.TimelineOpacity : _settings.Opacity;
-        double heldOpacity = _noSession ? _settings.TimelineHeldOpacity : _settings.HeldOpacity;
-        PanelOpacity = ShowsDetails ? Math.Clamp(heldOpacity, 0.2, 1)
-            : IsQuiet ? Math.Min(restOpacity, QuietOpacity)
-            : restOpacity;
+        if (_noSession)
+        {
+            // The timeline's own pair; quiet mode only turns its colours slate (IsQuiet), never caps its opacity.
+            PanelOpacity = ShowsDetails ? Math.Clamp(_settings.TimelineHeldOpacity, 0.2, 1) : _settings.TimelineOpacity;
+            return;
+        }
+
+        PanelOpacity = ShowsDetails ? Math.Clamp(_settings.HeldOpacity, 0.2, 1)
+            : IsQuiet ? Math.Min(_settings.Opacity, QuietOpacity)
+            : _settings.Opacity;
     }
 
     [RelayCommand]
