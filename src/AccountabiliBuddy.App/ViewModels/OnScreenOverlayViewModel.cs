@@ -350,10 +350,32 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
         _stepAway?.Invoke();
     }
 
+    /// <summary>This PC's timers and alarms, a line each under the timer and timeline (set by the service).</summary>
+    [ObservableProperty]
+    public partial OverlayTimersViewModel? Timers { get; set; }
+
+    /// <summary>While a timer runs, is paused or is up, or an alarm rings within 12 hours.</summary>
+    [ObservableProperty]
+    public partial bool ShowsTimers { get; set; }
+
+    /// <summary>Reads the timers again; true when any line shows (the window then shows even with nothing else).</summary>
+    public bool RefreshTimers()
+    {
+        if (Timers is null)
+        {
+            return false;
+        }
+
+        Timers.Refresh(IsQuiet, _settings.FillUp);
+        ShowsTimers = Timers.HasLines;
+        return ShowsTimers;
+    }
+
     private void ApplyQuiet()
     {
         bool loud = (_showsTimer && Timer.IsLoud) || GlowOpacity > 0 || ShowsDone;
         IsQuiet = _settings.Quiet && !ShowsDetails && !_settleTimer.IsEnabled && !loud;
+        RefreshTimers();
         RefreshTaskLine();
         QuietMarks = _settings.QuietMarks;
         if (_noSession)

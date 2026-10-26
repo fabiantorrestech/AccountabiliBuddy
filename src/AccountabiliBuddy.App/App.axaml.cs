@@ -60,6 +60,7 @@ public partial class App : Application
     private UnlockService? _unlocks;
     private SessionOverlayService? _sessionOverlay;
     private PcAlarmService? _pcAlarm;
+    private AccountabiliBuddy.App.Services.Timers.TimersService? _timers;
     private NoisePlayerService? _noise;
     private NoiseSettingsService? _noiseSettings;
     private HeadphoneAutoPlayService? _headphones;
@@ -341,6 +342,12 @@ public partial class App : Application
         _pcAlarm = new PcAlarmService(
             sleepSettings, _configuration, _sessionCues, new AccountabiliBuddy.Platform.Windows.Time.WindowsWakeTimer(), time, () => _sessionOverlay.Glow());
         _pcAlarm.Start();
+        // Timers and alarms (V1, this PC only): a line each on the on-screen window; rung like a phase end (glow + chime).
+        _timers = new AccountabiliBuddy.App.Services.Timers.TimersService(documents, _sessions);
+        _timers.LoadBlocking();
+        _sessionOverlay.SetTimers(_timers);
+        _ = new AccountabiliBuddy.App.Services.Timers.TimerRinger(
+            _timers, () => _sessionCues.Play(soundSettings.Current.FocusEndSound), () => _sessionOverlay.Glow());
         _dayBar.Gaps = sessionGaps;
         _noiseSettings = new NoiseSettingsService(documents);
         _noiseSettings.LoadBlocking();
@@ -719,6 +726,7 @@ public partial class App : Application
         };
         // Focus mode: the Today page while a session runs (the main window's day bar is the one it reads).
         sessionViewModel.Comebacks = new ComebacksViewModel(_comebacks!);
+        sessionViewModel.Timers = new TimersViewModel(_timers!, _sessions);
         sessionViewModel.Lunch = new LunchCardViewModel(_lunch!, _sessions);
         sessionViewModel.DayOff = new DayOffCardViewModel(_preWork!);
         // Deep work against the daily goal (redesign phase 4): Today's card, the on-screen details, "Goal met" once a day.
@@ -1057,6 +1065,7 @@ public partial class App : Application
         // Ctrl+Alt + double-click on the on-screen window, or its Open button.
         _sessionOverlay.OpenAppRequested += (_, _) => ShowMainWindow();
         _sessionOverlay.Start();
+        _timers!.Start();
         _bedtimeReminder.ReminderDue += (_, reminder) =>
             presenter.ShowReminder(reminder.Title, reminder.Message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#6366F1")));
         // ADR 38: a reminder that rings opens the alarm window; this PC's sync id says which reminders are its own.

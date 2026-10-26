@@ -15,7 +15,8 @@ namespace AccountabiliBuddy.App.Services;
 /// shows it steps aside or stays above it (<see cref="OverlaySettings.TimelineInFocus"/>). With
 /// <see cref="OverlaySettings.HideInFullscreen"/> the window also steps aside while a fullscreen app is in front
 /// (checked every tick), and the Ctrl+Alt "Hide" button hides it for a few seconds. When time is up it glows (sounds:
-/// <see cref="SessionCueService"/>). Display only: nothing here changes what is blocked. Use from the UI thread only.
+/// <see cref="SessionCueService"/>). This PC's timers and alarms add a line each under the rest and keep the window
+/// showing. Display only: nothing here changes what is blocked. Use from the UI thread only.
 /// </summary>
 public sealed class SessionOverlayService : IDisposable
 {
@@ -165,6 +166,13 @@ public sealed class SessionOverlayService : IDisposable
         stepAway.Changed += (_, _) => Update();
     }
 
+    /// <summary>This PC's timers and alarms: a line each on the window, with Pause, +1 min and ✕ while Ctrl+Alt is held.</summary>
+    public void SetTimers(Timers.TimersService timers)
+    {
+        _viewModel.Timers = new OverlayTimersViewModel(timers);
+        timers.Changed += (_, _) => Update();
+    }
+
     /// <summary>Today's deep work against the goal for the Ctrl+Alt details (redesign phase 4).</summary>
     public void SetGoalText(string text)
     {
@@ -253,7 +261,8 @@ public sealed class SessionOverlayService : IDisposable
         bool hiddenBriefly = _sessions.Now < _hiddenUntil;
         string? doneText = _sessions.Now < _doneUntil ? _doneText : null;
         bool showsSleep = _day.ShowsSleep;
-        if ((!showsTimer && !showsTimeline && !showsSleep && doneText is null) || fullscreenInFront || hiddenBriefly)
+        bool showsTimers = _viewModel.RefreshTimers();
+        if ((!showsTimer && !showsTimeline && !showsSleep && !showsTimers && doneText is null) || fullscreenInFront || hiddenBriefly)
         {
             _window?.Close();
             _window = null;
