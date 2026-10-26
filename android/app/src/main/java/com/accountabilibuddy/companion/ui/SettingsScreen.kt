@@ -191,6 +191,7 @@ fun SettingsScreen(
                                 OutlinedButton(onClick = onAddWidget) { Text("Add timeline widget to home screen") }
                             }
                         }
+                        item { TimelineLookSection() }
                     }
                     SettingsCategory.Sound -> {
                         noise?.let { player -> item { NoiseSection(player, noiseSettings) } }

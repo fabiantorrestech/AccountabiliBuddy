@@ -17,6 +17,12 @@ enum class MotionSpeed(val label: String, val scale: Float) {
     Off("Off", 0f),
 }
 
+/**
+ * How the timeline is drawn on the widget, the notification and Today: in colour; in grays with every block outlined
+ * (a phone kept in grayscale); or black and white with no see-through layers (e-ink screens).
+ */
+enum class BarLook(val label: String) { Color("Colour"), Grayscale("Grayscale (outlined)"), Eink("E-ink (black and white)") }
+
 /** Light, dark, or as the phone is set. */
 enum class ThemeChoice(val label: String) { System("Phone's setting"), Light("Light"), Dark("Dark") }
 
@@ -24,6 +30,9 @@ enum class ThemeChoice(val label: String) { System("Phone's setting"), Light("Li
 object UiPrefs {
     private val _motion = MutableStateFlow(MotionSpeed.Normal)
     private val _theme = MutableStateFlow(ThemeChoice.System)
+    private val _barLook = MutableStateFlow(BarLook.Color)
+
+    val barLook: StateFlow<BarLook> = _barLook.asStateFlow()
 
     val motion: StateFlow<MotionSpeed> = _motion.asStateFlow()
     val theme: StateFlow<ThemeChoice> = _theme.asStateFlow()
@@ -32,6 +41,12 @@ object UiPrefs {
         val prefs = context.getSharedPreferences("ui", Context.MODE_PRIVATE)
         _motion.value = runCatching { MotionSpeed.valueOf(prefs.getString("motion", null) ?: "") }.getOrDefault(MotionSpeed.Normal)
         _theme.value = runCatching { ThemeChoice.valueOf(prefs.getString("theme", null) ?: "") }.getOrDefault(ThemeChoice.System)
+        _barLook.value = runCatching { BarLook.valueOf(prefs.getString("barLook", null) ?: "") }.getOrDefault(BarLook.Color)
+    }
+
+    fun setBarLook(context: Context, look: BarLook) {
+        _barLook.value = look
+        context.getSharedPreferences("ui", Context.MODE_PRIVATE).edit().putString("barLook", look.name).apply()
     }
 
     fun setMotion(context: Context, speed: MotionSpeed) {

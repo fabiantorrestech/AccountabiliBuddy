@@ -91,7 +91,7 @@ object TimelineNotifier {
             .setCustomContentView(collapsed)
             .setCustomBigContentView(expanded)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-            .setColorized(true)
+            .setColorized(com.accountabilibuddy.companion.ui.UiPrefs.barLook.value == com.accountabilibuddy.companion.ui.BarLook.Color)
             .setColor(if (night) CARD_NIGHT else CARD_DAY)
             .setOngoing(true)
             // Swiped away (Android 14+ allows it): posted again at once.
@@ -172,7 +172,8 @@ object TimelineNotifier {
 
     /** The bar in the colours of the card as posted ([night]: the dark teal card). */
     private fun setBar(views: RemoteViews, model: DayBarModel, width: Int, density: Float, night: Boolean, compact: Boolean) {
-        val bar = DayBarPainter.bitmap(model, width, density, dark = night, compact = compact, onAccent = true)
+        val bar = DayBarPainter.bitmap(model, width, density, dark = night, compact = compact,
+            onAccent = com.accountabilibuddy.companion.ui.UiPrefs.barLook.value == com.accountabilibuddy.companion.ui.BarLook.Color)
         views.setImageViewBitmap(R.id.timeline_bar, bar)
     }
 

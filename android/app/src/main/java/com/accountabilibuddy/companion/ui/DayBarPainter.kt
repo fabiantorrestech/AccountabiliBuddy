@@ -13,8 +13,10 @@ import com.accountabilibuddy.companion.model.BarRow
  * Draws the day bar in the Windows app's rows (the on-screen timeline's, without labels): Calendar (events in their
  * calendar's colour), Plan (the day plan's parts in their category colours, with names when there's room outside
  * compact) and Focus (the devices' sessions with red drift marks), in the PC's order, then a thin strip of the sleep
- * Health Connect measured; the night and lost sleep shaded behind them, hour ticks and the red now line. One painter
- * for the app, the widget and the notification, so all three look the same.
+ * Health Connect measured; the night and lost sleep shaded behind them, hour ticks and the red now line (with a halo
+ * in the opposite colour, so it stands out on any block). One painter for the app, the widget and the notification,
+ * so all three look the same. The look ([UiPrefs.barLook]): colour; grayscale, every colour as a gray with every block
+ * outlined; or e-ink, black and white with outlined blocks and no see-through layers.
  */
 object DayBarPainter {
     /** Row heights, gaps and the rest in dp. */
@@ -60,6 +62,12 @@ object DayBarPainter {
     }
 
     fun draw(canvas: Canvas, model: DayBarModel, width: Float, density: Float, dark: Boolean, compact: Boolean, onAccent: Boolean = false) {
+        val look = UiPrefs.barLook.value
+        if (look != BarLook.Color) {
+            drawPlain(canvas, model, width, density, dark, compact, look)
+            return
+        }
+
         val sizes = if (compact) small else normal
         fun dp(value: Float) = value * density
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -146,9 +154,140 @@ object DayBarPainter {
 
         val half = dp(sizes.nowWidth) / 2
         val nowX = (model.now.coerceIn(0.0, 1.0) * width).toFloat().coerceIn(half, width - half)
+        // A halo first, so the now line stands out over any block.
+        paint.color = if (dark || onAccent) 0xE6FFFFFF.toInt() else 0xE6000000.toInt()
+        paint.strokeWidth = dp(sizes.nowWidth) + dp(2f)
+        canvas.drawLine(nowX, 0f, nowX, dp(bottom + sizes.nowOverhang), paint)
         paint.color = NOW
         paint.strokeWidth = dp(sizes.nowWidth)
         canvas.drawLine(nowX, 0f, nowX, dp(bottom + sizes.nowOverhang), paint)
+    }
+
+    /**
+     * Grayscale and e-ink: every block outlined; grayscale turns colours into grays (light ones get dark names), e-ink
+     * draws white blocks with black outlines and black sessions, with the drift marks and the now line in the opposite
+     * colour of what they sit on.
+     */
+    private fun drawPlain(canvas: Canvas, model: DayBarModel, width: Float, density: Float, dark: Boolean, compact: Boolean, look: BarLook) {
+        val sizes = if (compact) small else normal
+        fun dp(value: Float) = value * density
+        val eink = look == BarLook.Eink
+        val ink = if (eink) 0xFF000000.toInt() else if (dark) 0xFFFFFFFF.toInt() else 0xFF000000.toInt()
+        val paper = if (eink) 0xFFFFFFFF.toInt() else if (dark) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
+        val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = dp(if (eink) 1.5f else 1f)
+            color = if (eink) ink else (ink and 0x00FFFFFF) or 0xB3000000.toInt()
+        }
+        val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+        fun gray(color: Int): Int {
+            val r = (color shr 16) and 0xFF
+            val g = (color shr 8) and 0xFF
+            val b = color and 0xFF
+            val l = (0.299 * r + 0.587 * g + 0.114 * b).toInt().coerceIn(0, 255)
+            return (0xFF shl 24) or (l shl 16) or (l shl 8) or l
+        }
+        fun block(spans: List<DayBarSpan>, top: Float, height: Float, radius: Float, color: (DayBarSpan) -> Int, outlined: Boolean = true) {
+            for (span in spans) {
+                val left = (span.start.coerceIn(0.0, 1.0) * width).toFloat()
+                val right = (span.end.coerceIn(0.0, 1.0) * width).toFloat()
+                if (right - left < 0.5f) continue
+                val rect = RectF(left, top, right, top + height)
+                fill.color = color(span)
+                canvas.drawRoundRect(rect, radius, radius, fill)
+                if (outlined) canvas.drawRoundRect(rect, radius, radius, outline)
+            }
+        }
+
+        var cursor = 0f
+        val tops = mutableMapOf<BarRow, Float>()
+        for (row in model.rows) {
+            tops[row] = cursor
+            cursor += sizes.of(row) + sizes.gap
+        }
+        val sleptTop = cursor
+        val bottom = sleptTop + sizes.slept
+        val axisTop = bottom + sizes.gap * 2
+
+        // Tracks: outlined, so each row's edges show without colour.
+        for ((row, top) in tops) {
+            val radius = if (row == BarRow.Plan) dp(4f) else dp(2f)
+            canvas.drawRoundRect(RectF(0f, dp(top), width, dp(top + sizes.of(row))), radius, radius, outline)
+        }
+
+        // The night: a light shade (e-ink: a light gray only it can show), lost sleep left out.
+        fill.color = if (eink) 0x26000000 else (ink and 0x00FFFFFF) or 0x1F000000
+        for (span in model.night) {
+            val left = (span.start.coerceIn(0.0, 1.0) * width).toFloat()
+            val right = (span.end.coerceIn(0.0, 1.0) * width).toFloat()
+            if (right - left >= 0.5f) canvas.drawRect(RectF(left, 0f, right, dp(bottom)), fill)
+        }
+
+        tops[BarRow.Calendar]?.let { top ->
+            block(model.events, dp(top), dp(sizes.calendar), dp(1f), { if (eink) paper else gray(it.color ?: EVENT) })
+        }
+        tops[BarRow.Plan]?.let { top ->
+            block(model.planned, dp(top), dp(sizes.plan), dp(4f), { if (eink) paper else gray(it.color ?: FOCUS) })
+            if (!compact) {
+                val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = PART_TEXT_SP * density }
+                val padding = 3f * density
+                for (span in model.planned) {
+                    val name = span.name ?: continue
+                    val left = (span.start.coerceIn(0.0, 1.0) * width).toFloat()
+                    val right = (span.end.coerceIn(0.0, 1.0) * width).toFloat()
+                    if (right - left < MIN_PART_WIDTH_FOR_NAME_DP * density) continue
+                    val back = if (eink) paper else gray(span.color ?: FOCUS)
+                    textPaint.color = if (eink || (back and 0xFF) > 140) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
+                    var shown = name
+                    while (shown.isNotEmpty() && textPaint.measureText(if (shown == name) shown else "$shown…") > right - left - 2 * padding) shown = shown.dropLast(1)
+                    if (shown.isEmpty()) continue
+                    val baseline = dp(top) + (dp(sizes.plan) - textPaint.descent() - textPaint.ascent()) / 2
+                    canvas.drawText(if (shown == name) shown else "$shown…", left + padding, baseline, textPaint)
+                }
+            }
+        }
+        tops[BarRow.Focus]?.let { top ->
+            // Work with no session: outlined only; sessions: solid ink; drift: paper marks outlined in ink.
+            block(model.gaps, dp(top), dp(sizes.focus), dp(2f), { (ink and 0x00FFFFFF) or 0x33000000 })
+            block(model.focus, dp(top), dp(sizes.focus), dp(2f), { ink }, outlined = false)
+            for (span in model.drift) {
+                val left = (span.start.coerceIn(0.0, 1.0) * width).toFloat()
+                val right = maxOf((span.end.coerceIn(0.0, 1.0) * width).toFloat(), left + dp(2f))
+                val rect = RectF(left, dp(top) + dp(1f), right, dp(top + sizes.focus) - dp(1f))
+                fill.color = paper
+                canvas.drawRect(rect, fill)
+                canvas.drawRect(rect, outline)
+            }
+        }
+        block(model.actual, dp(sleptTop), dp(sizes.slept), dp(1.5f), { ink }, outlined = false)
+
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = ink
+            textSize = dp(sizes.textSize)
+        }
+        var lastRight = -Float.MAX_VALUE
+        for (tick in model.ticks) {
+            val x = (tick.position * width).toFloat()
+            canvas.drawLine(x, dp(bottom), x, dp(axisTop), outline)
+            val labelWidth = textPaint.measureText(tick.label)
+            val left = (x - labelWidth / 2).coerceIn(0f, (width - labelWidth).coerceAtLeast(0f))
+            if (left > lastRight + dp(4f)) {
+                canvas.drawText(tick.label, left, dp(axisTop) + dp(sizes.textSize), textPaint)
+                lastRight = left + labelWidth
+            }
+        }
+
+        // The now line: ink with a paper halo, a little wider than in colour.
+        val nowWidth = dp(sizes.nowWidth) + dp(0.5f)
+        val half = nowWidth / 2
+        val nowX = (model.now.coerceIn(0.0, 1.0) * width).toFloat().coerceIn(half, width - half)
+        val line = Paint(Paint.ANTI_ALIAS_FLAG)
+        line.color = paper
+        line.strokeWidth = nowWidth + dp(2.5f)
+        canvas.drawLine(nowX, 0f, nowX, dp(bottom + sizes.nowOverhang), line)
+        line.color = ink
+        line.strokeWidth = nowWidth
+        canvas.drawLine(nowX, 0f, nowX, dp(bottom + sizes.nowOverhang), line)
     }
 
     /** Red drift marks on the Focus row, at least 2 px wide so a short one still shows. */
