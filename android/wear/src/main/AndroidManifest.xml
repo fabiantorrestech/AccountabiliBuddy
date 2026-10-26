@@ -12,6 +12,9 @@
     <!-- Bedtime reminders from the phone (ADR 38). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- The watch's own timers: "Time's up" over the watch face when it's asleep, and their alarms set again after a restart. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:icon="@mipmap/ic_launcher"
@@ -69,6 +72,24 @@
                 android:value="300" />
         </service>
 
+        <!-- The second complication, "Timers": the watch's own timer that ends soonest (updated on each change and end). -->
+        <service
+            android:name=".complication.TimersComplicationService"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/timers_complication_label"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data
+                android:name="android.support.wearable.complications.SUPPORTED_TYPES"
+                android:value="RANGED_VALUE,SHORT_TEXT" />
+            <meta-data
+                android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
+                android:value="300" />
+        </service>
+
         <activity
             android:name=".WatchActivity"
             android:exported="true">
@@ -82,5 +103,16 @@
         <receiver
             android:name=".alerts.PhaseAlertReceiver"
             android:exported="false" />
+
+        <!-- The watch's own timers: the end alarm, the "Time's up" notification's buttons, and setting alarms again after a restart. -->
+        <receiver android:name=".timers.TimerEndReceiver" android:exported="false" />
+        <receiver android:name=".timers.TimerActionReceiver" android:exported="false" />
+        <receiver
+            android:name=".timers.TimerBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
