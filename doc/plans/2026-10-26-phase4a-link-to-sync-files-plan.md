@@ -20,13 +20,14 @@
 
 | Where | Field | Shape |
 |---|---|---|
-| `SyncAction.Kind` | `start` | `Text` = JSON `{ "profileId": "<guid>", "minutes": 25 }` or `{ "profileId": "<guid>", "noSetEnd": true }` (minutes 1..720) |
+| `SyncAction.Kind` | `start` | `Text` = JSON `{ "profileId": "<guid>", "minutes": 25 }` or `{ "profileId": "<guid>"?, "noSetEnd": true }` (minutes 1..720; `noSetEnd` without `profileId` = Quick Start with Default) |
 | `SyncAction.Kind` | `endEarlyBegin` | no extra fields |
 | `SyncAction.Kind` | `endEarly` | `Item` = the offer's `requestId`; `Text` = `"<N>"` (the reason's length only) |
 | `SyncAction.Kind` | `dayPlanEdit` | `Text` = JSON `{ "basedOn": "<PC plan version>", "editedAt": "<iso>", "plan": <day plan JSON as in SyncDayPlan> }` |
-| `SyncFile` | `actionResults` | list of `{ "id": "<action id>", "ok": bool, "message": "<shown to the user>"?, "planVersion": "<PC plan version>"?, "planEditedAt": "<iso>"? }`; a PC that supports results writes one for **every** action it saw, unknown kinds → `ok:false, message:"Not supported by this version"`; kept until the phone's action leaves its file (same lifetime as acks) |
+| `SyncFile` | `actionResults` | list of `{ "id": "<action id>", "ok": bool, "status": "applied|conflict|locked|invalid|refused|late|unsupported", "message": "<shown to the user>"?, "planVersion": "<PC plan version>"?, "planEditedAt": "<iso>"? }` (`locked` = a plan edit refused during a counted focus session: the phone keeps it waiting and resends it later with a new id; `conflict` carries planVersion/planEditedAt (planEditedAt may be null)); a PC that supports results writes one for **every** action it saw, unknown kinds → `ok:false, message:"Not supported by this version"`; kept until the phone's action leaves its file (same lifetime as acks) |
 | `SyncFile` | `endEarly` | `{ "requestId": "<guid>", "phaseStartedAt": "<iso>", "allowedFrom": "<iso>", "minReasonLength": 10, "note": "<the PC's text>"? }` or absent; ends on command (breaks, sessions with no set end) → no offer, the `endEarlyBegin` result is ok and the session ends at once |
-| `SyncRunning` | `currentTask`, `profileId`, `countUpProfileId` | string?, guid?, guid? |
+| `SyncRunning` | `currentTask`, `profileId`, `countUpProfileId` | string? (the task id as a string), guid?, guid? |
+| `SyncFile` | `profileOptions` | list of `{ "id": "<guid>", "name": "…" }`, always written (the start picker), plus `defaultProfileId` |
 | `SyncFile` | `goalMinutes` | int? (ADR 29 daily goal) |
 | `SyncDeviceCard` | — | phone treats a PC with `appVersion` < the version that ships this (PC 0.1.107) as "Update AccountabiliBuddy on <PC>" for control actions |
 
