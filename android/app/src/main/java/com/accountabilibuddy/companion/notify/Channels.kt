@@ -10,6 +10,8 @@ object Channels {
     const val TIMELINE = "timeline_top"
     private const val OLD_TIMELINE = "timeline"
     const val BEDTIME = "bedtime"
+    const val BEDTIME_COUNTDOWN = "bedtime_countdown"
+    const val BEDTIME_ALARM = "bedtime_alarm"
     const val NOISE = "noise"
     const val NUDGE = "nudge"
 
@@ -24,7 +26,12 @@ object Channels {
         manager.createNotificationChannel(silent(TIMELINE, "Today's timeline", "Always-on timeline of your day", NotificationManager.IMPORTANCE_HIGH))
         // Refused while its card is still pinned by the service; tried again at the next start.
         runCatching { manager.deleteNotificationChannel(OLD_TIMELINE) }
-        manager.createNotificationChannel(silent(BEDTIME, "Bedtime reminder", "Two hours before bedtime", NotificationManager.IMPORTANCE_DEFAULT))
+        manager.createNotificationChannel(
+            NotificationChannel(BEDTIME, "Bedtime reminders", NotificationManager.IMPORTANCE_HIGH).apply { description = "Your reminders before bedtime" },
+        )
+        manager.createNotificationChannel(silent(BEDTIME_COUNTDOWN, "Bedtime countdown", "From the first reminder until bedtime", NotificationManager.IMPORTANCE_LOW))
+        // The alarm screen plays its own sound and vibration.
+        manager.createNotificationChannel(silent(BEDTIME_ALARM, "Bedtime alarm", "A bedtime reminder that rings", NotificationManager.IMPORTANCE_HIGH))
         manager.createNotificationChannel(silent(NOISE, "Noise player", "While a sound plays", NotificationManager.IMPORTANCE_LOW))
         // The start nudge buzzes once (no sound): it's meant to be noticed.
         manager.createNotificationChannel(

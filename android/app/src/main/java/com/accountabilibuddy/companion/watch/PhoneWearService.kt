@@ -24,6 +24,12 @@ class PhoneWearService : WearableListenerService() {
             return
         }
 
+        // ADR 38: a bedtime reminder dismissed or snoozed on the watch.
+        if (event.path == WatchPaths.REMINDER_ACTION) {
+            com.accountabilibuddy.shared.ReminderMessages.readAction(event.data)?.let { (application as CompanionApp).reminderRelay.received(it) }
+            return
+        }
+
         // ADR 36: the watch controls the noise player.
         if (event.path == WatchPaths.NOISE_COMMAND) {
             com.accountabilibuddy.shared.NoiseRemote.readCommand(event.data)?.let { (application as CompanionApp).noiseWatch.apply(event.sourceNodeId, it) }

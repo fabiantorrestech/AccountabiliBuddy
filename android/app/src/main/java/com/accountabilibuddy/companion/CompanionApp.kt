@@ -77,6 +77,14 @@ class CompanionApp : Application() {
     /** Today's flexible lunch, the same on every device (schema v8). */
     val lunch by lazy { com.accountabilibuddy.companion.lunch.LunchStore(this) }
 
+    /** Bedtime reminders between devices (ADR 38). */
+    lateinit var reminderRelay: com.accountabilibuddy.companion.notify.ReminderRelay
+
+    /** Hands the PC this phone's file soon (a reminder dismissed here). */
+    fun sendSyncFilesSoon() {
+        appScope.launch { sendSyncFilesToPc() }
+    }
+
     /** The noise player on the linked watch (ADR 36). */
     lateinit var noiseWatch: com.accountabilibuddy.companion.watch.NoiseWatchSync
 
@@ -219,6 +227,7 @@ class CompanionApp : Application() {
         noise = com.accountabilibuddy.companion.noise.NoisePlayer(this, com.accountabilibuddy.companion.noise.NoiseSettingsStore(this), appScope)
         com.accountabilibuddy.companion.noise.HeadphoneWatcher(this, headphones, noise).start()
         noiseWatch = com.accountabilibuddy.companion.watch.NoiseWatchSync(this, noise, watchBridge.linkSettings, appScope).also { it.start() }
+        reminderRelay = com.accountabilibuddy.companion.notify.ReminderRelay(this, watchBridge.linkSettings, appScope)
         // The widget's play/pause follows the player.
         noise.onChanged = {
             appScope.launch { runCatching { com.accountabilibuddy.companion.widget.TimelineWidget().updateAll(this@CompanionApp) } }

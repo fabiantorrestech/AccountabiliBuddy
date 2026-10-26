@@ -103,7 +103,7 @@ fun SettingsScreen(
                     SettingsCategory.Sleep to listOfNotNull(
                         if (sleep.enabled) "Sleep mode on" else "Sleep mode off",
                         "smart bedtime on".takeIf { sleep.smartWorkdays || sleep.smartOffDays },
-                        "reminder".takeIf { state.bedtimeReminderOn },
+                        "reminders".takeIf { sleep.reminders.on },
                     ).joinToString(" · "),
                     SettingsCategory.PhoneGuard to listOfNotNull(
                         pause?.let { if (it.pausedAt != null) "Paused" else "Guarding" },
@@ -141,9 +141,9 @@ fun SettingsScreen(
                         item {
                             SmartBedtimeSection(clock) { if (state.sleep.smartWorkdays || state.sleep.smartOffDays) NeedsLine(listOf(healthNeed, usageNeed), forWhat = "Smart bedtime") }
                         }
+                        item { BedtimeRemindersSection() }
                         item {
-                            Section("Bedtime reminder", summary = if (state.bedtimeReminderOn) "On" else "Off") {
-                                ToggleRow("Bedtime reminder", "Once a night, two hours before bedtime", state.bedtimeReminderOn, onChange = onBedtimeReminder)
+                            Section("Health Connect", summary = if (health == HealthStatus.Connected) "Reading your sleep" else "Not connected") {
                                 Text(
                                     when (health) {
                                         HealthStatus.Connected -> "Health Connect: reading your measured sleep."

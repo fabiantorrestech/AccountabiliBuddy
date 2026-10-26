@@ -23,6 +23,12 @@ object WatchPaths {
     /** The watch controls the phone's noise player ([NoiseRemote.Command]). */
     const val NOISE_COMMAND = "/noise-command"
 
+    /** The phone has the watch ring a bedtime reminder ([ReminderMessages.Ring], ADR 38). */
+    const val REMINDER = "/reminder"
+
+    /** A bedtime reminder was dismissed or snoozed, either way ([ReminderMessages.Action]). */
+    const val REMINDER_ACTION = "/reminder-action"
+
     /** Advertised by the watch app (res/values/wear.xml), so the phone finds watches that have it. */
     const val WATCH_CAPABILITY = "accountabilibuddy_watch"
 

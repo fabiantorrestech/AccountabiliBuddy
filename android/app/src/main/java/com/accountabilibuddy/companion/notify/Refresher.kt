@@ -66,7 +66,7 @@ object Refresher {
                 val header = HeaderSource.header(app, now, clock, HeaderSource.phoneMinutes(context, state, now, builder), focus)
                 val model = builder.build(now, state.document, state.events, state.dayBar, state.sleep, state.slept, header, focus, (app.lunch.today()?.let { com.accountabilibuddy.companion.model.LocalWindow(java.time.LocalDateTime.ofInstant(it.start, java.time.ZoneId.systemDefault()), java.time.LocalDateTime.ofInstant(it.end, java.time.ZoneId.systemDefault())) }))
                 countdownEnd = model.countdownTo
-                minutely = header?.refreshMinutely == true
+                minutely = header?.refreshMinutely == true || runCatching { BedtimeReminders.countdownActive(context) }.getOrDefault(false)
                 if (state.timelineNotificationOn) {
                     TimelineNotifier.show(context, model)
                     if (!PinnedTimelineService.isRunning && TimelineNotifier.canPost(context)) {
@@ -84,7 +84,8 @@ object Refresher {
             val quiet = app.pause.isQuiet
             com.accountabilibuddy.companion.pause.PauseReminder.check(context, app.pause)
             if (!quiet) {
-                BedtimeReminder.check(context, app.store, clock, now)
+                // ADR 38: tonight's reminders follow bedtime; the countdown redraws every minute.
+                runCatching { BedtimeReminders.refresh(context, clock, now) }
             }
             // Steering (start nudge, parked phone, pickups to the PC): from the devices' combined focus.
             val focus = HeaderSource.focus(app, now)?.takeUnless { quiet }

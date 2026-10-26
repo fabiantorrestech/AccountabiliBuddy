@@ -6,6 +6,10 @@
     <!-- The Wi-Fi network's broadcast address, to find the paired PC when its address changed (ADR 14). -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Bedtime reminders that ring (ADR 38): exact alarms, over the lock screen, with vibration. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- "Take over the screen": the work nudge opens full screen over other apps (turned on by the user). -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Settings → Permissions → Unrestricted battery: asks Android to let the app run on time (the user confirms). -->
@@ -131,6 +135,18 @@
             android:windowSoftInputMode="adjustResize"
             android:taskAffinity="com.accountabilibuddy.companion.essentials" />
 
+        <!-- A bedtime reminder that rings (ADR 38), over the lock screen. -->
+        <activity
+            android:name=".notify.BedtimeAlarmActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:taskAffinity="com.accountabilibuddy.companion.bedtime" />
+
+        <receiver android:name=".notify.BedtimeReminderReceiver" android:exported="false" />
+
         <!-- "Need my phone" from the parked notice: the emergency chooser on its own. -->
         <activity
             android:name=".nudge.EmergencyActivity"
@@ -198,6 +214,7 @@
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/hello" />
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/pc-paired" />
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/noise-command" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/reminder-action" />
             </intent-filter>
         </service>
 
