@@ -10,7 +10,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>
 /// The Notebook tab: everything written down so it can leave your head. Come-backs (open and ticked), notes kept in
 /// Focus mode, tasks left unfinished when a session ended, and tasks done, newest first, with their times; searchable
-/// and filtered by kind. Open come-backs can be ticked off here.
+/// and filtered by kind. Open come-backs can be ticked off here; come-backs, notes and tasks can be edited or deleted.
 /// </summary>
 public sealed partial class NotebookViewModel : ObservableObject
 {
@@ -94,12 +94,20 @@ public sealed partial class NotebookViewModel : ObservableObject
             comeback.Text,
             comeback.DoneAt is DateTimeOffset done ? $"Parked {When(comeback.CreatedAt)} · ticked {When(done)}" : $"Parked {When(comeback.CreatedAt)} · open",
             comeback.CreatedAt,
-            comeback.DoneAt is null ? new AsyncRelayCommand(() => _comebacks.TickAsync(comeback.Id)) : null));
+            comeback.DoneAt is null ? new AsyncRelayCommand(() => _comebacks.TickAsync(comeback.Id)) : null,
+            rename: text => _comebacks.EditAsync(comeback.Id, text),
+            delete: () => _comebacks.DeleteAsync(comeback.Id)));
     }
 
     private IEnumerable<NotebookItemViewModel> Notes()
     {
-        return _notes.All.Select(note => new NotebookItemViewModel(NoteKind, note.Text, $"Noted {When(note.At)}", note.At));
+        return _notes.All.Select(note => new NotebookItemViewModel(
+            NoteKind,
+            note.Text,
+            $"Noted {When(note.At)}",
+            note.At,
+            rename: text => _notes.EditAsync(note.Id, text),
+            delete: () => _notes.DeleteAsync(note.Id)));
     }
 
     // Ended sessions' checklists: what was done, and what was left open when the session ended. Each task is followed by
