@@ -170,6 +170,11 @@
                 </StackPanel>
             </Border>
 
+            <!-- Timers and alarms (this PC only), idle and in Focus mode. -->
+            <Panel IsVisible="{Binding Timers, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <views:TimersCardView DataContext="{Binding Timers}" />
+            </Panel>
+
             <!-- After a session: what it used with no rule, as rules (Distracting / Fine / Ignore). -->
             <Panel IsVisible="{Binding Review, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <views:SessionReviewView DataContext="{Binding Review}" />
