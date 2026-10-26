@@ -9,7 +9,8 @@ namespace AccountabiliBuddy.App.Services;
 /// The flexible lunch (schema v8, design part B): on any workday "Start lunch" (on any of the user's devices) starts it
 /// for the lunch length (Settings → Your day, 1 hour by default); while it runs, +5 / −5 min change its end. A flexible
 /// break in today's plan is only a guideline: its window is drawn on the day bar and gives the hint time. A running
-/// session steps away as a Break for it. Not started by its hint time: one hint; never started: skipped (the window
+/// session steps away as a Break for it, held while lunch runs (input doesn't end it; "I'm back" or the lunch ending
+/// does, <see cref="StepAwayService.HoldsAway"/>). Not started by its hint time: one hint; never started: skipped (the window
 /// stays work). When it's over: one chime and "Lunch over!". A lunch started or changed on another device arrives in
 /// its sync file (<see cref="SyncFile.Lunch"/>) and is taken here when its edit is newer. Document "lunch". Use from
 /// the UI thread only.
@@ -134,13 +135,17 @@ public sealed class LunchService
         }
     }
 
-    /// <summary>Back early: lunch ends now.</summary>
+    /// <summary>Back early ("I'm back"): lunch ends now, and a session stepped away for it is back.</summary>
     public async Task EndNowAsync()
     {
         if (IsOnLunch)
         {
             DateTimeOffset now = _sessions.Now;
             await SaveAsync(_state with { End = now, OverTold = true, EditedAt = now });
+            if (_sessions.State.IsActive && _sessions.State.IsAway)
+            {
+                _sessions.Return();
+            }
         }
     }
 

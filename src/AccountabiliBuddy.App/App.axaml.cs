@@ -414,6 +414,8 @@ public partial class App : Application
             (title, message) => presenter.ShowReminder(title, message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#CA8A04"))),
             () => _sessionCues?.Play(soundSettings.Current.BreakEndSound));
         _lunch.LoadBlocking();
+        // Browsing at lunch isn't being back: lunch's step away ends with "I'm back" or the lunch ending, not input.
+        _stepAway!.HoldsAway = () => _lunch.IsOnLunch;
         // Animations at the chosen speed, or none (Settings → On screen & sound).
         _motion = new Motion(documents);
         _motion.LoadBlocking();
