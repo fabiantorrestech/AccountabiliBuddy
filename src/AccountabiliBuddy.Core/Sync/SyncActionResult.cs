@@ -9,12 +9,14 @@ namespace AccountabiliBuddy.Core.Sync;
 /// </summary>
 /// <param name="Id">The action's id.</param>
 /// <param name="Ok">Applied (or nothing left to do); false when refused.</param>
+/// <param name="Status">One of the <see cref="SyncActionStatus"/> values.</param>
 /// <param name="Message">For the phone to show, e.g. why it was refused; null when there's nothing to say.</param>
 /// <param name="PlanVersion">A day plan edit's: the PC's plan version now (on a clash, and after saving).</param>
 /// <param name="PlanEditedAt">A day plan clash's: when the PC's plan last changed, if known.</param>
 public sealed record SyncActionResult(
     Guid Id,
     bool Ok,
+    string Status,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Message = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PlanVersion = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? PlanEditedAt = null)

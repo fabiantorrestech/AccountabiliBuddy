@@ -221,7 +221,10 @@ public sealed class SyncCoordinator
                 ReminderActions = ReminderActions?.Invoke() is { Count: > 0 } actions ? actions : null,
                 Blockers = Blockers?.Invoke(),
                 ActionResults = ActionResults?.Invoke() is { Count: > 0 } results ? results : null,
-                EndEarly = EndEarlyOffer?.Invoke(), GoalMinutes = GoalMinutes?.Invoke() };
+                EndEarly = EndEarlyOffer?.Invoke(), GoalMinutes = GoalMinutes?.Invoke(),
+                // ADR 42: always, read-only, for the phone's start picker (the profiles document travels only once edited).
+                ProfileOptions = profiles.Select(profile => new SyncProfileOption(profile.Id, profile.Name)).ToList(),
+                DefaultProfileId = CountUpProfileId?.Invoke() };
     }
 
     /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>

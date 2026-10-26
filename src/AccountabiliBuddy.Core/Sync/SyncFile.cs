@@ -21,6 +21,8 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="ActionResults">A PC's answers to the phone's actions (ADR 42); null from a PC that predates them.</param>
 /// <param name="EndEarly">A PC's open end-early offer (ADR 42); null when there's none.</param>
 /// <param name="GoalMinutes">A PC's daily focus goal in minutes (ADR 29); null when not sent.</param>
+/// <param name="ProfileOptions">A PC's profiles, always listed (ADR 42), for the phone's start picker; null from a phone or an older PC.</param>
+/// <param name="DefaultProfileId">A PC's "Quick Start with Default" profile; null when it isn't made yet.</param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
@@ -43,7 +45,9 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncBlocker>? Blockers = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncActionResult>? ActionResults = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncEndEarlyOffer? EndEarly = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? GoalMinutes = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? GoalMinutes = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncProfileOption>? ProfileOptions = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? DefaultProfileId = null)
 {
     public const int CurrentFormatVersion = 1;
 }
