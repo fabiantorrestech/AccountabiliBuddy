@@ -124,7 +124,8 @@ public sealed class LunchService
         DateTimeOffset newEnd = end + change;
         if (newEnd < now + ShortestLeft)
         {
-            newEnd = now + ShortestLeft;
+            // Never sooner than a minute from now, and a −5 never makes it longer.
+            newEnd = now + ShortestLeft < end ? now + ShortestLeft : end;
         }
 
         if (newEnd != end)

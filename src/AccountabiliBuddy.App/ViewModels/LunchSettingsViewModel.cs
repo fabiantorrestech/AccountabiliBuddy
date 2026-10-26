@@ -21,7 +21,7 @@ public sealed partial class LunchSettingsViewModel : ObservableObject
 
     public static decimal StepMinutes => LunchService.LengthStepMinutes;
 
-    /// <summary>Minutes, 15-120 in steps of 5 (the box rounds what's typed).</summary>
+    /// <summary>Minutes, 15-120 in steps of 5 (what's typed is rounded and held to that, then shown back).</summary>
     [ObservableProperty]
     public partial decimal? LengthMinutes { get; set; }
 
@@ -42,6 +42,8 @@ public sealed partial class LunchSettingsViewModel : ObservableObject
     private async Task SaveAsync(int minutes)
     {
         await _lunch.SetLengthAsync(minutes);
+        // The rounded, clamped value goes back into the box (setting it again saves nothing new).
+        LengthMinutes = (decimal)_lunch.Length.TotalMinutes;
         LengthText = LunchService.FormatLength(_lunch.Length);
     }
 }
