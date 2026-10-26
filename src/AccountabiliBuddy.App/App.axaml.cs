@@ -517,10 +517,11 @@ public partial class App : Application
             _sessions, _configuration, activityLog, omittedSessions, deletedUsage, privacy, sleepSettings, dayBarSettings, documents, syncSettings,
             syncIdentity, receivedDevices, syncEditTimes);
         syncCoordinator.Gaps = sessionGaps;
-        // Guided sessions (ADR 24): the checklist goes to paired devices in the link's state and in this PC's sync file.
-        linkHost.Tasks = () => sessionTasks.IsLive ? sessionTasks.Current.Tasks : null;
+        // Guided sessions (ADR 24): the checklist goes to paired devices in the link's state and in this PC's sync file,
+        // each task with its category's name and colour.
+        linkHost.Tasks = () => sessionTasks.IsLive ? sessionTasks.Labelled(sessionTasks.Current) : null;
         linkHost.CurrentTask = () => sessionTasks.IsLive ? sessionTasks.Current.CurrentId : null;
-        syncCoordinator.TasksOf = start => sessionTasks.ForSession(start)?.Tasks is { Count: > 0 } tasks ? tasks : null;
+        syncCoordinator.TasksOf = start => sessionTasks.ForSession(start) is { HasTasks: true } checklist ? sessionTasks.Labelled(checklist) : null;
         sessionTasks.Changed += (_, _) =>
         {
             linkHost.NotifyTasksChanged();

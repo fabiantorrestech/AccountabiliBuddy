@@ -55,10 +55,13 @@
                         <StackPanel Spacing="1" IsVisible="{Binding TaskLineShown}"
                                     Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
                             <!-- While Ctrl+Alt is held, a box by each line ticks it right here. -->
-                            <Grid ColumnDefinitions="Auto,*">
+                            <Grid ColumnDefinitions="Auto,Auto,*">
                                 <Button Classes="tick" Command="{Binding Checklist.TickCurrentTaskCommand}" IsVisible="{Binding ShowsDetails}"
                                         VerticalAlignment="Top" views:OverlayHint.Text="Tick this task (and its subtasks)" AutomationProperties.Name="Tick the task" />
-                                <TextBlock Grid.Column="1" Text="{Binding TaskLine}" Foreground="#E6FFFFFF" FontSize="11"
+                                <!-- The task's category colour. -->
+                                <Ellipse Grid.Column="1" Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center"
+                                         Fill="{Binding TaskCategoryBrush}" IsVisible="{Binding ShowsTaskCategory}" />
+                                <TextBlock Grid.Column="2" Text="{Binding TaskLine}" Foreground="#E6FFFFFF" FontSize="11"
                                            TextWrapping="Wrap" MaxLines="{Binding TaskMaxLines}" TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center" />
                             </Grid>
