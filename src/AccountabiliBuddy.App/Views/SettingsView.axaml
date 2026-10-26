@@ -258,6 +258,23 @@
                                    Text="When a work part starts, when the app starts during one, when you come back after 10 minutes away, and again every few minutes until a session starts. Never during a session; the on-screen window says it in amber meanwhile." />
                     </StackPanel>
                     </Border>
+                    <Border Classes="card" search:SearchArea.Name="Lunch length on workdays" IsVisible="{Binding HasLunch}">
+                    <StackPanel Spacing="6" DataContext="{Binding Lunch}" x:DataType="vm:LunchSettingsViewModel">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="SilverwareForkKnife" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Lunch length on workdays" Classes="sectionTitle" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <NumericUpDown Value="{Binding LengthMinutes}" Minimum="{x:Static vm:LunchSettingsViewModel.MinMinutes}"
+                                           Maximum="{x:Static vm:LunchSettingsViewModel.MaxMinutes}" Increment="{x:Static vm:LunchSettingsViewModel.StepMinutes}"
+                                           FormatString="0" Width="110" />
+                            <TextBlock Text="minutes" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding LengthText, StringFormat='({0})'}" VerticalAlignment="Center" Opacity="0.75" />
+                        </StackPanel>
+                        <TextBlock Opacity="0.75" TextWrapping="Wrap"
+                                   Text="Start lunch on Today (or your phone) on any workday; it lasts this long, and +5 / −5 min change it while you're on it, on every device. A lunch part in your day plan is only when you usually take it: it gives the reminder time and shows on the day bar." />
+                    </StackPanel>
+                    </Border>
                     <!-- ADR 27: a personal computer can hold dev tools during the plan's work parts. -->
                     <Border Classes="card" search:SearchArea.Name="Work hours on this computer" IsVisible="{Binding HasWorkHours}">
                     <StackPanel Spacing="8" DataContext="{Binding WorkHours}" x:DataType="vm:WorkHoursViewModel">

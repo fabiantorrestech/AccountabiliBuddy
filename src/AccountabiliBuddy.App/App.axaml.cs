@@ -405,7 +405,7 @@ public partial class App : Application
         _startNudge.LoadBlocking();
         // After a session and on the repeat, the nudge only flashes the taskbar button (never takes focus).
         _windowAttention = new WindowsWindowAttention();
-        // Flexible lunch (schema v8): Start lunch any time in its window, on any device; one chime when it's over.
+        // Flexible lunch (schema v8): Start lunch on any workday, on any device, for the lunch length; one chime when it's over.
         _lunch = new LunchService(_sessions, _configuration, documents,
             (title, message) => presenter.ShowReminder(title, message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#CA8A04"))),
             () => _sessionCues?.Play(soundSettings.Current.BreakEndSound));
@@ -818,6 +818,7 @@ public partial class App : Application
                 WorkHours = new WorkHoursViewModel(_workHours!, _sessions),
                 Hyperfocus = new HyperfocusViewModel(_hyperfocus!, _configuration),
                 StartNudge = new StartNudgeViewModel(_startNudge!),
+                Lunch = new LunchSettingsViewModel(_lunch!),
                 Motion = new MotionViewModel(_motion!) { Theme = appTheme },
                 Headphones = new HeadphoneSettingsViewModel(_headphones!),
                 LightsOut = new LightsOutViewModel(_lightsOut!),
