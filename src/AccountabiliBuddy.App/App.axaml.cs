@@ -942,7 +942,7 @@ public partial class App : Application
                 blocks.AddRange(device.File.Blockers!.Select(b => (new BlockRef(who, b.Kind, b.Id, b.Name), card.Name, b.On)));
             }
 
-            var viewModel = new PlanDayViewModel(_configuration!, _sessions!, blocks, DateOnly.FromDateTime(time.GetLocalNow().DateTime));
+            var viewModel = new PlanDayViewModel(_configuration!, _sessions!, blocks, DateOnly.FromDateTime(time.GetLocalNow().DateTime), () => sleepSettings.PhoneAlarm);
             new PlanDayWindow { DataContext = viewModel }.Show();
         }
 

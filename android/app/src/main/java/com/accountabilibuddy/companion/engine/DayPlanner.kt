@@ -18,7 +18,15 @@ import java.util.UUID
  * Off-Days), the night before each date (null = as the template has it), the block rules (null = as the template
  * has them) and an optional note.
  */
-data class DayPlanRequest(val dates: List<LocalDate>, val offDay: Boolean, val sleep: SleepTimes?, val blocks: BlockRules?, val note: String? = null)
+data class DayPlanRequest(
+    val dates: List<LocalDate>,
+    val offDay: Boolean,
+    val sleep: SleepTimes?,
+    val blocks: BlockRules?,
+    val note: String? = null,
+    /** Leave the night out (not recommended); wins over [sleep]. */
+    val noSleep: Boolean = false,
+)
 
 /**
  * Turns the walkthrough's answers into one-off days: each date gets the Workdays or Off-Days template with the night
@@ -27,7 +35,11 @@ data class DayPlanRequest(val dates: List<LocalDate>, val offDay: Boolean, val s
 object DayPlanner {
     fun templateFor(plan: DayPlan, request: DayPlanRequest): DayTemplate {
         var template = if (request.offDay) plan.otherDay else plan.workday
-        request.sleep?.let { template = withNight(template, plan, it) }
+        if (request.noSleep) {
+            template = withoutNight(template, plan)
+        } else {
+            request.sleep?.let { template = withNight(template, plan, it) }
+        }
         return request.blocks?.let { template.copy(blocks = it) } ?: template
     }
 
@@ -60,6 +72,24 @@ object DayPlanner {
                 if (it.id == existing.id) it.copy(start = times.bedtime, end = times.wake, wakeByAlarm = times.wakeByAlarm) else it
             })
         }
+    }
+
+    /** One template without its night (leave sleep blank); a nap later in the day stays. */
+    fun withoutNight(template: DayTemplate, plan: DayPlan): DayTemplate {
+        val night = sleepPart(template, plan) ?: return template
+        return template.copy(parts = template.parts.filter { it.id != night.id })
+    }
+
+    /**
+     * The night before [date] as measured (Health Connect sleep the phone keeps): from the first sleep starting after
+     * 6 PM the evening before to the last one ending by 2 PM that day; null when none was measured.
+     */
+    fun measuredNight(slept: List<com.accountabilibuddy.companion.model.LocalWindow>, date: LocalDate): SleepTimes? {
+        val from = date.minusDays(1).atTime(18, 0)
+        val to = date.atTime(14, 0)
+        val night = slept.filter { it.end.isAfter(from) && it.start.isBefore(to) }
+        if (night.isEmpty()) return null
+        return SleepTimes(night.minOf { it.start }.toLocalTime(), night.maxOf { it.end }.toLocalTime())
     }
 
     private fun sleepPart(template: DayTemplate, plan: DayPlan): PlanPart? {

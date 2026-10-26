@@ -73,6 +73,10 @@ fun MainScreen(
     val planConflict by viewModel.planConflict.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val planDraft by viewModel.planDraft.collectAsStateWithLifecycle()
+    // The migration assistant (5 taps on About's logo, or the Today card).
+    var whatsNewOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var whatsNewTick by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val appVersion = remember { (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).appVersion() }
     val planDayOpen by viewModel.planDayOpen.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val noise = (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).noise
@@ -112,7 +116,7 @@ fun MainScreen(
     ) { padding ->
         Column(Modifier.padding(padding)) {
             if (showSetup) {
-                SetupScreen(health, onConnectHealth, onAllowUsage) {
+                SetupScreen(health, onConnectHealth, onAllowUsage, onConnectCurbox, viewModel::setReenableTime) {
                     SetupState.markShown(context)
                     showSetup = false
                 }
@@ -125,7 +129,13 @@ fun MainScreen(
                     blocks = remember { viewModel.planDayBlocks() },
                     onSave = viewModel::savePlannedDays,
                     onClose = { viewModel.planDayOpen.value = false },
+                    slept = state.slept,
                 )
+                return@Column
+            }
+
+            if (whatsNewOpen) {
+                WhatsNewScreen(onConnectCurbox, viewModel::setReenableTime) { whatsNewOpen = false }
                 return@Column
             }
 
@@ -156,6 +166,7 @@ fun MainScreen(
             ) { shown ->
             when (shown) {
                 0 -> Column {
+                    WhatsNewCard(appVersion, onSetUp = { whatsNewOpen = true }, onDismissed = { whatsNewTick++ })
                     DayOffCard()
                     LunchCard(
                         flex = state.document.dayPlan.flexibleBreakOn(java.time.LocalDate.now()),
@@ -292,7 +303,7 @@ fun MainScreen(
                         ),
                     )
                 }
-                else -> AboutScreen(pcName = pairedPc?.pcName)
+                else -> AboutScreen(pcName = pairedPc?.pcName, onOpenWhatsNew = { whatsNewOpen = true })
             }
             }
         }

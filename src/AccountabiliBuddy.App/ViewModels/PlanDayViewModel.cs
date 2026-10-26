@@ -20,11 +20,16 @@ public sealed partial class PlanDayViewModel : ObservableObject
     private readonly ConfigurationService _configuration;
     private readonly SessionController _sessions;
 
+    private readonly Func<DateTime?> _phoneAlarm;
+
     /// <param name="blocks">Every device's blocks: the block, its device's name, whether it's on now.</param>
-    public PlanDayViewModel(ConfigurationService configuration, SessionController sessions, IReadOnlyList<(BlockRef Block, string Device, bool On)> blocks, DateOnly today)
+    /// <param name="phoneAlarm">The paired phone's next alarm (ADR 23), for "hours of sleep + my alarm".</param>
+    public PlanDayViewModel(ConfigurationService configuration, SessionController sessions, IReadOnlyList<(BlockRef Block, string Device, bool On)> blocks, DateOnly today,
+        Func<DateTime?>? phoneAlarm = null)
     {
         _configuration = configuration;
         _sessions = sessions;
+        _phoneAlarm = phoneAlarm ?? (() => null);
         Today = today;
         Dates = new List<DateOnly> { today.AddDays(1) };
         foreach ((BlockRef block, string device, bool on) in blocks)
@@ -87,6 +92,10 @@ public sealed partial class PlanDayViewModel : ObservableObject
 
     partial void OnIsOffDayChanged(bool value) => LoadDefaults();
 
+    partial void OnBedtimeChanged(TimeSpan? value) => OnPropertyChanged(nameof(SleepText));
+
+    partial void OnWakeChanged(TimeSpan? value) => OnPropertyChanged(nameof(SleepText));
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SleepText))]
     public partial TimeSpan? Bedtime { get; set; }
@@ -98,22 +107,64 @@ public sealed partial class PlanDayViewModel : ObservableObject
     [ObservableProperty]
     public partial bool WakeByAlarm { get; set; }
 
+    // How the night before is set: bed and wake times; hours + a wake time; hours + the phone's alarm; or left blank.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsRange), nameof(IsHoursAndWake), nameof(IsHoursAndAlarm), nameof(IsBlank), nameof(ShowsHours), nameof(ShowsWake), nameof(SleepText))]
+    public partial string SleepMode { get; set; } = "range";
+
+    public bool IsRange { get => SleepMode == "range"; set { if (value) SleepMode = "range"; } }
+    public bool IsHoursAndWake { get => SleepMode == "hoursWake"; set { if (value) SleepMode = "hoursWake"; } }
+    public bool IsHoursAndAlarm { get => SleepMode == "hoursAlarm"; set { if (value) SleepMode = "hoursAlarm"; } }
+    public bool IsBlank { get => SleepMode == "blank"; set { if (value) SleepMode = "blank"; } }
+    public bool ShowsHours => IsHoursAndWake || IsHoursAndAlarm;
+    public bool ShowsWake => IsRange || IsHoursAndWake;
+
+    /// <summary>Hours of sleep (4 to 12, a quarter hour apart).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SleepText))]
+    public partial decimal? SleepHours { get; set; } = 8m;
+
+    // The phone's alarm counts for the first chosen morning when it rings that day.
+    private TimeOnly? AlarmForFirstDate() =>
+        _phoneAlarm() is DateTime alarm && Dates.Count > 0 && DateOnly.FromDateTime(alarm) == Dates[0] ? TimeOnly.FromDateTime(alarm) : null;
+
+    private SleepTimes? ChosenNight()
+    {
+        TimeSpan hours = TimeSpan.FromHours((double)(SleepHours ?? 8m));
+        TimeOnly? wake = Wake is TimeSpan w ? TimeOnly.FromTimeSpan(w) : null;
+        return SleepMode switch
+        {
+            "hoursWake" when wake is TimeOnly up => new SleepTimes(up.Add(-hours), up),
+            "hoursAlarm" => (AlarmForFirstDate() ?? wake) is TimeOnly up ? new SleepTimes(up.Add(-hours), up, WakeByAlarm: true) : null,
+            "blank" => null,
+            _ => Bedtime is TimeSpan bed && wake is TimeOnly end ? new SleepTimes(TimeOnly.FromTimeSpan(bed), end, WakeByAlarm) : null,
+        };
+    }
+
     public string SleepText
     {
         get
         {
-            if (Bedtime is not TimeSpan bed || Wake is not TimeSpan wake)
+            if (SleepMode == "blank")
+            {
+                return "No sleep planned for the night before (not recommended): no bedtime reminders or sleep count for those nights.";
+            }
+
+            if (ChosenNight() is not SleepTimes night)
             {
                 return "No night planned.";
             }
 
-            TimeSpan length = wake - bed;
+            TimeSpan length = night.Wake.ToTimeSpan() - night.Bedtime.ToTimeSpan();
             if (length <= TimeSpan.Zero)
             {
                 length += TimeSpan.FromDays(1);
             }
 
-            return $"{(int)length.TotalHours} h {length.Minutes:00} m of sleep";
+            string alarm = SleepMode == "hoursAlarm"
+                ? AlarmForFirstDate() is TimeOnly up ? $" (your phone's alarm: {Time(up)})" : " (no alarm set for that morning yet; it follows your alarm once set)"
+                : "";
+            return $"Bed by {Time(night.Bedtime)}, up at {Time(night.Wake)}{alarm} · {(int)length.TotalHours} h {length.Minutes:00} m of sleep";
         }
     }
 
@@ -190,9 +241,7 @@ public sealed partial class PlanDayViewModel : ObservableObject
     {
         DayPlan plan = _configuration.Current.DayPlan;
         DayTemplate template = IsOffDay ? plan.OtherDay : plan.Workday;
-        SleepTimes? sleep = Bedtime is TimeSpan bed && Wake is TimeSpan wake
-            ? new SleepTimes(TimeOnly.FromTimeSpan(bed), TimeOnly.FromTimeSpan(wake), WakeByAlarm)
-            : null;
+        SleepTimes? sleep = ChosenNight();
 
         BlockRules rules = template.Rules;
         TimeOnly reenable = TimeOnly.FromTimeSpan(ReenableAt ?? TimeSpan.Zero);
@@ -201,7 +250,7 @@ public sealed partial class PlanDayViewModel : ObservableObject
             ? rules.Lifts
             : new[] { new BlockLift(TimeOnly.FromTimeSpan(LiftFrom ?? TimeSpan.Zero), TimeOnly.FromTimeSpan(LiftTo ?? ReenableAt ?? TimeSpan.Zero), LiftAuto ? BlockLift.Auto : BlockLift.Allow, lifted) };
         var blocks = rules with { ReenableAt = reenable, WarnMinutes = HeadsUp ? rules.WarnMinutes ?? 5 : null, Lifts = lifts };
-        return new DayPlanRequest(Dates, IsOffDay, sleep, blocks, Note);
+        return new DayPlanRequest(Dates, IsOffDay, sleep, blocks, Note, NoSleep: SleepMode == "blank");
     }
 
     private void LoadDefaults()
@@ -224,9 +273,7 @@ public sealed partial class PlanDayViewModel : ObservableObject
         var lines = new List<string>
         {
             $"{(request.OffDay ? "Off-day" : "Adjusted workday")} on {DatesText}",
-            request.Sleep is SleepTimes sleep
-                ? $"The night before: bed by {Time(sleep.Bedtime)}, up at {Time(sleep.Wake)}{(sleep.WakeByAlarm ? " (or your alarm)" : "")} · {SleepText}"
-                : "No night planned",
+            request.NoSleep ? "The night before: no sleep planned" : $"The night before: {SleepText}",
         };
         BlockRules blocks = request.Blocks!;
         List<BlockRef> lifted = Blocks.Where(row => row.Lift).Select(row => row.Block).ToList();

@@ -92,6 +92,37 @@ class CurboxClient(private val context: Context) {
         }
     }
 
+    /** Curbox's focus groups (id, name, whether a running focus can be exited); null when Curbox can't be asked. */
+    suspend fun focusGroups(): List<CurboxFocusGroup>? {
+        val packageName = findPackage() ?: return null
+        return withTimeoutOrNull(5_000) {
+            withBinding(packageName) { api ->
+                if (!api.isGranted) return@withBinding null
+                (parse(api.list("FOCUS_GROUPS")) as? JsonArray).orEmpty().mapNotNull { element ->
+                    val o = element as? JsonObject ?: return@mapNotNull null
+                    val id = (o["id"] as? JsonPrimitive)?.content ?: return@mapNotNull null
+                    CurboxFocusGroup(id, (o["name"] as? JsonPrimitive)?.content ?: id, (o["exitable"] as? JsonPrimitive)?.booleanOrNull ?: true)
+                }
+            }
+        }
+    }
+
+    /** Starts focus group [id] for [minutes] (Curbox hard mode); true when Curbox says "OK". */
+    suspend fun startFocus(id: String, minutes: Int): Boolean {
+        val packageName = findPackage() ?: return false
+        val args = Bundle().apply {
+            putString("target", id)
+            putInt("minutes", minutes.coerceAtLeast(1))
+        }
+        return withTimeoutOrNull(5_000) { withBinding(packageName) { api -> api.execute("START_FOCUS", args) } } == "OK"
+    }
+
+    /** Ends every running Curbox focus session (also one that can't be exited); true when Curbox says "OK". */
+    suspend fun stopFocus(): Boolean {
+        val packageName = findPackage() ?: return false
+        return withTimeoutOrNull(5_000) { withBinding(packageName) { api -> api.execute("STOP_FOCUS", Bundle()) } } == "OK"
+    }
+
     /** Turns one of Curbox's blocks on or off (ADR 37); true when Curbox says "OK". */
     suspend fun set(kind: String, id: String, on: Boolean): Boolean {
         val command = when (kind) {

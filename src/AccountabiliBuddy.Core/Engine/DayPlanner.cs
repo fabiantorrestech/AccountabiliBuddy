@@ -12,7 +12,11 @@ public static class DayPlanner
     public static DayTemplate TemplateFor(DayPlan plan, DayPlanRequest request)
     {
         DayTemplate template = request.OffDay ? plan.OtherDay : plan.Workday;
-        if (request.Sleep is SleepTimes sleep)
+        if (request.NoSleep)
+        {
+            template = DayPlanSleep.WithoutNight(template, plan);
+        }
+        else if (request.Sleep is SleepTimes sleep)
         {
             template = DayPlanSleep.WithNight(template, plan, sleep);
         }

@@ -130,6 +130,9 @@ class CompanionApp : Application() {
     override fun onCreate() {
         super.onCreate()
         store = CompanionStore(File(filesDir, "companion"))
+        // The migration assistant: the version that ran before this one.
+        com.accountabilibuddy.companion.setup.SetupFeatures.recordLaunch(
+            this, appVersion(), getSharedPreferences("ui", MODE_PRIVATE).getBoolean("setupShown", false))
         // A setting saved here or in a backed-up preference file: auto-backup a minute later.
         store.onSettingsSaved = { autoBackup.soon() }
         autoBackup.start()
@@ -370,7 +373,7 @@ class CompanionApp : Application() {
     private fun readDeviceName(): String =
         Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)?.takeIf { it.isNotBlank() } ?: Build.MODEL
 
-    private fun appVersion(): String =
+    internal fun appVersion(): String =
         runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "?"
 
     private fun deviceKind(): String = if (resources.configuration.smallestScreenWidthDp >= 600) "tablet" else "phone"

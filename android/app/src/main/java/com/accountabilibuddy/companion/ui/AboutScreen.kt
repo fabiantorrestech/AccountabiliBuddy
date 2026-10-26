@@ -1,5 +1,7 @@
 package com.accountabilibuddy.companion.ui
 
+import androidx.compose.foundation.clickable
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -30,8 +32,10 @@ import com.accountabilibuddy.companion.R
 
 /** The app's icon, name and version, with the camp quote in the middle (like the PC's About tab). */
 @Composable
-fun AboutScreen(pcName: String?) {
+fun AboutScreen(pcName: String?, onOpenWhatsNew: () -> Unit = {}) {
     val context = LocalContext.current
+    // 5 taps on the logo within 3 seconds open the migration assistant.
+    val taps = remember { mutableListOf<Long>() }
     val version = remember {
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "?"
     }
@@ -44,7 +48,18 @@ fun AboutScreen(pcName: String?) {
         Image(
             painter = painterResource(R.mipmap.ic_launcher),
             contentDescription = null,
-            modifier = Modifier.size(88.dp).clip(RoundedCornerShape(20.dp)),
+            modifier = Modifier.size(88.dp).clip(RoundedCornerShape(20.dp)).clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null,
+            ) {
+                val now = System.currentTimeMillis()
+                taps.removeAll { now - it > 3_000 }
+                taps += now
+                if (taps.size >= 5) {
+                    taps.clear()
+                    onOpenWhatsNew()
+                }
+            },
         )
         Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
         Text("Version $version", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

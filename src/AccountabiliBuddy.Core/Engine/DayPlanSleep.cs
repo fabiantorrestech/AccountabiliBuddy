@@ -54,6 +54,13 @@ public static class DayPlanSleep
         return set with { Parts = set.Parts.Select(part => part.Id == SleepPart(set, plan)?.Id ? part with { WakeByAlarm = times.WakeByAlarm } : part).ToList() };
     }
 
+    /// <summary>One template without its night ("Plan a day": leave sleep blank); a nap later in the day stays.</summary>
+    public static DayTemplate WithoutNight(DayTemplate template, DayPlan plan)
+    {
+        PlanPart? night = SleepPart(template, plan);
+        return night is null ? template : template with { Parts = template.Parts.Where(part => part.Id != night.Id).ToList() };
+    }
+
     private static DayTemplate WithSleep(DayTemplate template, DayPlan plan, DayCategory category, SleepTimes times)
     {
         PlanPart? existing = SleepPart(template, plan);

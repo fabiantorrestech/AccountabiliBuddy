@@ -54,8 +54,18 @@ data class PlanDayBlock(val block: BlockRef, val device: String, val on: Boolean
  * goes to the PC like an Edit plan change), else why not.
  */
 @Composable
-fun PlanDayScreen(plan: DayPlan, blocks: List<PlanDayBlock>, onSave: (DayPlanRequest) -> String?, onClose: () -> Unit) {
+fun PlanDayScreen(
+    plan: DayPlan,
+    blocks: List<PlanDayBlock>,
+    onSave: (DayPlanRequest) -> String?,
+    onClose: () -> Unit,
+    /** Measured sleep (Health Connect) the phone keeps, for "use my measured sleep". */
+    slept: List<com.accountabilibuddy.companion.model.LocalWindow> = emptyList(),
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val today = remember { LocalDate.now() }
+    // The phone's next alarm, for "hours of sleep + my alarm".
+    val alarm = remember { com.accountabilibuddy.companion.sync.NextAlarm.read(context)?.at?.atZone(java.time.ZoneId.systemDefault())?.toLocalDateTime() }
     var step by remember { mutableStateOf(1) }
     var offDay by remember { mutableStateOf(false) }
     val dates = remember { mutableStateListOf(today.plusDays(1)) }
@@ -71,6 +81,8 @@ fun PlanDayScreen(plan: DayPlan, blocks: List<PlanDayBlock>, onSave: (DayPlanReq
     var bedtime by remember { mutableStateOf(nightOf(false)?.bedtime ?: LocalTime.of(23, 0)) }
     var wake by remember { mutableStateOf(nightOf(false)?.wake ?: LocalTime.of(7, 0)) }
     var byAlarm by remember { mutableStateOf(nightOf(false)?.wakeByAlarm ?: false) }
+    var sleepMode by remember { mutableStateOf(SleepMode.Range) }
+    var sleepMinutes by remember { mutableStateOf(480) }
     val lifted = remember { mutableStateListOf<BlockRef>() }
     var liftFrom by remember { mutableStateOf(LocalTime.MIDNIGHT) }
     var liftTo by remember { mutableStateOf(plan.workday.rules.reenableAt) }
@@ -87,13 +99,26 @@ fun PlanDayScreen(plan: DayPlan, blocks: List<PlanDayBlock>, onSave: (DayPlanReq
         headsUp = (rules.warnMinutes ?: 0) > 0
     }
 
+    // The alarm counts for the first chosen morning when it rings that day.
+    fun alarmFor(): LocalTime? = alarm?.takeIf { dates.isNotEmpty() && it.toLocalDate() == dates.min() }?.toLocalTime()
+    fun measured(): SleepTimes? = dates.sorted().firstNotNullOfOrNull { DayPlanner.measuredNight(slept, it) }
+
+    fun sleep(): SleepTimes? = when (sleepMode) {
+        SleepMode.Range -> SleepTimes(bedtime, wake, byAlarm)
+        SleepMode.HoursAndWake -> SleepTimes(wake.minusMinutes(sleepMinutes.toLong()), wake)
+        SleepMode.HoursAndAlarm -> (alarmFor() ?: wake).let { up -> SleepTimes(up.minusMinutes(sleepMinutes.toLong()), up, wakeByAlarm = true) }
+        SleepMode.Measured -> measured()
+        SleepMode.Blank -> null
+    }
+
     fun request(): DayPlanRequest {
         val rules = template().rules
         val lifts = if (lifted.isEmpty()) rules.lifts else listOf(BlockLift(liftFrom, liftTo, if (auto) BlockLift.AUTO else BlockLift.ALLOW, lifted.toList()))
         return DayPlanRequest(
-            dates.sorted(), offDay, SleepTimes(bedtime, wake, byAlarm),
+            dates.sorted(), offDay, sleep(),
             rules.copy(reenableAt = reenable, warnMinutes = if (headsUp) rules.warnMinutes ?: 5 else null, lifts = lifts),
             note,
+            noSleep = sleepMode == SleepMode.Blank,
         )
     }
 
@@ -119,26 +144,56 @@ fun PlanDayScreen(plan: DayPlan, blocks: List<PlanDayBlock>, onSave: (DayPlanReq
                 1 -> {
                     Choice("Adjusted workday (from your Workdays plan)", !offDay) { setKind(false) }
                     Choice("Off-day (from your Off-Days plan)", offDay) { setKind(true) }
-                    Text("Dates", fontWeight = FontWeight.SemiBold)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        (0L until 28L).map { today.plusDays(it) }.forEach { date ->
-                            FilterChip(
-                                selected = date in dates,
-                                onClick = { if (date in dates) dates.remove(date) else dates.add(date) },
-                                label = { Text(if (date == today) "Today" else dateText(date)) },
-                            )
-                        }
-                    }
+                    Text("Dates (tap one day or several)", fontWeight = FontWeight.SemiBold)
+                    MonthCalendar(dates.toSet(), { date -> if (date in dates) dates.remove(date) else dates.add(date) }, from = today)
+                    Text(if (dates.isEmpty()) "Pick at least one day." else dates.sorted().joinToString(", ") { dateText(it) },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedTextField(note, { note = it }, label = { Text("Note (optional)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 }
                 2 -> {
                     Text("The night before each date.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Labeled("Bed by") { TimeWheel(bedtime, { bedtime = it }) }
-                    Labeled("Up at") { TimeWheel(wake, { wake = it }) }
-                    Text(sleepText(bedtime, wake), fontWeight = FontWeight.SemiBold)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Follow my alarm that morning", modifier = Modifier.weight(1f))
-                        Switch(byAlarm, { byAlarm = it })
+                    Choice("Bed and wake times", sleepMode == SleepMode.Range) { sleepMode = SleepMode.Range }
+                    Choice("Hours of sleep + a wake time (works out bedtime)", sleepMode == SleepMode.HoursAndWake) { sleepMode = SleepMode.HoursAndWake }
+                    Choice("Hours of sleep + my alarm (works out bedtime)", sleepMode == SleepMode.HoursAndAlarm) { sleepMode = SleepMode.HoursAndAlarm }
+                    Choice("My measured sleep (Health Connect)", sleepMode == SleepMode.Measured) { sleepMode = SleepMode.Measured }
+                    Choice("Leave sleep blank (not recommended)", sleepMode == SleepMode.Blank) { sleepMode = SleepMode.Blank }
+                    HorizontalDivider()
+                    when (sleepMode) {
+                        SleepMode.Range -> {
+                            Labeled("Bed by") { TimeWheel(bedtime, { bedtime = it }) }
+                            Labeled("Up at") { TimeWheel(wake, { wake = it }) }
+                            Text(sleepText(bedtime, wake), fontWeight = FontWeight.SemiBold)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Follow my alarm that morning", modifier = Modifier.weight(1f))
+                                Switch(byAlarm, { byAlarm = it })
+                            }
+                        }
+                        SleepMode.HoursAndWake -> {
+                            Labeled("Hours of sleep") { HoursWheel(sleepMinutes) { sleepMinutes = it } }
+                            Labeled("Up at") { TimeWheel(wake, { wake = it }) }
+                            Text("Bed by ${timeText(wake.minusMinutes(sleepMinutes.toLong()))}", fontWeight = FontWeight.SemiBold)
+                        }
+                        SleepMode.HoursAndAlarm -> {
+                            Labeled("Hours of sleep") { HoursWheel(sleepMinutes) { sleepMinutes = it } }
+                            val up = alarmFor()
+                            Text(
+                                if (up != null) "Your alarm: ${timeText(up)} → bed by ${timeText(up.minusMinutes(sleepMinutes.toLong()))}"
+                                else "No alarm set for that morning yet. Bed by ${timeText(wake.minusMinutes(sleepMinutes.toLong()))} for now; that morning follows your alarm once it's set.",
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                        SleepMode.Measured -> {
+                            val m = measured()
+                            Text(
+                                if (m != null) "Measured: ${timeText(m.bedtime)} to ${timeText(m.wake)} · ${sleepText(m.bedtime, m.wake)}"
+                                else "No measured sleep for that night yet: Health Connect has it once the night is over (works for today and past days).",
+                                fontWeight = if (m != null) FontWeight.SemiBold else FontWeight.Normal,
+                            )
+                        }
+                        SleepMode.Blank -> Text(
+                            "No sleep is planned for the night before: no bedtime reminders, sleep count or smart bedtime for those nights.",
+                            color = MaterialTheme.colorScheme.error,
+                        )
                     }
                 }
                 3 -> {
@@ -181,12 +236,26 @@ fun PlanDayScreen(plan: DayPlan, blocks: List<PlanDayBlock>, onSave: (DayPlanReq
             if (step > 1) OutlinedButton(onClick = { step-- }) { Text("Back") }
             Spacer(Modifier.weight(1f))
             if (step < 4) {
-                Button(onClick = { step++ }, enabled = step != 1 || dates.isNotEmpty()) { Text("Next") }
+                Button(
+                    onClick = { step++ },
+                    enabled = (step != 1 || dates.isNotEmpty()) && (step != 2 || sleepMode != SleepMode.Measured || measured() != null),
+                ) { Text("Next") }
             } else {
                 Button(onClick = { error = onSave(request()); if (error == null) onClose() }) { Text("Save") }
             }
         }
     }
+}
+
+/** How the night before is set in "Plan a day". */
+private enum class SleepMode { Range, HoursAndWake, HoursAndAlarm, Measured, Blank }
+
+/** Hours of sleep on a wheel: 4 h to 12 h, a quarter hour apart. */
+@Composable
+private fun HoursWheel(minutes: Int, onChange: (Int) -> Unit) {
+    val values = remember { (240..720 step 15).toList() }
+    val labels = remember { values.map { "${it / 60} h ${"%02d".format(it % 60)}" } }
+    WheelPicker(labels, values.indexOf(minutes).coerceAtLeast(0), { onChange(values[it]) }, width = 120.dp)
 }
 
 @Composable
@@ -220,8 +289,12 @@ private fun sleepText(bed: LocalTime, wake: LocalTime): String {
 
 private fun summary(plan: DayPlan, request: DayPlanRequest, lifted: List<BlockRef>): List<String> {
     val lines = mutableListOf("${if (request.offDay) "Off-day" else "Adjusted workday"} on ${request.dates.joinToString(", ") { dateText(it) }}")
-    request.sleep?.let {
-        lines += "The night before: bed by ${timeText(it.bedtime)}, up at ${timeText(it.wake)}${if (it.wakeByAlarm) " (or your alarm)" else ""} · ${sleepText(it.bedtime, it.wake)}"
+    if (request.noSleep) {
+        lines += "The night before: no sleep planned"
+    } else {
+        request.sleep?.let {
+            lines += "The night before: bed by ${timeText(it.bedtime)}, up at ${timeText(it.wake)}${if (it.wakeByAlarm) " (or your alarm)" else ""} · ${sleepText(it.bedtime, it.wake)}"
+        }
     }
     val rules = request.blocks!!
     if (lifted.isNotEmpty()) {

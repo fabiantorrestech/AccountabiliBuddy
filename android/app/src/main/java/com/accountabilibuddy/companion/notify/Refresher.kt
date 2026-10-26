@@ -110,6 +110,8 @@ object Refresher {
             val running = focus?.running
             // Hardcore: a session started on another device asks LockMyPhone-Extended for the chosen profile.
             if (running != null) com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartHardcore(context)
+            // Curbox hard mode: a focus group that can't be exited, for each session on another device.
+            runCatching { com.accountabilibuddy.companion.curbox.CurboxHardMode.check(context) }
             val pickups = running?.let { app.sync.unlocksSince(it.startedAt)?.size }
             ParkedNotice.check(context, running, pickups, clock)
             val preWork = PreWorkNotice.part(focus, java.time.Instant.now())

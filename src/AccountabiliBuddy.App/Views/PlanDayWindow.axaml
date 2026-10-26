@@ -38,16 +38,26 @@
                 <!-- 2: the night before. -->
                 <StackPanel Spacing="10" IsVisible="{Binding IsStep2}">
                     <TextBlock Text="The night before each date (as your plan has it unless you change it)." TextWrapping="Wrap" Opacity="0.8" />
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <TextBlock Text="Bed by" VerticalAlignment="Center" Width="70" />
+                    <RadioButton GroupName="sleep" IsChecked="{Binding IsRange}" Content="Bed and wake times" />
+                    <RadioButton GroupName="sleep" IsChecked="{Binding IsHoursAndWake}" Content="Hours of sleep + a wake time (works out bedtime)" />
+                    <RadioButton GroupName="sleep" IsChecked="{Binding IsHoursAndAlarm}" Content="Hours of sleep + my phone's alarm (works out bedtime)" />
+                    <RadioButton GroupName="sleep" IsChecked="{Binding IsBlank}" Content="Leave sleep blank (not recommended)" />
+                    <TextBlock Text="Your measured sleep (Health Connect) can fill a night in on the phone's Plan a day." Opacity="0.6" TextWrapping="Wrap" />
+                    <Separator Margin="0,4" />
+                    <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsRange}">
+                        <TextBlock Text="Bed by" VerticalAlignment="Center" Width="110" />
                         <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding Bedtime}" MinuteIncrement="5" />
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <TextBlock Text="Up at" VerticalAlignment="Center" Width="70" />
+                    <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding ShowsHours}">
+                        <TextBlock Text="Hours of sleep" VerticalAlignment="Center" Width="110" />
+                        <NumericUpDown Value="{Binding SleepHours}" Minimum="4" Maximum="12" Increment="0.25" FormatString="0.##" Width="140" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding ShowsWake}">
+                        <TextBlock Text="Up at" VerticalAlignment="Center" Width="110" />
                         <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding Wake}" MinuteIncrement="5" />
                     </StackPanel>
-                    <TextBlock Text="{Binding SleepText}" FontWeight="SemiBold" />
-                    <CheckBox IsChecked="{Binding WakeByAlarm}" Content="Follow my alarm that morning (your phone's alarm wins over 'Up at')" />
+                    <TextBlock Text="{Binding SleepText}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <CheckBox IsChecked="{Binding WakeByAlarm}" IsVisible="{Binding IsRange}" Content="Follow my alarm that morning (your phone's alarm wins over 'Up at')" />
                 </StackPanel>
 
                 <!-- 3: blocks. -->

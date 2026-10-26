@@ -65,7 +65,7 @@ object EssentialsLaunch {
         runCatching { context.packageManager.getPackageInfo(LMP_PACKAGE, 0) }.isSuccess
 
     // The newest PC file's running focus session (start, end), not a break, its phase not over; else the linked PC's.
-    private fun runningSessionStart(app: CompanionApp, now: Instant): Pair<Instant, Instant?>? {
+    internal fun runningSessionStart(app: CompanionApp, now: Instant): Pair<Instant, Instant?>? {
         val fromFile = app.sync.received.value
             .filter { it.file.device.kind == SyncDeviceCard.KIND_PC && Duration.between(it.file.device.writtenAt, now) <= Duration.ofHours(12) }
             .mapNotNull { it.file.running }
