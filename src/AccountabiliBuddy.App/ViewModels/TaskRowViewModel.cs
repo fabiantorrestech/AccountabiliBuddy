@@ -8,8 +8,8 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// A task row of the checklist with its subtasks: tick it, pick it, add a subtask, put it in a category, or rename, move
-/// or remove it.
+/// A task row of the checklist with its subtasks: tick it, pick it, add a subtask, put it in a category, park it as a
+/// come-back, or rename, move or remove it.
 /// </summary>
 public sealed partial class TaskRowViewModel : ChecklistRowViewModel
 {
@@ -76,6 +76,13 @@ public sealed partial class TaskRowViewModel : ChecklistRowViewModel
         string title = NewSubtaskTitle;
         NewSubtaskTitle = string.Empty;
         await Tasks.AddAsync(title, Id);
+    }
+
+    /// <summary>⚑: it leaves the checklist as a come-back (with " (+N steps)" for its open subtasks).</summary>
+    [RelayCommand]
+    private Task ParkAsync()
+    {
+        return Tasks.ParkAsync(Id);
     }
 
     private Task SetCategoryAsync(Guid? categoryId)

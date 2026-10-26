@@ -12,6 +12,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// Integrations tab: living alongside other blockers.
 /// <list type="bullet">
 /// <item>Cold Turkey: detection, coexistence notes, and the sites it was seen blocking.</item>
+/// <item>Other blockers (Freedom, PluckEye): whether they're installed, status only.</item>
 /// <item>Import a list pasted from any blocker into a profile.</item>
 /// </list>
 /// Block rules can be added at any time (they only tighten a profile); allow rules are refused during focus,
@@ -23,17 +24,20 @@ public sealed partial class IntegrationsViewModel : ObservableObject
     private const string SightingNote = "Seen blocked by Cold Turkey";
 
     private readonly IColdTurkeyDetector _detector;
+    private readonly IOtherBlockerDetector _otherBlockers;
     private readonly ColdTurkeySightingsService _sightings;
     private readonly ConfigurationService _configuration;
     private readonly SessionController _sessions;
 
     public IntegrationsViewModel(
         IColdTurkeyDetector detector,
+        IOtherBlockerDetector otherBlockers,
         ColdTurkeySightingsService sightings,
         ConfigurationService configuration,
         SessionController sessions)
     {
         _detector = detector;
+        _otherBlockers = otherBlockers;
         _sightings = sightings;
         _configuration = configuration;
         _sessions = sessions;
@@ -46,11 +50,18 @@ public sealed partial class IntegrationsViewModel : ObservableObject
         RefreshProfiles();
         RefreshSightings();
         DetectColdTurkey();
+        DetectOtherBlockers();
     }
 
     public ObservableCollection<ProfileOption> ProfileOptions { get; } = new();
 
     public ObservableCollection<SightingRowViewModel> Sightings { get; } = new();
+
+    /// <summary>One line per other blocker found, e.g. "Detected: Freedom 2.1 — not controlled by AccountabiliBuddy".</summary>
+    public ObservableCollection<string> OtherBlockers { get; } = new();
+
+    [ObservableProperty]
+    public partial bool HasNoOtherBlockers { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ImportCommand))]
@@ -117,6 +128,19 @@ public sealed partial class IntegrationsViewModel : ObservableObject
             "Coexistence is automatic: Cold Turkey's block pages (and any other extension's pages) never count as distracting, "
                 + "and AccountabiliBuddy never redirects a tab Cold Turkey already blocked.",
             "Cold Turkey's own settings are never read or changed.");
+    }
+
+    [RelayCommand]
+    private void DetectOtherBlockers()
+    {
+        OtherBlockers.Clear();
+        foreach (OtherBlocker blocker in _otherBlockers.Detect())
+        {
+            string name = blocker.Version is { Length: > 0 } version ? $"{blocker.Name} {version}" : blocker.Name;
+            OtherBlockers.Add($"Detected: {name} — not controlled by AccountabiliBuddy");
+        }
+
+        HasNoOtherBlockers = OtherBlockers.Count == 0;
     }
 
     [RelayCommand(CanExecute = nameof(CanImport))]

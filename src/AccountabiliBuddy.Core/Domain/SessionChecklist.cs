@@ -7,7 +7,16 @@ namespace AccountabiliBuddy.Core.Domain;
 /// <param name="SessionStart">When its session started; null while it's a draft before Start.</param>
 /// <param name="MadeBeforeStart">It had at least one task when the session started (ADR 25's guard).</param>
 /// <param name="CurrentId">The open task or subtask picked to show (on the on-screen window's bar); null = the first open task.</param>
-public sealed record SessionChecklist(DateTimeOffset? SessionStart, bool MadeBeforeStart, IReadOnlyList<SessionTask> Tasks, Guid? CurrentId = null)
+/// <param name="DroppedOpen">
+/// Open tasks removed or parked while the session runs. Above 0 the checklist is never "all done", so taking tasks off
+/// can't end a session at once (ADR 25): ticking is the only way to done. Stored with the checklist; 0 when a session starts.
+/// </param>
+public sealed record SessionChecklist(
+    DateTimeOffset? SessionStart,
+    bool MadeBeforeStart,
+    IReadOnlyList<SessionTask> Tasks,
+    Guid? CurrentId = null,
+    int DroppedOpen = 0)
 {
     /// <summary>How long a session runs before a finished checklist may end it at once (ADR 25).</summary>
     public static readonly TimeSpan EndAtOnceAfter = TimeSpan.FromMinutes(10);
@@ -16,7 +25,8 @@ public sealed record SessionChecklist(DateTimeOffset? SessionStart, bool MadeBef
 
     public bool HasTasks => Tasks.Count > 0;
 
-    public bool AllDone => HasTasks && Tasks.All(task => task.IsDone);
+    /// <summary>Every task ticked, and none taken off open while the session ran (<see cref="DroppedOpen"/>).</summary>
+    public bool AllDone => HasTasks && DroppedOpen == 0 && Tasks.All(task => task.IsDone);
 
     public int DoneCount => Tasks.Count(task => task.IsDone);
 
@@ -47,7 +57,7 @@ public sealed record SessionChecklist(DateTimeOffset? SessionStart, bool MadeBef
     /// <summary>The checklist as its session starts at <paramref name="at"/>.</summary>
     public SessionChecklist Started(DateTimeOffset at)
     {
-        return this with { SessionStart = at, MadeBeforeStart = HasTasks };
+        return this with { SessionStart = at, MadeBeforeStart = HasTasks, DroppedOpen = 0 };
     }
 
     /// <summary>
@@ -177,6 +187,73 @@ public sealed record SessionChecklist(DateTimeOffset? SessionStart, bool MadeBef
     }
 
     /// <summary>
+    /// Drag and drop: puts the task <paramref name="id"/> just before (or <paramref name="after"/>) the task
+    /// <paramref name="targetId"/>, in that task's category, so a task dropped among another category's tasks joins it;
+    /// or a subtask just before or after another subtask of the same task. Anything else changes nothing.
+    /// </summary>
+    public SessionChecklist MoveTo(Guid id, Guid targetId, bool after)
+    {
+        if (id == targetId)
+        {
+            return this;
+        }
+
+        SessionTask? moved = Tasks.FirstOrDefault(task => task.Id == id);
+        SessionTask? target = Tasks.FirstOrDefault(task => task.Id == targetId);
+        if (moved is not null)
+        {
+            if (target is null)
+            {
+                return this;
+            }
+
+            List<SessionTask> recategorized = Tasks.Select(task => task.Id == id ? task with { CategoryId = target.CategoryId } : task).ToList();
+            return this with { Tasks = Placed(recategorized, task => task.Id == id, task => task.Id == targetId, after) };
+        }
+
+        return this with
+        {
+            Tasks = Tasks.Select(task => task.Subtasks.Any(subtask => subtask.Id == id) && task.Subtasks.Any(subtask => subtask.Id == targetId)
+                ? task with { Subtasks = Placed(task.Subtasks, subtask => subtask.Id == id, subtask => subtask.Id == targetId, after) }
+                : task).ToList(),
+        };
+    }
+
+    /// <summary>
+    /// What parking the task <paramref name="taskId"/> leaves as a come-back: its title, plus " (+N steps)" when it has
+    /// open subtasks. Null for an unknown task.
+    /// </summary>
+    public string? ParkText(Guid taskId)
+    {
+        SessionTask? task = Tasks.FirstOrDefault(task => task.Id == taskId);
+        if (task is null)
+        {
+            return null;
+        }
+
+        int openSteps = task.Subtasks.Count(subtask => !subtask.IsDone);
+        return openSteps > 0 ? $"{task.Title} (+{openSteps} {(openSteps == 1 ? "step" : "steps")})" : task.Title;
+    }
+
+    /// <summary>
+    /// The checklist without the parked task <paramref name="taskId"/>. When the bar showed it, the bar moves on to the
+    /// next open task after it (else the first open one).
+    /// </summary>
+    public SessionChecklist Parked(Guid taskId)
+    {
+        int index = Tasks.ToList().FindIndex(task => task.Id == taskId);
+        if (index < 0)
+        {
+            return this;
+        }
+
+        bool wasShown = Shown?.Task.Id == taskId;
+        SessionTask? next = Tasks.Skip(index + 1).FirstOrDefault(task => !task.IsDone);
+        SessionChecklist removed = Remove(taskId);
+        return wasShown ? removed with { CurrentId = next?.Id } : removed;
+    }
+
+    /// <summary>
     /// Ticks or unticks the task or subtask <paramref name="id"/> at <paramref name="now"/>. A picked subtask that is done
     /// after it hands the pick to its task's next open subtask (after it, else the first); any other done pick is cleared.
     /// </summary>
@@ -230,10 +307,16 @@ public sealed record SessionChecklist(DateTimeOffset? SessionStart, bool MadeBef
         };
     }
 
+    /// <summary>
+    /// Takes a task or subtask off. An open task taken off (removed or parked) once the session runs counts in
+    /// <see cref="DroppedOpen"/>, so it never makes the checklist "all done" (ADR 25).
+    /// </summary>
     public SessionChecklist Remove(Guid id)
     {
+        bool dropsOpenTask = SessionStart is not null && Tasks.Any(task => task.Id == id && !task.IsDone);
         SessionChecklist removed = this with
         {
+            DroppedOpen = dropsOpenTask ? DroppedOpen + 1 : DroppedOpen,
             Tasks = Tasks
                 .Where(task => task.Id != id)
                 .Select(task => task.Subtasks.Any(subtask => subtask.Id == id)
@@ -278,6 +361,23 @@ public sealed record SessionChecklist(DateTimeOffset? SessionStart, bool MadeBef
         T item = list[from];
         list.RemoveAt(from);
         list.Insert(Math.Clamp(from + offset, 0, list.Count), item);
+        return list;
+    }
+
+    // The item taken out and put back just before (or after) the target; unchanged when either isn't there.
+    private static List<T> Placed<T>(IReadOnlyList<T> items, Func<T, bool> isIt, Func<T, bool> isTarget, bool after)
+    {
+        var list = items.ToList();
+        int from = list.FindIndex(item => isIt(item));
+        if (from < 0 || list.FindIndex(item => isTarget(item)) < 0)
+        {
+            return list;
+        }
+
+        T item = list[from];
+        list.RemoveAt(from);
+        int to = list.FindIndex(other => isTarget(other));
+        list.Insert(after ? to + 1 : to, item);
         return list;
     }
 

@@ -4,6 +4,7 @@ import com.accountabilibuddy.companion.engine.NightKind
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.util.Locale
 
 /**
  * The estimated wake time per kind of morning (ADR 40), for mornings woken by the alarm with no alarm known: the median
@@ -38,7 +39,7 @@ object WakeEstimate {
     }
 
     /** [time] as the sync file's "HH:mm". */
-    fun format(time: LocalTime): String = "%02d:%02d".format(time.hour, time.minute)
+    fun format(time: LocalTime): String = String.format(Locale.ROOT, "%02d:%02d", time.hour, time.minute)
 
     private fun morningOf(at: LocalDateTime): LocalDate =
         if (at.hour >= EVENING_FROM_HOUR) at.toLocalDate().plusDays(1) else at.toLocalDate()

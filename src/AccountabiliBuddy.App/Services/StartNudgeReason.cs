@@ -15,6 +15,9 @@ public enum StartNudgeReason
     /// <summary>A session just ended inside a work part.</summary>
     SessionEnded,
 
+    /// <summary>A calendar event, lunch or the met goal stopped holding the nudge back inside a work part.</summary>
+    Resumed,
+
     /// <summary>Start on the start-nudge card.</summary>
     CardStart,
 }

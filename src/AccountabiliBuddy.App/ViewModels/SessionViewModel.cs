@@ -88,6 +88,9 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>"Come back to": ideas parked with Ctrl+Alt+N or the work-hours gate (set by the app).</summary>
     public ComebacksViewModel? Comebacks { get; set; }
 
+    /// <summary>Timers and alarms on this PC (set by the app); they keep running during a session.</summary>
+    public TimersViewModel? Timers { get; set; }
+
     /// <summary>The shutdown card after the day's last work part (redesign phase 5); null hides it.</summary>
     [ObservableProperty]
     public partial ShutdownCardViewModel? Shutdown { get; set; }

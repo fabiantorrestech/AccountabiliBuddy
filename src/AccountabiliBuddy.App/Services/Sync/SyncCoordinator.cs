@@ -219,7 +219,12 @@ public sealed class SyncCoordinator
             _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles), Events = Events?.Invoke(),
                 Pickups = PcPickups?.PickupsForOtherPcs(), InputRuns = PcPickups?.InputRunsToday(),
                 ReminderActions = ReminderActions?.Invoke() is { Count: > 0 } actions ? actions : null,
-                Blockers = Blockers?.Invoke(), Beeminder = Beeminder?.Invoke() };
+                Blockers = Blockers?.Invoke(), Beeminder = Beeminder?.Invoke(),
+                ActionResults = ActionResults?.Invoke() is { Count: > 0 } results ? results : null,
+                EndEarly = EndEarlyOffer?.Invoke(), GoalMinutes = GoalMinutes?.Invoke(),
+                // ADR 42: always, read-only, for the phone's start picker (the profiles document travels only once edited).
+                ProfileOptions = profiles.Select(profile => new SyncProfileOption(profile.Id, profile.Name)).ToList(),
+                DefaultProfileId = CountUpProfileId?.Invoke() };
     }
 
     /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
@@ -252,8 +257,24 @@ public sealed class SyncCoordinator
             return null;
         }
 
-        return new SyncRunning(ProfileOptions.NameOf(profiles, state.ProfileId), started, state.PhaseEndsAt, state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak, state.AwaySince);
+        return new SyncRunning(ProfileOptions.NameOf(profiles, state.ProfileId), started, state.PhaseEndsAt, state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak, state.AwaySince,
+            CurrentTask?.Invoke(), state.ProfileId, CountUpProfileId?.Invoke());
     }
+
+    /// <summary>ADR 42: the task or subtask picked to show on the bar while a session runs (null: none); set by the app.</summary>
+    public Func<Guid?>? CurrentTask { get; set; }
+
+    /// <summary>ADR 42: the profile "Quick Start with Default" starts, null when not made yet; set by the app.</summary>
+    public Func<Guid?>? CountUpProfileId { get; set; }
+
+    /// <summary>ADR 42: the answers to the phone's actions still in its file; set by the app.</summary>
+    public Func<IReadOnlyList<SyncActionResult>>? ActionResults { get; set; }
+
+    /// <summary>ADR 42: the open end-early offer, null for none; set by the app.</summary>
+    public Func<SyncEndEarlyOffer?>? EndEarlyOffer { get; set; }
+
+    /// <summary>ADR 29, 42: the daily focus goal in minutes; set by the app.</summary>
+    public Func<int?>? GoalMinutes { get; set; }
 
     /// <summary>This PC's pickups during the other PCs' sessions and today's input stretches (design K); set by the app.</summary>
     public PcPickupsService? PcPickups { get; set; }

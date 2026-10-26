@@ -13,7 +13,8 @@ namespace AccountabiliBuddy.Platform.Windows.Activity;
 /// Rescans on focus/minimize/move/show/hide/title changes, plus every few seconds as a safety net,
 /// and raises <see cref="ActivityChanged"/> only for monitors whose top window or title changed.
 /// A new top window is reported once it has stayed on top for <see cref="SettleTime"/>, and nothing is scanned while
-/// Alt+Tab or Task view is in front, so the windows a switch passes over are never judged.
+/// Alt+Tab or Task view is in front (for up to <see cref="MaxSwitcherHold"/>), so the windows a switch passes over are
+/// never judged.
 /// <see cref="ActivityChanged"/> is raised on the watcher thread; UI code must marshal to its own thread.
 /// </summary>
 public sealed class WinEventActivityWatcher : IActivityWatcher, IDisposable
@@ -25,6 +26,9 @@ public sealed class WinEventActivityWatcher : IActivityWatcher, IDisposable
     // during a switch is never judged.
     private static readonly TimeSpan SettleTime = TimeSpan.FromMilliseconds(400);
     private const uint MinimumTimerMilliseconds = 10; // USER_TIMER_MINIMUM
+
+    // The longest Alt+Tab or Task view in front holds scans back; after that the windows are scanned anyway.
+    private static readonly TimeSpan MaxSwitcherHold = TimeSpan.FromSeconds(10);
 
     // Events that always warrant a rescan.
     private static readonly uint[] LayoutEvents =
@@ -61,6 +65,9 @@ public sealed class WinEventActivityWatcher : IActivityWatcher, IDisposable
 
     // The one-shot settle timer (0 = not running); only touched on the watcher thread.
     private nuint _settleTimerId;
+
+    // When Alt+Tab or Task view came to the front (Environment.TickCount64), null while it isn't; under _scanLock.
+    private long? _switcherSince;
 
     private Thread? _thread;
     private uint _threadId;
@@ -216,8 +223,20 @@ public sealed class WinEventActivityWatcher : IActivityWatcher, IDisposable
         lock (_scanLock)
         {
             // While Alt+Tab or Task view is in front the user is passing over windows: keep the last snapshots and
-            // start the settle wait over once a window is picked (that change of foreground rescans).
-            if (_scanner.IsSwitcherInFront())
+            // start the settle wait over once a window is picked (that change of foreground rescans). Only for
+            // MaxSwitcherHold, though: a switcher left open (or stuck) doesn't hide what's behind it for longer.
+            bool switcherInFront = _scanner.IsSwitcherInFront();
+            long switcherNow = Environment.TickCount64;
+            if (!switcherInFront)
+            {
+                _switcherSince = null;
+            }
+            else
+            {
+                _switcherSince ??= switcherNow;
+            }
+
+            if (switcherInFront && switcherNow - _switcherSince < (long)MaxSwitcherHold.TotalMilliseconds)
             {
                 _pendingByMonitor.Clear();
                 CancelSettleTimer();

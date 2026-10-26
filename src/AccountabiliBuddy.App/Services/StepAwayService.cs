@@ -38,6 +38,9 @@ public sealed class StepAwayService : IDisposable
     private (int X, int Y)? _lastCursor;
     private DateTimeOffset _lastSeenInput;
 
+    // The last check while HoldsAway held the away (null when it didn't); input before it isn't "back".
+    private DateTimeOffset? _heldAt;
+
     public StepAwayService(
         SessionController sessions, IUserIdleDetector idle, ICursorPosition cursor, IGlobalHotkey hotkey, SqliteJsonDocumentStore store, TimeProvider time)
     {
@@ -60,6 +63,13 @@ public sealed class StepAwayService : IDisposable
     public string? HotkeyError { get; private set; }
 
     public bool IsAway => _sessions.State.IsAway;
+
+    /// <summary>
+    /// True while input mustn't end the away (lunch: browsing at lunch isn't being back in the session); then only the
+    /// shortcut, "I'm back" or the hold lifting (lunch over or ended) brings the user back, the next input after it.
+    /// It only keeps the countdown paused: it never shortens a wait or unlocks anything. Set by the app.
+    /// </summary>
+    public Func<bool> HoldsAway { get; set; } = () => false;
 
     /// <summary>"Away · 4:12" while away, else empty.</summary>
     public string AwayText => _sessions.State.AwaySince is DateTimeOffset since ? $"Away · {Clock(_time.GetUtcNow() - since)}" : string.Empty;
@@ -121,7 +131,21 @@ public sealed class StepAwayService : IDisposable
 
         if (state.AwaySince is DateTimeOffset since)
         {
-            if (IsBack(lastInput, (since > _startedAt ? since : _startedAt) + PressGrace))
+            if (HoldsAway())
+            {
+                // Input while held isn't "back"; only input after the hold lifts is, from where the pointer is then.
+                _awayAnchor = null;
+                _heldAt = now;
+                return;
+            }
+
+            DateTimeOffset ignoreUntil = (since > _startedAt ? since : _startedAt) + PressGrace;
+            if (_heldAt is DateTimeOffset heldAt && heldAt > ignoreUntil)
+            {
+                ignoreUntil = heldAt;
+            }
+
+            if (IsBack(lastInput, ignoreUntil))
             {
                 _awayAnchor = null;
                 Return();
@@ -131,6 +155,7 @@ public sealed class StepAwayService : IDisposable
         }
 
         _awayAnchor = null;
+        _heldAt = null;
 
         if (Settings.AutoAfterIdle && idleFor >= TimeSpan.FromMinutes(Settings.IdleMinutes))
         {

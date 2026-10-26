@@ -158,6 +158,9 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
+                    <TextBlock Text="{Binding OtherBlockersNote}" TextWrapping="Wrap"
+                               IsVisible="{Binding OtherBlockersNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
                     <TextBlock Text="LeechBlock" Classes="title" Margin="0,8,0,0" />
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Classes="muted" VerticalAlignment="Center"

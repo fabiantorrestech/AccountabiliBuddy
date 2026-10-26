@@ -154,6 +154,40 @@
 
                         <TextBlock Text="{Binding DoneText}" IsVisible="{Binding ShowsDone}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}"
                                    Foreground="White" FontSize="13" FontWeight="SemiBold" TextAlignment="Center" />
+
+                        <!-- Timers and alarms (this PC only): a line each, name and time left over a thin bar (alarms: when, 12-hour). -->
+                        <ItemsControl ItemsSource="{Binding Timers.Lines}" IsVisible="{Binding ShowsTimers}"
+                                      Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="4" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:OverlayTimerLine">
+                                    <StackPanel Spacing="2">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4">
+                                            <mi:MaterialIcon Kind="{Binding Icon}" Width="11" Height="11" Foreground="#CCFFFFFF" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                                       Foreground="#E6FFFFFF" FontSize="10" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="2" Text="{Binding TimeText}" Foreground="#E6FFFFFF" FontSize="10"
+                                                       FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        </Grid>
+                                        <Panel Height="3" IsVisible="{Binding IsTimer}">
+                                            <Border Background="#40FFFFFF" CornerRadius="1.5" />
+                                            <Border Background="{Binding BarBrush}" CornerRadius="1.5" HorizontalAlignment="Left"
+                                                    Width="{Binding BarWidth}">
+                                                <Border.Transitions>
+                                                    <Transitions>
+                                                        <DoubleTransition Property="Width" Duration="0:0:1" />
+                                                    </Transitions>
+                                                </Border.Transitions>
+                                            </Border>
+                                        </Panel>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
                     <!-- Only while Ctrl+Alt is held. It opens toward the middle of the screen (above the bar in the lower half), so
                          the bar itself never moves and stays where the window's spot is measured from. -->
@@ -173,6 +207,33 @@
                                 </StackPanel>
                             </Panel>
                         </Panel>
+                        <!-- Timers: pause or resume, a minute more, and stop (or dismiss once it's up). -->
+                        <ItemsControl ItemsSource="{Binding Timers.Lines}" IsVisible="{Binding ShowsTimers}"
+                                      Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="4" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:OverlayTimerLine">
+                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="4" IsVisible="{Binding IsTimer}">
+                                        <TextBlock Text="{Binding Name}" Foreground="White" FontSize="11" TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" />
+                                        <Button Grid.Column="1" Command="{Binding PauseResumeCommand}" views:OverlayHint.Text="{Binding PauseTip}"
+                                                Padding="6,2" Foreground="White" Background="#33FFFFFF" CornerRadius="5">
+                                            <mi:MaterialIcon Kind="{Binding PauseIcon}" Width="12" Height="12" />
+                                        </Button>
+                                        <Button Grid.Column="2" Content="+1" Command="{Binding AddMinuteCommand}" views:OverlayHint.Text="A minute more"
+                                                Padding="6,1" FontSize="11" Foreground="White" Background="#33FFFFFF" CornerRadius="5" />
+                                        <Button Grid.Column="3" Command="{Binding StopCommand}" views:OverlayHint.Text="{Binding StopTip}"
+                                                Padding="6,2" Foreground="White" Background="#33FFFFFF" CornerRadius="5">
+                                            <mi:MaterialIcon Kind="Close" Width="12" Height="12" />
+                                        </Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                         <!-- Guided sessions: tick tasks here while Ctrl+Alt is held; done ones collapsed; end at once when all are done. -->
                         <Panel IsVisible="{Binding ShowsTasks}">
                             <views:ChecklistView DataContext="{Binding Checklist}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}" />
