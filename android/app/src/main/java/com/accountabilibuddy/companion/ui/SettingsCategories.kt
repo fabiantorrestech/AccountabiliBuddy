@@ -17,6 +17,7 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.dp
 /** The phone's Settings categories: a list of these, each opening its own page. */
 enum class SettingsCategory(val title: String, val icon: ImageVector) {
     Sleep("Sleep", Icons.Outlined.Bedtime),
+    YourDay("Your day", Icons.Outlined.Today),
     PhoneGuard("Phone guard", Icons.Outlined.Shield),
     Devices("Devices & sync", Icons.Outlined.Devices),
     Notification("Notification & widget", Icons.Outlined.Notifications),

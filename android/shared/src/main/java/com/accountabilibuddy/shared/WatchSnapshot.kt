@@ -57,6 +57,8 @@ data class WatchSnapshot(
     val sources: List<DataSource> = emptyList(),
     /** The daily deep-work goal in minutes (ADR 29): the outer ring and a buzz when reached; null when the PC sent none. */
     val goalMinutes: Int? = null,
+    /** Today's flexible lunch for the Lunch page (from the phone only); null from an older phone or the PC over Wi-Fi. */
+    val lunch: WatchLunch? = null,
 ) {
     /** Today's focus as a share of the goal (ADR 29), 0 to 1; null without a goal. */
     fun goalFraction(now: Instant, zone: ZoneId): Float? =
@@ -84,11 +86,11 @@ data class WatchSnapshot(
     companion object {
         /**
          * The snapshot to keep when [incoming] arrives: [stored] when its data is newer (e.g. from the PC over Wi-Fi while
-         * the phone sends older data), with the phone's switches from [incoming]; otherwise [incoming].
+         * the phone sends older data), with the phone's switches and lunch from [incoming]; otherwise [incoming].
          */
         fun newerOf(stored: WatchSnapshot?, incoming: WatchSnapshot): WatchSnapshot =
             if (stored != null && stored.dataAt.isAfter(incoming.dataAt)) {
-                stored.copy(wifiAllowed = incoming.wifiAllowed, relayAllowed = incoming.relayAllowed)
+                stored.copy(wifiAllowed = incoming.wifiAllowed, relayAllowed = incoming.relayAllowed, lunch = incoming.lunch)
             } else {
                 incoming
             }

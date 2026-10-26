@@ -205,8 +205,14 @@ data class SyncSmartLevel(
     val askedThisWeek: Int,
 )
 
-/** A flexible lunch: when it started and ends. Every device takes the newest one for the day. */
-data class SyncLunch(val start: java.time.Instant, val end: java.time.Instant)
+/**
+ * A flexible lunch: when it started and ends. Every device takes the newest edit for the day. [editedAt] is when it
+ * was last started, made longer or shorter, or ended early; null from a device that doesn't send it ([start] stands for it).
+ */
+data class SyncLunch(val start: java.time.Instant, val end: java.time.Instant, val editedAt: java.time.Instant? = null) {
+    /** What two devices' lunches are compared by: the newer one wins. */
+    val lastEdit: java.time.Instant get() = editedAt ?: start
+}
 
 /**
  * Something the user did on the phone for a PC (ADR 26): tick a task, park a thought, tick a come-back, step away or

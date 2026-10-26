@@ -136,7 +136,9 @@ object PcLink {
         val previous = SnapshotStore.snapshot(context).value
         val snapshot = SnapshotBuilder.build(
             SnapshotInput(now, zone, linked = true, pcName, parts, day, now, LinkStateJson.running(state), pcConnected = true,
-                wifiAllowed = previous?.wifiAllowed ?: true),
+                wifiAllowed = previous?.wifiAllowed ?: true,
+                // Lunch comes only from the phone: what it last said today stays.
+                lunch = previous?.takeIf { it.date == now.atZone(zone).toLocalDate() }?.lunch),
         )
         SnapshotStore.save(context, snapshot)
         return true

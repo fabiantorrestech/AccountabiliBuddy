@@ -22,17 +22,31 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.engine.ClockFormat
+import com.accountabilibuddy.companion.lunch.LunchStore
 import com.accountabilibuddy.companion.model.FlexibleBreak
+import com.accountabilibuddy.shared.WatchLunch
 import com.accountabilibuddy.shared.sync.SyncLunch
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 
-/** Today's flexible lunch on the phone: "Start lunch" any time, then the time left and "I'm back". */
+/**
+ * Today's flexible lunch on the phone: on a workday (or a day with a flexible break) "Start lunch" any time for the
+ * lunch length, then the time left, +5 / −5 min and "I'm back".
+ */
 @Composable
-fun LunchCard(flex: FlexibleBreak?, taken: SyncLunch?, clock: ClockFormat, onStart: (Int) -> Unit, onBack: () -> Unit) {
-    if (flex == null && taken == null) return
+fun LunchCard(
+    workday: Boolean,
+    flex: FlexibleBreak?,
+    taken: SyncLunch?,
+    lengthMinutes: Int,
+    clock: ClockFormat,
+    onStart: () -> Unit,
+    onBack: () -> Unit,
+    onAdjust: (longer: Boolean) -> Unit,
+) {
+    if (!workday && flex == null && taken == null) return
     var now by remember { mutableStateOf(Instant.now()) }
     LaunchedEffect(taken) {
         while (true) {
@@ -43,25 +57,36 @@ fun LunchCard(flex: FlexibleBreak?, taken: SyncLunch?, clock: ClockFormat, onSta
     val zone = ZoneId.systemDefault()
     fun time(at: Instant) = clock.time(LocalDateTime.ofInstant(at, zone))
     val onLunch = taken != null && now < taken.end
+    val length = LunchStore.formatLength(lengthMinutes)
     Card(
         colors = CardDefaults.cardColors(containerColor = Color(0x33CA8A04)),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
     ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Column(Modifier.weight(1f)) {
-                val text = when {
-                    onLunch -> {
-                        val left = Duration.between(now, taken!!.end).seconds.coerceAtLeast(0)
-                        "Lunch · %d:%02d left · until %s".format(left / 60, left % 60, time(taken.end))
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.weight(1f)) {
+                    val text = when {
+                        onLunch -> {
+                            val left = Duration.between(now, taken.end).seconds.coerceAtLeast(0)
+                            "Lunch · %d:%02d left · until %s".format(left / 60, left % 60, time(taken.end))
+                        }
+                        taken != null -> "Lunch done · ${time(taken.start)} – ${time(taken.end)}"
+                        flex != null -> "${flex.name} · $length · usually ${clock.time(flex.window.start)} – ${clock.time(flex.window.end)}"
+                        else -> "Lunch · $length, any time"
                     }
-                    taken != null -> "Lunch done · ${time(taken.start)} – ${time(taken.end)}"
-                    else -> "${flex!!.name} · any time ${clock.time(flex.window.start)} – ${clock.time(flex.window.end)} · ${flex.minutes} min"
+                    IconTitle(text, style = MaterialTheme.typography.titleSmall, icon = SectionIcons.of("Lunch"))
                 }
-                IconTitle(text, style = MaterialTheme.typography.titleSmall, icon = SectionIcons.of("Lunch"))
+                when {
+                    onLunch -> OutlinedButton(onClick = onBack) { Text("I'm back") }
+                    taken == null -> Button(onClick = onStart) { Text("Start lunch") }
+                }
             }
-            when {
-                onLunch -> OutlinedButton(onClick = onBack) { Text("I'm back") }
-                taken == null && flex != null -> Button(onClick = { onStart(flex.minutes) }) { Text("Start lunch") }
+            if (onLunch) {
+                val canShorten = taken.end.isAfter(now.plus(WatchLunch.SHORTEST_LEFT))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { onAdjust(false) }, enabled = canShorten) { Text("−5 min") }
+                    OutlinedButton(onClick = { onAdjust(true) }) { Text("+5 min") }
+                }
             }
         }
     }
