@@ -33,6 +33,7 @@ public sealed class StartNudgeService
     private bool _wasInWork;
     private bool _checkedOnce;
     private bool _sessionLastTick;
+    private bool _suppressedLastTick;
     // Null while waiting for the user to arrive (or come back); then the first input is the arrival.
     private DateTimeOffset? _arrivedAt;
     private bool _comingBack;
@@ -129,7 +130,12 @@ public sealed class StartNudgeService
             PruneLog(); // Old reasons go after 14 days even when no new one is added.
         }
 
-        LocalWindow? part = Settings.On && !sessionRunning && !IsDayOff() && !InCalendarEvent() && !IsGoalMet()
+        // A calendar event, lunch (a day off counts it) or the goal holding the nudge back: when it lifts, work didn't
+        // just start, so the nudge after it is quiet.
+        bool suppressed = IsDayOff() || InCalendarEvent() || IsGoalMet();
+        bool suppressionJustLifted = _suppressedLastTick && !suppressed;
+        _suppressedLastTick = suppressed;
+        LocalWindow? part = Settings.On && !sessionRunning && !suppressed
             ? CurrentWorkPart()
             : null;
         if (part is not LocalWindow workPart)
@@ -142,13 +148,20 @@ public sealed class StartNudgeService
         TimeSpan idle = _idle.GetIdleTime();
         if (!_wasInWork)
         {
-            // Work just started, the app just started during it, or a session just ended inside it.
+            // Work just started, the app just started during it, a session just ended inside it, or a calendar event,
+            // lunch or the goal stopped holding the nudge back inside it.
             _wasInWork = true;
             if (sessionJustEnded)
             {
                 // Counts as arrived, so no loud nudge follows just because it ended while idle; quiet: the user may be typing elsewhere.
                 Arrive();
                 Nudge(StartNudgeReason.SessionEnded);
+            }
+            else if (suppressionJustLifted)
+            {
+                // The same quiet way: the user may be typing elsewhere (closing meeting notes, back from lunch).
+                Arrive();
+                Nudge(StartNudgeReason.Resumed);
             }
             else if (idle < PresentWithin)
             {

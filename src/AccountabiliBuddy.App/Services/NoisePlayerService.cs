@@ -64,7 +64,7 @@ public sealed class NoisePlayerService : IDisposable
 
     public bool IsPlaying => _player?.IsPlaying == true;
 
-    /// <summary>The lock: plays only while headphones are connected.</summary>
+    /// <summary>The lock: plays only while Windows' default sound output is headphones.</summary>
     public bool IsLockedToHeadphones => _settings.Current.LockedToHeadphones;
 
     /// <summary>Shown for a few seconds instead of the file's name, e.g. "Connect headphones" after Play while locked; null otherwise.</summary>
@@ -140,7 +140,7 @@ public sealed class NoisePlayerService : IDisposable
         await _settings.SaveAsync(_settings.Current with { LockedToHeadphones = locked });
         WatchHeadphonesIfNeeded();
         Changed?.Invoke(this, EventArgs.Empty);
-        if (locked && IsPlaying && !await _headphones.AnyConnectedAsync())
+        if (locked && IsPlaying && !await _headphones.IsDefaultOutputHeadphonesAsync())
         {
             PauseNow();
             ShowNotice(ConnectHeadphonesNotice);
@@ -306,7 +306,9 @@ public sealed class NoisePlayerService : IDisposable
 
     private async Task PlayIfAllowedAsync()
     {
-        if (_settings.Current.LockedToHeadphones && !await _headphones.AnyConnectedAsync())
+        // Where the sound would go, not only what's plugged in: a headset connected for calls while Windows plays
+        // through the speakers doesn't count.
+        if (_settings.Current.LockedToHeadphones && !await _headphones.IsDefaultOutputHeadphonesAsync())
         {
             ShowNotice(ConnectHeadphonesNotice);
             return;
@@ -359,7 +361,7 @@ public sealed class NoisePlayerService : IDisposable
 
     private async Task PauseIfNoHeadphonesAsync()
     {
-        if (!await _headphones.AnyConnectedAsync() && _settings.Current.LockedToHeadphones && IsPlaying)
+        if (!await _headphones.IsDefaultOutputHeadphonesAsync() && _settings.Current.LockedToHeadphones && IsPlaying)
         {
             _player!.Pause();
             ShowNotice(ConnectHeadphonesNotice);

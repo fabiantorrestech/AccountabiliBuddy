@@ -21,6 +21,9 @@ public sealed class ComebackStore
     private readonly TimeProvider _time;
     private List<Comeback> _all = [];
 
+    // Saves run one after another, so an older list never overwrites a newer one.
+    private Task _saving = Task.CompletedTask;
+
     public ComebackStore(SqliteJsonDocumentStore store, IDataProtector protector, TimeProvider time)
     {
         _store = store;
@@ -107,7 +110,10 @@ public sealed class ComebackStore
         _all = _all.Where(comeback => comeback.DoneAt is null || comeback.DoneAt > cutoff).ToList();
         Changed?.Invoke(this, EventArgs.Empty);
         string sealedList = Convert.ToBase64String(_protector.Protect(JsonSerializer.Serialize(_all, JsonOptions)));
-        return _store.SaveAsync(DocumentKey, new Stored(sealedList));
+        // After the saves asked for before it, whatever became of them, so an older list never overwrites a newer
+        // one; a failed save still fails the task it returns.
+        _saving = _saving.ContinueWith(_ => _store.SaveAsync(DocumentKey, new Stored(sealedList)), TaskScheduler.Default).Unwrap();
+        return _saving;
     }
 
     private sealed record Stored(string Data);
