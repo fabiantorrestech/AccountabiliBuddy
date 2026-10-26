@@ -23,8 +23,9 @@ public sealed class Win32OverlayWindowControl : IOverlayWindowControl
     private static readonly HashSet<string> ShellClasses = new(StringComparer.Ordinal) { "Progman", "WorkerW", "Shell_TrayWnd" };
 
     // Windows' own screens that cover everything for a moment while switching apps (Alt+Tab, Task view, Start,
-    // Search, notifications); they are never a fullscreen app.
-    private static readonly HashSet<string> ShellProcesses = new(StringComparer.OrdinalIgnoreCase)
+    // Search, notifications); they are never a fullscreen app. Also used by the activity scanner to tell a real
+    // switcher from an app's window with the same class name.
+    internal static readonly HashSet<string> ShellProcesses = new(StringComparer.OrdinalIgnoreCase)
     {
         "explorer", "ShellExperienceHost", "StartMenuExperienceHost", "SearchHost", "SearchApp", "ShellHost",
     };

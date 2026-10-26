@@ -1,4 +1,5 @@
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Platform.Windows.Display;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.Graphics.Dwm;
@@ -27,8 +28,49 @@ internal sealed class DesktopScanner
         "Shell_SecondaryTrayWnd",
     };
 
+    // Windows' app switchers (Alt+Tab, Task view). They show other apps' windows as thumbnails and are never
+    // what the user is looking at; while one is in front the user hasn't picked a window yet.
+    private static readonly HashSet<string> SwitcherWindowClasses = new(StringComparer.Ordinal)
+    {
+        // Windows 10: Alt+Tab and Task view (Win+Tab), hosted by explorer.
+        "MultitaskingViewFrame",
+        // Windows 11: Alt+Tab, Task view and Snap Assist, XAML islands hosted by explorer.
+        "XamlExplorerHostIslandWindow",
+        // Explorer's window that holds the foreground for a moment while a switcher hands it to the chosen app.
+        "ForegroundStaging",
+        // The classic Alt+Tab grid (AltTabSettings = 1, or no DWM), hosted by explorer.
+        "TaskSwitcherWnd",
+        // The classic Alt+Tab's overlay that draws over the grid (Windows 7 and later), hosted by explorer.
+        "TaskSwitcherOverlayWnd",
+    };
+
     private readonly ProcessNameResolver _processNames = new();
     private readonly uint _ownProcessId = (uint)Environment.ProcessId;
+
+    /// <summary>
+    /// True while one of Windows' app switchers (Alt+Tab, Task view) has the foreground: the user is passing over
+    /// windows, not looking at one. Checked by class and by a shell process, so an app's window with the same class
+    /// name never counts.
+    /// </summary>
+    public bool IsSwitcherInFront()
+    {
+        HWND foreground = PInvoke.GetForegroundWindow();
+        if (foreground.IsNull || !SwitcherWindowClasses.Contains(ReadClassName(foreground)))
+        {
+            return false;
+        }
+
+        PInvoke.GetWindowThreadProcessId(foreground, out uint processId);
+        bool inFront = Win32OverlayWindowControl.ShellProcesses.Contains(_processNames.Resolve(foreground, processId));
+#if DEBUG
+        // DIAG (Task 4, remove)
+        if (inFront)
+        {
+            LastDiagScan = $"skipped: switcher in front fg={DiagDescribe(foreground)}";
+        }
+#endif
+        return inFront;
+    }
 
     /// <summary>One snapshot per connected monitor, in monitor enumeration order.</summary>
     public IReadOnlyList<ActivitySnapshot> Scan(DateTimeOffset timestamp)
@@ -157,7 +199,8 @@ internal sealed class DesktopScanner
             return false;
         }
 
-        return !ShellWindowClasses.Contains(ReadClassName(window));
+        string className = ReadClassName(window);
+        return !ShellWindowClasses.Contains(className) && !SwitcherWindowClasses.Contains(className);
     }
 
     /// <summary>Cloaked windows exist but are not shown, e.g. on another virtual desktop or suspended Store apps.</summary>
