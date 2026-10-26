@@ -42,4 +42,9 @@
     <None Include="..\..\extensions\firefox\manifest.json" Link="browser-extension\firefox\manifest.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- Guides the app opens from its pages (Devices → Sync with your own server). -->
+  <ItemGroup>
+    <None Include="..\..\doc\guides\self-hosted-sync.md" Link="guides\self-hosted-sync.md" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

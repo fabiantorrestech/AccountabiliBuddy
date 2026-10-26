@@ -135,6 +135,24 @@
                             <ComboBoxItem Content="15 minutes" />
                         </ComboBox>
                     </StackPanel>
+                    <!-- The short steps for a folder kept in step by the user's own tools; the full guide ships with the app. -->
+                    <Expander Header="Sync with your own server (Syncthing, Nextcloud)" HorizontalAlignment="Stretch" Margin="28,0,0,0">
+                        <StackPanel Spacing="6">
+                            <TextBlock TextWrapping="Wrap" Text="1. Install Syncthing on this PC, your other computers and the phone (Syncthing-Fork on Android). Or use the Nextcloud desktop client, and a two-way sync app such as Autosync for Nextcloud on the phone." />
+                            <TextBlock TextWrapping="Wrap" Text="2. Connect the devices to each other (Syncthing: Show ID on one, Add Remote Device on the other)." />
+                            <TextBlock TextWrapping="Wrap" Text="3. Share one empty folder, e.g. &quot;AccountabiliBuddy sync&quot;, as Send &amp; Receive with every device." />
+                            <TextBlock TextWrapping="Wrap" Text="4. Here: tick Sync folder above and choose that folder itself (not its parent)." />
+                            <TextBlock TextWrapping="Wrap" Text="5. On the phone: Devices → Sync folder (backup), then pick the same folder in Android's folder picker." />
+                            <TextBlock TextWrapping="Wrap" Text="6. Optional: keep one computer always on as the hub, so the phone gets this PC's file while it's off." />
+                            <TextBlock TextWrapping="Wrap" Text="7. Away from home, let Syncthing's own relays or a mesh VPN (Tailscale, WireGuard) carry it. Never open your file share or Syncthing's web page to the internet." />
+                            <TextBlock Classes="muted" TextWrapping="Wrap"
+                                       Text="The files are sealed: the tool and any server only carry scrambled bytes. The full guide covers Windows, macOS, Linux, Android, an always-on computer, safe access from outside and a small rented server." />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Open the full guide" Click="OnOpenSelfHostedGuide" />
+                                <TextBlock x:Name="GuideProblem" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="420" IsVisible="False" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Expander>
                     <CheckBox IsChecked="{Binding LinkOn}" Content="Network link: sync files go to devices paired over your own network (below)" />
                     <TextBlock Text="{Binding Message}" TextWrapping="Wrap"
                                IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
