@@ -71,6 +71,28 @@
                 </StackPanel>
             </Border>
 
+            <!-- Other blockers: status only -->
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Other blockers" Classes="title" />
+                            <TextBlock Classes="muted"
+                                       Text="Freedom and PluckEye, if installed. AccountabiliBuddy only notices them: their lists aren't read and their blocks aren't changed. Copy a list from one and use Import a list below." />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Check again" Command="{Binding DetectOtherBlockersCommand}" VerticalAlignment="Top" />
+                    </Grid>
+                    <TextBlock Text="None found on this PC." Classes="muted" IsVisible="{Binding HasNoOtherBlockers}" />
+                    <ItemsControl ItemsSource="{Binding OtherBlockers}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,2" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
             <!-- Import -->
             <Border Classes="card">
                 <StackPanel Spacing="8">

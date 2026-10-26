@@ -662,6 +662,7 @@ public partial class App : Application
             WorkHours = _workHours,
             Keys = _coldTurkeyKeys,
             ColdTurkey = _coldTurkey,
+            OtherBlockers = new WindowsOtherBlockerDetector(),
         };
         setupViewModel.OpenAssistant = () => ShowSetupAssistant(quick: false);
 
@@ -820,7 +821,7 @@ public partial class App : Application
                 NotesBetween = _sessionNotes.Between,
             },
             setupViewModel,
-            new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
+            new IntegrationsViewModel(new ColdTurkeyDetector(), new WindowsOtherBlockerDetector(), sightings, _configuration, _sessions),
             new SettingsViewModel(
                 _configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, dayBarSettings, overlaySettings, soundSettings, _sessionCues, sleepSettings, database.DatabasePath,
                 _noise)
