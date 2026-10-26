@@ -80,7 +80,7 @@
                 </Grid>
             </Border>
 
-            <!-- Flexible lunch (schema v8): start it any time; then the time left and "I'm back". -->
+            <!-- Flexible lunch (schema v8): start it on any workday; then the time left, +5 / −5 min and "I'm back". -->
             <Border Padding="16,12" CornerRadius="10" Background="#1ACA8A04" BorderBrush="#55CA8A04" BorderThickness="1"
                     DataContext="{Binding Lunch}" x:DataType="vm:LunchCardViewModel"
                     IsVisible="{Binding IsVisible, FallbackValue=False}">
@@ -88,6 +88,10 @@
                     <DockPanel><mi:MaterialIcon DockPanel.Dock="Left" Kind="SilverwareForkKnife" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" /><Panel Width="8" DockPanel.Dock="Left" /><TextBlock Text="{Binding Text}" VerticalAlignment="Center" TextWrapping="Wrap" FontWeight="SemiBold" /></DockPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
                         <Button Content="Start lunch" Command="{Binding StartCommand}" IsVisible="{Binding CanStart}" Classes="accent" />
+                        <Button Content="−5 min" Command="{Binding ShorterCommand}" IsVisible="{Binding IsOnLunch}" IsEnabled="{Binding CanShorten}"
+                                ToolTip.Tip="End lunch 5 minutes sooner (never less than a minute from now); your other devices follow" />
+                        <Button Content="+5 min" Command="{Binding LongerCommand}" IsVisible="{Binding IsOnLunch}"
+                                ToolTip.Tip="5 more minutes of lunch; your other devices follow" />
                         <Button Content="I'm back" Command="{Binding BackCommand}" IsVisible="{Binding IsOnLunch}" />
                     </StackPanel>
                 </Grid>

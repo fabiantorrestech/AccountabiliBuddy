@@ -732,6 +732,11 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public StartNudgeViewModel? StartNudge { get; init; }
 
+    /// <summary>Lunch length on workdays (Your day); null hides it.</summary>
+    public LunchSettingsViewModel? Lunch { get; init; }
+
+    public bool HasLunch => Lunch is not null;
+
     public MotionViewModel? Motion { get; init; }
 
     /// <summary>Lights out during work hours (design K).</summary>
