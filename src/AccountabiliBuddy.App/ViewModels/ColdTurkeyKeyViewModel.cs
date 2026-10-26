@@ -232,6 +232,19 @@ public sealed partial class ColdTurkeyKeyViewModel : ObservableObject
 
     private async Task ShowKeyAsync()
     {
-        Key = _keys.PendingSpareKey ?? await _keys.NewSpareKeyAsync();
+        if (_keys.PendingSpareKey is string pending)
+        {
+            Key = pending;
+            return;
+        }
+
+        // A first key only: replacing a key in use goes through "Get a new spare key" and its wait (ADR 41).
+        if (_keys.HasSpareKey)
+        {
+            Message = "Your spare key is already in use. To replace it, use Get a new spare key (it waits 10 minutes).";
+            return;
+        }
+
+        Key = await _keys.NewSpareKeyAsync();
     }
 }

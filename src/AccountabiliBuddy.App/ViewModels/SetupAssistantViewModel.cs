@@ -307,6 +307,13 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     {
         try
         {
+            // A first key only: replacing a key in use goes through "Get a new spare key" and its wait (ADR 41).
+            if (keys.PendingSpareKey is null && keys.HasSpareKey)
+            {
+                StatusMessage = "Your spare key is already in use. To replace it, use Get a new spare key in Integrations.";
+                return;
+            }
+
             SpareKey = keys.PendingSpareKey ?? await keys.NewSpareKeyAsync();
         }
         catch (Exception ex)
