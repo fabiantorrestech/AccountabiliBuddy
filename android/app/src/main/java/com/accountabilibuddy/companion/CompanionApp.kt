@@ -325,13 +325,13 @@ class CompanionApp : Application() {
         val settings = sync.settings.value
         wakeAlarm = WakeAlarm.choose(next, history, settings.alarmApp, learnedAlarmApp, now)
         store.setPhoneAlarm(wakeAlarm?.takeIf { settings.alarmOn }?.let { java.time.LocalDateTime.ofInstant(it, zone) })
-        refreshWakeEstimate(history, settings.alarmApp ?: learnedAlarmApp, plan, now, zone)
+        // The estimate (ADR 40) only while the next alarm is the wake time, like the alarm itself.
+        if (settings.alarmOn) {
+            refreshWakeEstimate(history, settings.alarmApp ?: learnedAlarmApp, plan, now, zone)
+        } else {
+            store.setWakeEstimates(emptyMap())
+        }
     }
-
-    /** The estimated wake times per kind of morning now (ADR 40), for the sleep schedule and this phone's sync file. */
-    @Volatile
-    var wakeEstimates: Map<com.accountabilibuddy.companion.engine.NightKind, java.time.LocalTime> = emptyMap()
-        private set
 
     // ADR 40: the wake-up app's past alarms in the morning window, else Health Connect's measured wake times.
     private fun refreshWakeEstimate(
@@ -348,16 +348,15 @@ class CompanionApp : Application() {
             .filter { WakeAlarm.inMorningWindow(it, plan::night) }
         val measuredWakes = state.slept.map { it.end }.filter { it.isBefore(java.time.LocalDateTime.ofInstant(now, zone)) }
         val workdays = state.document.dayPlan.workdays
-        wakeEstimates = WakeEstimate.of(alarms, measuredWakes) { morning ->
+        store.setWakeEstimates(WakeEstimate.of(alarms, measuredWakes) { morning ->
             com.accountabilibuddy.companion.engine.SmartBedtime.kindOf(morning, workdays)
-        }
-        store.setWakeEstimates(wakeEstimates)
+        })
     }
 
-    /** [wakeEstimates] in the sync file's shape; null when there's none. */
+    /** The estimated wake times in use (ADR 40) in the sync file's shape; null when there's none. */
     private fun wakeEstimateForSync(): com.accountabilibuddy.shared.sync.SyncWakeEstimate? {
-        val estimates = wakeEstimates
-        if (estimates.isEmpty()) return null
+        val estimates = store.state.value.sleep.wakeEstimates
+        if (estimates.isEmpty() || !sync.settings.value.alarmOn) return null
         return com.accountabilibuddy.shared.sync.SyncWakeEstimate(
             estimates[com.accountabilibuddy.companion.engine.NightKind.Workday]?.let(WakeEstimate::format),
             estimates[com.accountabilibuddy.companion.engine.NightKind.OffDay]?.let(WakeEstimate::format),
