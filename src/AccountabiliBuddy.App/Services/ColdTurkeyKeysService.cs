@@ -34,6 +34,10 @@ public sealed class ColdTurkeyKeysService : IDisposable
 
     private static readonly TimeSpan NewKeyRequestsKept = TimeSpan.FromDays(90);
 
+    // After a re-lock, Cold Turkey's settings are read this many times, this far apart, to see the new lock.
+    private const int LockConfirmReads = 3;
+    private static readonly TimeSpan LockConfirmDelay = TimeSpan.FromSeconds(1);
+
     private readonly ColdTurkeyService _coldTurkey;
     private readonly IColdTurkeyControl _control;
     private readonly SessionController _sessions;
@@ -160,11 +164,7 @@ public sealed class ColdTurkeyKeysService : IDisposable
     public async Task<bool> ConfirmSpareKeyAsync(string typed)
     {
         // Never alongside a check: both run Cold Turkey commands with the password.
-        while (_checking)
-        {
-            await Task.Delay(100);
-        }
-
+        await WaitForCheckAsync();
         string? confirmedProtected = _state.ProtectedPending;
         string? pending = Unprotect(confirmedProtected);
         if (pending is null || !Same(typed, pending))
@@ -195,8 +195,7 @@ public sealed class ColdTurkeyKeysService : IDisposable
                     }
                 }
 
-                _coldTurkey.RefreshNow();
-                DropUnconfirmedLocks(relocked);
+                await ConfirmLocksAsync(relocked);
             }
 
             // The blocks are locked with the confirmed key now, so it is the password whatever happened meanwhile.
@@ -225,32 +224,40 @@ public sealed class ColdTurkeyKeysService : IDisposable
     }
 
     /// <summary>
-    /// After re-locking with the new key: Cold Turkey's command line succeeds even when it refuses, so a block its
-    /// settings don't show password-locked isn't counted as held (the next check holds it again).
+    /// After re-locking with the new key: Cold Turkey's command line succeeds even when it refuses, and its settings
+    /// may lag, so they're read up to three times a second apart. A block still not shown password-locked stays in
+    /// <c>PasswordHeld</c> (the app will still stop it with the new key; dropping it could leave a lock nobody
+    /// releases) and is logged.
     /// </summary>
-    private void DropUnconfirmedLocks(IReadOnlyList<string> relocked)
+    private async Task ConfirmLocksAsync(IReadOnlyList<string> relocked)
     {
-        if (_coldTurkey.Blocks is not ColdTurkeyBlocks blocks)
+        var unconfirmed = new List<string>(relocked);
+        for (int read = 0; read < LockConfirmReads && unconfirmed.Count > 0; read++)
         {
-            // Cold Turkey's settings can't be read: the next check sees what holds.
-            foreach (string name in relocked)
+            if (read > 0)
             {
-                AddLog($"Locked {name} with the new key");
+                await Task.Delay(LockConfirmDelay);
             }
 
-            return;
+            _coldTurkey.RefreshNow();
+            if (_coldTurkey.Blocks is ColdTurkeyBlocks blocks)
+            {
+                unconfirmed.RemoveAll(name => blocks.Blocks.FirstOrDefault(block => block.Name == name) is { PasswordLocked: true });
+            }
         }
 
         foreach (string name in relocked)
         {
-            if (blocks.Blocks.FirstOrDefault(block => block.Name == name) is { PasswordLocked: true })
-            {
-                AddLog($"Locked {name} with the new key");
-                continue;
-            }
+            AddLog(unconfirmed.Contains(name) ? $"Couldn't confirm the lock on {name}" : $"Locked {name} with the new key");
+        }
+    }
 
-            _state = _state with { PasswordHeld = _state.PasswordHeld.Where(other => other != name).ToList() };
-            AddLog($"{name} isn't locked with the new key; it's held again at the next check");
+    /// <summary>Waits until no check (or confirm, or release) is running Cold Turkey commands.</summary>
+    private async Task WaitForCheckAsync()
+    {
+        while (_checking)
+        {
+            await Task.Delay(100);
         }
     }
 
@@ -261,26 +268,36 @@ public sealed class ColdTurkeyKeysService : IDisposable
     /// </summary>
     public async Task<bool> EmergencyReleaseAsync(string typed)
     {
+        // Never alongside a check or a confirm's re-lock: they run Cold Turkey commands with the password.
+        await WaitForCheckAsync();
         string? password = Unprotect(_state.ProtectedPassword);
         if (password is null || !Same(typed, password))
         {
             return false;
         }
 
-        var released = new HashSet<string>(_state.Released, StringComparer.Ordinal);
-        released.UnionWith(_state.Blocks.Select(block => block.Name));
-        released.UnionWith(_state.PasswordHeld);
-        if (_sessions.State.ProfileId is Guid profile)
+        _checking = true;
+        try
         {
-            released.UnionWith(_coldTurkey.ExpectedFor(profile));
-        }
+            var released = new HashSet<string>(_state.Released, StringComparer.Ordinal);
+            released.UnionWith(_state.Blocks.Select(block => block.Name));
+            released.UnionWith(_state.PasswordHeld);
+            if (_sessions.State.ProfileId is Guid profile)
+            {
+                released.UnionWith(_coldTurkey.ExpectedFor(profile));
+            }
 
-        _state = _state with { Released = released.ToList(), ReleasedOn = Today() };
-        AddLog("Emergency release: blocks released for today");
-        await SaveAsync();
-        await CheckAsync();
-        await RotateAsync(keepHeld: false);
-        return true;
+            _state = _state with { Released = released.ToList(), ReleasedOn = Today() };
+            AddLog("Emergency release: blocks released for today");
+            await SaveAsync();
+            await CheckCoreAsync();
+            await RotateAsync(keepHeld: false);
+            return true;
+        }
+        finally
+        {
+            _checking = false;
+        }
     }
 
     /// <summary>ADR 41: when the asked-for new key arrives (null when none is asked for).</summary>
@@ -417,7 +434,26 @@ public sealed class ColdTurkeyKeysService : IDisposable
 
     private async Task CheckAsync()
     {
-        if (_checking || !_control.IsAvailable)
+        if (_checking)
+        {
+            return;
+        }
+
+        _checking = true;
+        try
+        {
+            await CheckCoreAsync();
+        }
+        finally
+        {
+            _checking = false;
+        }
+    }
+
+    /// <summary>The check itself; the caller holds the <c>_checking</c> guard.</summary>
+    private async Task CheckCoreAsync()
+    {
+        if (!_control.IsAvailable)
         {
             return;
         }
@@ -428,70 +464,62 @@ public sealed class ColdTurkeyKeysService : IDisposable
             return;
         }
 
-        _checking = true;
-        try
+        DateTime now = TimeZoneInfo.ConvertTime(_time.GetUtcNow(), _time.LocalTimeZone).DateTime;
+        if (_state.ReleasedOn != Today())
         {
-            DateTime now = TimeZoneInfo.ConvertTime(_time.GetUtcNow(), _time.LocalTimeZone).DateTime;
-            if (_state.ReleasedOn != Today())
-            {
-                _state = _state with { Released = new List<string>(), ReleasedOn = Today() };
-            }
+            _state = _state with { Released = new List<string>(), ReleasedOn = Today() };
+        }
 
-            HoldWindows windows = Windows(now);
-            // Password locks need a written-down spare key and Cold Turkey Pro; otherwise timed locks.
-            bool passwordReady = HasSpareKey && blocks.IsPro;
-            IReadOnlyDictionary<string, string> wanted = ColdTurkeyHold.Wanted(_state.Blocks, windows, passwordReady);
-            // Blocks seen on outside the app's windows are what a day without a chosen list turns back on.
-            var known = new HashSet<string>(_state.Known, StringComparer.Ordinal);
-            known.UnionWith(blocks.Blocks.Where(b => b.IsSwitchedOn && !wanted.ContainsKey(b.Name)).Select(b => b.Name));
+        HoldWindows windows = Windows(now);
+        // Password locks need a written-down spare key and Cold Turkey Pro; otherwise timed locks.
+        bool passwordReady = HasSpareKey && blocks.IsPro;
+        IReadOnlyDictionary<string, string> wanted = ColdTurkeyHold.Wanted(_state.Blocks, windows, passwordReady);
+        // Blocks seen on outside the app's windows are what a day without a chosen list turns back on.
+        var known = new HashSet<string>(_state.Known, StringComparer.Ordinal);
+        known.UnionWith(blocks.Blocks.Where(b => b.IsSwitchedOn && !wanted.ContainsKey(b.Name)).Select(b => b.Name));
 
-            DateTime lastRun = _state.LastRun is DateTimeOffset last
-                ? TimeZoneInfo.ConvertTime(last, _time.LocalTimeZone).DateTime
-                : now;
-            if (lastRun < now.AddDays(-1))
-            {
-                lastRun = now.AddDays(-1);
-            }
+        DateTime lastRun = _state.LastRun is DateTimeOffset last
+            ? TimeZoneInfo.ConvertTime(last, _time.LocalTimeZone).DateTime
+            : now;
+        if (lastRun < now.AddDays(-1))
+        {
+            lastRun = now.AddDays(-1);
+        }
 
-            IReadOnlyList<BlockRearm.Event> rearm = Array.Empty<BlockRearm.Event>();
-            if (!_state.RearmOff && _deviceId() is Guid device && lastRun < now)
+        IReadOnlyList<BlockRearm.Event> rearm = Array.Empty<BlockRearm.Event>();
+        if (!_state.RearmOff && _deviceId() is Guid device && lastRun < now)
+        {
+            string me = BlockRef.Pc(device);
+            rearm = BlockRearm.Between(_plan(), me, lastRun, now);
+            foreach (BlockRearm.Event warning in BlockRearm.WarningsBetween(_plan(), me, lastRun, now))
             {
-                string me = BlockRef.Pc(device);
-                rearm = BlockRearm.Between(_plan(), me, lastRun, now);
-                foreach (BlockRearm.Event warning in BlockRearm.WarningsBetween(_plan(), me, lastRun, now))
+                List<string> off = (warning.Blocks?.Select(b => b.Id) ?? known.Where(name => warning.Except?.Any(b => b.Id == name) != true))
+                    .Where(name => blocks.Blocks.Any(b => b.Name == name && !b.IsSwitchedOn)).ToList();
+                if (off.Count > 0 && warning.At > now)
                 {
-                    List<string> off = (warning.Blocks?.Select(b => b.Id) ?? known.Where(name => warning.Except?.Any(b => b.Id == name) != true))
-                        .Where(name => blocks.Blocks.Any(b => b.Name == name && !b.IsSwitchedOn)).ToList();
-                    if (off.Count > 0 && warning.At > now)
-                    {
-                        Notice?.Invoke(this, ($"Blocks come back on at {warning.At:h:mm tt}", string.Join(", ", off)));
-                    }
+                    Notice?.Invoke(this, ($"Blocks come back on at {warning.At:h:mm tt}", string.Join(", ", off)));
                 }
             }
-
-            var memory = new HoldMemory(_state.PasswordHeld.ToHashSet(StringComparer.Ordinal), _state.Released.ToHashSet(StringComparer.Ordinal), known);
-            IReadOnlyList<ColdTurkeyAction> actions = ColdTurkeyHold.Plan(now, _state.Blocks, windows, blocks, memory, passwordReady, rearm);
-            _state = _state with { Known = known.ToList(), LastRun = _time.GetUtcNow() };
-            bool rotate = false;
-            foreach (ColdTurkeyAction action in actions)
-            {
-                rotate |= await RunAsync(action);
-            }
-
-            if (actions.Count > 0)
-            {
-                _coldTurkey.RefreshNow();
-            }
-
-            await SaveAsync();
-            if (rotate)
-            {
-                await RotateAsync(keepHeld: false);
-            }
         }
-        finally
+
+        var memory = new HoldMemory(_state.PasswordHeld.ToHashSet(StringComparer.Ordinal), _state.Released.ToHashSet(StringComparer.Ordinal), known);
+        IReadOnlyList<ColdTurkeyAction> actions = ColdTurkeyHold.Plan(now, _state.Blocks, windows, blocks, memory, passwordReady, rearm);
+        _state = _state with { Known = known.ToList(), LastRun = _time.GetUtcNow() };
+        bool rotate = false;
+        foreach (ColdTurkeyAction action in actions)
         {
-            _checking = false;
+            rotate |= await RunAsync(action);
+        }
+
+        if (actions.Count > 0)
+        {
+            _coldTurkey.RefreshNow();
+        }
+
+        await SaveAsync();
+        if (rotate)
+        {
+            await RotateAsync(keepHeld: false);
         }
     }
 
