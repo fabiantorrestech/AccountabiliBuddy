@@ -33,8 +33,25 @@ data class BlockLift(val start: LocalTime, val end: LocalTime, val mode: String,
  * when anything guarded that's off comes back on ([reenableAt], midnight = the end of the day), the heads-up before it
  * ([warnMinutes]; null = none) and the lift windows.
  */
-data class BlockRules(val guarded: List<BlockRef>?, val reenableAt: LocalTime, val warnMinutes: Int?, val lifts: List<BlockLift>) {
+data class BlockRules(
+    val guarded: List<BlockRef>?,
+    val reenableAt: LocalTime,
+    val warnMinutes: Int?,
+    val lifts: List<BlockLift>,
+    /** Schema v11: when each device's blocks come back on (others use [reenableAt]). */
+    val deviceTimes: List<DeviceReenable>? = null,
+    /** Schema v11: blocks with their own time, left out of their device's. */
+    val blockTimes: List<BlockReenable>? = null,
+) {
+    fun reenableFor(device: String): LocalTime = deviceTimes?.firstOrNull { it.device == device }?.at ?: reenableAt
+
     companion object {
         val Default = BlockRules(null, LocalTime.MIDNIGHT, 5, emptyList())
     }
 }
+
+/** When one device's blocks come back on that day (schema v11). */
+data class DeviceReenable(val device: String, val at: LocalTime)
+
+/** A block that comes back on at its own time that day instead of its device's (schema v11). */
+data class BlockReenable(val block: BlockRef, val at: LocalTime)

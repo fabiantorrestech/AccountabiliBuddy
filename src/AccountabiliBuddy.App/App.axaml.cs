@@ -925,8 +925,9 @@ public partial class App : Application
         sessionViewModel.WhatsNew = new WhatsNewCardViewModel(setupFeatures, ShowWhatsNew);
         mainViewModel.Settings.Updates.OpenWhatsNew = ShowWhatsNew;
         mainViewModel.Settings.Updates.ShowEmergencyRelease = () => ShowColdTurkeyKey(emergency: true);
-        void ShowPlanDay()
+        IReadOnlyList<(BlockRef Block, string Device, bool On)> PlanDayBlocks()
         {
+            _coldTurkey!.RefreshNow();
             var blocks = new List<(BlockRef Block, string Device, bool On)>();
             if (syncIdentity.DeviceId != Guid.Empty)
             {
@@ -942,7 +943,12 @@ public partial class App : Application
                 blocks.AddRange(device.File.Blockers!.Select(b => (new BlockRef(who, b.Kind, b.Id, b.Name), card.Name, b.On)));
             }
 
-            var viewModel = new PlanDayViewModel(_configuration!, _sessions!, blocks, DateOnly.FromDateTime(time.GetLocalNow().DateTime), () => sleepSettings.PhoneAlarm);
+            return blocks;
+        }
+
+        void ShowPlanDay()
+        {
+            var viewModel = new PlanDayViewModel(_configuration!, _sessions!, PlanDayBlocks, DateOnly.FromDateTime(time.GetLocalNow().DateTime), () => sleepSettings.PhoneAlarm);
             new PlanDayWindow { DataContext = viewModel }.Show();
         }
 

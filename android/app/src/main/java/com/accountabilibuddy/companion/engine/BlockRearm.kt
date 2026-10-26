@@ -15,17 +15,33 @@ import java.time.LocalTime
  */
 object BlockRearm {
     /** At [at], turn [blocks] on or off (null = every guarded block of the device); a heads-up at [warnAt] (null = none). */
-    data class Event(val at: LocalDateTime, val turnOn: Boolean, val blocks: List<BlockRef>?, val warnAt: LocalDateTime?, val why: String)
+    data class Event(
+        val at: LocalDateTime,
+        val turnOn: Boolean,
+        val blocks: List<BlockRef>?,
+        val warnAt: LocalDateTime?,
+        val why: String,
+        /** For "every guarded block" ([blocks] null): blocks left out (they have their own time). */
+        val except: List<BlockRef>? = null,
+    )
 
     fun forDay(plan: DayPlan, day: LocalDate, device: String): List<Event> {
         val rules = plan.templateFor(day).rules
         val start = day.atStartOfDay()
         val events = mutableListOf<Event>()
 
-        val reenable = if (rules.reenableAt == LocalTime.MIDNIGHT) start.plusDays(1) else day.atTime(rules.reenableAt)
-        val guarded = rules.guarded?.filter { it.device == device }
+        val deviceTime = rules.reenableFor(device)
+        val reenable = if (deviceTime == LocalTime.MIDNIGHT) start.plusDays(1) else day.atTime(deviceTime)
+        val own = rules.blockTimes?.filter { it.block.device == device }.orEmpty()
+        val guarded = rules.guarded?.filter { b -> b.device == device && own.none { it.block.same(b) } }
         if (guarded == null || guarded.isNotEmpty()) {
-            events += Event(reenable, true, guarded, warn(reenable, rules), "the day's re-enable time")
+            val except = if (guarded == null && own.isNotEmpty()) own.map { it.block } else null
+            events += Event(reenable, true, guarded, warn(reenable, rules), "the day's re-enable time", except)
+        }
+        // Blocks with their own time (schema v11).
+        own.forEach { b ->
+            val at = if (b.at == LocalTime.MIDNIGHT) start.plusDays(1) else day.atTime(b.at)
+            events += Event(at, true, listOf(b.block), warn(at, rules), "its own re-enable time")
         }
 
         for (lift in rules.lifts) {
@@ -60,7 +76,7 @@ object BlockRearm {
     /** The blocks [event] covers on this device. */
     fun targets(event: Event, current: List<Current>, known: Set<String>): List<Current> =
         event.blocks?.let { refs -> current.filter { block -> refs.any { it.same(block.ref) } } }
-            ?: current.filter { key(it.ref) in known }
+            ?: current.filter { key(it.ref) in known && event.except?.none { e -> e.same(it.ref) } != false }
 
     /** A block's key for [known]: "kind/id". */
     fun key(ref: BlockRef): String = "${ref.kind}/${ref.id}"

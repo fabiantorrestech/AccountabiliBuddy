@@ -88,7 +88,7 @@ fun TodayScreen(
                     Text(model.dateText, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.width(10.dp))
                     Text(model.statusText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                    onPlanDay?.let { TextButton(onClick = it) { Text("Plan a day") } }
+                    onPlanDay?.let { TextButton(onClick = it) { Text("Plan day(s)") } }
                     onEditPlan?.let { TextButton(onClick = it) { Text("Edit plan") } }
                 }
                 model.sleepLine?.let { line ->

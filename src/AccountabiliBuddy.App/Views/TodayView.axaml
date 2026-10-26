@@ -33,7 +33,7 @@
             </Border>
 
             <!-- ADR 37: one-off days from three questions (kind of day, sleep, blocks). -->
-            <Button Content="Plan a day…" Command="{Binding PlanDayCommand}" IsVisible="{Binding !IsSessionActive}" HorizontalAlignment="Right"
+            <Button Content="Plan day(s)…" Command="{Binding PlanDayCommand}" IsVisible="{Binding !IsSessionActive}" HorizontalAlignment="Right"
                     ToolTip.Tip="An adjusted workday or an off-day: its sleep and which blocks to lift" />
 
             <!-- The shutdown card (redesign phase 5): once after the day's last work part. -->

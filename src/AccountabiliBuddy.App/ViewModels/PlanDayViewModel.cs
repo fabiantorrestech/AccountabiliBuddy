@@ -21,23 +21,59 @@ public sealed partial class PlanDayViewModel : ObservableObject
     private readonly SessionController _sessions;
 
     private readonly Func<DateTime?> _phoneAlarm;
+    private readonly Func<IReadOnlyList<(BlockRef Block, string Device, bool On)>> _loadBlocks;
 
-    /// <param name="blocks">Every device's blocks: the block, its device's name, whether it's on now.</param>
+    /// <param name="loadBlocks">Every device's blocks: the block, its device's name, whether it's on now (read again on refresh).</param>
     /// <param name="phoneAlarm">The paired phone's next alarm (ADR 23), for "hours of sleep + my alarm".</param>
-    public PlanDayViewModel(ConfigurationService configuration, SessionController sessions, IReadOnlyList<(BlockRef Block, string Device, bool On)> blocks, DateOnly today,
-        Func<DateTime?>? phoneAlarm = null)
+    public PlanDayViewModel(ConfigurationService configuration, SessionController sessions, Func<IReadOnlyList<(BlockRef Block, string Device, bool On)>> loadBlocks,
+        DateOnly today, Func<DateTime?>? phoneAlarm = null)
     {
         _configuration = configuration;
         _sessions = sessions;
+        _loadBlocks = loadBlocks;
         _phoneAlarm = phoneAlarm ?? (() => null);
         Today = today;
         Dates = new List<DateOnly> { today.AddDays(1) };
-        foreach ((BlockRef block, string device, bool on) in blocks)
+        LoadDefaults();
+        LoadBlocks();
+    }
+
+    /// <summary>Every device's blocks, by device (its time, then its blocks).</summary>
+    public ObservableCollection<PlanDayDeviceGroup> Devices { get; } = new();
+
+    /// <summary>Reads every device's blocks again, keeping what was set for the ones still there.</summary>
+    [RelayCommand]
+    private void RefreshBlocks() => LoadBlocks();
+
+    private void LoadBlocks()
+    {
+        var old = Devices.SelectMany(group => group.Rows).ToDictionary(row => (row.Block.Device, row.Block.Kind, row.Block.Id));
+        var oldTimes = Devices.ToDictionary(group => group.Device, group => group.AgreedTime);
+        BlockRules rules = (IsOffDay ? _configuration.Current.DayPlan.OtherDay : _configuration.Current.DayPlan.Workday).Rules;
+        Devices.Clear();
+        Blocks.Clear();
+        foreach (var device in _loadBlocks().GroupBy(item => (Id: item.Block.Device, Name: item.Device)))
         {
-            Blocks.Add(new PlanDayBlockRow(block, device, on));
+            TimeSpan agreed = oldTimes.TryGetValue(device.Key.Id, out TimeSpan? kept) && kept is TimeSpan t ? t : rules.ReenableFor(device.Key.Id).ToTimeSpan();
+            var group = new PlanDayDeviceGroup(device.Key.Id, device.Key.Name, device.Key.Id == BlockRef.Phone, agreed);
+            foreach ((BlockRef block, string name, bool on) in device)
+            {
+                var row = new PlanDayBlockRow(block, name, on);
+                if (old.TryGetValue((block.Device, block.Kind, block.Id), out PlanDayBlockRow? previous))
+                {
+                    row.FollowsDevice = previous.FollowsDevice;
+                    row.OwnTime = previous.OwnTime;
+                    row.Lift = previous.Lift;
+                }
+
+                group.Rows.Add(row);
+                Blocks.Add(row);
+            }
+
+            Devices.Add(group);
         }
 
-        LoadDefaults();
+        OnPropertyChanged(nameof(HasBlocks));
     }
 
     public DateOnly Today { get; }
@@ -76,7 +112,7 @@ public sealed partial class PlanDayViewModel : ObservableObject
     {
         1 => "1 of 4 · What kind of day?",
         2 => "2 of 4 · Sleep the night before",
-        3 => "3 of 4 · Blocks",
+        3 => "3 of 4 · When blocks come back on",
         _ => "4 of 4 · Check and save",
     };
 
@@ -244,12 +280,21 @@ public sealed partial class PlanDayViewModel : ObservableObject
         SleepTimes? sleep = ChosenNight();
 
         BlockRules rules = template.Rules;
-        TimeOnly reenable = TimeOnly.FromTimeSpan(ReenableAt ?? TimeSpan.Zero);
         List<BlockRef> lifted = Blocks.Where(row => row.Lift).Select(row => row.Block).ToList();
         IReadOnlyList<BlockLift> lifts = lifted.Count == 0
             ? rules.Lifts
-            : new[] { new BlockLift(TimeOnly.FromTimeSpan(LiftFrom ?? TimeSpan.Zero), TimeOnly.FromTimeSpan(LiftTo ?? ReenableAt ?? TimeSpan.Zero), LiftAuto ? BlockLift.Auto : BlockLift.Allow, lifted) };
-        var blocks = rules with { ReenableAt = reenable, WarnMinutes = HeadsUp ? rules.WarnMinutes ?? 5 : null, Lifts = lifts };
+            : new[] { new BlockLift(TimeOnly.FromTimeSpan(LiftFrom ?? TimeSpan.Zero), TimeOnly.FromTimeSpan(LiftTo ?? TimeSpan.Zero), LiftAuto ? BlockLift.Auto : BlockLift.Allow, lifted) };
+        // Schema v11: each device's agreed time; unticked blocks with their own.
+        List<DeviceReenable> deviceTimes = Devices.Select(group => new DeviceReenable(group.Device, TimeOnly.FromTimeSpan(group.AgreedTime ?? TimeSpan.Zero))).ToList();
+        List<BlockReenable> blockTimes = Blocks.Where(row => !row.FollowsDevice)
+            .Select(row => new BlockReenable(row.Block, TimeOnly.FromTimeSpan(row.OwnTime ?? TimeSpan.Zero))).ToList();
+        var blocks = rules with
+        {
+            WarnMinutes = HeadsUp ? rules.WarnMinutes ?? 5 : null,
+            Lifts = lifts,
+            DeviceTimes = deviceTimes.Count > 0 ? deviceTimes : rules.DeviceTimes,
+            BlockTimes = blockTimes.Count > 0 ? blockTimes : null,
+        };
         return new DayPlanRequest(Dates, IsOffDay, sleep, blocks, Note, NoSleep: SleepMode == "blank");
     }
 
@@ -265,35 +310,72 @@ public sealed partial class PlanDayViewModel : ObservableObject
         ReenableAt = rules.ReenableAt.ToTimeSpan();
         LiftTo = rules.ReenableAt.ToTimeSpan();
         HeadsUp = rules.WarnMinutes is > 0;
+        foreach (PlanDayDeviceGroup group in Devices)
+        {
+            group.AgreedTime = rules.ReenableFor(group.Device).ToTimeSpan();
+        }
     }
+
+    // The review as parts the window lays out as cards (not one block of text).
+    public string ReviewKind { get; private set; } = "";
+    public IReadOnlyList<string> ReviewDates { get; private set; } = Array.Empty<string>();
+    public string? ReviewNote { get; private set; }
+    public string ReviewNight { get; private set; } = "";
+    public string ReviewNightDetail { get; private set; } = "";
+    public bool ReviewNoSleep { get; private set; }
+    public IReadOnlyList<PlanDayReviewDevice> ReviewDevices { get; private set; } = Array.Empty<PlanDayReviewDevice>();
+    public string? ReviewLift { get; private set; }
+    public string? ReviewHeadsUp { get; private set; }
+    public string? ReviewClash { get; private set; }
+    public bool HasReviewNote => ReviewNote is not null;
+    public bool HasReviewLift => ReviewLift is not null;
+    public bool HasReviewClash => ReviewClash is not null;
 
     private string BuildSummary()
     {
         DayPlanRequest request = Request();
-        var lines = new List<string>
-        {
-            $"{(request.OffDay ? "Off-day" : "Adjusted workday")} on {DatesText}",
-            request.NoSleep ? "The night before: no sleep planned" : $"The night before: {SleepText}",
-        };
         BlockRules blocks = request.Blocks!;
+        ReviewKind = request.OffDay ? "Off-day" : "Adjusted workday";
+        ReviewDates = Dates.Select(DateText).ToList();
+        ReviewNote = string.IsNullOrWhiteSpace(Note) ? null : $"\u201c{Note.Trim()}\u201d";
+        ReviewNoSleep = request.NoSleep;
+        if (request.NoSleep)
+        {
+            ReviewNight = "No sleep planned";
+            ReviewNightDetail = "No bedtime reminders or sleep count for those nights.";
+        }
+        else if (request.Sleep is SleepTimes night)
+        {
+            TimeSpan length = night.Wake.ToTimeSpan() - night.Bedtime.ToTimeSpan();
+            if (length <= TimeSpan.Zero) length += TimeSpan.FromDays(1);
+            ReviewNight = $"{Time(night.Bedtime)} \u2192 {Time(night.Wake)}";
+            ReviewNightDetail = $"{(int)length.TotalHours} h {length.Minutes:00} m of sleep{(night.WakeByAlarm ? " \u00b7 follows your alarm" : "")}";
+        }
+        else
+        {
+            ReviewNight = "As your plan has it";
+            ReviewNightDetail = "";
+        }
+
+        ReviewDevices = Devices.Select(group => new PlanDayReviewDevice(
+            group.Name, group.IsPhone, Time(blocks.ReenableFor(group.Device)),
+            group.Rows.Where(row => !row.FollowsDevice).Select(row => $"{row.Name}: {Time(TimeOnly.FromTimeSpan(row.OwnTime ?? TimeSpan.Zero))}").ToList())).ToList();
         List<BlockRef> lifted = Blocks.Where(row => row.Lift).Select(row => row.Block).ToList();
-        if (lifted.Count > 0)
-        {
-            BlockLift lift = blocks.Lifts[0];
-            lines.Add($"Lifted {Time(lift.Start)}–{Time(lift.End)} ({(lift.Mode == BlockLift.Auto ? "turned off for you" : "you may turn them off")}): {string.Join(", ", lifted.Select(b => b.Name))}");
-        }
-
-        lines.Add($"Blocks you turned off come back on at {Time(blocks.ReenableAt)}{(blocks.WarnMinutes is int m ? $", with a heads-up {m} min before" : "")}");
+        ReviewLift = lifted.Count == 0 ? null
+            : $"Lifted {Time(blocks.Lifts[0].Start)}\u2013{Time(blocks.Lifts[0].End)} ({(blocks.Lifts[0].Mode == BlockLift.Auto ? "turned off for you" : "you may turn them off")}): {string.Join(", ", lifted.Select(b => b.Name))}";
+        ReviewHeadsUp = blocks.WarnMinutes is int m ? $"Heads-up {m} min before" : null;
         IReadOnlyList<DateOnly> clashes = DayPlanner.Clashes(_configuration.Current.DayPlan, Dates);
-        if (clashes.Count > 0)
+        ReviewClash = clashes.Count > 0 ? $"Replaces the plan already set for {string.Join(", ", clashes.Select(DateText))}" : null;
+        foreach (string name in new[] { nameof(ReviewKind), nameof(ReviewDates), nameof(ReviewNote), nameof(ReviewNight), nameof(ReviewNightDetail), nameof(ReviewNoSleep),
+                     nameof(ReviewDevices), nameof(ReviewLift), nameof(ReviewHeadsUp), nameof(ReviewClash), nameof(HasReviewNote), nameof(HasReviewLift), nameof(HasReviewClash) })
         {
-            lines.Add($"Replaces the plan already set for {string.Join(", ", clashes.Select(DateText))}");
+            OnPropertyChanged(name);
         }
 
-        return string.Join(Environment.NewLine, lines);
+        return ReviewKind;
     }
 
     private static string DateText(DateOnly date) => date.ToString("ddd M/d", Twelve);
 
-    private static string Time(TimeOnly time) => time == TimeOnly.MinValue ? "midnight" : time.ToString("h:mm tt", Twelve);
+    private static string Time(TimeOnly time) => time == TimeOnly.MinValue ? "Midnight" : time.ToString("h:mm tt", Twelve);
 }

@@ -11,9 +11,9 @@ public static class BlockRearm
 {
     /// <summary>
     /// One event: at <see cref="At"/>, turn <see cref="Blocks"/> on or off (null = every guarded block of the device,
-    /// see <see cref="BlockRules.Guarded"/>); a heads-up at <see cref="WarnAt"/> (null = none).
+    /// see <see cref="BlockRules.Guarded"/>, less <see cref="Except"/>); a heads-up at <see cref="WarnAt"/> (null = none).
     /// </summary>
-    public sealed record Event(DateTime At, bool TurnOn, IReadOnlyList<BlockRef>? Blocks, DateTime? WarnAt, string Why);
+    public sealed record Event(DateTime At, bool TurnOn, IReadOnlyList<BlockRef>? Blocks, DateTime? WarnAt, string Why, IReadOnlyList<BlockRef>? Except = null);
 
     /// <summary>The events of <paramref name="day"/>'s rules for <paramref name="device"/>, in time order.</summary>
     public static IReadOnlyList<Event> For(DayPlan plan, DateOnly day, string device)
@@ -22,11 +22,21 @@ public static class BlockRearm
         DateTime start = day.ToDateTime(TimeOnly.MinValue);
         var events = new List<Event>();
 
-        DateTime reenable = rules.ReenableAt == TimeOnly.MinValue ? start.AddDays(1) : start + rules.ReenableAt.ToTimeSpan();
-        IReadOnlyList<BlockRef>? guarded = rules.Guarded?.Where(b => b.Device == device).ToList();
+        TimeOnly deviceTime = rules.ReenableFor(device);
+        DateTime reenable = deviceTime == TimeOnly.MinValue ? start.AddDays(1) : start + deviceTime.ToTimeSpan();
+        List<BlockReenable> own = rules.BlockTimes?.Where(b => b.Block.Device == device).ToList() ?? new List<BlockReenable>();
+        IReadOnlyList<BlockRef>? guarded = rules.Guarded?.Where(b => b.Device == device && own.All(o => !o.Block.Same(b))).ToList();
         if (guarded is null || guarded.Count > 0)
         {
-            events.Add(new Event(reenable, true, guarded, Warn(reenable, rules), "the day's re-enable time"));
+            IReadOnlyList<BlockRef>? except = guarded is null && own.Count > 0 ? own.Select(o => o.Block).ToList() : null;
+            events.Add(new Event(reenable, true, guarded, Warn(reenable, rules), "the day's re-enable time", except));
+        }
+
+        // Blocks with their own time (schema v11).
+        foreach (BlockReenable block in own)
+        {
+            DateTime at = block.At == TimeOnly.MinValue ? start.AddDays(1) : start + block.At.ToTimeSpan();
+            events.Add(new Event(at, true, new[] { block.Block }, Warn(at, rules), "its own re-enable time"));
         }
 
         foreach (BlockLift lift in rules.Lifts)

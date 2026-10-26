@@ -228,7 +228,7 @@ public sealed class ColdTurkeyKeysService : IDisposable
                 rearm = BlockRearm.Between(_plan(), me, lastRun, now);
                 foreach (BlockRearm.Event warning in BlockRearm.WarningsBetween(_plan(), me, lastRun, now))
                 {
-                    List<string> off = (warning.Blocks?.Select(b => b.Id) ?? known)
+                    List<string> off = (warning.Blocks?.Select(b => b.Id) ?? known.Where(name => warning.Except?.Any(b => b.Id == name) != true))
                         .Where(name => blocks.Blocks.Any(b => b.Name == name && !b.IsSwitchedOn)).ToList();
                     if (off.Count > 0 && warning.At > now)
                     {

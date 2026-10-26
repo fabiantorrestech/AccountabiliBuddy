@@ -130,6 +130,7 @@ fun MainScreen(
                     onSave = viewModel::savePlannedDays,
                     onClose = { viewModel.planDayOpen.value = false },
                     slept = state.slept,
+                    loadBlocks = viewModel::planDayBlocks,
                 )
                 return@Column
             }

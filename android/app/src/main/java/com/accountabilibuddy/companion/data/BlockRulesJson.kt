@@ -1,6 +1,8 @@
 package com.accountabilibuddy.companion.data
 
 import com.accountabilibuddy.companion.model.BlockLift
+import com.accountabilibuddy.companion.model.BlockReenable
+import com.accountabilibuddy.companion.model.DeviceReenable
 import com.accountabilibuddy.companion.model.BlockRef
 import com.accountabilibuddy.companion.model.BlockRules
 import kotlinx.serialization.json.JsonArray
@@ -35,6 +37,16 @@ object BlockRulesJson {
                 })
             }
         })
+        rules.deviceTimes?.let { list ->
+            put("deviceTimes", buildJsonArray {
+                list.forEach { d -> add(buildJsonObject { put("device", d.device); put("at", d.at.format(time)) }) }
+            })
+        }
+        rules.blockTimes?.let { list ->
+            put("blockTimes", buildJsonArray {
+                list.forEach { b -> add(buildJsonObject { put("block", refs(listOf(b.block))[0]); put("at", b.at.format(time)) }) }
+            })
+        }
     }
 
     fun read(json: JsonObject): BlockRules = BlockRules(
@@ -49,6 +61,15 @@ object BlockRulesJson {
                 mode = (lift["mode"] as? JsonPrimitive)?.content ?: BlockLift.ALLOW,
                 blocks = (lift["blocks"] as? JsonArray)?.let(::readRefs).orEmpty(),
             )
+        },
+        deviceTimes = (json["deviceTimes"] as? JsonArray)?.mapNotNull { e ->
+            val o = e as? JsonObject ?: return@mapNotNull null
+            DeviceReenable(o["device"]?.jsonPrimitive?.content ?: return@mapNotNull null, LocalTime.parse(o["at"]?.jsonPrimitive?.content ?: return@mapNotNull null))
+        },
+        blockTimes = (json["blockTimes"] as? JsonArray)?.mapNotNull { e ->
+            val o = e as? JsonObject ?: return@mapNotNull null
+            val ref = (o["block"] as? JsonObject)?.let { readRefs(JsonArray(listOf(it))).firstOrNull() } ?: return@mapNotNull null
+            BlockReenable(ref, LocalTime.parse(o["at"]?.jsonPrimitive?.content ?: return@mapNotNull null))
         },
     )
 

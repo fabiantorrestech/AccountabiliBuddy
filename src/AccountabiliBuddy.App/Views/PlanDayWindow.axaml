@@ -1,12 +1,45 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
         x:Class="AccountabiliBuddy.App.Views.PlanDayWindow"
         x:DataType="vm:PlanDayViewModel"
-        Title="Plan a day"
-        Width="640" Height="640" MinWidth="460" MinHeight="480"
+        Title="Plan day(s)"
+        Width="680" Height="720" MinWidth="480" MinHeight="520"
         WindowStartupLocation="CenterScreen">
-    <!-- "Plan a day" (ADR 37): four steps that make one-off days from Workdays or Off-Days. -->
+    <!-- "Plan day(s)" (ADR 37): one-off days from Workdays or Off-Days, their night and when blocks come back on. -->
+    <Window.Styles>
+        <Style Selector="Border.panel">
+            <Setter Property="Background" Value="#14808080" />
+            <Setter Property="BorderBrush" Value="#26808080" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="14,12" />
+        </Style>
+        <Style Selector="Border.options">
+            <Setter Property="Background" Value="#146366F1" />
+            <Setter Property="BorderBrush" Value="#336366F1" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="14,12" />
+        </Style>
+        <Style Selector="Border.device">
+            <Setter Property="Background" Value="#1414B8A6" />
+            <Setter Property="BorderBrush" Value="#3314B8A6" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="12,10" />
+        </Style>
+        <Style Selector="TextBlock.section">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.muted">
+            <Setter Property="Opacity" Value="0.7" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </Window.Styles>
+
     <DockPanel Margin="20">
         <TextBlock DockPanel.Dock="Top" Text="{Binding StepTitle}" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12" />
         <Border DockPanel.Dock="Top" IsVisible="{Binding IsLocked}" Background="#33F59E0B" Padding="12,8" Margin="0,0,0,12" CornerRadius="6">
@@ -26,76 +59,213 @@
         <ScrollViewer>
             <Panel>
                 <!-- 1: kind of day and dates. -->
-                <StackPanel Spacing="10" IsVisible="{Binding IsStep1}">
-                    <RadioButton GroupName="kind" IsChecked="{Binding IsWorkday}" Content="Adjusted workday (starts from your Workdays plan)" />
-                    <RadioButton GroupName="kind" IsChecked="{Binding IsOffDay}" Content="Off-day (starts from your Off-Days plan)" />
-                    <TextBlock Text="Dates (click to pick; Ctrl or Shift for several)" Margin="0,8,0,0" Opacity="0.8" />
-                    <Calendar x:Name="DatePicker" SelectionMode="MultipleRange" HorizontalAlignment="Left" />
-                    <TextBlock Text="{Binding DatesText}" TextWrapping="Wrap" />
+                <StackPanel Spacing="12" IsVisible="{Binding IsStep1}">
+                    <Border Classes="panel">
+                        <StackPanel Spacing="6">
+                            <RadioButton GroupName="kind" IsChecked="{Binding IsWorkday}" Content="Adjusted workday (starts from your Workdays plan)" />
+                            <RadioButton GroupName="kind" IsChecked="{Binding IsOffDay}" Content="Off-day (starts from your Off-Days plan)" />
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="panel">
+                        <StackPanel Spacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <mi:MaterialIcon Kind="CalendarMonth" Width="18" Height="18" />
+                                <TextBlock Text="Dates" Classes="section" />
+                            </StackPanel>
+                            <TextBlock Text="Click a day; Ctrl+click or Shift+click for several." Classes="muted" />
+                            <Calendar x:Name="DatePicker" SelectionMode="MultipleRange" HorizontalAlignment="Left" />
+                            <TextBlock Text="{Binding DatesText}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Border>
                     <TextBox Text="{Binding Note}" Watermark="A note (optional), e.g. Dentist, Half day" />
                 </StackPanel>
 
                 <!-- 2: the night before. -->
-                <StackPanel Spacing="10" IsVisible="{Binding IsStep2}">
-                    <TextBlock Text="The night before each date (as your plan has it unless you change it)." TextWrapping="Wrap" Opacity="0.8" />
-                    <RadioButton GroupName="sleep" IsChecked="{Binding IsRange}" Content="Bed and wake times" />
-                    <RadioButton GroupName="sleep" IsChecked="{Binding IsHoursAndWake}" Content="Hours of sleep + a wake time (works out bedtime)" />
-                    <RadioButton GroupName="sleep" IsChecked="{Binding IsHoursAndAlarm}" Content="Hours of sleep + my phone's alarm (works out bedtime)" />
-                    <RadioButton GroupName="sleep" IsChecked="{Binding IsBlank}" Content="Leave sleep blank (not recommended)" />
-                    <TextBlock Text="Your measured sleep (Health Connect) can fill a night in on the phone's Plan a day." Opacity="0.6" TextWrapping="Wrap" />
-                    <Separator Margin="0,4" />
-                    <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsRange}">
-                        <TextBlock Text="Bed by" VerticalAlignment="Center" Width="110" />
-                        <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding Bedtime}" MinuteIncrement="5" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding ShowsHours}">
-                        <TextBlock Text="Hours of sleep" VerticalAlignment="Center" Width="110" />
-                        <NumericUpDown Value="{Binding SleepHours}" Minimum="4" Maximum="12" Increment="0.25" FormatString="0.##" Width="140" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding ShowsWake}">
-                        <TextBlock Text="Up at" VerticalAlignment="Center" Width="110" />
-                        <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding Wake}" MinuteIncrement="5" />
-                    </StackPanel>
-                    <TextBlock Text="{Binding SleepText}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                    <CheckBox IsChecked="{Binding WakeByAlarm}" IsVisible="{Binding IsRange}" Content="Follow my alarm that morning (your phone's alarm wins over 'Up at')" />
+                <StackPanel Spacing="12" IsVisible="{Binding IsStep2}">
+                    <Border Classes="panel">
+                        <StackPanel Spacing="6">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <mi:MaterialIcon Kind="WeatherNight" Width="18" Height="18" />
+                                <TextBlock Text="How do you want to set it?" Classes="section" />
+                            </StackPanel>
+                            <RadioButton GroupName="sleep" IsChecked="{Binding IsRange}" Content="Bed and wake times" />
+                            <RadioButton GroupName="sleep" IsChecked="{Binding IsHoursAndWake}" Content="Hours of sleep + a wake time" />
+                            <RadioButton GroupName="sleep" IsChecked="{Binding IsHoursAndAlarm}" Content="Hours of sleep + my phone's alarm" />
+                            <RadioButton GroupName="sleep" IsChecked="{Binding IsBlank}" Content="Leave sleep blank (not recommended)" />
+                            <TextBlock Text="Your measured sleep (Health Connect) can fill a night in from the phone's Plan day(s)." Classes="muted" />
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="options">
+                        <StackPanel Spacing="10">
+                            <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsRange}">
+                                <TextBlock Text="Bed by" VerticalAlignment="Center" Width="110" />
+                                <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding Bedtime}" MinuteIncrement="5" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding ShowsHours}">
+                                <TextBlock Text="Hours of sleep" VerticalAlignment="Center" Width="110" />
+                                <NumericUpDown Value="{Binding SleepHours}" Minimum="4" Maximum="12" Increment="0.25" FormatString="0.##" Width="140" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding ShowsWake}">
+                                <TextBlock Text="Up at" VerticalAlignment="Center" Width="110" />
+                                <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding Wake}" MinuteIncrement="5" />
+                            </StackPanel>
+                            <CheckBox IsChecked="{Binding WakeByAlarm}" IsVisible="{Binding IsRange}" Content="Follow my alarm that morning" />
+                            <TextBlock Text="{Binding SleepText}" FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
-                <!-- 3: blocks. -->
-                <StackPanel Spacing="10" IsVisible="{Binding IsStep3}">
-                    <TextBlock Text="Tick the blocks to lift on these days." TextWrapping="Wrap" Opacity="0.8" />
-                    <TextBlock Text="No blocks seen yet: Curbox on your phone and Cold Turkey on your PCs show up here once they've synced."
-                               TextWrapping="Wrap" Opacity="0.7" IsVisible="{Binding !HasBlocks}" />
-                    <ItemsControl ItemsSource="{Binding Blocks}">
+                <!-- 3: when blocks come back on. -->
+                <StackPanel Spacing="12" IsVisible="{Binding IsStep3}">
+                    <Border Classes="panel">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <mi:MaterialIcon Kind="Cancel" Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Text="Back on at" Classes="section" />
+                                <TextBlock Text="Ticked blocks come back on at their device's time. Untick one to give it its own time." Classes="muted" />
+                            </StackPanel>
+                            <Button Grid.Column="2" Command="{Binding RefreshBlocksCommand}" ToolTip.Tip="Look for new blocks" VerticalAlignment="Top" Padding="6">
+                                <mi:MaterialIcon Kind="Refresh" Width="18" Height="18" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                    <Border Classes="options" IsVisible="{Binding !HasBlocks}">
+                        <TextBlock Text="No blocks seen yet: Curbox on your phone and Cold Turkey on your PCs show up here once they've synced." Classes="muted" />
+                    </Border>
+                    <ItemsControl ItemsSource="{Binding Devices}">
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:PlanDayBlockRow">
-                                <CheckBox IsChecked="{Binding Lift}" Content="{Binding Label}" />
+                            <DataTemplate x:DataType="vm:PlanDayDeviceGroup">
+                                <Border Classes="device" Margin="0,0,0,10">
+                                    <StackPanel Spacing="6">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <Panel VerticalAlignment="Center" Margin="0,0,8,0">
+                                                <mi:MaterialIcon Kind="Cellphone" Width="20" Height="20" IsVisible="{Binding IsPhone}" />
+                                                <mi:MaterialIcon Kind="Monitor" Width="20" Height="20" IsVisible="{Binding IsPc}" />
+                                            </Panel>
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="Bold" VerticalAlignment="Center" />
+                                            <TimePicker Grid.Column="2" ClockIdentifier="12HourClock" SelectedTime="{Binding AgreedTime}" MinuteIncrement="15" />
+                                        </Grid>
+                                        <Separator />
+                                        <ItemsControl ItemsSource="{Binding Rows}" Margin="16,0,0,0">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:PlanDayBlockRow">
+                                                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
+                                                        <CheckBox IsChecked="{Binding FollowsDevice}" VerticalAlignment="Center" ToolTip.Tip="Comes back on at the device's time" />
+                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Name}" />
+                                                            <TextBlock Text="{Binding StateText}" Opacity="0.7" />
+                                                        </StackPanel>
+                                                        <TimePicker Grid.Column="2" ClockIdentifier="12HourClock" SelectedTime="{Binding OwnTime}" MinuteIncrement="15"
+                                                                    IsVisible="{Binding HasOwnTime}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <TextBlock Text="Lifted from" VerticalAlignment="Center" Width="110" />
-                        <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding LiftFrom}" MinuteIncrement="5" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <TextBlock Text="until" VerticalAlignment="Center" Width="110" />
-                        <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding LiftTo}" MinuteIncrement="5" />
-                    </StackPanel>
-                    <RadioButton GroupName="mode" IsChecked="{Binding !LiftAuto}" Content="Allow: I may turn them off myself in that window" />
-                    <RadioButton GroupName="mode" IsChecked="{Binding LiftAuto}" Content="Auto: turn them off for me when it starts" />
-                    <Separator Margin="0,6" />
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <TextBlock Text="Blocks back on at" VerticalAlignment="Center" Width="110" />
-                        <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding ReenableAt}" MinuteIncrement="5" />
-                    </StackPanel>
-                    <TextBlock Text="12:00 AM = midnight, the end of the day. Any block you turned off comes back on then." TextWrapping="Wrap" Opacity="0.7" />
-                    <CheckBox IsChecked="{Binding HeadsUp}" Content="Heads-up 5 minutes before, on the device with the block" />
+                    <Border Classes="panel">
+                        <StackPanel Spacing="4">
+                            <CheckBox IsChecked="{Binding HeadsUp}" Content="Heads-up 5 minutes before, on the device with the block" />
+                            <TextBlock Text="12:00 AM = midnight, the end of the day." Classes="muted" />
+                        </StackPanel>
+                    </Border>
+                    <Expander Header="Lift some blocks for part of the day (optional)" IsVisible="{Binding HasBlocks}" HorizontalAlignment="Stretch">
+                        <StackPanel Spacing="8">
+                            <ItemsControl ItemsSource="{Binding Blocks}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:PlanDayBlockRow">
+                                        <CheckBox IsChecked="{Binding Lift}" Content="{Binding Label}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="From" VerticalAlignment="Center" />
+                                <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding LiftFrom}" MinuteIncrement="15" />
+                                <TextBlock Text="until" VerticalAlignment="Center" />
+                                <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding LiftTo}" MinuteIncrement="15" />
+                            </StackPanel>
+                            <RadioButton GroupName="mode" IsChecked="{Binding !LiftAuto}" Content="Allow: I may turn them off myself in that window" />
+                            <RadioButton GroupName="mode" IsChecked="{Binding LiftAuto}" Content="Auto: turn them off for me when it starts" />
+                        </StackPanel>
+                    </Expander>
                 </StackPanel>
 
-                <!-- 4: summary. -->
-                <StackPanel Spacing="10" IsVisible="{Binding IsStep4}">
-                    <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" LineHeight="22" />
-                    <TextBlock Text="Saving makes a one-off day for each date; your Workdays and Off-Days plans stay as they are. You can change or remove them later in Calendar."
-                               TextWrapping="Wrap" Opacity="0.7" />
+                <!-- 4: review, as cards. -->
+                <StackPanel Spacing="12" IsVisible="{Binding IsStep4}">
+                    <Border Classes="panel">
+                        <StackPanel Spacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <mi:MaterialIcon Kind="CalendarMonth" Width="18" Height="18" />
+                                <TextBlock Text="{Binding ReviewKind}" Classes="section" />
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding ReviewDates}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="x:String">
+                                        <Border BorderBrush="#40808080" BorderThickness="1" CornerRadius="12" Padding="10,4" Margin="0,0,6,6">
+                                            <TextBlock Text="{Binding}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding ReviewNote}" Classes="muted" IsVisible="{Binding HasReviewNote}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="panel">
+                        <StackPanel Spacing="4">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <mi:MaterialIcon Kind="WeatherNight" Width="18" Height="18" />
+                                <TextBlock Text="The night before" Classes="section" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding ReviewNight}" FontSize="22" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding ReviewNightDetail}" Classes="muted" />
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="panel">
+                        <StackPanel Spacing="6">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <mi:MaterialIcon Kind="Cancel" Width="18" Height="18" />
+                                <TextBlock Text="Blocks come back on" Classes="section" />
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding ReviewDevices}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:PlanDayReviewDevice">
+                                        <StackPanel Spacing="2" Margin="0,2">
+                                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                                <Panel Margin="0,0,6,0" VerticalAlignment="Center">
+                                                    <mi:MaterialIcon Kind="Cellphone" Width="16" Height="16" IsVisible="{Binding IsPhone}" />
+                                                    <mi:MaterialIcon Kind="Monitor" Width="16" Height="16" IsVisible="{Binding IsPc}" />
+                                                </Panel>
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" />
+                                                <TextBlock Grid.Column="2" Text="{Binding Time}" FontWeight="SemiBold" />
+                                            </Grid>
+                                            <ItemsControl ItemsSource="{Binding OwnTimes}" Margin="22,0,0,0" IsVisible="{Binding HasOwnTimes}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="x:String">
+                                                        <TextBlock Text="{Binding}" Opacity="0.75" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding ReviewLift}" TextWrapping="Wrap" IsVisible="{Binding HasReviewLift}" />
+                            <TextBlock Text="{Binding ReviewHeadsUp}" Classes="muted" />
+                        </StackPanel>
+                    </Border>
+                    <Border Background="#33EF4444" CornerRadius="10" Padding="14,10" IsVisible="{Binding HasReviewClash}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="AlertOutline" Width="18" Height="18" />
+                            <TextBlock Text="{Binding ReviewClash}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="Saving makes a one-off day for each date; your Workdays and Off-Days plans stay as they are." Classes="muted" />
                 </StackPanel>
             </Panel>
         </ScrollViewer>

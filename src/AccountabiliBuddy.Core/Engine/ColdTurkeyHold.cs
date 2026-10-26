@@ -129,7 +129,8 @@ public static class ColdTurkeyHold
         var last = new Dictionary<string, bool>(StringComparer.Ordinal);
         foreach (BlockRearm.Event e in rearm.OrderBy(e => e.At))
         {
-            IEnumerable<string> names = e.Blocks?.Where(b => b.Kind == BlockRef.ColdTurkeyBlock).Select(b => b.Id) ?? memory.Known;
+            IEnumerable<string> names = e.Blocks?.Where(b => b.Kind == BlockRef.ColdTurkeyBlock).Select(b => b.Id)
+                ?? memory.Known.Where(name => e.Except?.Any(b => b.Kind == BlockRef.ColdTurkeyBlock && b.Id == name) != true);
             foreach (string name in names)
             {
                 last[name] = e.TurnOn;
