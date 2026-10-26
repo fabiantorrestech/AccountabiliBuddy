@@ -26,7 +26,13 @@ class NoiseService : Service() {
         // Started as a foreground service (the widget's button, a play): go foreground before anything else.
         ServiceCompat.startForeground(this, ID, notification(noise), type())
         when (intent?.action) {
-            ACTION_TOGGLE -> noise.toggle()
+            ACTION_TOGGLE -> {
+                // From the widget or a notification the bar isn't in sight: say why nothing plays.
+                if (!noise.state.value.playing && noise.lockedOut()) {
+                    android.widget.Toast.makeText(this, "Connect headphones", android.widget.Toast.LENGTH_SHORT).show()
+                }
+                noise.toggle()
+            }
             ACTION_NEXT -> noise.next()
             ACTION_PREVIOUS -> noise.previous()
         }

@@ -20,6 +20,8 @@ class NoiseSettingsStore(context: Context) {
             .putBoolean(SYSTEM, settings.systemControls)
             .putBoolean(WIDGET, settings.widgetButton)
             .putBoolean(WIDGET_VOLUME, settings.widgetVolume)
+            .putBoolean(LOCK, settings.headphoneLock)
+            .putBoolean(STOP_ON_DISCONNECT, settings.stopOnDisconnect)
             .apply()
         _settings.value = settings
     }
@@ -32,6 +34,8 @@ class NoiseSettingsStore(context: Context) {
         systemControls = prefs.getBoolean(SYSTEM, false),
         widgetButton = prefs.getBoolean(WIDGET, true),
         widgetVolume = prefs.getBoolean(WIDGET_VOLUME, true),
+        headphoneLock = prefs.getBoolean(LOCK, false),
+        stopOnDisconnect = prefs.getBoolean(STOP_ON_DISCONNECT, false),
     )
 
     private companion object {
@@ -42,5 +46,7 @@ class NoiseSettingsStore(context: Context) {
         const val SYSTEM = "systemControls"
         const val WIDGET = "widgetButton"
         const val WIDGET_VOLUME = "widgetVolume"
+        const val LOCK = "headphoneLock"
+        const val STOP_ON_DISCONNECT = "stopOnDisconnect"
     }
 }

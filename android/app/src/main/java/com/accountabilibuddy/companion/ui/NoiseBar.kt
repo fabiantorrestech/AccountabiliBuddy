@@ -1,6 +1,8 @@
 package com.accountabilibuddy.companion.ui
 
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.SkipNext
@@ -34,7 +36,7 @@ import com.accountabilibuddy.companion.noise.NoiseState
 
 /**
  * The noise player above the tabs, as in the PC's sidebar: the sound's name, previous, play/pause, next and the player's
- * own volume. Until a folder is chosen, one button to choose it.
+ * own volume, and the lock (plays only with headphones connected). Until a folder is chosen, one button to choose it.
  */
 @Composable
 fun NoiseBar(state: NoiseState, settings: NoiseSettings, player: NoisePlayer, onMessage: (String) -> Unit) {
@@ -50,10 +52,30 @@ fun NoiseBar(state: NoiseState, settings: NoiseSettings, player: NoisePlayer, on
         var volume by remember(settings.volume) { mutableFloatStateOf(settings.volume.toFloat()) }
         Column(Modifier.padding(horizontal = 12.dp, vertical = 2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    state.title ?: if (state.fileCount == 0) "No sounds in that folder" else "Noise",
-                    style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-                )
+                if (state.needsHeadphones) {
+                    Text(
+                        "Connect headphones", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    Text(
+                        state.title ?: if (state.fileCount == 0) "No sounds in that folder" else "Noise",
+                        style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                    )
+                }
+                // The lock: red while it keeps the player quiet (no headphones).
+                androidx.compose.material3.IconButton(onClick = { player.setHeadphoneLock(!settings.headphoneLock) }) {
+                    androidx.compose.material3.Icon(
+                        if (settings.headphoneLock) androidx.compose.material.icons.Icons.Filled.Lock else androidx.compose.material.icons.Icons.Filled.LockOpen,
+                        contentDescription = if (settings.headphoneLock) "Locked to headphones (tap to unlock)" else "Lock to headphones",
+                        tint = when {
+                            !settings.headphoneLock -> MaterialTheme.colorScheme.onSurfaceVariant
+                            state.headphonesConnected -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.error
+                        },
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
                 // On the right: previous, next, then the big play/pause.
                 androidx.compose.material3.IconButton(onClick = player::previous) {
                     androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.SkipPrevious, contentDescription = "Previous", modifier = Modifier.size(28.dp))

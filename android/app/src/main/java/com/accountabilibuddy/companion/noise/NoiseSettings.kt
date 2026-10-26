@@ -9,6 +9,10 @@ package com.accountabilibuddy.companion.noise
  * default): no media session and no audio focus, so other audio such as a YouTube video plays over it.
  * @property widgetButton Play/pause on the home-screen widget (on by default).
  * @property widgetVolume Volume down and up (10 at a time, as the PC's shortcuts) on the widget (on by default).
+ * @property headphoneLock The lock on the player (off by default): it plays only while headphones are connected, and
+ * pauses when the last ones go.
+ * @property stopOnDisconnect Pause when headphones disconnect, locked or not (off by default; separate from "Play when
+ * headphones connect").
  */
 data class NoiseSettings(
     val folderUri: String? = null,
@@ -18,4 +22,6 @@ data class NoiseSettings(
     val systemControls: Boolean = false,
     val widgetButton: Boolean = true,
     val widgetVolume: Boolean = true,
+    val headphoneLock: Boolean = false,
+    val stopOnDisconnect: Boolean = false,
 )

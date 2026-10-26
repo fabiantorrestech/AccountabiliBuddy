@@ -7,4 +7,8 @@ data class NoiseState(
     val title: String? = null,
     val hasFolder: Boolean = false,
     val fileCount: Int = 0,
+    /** Any headphones connected now (wired or Bluetooth audio). */
+    val headphonesConnected: Boolean = false,
+    /** True for a few seconds after Play was refused by the lock: the bar says "Connect headphones". */
+    val needsHeadphones: Boolean = false,
 )
