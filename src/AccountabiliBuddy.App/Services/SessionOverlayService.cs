@@ -303,6 +303,8 @@ public sealed class SessionOverlayService : IDisposable
 
         _window!.SetCorner(settings.Corner);
         _window.KeepOnTop();
+        // Its hint goes back above it (a Windows tooltip would land behind it).
+        _window.KeepHintOnTop();
 
         // Keeps a maximized app's top-right buttons (close, tabs, extensions) clickable, by that app's own distance.
         MaximizedApp? maximized = settings.MoveForMaximizedApps ? _control.MaximizedAppInFront() : null;

@@ -28,6 +28,7 @@ public partial class SessionOverlayWindow : Window
     private static readonly TimeSpan KeyPollInterval = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan MoveSettleDelay = TimeSpan.FromMilliseconds(400);
     private static readonly TimeSpan SlideStep = TimeSpan.FromMilliseconds(15);
+    private static readonly TimeSpan HintDelay = TimeSpan.FromMilliseconds(400);
     private const int EdgeMarginPixels = 16;
 
     // A drop this close to the default corner (display pixels) snaps back into it.
@@ -41,6 +42,7 @@ public partial class SessionOverlayWindow : Window
     private readonly DispatcherTimer _keyPoll;
     private readonly DispatcherTimer _moveSettled;
     private readonly DispatcherTimer _slide;
+    private readonly DispatcherTimer _hintDelay;
     private bool _dragKeysHeld;
     private bool _movedByUser;
 
@@ -84,6 +86,14 @@ public partial class SessionOverlayWindow : Window
     private double _foldedWidthDips;
     private double _foldedHeightDips;
 
+    // Our own hints (OverlayHint.Text), above this window: Windows tooltips end up behind it, as it's put on top every
+    // tick. The control under the pointer that has one, where the pointer is (physical pixels), and whether a press put
+    // the hint away until the pointer moves to another control.
+    private OverlayHintWindow? _hint;
+    private Control? _hintSource;
+    private PixelPoint _hintCursor;
+    private bool _hintPressed;
+
     // Used by the XAML previewer.
     public SessionOverlayWindow()
         : this(null)
@@ -103,6 +113,12 @@ public partial class SessionOverlayWindow : Window
         };
         _slide = new DispatcherTimer { Interval = SlideStep };
         _slide.Tick += (_, _) => SlideTowardTarget();
+        _hintDelay = new DispatcherTimer { Interval = HintDelay };
+        _hintDelay.Tick += (_, _) =>
+        {
+            _hintDelay.Stop();
+            ShowHint();
+        };
         _moveSettled = new DispatcherTimer { Interval = MoveSettleDelay };
         _moveSettled.Tick += (_, _) =>
         {
@@ -137,6 +153,9 @@ public partial class SessionOverlayWindow : Window
             _slide.Stop();
             _keyPoll.Stop();
             _moveSettled.Stop();
+            _hintDelay.Stop();
+            _hint?.Close();
+            _hint = null;
         };
         SizeChanged += (_, _) =>
         {
@@ -384,11 +403,18 @@ public partial class SessionOverlayWindow : Window
         {
             Dispatcher.UIThread.Post(() => SizeToContent = SizeToContent.WidthAndHeight);
         }
+
+        if (change.Property == IsVisibleProperty && !IsVisible)
+        {
+            HideHint();
+        }
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
+        HideHint();
+        _hintPressed = _hintSource is not null;
         // A press on the noise volume slider (or another control) works that control instead of moving the window.
         bool onControl = e.Source is Avalonia.Visual visual
                          && (Avalonia.VisualTree.VisualExtensions.FindAncestorOfType<Slider>(visual, includeSelf: true) is not null
@@ -414,6 +440,7 @@ public partial class SessionOverlayWindow : Window
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
+        TrackHint(e);
         if (_pressToDrag is not PointerPressedEventArgs press)
         {
             return;
@@ -441,6 +468,89 @@ public partial class SessionOverlayWindow : Window
     {
         base.OnPointerReleased(e);
         _pressToDrag = null;
+    }
+
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        ForgetHint();
+    }
+
+    /// <summary>Keeps a showing hint in front of this window (call after <see cref="KeepOnTop"/>).</summary>
+    public void KeepHintOnTop()
+    {
+        _hint?.KeepOnTop();
+    }
+
+    /// <summary>
+    /// The pointer moved (only while Ctrl+Alt is held; otherwise clicks pass through): a hint shows once it rests a
+    /// moment over a control that has one, and follows it while it stays over that control.
+    /// </summary>
+    private void TrackHint(PointerEventArgs e)
+    {
+        _hintCursor = this.PointToScreen(e.GetPosition(this));
+        Control? source = HintSourceOf(e.Source as Visual);
+        if (source != _hintSource)
+        {
+            HideHint();
+            _hintSource = source;
+            _hintPressed = false;
+        }
+
+        if (source is null || _hintPressed)
+        {
+            return;
+        }
+
+        if (_hint is { IsVisible: true })
+        {
+            ShowHint();
+        }
+        else
+        {
+            // It has to rest a moment first: each move starts the wait again.
+            _hintDelay.Stop();
+            _hintDelay.Start();
+        }
+    }
+
+    /// <summary>The nearest control with a hint, from the one under the pointer up; null when none.</summary>
+    private Control? HintSourceOf(Visual? visual)
+    {
+        for (Visual? current = visual; current is not null && current != this; current = Avalonia.VisualTree.VisualExtensions.GetVisualParent(current))
+        {
+            if (current is Control control && !string.IsNullOrEmpty(OverlayHint.GetText(control)))
+            {
+                return control;
+            }
+        }
+
+        return null;
+    }
+
+    private void ShowHint()
+    {
+        if (!_expanded || !IsVisible || _hintSource is not Control source || OverlayHint.GetText(source) is not { Length: > 0 } text)
+        {
+            return;
+        }
+
+        _hint ??= new OverlayHintWindow(_control);
+        _hint.ShowAt(text, _hintCursor);
+    }
+
+    private void HideHint()
+    {
+        _hintDelay.Stop();
+        _hint?.Hide();
+    }
+
+    /// <summary>Hides the hint and forgets the control it was for (the pointer left, or Ctrl+Alt was let go).</summary>
+    private void ForgetHint()
+    {
+        HideHint();
+        _hintSource = null;
+        _hintPressed = false;
     }
 
     private void SlideTowardTarget()
@@ -535,6 +645,11 @@ public partial class SessionOverlayWindow : Window
         }
 
         _expanded = held;
+        if (!held)
+        {
+            ForgetHint();
+        }
+
         viewModel?.SetDragReady(held);
     }
 
