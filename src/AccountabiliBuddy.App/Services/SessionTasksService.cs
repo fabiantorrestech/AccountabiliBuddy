@@ -92,6 +92,15 @@ public sealed class SessionTasksService : IDisposable
         return SetAsync(Current.Add(title, parentId, categoryId));
     }
 
+    /// <summary>
+    /// A task as the very first of the checklist (the shutdown card's "tomorrow's first task"): it takes the first open
+    /// task's category, so grouping keeps it on top.
+    /// </summary>
+    public Task AddFirstAsync(string title)
+    {
+        return SetAsync(Current.AddFirst(title));
+    }
+
     /// <summary>Puts a task in a category (null: no category).</summary>
     public Task SetCategoryAsync(Guid taskId, Guid? categoryId)
     {

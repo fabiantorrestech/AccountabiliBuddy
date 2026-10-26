@@ -9,6 +9,13 @@
          (marked ▸). Move and rename show on hover in the app's lists. Open tasks are grouped under their categories
          (a task's dot changes its category; ↑ ↓ move it within its group). Done tasks sit under a collapsed "Done (n)". -->
     <UserControl.Styles>
+        <!-- A category's header over its tasks; smaller in the on-screen window (the style after it). -->
+        <Style Selector="TextBlock.groupHeader">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
         <Style Selector="TextBlock.compact">
             <Setter Property="FontSize" Value="11" />
         </Style>
@@ -75,12 +82,15 @@
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:ChecklistGroupViewModel">
                     <StackPanel Spacing="2">
-                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0" IsVisible="{Binding ShowsHeader}">
-                            <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" IsVisible="{Binding HasCategory}" />
-                            <TextBlock Text="{Binding Name}" Foreground="{Binding Brush}" FontWeight="SemiBold" FontSize="12"
-                                       IsVisible="{Binding HasCategory}" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" Opacity="0.6" IsVisible="{Binding !HasCategory}" />
-                        </StackPanel>
+                        <!-- A Grid, not a StackPanel, so a long name is cut with "…" (the on-screen window is 200 px). -->
+                        <Grid ColumnDefinitions="Auto,*" Margin="0,4,0,0" IsVisible="{Binding ShowsHeader}">
+                            <Ellipse Width="8" Height="8" Margin="0,0,6,0" Fill="{Binding Brush}" VerticalAlignment="Center" IsVisible="{Binding HasCategory}" />
+                            <TextBlock Grid.Column="1" Classes="groupHeader" Text="{Binding Name}" Foreground="{Binding NameBrush}"
+                                       IsVisible="{Binding HasCategory}"
+                                       Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
+                            <TextBlock Grid.Column="1" Classes="groupHeader" Text="{Binding Name}" Opacity="0.6" IsVisible="{Binding !HasCategory}"
+                                       Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
+                        </Grid>
                         <ItemsControl ItemsSource="{Binding Tasks}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:TaskRowViewModel">

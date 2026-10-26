@@ -80,6 +80,22 @@ public sealed record SessionChecklist(DateTimeOffset? SessionStart, bool MadeBef
         return WithTask(parent, task => task with { DoneAt = null, Subtasks = [.. task.Subtasks, new SessionSubtask(Guid.NewGuid(), trimmed, null)] });
     }
 
+    /// <summary>
+    /// A task put first: in the first open task's category (none when it has none, or the list is empty), at the top of
+    /// the list, so it stays first once grouped. A blank title adds nothing.
+    /// </summary>
+    public SessionChecklist AddFirst(string title)
+    {
+        string trimmed = title.Trim();
+        if (trimmed.Length == 0)
+        {
+            return this;
+        }
+
+        Guid? categoryId = Tasks.FirstOrDefault(task => !task.IsDone)?.CategoryId;
+        return this with { Tasks = [new SessionTask(Guid.NewGuid(), trimmed, null, [], categoryId), .. Tasks] };
+    }
+
     /// <summary>Puts the task <paramref name="taskId"/> in <paramref name="categoryId"/> (null: no category).</summary>
     public SessionChecklist SetCategory(Guid taskId, Guid? categoryId)
     {

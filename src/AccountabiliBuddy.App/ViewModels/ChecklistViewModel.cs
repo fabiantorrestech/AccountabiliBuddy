@@ -15,6 +15,9 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// </summary>
 public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
 {
+    // A category's name on the on-screen window's dark panel: white like its other text, for contrast.
+    private static readonly IBrush CompactHeaderBrush = new SolidColorBrush(Color.Parse("#E6FFFFFF"));
+
     private readonly SessionTasksService _tasks;
     private readonly TimeProvider _time;
     private IReadOnlyList<TaskCategory>? _shownCategories;
@@ -233,7 +236,8 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
         foreach (IGrouping<Guid?, TaskRowViewModel> group in openTasks.GroupBy(row => row.CategoryId))
         {
             TaskRowViewModel first = group.First();
-            OpenGroups.Add(new ChecklistGroupViewModel(first.CategoryName, first.CategoryBrush, first.HasCategory, showsHeaders, group.ToList()));
+            IBrush nameBrush = IsCompact ? CompactHeaderBrush : first.CategoryBrush;
+            OpenGroups.Add(new ChecklistGroupViewModel(first.CategoryName, first.CategoryBrush, nameBrush, first.HasCategory, showsHeaders, group.ToList()));
         }
 
         TaskCategory? currentCategory = categories.FirstOrDefault(category => category.Id == checklist.Shown?.Task.CategoryId);
