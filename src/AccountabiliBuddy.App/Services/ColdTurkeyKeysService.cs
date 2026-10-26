@@ -14,8 +14,10 @@ namespace AccountabiliBuddy.App.Services;
 /// every minute, and when a session, work hours or Pre-Work changes, it works out what is going on, asks
 /// <see cref="ColdTurkeyHold"/> what to run and runs it through Cold Turkey's command line. The password is the app's
 /// (DPAPI-encrypted) and is used only once the user has written down and retyped the spare key; a spare key used
-/// (in Cold Turkey or in Emergency release) releases blocks for today and makes a new key. Document
-/// "coldturkey.keys". Use from the UI thread only.
+/// (in Cold Turkey or in Emergency release) releases blocks for today and makes a new key. A new key can also be asked
+/// for without using the old one (ADR 41): a reason, a retyped code and a 10-minute wait, never during a focus session,
+/// at most twice in 7 days; it re-locks what the old key held and releases nothing. Document "coldturkey.keys". Use
+/// from the UI thread only.
 /// </summary>
 public sealed class ColdTurkeyKeysService : IDisposable
 {
@@ -23,6 +25,18 @@ public sealed class ColdTurkeyKeysService : IDisposable
     private const string KeyAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
     private const int LogMax = 30;
     private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(1);
+
+    /// <summary>ADR 41: how long a request for a new spare key waits.</summary>
+    public static readonly TimeSpan NewKeyWait = TimeSpan.FromMinutes(10);
+
+    /// <summary>ADR 41: new spare keys made in the last 7 days before more are refused.</summary>
+    public const int NewKeysPerWeek = 2;
+
+    private static readonly TimeSpan NewKeyRequestsKept = TimeSpan.FromDays(90);
+
+    // After a re-lock, Cold Turkey's settings are read this many times, this far apart, to see the new lock.
+    private const int LockConfirmReads = 3;
+    private static readonly TimeSpan LockConfirmDelay = TimeSpan.FromSeconds(1);
 
     private readonly ColdTurkeyService _coldTurkey;
     private readonly IColdTurkeyControl _control;
@@ -62,6 +76,8 @@ public sealed class ColdTurkeyKeysService : IDisposable
         _time = time;
         _timer = new DispatcherTimer { Interval = CheckInterval };
         _timer.Tick += (_, _) => CheckSoon();
+        _timer.Tick += (_, _) => _ = FinishNewKeyIfDueAsync();
+        _sessions.StateChanged += (_, _) => Dispatcher.UIThread.Post(() => _ = FinishNewKeyIfDueAsync());
         _sessions.StateChanged += (_, _) => CheckSoon();
     }
 
@@ -104,12 +120,17 @@ public sealed class ColdTurkeyKeysService : IDisposable
         {
             _state = KeysState.Empty;
         }
+
+        // ADR 41: requests for a new key are kept 90 days (saved with the next change).
+        _state = _state with { NewKeyRequests = RecentRequests().ToList() };
     }
 
     public void Start()
     {
         _timer.Start();
         CheckSoon();
+        // A wait that ended while the app was closed finishes now.
+        Dispatcher.UIThread.Post(() => _ = FinishNewKeyIfDueAsync());
     }
 
     public void Dispose()
@@ -135,20 +156,109 @@ public sealed class ColdTurkeyKeysService : IDisposable
         return key;
     }
 
-    /// <summary>The user retyped the shown key: it becomes the password. False when it doesn't match.</summary>
+    /// <summary>
+    /// The user retyped the shown key: it becomes the password. Blocks still locked with an old key (a new key asked
+    /// for, ADR 41) are locked again with the new one at once, so the old key stops working and nothing is released.
+    /// False when it doesn't match, or when the key changed while it was being confirmed (a notice says so).
+    /// </summary>
     public async Task<bool> ConfirmSpareKeyAsync(string typed)
     {
-        string? pending = PendingSpareKey;
+        // Never alongside a check: both run Cold Turkey commands with the password.
+        await WaitForCheckAsync();
+        string? confirmedProtected = _state.ProtectedPending;
+        string? pending = Unprotect(confirmedProtected);
         if (pending is null || !Same(typed, pending))
         {
             return false;
         }
 
-        _state = _state with { ProtectedPassword = _state.ProtectedPending, ProtectedPending = null, KeyConfirmedAt = _time.GetUtcNow() };
-        AddLog("New spare key written down");
-        await SaveAsync();
-        CheckSoon();
-        return true;
+        _checking = true;
+        try
+        {
+            string? old = Unprotect(_state.ProtectedPassword);
+            List<string> relocked = new();
+            if (old is not null)
+            {
+                foreach (string name in _state.PasswordHeld.ToList())
+                {
+                    await _control.StopAsync(name, old);
+                    if (await _control.StartAsync(name, password: pending))
+                    {
+                        relocked.Add(name);
+                    }
+                    else
+                    {
+                        // Left on; the next check holds it again (with a timed lock or the new key).
+                        _state = _state with { PasswordHeld = _state.PasswordHeld.Where(other => other != name).ToList() };
+                        await _control.StartAsync(name);
+                        AddLog($"Couldn't lock {name} with the new key; it's held again at the next check");
+                    }
+                }
+
+                await ConfirmLocksAsync(relocked);
+            }
+
+            // The blocks are locked with the confirmed key now, so it is the password whatever happened meanwhile.
+            bool changed = _state.ProtectedPending != confirmedProtected;
+            _state = _state with
+            {
+                ProtectedPassword = confirmedProtected,
+                ProtectedPending = changed ? _state.ProtectedPending : null,
+                KeyConfirmedAt = _time.GetUtcNow(),
+            };
+            AddLog("New spare key written down");
+            await SaveAsync();
+            if (changed)
+            {
+                Notice?.Invoke(this, ("Spare key", "Another new key was made while this one was confirmed. Write down the key shown now."));
+                return false;
+            }
+
+            return true;
+        }
+        finally
+        {
+            _checking = false;
+            CheckSoon();
+        }
+    }
+
+    /// <summary>
+    /// After re-locking with the new key: Cold Turkey's command line succeeds even when it refuses, and its settings
+    /// may lag, so they're read up to three times a second apart. A block still not shown password-locked stays in
+    /// <c>PasswordHeld</c> (the app will still stop it with the new key; dropping it could leave a lock nobody
+    /// releases) and is logged.
+    /// </summary>
+    private async Task ConfirmLocksAsync(IReadOnlyList<string> relocked)
+    {
+        var unconfirmed = new List<string>(relocked);
+        for (int read = 0; read < LockConfirmReads && unconfirmed.Count > 0; read++)
+        {
+            if (read > 0)
+            {
+                await Task.Delay(LockConfirmDelay);
+            }
+
+            _coldTurkey.RefreshNow();
+            if (_coldTurkey.Blocks is ColdTurkeyBlocks blocks)
+            {
+                unconfirmed.RemoveAll(name => blocks.Blocks.FirstOrDefault(block => block.Name == name) is { PasswordLocked: true });
+            }
+        }
+
+        foreach (string name in relocked)
+        {
+            AddLog(unconfirmed.Contains(name) ? $"Couldn't confirm the lock on {name}" : $"Locked {name} with the new key");
+        }
+    }
+
+    /// <summary>Waits until no check (or confirm, or release) is running Cold Turkey commands.</summary>
+    private async Task WaitForCheckAsync()
+    {
+        while (_checking)
+        {
+            await Task.Delay(100);
+        }
     }
 
     /// <summary>
@@ -158,26 +268,165 @@ public sealed class ColdTurkeyKeysService : IDisposable
     /// </summary>
     public async Task<bool> EmergencyReleaseAsync(string typed)
     {
+        // Never alongside a check or a confirm's re-lock: they run Cold Turkey commands with the password.
+        await WaitForCheckAsync();
         string? password = Unprotect(_state.ProtectedPassword);
         if (password is null || !Same(typed, password))
         {
             return false;
         }
 
-        var released = new HashSet<string>(_state.Released, StringComparer.Ordinal);
-        released.UnionWith(_state.Blocks.Select(block => block.Name));
-        released.UnionWith(_state.PasswordHeld);
-        if (_sessions.State.ProfileId is Guid profile)
+        _checking = true;
+        try
         {
-            released.UnionWith(_coldTurkey.ExpectedFor(profile));
+            var released = new HashSet<string>(_state.Released, StringComparer.Ordinal);
+            released.UnionWith(_state.Blocks.Select(block => block.Name));
+            released.UnionWith(_state.PasswordHeld);
+            if (_sessions.State.ProfileId is Guid profile)
+            {
+                released.UnionWith(_coldTurkey.ExpectedFor(profile));
+            }
+
+            _state = _state with { Released = released.ToList(), ReleasedOn = Today() };
+            AddLog("Emergency release: blocks released for today");
+            await SaveAsync();
+            await CheckCoreAsync();
+            await RotateAsync(keepHeld: false);
+            return true;
+        }
+        finally
+        {
+            _checking = false;
+        }
+    }
+
+    /// <summary>ADR 41: when the asked-for new key arrives (null when none is asked for).</summary>
+    public DateTimeOffset? NewKeyReadyAt => _state.PendingNewKeyAt + NewKeyWait;
+
+    /// <summary>ADR 41: how long until the asked-for new key arrives, by the trusted clock (null when none is asked for).</summary>
+    public TimeSpan? NewKeyTimeLeft => NewKeyReadyAt is DateTimeOffset ready
+        ? TimeSpan.FromTicks(Math.Max(0, (ready - _time.GetUtcNow()).Ticks))
+        : null;
+
+    /// <summary>ADR 41: new spare keys made in the last 7 days.</summary>
+    public int NewKeysThisWeek
+    {
+        get
+        {
+            DateTimeOffset weekAgo = _time.GetUtcNow() - TimeSpan.FromDays(7);
+            return Requests.Count(request => request.MadeAt is DateTimeOffset made && made > weekAgo);
+        }
+    }
+
+    /// <summary>ADR 41: why a new spare key can't be asked for now (null when it can).</summary>
+    public string? NewKeyRefusal
+    {
+        get
+        {
+            if (!HasSpareKey)
+            {
+                return "There's no spare key in use yet, so there's nothing to replace.";
+            }
+
+            if (_state.ProtectedPending is not null)
+            {
+                return "A new spare key is already waiting to be written down.";
+            }
+
+            if (InFocusSession)
+            {
+                return "Not during a focus session, breaks included. End the session first (with its own wait and reason).";
+            }
+
+            if (NewKeysThisWeek >= NewKeysPerWeek)
+            {
+                return $"You've had {NewKeysPerWeek} new spare keys in the last 7 days. Try again later.";
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// ADR 41: asks for a new spare key. Refused without a long enough reason, the right code, during a focus session,
+    /// or when the week's two are used; otherwise the 10-minute wait starts (it survives a restart).
+    /// </summary>
+    /// <returns>Null when the wait started; otherwise why not.</returns>
+    public async Task<string?> RequestNewKeyAsync(string reason, string typedCode, string shownCode)
+    {
+        if (_state.PendingNewKeyAt is not null)
+        {
+            return "A new spare key is already on its way.";
         }
 
-        _state = _state with { Released = released.ToList(), ReleasedOn = Today() };
-        AddLog("Emergency release: blocks released for today");
+        if (NewKeyRefusal is string refusal)
+        {
+            return refusal;
+        }
+
+        if (reason.Trim().Length < PreWorkService.MinReasonLength)
+        {
+            return $"The reason needs at least {PreWorkService.MinReasonLength} characters.";
+        }
+
+        if (!string.Equals(typedCode.Trim(), shownCode, StringComparison.Ordinal))
+        {
+            return "The code doesn't match. Type it exactly as shown.";
+        }
+
+        DateTimeOffset now = _time.GetUtcNow();
+        List<NewKeyRequest> requests = RecentRequests().ToList();
+        requests.Add(new NewKeyRequest(now, Protect(reason.Trim()), null));
+        _state = _state with { NewKeyRequests = requests, PendingNewKeyAt = now };
+        AddLog("New spare key requested");
         await SaveAsync();
-        await CheckAsync();
-        await RotateAsync(keepHeld: false);
+        return null;
+    }
+
+    /// <summary>ADR 41: stops the wait for a new spare key; the current key stays.</summary>
+    public async Task CancelNewKeyAsync()
+    {
+        if (_state.PendingNewKeyAt is null)
+        {
+            return;
+        }
+
+        _state = _state with { PendingNewKeyAt = null };
+        AddLog("New spare key request cancelled");
+        await SaveAsync();
+    }
+
+    /// <summary>
+    /// ADR 41: once the wait is over and no focus session runs (one started meanwhile holds the key until it ends),
+    /// makes the new key to write down and retype. The current key keeps working until the new one is retyped.
+    /// </summary>
+    /// <returns>True when a new key was made.</returns>
+    public async Task<bool> FinishNewKeyIfDueAsync()
+    {
+        DateTimeOffset now = _time.GetUtcNow();
+        // A focus session (breaks included) holds the key until it ends; a confirm in progress is left alone.
+        if (NewKeyReadyAt is not DateTimeOffset ready || now < ready || InFocusSession || _checking)
+        {
+            return false;
+        }
+
+        DateTimeOffset? requestedAt = _state.PendingNewKeyAt;
+        List<NewKeyRequest> requests = Requests
+            .Select(request => request.At == requestedAt ? request with { MadeAt = now } : request)
+            .ToList();
+        _state = _state with { NewKeyRequests = requests, PendingNewKeyAt = null };
+        AddLog("New spare key made");
+        await NewSpareKeyAsync();
+        SpareKeyNeeded?.Invoke(this, EventArgs.Empty);
         return true;
+    }
+
+    private IReadOnlyList<NewKeyRequest> Requests => _state.NewKeyRequests ?? new List<NewKeyRequest>();
+
+    private IEnumerable<NewKeyRequest> RecentRequests()
+    {
+        DateTimeOffset oldest = _time.GetUtcNow() - NewKeyRequestsKept;
+        return Requests.Where(request => request.At > oldest);
     }
 
     /// <summary>Runs a check soon (on the UI thread).</summary>
@@ -185,7 +434,26 @@ public sealed class ColdTurkeyKeysService : IDisposable
 
     private async Task CheckAsync()
     {
-        if (_checking || !_control.IsAvailable)
+        if (_checking)
+        {
+            return;
+        }
+
+        _checking = true;
+        try
+        {
+            await CheckCoreAsync();
+        }
+        finally
+        {
+            _checking = false;
+        }
+    }
+
+    /// <summary>The check itself; the caller holds the <c>_checking</c> guard.</summary>
+    private async Task CheckCoreAsync()
+    {
+        if (!_control.IsAvailable)
         {
             return;
         }
@@ -196,70 +464,62 @@ public sealed class ColdTurkeyKeysService : IDisposable
             return;
         }
 
-        _checking = true;
-        try
+        DateTime now = TimeZoneInfo.ConvertTime(_time.GetUtcNow(), _time.LocalTimeZone).DateTime;
+        if (_state.ReleasedOn != Today())
         {
-            DateTime now = TimeZoneInfo.ConvertTime(_time.GetUtcNow(), _time.LocalTimeZone).DateTime;
-            if (_state.ReleasedOn != Today())
-            {
-                _state = _state with { Released = new List<string>(), ReleasedOn = Today() };
-            }
+            _state = _state with { Released = new List<string>(), ReleasedOn = Today() };
+        }
 
-            HoldWindows windows = Windows(now);
-            // Password locks need a written-down spare key and Cold Turkey Pro; otherwise timed locks.
-            bool passwordReady = HasSpareKey && blocks.IsPro;
-            IReadOnlyDictionary<string, string> wanted = ColdTurkeyHold.Wanted(_state.Blocks, windows, passwordReady);
-            // Blocks seen on outside the app's windows are what a day without a chosen list turns back on.
-            var known = new HashSet<string>(_state.Known, StringComparer.Ordinal);
-            known.UnionWith(blocks.Blocks.Where(b => b.IsSwitchedOn && !wanted.ContainsKey(b.Name)).Select(b => b.Name));
+        HoldWindows windows = Windows(now);
+        // Password locks need a written-down spare key and Cold Turkey Pro; otherwise timed locks.
+        bool passwordReady = HasSpareKey && blocks.IsPro;
+        IReadOnlyDictionary<string, string> wanted = ColdTurkeyHold.Wanted(_state.Blocks, windows, passwordReady);
+        // Blocks seen on outside the app's windows are what a day without a chosen list turns back on.
+        var known = new HashSet<string>(_state.Known, StringComparer.Ordinal);
+        known.UnionWith(blocks.Blocks.Where(b => b.IsSwitchedOn && !wanted.ContainsKey(b.Name)).Select(b => b.Name));
 
-            DateTime lastRun = _state.LastRun is DateTimeOffset last
-                ? TimeZoneInfo.ConvertTime(last, _time.LocalTimeZone).DateTime
-                : now;
-            if (lastRun < now.AddDays(-1))
-            {
-                lastRun = now.AddDays(-1);
-            }
+        DateTime lastRun = _state.LastRun is DateTimeOffset last
+            ? TimeZoneInfo.ConvertTime(last, _time.LocalTimeZone).DateTime
+            : now;
+        if (lastRun < now.AddDays(-1))
+        {
+            lastRun = now.AddDays(-1);
+        }
 
-            IReadOnlyList<BlockRearm.Event> rearm = Array.Empty<BlockRearm.Event>();
-            if (!_state.RearmOff && _deviceId() is Guid device && lastRun < now)
+        IReadOnlyList<BlockRearm.Event> rearm = Array.Empty<BlockRearm.Event>();
+        if (!_state.RearmOff && _deviceId() is Guid device && lastRun < now)
+        {
+            string me = BlockRef.Pc(device);
+            rearm = BlockRearm.Between(_plan(), me, lastRun, now);
+            foreach (BlockRearm.Event warning in BlockRearm.WarningsBetween(_plan(), me, lastRun, now))
             {
-                string me = BlockRef.Pc(device);
-                rearm = BlockRearm.Between(_plan(), me, lastRun, now);
-                foreach (BlockRearm.Event warning in BlockRearm.WarningsBetween(_plan(), me, lastRun, now))
+                List<string> off = (warning.Blocks?.Select(b => b.Id) ?? known.Where(name => warning.Except?.Any(b => b.Id == name) != true))
+                    .Where(name => blocks.Blocks.Any(b => b.Name == name && !b.IsSwitchedOn)).ToList();
+                if (off.Count > 0 && warning.At > now)
                 {
-                    List<string> off = (warning.Blocks?.Select(b => b.Id) ?? known.Where(name => warning.Except?.Any(b => b.Id == name) != true))
-                        .Where(name => blocks.Blocks.Any(b => b.Name == name && !b.IsSwitchedOn)).ToList();
-                    if (off.Count > 0 && warning.At > now)
-                    {
-                        Notice?.Invoke(this, ($"Blocks come back on at {warning.At:h:mm tt}", string.Join(", ", off)));
-                    }
+                    Notice?.Invoke(this, ($"Blocks come back on at {warning.At:h:mm tt}", string.Join(", ", off)));
                 }
             }
-
-            var memory = new HoldMemory(_state.PasswordHeld.ToHashSet(StringComparer.Ordinal), _state.Released.ToHashSet(StringComparer.Ordinal), known);
-            IReadOnlyList<ColdTurkeyAction> actions = ColdTurkeyHold.Plan(now, _state.Blocks, windows, blocks, memory, passwordReady, rearm);
-            _state = _state with { Known = known.ToList(), LastRun = _time.GetUtcNow() };
-            bool rotate = false;
-            foreach (ColdTurkeyAction action in actions)
-            {
-                rotate |= await RunAsync(action);
-            }
-
-            if (actions.Count > 0)
-            {
-                _coldTurkey.RefreshNow();
-            }
-
-            await SaveAsync();
-            if (rotate)
-            {
-                await RotateAsync(keepHeld: false);
-            }
         }
-        finally
+
+        var memory = new HoldMemory(_state.PasswordHeld.ToHashSet(StringComparer.Ordinal), _state.Released.ToHashSet(StringComparer.Ordinal), known);
+        IReadOnlyList<ColdTurkeyAction> actions = ColdTurkeyHold.Plan(now, _state.Blocks, windows, blocks, memory, passwordReady, rearm);
+        _state = _state with { Known = known.ToList(), LastRun = _time.GetUtcNow() };
+        bool rotate = false;
+        foreach (ColdTurkeyAction action in actions)
         {
-            _checking = false;
+            rotate |= await RunAsync(action);
+        }
+
+        if (actions.Count > 0)
+        {
+            _coldTurkey.RefreshNow();
+        }
+
+        await SaveAsync();
+        if (rotate)
+        {
+            await RotateAsync(keepHeld: false);
         }
     }
 
@@ -335,16 +595,26 @@ public sealed class ColdTurkeyKeysService : IDisposable
             }
         }
 
-        _state = _state with { PasswordHeld = new List<string>(), ProtectedPassword = null, KeyConfirmedAt = null };
+        // A new key asked for (ADR 41) is moot: this one replaces it.
+        if (_state.PendingNewKeyAt is not null)
+        {
+            AddLog("New spare key request replaced by the key made after the spare key was used");
+        }
+
+        _state = _state with { PasswordHeld = new List<string>(), ProtectedPassword = null, KeyConfirmedAt = null, PendingNewKeyAt = null };
         await NewSpareKeyAsync();
         _coldTurkey.RefreshNow();
         SpareKeyNeeded?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>A focus session the user started is running, breaks included (what the keys are held for).</summary>
+    private bool InFocusSession =>
+        _sessions.State.IsActive && _sessions.State.Mode is SessionMode.Manual or SessionMode.Pomodoro;
+
     private HoldWindows Windows(DateTime now)
     {
         SessionState session = _sessions.State;
-        bool focus = session.IsActive && session.Mode is SessionMode.Manual or SessionMode.Pomodoro;
+        bool focus = InFocusSession;
         IReadOnlyCollection<string> sessionBlocks = focus && session.ProfileId is Guid profile
             ? _coldTurkey.ExpectedFor(profile).ToList()
             : Array.Empty<string>();
@@ -405,7 +675,10 @@ public sealed class ColdTurkeyKeysService : IDisposable
         }
     }
 
-    /// <summary>The saved state: assignments, the key (current and pending, DPAPI), what's held and released, the log.</summary>
+    /// <summary>
+    /// The saved state: assignments, the key (current and pending, DPAPI), what's held and released, the log, and the
+    /// requests for a new key (ADR 41) with the wait under way.
+    /// </summary>
     private sealed record KeysState(
         List<HeldBlock> Blocks,
         string? ProtectedPassword,
@@ -417,8 +690,13 @@ public sealed class ColdTurkeyKeysService : IDisposable
         List<string> Known,
         DateTimeOffset? LastRun,
         List<string> Log,
-        bool RearmOff = false)
+        bool RearmOff = false,
+        List<NewKeyRequest>? NewKeyRequests = null,
+        DateTimeOffset? PendingNewKeyAt = null)
     {
         public static KeysState Empty { get; } = new(new(), null, null, null, new(), null, new(), new(), null, new());
     }
+
+    /// <summary>ADR 41: a request for a new spare key, its reason DPAPI-encrypted, kept 90 days; MadeAt once the key came.</summary>
+    private sealed record NewKeyRequest(DateTimeOffset At, string? ProtectedReason, DateTimeOffset? MadeAt);
 }

@@ -42,6 +42,9 @@
                         <Button Grid.Column="1" Content="Check again" Command="{Binding DetectColdTurkeyCommand}" VerticalAlignment="Top" />
                     </Grid>
                     <TextBlock Text="{Binding ColdTurkeyDetails}" Classes="muted" IsVisible="{Binding IsColdTurkeyInstalled}" />
+                    <!-- ADR 41: lost the spare key? A new one takes a reason and a 10-minute wait, and releases nothing. -->
+                    <Button Content="Get a new spare key…" Command="{Binding NewSpareKeyCommand}" HorizontalAlignment="Left"
+                            IsVisible="{Binding IsColdTurkeyInstalled}" />
 
                     <TextBlock Text="Sites Cold Turkey was seen blocking" FontWeight="SemiBold" Margin="0,6,0,0" />
                     <TextBlock Classes="muted"

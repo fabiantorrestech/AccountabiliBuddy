@@ -84,6 +84,12 @@ public sealed partial class IntegrationsViewModel : ObservableObject
 
     private bool CanImport => SelectedProfile is not null && !string.IsNullOrWhiteSpace(ImportText);
 
+    /// <summary>Get a new spare key for the Cold Turkey keys the app holds (ADR 41); set by the app.</summary>
+    public Action? ShowNewSpareKey { get; set; }
+
+    [RelayCommand]
+    private void NewSpareKey() => ShowNewSpareKey?.Invoke();
+
     [RelayCommand]
     private void DetectColdTurkey()
     {
