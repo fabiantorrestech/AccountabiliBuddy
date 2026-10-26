@@ -108,6 +108,7 @@ public partial class App : Application
     private CaptureService? _capture;
     private WorkGateService? _workGate;
     private WorkGateWindow? _workGateWindow;
+    private StartNudgeCardWindow? _startNudgeCardWindow;
     private PreWorkService? _preWork;
     private PreWorkWindow? _preWorkWindow;
     private Win32GlobalHotkey? _stepAwayHotkey;
@@ -400,10 +401,11 @@ public partial class App : Application
         _hyperfocus = new HyperfocusGuard(_sessions, documents, (title, message) =>
             presenter.ShowReminder(title, message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A9D8F"))));
         _hyperfocus.LoadBlocking();
-        // Steer toward starting: Today with the task box ready when work starts, at launch, and on coming back.
-        _startNudge = new StartNudgeService(_sessions, _configuration, new Win32UserIdleDetector(), documents);
+        // Steer toward starting: Today with the task box ready when the user arrives in a work part, then the card.
+        _startNudge = new StartNudgeService(_sessions, _configuration, new Win32UserIdleDetector(), documents,
+            new StartNudgeCardLog(documents, new DpapiDataProtector()));
         _startNudge.LoadBlocking();
-        // After a session and on the repeat, the nudge only flashes the taskbar button (never takes focus).
+        // After a session the nudge only flashes the taskbar button (never takes focus).
         _windowAttention = new WindowsWindowAttention();
         // Flexible lunch (schema v8): Start lunch any time in its window, on any device; one chime when it's over.
         _lunch = new LunchService(_sessions, _configuration, documents,
@@ -422,16 +424,21 @@ public partial class App : Application
         // The gate: reaching for a dev tool once work starts, or after 3 idle minutes, asks what you were about to do (ADR 28).
         _workGate = new WorkGateService(_workHours, new Win32UserIdleDetector(), _comebacks, _sessions);
         // Lights out (design K, opt-in): lock or sleep at each work part's start and after 3 idle minutes.
+        Func<bool> inCalendarEvent = () =>
+        {
+            DateTime now = time.GetLocalNow().DateTime;
+            return calendars.EventsOn(DateOnly.FromDateTime(now)).Any(entry => !entry.Event.IsAllDay && entry.Event.LocalStart <= now && now < entry.Event.LocalEnd);
+        };
         _lightsOut = new LightsOutService(
             documents, _workHours, _sessions, new Win32UserIdleDetector(), new AccountabiliBuddy.Platform.Windows.Activity.Win32ComputerLock(),
-            inCalendarEvent: () =>
-            {
-                DateTime now = time.GetLocalNow().DateTime;
-                return calendars.EventsOn(DateOnly.FromDateTime(now)).Any(entry => !entry.Event.IsAllDay && entry.Event.LocalStart <= now && now < entry.Event.LocalEnd);
-            },
+            inCalendarEvent: inCalendarEvent,
             isLocalOnly: () => _computerTypes?.Current == AccountabiliBuddy.App.Services.Setup.ComputerType.LocalOnly);
         _lightsOut.LoadBlocking();
         _workGate.Changed += (_, _) => ShowWorkGate(monitorLocator);
+        // The start nudge's card: never in a calendar event or once today's goal is met.
+        _startNudge.InCalendarEvent = inCalendarEvent;
+        _startNudge.IsGoalMet = () => _deepWork?.Progress.Met == true;
+        _startNudge.CardChanged += (_, _) => ShowStartNudgeCard(monitorLocator);
         // ADR 31: Pre-Work parts ask whether today is a work day, then hold work tools and distractions back.
         _preWork = new PreWorkService(
             _sessions, _configuration, documents, new DpapiDataProtector(), new Win32UserIdleDetector(), windowsEnforcer,
@@ -984,12 +991,12 @@ public partial class App : Application
         mainViewModel.NoisePlayer = noisePlayer;
         mainViewModel.Settings.OpenDayPlan = () => mainViewModel.SelectedTab = MainWindowViewModel.DayPlanTab;
         _mainWindow = new MainWindow { DataContext = mainViewModel };
-        // The start nudge: Today, with the keyboard in "Add a task". After a session and on the repeat the user may be
-        // typing elsewhere, so the window stays where it is and only its taskbar button flashes.
+        // The start nudge: Today, with the keyboard in "Add a task". After a session the user may be typing elsewhere,
+        // so the window stays where it is and only its taskbar button flashes.
         _startNudge!.Due += (_, reason) =>
         {
             mainViewModel.SelectedTab = (int)MainTab.Today;
-            if (reason is StartNudgeReason.SessionEnded or StartNudgeReason.Repeat)
+            if (reason is StartNudgeReason.SessionEnded)
             {
                 ShowMainWindowQuietly();
                 return;
@@ -1402,6 +1409,43 @@ public partial class App : Application
         }
 
         _workGateWindow = window;
+        window.Show();
+        window.Activate();
+    }
+
+    /// <summary>Shows or closes the start nudge's card, like the work-hours gate, as the service opens or closes it.</summary>
+    private void ShowStartNudgeCard(IMonitorLocator monitors)
+    {
+        StartNudgeCardViewModel? card = _startNudge?.Card;
+        if (card is null)
+        {
+            StartNudgeCardWindow? open = _startNudgeCardWindow;
+            _startNudgeCardWindow = null;
+            open?.Close();
+            return;
+        }
+
+        if (_startNudgeCardWindow is not null)
+        {
+            return;
+        }
+
+        var window = new StartNudgeCardWindow { DataContext = card };
+        window.Closed += (_, _) =>
+        {
+            if (_startNudgeCardWindow == window)
+            {
+                // Closed some other way: it opens again at the next check.
+                _startNudgeCardWindow = null;
+                _startNudge?.CardWindowClosed();
+            }
+        };
+        if (monitors.Find(monitors.FindMonitorUnderCursor()) is MonitorArea area)
+        {
+            MonitorPlacement.Center(window, area);
+        }
+
+        _startNudgeCardWindow = window;
         window.Show();
         window.Activate();
     }

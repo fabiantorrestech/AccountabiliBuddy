@@ -1,0 +1,25 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.StartNudgeCardWindow"
+        x:DataType="vm:StartNudgeCardViewModel"
+        Title="No session yet"
+        Width="560" SizeToContent="Height"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="True"
+        WindowStartupLocation="Manual">
+    <!-- The start nudge's card: 5 minutes after arriving in a work part with no session, then every few minutes. -->
+    <Border Padding="24,20" Background="#FF15191E" BorderBrush="#AA2A9D8F" BorderThickness="2" CornerRadius="10">
+        <StackPanel Spacing="12">
+            <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding UntilText}" Opacity="0.85" />
+            <TextBlock Text="{Binding Question}" TextWrapping="Wrap" Opacity="0.85" />
+            <TextBox Text="{Binding Reason}" PlaceholderText="Not now because… (e.g. stand-up call)" />
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <Button Grid.Column="1" Content="Not now" Command="{Binding NotNowCommand}" Margin="0,0,8,0" />
+                <Button Grid.Column="2" Content="Start" Command="{Binding StartCommand}" Classes="accent" />
+            </Grid>
+            <TextBlock Text="The reason stays on this computer, sealed, for 14 days." FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+        </StackPanel>
+    </Border>
+</Window>

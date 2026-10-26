@@ -15,7 +15,7 @@ public sealed partial class StartNudgeViewModel : ObservableObject
         RepeatIndex = Math.Max(0, Array.IndexOf(RepeatChoices, nudge.Settings.RepeatMinutes));
     }
 
-    /// <summary>"Nudge again every": 5, 10 or 15 minutes, or only once (0).</summary>
+    /// <summary>"Ask again every": 5, 10 or 15 minutes, or one card only (0).</summary>
     public static int[] RepeatChoices { get; } = [5, 10, 15, 0];
 
     public static IReadOnlyList<string> RepeatNames { get; } = ["5 minutes", "10 minutes", "15 minutes", "Only once"];

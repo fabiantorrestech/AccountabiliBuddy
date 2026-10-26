@@ -249,13 +249,13 @@
                             <mi:MaterialIcon Kind="CompassOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
                             <TextBlock Text="Steer me to start" Classes="sectionTitle" />
                         </StackPanel>
-                        <CheckBox IsChecked="{Binding IsOn}" Content="During work parts with no session, open Today with the task box ready" />
+                        <CheckBox IsChecked="{Binding IsOn}" Content="During work parts with no session, open Today with the task box ready when I arrive" />
                         <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,0,0,0">
-                            <TextBlock Text="Nudge again every" VerticalAlignment="Center" />
+                            <TextBlock Text="Ask again every" VerticalAlignment="Center" />
                             <ComboBox ItemsSource="{x:Static vm:StartNudgeViewModel.RepeatNames}" SelectedIndex="{Binding RepeatIndex}" MinWidth="140" />
                         </StackPanel>
                         <TextBlock Opacity="0.75" TextWrapping="Wrap"
-                                   Text="When a work part starts, when the app starts during one, when you come back after 10 minutes away, and again every few minutes until a session starts. Never during a session; the on-screen window says it in amber meanwhile." />
+                                   Text="It starts when you arrive: your first input in a work part, or after 10 minutes away. 5 minutes later with still no session, a card in front of everything asks you to start, or to say why not now (kept sealed on this computer for 14 days), and comes back until a session starts. Never during a session, a calendar event, a day off or once today's goal is met." />
                     </StackPanel>
                     </Border>
                     <!-- ADR 27: a personal computer can hold dev tools during the plan's work parts. -->
