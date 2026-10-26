@@ -80,6 +80,8 @@ object SectionIcons {
         "Come back to" to Icons.Outlined.Flag,
         "Tasks" to Icons.Outlined.TaskAlt,
         "Lunch" to Icons.Outlined.Restaurant,
+        "Timers" to Icons.Outlined.Timer,
+        "Alarms" to Icons.Outlined.Alarm,
         "Not working today" to Icons.Outlined.BeachAccess,
         "More options" to Icons.Outlined.Tune,
         "Test session" to Icons.Outlined.Science,

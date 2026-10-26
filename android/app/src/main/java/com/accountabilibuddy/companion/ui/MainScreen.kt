@@ -202,6 +202,9 @@ fun MainScreen(
                     },
                     runningTasks = runningTasks,
                     comebacks = comebacks,
+                    timersCard = {
+                        TimersCard((context.applicationContext as com.accountabilibuddy.companion.CompanionApp).timers, viewModel.clock)
+                    },
                 )
                 }
                 1 -> ProfilesScreen(

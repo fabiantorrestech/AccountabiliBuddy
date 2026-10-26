@@ -26,6 +26,12 @@ class RefreshReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        // Timers and alarms are set again after a reboot, an update or a clock change, whatever "Start when the phone
+        // turns on" says (Android drops alarms at a reboot).
+        if (intent.action != ACTION_DISMISSED) {
+            val clockChanged = intent.action == Intent.ACTION_TIME_CHANGED || intent.action == Intent.ACTION_TIMEZONE_CHANGED
+            runCatching { com.accountabilibuddy.companion.timers.TimerScheduler.restore(context.applicationContext, clockChanged) }
+        }
         if (intent.action == Intent.ACTION_BOOT_COMPLETED && !StartOnBoot.isOn(context)) {
             return
         }

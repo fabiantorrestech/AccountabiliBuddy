@@ -19,6 +19,12 @@ object Channels {
     const val WORK_NUDGE = "work_nudge"
     const val PARKED = "parked"
 
+    /** A running timer's countdown and bar (one notification per timer). */
+    const val TIMERS = "timers"
+
+    /** A timer that's up or an alarm that rings; the ringer plays its own sound and vibration. */
+    const val TIMER_RING = "timer_ring"
+
     /** "Blocks come back on in 5 min" before the block rules turn blocks back on (ADR 37). */
     const val BLOCKS = "blocks"
 
@@ -59,6 +65,8 @@ object Channels {
             },
         )
         manager.createNotificationChannel(silent(PARKED, "Phone parked", "While a focus session runs on your computer", NotificationManager.IMPORTANCE_LOW))
+        manager.createNotificationChannel(silent(TIMERS, "Timers", "A countdown for each running timer", NotificationManager.IMPORTANCE_LOW))
+        manager.createNotificationChannel(silent(TIMER_RING, "Timers and alarms ringing", "A timer that's up or an alarm that rings", NotificationManager.IMPORTANCE_HIGH))
     }
 
     private fun silent(id: String, name: String, description: String, importance: Int) =

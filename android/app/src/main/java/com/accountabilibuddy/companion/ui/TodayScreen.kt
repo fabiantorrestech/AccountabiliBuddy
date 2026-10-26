@@ -68,6 +68,8 @@ fun TodayScreen(
     runningTasks: com.accountabilibuddy.companion.sync.RunningTasks? = null,
     /** The PC's open come-backs (ADR 30); null hides the card. */
     comebacks: com.accountabilibuddy.companion.sync.OpenComebacks? = null,
+    /** The phone's own timers and alarms. */
+    timersCard: @Composable () -> Unit = {},
 ) {
     val dark = isSystemInDarkTheme()
     val now = LocalDateTime.now()
@@ -130,6 +132,7 @@ fun TodayScreen(
         comebacks?.let { list ->
             item { ComebacksCard(list) }
         }
+        item { timersCard() }
         item { SleepCard(state, clock, health, onConnectHealth, onRefreshSleep) }
         item { PhoneCard(phoneUsage, onAllowUsage) }
 

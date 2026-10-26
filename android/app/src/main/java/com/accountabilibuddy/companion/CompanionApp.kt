@@ -79,6 +79,9 @@ class CompanionApp : Application() {
     /** Today's flexible lunch, the same on every device (schema v8). */
     val lunch by lazy { com.accountabilibuddy.companion.lunch.LunchStore(this) }
 
+    /** The phone's own timers and alarms (V1, never leave the phone). */
+    val timers by lazy { com.accountabilibuddy.companion.timers.TimersStore(this) }
+
     /** A test session to try the phone's settings (Today → More options); never counted, synced or sent to the watch. */
     val testSession by lazy { com.accountabilibuddy.companion.session.TestSession(this).also { it.onChanged = ::refreshSoon } }
 
