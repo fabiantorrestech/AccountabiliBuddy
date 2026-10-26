@@ -280,7 +280,7 @@ public sealed class SessionOverlayService : IDisposable
         }
 
         DateTime localNow = TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime;
-        _viewModel.Update(showsTimer, showsTimeline, showsSleep, doneText, localNow, settings);
+        _viewModel.Update(showsTimer, showsTimeline, showsSleep, doneText, localNow, settings, state.IsActive);
         _lastShownAt = _sessions.Now;
 
         if (_window is { IsLost: true })

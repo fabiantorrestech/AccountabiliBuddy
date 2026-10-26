@@ -520,6 +520,107 @@
                                    Text="Pages fade and slide in when you open a tab, cards ease their colour and progress bars glide. Off shows every change at once." />
                     </StackPanel>
                     </Border>
+                    <Border Classes="card" search:SearchArea.Name="Sounds when time is up">
+                    <StackPanel Spacing="6">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="BellRingOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Sounds when time is up" Classes="sectionTitle" />
+                        </StackPanel>
+                        <TextBlock Text="Played when focus or a break runs out (not when you end a session yourself), also while the on-screen window is hidden. Can be saved during focus too."
+                                   Opacity="0.75" TextWrapping="Wrap" />
+                        <Grid ColumnDefinitions="240,Auto,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="8">
+                            <TextBlock Grid.Row="0" Text="When focus is up (break or end)" VerticalAlignment="Center" />
+                            <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding SoundChoices}" SelectedItem="{Binding FocusEndSound}" MinWidth="220">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="services:SoundChoice">
+                                        <TextBlock Text="{Binding Name}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <Button Grid.Row="0" Grid.Column="2" Content="Test" Command="{Binding TestFocusEndSoundCommand}" />
+                            <TextBlock Grid.Row="1" Text="When a break is up" VerticalAlignment="Center" />
+                            <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding SoundChoices}" SelectedItem="{Binding BreakEndSound}" MinWidth="220">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="services:SoundChoice">
+                                        <TextBlock Text="{Binding Name}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <Button Grid.Row="1" Grid.Column="2" Content="Test" Command="{Binding TestBreakEndSoundCommand}" />
+                            <TextBlock Grid.Row="2" Text="Volume (built-in chimes)" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
+                                <Slider Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding SoundVolume}" Width="200" />
+                                <TextBlock Text="{Binding SoundVolume, StringFormat={}{0:0}%}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Add a .wav file…" Command="{Binding AddSoundFileCommand}" />
+                            <TextBlock Text="{Binding SoundStatus}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </StackPanel>
+                    </Border>
+                    <Border Classes="card" search:SearchArea.Name="Noise player">
+                    <StackPanel Spacing="6" IsVisible="{Binding HasNoisePlayer}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="MusicNote" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Noise player" Classes="sectionTitle" />
+                        </StackPanel>
+                        <TextBlock Text="The player at the bottom left plays the sound files of this folder in name order (mp3, wav, m4a, aac, flac, wma). Folder changes apply at once."
+                                   Opacity="0.75" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding NoiseFolderText}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Choose folder…" Command="{Binding ChooseNoiseFolderCommand}" />
+                            <Button Content="Use Music\Noise" Command="{Binding UseMusicNoiseFolderCommand}" />
+                            <Button Content="Look for new files" Command="{Binding RescanNoiseFolderCommand}" />
+                        </StackPanel>
+                        <TextBlock Text="Shortcuts work anywhere: click a box and press the keys (Ctrl, Alt or Win plus a letter, number, F-key, Space, an arrow or Page Up/Down); Backspace clears it."
+                                   Opacity="0.75" TextWrapping="Wrap" Margin="0,6,0,0" />
+                        <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="6">
+                            <TextBlock Text="Play / pause" VerticalAlignment="Center" />
+                            <controls:HotkeyBox Grid.Column="1" Text="{Binding NoisePlayPauseKey}" Width="220" />
+                            <TextBlock Grid.Row="1" Text="Volume up 10%" VerticalAlignment="Center" />
+                            <controls:HotkeyBox Grid.Row="1" Grid.Column="1" Text="{Binding NoiseVolumeUpKey}" Width="220" />
+                            <TextBlock Grid.Row="2" Text="Volume down 10%" VerticalAlignment="Center" />
+                            <controls:HotkeyBox Grid.Row="2" Grid.Column="1" Text="{Binding NoiseVolumeDownKey}" Width="220" />
+                        </Grid>
+                        <CheckBox Content="The keyboard's media keys and Windows' media pop-up also control the noise" IsChecked="{Binding NoiseMediaKeys}" />
+                        <TextBlock Text="{Binding NoiseKeysStatus}" TextWrapping="Wrap"
+                                   IsVisible="{Binding NoiseKeysStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+                    </Border>
+                    <Border Classes="card" search:SearchArea.Name="Play when headphones connect" IsVisible="{Binding HasHeadphones}">
+                    <StackPanel Spacing="6" DataContext="{Binding Headphones}" x:DataType="vm:HeadphoneSettingsViewModel">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="Headphones" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                            <TextBlock Text="Play when headphones connect" Classes="sectionTitle" />
+                        </StackPanel>
+                        <TextBlock Text="The noise player starts its last file when these headphones connect, any time of day, and pauses when they disconnect. Changes apply at once."
+                                   Opacity="0.75" TextWrapping="Wrap" />
+                        <Border Background="#1FF59E0B" BorderBrush="#66F59E0B" BorderThickness="1" CornerRadius="6" Padding="10,6">
+                            <TextBlock Text="Tip: it really helps to have a dedicated pair of work/focus headphones, so putting them on means focus and it doesn't get in the way of your normal headphones."
+                                       TextWrapping="Wrap" />
+                        </Border>
+                        <CheckBox IsChecked="{Binding Wired}" Content="Wired headphones or a headset (USB always works; a headphone jack only if your sound driver reports it)" />
+                        <CheckBox IsChecked="{Binding Bluetooth}" Content="These Bluetooth headphones:" />
+                        <StackPanel Margin="28,0,0,0" Spacing="4" IsVisible="{Binding Bluetooth}">
+                            <ItemsControl ItemsSource="{Binding Devices}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:HeadphoneChoiceViewModel">
+                                        <CheckBox IsChecked="{Binding IsChosen}" Content="{Binding Name}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding Status}" Opacity="0.75" TextWrapping="Wrap"
+                                       IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            <Button Content="Look again" Command="{Binding RefreshDevicesCommand}" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Spacing="16" IsVisible="{Binding Groups[3].IsSelected}"
+                            search:SearchArea.Name="Overlay" search:SearchArea.SettingsGroup="3">
+                    <StackPanel Orientation="Horizontal" Spacing="10"><mi:MaterialIcon Kind="LayersOutline" Width="22" Height="22" VerticalAlignment="Center" Opacity="0.85" /><TextBlock Text="Overlay" Classes="groupTitle" /></StackPanel>
                     <Border Classes="card" search:SearchArea.Name="On-screen timer">
                     <StackPanel Spacing="6">
                         <StackPanel Orientation="Horizontal" Spacing="8">
@@ -651,6 +752,21 @@
                             <RadioButton GroupName="timelineInFocus" IsChecked="{Binding !TimelineStaysInFocus}" Content="Swap: the timer takes the timeline's place until the session ends" />
                             <RadioButton GroupName="timelineInFocus" IsChecked="{Binding TimelineStaysInFocus}" Content="Show both: timeline on top, timer under it" />
                             <CheckBox IsChecked="{Binding TimelineShowsTime}" Content="Show the current time" />
+                            <TextBlock Text="While no session runs (in a session the timer's opacity applies)" Margin="0,4,0,0" />
+                            <Grid ColumnDefinitions="240,Auto" RowDefinitions="Auto,Auto" RowSpacing="6">
+                                <TextBlock Grid.Row="0" Text="Opacity" VerticalAlignment="Center" />
+                                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                    <Slider Minimum="20" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
+                                            Value="{Binding TimelineOpacityPercent}" Width="200" />
+                                    <TextBlock Text="{Binding TimelineOpacityPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <TextBlock Grid.Row="1" Text="Opacity while Ctrl+Alt is held" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                    <Slider Minimum="20" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
+                                            Value="{Binding TimelineHeldOpacityPercent}" Width="200" />
+                                    <TextBlock Text="{Binding TimelineHeldOpacityPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button Content="Reset position" Command="{Binding ResetTimerPositionCommand}" />
@@ -658,106 +774,10 @@
                         </StackPanel>
                     </StackPanel>
                     </Border>
-                    <Border Classes="card" search:SearchArea.Name="Sounds when time is up">
-                    <StackPanel Spacing="6">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <mi:MaterialIcon Kind="BellRingOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
-                            <TextBlock Text="Sounds when time is up" Classes="sectionTitle" />
-                        </StackPanel>
-                        <TextBlock Text="Played when focus or a break runs out (not when you end a session yourself), also while the on-screen window is hidden. Can be saved during focus too."
-                                   Opacity="0.75" TextWrapping="Wrap" />
-                        <Grid ColumnDefinitions="240,Auto,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="8">
-                            <TextBlock Grid.Row="0" Text="When focus is up (break or end)" VerticalAlignment="Center" />
-                            <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding SoundChoices}" SelectedItem="{Binding FocusEndSound}" MinWidth="220">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate x:DataType="services:SoundChoice">
-                                        <TextBlock Text="{Binding Name}" />
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                            <Button Grid.Row="0" Grid.Column="2" Content="Test" Command="{Binding TestFocusEndSoundCommand}" />
-                            <TextBlock Grid.Row="1" Text="When a break is up" VerticalAlignment="Center" />
-                            <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding SoundChoices}" SelectedItem="{Binding BreakEndSound}" MinWidth="220">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate x:DataType="services:SoundChoice">
-                                        <TextBlock Text="{Binding Name}" />
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                            <Button Grid.Row="1" Grid.Column="2" Content="Test" Command="{Binding TestBreakEndSoundCommand}" />
-                            <TextBlock Grid.Row="2" Text="Volume (built-in chimes)" VerticalAlignment="Center" />
-                            <StackPanel Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
-                                <Slider Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding SoundVolume}" Width="200" />
-                                <TextBlock Text="{Binding SoundVolume, StringFormat={}{0:0}%}" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Grid>
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Add a .wav file…" Command="{Binding AddSoundFileCommand}" />
-                            <TextBlock Text="{Binding SoundStatus}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        </StackPanel>
-                    </StackPanel>
-                    </Border>
-                    <Border Classes="card" search:SearchArea.Name="Noise player">
-                    <StackPanel Spacing="6" IsVisible="{Binding HasNoisePlayer}">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <mi:MaterialIcon Kind="MusicNote" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
-                            <TextBlock Text="Noise player" Classes="sectionTitle" />
-                        </StackPanel>
-                        <TextBlock Text="The player at the bottom left plays the sound files of this folder in name order (mp3, wav, m4a, aac, flac, wma). Folder changes apply at once."
-                                   Opacity="0.75" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding NoiseFolderText}" TextWrapping="Wrap" />
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Choose folder…" Command="{Binding ChooseNoiseFolderCommand}" />
-                            <Button Content="Use Music\Noise" Command="{Binding UseMusicNoiseFolderCommand}" />
-                            <Button Content="Look for new files" Command="{Binding RescanNoiseFolderCommand}" />
-                        </StackPanel>
-                        <TextBlock Text="Shortcuts work anywhere: click a box and press the keys (Ctrl, Alt or Win plus a letter, number, F-key, Space, an arrow or Page Up/Down); Backspace clears it."
-                                   Opacity="0.75" TextWrapping="Wrap" Margin="0,6,0,0" />
-                        <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="6">
-                            <TextBlock Text="Play / pause" VerticalAlignment="Center" />
-                            <controls:HotkeyBox Grid.Column="1" Text="{Binding NoisePlayPauseKey}" Width="220" />
-                            <TextBlock Grid.Row="1" Text="Volume up 10%" VerticalAlignment="Center" />
-                            <controls:HotkeyBox Grid.Row="1" Grid.Column="1" Text="{Binding NoiseVolumeUpKey}" Width="220" />
-                            <TextBlock Grid.Row="2" Text="Volume down 10%" VerticalAlignment="Center" />
-                            <controls:HotkeyBox Grid.Row="2" Grid.Column="1" Text="{Binding NoiseVolumeDownKey}" Width="220" />
-                        </Grid>
-                        <CheckBox Content="The keyboard's media keys and Windows' media pop-up also control the noise" IsChecked="{Binding NoiseMediaKeys}" />
-                        <TextBlock Text="{Binding NoiseKeysStatus}" TextWrapping="Wrap"
-                                   IsVisible="{Binding NoiseKeysStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                    </StackPanel>
-                    </Border>
-                    <Border Classes="card" search:SearchArea.Name="Play when headphones connect" IsVisible="{Binding HasHeadphones}">
-                    <StackPanel Spacing="6" DataContext="{Binding Headphones}" x:DataType="vm:HeadphoneSettingsViewModel">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <mi:MaterialIcon Kind="Headphones" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
-                            <TextBlock Text="Play when headphones connect" Classes="sectionTitle" />
-                        </StackPanel>
-                        <TextBlock Text="The noise player starts its last file when these headphones connect, any time of day, and pauses when they disconnect. Changes apply at once."
-                                   Opacity="0.75" TextWrapping="Wrap" />
-                        <Border Background="#1FF59E0B" BorderBrush="#66F59E0B" BorderThickness="1" CornerRadius="6" Padding="10,6">
-                            <TextBlock Text="Tip: it really helps to have a dedicated pair of work/focus headphones, so putting them on means focus and it doesn't get in the way of your normal headphones."
-                                       TextWrapping="Wrap" />
-                        </Border>
-                        <CheckBox IsChecked="{Binding Wired}" Content="Wired headphones or a headset (USB always works; a headphone jack only if your sound driver reports it)" />
-                        <CheckBox IsChecked="{Binding Bluetooth}" Content="These Bluetooth headphones:" />
-                        <StackPanel Margin="28,0,0,0" Spacing="4" IsVisible="{Binding Bluetooth}">
-                            <ItemsControl ItemsSource="{Binding Devices}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:HeadphoneChoiceViewModel">
-                                        <CheckBox IsChecked="{Binding IsChosen}" Content="{Binding Name}" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <TextBlock Text="{Binding Status}" Opacity="0.75" TextWrapping="Wrap"
-                                       IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                            <Button Content="Look again" Command="{Binding RefreshDevicesCommand}" HorizontalAlignment="Left" />
-                        </StackPanel>
-                    </StackPanel>
-                    </Border>
                 </StackPanel>
 
-                <StackPanel Spacing="16" IsVisible="{Binding Groups[3].IsSelected}"
-                            search:SearchArea.Name="App &amp; data" search:SearchArea.SettingsGroup="3">
+                <StackPanel Spacing="16" IsVisible="{Binding Groups[4].IsSelected}"
+                            search:SearchArea.Name="App &amp; data" search:SearchArea.SettingsGroup="4">
                     <StackPanel Orientation="Horizontal" Spacing="10"><mi:MaterialIcon Kind="CogOutline" Width="22" Height="22" VerticalAlignment="Center" Opacity="0.85" /><TextBlock Text="App &amp; data" Classes="groupTitle" /></StackPanel>
                     <Border Classes="card" search:SearchArea.Name="Computer type">
                     <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">

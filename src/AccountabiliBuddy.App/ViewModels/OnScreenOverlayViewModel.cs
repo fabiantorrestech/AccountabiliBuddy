@@ -26,6 +26,9 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
 
     private OverlaySettings _settings = OverlaySettings.Default;
     private bool _showsTimer;
+
+    // No session runs: the timeline's own opacity pair applies instead of the timer's.
+    private bool _noSession;
     private Action? _stepAway;
 
     // The glow rises and falls over the transition set in the window (0.9 s each way), held lit in between.
@@ -353,9 +356,11 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
         IsQuiet = _settings.Quiet && !ShowsDetails && !_settleTimer.IsEnabled && !loud;
         RefreshTaskLine();
         QuietMarks = _settings.QuietMarks;
-        PanelOpacity = ShowsDetails ? Math.Clamp(_settings.HeldOpacity, 0.2, 1)
-            : IsQuiet ? Math.Min(_settings.Opacity, QuietOpacity)
-            : _settings.Opacity;
+        double restOpacity = _noSession ? _settings.TimelineOpacity : _settings.Opacity;
+        double heldOpacity = _noSession ? _settings.TimelineHeldOpacity : _settings.HeldOpacity;
+        PanelOpacity = ShowsDetails ? Math.Clamp(heldOpacity, 0.2, 1)
+            : IsQuiet ? Math.Min(restOpacity, QuietOpacity)
+            : restOpacity;
     }
 
     [RelayCommand]
@@ -452,7 +457,9 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     }
 
     /// <param name="doneText">Shown when neither the timer nor the timeline shows; null = nothing to say.</param>
-    public void Update(bool showsTimer, bool showsTimeline, bool showsSleep, string? doneText, DateTime localNow, OverlaySettings settings)
+    /// <param name="sessionActive">False uses the timeline's own opacity (<see cref="OverlaySettings.TimelineOpacity"/>).</param>
+    public void Update(
+        bool showsTimer, bool showsTimeline, bool showsSleep, string? doneText, DateTime localNow, OverlaySettings settings, bool sessionActive)
     {
         ShowsTimer = showsTimer;
         ShowsTimeline = showsTimeline;
@@ -464,6 +471,7 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
         HideButtonText = $"Hide {settings.QuickHideSeconds}s";
         _settings = settings;
         _showsTimer = showsTimer;
+        _noSession = !sessionActive;
         ApplyQuiet();
         Scale = settings.Size switch
         {

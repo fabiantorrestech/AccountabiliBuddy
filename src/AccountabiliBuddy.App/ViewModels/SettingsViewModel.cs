@@ -872,7 +872,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         new SettingsGroupViewModel("Focus sessions", new[] { "Quick session shortcut", "Pomodoro defaults", "Escalation", "Ending a focus session early", "Unlocks", "Looser changes" }),
         new SettingsGroupViewModel("Your day", new[] { "Day bar", "Sleep", "Calendars" }),
-        new SettingsGroupViewModel("On screen & sound", new[] { "Theme", "Animations", "On-screen timer", "On-screen timeline", "Sounds when time is up", "Noise player" }),
+        new SettingsGroupViewModel("On screen & sound", new[] { "Theme", "Animations", "Sounds when time is up", "Noise player" }),
+        new SettingsGroupViewModel("Overlay", new[] { "On-screen timer", "On-screen timeline" }),
         new SettingsGroupViewModel("App & data", new[] { "Backup", "Data" }),
     };
 
@@ -943,6 +944,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>20–100.</summary>
     [ObservableProperty]
     public partial double TimerOpacityPercent { get; set; }
+
+    /// <summary>The timeline's opacity while no session runs, 20–100% (<see cref="OverlaySettings.TimelineOpacity"/>).</summary>
+    [ObservableProperty]
+    public partial double TimelineOpacityPercent { get; set; } = 85;
+
+    /// <summary>The same while Ctrl+Alt is held, 20–100% (<see cref="OverlaySettings.TimelineHeldOpacity"/>).</summary>
+    [ObservableProperty]
+    public partial double TimelineHeldOpacityPercent { get; set; } = 100;
 
     [ObservableProperty]
     public partial string? TimerStatus { get; set; }
@@ -1322,6 +1331,8 @@ public sealed partial class SettingsViewModel : ObservableObject
             QuietMarks = TimerQuietMarks,
             TaskOnlyWithCtrlAlt = TaskOnlyWithCtrlAlt,
             HeldOpacity = Math.Clamp(HeldOpacityPercent, 20, 100) / 100,
+            TimelineOpacity = Math.Clamp(TimelineOpacityPercent, 20, 100) / 100,
+            TimelineHeldOpacity = Math.Clamp(TimelineHeldOpacityPercent, 20, 100) / 100,
             DefaultTimer = new ProfileOverlay(DefaultTimerOn, DefaultTimerColor.Hex),
             ShowTimeline = ShowTimeline,
             TimelineInFocus = TimelineStaysInFocus ? TimelineInFocus.ShowBoth : TimelineInFocus.SwapForTimer,
@@ -1432,6 +1443,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         TimerQuietMarks = overlay.QuietMarks;
         TaskOnlyWithCtrlAlt = overlay.TaskOnlyWithCtrlAlt;
         HeldOpacityPercent = Math.Round(overlay.HeldOpacity * 100);
+        TimelineOpacityPercent = Math.Round(overlay.TimelineOpacity * 100);
+        TimelineHeldOpacityPercent = Math.Round(overlay.TimelineHeldOpacity * 100);
         ProfileOverlay defaultTimer = overlay.DefaultTimer ?? ProfileOverlay.Off;
         DefaultTimerOn = defaultTimer.Enabled;
         DefaultTimerColor = TimerColorOption.Match(DefaultTimerColors, defaultTimer.Color);
