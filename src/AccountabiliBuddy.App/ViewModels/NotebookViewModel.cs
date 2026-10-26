@@ -120,10 +120,14 @@ public sealed partial class NotebookViewModel : ObservableObject
             foreach (SessionTask task in checklist.Tasks)
             {
                 DateTimeOffset sort = task.DoneAt ?? start;
+                // Its category as it was when the session ended, e.g. "Work · Session of …".
+                string category = CategoryName(task) is string name ? $"{name} · " : string.Empty;
                 yield return new NotebookItemViewModel(
                     task.DoneAt is null ? UnfinishedKind : DoneKind,
                     task.Title,
-                    task.DoneAt is DateTimeOffset done ? $"Session of {When(start)} · done {When(done)}" : $"Session of {When(start)} · left open",
+                    task.DoneAt is DateTimeOffset done
+                        ? $"{category}Session of {When(start)} · done {When(done)}"
+                        : $"{category}Session of {When(start)} · left open",
                     sort,
                     rename: title => _tasks.EditHistoryAsync(task.Id, title),
                     delete: () => _tasks.EditHistoryAsync(task.Id, null));
@@ -143,6 +147,11 @@ public sealed partial class NotebookViewModel : ObservableObject
                 }
             }
         }
+    }
+
+    private string? CategoryName(SessionTask task)
+    {
+        return task.Category ?? _tasks.Categories.FirstOrDefault(category => category.Id == task.CategoryId)?.Name;
     }
 
     private string When(DateTimeOffset time)

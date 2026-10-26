@@ -6,7 +6,7 @@
         Title="{Binding Title}"
         Width="560" SizeToContent="Height" CanResize="False"
         WindowStartupLocation="CenterScreen">
-    <!-- ADR 39: the spare key, shown once and typed back; and Emergency release with it. -->
+    <!-- ADR 39: the spare key, shown once and typed back; and Emergency release with it. ADR 41: get a new key. -->
     <StackPanel Margin="24" Spacing="12">
         <TextBlock Text="{Binding Title}" FontSize="20" FontWeight="SemiBold" />
 
@@ -29,6 +29,35 @@
             <TextBlock Text="Type your spare key from your paper:" />
             <TextBox x:Name="EmergencyBox" Text="{Binding TypedKey}" FontFamily="Consolas,Courier New,monospace" />
             <Button Content="Release for today" Command="{Binding ReleaseCommand}" HorizontalAlignment="Right" />
+        </StackPanel>
+
+        <!-- ADR 41: a new key without using the old one; deliberately slow, releases nothing. -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsNewKey}">
+            <TextBlock TextWrapping="Wrap"
+                       Text="Lost your paper, or think someone saw it? You'll get a new spare key after a 10-minute wait. Your blocks stay locked: they're locked again with the new key, and the old key stops working. Nothing is released." />
+            <TextBlock Text="{Binding NewKeysText}" FontSize="12" Opacity="0.8" />
+            <TextBlock Text="{Binding Refusal}" TextWrapping="Wrap" Foreground="#F59E0B"
+                       IsVisible="{Binding Refusal, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+            <StackPanel Spacing="8" IsVisible="{Binding IsAsking}">
+                <TextBox Text="{Binding Reason}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60"
+                         PlaceholderText="Why do you need a new key? (at least 40 characters)" />
+                <TextBlock FontSize="12" Opacity="0.8">
+                    <Run Text="Type this code: " />
+                    <Run Text="{Binding UnlockCode}" FontFamily="Consolas,Courier New,monospace" FontWeight="SemiBold" />
+                </TextBlock>
+                <!-- No pasting: the code is typed by hand. -->
+                <TextBox x:Name="NewKeyCodeBox" Text="{Binding TypedCode}" FontFamily="Consolas,Courier New,monospace" PlaceholderText="the code above" />
+                <Button Content="Ask for a new key" Command="{Binding RequestNewKeyCommand}" HorizontalAlignment="Right" />
+            </StackPanel>
+
+            <StackPanel Spacing="8" IsVisible="{Binding IsWaiting}">
+                <TextBlock Text="Your new spare key arrives in" Opacity="0.8" HorizontalAlignment="Center" />
+                <TextBlock Text="{Binding Countdown}" FontSize="28" FontWeight="SemiBold" HorizontalAlignment="Center" TextWrapping="Wrap" />
+                <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.8"
+                           Text="You can close this window: the wait goes on, also across a restart, and the key shows when it's ready. Your current key works until you write down the new one." />
+                <Button Content="Cancel" Command="{Binding CancelNewKeyCommand}" HorizontalAlignment="Right" />
+            </StackPanel>
         </StackPanel>
 
         <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="#F59E0B"

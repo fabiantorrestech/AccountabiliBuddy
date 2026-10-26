@@ -217,6 +217,7 @@
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/pc-paired" />
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/noise-command" />
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/reminder-action" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/lunch" />
             </intent-filter>
         </service>
 

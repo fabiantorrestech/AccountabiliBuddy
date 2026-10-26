@@ -24,6 +24,8 @@ data class SnapshotInput(
     val relayAllowed: Boolean = true,
     /** The devices whose focus is in [focusDay], with their data's age (ADR 22). */
     val sources: List<DataSource> = emptyList(),
+    /** Today's flexible lunch on the phone, for the watch's Lunch page; null when the sender has none to give. */
+    val lunch: WatchLunch? = null,
 )
 
 /**
@@ -82,6 +84,7 @@ object SnapshotBuilder {
             sources = input.sources,
             // The goal is a setting, not today's data: an older focus day's goal still holds.
             goalMinutes = input.focusDay?.goalMinutes,
+            lunch = input.lunch,
         )
 
         // The PC's totals for the days before today (dated, so an older focus day still counts), and today live.

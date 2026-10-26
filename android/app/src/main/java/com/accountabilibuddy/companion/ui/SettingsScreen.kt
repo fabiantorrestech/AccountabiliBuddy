@@ -94,6 +94,7 @@ fun SettingsScreen(
     val healthOk = health == HealthStatus.Connected
     val healthNeed = Need("Health Connect", healthOk || health == HealthStatus.NotAvailable, onConnectHealth)
     val usageNeed = Need("Usage access", usageAccess, onAllowUsage)
+    val lunchLength by (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.lengthMinutes.collectAsState()
 
     Column {
     category?.let { open -> Box(Modifier.padding(start = 8.dp, top = 8.dp)) { CategoryHeader(open) { category = null } } }
@@ -107,6 +108,7 @@ fun SettingsScreen(
                         "smart bedtime on".takeIf { sleep.smartWorkdays || sleep.smartOffDays },
                         "reminders".takeIf { sleep.reminders.on },
                     ).joinToString(" · "),
+                    SettingsCategory.YourDay to "Lunch ${com.accountabilibuddy.companion.lunch.LunchStore.formatLength(lunchLength)}",
                     SettingsCategory.PhoneGuard to listOfNotNull(
                         pause?.let { if (it.pausedAt != null) "Paused" else "Guarding" },
                         "work card".takeIf { pauseActions.takeoverOn },
@@ -166,6 +168,9 @@ fun SettingsScreen(
                                 }
                             }
                         }
+                    }
+                    SettingsCategory.YourDay -> {
+                        item { LunchSection(lunchLength) }
                     }
                     SettingsCategory.PhoneGuard -> {
                         if (pause != null) {

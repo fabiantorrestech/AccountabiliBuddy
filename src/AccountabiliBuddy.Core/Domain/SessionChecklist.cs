@@ -59,8 +59,11 @@ public sealed record SessionChecklist(DateTimeOffset? SessionStart, bool MadeBef
         return AllDone && MadeBeforeStart && SessionStart is DateTimeOffset start && now - start >= EndAtOnceAfter;
     }
 
-    /// <summary>A task (no <paramref name="parentId"/>) or a subtask of that task; a blank title adds nothing.</summary>
-    public SessionChecklist Add(string title, Guid? parentId)
+    /// <summary>
+    /// A task (no <paramref name="parentId"/>) in <paramref name="categoryId"/> (null: no category), or a subtask of that
+    /// task; a blank title adds nothing.
+    /// </summary>
+    public SessionChecklist Add(string title, Guid? parentId, Guid? categoryId = null)
     {
         string trimmed = title.Trim();
         if (trimmed.Length == 0)
@@ -70,11 +73,77 @@ public sealed record SessionChecklist(DateTimeOffset? SessionStart, bool MadeBef
 
         if (parentId is not Guid parent)
         {
-            return this with { Tasks = [.. Tasks, new SessionTask(Guid.NewGuid(), trimmed, null, [])] };
+            return this with { Tasks = [.. Tasks, new SessionTask(Guid.NewGuid(), trimmed, null, [], categoryId)] };
         }
 
         // A new open subtask reopens a task that was done.
         return WithTask(parent, task => task with { DoneAt = null, Subtasks = [.. task.Subtasks, new SessionSubtask(Guid.NewGuid(), trimmed, null)] });
+    }
+
+    /// <summary>
+    /// A task put first: in the first open task's category (none when it has none, or the list is empty), at the top of
+    /// the list, so it stays first once grouped. A blank title adds nothing.
+    /// </summary>
+    public SessionChecklist AddFirst(string title)
+    {
+        string trimmed = title.Trim();
+        if (trimmed.Length == 0)
+        {
+            return this;
+        }
+
+        Guid? categoryId = Tasks.FirstOrDefault(task => !task.IsDone)?.CategoryId;
+        return this with { Tasks = [new SessionTask(Guid.NewGuid(), trimmed, null, [], categoryId), .. Tasks] };
+    }
+
+    /// <summary>Puts the task <paramref name="taskId"/> in <paramref name="categoryId"/> (null: no category).</summary>
+    public SessionChecklist SetCategory(Guid taskId, Guid? categoryId)
+    {
+        return WithTask(taskId, task => task with { CategoryId = categoryId });
+    }
+
+    /// <summary>The tasks that were in the deleted category <paramref name="categoryId"/> have no category now.</summary>
+    public SessionChecklist WithoutCategory(Guid categoryId)
+    {
+        return this with
+        {
+            Tasks = Tasks.Select(task => task.CategoryId == categoryId ? task with { CategoryId = null } : task).ToList(),
+        };
+    }
+
+    /// <summary>
+    /// The tasks in the order the checklist shows them: grouped by category in <paramref name="categories"/>' order, no
+    /// category (or one not in it) last, each group keeping its own order. Moving a task then moves it within its group.
+    /// </summary>
+    public SessionChecklist Grouped(IReadOnlyList<TaskCategory> categories)
+    {
+        int Rank(SessionTask task)
+        {
+            int index = task.CategoryId is Guid id ? categories.ToList().FindIndex(category => category.Id == id) : -1;
+            return index < 0 ? int.MaxValue : index;
+        }
+
+        // OrderBy is stable, so each group keeps its order.
+        return this with { Tasks = Tasks.OrderBy(Rank).ToList() };
+    }
+
+    /// <summary>
+    /// The tasks with their category's name and colour filled in (<see cref="SessionTask.Category"/>,
+    /// <see cref="SessionTask.CategoryColor"/>), for paired devices and history. A task whose category is gone keeps the
+    /// name and colour it was labelled with before; one with no category has neither.
+    /// </summary>
+    public IReadOnlyList<SessionTask> Labelled(IReadOnlyList<TaskCategory> categories)
+    {
+        return Tasks.Select(task =>
+        {
+            if (task.CategoryId is not Guid id)
+            {
+                return task with { Category = null, CategoryColor = null };
+            }
+
+            TaskCategory? category = categories.FirstOrDefault(category => category.Id == id);
+            return category is null ? task : task with { Category = category.Name, CategoryColor = category.Color };
+        }).ToList();
     }
 
     /// <summary>

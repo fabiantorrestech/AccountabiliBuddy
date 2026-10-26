@@ -45,8 +45,8 @@ import java.time.Instant
 import java.time.ZoneId
 
 /**
- * The watch app (ADR 21): swipe between today's rings, the running session, the last 7 days and where the data comes
- * from. Shows the last snapshot; asks the phone for news each time it comes up, and when the phone doesn't answer
+ * The watch app (ADR 21): swipe between today's rings, the running session, lunch (on a workday), the noise player, the
+ * last 7 days and where the data comes from. Shows the last snapshot; asks the phone for news each time it comes up, and when the phone doesn't answer
  * (and hasn't for 2 minutes), asks the PC itself over Wi-Fi if the watch is paired with it and the phone allows it.
  */
 class WatchActivity : ComponentActivity() {
@@ -120,12 +120,19 @@ private fun WatchApp(stored: WatchSnapshot?, phoneReachable: Boolean?, pcPaired:
             return@AppScaffold
         }
 
-        // While a focus or break timer runs, its page comes first (the pager starts over when that changes).
+        // While a focus or break timer runs, its page comes first; else while lunch runs, the Lunch page (the pager
+        // starts over when the pages change). The Lunch page shows on a workday or while lunch runs, from today's snapshot.
         val running = snapshot.running?.let { it.endsAt?.isAfter(now) ?: true } == true
-        val order = if (running) listOf(Page.Session, Page.Today) else listOf(Page.Today, Page.Session)
+        val lunch = snapshot.lunch?.takeIf { snapshot.date == now.atZone(zone).toLocalDate() && it.isShown(now) }
+        val onLunch = lunch?.isRunning(now) == true
+        val order = when {
+            running -> listOfNotNull(Page.Session, Page.Today, Page.Lunch.takeIf { lunch != null })
+            onLunch -> listOf(Page.Lunch, Page.Today, Page.Session)
+            else -> listOfNotNull(Page.Today, Page.Session, Page.Lunch.takeIf { lunch != null })
+        }
         val pages = order + listOf(Page.Noise, Page.Week, Page.Alerts, Page.Link)
         val context = LocalContext.current
-        val pager = key(running) { rememberPagerState(pageCount = { pages.size }) }
+        val pager = key(pages) { rememberPagerState(pageCount = { pages.size }) }
         HorizontalPagerScaffold(pagerState = pager) {
             HorizontalPager(state = pager) { page ->
                 AnimatedPage(pageIndex = page, pagerState = pager) {
@@ -133,6 +140,7 @@ private fun WatchApp(stored: WatchSnapshot?, phoneReachable: Boolean?, pcPaired:
                         when (pages[page]) {
                             Page.Today -> TodayPage(TodayView.from(snapshot, now, zone, use24HourClock))
                             Page.Session -> SessionPage(SessionView.from(snapshot.running, now, zone, use24HourClock, dataAt = snapshot.dataAt, goalFraction = snapshot.goalFraction(now, zone)))
+                            Page.Lunch -> lunch?.let { com.accountabilibuddy.watch.ui.LunchPage(it, now, zone) }
                             Page.Week -> WeekPage(WeekView.from(snapshot, now, zone))
                             Page.Noise -> com.accountabilibuddy.watch.ui.NoisePage(isCurrent = pager.currentPage == page)
                             Page.Alerts -> AlertsPage(onChanged = { PhaseAlertScheduler.schedule(context, stored) })
@@ -153,4 +161,4 @@ private fun WatchApp(stored: WatchSnapshot?, phoneReachable: Boolean?, pcPaired:
     }
 }
 
-private enum class Page { Today, Session, Noise, Week, Alerts, Link }
+private enum class Page { Today, Session, Lunch, Noise, Week, Alerts, Link }

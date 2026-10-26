@@ -116,6 +116,7 @@ object SyncFileJson {
             put("lunch", buildJsonObject {
                 put("start", writeTime(lunch.start))
                 put("end", writeTime(lunch.end))
+                lunch.editedAt?.let { put("editedAt", writeTime(it)) }
             })
         }
         file.pickups?.let { list ->
@@ -213,7 +214,7 @@ object SyncFileJson {
             json.optionalTime("coversFrom"),
             readComebacks(json["comebacks"]),
             readPickups(json["pickups"]),
-            json.optionalObject("lunch")?.let { lunch -> runCatching { SyncLunch(lunch.requiredTime("start"), lunch.requiredTime("end")) }.getOrNull() },
+            json.optionalObject("lunch")?.let { lunch -> runCatching { SyncLunch(lunch.requiredTime("start"), lunch.requiredTime("end"), lunch.optionalTime("editedAt")) }.getOrNull() },
             readActions(json["actions"]),
             (json["acks"] as? JsonArray)?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { p -> p.isString }?.content },
             json.optionalObject("running")?.let { running ->

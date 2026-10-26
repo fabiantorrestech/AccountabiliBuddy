@@ -5,13 +5,16 @@ using Avalonia.Interactivity;
 
 namespace AccountabiliBuddy.App.Views;
 
-/// <summary>The spare key / Emergency release window (ADR 39). The key is typed by hand: pasting would skip writing it down.</summary>
+/// <summary>
+/// The spare key / Emergency release / new spare key window (ADR 39, 41). The key and the code are typed by hand:
+/// pasting would skip writing it down.
+/// </summary>
 public partial class ColdTurkeyKeyWindow : Window
 {
     public ColdTurkeyKeyWindow()
     {
         InitializeComponent();
-        foreach (TextBox box in new[] { SpareBox, EmergencyBox })
+        foreach (TextBox box in new[] { SpareBox, EmergencyBox, NewKeyCodeBox })
         {
             box.AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
             box.PastingFromClipboard += (_, e) => e.Handled = true;
@@ -22,6 +25,7 @@ public partial class ColdTurkeyKeyWindow : Window
             if (DataContext is ColdTurkeyKeyViewModel viewModel)
             {
                 viewModel.Done += (_, _) => Close();
+                Closed += (_, _) => viewModel.Detach();
             }
         };
     }

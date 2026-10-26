@@ -29,6 +29,12 @@ public sealed partial class UpdatesViewModel : ObservableObject
     [RelayCommand]
     private void EmergencyRelease() => ShowEmergencyRelease?.Invoke();
 
+    /// <summary>Get a new spare key with a reason and a wait (ADR 41); set by the app.</summary>
+    public Action? ShowNewSpareKey { get; set; }
+
+    [RelayCommand]
+    private void NewSpareKey() => ShowNewSpareKey?.Invoke();
+
     public bool CanUpdate => _updates.CanUpdate;
 
     [ObservableProperty]

@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0043](0043-read-beeminder-goals.md) | Read Beeminder goals | Accepted | — |
 | [0042](0042-control-pc-sessions-and-plan-edits-through-sync-files.md) | Control PC sessions and plan edits through sync files | Accepted | — |
 | [0041](0041-get-a-new-spare-key-with-friction.md) | Get a new spare key with friction | Accepted | — |
 | [0040](0040-estimate-the-wake-time-from-past-alarms.md) | Estimate the wake time from past alarms | Accepted | — |

@@ -36,6 +36,16 @@ class PhoneWearService : WearableListenerService() {
             return
         }
 
+        // The watch's Lunch page: start, back, +5 or −5 min.
+        if (event.path == WatchPaths.LUNCH) {
+            val app = application as CompanionApp
+            val action = com.accountabilibuddy.shared.LunchRemote.read(event.data) ?: return
+            if (event.sourceNodeId == app.watchBridge.linkSettings.value.linkedNodeId) {
+                LunchFromWatch.apply(app.lunch, app.store.state.value.document.dayPlan, action)
+            }
+            return
+        }
+
         if (event.path != WatchPaths.HELLO) {
             return
         }
