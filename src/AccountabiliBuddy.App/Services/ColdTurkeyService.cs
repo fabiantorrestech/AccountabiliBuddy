@@ -11,7 +11,7 @@ namespace AccountabiliBuddy.App.Services;
 /// Which Cold Turkey blocks are on (checked every minute and when a session changes; Cold Turkey's file is read again
 /// only when it changed), and which ones each profile expects (documents "coldturkey.expected", this computer only).
 /// During focus, expected blocks that are off are named once through <see cref="ExpectedBlocksOff"/>: at the start,
-/// and again for a block that turns off later. Awareness only: nothing is ever changed in Cold Turkey.
+/// and again for a block that turns off later. Awareness only here; ColdTurkeyKeysService locks and switches blocks through its command line (ADR 39).
 /// Use from the UI thread only.
 /// </summary>
 public sealed class ColdTurkeyService : IDisposable
@@ -105,6 +105,9 @@ public sealed class ColdTurkeyService : IDisposable
         string them = names.Count == 1 ? "it" : "them";
         return $"{listed} off in Cold Turkey, and this profile expects {them} on.";
     }
+
+    /// <summary>Reads Cold Turkey's settings again now, e.g. after a command (ADR 39).</summary>
+    public void RefreshNow() => Refresh();
 
     private void Refresh()
     {

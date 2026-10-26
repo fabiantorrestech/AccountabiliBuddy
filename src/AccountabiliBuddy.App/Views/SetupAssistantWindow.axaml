@@ -317,6 +317,73 @@
                 </StackPanel>
                 </Panel>
 
+                <!-- ADR 39: Cold Turkey, let AccountabiliBuddy hold the keys -->
+                <StackPanel IsVisible="{Binding IsColdTurkeyKeys}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="Pick the Cold Turkey blocks AccountabiliBuddy should lock during your focus sessions, Pre-Work and work hours. While it holds them, Cold Turkey won't let them be switched off. Outside those times they're yours again." />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="Focus sessions use a hard lock (AccountabiliBuddy's password; your spare key is the only other way out). Pre-Work and work hours use a timed lock renewed every minute, which ends by itself within 10 minutes if AccountabiliBuddy stops." />
+                    <Border Classes="card" IsVisible="{Binding ColdTurkeyNotPro}">
+                        <TextBlock TextWrapping="Wrap" Text="Hard locks need Cold Turkey Pro. Without it, AccountabiliBuddy uses timed locks everywhere." />
+                    </Border>
+                    <ItemsControl ItemsSource="{Binding ColdTurkeyRows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ColdTurkeySetupRow">
+                                <Border Classes="card" Margin="0,0,0,8">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="{Binding Name}" Classes="title" />
+                                        <TextBlock Text="{Binding Status}" Classes="muted" TextWrapping="Wrap" />
+                                        <WrapPanel>
+                                            <CheckBox Content="Focus sessions" IsChecked="{Binding InFocusSessions}" Margin="0,0,16,0" />
+                                            <CheckBox Content="Pre-Work" IsChecked="{Binding InPreWork}" Margin="0,0,16,0" />
+                                            <CheckBox Content="Work hours" IsChecked="{Binding InWorkHours}" Margin="0,0,16,0" />
+                                        </WrapPanel>
+                                        <WrapPanel>
+                                            <CheckBox Content="Hard lock in focus sessions" IsChecked="{Binding HardInFocus}" Margin="0,0,16,0" />
+                                            <CheckBox Content="Hard lock in Pre-Work and work hours too" IsChecked="{Binding HardElsewhere}" />
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border Classes="card">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="In Cold Turkey, for each block above" Classes="title" />
+                            <TextBlock Classes="muted" TextWrapping="Wrap"
+                                       Text="1. Open the block's settings. 2. Set its lock to None: AccountabiliBuddy does the locking. 3. Turn off &quot;unblock when the lock ends&quot;, so the block stays on after a timed lock. Then press Check again." />
+                            <Button Content="Check again" Command="{Binding CheckColdTurkeyAgainCommand}" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="card">
+                        <StackPanel Spacing="6">
+                            <CheckBox IsChecked="{Binding RearmOn}" Content="Turn blocks I switched off back on at the day's re-enable time" />
+                            <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding RearmOn}">
+                                <TextBlock Text="Workdays" VerticalAlignment="Center" Width="80" />
+                                <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding WorkdayReenable}" MinuteIncrement="15" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding RearmOn}">
+                                <TextBlock Text="Off-Days" VerticalAlignment="Center" Width="80" />
+                                <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding OffDayReenable}" MinuteIncrement="15" />
+                            </StackPanel>
+                            <TextBlock Classes="muted" Text="12:00 AM = midnight, the end of the day. A heads-up comes 5 minutes before." TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- ADR 39: the spare key -->
+                <StackPanel IsVisible="{Binding IsSpareKey}" Spacing="12" MaxWidth="720" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="This key unlocks your Cold Turkey blocks if AccountabiliBuddy ever can't. Write it on paper now and keep it somewhere annoying to reach, or with someone you trust. It's shown only this once." />
+                    <Border Background="#1A6366F1" CornerRadius="8" Padding="16" HorizontalAlignment="Left">
+                        <SelectableTextBlock Text="{Binding SpareKey}" FontFamily="Consolas,Courier New,monospace" FontSize="28" FontWeight="SemiBold" />
+                    </Border>
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="In an emergency: the tray menu, Emergency release (Cold Turkey), and type it there. If AccountabiliBuddy is broken, open Cold Turkey, stop the block and type the key exactly as written. Timed locks end by themselves within 10 minutes of the app stopping." />
+                    <TextBlock Text="Type the key from your paper to confirm you wrote it down:" />
+                    <TextBox x:Name="AssistantSpareBox" Text="{Binding TypedSpareKey}" FontFamily="Consolas,Courier New,monospace" MaxWidth="420" HorizontalAlignment="Left" />
+                </StackPanel>
+
                 <!-- First run: the daily goal -->
                 <StackPanel IsVisible="{Binding IsGoal}" Spacing="12" MaxWidth="720" HorizontalAlignment="Left">
                     <TextBlock Classes="body" Text="Counted focus a day you'd be happy with. Start small; you can change it later." />

@@ -16,6 +16,12 @@ public enum AssistantStep
     Browsers,
     Basics,
 
+    /// <summary>ADR 39: which Cold Turkey blocks the app holds, where, and Cold Turkey's settings for it.</summary>
+    ColdTurkeyKeys,
+
+    /// <summary>ADR 39: the spare key, shown once and typed back.</summary>
+    SpareKey,
+
     /// <summary>The first run's last question: how much focus a day (redesign phase 2).</summary>
     Goal,
     Done,

@@ -14,6 +14,16 @@ public partial class SetupAssistantWindow : Window
     public SetupAssistantWindow()
     {
         InitializeComponent();
+        // ADR 39: the spare key is typed by hand; pasting would skip writing it down.
+        AssistantSpareBox.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if ((e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control) && e.Key == Avalonia.Input.Key.V)
+                || (e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift) && e.Key == Avalonia.Input.Key.Insert))
+            {
+                e.Handled = true;
+            }
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        AssistantSpareBox.PastingFromClipboard += (_, e) => e.Handled = true;
         DataContextChanged += (_, _) =>
         {
             if (DataContext is SetupAssistantViewModel viewModel)

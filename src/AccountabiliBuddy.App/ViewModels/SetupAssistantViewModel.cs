@@ -92,6 +92,37 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     public bool HasWorkHours => WorkHours is not null;
 
+    /// <summary>Holding Cold Turkey's keys (ADR 39); null skips its pages.</summary>
+    public ColdTurkeyKeysService? Keys { get; init; }
+
+    /// <summary>Cold Turkey's blocks, for the keys page.</summary>
+    public ColdTurkeyService? ColdTurkey { get; init; }
+
+    /// <summary>Cold Turkey is installed and readable.</summary>
+    public bool HasColdTurkey => Keys is not null && ColdTurkey?.Blocks is not null;
+
+    /// <summary>Password locks need Cold Turkey Pro.</summary>
+    public bool ColdTurkeyNotPro => ColdTurkey?.Blocks is { IsPro: false };
+
+    public System.Collections.ObjectModel.ObservableCollection<ColdTurkeySetupRow> ColdTurkeyRows { get; } = new();
+
+    /// <summary>"Turn blocks back on" at the day's re-enable time (ADR 37).</summary>
+    [ObservableProperty]
+    public partial bool RearmOn { get; set; } = true;
+
+    [ObservableProperty]
+    public partial TimeSpan? WorkdayReenable { get; set; } = TimeSpan.Zero;
+
+    [ObservableProperty]
+    public partial TimeSpan? OffDayReenable { get; set; } = TimeSpan.Zero;
+
+    /// <summary>The spare key to write down (spare key page).</summary>
+    [ObservableProperty]
+    public partial string? SpareKey { get; set; }
+
+    [ObservableProperty]
+    public partial string TypedSpareKey { get; set; } = "";
+
     /// <summary>The first run's three questions instead of every page.</summary>
     [ObservableProperty]
     public partial bool IsQuick { get; set; }
@@ -309,6 +340,10 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     public bool IsBasics => Step == AssistantStep.Basics;
 
+    public bool IsColdTurkeyKeys => Step == AssistantStep.ColdTurkeyKeys;
+
+    public bool IsSpareKey => Step == AssistantStep.SpareKey;
+
     public bool IsGoal => Step == AssistantStep.Goal;
 
     public bool IsDone => Step == AssistantStep.Done;
@@ -323,6 +358,8 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.Review => "Review",
         AssistantStep.Browsers => "Browsers",
         AssistantStep.Basics => "Basics",
+        AssistantStep.ColdTurkeyKeys => "Cold Turkey: let AccountabiliBuddy hold the keys",
+        AssistantStep.SpareKey => "Your spare key",
         AssistantStep.Goal => "How much focus a day?",
         _ => "All set",
     };
@@ -340,7 +377,11 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     {
         AssistantStep.Welcome => "Get started",
         AssistantStep.Review => PlannedProfiles.Any(row => row.IsIncluded) ? "Import" : "Skip import",
+        AssistantStep.Basics when HasColdTurkey => "Next",
         AssistantStep.Basics => "Finish",
+        AssistantStep.ColdTurkeyKeys when Keys is { HasSpareKey: false } && ColdTurkeyRows.Any(row => row.IsUsed) => "Next",
+        AssistantStep.ColdTurkeyKeys => "Finish",
+        AssistantStep.SpareKey => "I wrote it down",
         AssistantStep.Goal => "Finish",
         AssistantStep.Done => "Close",
         _ => "Next",
@@ -446,8 +487,36 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
             case AssistantStep.Browsers:
                 Step = AssistantStep.Basics;
                 break;
+            case AssistantStep.Basics when HasColdTurkey:
+                LoadColdTurkeyRows();
+                Step = AssistantStep.ColdTurkeyKeys;
+                break;
             case AssistantStep.Basics:
                 Step = AssistantStep.Done;
+                break;
+            case AssistantStep.ColdTurkeyKeys:
+                await SaveColdTurkeyAsync();
+                if (Keys is { HasSpareKey: false } && ColdTurkeyRows.Any(row => row.IsUsed))
+                {
+                    SpareKey = Keys.PendingSpareKey ?? await Keys.NewSpareKeyAsync();
+                    Step = AssistantStep.SpareKey;
+                }
+                else
+                {
+                    Step = AssistantStep.Done;
+                }
+
+                break;
+            case AssistantStep.SpareKey:
+                if (Keys is not null && await Keys.ConfirmSpareKeyAsync(TypedSpareKey))
+                {
+                    Step = AssistantStep.Done;
+                }
+                else
+                {
+                    StatusMessage = "That doesn't match the key shown. Type it from your paper (dashes are optional).";
+                }
+
                 break;
             default:
                 CloseRequested?.Invoke(this, EventArgs.Empty);
@@ -846,9 +915,82 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         return entries;
     }
 
+    // ADR 39: one row per Cold Turkey block with what's assigned now; the re-arm switch and re-enable times (ADR 37).
+    private void LoadColdTurkeyRows()
+    {
+        ColdTurkeyRows.Clear();
+        if (ColdTurkey?.Blocks is not { } blocks || Keys is null)
+        {
+            return;
+        }
+
+        DateTime now = TimeZoneInfo.ConvertTime(_time.GetUtcNow(), _time.LocalTimeZone).DateTime;
+        foreach (AccountabiliBuddy.Core.Import.ColdTurkeyBlockState block in blocks.Blocks.OrderBy(b => b.Name, StringComparer.CurrentCultureIgnoreCase))
+        {
+            ColdTurkeyRows.Add(new ColdTurkeySetupRow(block, Keys.Held.FirstOrDefault(held => held.Name == block.Name), now));
+        }
+
+        RearmOn = Keys.RearmOn;
+        DayPlan plan = _configuration.Current.DayPlan;
+        WorkdayReenable = plan.Workday.Rules.ReenableAt.ToTimeSpan();
+        OffDayReenable = plan.OtherDay.Rules.ReenableAt.ToTimeSpan();
+        OnPropertyChanged(nameof(ColdTurkeyNotPro));
+        OnPropertyChanged(nameof(NextText));
+    }
+
+    /// <summary>Reads Cold Turkey's settings again after the user changed them there.</summary>
+    [RelayCommand]
+    private void CheckColdTurkeyAgain()
+    {
+        ColdTurkey?.RefreshNow();
+        if (ColdTurkey?.Blocks is not { } blocks)
+        {
+            return;
+        }
+
+        DateTime now = TimeZoneInfo.ConvertTime(_time.GetUtcNow(), _time.LocalTimeZone).DateTime;
+        foreach (ColdTurkeySetupRow row in ColdTurkeyRows)
+        {
+            if (blocks.Blocks.FirstOrDefault(b => b.Name == row.Name) is { } block)
+            {
+                row.Update(block, now);
+            }
+        }
+    }
+
+    private async Task SaveColdTurkeyAsync()
+    {
+        if (Keys is null)
+        {
+            return;
+        }
+
+        // Blocks held nowhere are left out; blocks Cold Turkey no longer has keep their assignment.
+        List<HeldBlock> held = ColdTurkeyRows.Where(row => row.IsUsed).Select(row => row.ToHeld()).ToList();
+        held.AddRange(Keys.Held.Where(old => ColdTurkeyRows.All(row => row.Name != old.Name)));
+        await Keys.SaveHeldAsync(held);
+        await Keys.SetRearmAsync(RearmOn);
+
+        TimeOnly workday = TimeOnly.FromTimeSpan(WorkdayReenable ?? TimeSpan.Zero);
+        TimeOnly offDay = TimeOnly.FromTimeSpan(OffDayReenable ?? TimeSpan.Zero);
+        DayPlan plan = _configuration.Current.DayPlan;
+        if (plan.Workday.Rules.ReenableAt != workday || plan.OtherDay.Rules.ReenableAt != offDay)
+        {
+            await _configuration.UpdateAsync(document => document with
+            {
+                DayPlan = document.DayPlan with
+                {
+                    Workday = document.DayPlan.Workday with { Blocks = document.DayPlan.Workday.Rules with { ReenableAt = workday } },
+                    OtherDay = document.DayPlan.OtherDay with { Blocks = document.DayPlan.OtherDay.Rules with { ReenableAt = offDay } },
+                },
+            });
+        }
+    }
+
     private List<AssistantStep> VisibleSteps()
     {
-        return AssistantFlow.Steps(IsQuick, Identity is not null, Types is not null, HasUsage, _joined).ToList();
+        return AssistantFlow.Steps(IsQuick, Identity is not null, Types is not null, HasUsage, _joined,
+            HasColdTurkey, Keys is { HasSpareKey: false }).ToList();
     }
 
     private void OnSessionStateChanged(object? sender, SessionState state)

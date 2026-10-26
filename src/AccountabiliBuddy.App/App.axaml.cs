@@ -79,6 +79,8 @@ public partial class App : Application
     private ProgramPathsService? _programPaths;
     private BedtimeReminderService? _bedtimeReminder;
     private ColdTurkeyService? _coldTurkey;
+    private ColdTurkeyKeysService? _coldTurkeyKeys;
+    private Window? _coldTurkeyKeyWindow;
     private AccountabiliBuddy.App.Services.Link.LinkService? _link;
     private AccountabiliBuddy.App.Services.Sync.SyncFolderService? _syncFolder;
     private AccountabiliBuddy.App.Services.Sync.SyncDriveService? _syncDrive;
@@ -639,6 +641,8 @@ public partial class App : Application
             Identity = syncIdentity,
             Goal = goal,
             WorkHours = _workHours,
+            Keys = _coldTurkeyKeys,
+            ColdTurkey = _coldTurkey,
         };
         setupViewModel.OpenAssistant = () => ShowSetupAssistant(quick: false);
 
@@ -889,8 +893,24 @@ public partial class App : Application
 
         // ADR 37: this PC's Cold Turkey blocks go in its sync file; "Plan a day" lists every device's blocks.
         IReadOnlyList<AccountabiliBuddy.Core.Sync.SyncBlocker>? OwnBlockers() =>
-            _coldTurkey!.Blocks?.Blocks.Select(block => new AccountabiliBuddy.Core.Sync.SyncBlocker(BlockRef.ColdTurkeyBlock, block.Name, block.Name, block.IsSwitchedOn)).ToList();
+            _coldTurkey!.Blocks?.Blocks.Select(block => new AccountabiliBuddy.Core.Sync.SyncBlocker(
+                BlockRef.ColdTurkeyBlock, block.Name, block.Name, block.IsSwitchedOn, block.IsLockedAt(time.GetLocalNow().DateTime))).ToList();
         syncCoordinator.Blockers = OwnBlockers;
+
+        // ADR 39: AB holds the keys to the Cold Turkey blocks the user assigns, during its windows; ADR 37 re-arm.
+        string? coldTurkeyFolder = new ColdTurkeyDetector().Detect().InstallFolder;
+        var coldTurkeyKeys = new ColdTurkeyKeysService(
+            _coldTurkey!, new ColdTurkeyCommandLine(() => coldTurkeyFolder), _sessions!,
+            () => _preWork!.IsGuarding, () => _workHours!.IsGuarding, () => _configuration!.Current.DayPlan,
+            () => syncIdentity.DeviceId == Guid.Empty ? null : syncIdentity.DeviceId,
+            documents, new DpapiDataProtector(), time);
+        coldTurkeyKeys.LoadBlocking();
+        _coldTurkeyKeys = coldTurkeyKeys;
+        coldTurkeyKeys.Notice += (_, notice) => presenter.ShowNotice(notice.Title, notice.Text);
+        coldTurkeyKeys.SpareKeyNeeded += (_, _) => ShowColdTurkeyKey(emergency: false);
+        _workHours!.Changed += (_, _) => coldTurkeyKeys.CheckSoon();
+        _coldTurkey!.Changed += (_, _) => coldTurkeyKeys.CheckSoon();
+        coldTurkeyKeys.Start();
         void ShowPlanDay()
         {
             var blocks = new List<(BlockRef Block, string Device, bool On)>();
@@ -1210,6 +1230,27 @@ public partial class App : Application
         window.Show();
     }
 
+    /// <summary>The spare key window (write down a new key) or Emergency release (ADR 39); one at a time.</summary>
+    private void ShowColdTurkeyKey(bool emergency)
+    {
+        if (_coldTurkeyKeys is null)
+        {
+            return;
+        }
+
+        if (_coldTurkeyKeyWindow is not null)
+        {
+            _coldTurkeyKeyWindow.Activate();
+            return;
+        }
+
+        var window = new ColdTurkeyKeyWindow { DataContext = new ColdTurkeyKeyViewModel(_coldTurkeyKeys, emergency) };
+        window.Closed += (_, _) => _coldTurkeyKeyWindow = null;
+        _coldTurkeyKeyWindow = window;
+        window.Show();
+        window.Activate();
+    }
+
     private void CreateTrayIcon()
     {
         var quickItem = new NativeMenuItem($"Quick session…  ({_quickSession!.Preferences.Hotkey})");
@@ -1229,6 +1270,10 @@ public partial class App : Application
         _endSessionMenuItem = new NativeMenuItem("End session…");
         _endSessionMenuItem.Click += async (_, _) => await _endFlow!.TryEndSessionAsync(VisibleMainWindow());
 
+        // ADR 39: the one way out of AB's Cold Turkey locks, with the spare key.
+        var emergencyItem = new NativeMenuItem("Emergency release (Cold Turkey)…");
+        emergencyItem.Click += (_, _) => ShowColdTurkeyKey(emergency: true);
+
         var quitItem = new NativeMenuItem("Quit");
         quitItem.Click += async (_, _) => await QuitAsync();
 
@@ -1239,6 +1284,7 @@ public partial class App : Application
         menu.Items.Add(_stepAwayMenuItem);
         menu.Items.Add(_endSessionMenuItem);
         menu.Items.Add(new NativeMenuItemSeparator());
+        menu.Items.Add(emergencyItem);
         menu.Items.Add(quitItem);
 
         _trayIcon = new TrayIcon
@@ -1598,6 +1644,7 @@ public partial class App : Application
         _dayBar?.Dispose();
         _privateAccess?.Dispose();
         _coldTurkey?.Dispose();
+        _coldTurkeyKeys?.Dispose();
         _link?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
         _syncFolder?.Dispose();
         _syncDrive?.Dispose();
