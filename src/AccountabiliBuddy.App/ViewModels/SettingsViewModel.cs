@@ -683,6 +683,16 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial string? NoiseKeysStatus { get; set; }
 
+    /// <summary>Pause the noise when any headphones disconnect, locked or not. Applies at once, not with Save.</summary>
+    [ObservableProperty]
+    public partial bool NoiseStopsWhenHeadphonesGo { get; set; }
+
+    partial void OnNoiseStopsWhenHeadphonesGoChanged(bool value)
+    {
+        // Showing the saved value changes nothing (the service ignores a value it already has).
+        _ = _noise?.SetStopsWhenHeadphonesGoAsync(value);
+    }
+
     /// <summary>The folder the noise player plays, and how many sound files are in it.</summary>
     [ObservableProperty]
     public partial string NoiseFolderText { get; set; } = string.Empty;
@@ -833,6 +843,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         NoiseVolumeUpKey = noise.VolumeUpKey;
         NoiseVolumeDownKey = noise.VolumeDownKey;
         NoiseKeysStatus = _noise.ShortcutError;
+        NoiseStopsWhenHeadphonesGo = noise.StopsWhenHeadphonesGo;
         ShowNoiseFolder();
     }
 

@@ -584,6 +584,9 @@
                             <controls:HotkeyBox Grid.Row="2" Grid.Column="1" Text="{Binding NoiseVolumeDownKey}" Width="220" />
                         </Grid>
                         <CheckBox Content="The keyboard's media keys and Windows' media pop-up also control the noise" IsChecked="{Binding NoiseMediaKeys}" />
+                        <CheckBox Content="Stop when headphones disconnect" IsChecked="{Binding NoiseStopsWhenHeadphonesGo}" Margin="0,6,0,0" />
+                        <TextBlock Text="Pauses the noise when any headphones go, wired or Bluetooth, so it never carries on through the speakers. Applies at once. The lock on the player (bottom left) goes further: it won't play at all without headphones."
+                                   Opacity="0.75" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding NoiseKeysStatus}" TextWrapping="Wrap"
                                    IsVisible="{Binding NoiseKeysStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     </StackPanel>

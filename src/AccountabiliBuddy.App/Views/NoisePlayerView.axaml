@@ -1,9 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="AccountabiliBuddy.App.Views.NoisePlayerView"
              x:DataType="vm:NoisePlayerViewModel">
-    <!-- The noise player at the bottom of the sidebar: file name, ⏮ ⏯ ⏭ and repeat, then its own volume. -->
+    <!-- The noise player at the bottom of the sidebar: file name, the headphone lock, ⏮ ⏯ ⏭ and repeat, then its own volume. -->
     <UserControl.Styles>
         <Style Selector="Button.icon, ToggleButton.icon">
             <Setter Property="FontFamily" Value="Segoe Fluent Icons,Segoe MDL2 Assets" />
@@ -12,13 +13,20 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="CornerRadius" Value="6" />
         </Style>
+        <Style Selector="Button.locked">
+            <Setter Property="Foreground" Value="#0F766E" />
+        </Style>
+        <Style Selector="TextBlock.notice">
+            <Setter Property="Foreground" Value="#F59E0B" />
+            <Setter Property="Opacity" Value="1" />
+        </Style>
     </UserControl.Styles>
     <Border Padding="10,8" CornerRadius="8" Background="#14808080">
         <StackPanel Spacing="4">
             <!-- The name (its own name for it, if renamed) with a pencil; the folder is chosen in Settings. -->
             <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding !IsRenaming}">
                 <TextBlock Text="{Binding TrackText}" ToolTip.Tip="{Binding TrackText}" FontSize="12" Opacity="0.85"
-                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Classes.notice="{Binding HasNotice}" />
                 <Button Grid.Column="1" Classes="icon" Content="&#xE70F;" Command="{Binding StartRenameCommand}" IsVisible="{Binding HasFiles}"
                         ToolTip.Tip="Rename (only how it's shown here)" Padding="6,2" FontSize="12" />
             </Grid>
@@ -34,8 +42,12 @@
                 <Button Grid.Column="2" Classes="icon" Content="&#xE711;" Command="{Binding CancelRenameCommand}" ToolTip.Tip="Cancel"
                         Padding="6,2" FontSize="12" />
             </Grid>
-            <!-- ⏮ ⏯ ⏭ centred on their own; repeat sits at the right edge so it doesn't push them off-centre. -->
+            <!-- ⏮ ⏯ ⏭ centred on their own; the lock and repeat sit at the edges so they don't push them off-centre. -->
             <Grid ColumnDefinitions="*,Auto,*" IsEnabled="{Binding HasFiles}">
+                <Button Classes="icon" Command="{Binding ToggleLockCommand}" ToolTip.Tip="{Binding LockTip}" HorizontalAlignment="Left"
+                        Classes.locked="{Binding IsLocked}">
+                    <mi:MaterialIcon Kind="{Binding LockIcon}" Width="16" Height="16" />
+                </Button>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
                     <Button Classes="icon" Content="&#xE892;" Command="{Binding PreviousCommand}" ToolTip.Tip="Back to the start, or the previous file" />
                     <Button Classes="icon" Content="{Binding PlayGlyph}" Command="{Binding PlayPauseCommand}" ToolTip.Tip="{Binding PlayTip}"

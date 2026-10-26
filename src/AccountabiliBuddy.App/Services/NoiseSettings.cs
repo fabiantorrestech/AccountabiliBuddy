@@ -10,6 +10,8 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="VolumeUpKey">Global shortcut for +10% volume; empty = none.</param>
 /// <param name="VolumeDownKey">Global shortcut for −10% volume; empty = none.</param>
 /// <param name="DisplayNames">Names shown instead of file names (key: file name); the files keep theirs.</param>
+/// <param name="LockedToHeadphones">The player's lock: it doesn't play unless headphones are connected, and pauses when the last ones go.</param>
+/// <param name="StopsWhenHeadphonesGo">Pause when any headphones disconnect, locked or not (apart from auto-play's chosen headphones).</param>
 public sealed record NoiseSettings(
     string? Folder,
     int Volume,
@@ -19,7 +21,9 @@ public sealed record NoiseSettings(
     string PlayPauseKey,
     string VolumeUpKey,
     string VolumeDownKey,
-    IReadOnlyDictionary<string, string>? DisplayNames = null)
+    IReadOnlyDictionary<string, string>? DisplayNames = null,
+    bool LockedToHeadphones = false,
+    bool StopsWhenHeadphonesGo = false)
 {
     public static NoiseSettings Default { get; } = new(null, 40, true, null, false, string.Empty, string.Empty, string.Empty);
 
