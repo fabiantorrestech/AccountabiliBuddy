@@ -53,7 +53,7 @@ object DayTemplateEditing {
             return null
         }
 
-        return DayTemplate(template.parts + PlanPart(UUID.randomUUID(), categoryId, timeOf(start), timeOf(end)))
+        return template.copy(parts = template.parts + PlanPart(UUID.randomUUID(), categoryId, timeOf(start), timeOf(end)))
     }
 
     /**
@@ -108,7 +108,7 @@ object DayTemplateEditing {
         }
 
         val moved = part.copy(start = timeOf(start), end = timeOf(end))
-        return DayTemplate(template.parts.map { if (it.id == partId) moved else it })
+        return template.copy(parts = template.parts.map { if (it.id == partId) moved else it })
     }
 
     /** A part as minute ranges within one day; a midnight-crossing part is its start to midnight plus midnight to its end. */

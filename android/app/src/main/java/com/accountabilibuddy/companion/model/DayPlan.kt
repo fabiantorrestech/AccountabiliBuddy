@@ -51,7 +51,10 @@ data class PlanPart(
 /** A day's flexible break placed on its date (as on the PC's Core FlexibleBreak). */
 data class FlexibleBreak(val name: String, val color: Long, val window: LocalWindow, val minutes: Int, val hintAt: java.time.LocalDateTime?)
 
-data class DayTemplate(val parts: List<PlanPart> = emptyList())
+/** A day's parts; [blocks] = its block rules (schema v10, ADR 37), null = [BlockRules.Default]. */
+data class DayTemplate(val parts: List<PlanPart> = emptyList(), val blocks: BlockRules? = null) {
+    val rules: BlockRules get() = blocks ?: BlockRules.Default
+}
 
 /** A single date planned differently; its template replaces that day's usual one. */
 data class OneOffDay(val id: UUID, val date: LocalDate, val template: DayTemplate, val note: String? = null)

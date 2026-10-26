@@ -46,7 +46,7 @@ public static class DayTemplateEditing
         }
 
         var part = new PlanPart(Guid.NewGuid(), categoryId, TimeOf(start), TimeOf(end));
-        return new DayTemplate(template.Parts.Append(part).ToList());
+        return template with { Parts = template.Parts.Append(part).ToList() };
     }
 
     /// <summary>
@@ -125,7 +125,7 @@ public static class DayTemplateEditing
         }
 
         PlanPart moved = part with { Start = TimeOf(start), End = TimeOf(end) };
-        return new DayTemplate(template.Parts.Select(candidate => candidate.Id == partId ? moved : candidate).ToList());
+        return template with { Parts = template.Parts.Select(candidate => candidate.Id == partId ? moved : candidate).ToList() };
     }
 
     /// <summary>

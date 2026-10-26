@@ -18,6 +18,7 @@ public static class ProfileDocumentSerializer
 
     // v8: flexible breaks (a part's FlexMinutes and HintAt, optional): nothing to migrate, older plans have none.
     // v9: a Sleep part's WakeByAlarm (optional, ADR 33): nothing to migrate, older plans wake at the part's end.
+    // v10: a day template's Blocks (optional, ADR 37): nothing to migrate, older plans follow BlockRules.Default.
 
     private static readonly JsonSerializerOptions Options = new()
     {

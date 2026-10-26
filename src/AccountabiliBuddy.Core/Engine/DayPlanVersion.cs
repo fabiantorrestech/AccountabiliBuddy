@@ -29,6 +29,6 @@ public static class DayPlanVersion
 
     private static DayTemplate Ordered(DayTemplate template)
     {
-        return new DayTemplate(template.Parts.OrderBy(part => part.Start).ThenBy(part => part.Id).ToList());
+        return template with { Parts = template.Parts.OrderBy(part => part.Start).ThenBy(part => part.Id).ToList() };
     }
 }

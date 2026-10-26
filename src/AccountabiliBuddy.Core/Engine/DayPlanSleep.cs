@@ -50,7 +50,7 @@ public static class DayPlanSleep
             parts.Add(sleep);
         }
 
-        return new DayTemplate(parts);
+        return template with { Parts = parts };
     }
 
     // The night: a Sleep part from the evening before first, else one starting before noon (after midnight).

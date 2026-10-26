@@ -223,8 +223,8 @@ public sealed partial class DayPlanViewModel : ObservableObject
         return plan with
         {
             Workdays = plan.Workdays.Order().ToList(),
-            Workday = new DayTemplate(plan.Workday.Parts.OrderBy(part => part.Id).ToList()),
-            OtherDay = new DayTemplate(plan.OtherDay.Parts.OrderBy(part => part.Id).ToList()),
+            Workday = plan.Workday with { Parts = plan.Workday.Parts.OrderBy(part => part.Id).ToList() },
+            OtherDay = plan.OtherDay with { Parts = plan.OtherDay.Parts.OrderBy(part => part.Id).ToList() },
         };
     }
 }

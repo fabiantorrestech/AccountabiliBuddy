@@ -49,6 +49,7 @@ object DayPlanJson {
 
     private fun template(template: DayTemplate): JsonObject = buildJsonObject {
         put("parts", buildJsonArray { template.parts.forEach { add(part(it)) } })
+        template.blocks?.let { put("blocks", BlockRulesJson.write(it)) }
     }
 
     private fun part(part: PlanPart): JsonObject = buildJsonObject {

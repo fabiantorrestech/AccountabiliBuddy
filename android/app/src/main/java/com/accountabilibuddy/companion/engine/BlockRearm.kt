@@ -1,0 +1,85 @@
+package com.accountabilibuddy.companion.engine
+
+import com.accountabilibuddy.companion.model.BlockLift
+import com.accountabilibuddy.companion.model.BlockRef
+import com.accountabilibuddy.companion.model.BlockRules
+import com.accountabilibuddy.companion.model.DayPlan
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+
+/**
+ * When blocks go off or come back on (ADR 37), from the day plan's block rules for one device: a day's re-enable time
+ * (anything guarded back on) and each lift window's start (Auto: off) and end (back on). A port of the PC's Core
+ * BlockRearm (same rules, kept in step by hand).
+ */
+object BlockRearm {
+    /** At [at], turn [blocks] on or off (null = every guarded block of the device); a heads-up at [warnAt] (null = none). */
+    data class Event(val at: LocalDateTime, val turnOn: Boolean, val blocks: List<BlockRef>?, val warnAt: LocalDateTime?, val why: String)
+
+    fun forDay(plan: DayPlan, day: LocalDate, device: String): List<Event> {
+        val rules = plan.templateFor(day).rules
+        val start = day.atStartOfDay()
+        val events = mutableListOf<Event>()
+
+        val reenable = if (rules.reenableAt == LocalTime.MIDNIGHT) start.plusDays(1) else day.atTime(rules.reenableAt)
+        val guarded = rules.guarded?.filter { it.device == device }
+        if (guarded == null || guarded.isNotEmpty()) {
+            events += Event(reenable, true, guarded, warn(reenable, rules), "the day's re-enable time")
+        }
+
+        for (lift in rules.lifts) {
+            val mine = lift.blocks.filter { it.device == device }
+            if (mine.isEmpty()) continue
+            val (from, to) = window(day, lift)
+            if (lift.mode == BlockLift.AUTO) events += Event(from, false, mine, null, "a lift window starts")
+            events += Event(to, true, mine, warn(to, rules), "a lift window ends")
+        }
+        return events.sortedBy { it.at }
+    }
+
+    /** The events of the days around that fall in ([after], [until]]. */
+    fun between(plan: DayPlan, device: String, after: LocalDateTime, until: LocalDateTime): List<Event> =
+        around(plan, device, after, until).filter { it.at > after && it.at <= until }.sortedBy { it.at }
+
+    /** The heads-ups due in ([after], [until]]. */
+    fun warningsBetween(plan: DayPlan, device: String, after: LocalDateTime, until: LocalDateTime): List<Event> =
+        around(plan, device, after, until.plusDays(1))
+            .filter { e -> e.warnAt?.let { it > after && it <= until } == true }
+            .sortedBy { it.warnAt }
+
+    /** The next event after [now] (to set the alarm for), or null. */
+    fun next(plan: DayPlan, device: String, now: LocalDateTime): LocalDateTime? =
+        around(plan, device, now, now.plusDays(2))
+            .flatMap { listOfNotNull(it.at, it.warnAt) }
+            .filter { it > now }
+            .minOrNull()
+
+    /** True when [block] is in one of its lift windows at [now]. */
+    fun inLift(plan: DayPlan, block: BlockRef, now: LocalDateTime): Boolean =
+        listOf(now.toLocalDate().minusDays(1), now.toLocalDate()).any { day ->
+            plan.templateFor(day).rules.lifts.filter { lift -> lift.blocks.any { it.same(block) } }.any { lift ->
+                val (from, to) = window(day, lift)
+                now >= from && now < to
+            }
+        }
+
+    private fun around(plan: DayPlan, device: String, after: LocalDateTime, until: LocalDateTime): List<Event> {
+        val events = mutableListOf<Event>()
+        var day = after.toLocalDate().minusDays(1)
+        while (!day.isAfter(until.toLocalDate())) {
+            events += forDay(plan, day, device)
+            day = day.plusDays(1)
+        }
+        return events
+    }
+
+    private fun window(day: LocalDate, lift: BlockLift): Pair<LocalDateTime, LocalDateTime> {
+        val from = day.atTime(lift.start)
+        val to = day.atTime(lift.end)
+        return from to if (!to.isAfter(from)) to.plusDays(1) else to
+    }
+
+    private fun warn(at: LocalDateTime, rules: BlockRules): LocalDateTime? =
+        rules.warnMinutes?.takeIf { it > 0 }?.let { at.minusMinutes(it.toLong()) }
+}

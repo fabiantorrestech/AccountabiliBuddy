@@ -55,7 +55,7 @@ fun DayTemplateEditor(
         selected = null
     }
 
-    fun update(part: PlanPart) = onChange(DayTemplate(template.parts.map { if (it.id == part.id) part else it }))
+    fun update(part: PlanPart) = onChange(template.copy(parts = template.parts.map { if (it.id == part.id) part else it }))
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         DayPlanBarEditor(template, categories, selected, onSelect = { selected = it }, onChange = onChange, onRefused = onMessage)
@@ -71,7 +71,7 @@ fun DayTemplateEditor(
                 part, categories, clock, smartNote,
                 onChange = ::update,
                 onDelete = {
-                    onChange(DayTemplate(template.parts.filter { it.id != part.id }))
+                    onChange(template.copy(parts = template.parts.filter { it.id != part.id }))
                     selected = null
                 },
             )

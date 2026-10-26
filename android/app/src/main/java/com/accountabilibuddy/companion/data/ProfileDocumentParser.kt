@@ -125,5 +125,6 @@ object ProfileDocumentParser {
                 wakeByAlarm = (p["wakeByAlarm"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true",
             )
         },
+        blocks = json?.get("blocks")?.let { it as? JsonObject }?.let(BlockRulesJson::read),
     )
 }
