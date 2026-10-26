@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0042](0042-control-pc-sessions-and-plan-edits-through-sync-files.md) | Control PC sessions and plan edits through sync files | Accepted | — |
 | [0041](0041-get-a-new-spare-key-with-friction.md) | Get a new spare key with friction | Accepted | — |
 | [0040](0040-estimate-the-wake-time-from-past-alarms.md) | Estimate the wake time from past alarms | Accepted | — |
 | [0039](0039-hold-cold-turkeys-keys-during-abs-windows.md) | Hold Cold Turkey's keys during AB's windows | Accepted | — |
