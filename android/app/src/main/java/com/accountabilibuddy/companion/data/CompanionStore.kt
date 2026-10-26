@@ -72,7 +72,7 @@ class CompanionStore(private val folder: File) {
                 pcDayPlan = data.document.dayPlan,
                 pcPlanVersion = data.dayPlanVersion,
                 pcPlanEditedAt = data.dayPlanEditedAt,
-                sleep = data.sleep?.copy(alarm = it.sleep.alarm) ?: it.sleep,
+                sleep = data.sleep?.copy(alarm = it.sleep.alarm, wakeEstimates = it.sleep.wakeEstimates) ?: it.sleep,
                 dayBar = data.dayBar ?: it.dayBar,
                 events = if (data.eventsJson != null) data.events else it.events,
                 importedFrom = data.sourceDescription,
@@ -107,10 +107,15 @@ class CompanionStore(private val folder: File) {
         _state.update { if (it.sleep.smartLevels == levels) it else it.copy(sleep = it.sleep.copy(smartLevels = levels)) }
     }
 
+    /** The estimated wake times per kind of morning (ADR 40); kept in memory only, like the alarm. */
+    fun setWakeEstimates(estimates: Map<com.accountabilibuddy.companion.engine.NightKind, java.time.LocalTime>) = synchronized(lock) {
+        _state.update { if (it.sleep.wakeEstimates == estimates) it else it.copy(sleep = it.sleep.copy(wakeEstimates = estimates)) }
+    }
+
     fun saveSleep(settings: SleepSettings) = synchronized(lock) {
         write(SLEEP, SettingsJson.sleepJson(settings))
         onSettingsSaved()
-        _state.update { it.copy(sleep = settings.copy(alarm = it.sleep.alarm, smartLevels = it.sleep.smartLevels)) }
+        _state.update { it.copy(sleep = settings.copy(alarm = it.sleep.alarm, smartLevels = it.sleep.smartLevels, wakeEstimates = it.sleep.wakeEstimates)) }
     }
 
     /** Today's focus from the linked PC (ADR 21), which arrived [at]; kept as a file so the watch has it after a restart. */

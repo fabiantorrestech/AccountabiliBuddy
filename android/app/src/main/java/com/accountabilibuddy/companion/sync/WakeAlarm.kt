@@ -16,7 +16,8 @@ data class AlarmSighting(val at: Instant, val app: String?, val seenAt: Instant)
  * last alarm while another app's alarm is the one Android shows.
  */
 object WakeAlarm {
-    private const val KEPT = 30
+    // Eight mornings of each kind (ADR 40's wake estimate) fit beside calendar reminders.
+    private const val KEPT = 60
     private const val MORNINGS_TO_LEARN = 2
 
     // After the plan's wake time, an alarm still counts as the morning's this long (snoozes, late starts).
@@ -35,7 +36,7 @@ object WakeAlarm {
         return !at.isBefore(window.start) && !at.isAfter(window.end.plus(AFTER_WAKE))
     }
 
-    /** [history] with [sighting] (the same app and time once, the newest sighting kept), oldest first, at most 30. */
+    /** [history] with [sighting] (the same app and time once, the newest sighting kept), oldest first, at most 60. */
     fun remember(history: List<AlarmSighting>, sighting: AlarmSighting): List<AlarmSighting> =
         (history.filterNot { it.app == sighting.app && it.at == sighting.at } + sighting).takeLast(KEPT)
 
