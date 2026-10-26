@@ -135,18 +135,57 @@ public static class ColdTurkeySettingsReader
                           && StringProperty(additional, "paused") == "true";
             List<ColdTurkeyBlockState> states = blocks.EnumerateObject()
                 .Where(block => block.Value.ValueKind == JsonValueKind.Object)
-                .Select(block => new ColdTurkeyBlockState(
+                .Select(block => ReadLock(new ColdTurkeyBlockState(
                     block.Name,
                     StringProperty(block.Value, "enabled") == "true",
                     StringProperty(block.Value, "type") == "scheduled",
-                    ReadSchedule(block.Value)))
+                    ReadSchedule(block.Value)), block.Value))
                 .ToList();
-            return new ColdTurkeyBlocks(paused, states);
+            bool pro = root.TryGetProperty("additional", out JsonElement extra)
+                       && extra.ValueKind == JsonValueKind.Object
+                       && StringProperty(extra, "proStatus") == "pro";
+            return new ColdTurkeyBlocks(paused, states, pro);
         }
         catch (JsonException ex)
         {
             throw new FormatException("Cold Turkey's settings aren't valid JSON.", ex);
         }
+    }
+
+    /// <summary>
+    /// A block's lock (ADR 39): "none", a time "yyyy,M,d,H,m" (locked until then), "password", or another kind the user
+    /// chose in Cold Turkey; and "lockUnblock" (switch off when the lock ends).
+    /// </summary>
+    private static ColdTurkeyBlockState ReadLock(ColdTurkeyBlockState state, JsonElement block)
+    {
+        string? kind = StringProperty(block, "lock");
+        bool unblocks = StringProperty(block, "lockUnblock") != "false";
+        state = state with { UnblocksWhenLockEnds = unblocks };
+        if (string.IsNullOrEmpty(kind) || kind == "none")
+        {
+            return state;
+        }
+
+        // After "-stop -password" Cold Turkey keeps "password" with the block off: only an "on" block is held.
+        if (kind == "password")
+        {
+            return state with { PasswordLocked = state.IsSwitchedOn };
+        }
+
+        int[] parts = kind.Split(',').Select(part => int.TryParse(part, out int value) ? value : -1).ToArray();
+        if (parts.Length == 5 && parts.All(part => part >= 0))
+        {
+            try
+            {
+                return state with { LockedUntil = new DateTime(parts[0], parts[1], parts[2], parts[3], parts[4], 0) };
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                // Falls through: an unreadable time is treated as a lock of another kind.
+            }
+        }
+
+        return state with { OtherLock = kind };
     }
 
     /// <summary>A block's weekly schedule; entries that can't be read are left out.</summary>
