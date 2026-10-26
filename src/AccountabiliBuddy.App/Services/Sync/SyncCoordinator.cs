@@ -627,6 +627,7 @@ public sealed class SyncCoordinator
             SmartOffDays = received.SmartOffDays,
             MinHours = received.MinHours,
             MaxHours = received.MaxHours,
+            BedtimeReminders = received.BedtimeReminders ?? current.BedtimeReminders,
         };
         if (updated != current)
         {

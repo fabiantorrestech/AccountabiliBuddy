@@ -141,10 +141,13 @@ public sealed class SyncEditTimesService
     }
 
     /// <summary>The parts of <see cref="SleepSettings"/> other devices take (SyncCoordinator's ApplySleepAsync).</summary>
-    private sealed record SharedSleep(bool Enabled, double GoalHours, WakeOnce? WakeOnce, bool SmartWorkdays, bool SmartOffDays, double MinHours, double MaxHours)
+    // The reminders compare as JSON (their lists would compare by reference).
+    private sealed record SharedSleep(
+        bool Enabled, double GoalHours, WakeOnce? WakeOnce, bool SmartWorkdays, bool SmartOffDays, double MinHours, double MaxHours, string Reminders)
     {
         public static SharedSleep Of(SleepSettings settings) => new(
-            settings.Enabled, settings.GoalHours, settings.WakeOnce, settings.SmartWorkdays, settings.SmartOffDays, settings.MinHours, settings.MaxHours);
+            settings.Enabled, settings.GoalHours, settings.WakeOnce, settings.SmartWorkdays, settings.SmartOffDays, settings.MinHours, settings.MaxHours,
+            System.Text.Json.JsonSerializer.Serialize(settings.Reminders));
     }
 
     private sealed class SuppressionScope(SyncEditTimesService owner) : IDisposable

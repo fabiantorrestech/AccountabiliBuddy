@@ -16,12 +16,17 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="SmartOffDays">The smart bedtime is on for nights before Off-Days.</param>
 /// <param name="MinHours">The smart bedtime's minimum sleep.</param>
 /// <param name="MaxHours">The smart bedtime's maximum sleep.</param>
+/// <param name="BedtimeReminders">The bedtime reminders (ADR 38; shared); null = the defaults.</param>
 /// <param name="UsePcAlarm">This PC rings its own alarm at the night's wake time, which is then the wake time (ADR 35); this PC's own, never shared.</param>
 public sealed record SleepSettings(
     bool Enabled, bool SameEveryNight, SleepTimes Weeknights, SleepTimes Weekends, double GoalHours = 8, WakeOnce? WakeOnce = null,
     bool UsePhoneAlarm = true, bool UsePhoneBedtime = true,
-    bool SmartWorkdays = false, bool SmartOffDays = false, double MinHours = 6.5, double MaxHours = 9, bool UsePcAlarm = false)
+    bool SmartWorkdays = false, bool SmartOffDays = false, double MinHours = 6.5, double MaxHours = 9, bool UsePcAlarm = false,
+    BedtimeReminderSettings? BedtimeReminders = null)
 {
+    /// <summary>The bedtime reminders, the defaults when none were set (ADR 38).</summary>
+    public BedtimeReminderSettings Reminders => BedtimeReminders ?? BedtimeReminderSettings.Default;
+
     /// <summary>The goals Settings offers, in hours.</summary>
     public static IReadOnlyList<double> GoalChoices { get; } = new[] { 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10 };
 

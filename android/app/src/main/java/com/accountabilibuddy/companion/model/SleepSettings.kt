@@ -23,6 +23,8 @@ data class SleepSettings(
     /** The smart bedtime's minimum and maximum sleep, in hours. */
     val minHours: Double = 6.5,
     val maxHours: Double = 9.0,
+    /** The bedtime reminders (ADR 38, shared both ways). */
+    val reminders: BedtimeReminderSettings = BedtimeReminderSettings.Default,
     /** The smart bedtime's levels (minutes in bed before waking) for the kinds of night it's on for (ADR 34); set by the app, never saved. */
     val smartLevels: Map<com.accountabilibuddy.companion.engine.NightKind, Int> = emptyMap(),
 ) {

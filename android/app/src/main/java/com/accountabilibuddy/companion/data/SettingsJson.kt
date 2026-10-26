@@ -40,6 +40,7 @@ object SettingsJson {
             smartOffDays = json.bool("smartOffDays", default.smartOffDays),
             minHours = (json["minHours"] as? JsonPrimitive)?.doubleOrNull ?: default.minHours,
             maxHours = (json["maxHours"] as? JsonPrimitive)?.doubleOrNull ?: default.maxHours,
+            reminders = reminders(json.obj("bedtimeReminders")) ?: default.reminders,
         )
     }
 
@@ -53,6 +54,7 @@ object SettingsJson {
         put("smartOffDays", settings.smartOffDays)
         put("minHours", settings.minHours)
         put("maxHours", settings.maxHours)
+        put("bedtimeReminders", remindersJson(settings.reminders))
         settings.wakeOnce?.let { once ->
             put("wakeOnce", buildJsonObject {
                 put("morning", once.morning.toString())
@@ -60,6 +62,41 @@ object SettingsJson {
                 if (once.overridesAlarm) put("overridesAlarm", true)
             })
         }
+    }
+
+    // ADR 38: {"on", "list": [{"minutesBefore", "alarm", "devices", "sound", "volume", "vibrate"}]}; null when absent.
+    private fun reminders(json: JsonObject?): com.accountabilibuddy.companion.model.BedtimeReminderSettings? {
+        json ?: return null
+        val list = (json["list"] as? kotlinx.serialization.json.JsonArray).orEmpty().mapNotNull { element ->
+            val o = element as? JsonObject ?: return@mapNotNull null
+            runCatching {
+                com.accountabilibuddy.companion.model.BedtimeReminder(
+                    (o["minutesBefore"] as JsonPrimitive).content.toInt(),
+                    o.bool("alarm", false),
+                    (o["devices"] as? kotlinx.serialization.json.JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.content },
+                    (o["sound"] as? JsonPrimitive)?.content ?: "bell",
+                    (o["volume"] as? JsonPrimitive)?.content?.toIntOrNull() ?: 80,
+                    o.bool("vibrate", true),
+                )
+            }.getOrNull()
+        }
+        return com.accountabilibuddy.companion.model.BedtimeReminderSettings(json.bool("on", true), list)
+    }
+
+    private fun remindersJson(settings: com.accountabilibuddy.companion.model.BedtimeReminderSettings): JsonObject = buildJsonObject {
+        put("on", settings.on)
+        put("list", kotlinx.serialization.json.buildJsonArray {
+            settings.list.forEach { r ->
+                add(buildJsonObject {
+                    put("minutesBefore", r.minutesBefore)
+                    put("alarm", r.alarm)
+                    put("devices", kotlinx.serialization.json.JsonArray(r.devices.map { JsonPrimitive(it) }))
+                    put("sound", r.sound)
+                    put("volume", r.volume)
+                    put("vibrate", r.vibrate)
+                })
+            }
+        })
     }
 
     // A wake time changed on the PC for one night; null when there's none or it can't be read.
