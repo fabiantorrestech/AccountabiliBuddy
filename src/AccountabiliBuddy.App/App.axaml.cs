@@ -96,6 +96,7 @@ public partial class App : Application
     private WorkHoursGuard? _workHours;
     private HyperfocusGuard? _hyperfocus;
     private StartNudgeService? _startNudge;
+    private IWindowAttention? _windowAttention;
     private LunchService? _lunch;
     private Motion? _motion;
     private AccountabiliBuddy.App.Services.Sync.PhonePickups? _phonePickups;
@@ -402,6 +403,8 @@ public partial class App : Application
         // Steer toward starting: Today with the task box ready when work starts, at launch, and on coming back.
         _startNudge = new StartNudgeService(_sessions, _configuration, new Win32UserIdleDetector(), documents);
         _startNudge.LoadBlocking();
+        // After a session and on the repeat, the nudge only flashes the taskbar button (never takes focus).
+        _windowAttention = new WindowsWindowAttention();
         // Flexible lunch (schema v8): Start lunch any time in its window, on any device; one chime when it's over.
         _lunch = new LunchService(_sessions, _configuration, documents,
             (title, message) => presenter.ShowReminder(title, message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#CA8A04"))),
@@ -979,10 +982,17 @@ public partial class App : Application
         mainViewModel.NoisePlayer = noisePlayer;
         mainViewModel.Settings.OpenDayPlan = () => mainViewModel.SelectedTab = MainWindowViewModel.DayPlanTab;
         _mainWindow = new MainWindow { DataContext = mainViewModel };
-        // The start nudge: Today, with the keyboard in "Add a task".
-        _startNudge!.Due += (_, _) =>
+        // The start nudge: Today, with the keyboard in "Add a task". After a session and on the repeat the user may be
+        // typing elsewhere, so the window stays where it is and only its taskbar button flashes.
+        _startNudge!.Due += (_, reason) =>
         {
             mainViewModel.SelectedTab = (int)MainTab.Today;
+            if (reason is StartNudgeReason.SessionEnded or StartNudgeReason.Repeat)
+            {
+                ShowMainWindowQuietly();
+                return;
+            }
+
             ShowMainWindow();
             sessionViewModel.QuickStart.Checklist?.RequestFocus();
         };
@@ -1590,6 +1600,38 @@ public partial class App : Application
         {
             _lastWindowRefresh = DateTimeOffset.UtcNow;
             _ = _calendarSync.RefreshAllAsync();
+        }
+    }
+
+    /// <summary>
+    /// Today without taking focus: a hidden window is shown minimized, a visible one stays where it is, and the
+    /// taskbar button flashes until the user brings it forward. Never Activate() or RequestFocus().
+    /// </summary>
+    private void ShowMainWindowQuietly()
+    {
+        if (_mainWindow is null)
+        {
+            return;
+        }
+
+        if (_mainWindow.DataContext is MainWindowViewModel viewModel)
+        {
+            viewModel.SelectedTab = (int)MainTab.Today;
+        }
+
+        if (!_mainWindow.IsVisible)
+        {
+            // Minimized before Show(), and not activated, so nothing appears over what the user is typing in.
+            bool showActivated = _mainWindow.ShowActivated;
+            _mainWindow.WindowState = WindowState.Minimized;
+            _mainWindow.ShowActivated = false;
+            _mainWindow.Show();
+            _mainWindow.ShowActivated = showActivated;
+        }
+
+        if (_mainWindow.TryGetPlatformHandle() is IPlatformHandle handle)
+        {
+            _windowAttention?.Flash(handle.Handle);
         }
     }
 

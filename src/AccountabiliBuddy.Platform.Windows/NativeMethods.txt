@@ -126,3 +126,5 @@ PowerGetActiveScheme
 PowerReadACValueIndex
 PowerReadDCValueIndex
 LocalFree
+// Start nudge after a session: flash the taskbar button instead of taking focus
+FlashWindowEx
