@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -238,6 +239,11 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
                 ?: received.filter { it.file.device.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC }.maxByOrNull { it.file.device.writtenAt }?.file?.device?.name)
                 ?.let { com.accountabilibuddy.companion.sync.OpenComebacks(it, emptyList()) }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** The user's Beeminder goals (ADR 43) from the newest PC sync file that carries them; read-only on Today. */
+    val beeminder: StateFlow<com.accountabilibuddy.companion.sync.BeeminderGoals?> =
+        sync.received.map { received -> com.accountabilibuddy.companion.sync.BeeminderGoals.of(received, java.time.Instant.now()) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /** The Devices tab (ADR 22): the other devices' parts, the group's key and the phone's method switches. */
     val syncReceived = sync.received

@@ -7,13 +7,17 @@ namespace AccountabiliBuddy.App.Services;
 /// <summary>
 /// The only place the app talks to the internet (ADR 9, ADR 26): read-only downloads of iCal addresses the user added,
 /// Google sign-in plus read-only Calendar API calls for accounts the user connected, and Google Drive calls for the
-/// user's own sealed sync files (scope drive.file: only files the app made). Requests carry nothing beyond what the
+/// user's own sealed sync files (scope drive.file: only files the app made), and read-only GETs of the user's Beeminder
+/// goals with the personal auth token they pasted (ADR 43). Requests carry nothing beyond what the
 /// protocol needs: no activity data in the clear (sync files are sealed), no identifying headers, no cookies.
 /// </summary>
 public sealed class CalendarNetwork : IDisposable
 {
     // A calendar file larger than this is not a calendar anyone plans with; refuse rather than fill memory.
     private const long MaxResponseBytes = 20 * 1024 * 1024;
+
+    // ADR 43: the one Beeminder address the app ever calls.
+    private const string BeeminderGoalsAddress = "https://www.beeminder.com/api/v1/users/me/goals.json";
 
     private readonly HttpClient _http;
 
@@ -99,6 +103,20 @@ public sealed class CalendarNetwork : IDisposable
     {
         using var request = new HttpRequestMessage(method, uri) { Content = content };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
+        return await ReadJsonAsync(response, cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the user's Beeminder goals (ADR 43): one GET, nothing written to Beeminder and nothing about the user sent.
+    /// Beeminder takes the personal auth token in the query string; the address is never logged or shown, and errors
+    /// carry only the status code.
+    /// </summary>
+    /// <exception cref="HttpRequestException">Network error or an unsuccessful status code (status in the exception).</exception>
+    public async Task<JsonDocument> GetBeeminderGoalsAsync(string authToken, CancellationToken cancellationToken)
+    {
+        var uri = new Uri(BeeminderGoalsAddress + "?auth_token=" + Uri.EscapeDataString(authToken));
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
         return await ReadJsonAsync(response, cancellationToken);
     }

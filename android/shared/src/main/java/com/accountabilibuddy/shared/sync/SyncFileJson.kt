@@ -103,6 +103,17 @@ object SyncFileJson {
                 estimate.offDays?.let { put("offDays", it) }
             })
         }
+        // Optional (ADR 43): a PC's Beeminder summary. The phone never has one of its own; kept for a faithful round trip.
+        file.beeminder?.let { list ->
+            put("beeminder", JsonArray(list.map { goal ->
+                buildJsonObject {
+                    put("title", goal.title)
+                    put("needed", goal.needed)
+                    put("safeDays", goal.safeDays)
+                    put("dueAt", writeTime(goal.dueAt))
+                }
+            }))
+        }
         file.running?.let { running ->
             put("running", buildJsonObject {
                 running.profile?.let { put("profile", it) }
@@ -248,7 +259,24 @@ object SyncFileJson {
                 fun time(key: String) = (estimate[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
                 SyncWakeEstimate(time("workdays"), time("offDays"))
             },
+            readBeeminder(json["beeminder"]),
         )
+    }
+
+    // ADR 43: an optional list; an entry that can't be read is left out rather than failing the file.
+    private fun readBeeminder(value: kotlinx.serialization.json.JsonElement?): List<SyncBeeminderGoal>? {
+        val array = value as? JsonArray ?: return null
+        return array.mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            runCatching {
+                SyncBeeminderGoal(
+                    item.requiredString("title"),
+                    (item["needed"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: "",
+                    (item["safeDays"] as? JsonPrimitive)?.content?.toIntOrNull() ?: 0,
+                    item.requiredTime("dueAt"),
+                )
+            }.getOrNull()
+        }
     }
 
     private fun writeSmartLevel(level: SyncSmartLevel): JsonObject = buildJsonObject {

@@ -104,6 +104,7 @@ public partial class App : Application
     private DeepWorkHistoryViewModel? _deepWorkHistory;
     private ShutdownService? _shutdown;
     private ComebackStore? _comebacks;
+    private AccountabiliBuddy.App.Services.Beeminder.BeeminderService? _beeminder;
     private SessionNotesStore? _sessionNotes;
     private CaptureService? _capture;
     private WorkGateService? _workGate;
@@ -490,6 +491,9 @@ public partial class App : Application
             new GoogleCalendarClient(_calendarNetwork, GoogleEndpointsFromEnvironment(), time),
             dataProtector,
             time);
+        // Beeminder (ADR 43): read only, through CalendarNetwork, only once the user pastes a token.
+        _beeminder = new AccountabiliBuddy.App.Services.Beeminder.BeeminderService(_calendarNetwork, documents, dataProtector, time);
+        _beeminder.LoadBlocking();
         // Linked devices (ADR 14): off until turned on in Setup.
         var linkHost = new AccountabiliBuddy.App.Services.Link.LinkSessionHost(
             _sessions, _configuration, _quickSession, documents, calendars, sleepSettings, dayBarSettings, activityLog, omittedSessions, deletedUsage, privacy);
@@ -540,6 +544,21 @@ public partial class App : Application
         // Come-backs (ADR 30): the open ones go to paired devices in the link's state and in this PC's sync file.
         linkHost.Comebacks = () => _comebacks!.Open.Select(comeback => new AccountabiliBuddy.Core.Link.LinkComeback(comeback.Id, comeback.Text, comeback.CreatedAt)).ToList();
         syncCoordinator.Comebacks = () => _comebacks!.Open.Select(comeback => new AccountabiliBuddy.Core.Sync.SyncComeback(comeback.Id, comeback.Text, comeback.CreatedAt)).ToList();
+        // Beeminder (ADR 43): only the derived summary goes in this PC's sync file; removing the token removes it.
+        syncCoordinator.Beeminder = _beeminder.SyncSummary;
+        IReadOnlyList<AccountabiliBuddy.Core.Sync.SyncBeeminderGoal>? lastBeeminder = _beeminder.SyncSummary();
+        _beeminder.Changed += (_, _) =>
+        {
+            // Only a changed summary rewrites the file, not every 30-minute read that found the same goals.
+            IReadOnlyList<AccountabiliBuddy.Core.Sync.SyncBeeminderGoal>? summary = _beeminder.SyncSummary();
+            if ((summary ?? []).SequenceEqual(lastBeeminder ?? []) && (summary is null) == (lastBeeminder is null))
+            {
+                return;
+            }
+
+            lastBeeminder = summary;
+            syncCoordinator.NotifyHistoryChanged();
+        };
         // Lunch is the user's, not this PC's: started here or on another device, every device takes the newest.
         syncCoordinator.Lunch = () => _lunch!.Taken;
         // What the user did on the phone for this PC (ADR 26): applied once each, acknowledged in this PC's file.
@@ -722,6 +741,8 @@ public partial class App : Application
         sessionViewModel.Comebacks = new ComebacksViewModel(_comebacks!);
         sessionViewModel.Lunch = new LunchCardViewModel(_lunch!, _sessions);
         sessionViewModel.DayOff = new DayOffCardViewModel(_preWork!);
+        var beeminderViewModel = new BeeminderViewModel(_beeminder!, time);
+        sessionViewModel.Beeminder = beeminderViewModel;
         // Deep work against the daily goal (redesign phase 4): Today's card, the on-screen details, "Goal met" once a day.
         _deepWork = new DeepWorkService(
             _sessions,
@@ -820,7 +841,7 @@ public partial class App : Application
                 NotesBetween = _sessionNotes.Between,
             },
             setupViewModel,
-            new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions),
+            new IntegrationsViewModel(new ColdTurkeyDetector(), sightings, _configuration, _sessions) { Beeminder = beeminderViewModel },
             new SettingsViewModel(
                 _configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, dayBarSettings, overlaySettings, soundSettings, _sessionCues, sleepSettings, database.DatabasePath,
                 _noise)
@@ -854,6 +875,15 @@ public partial class App : Application
             Search = new SearchViewModel(SearchDataAsync),
             Devices = devices,
         };
+        // Beeminder (ADR 43): every 30 minutes, and again when Today opens with an answer a few minutes old.
+        mainViewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(MainWindowViewModel.SelectedTab) && mainViewModel.SelectedTab == (int)MainTab.Today)
+            {
+                _beeminder!.RefreshIfStale();
+            }
+        };
+        _beeminder!.Start();
         // The top-right refresh: every sync method that's on, calendars, then the day bar and History read again.
         mainViewModel.RefreshAll = async () =>
         {
@@ -1649,6 +1679,11 @@ public partial class App : Application
 
         _mainWindow.Activate();
 
+        if (_mainWindow.DataContext is MainWindowViewModel { SelectedTab: (int)MainTab.Today })
+        {
+            _beeminder?.RefreshIfStale();
+        }
+
         if (_calendarSync is not null && DateTimeOffset.UtcNow - _lastWindowRefresh >= WindowRefreshInterval)
         {
             _lastWindowRefresh = DateTimeOffset.UtcNow;
@@ -1784,6 +1819,7 @@ public partial class App : Application
         _clockAnchors?.Dispose();
         _unlocks?.Dispose();
         _calendarSync?.Dispose();
+        _beeminder?.Dispose();
         _calendarNetwork?.Dispose();
         _sessions?.Dispose();
         _trayIcon?.Dispose();

@@ -68,6 +68,8 @@ fun TodayScreen(
     runningTasks: com.accountabilibuddy.companion.sync.RunningTasks? = null,
     /** The PC's open come-backs (ADR 30); null hides the card. */
     comebacks: com.accountabilibuddy.companion.sync.OpenComebacks? = null,
+    /** The user's Beeminder goals from a PC's sync file (ADR 43); null hides the card. */
+    beeminder: com.accountabilibuddy.companion.sync.BeeminderGoals? = null,
 ) {
     val dark = isSystemInDarkTheme()
     val now = LocalDateTime.now()
@@ -129,6 +131,9 @@ fun TodayScreen(
         }
         comebacks?.let { list ->
             item { ComebacksCard(list) }
+        }
+        beeminder?.let { goals ->
+            item { BeeminderCard(goals, clock) }
         }
         item { SleepCard(state, clock, health, onConnectHealth, onRefreshSleep) }
         item { PhoneCard(phoneUsage, onAllowUsage) }
