@@ -7,7 +7,16 @@ namespace AccountabiliBuddy.Core.Domain;
 /// <param name="SessionStart">When its session started; null while it's a draft before Start.</param>
 /// <param name="MadeBeforeStart">It had at least one task when the session started (ADR 25's guard).</param>
 /// <param name="CurrentId">The open task or subtask picked to show (on the on-screen window's bar); null = the first open task.</param>
-public sealed record SessionChecklist(DateTimeOffset? SessionStart, bool MadeBeforeStart, IReadOnlyList<SessionTask> Tasks, Guid? CurrentId = null)
+/// <param name="DroppedOpen">
+/// Open tasks removed or parked while the session runs. Above 0 the checklist is never "all done", so taking tasks off
+/// can't end a session at once (ADR 25): ticking is the only way to done. Stored with the checklist; 0 when a session starts.
+/// </param>
+public sealed record SessionChecklist(
+    DateTimeOffset? SessionStart,
+    bool MadeBeforeStart,
+    IReadOnlyList<SessionTask> Tasks,
+    Guid? CurrentId = null,
+    int DroppedOpen = 0)
 {
     /// <summary>How long a session runs before a finished checklist may end it at once (ADR 25).</summary>
     public static readonly TimeSpan EndAtOnceAfter = TimeSpan.FromMinutes(10);
@@ -16,7 +25,8 @@ public sealed record SessionChecklist(DateTimeOffset? SessionStart, bool MadeBef
 
     public bool HasTasks => Tasks.Count > 0;
 
-    public bool AllDone => HasTasks && Tasks.All(task => task.IsDone);
+    /// <summary>Every task ticked, and none taken off open while the session ran (<see cref="DroppedOpen"/>).</summary>
+    public bool AllDone => HasTasks && DroppedOpen == 0 && Tasks.All(task => task.IsDone);
 
     public int DoneCount => Tasks.Count(task => task.IsDone);
 
@@ -47,7 +57,7 @@ public sealed record SessionChecklist(DateTimeOffset? SessionStart, bool MadeBef
     /// <summary>The checklist as its session starts at <paramref name="at"/>.</summary>
     public SessionChecklist Started(DateTimeOffset at)
     {
-        return this with { SessionStart = at, MadeBeforeStart = HasTasks };
+        return this with { SessionStart = at, MadeBeforeStart = HasTasks, DroppedOpen = 0 };
     }
 
     /// <summary>
@@ -297,10 +307,16 @@ public sealed record SessionChecklist(DateTimeOffset? SessionStart, bool MadeBef
         };
     }
 
+    /// <summary>
+    /// Takes a task or subtask off. An open task taken off (removed or parked) once the session runs counts in
+    /// <see cref="DroppedOpen"/>, so it never makes the checklist "all done" (ADR 25).
+    /// </summary>
     public SessionChecklist Remove(Guid id)
     {
+        bool dropsOpenTask = SessionStart is not null && Tasks.Any(task => task.Id == id && !task.IsDone);
         SessionChecklist removed = this with
         {
+            DroppedOpen = dropsOpenTask ? DroppedOpen + 1 : DroppedOpen,
             Tasks = Tasks
                 .Where(task => task.Id != id)
                 .Select(task => task.Subtasks.Any(subtask => subtask.Id == id)

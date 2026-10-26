@@ -64,7 +64,7 @@
         <Style Selector="Border.dragHandle">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Cursor" Value="SizeNorthSouth" />
-            <Setter Property="Padding" Value="2,0,4,0" />
+            <Setter Property="Width" Value="16" />
             <Setter Property="Opacity" Value="0" />
         </Style>
         <Style Selector="Grid.row:pointerover Border.dragHandle">
@@ -120,7 +120,7 @@
                                                     IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}"
                                                     PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
                                                     PointerCaptureLost="OnHandleCaptureLost">
-                                                <TextBlock Text="⠿" VerticalAlignment="Center" />
+                                                <TextBlock Text="⠿" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                             </Border>
                                             <CheckBox Grid.Column="1" IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="0,0,6,0" VerticalAlignment="Center"
                                                       IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanTick}"
@@ -176,7 +176,7 @@
                                                                 IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}"
                                                                 PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
                                                                 PointerCaptureLost="OnHandleCaptureLost">
-                                                            <TextBlock Text="⠿" VerticalAlignment="Center" />
+                                                            <TextBlock Text="⠿" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                                         </Border>
                                                         <CheckBox Grid.Column="1" IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="0,0,6,0" VerticalAlignment="Center"
                                                                   IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanTick}"
@@ -213,7 +213,7 @@
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
-                                        <TextBox Classes="taskEntry" Margin="24,0,0,0" Text="{Binding NewSubtaskTitle}" PlaceholderText="Subtask (Enter)"
+                                        <TextBox Classes="taskEntry" Margin="40,0,0,0" Text="{Binding NewSubtaskTitle}" PlaceholderText="Subtask (Enter)"
                                                  IsVisible="{Binding IsAddingSubtask}">
                                             <TextBox.KeyBindings>
                                                 <KeyBinding Gesture="Enter" Command="{Binding AddSubtaskCommand}" />
