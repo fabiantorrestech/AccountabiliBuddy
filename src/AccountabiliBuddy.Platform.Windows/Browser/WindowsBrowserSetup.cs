@@ -80,6 +80,20 @@ public sealed class WindowsBrowserSetup : IBrowserSetup
         return new ExtensionInstallGuide(kind, target, browser.ExtensionsPageUrl, IsTemporary: browser.IsFirefox);
     }
 
+    public string? FindPreparedExtensionPath(BrowserKind kind)
+    {
+        BrowserInfo browser = BrowserCatalog.Get(kind);
+        string folder = Path.Combine(_dataFolder, "browser-extension", FlavorOf(browser));
+        string manifest = Path.Combine(folder, "manifest.json");
+        if (!File.Exists(manifest))
+        {
+            return null;
+        }
+
+        // Firefox's "Load Temporary Add-on…" picks the manifest file; Chromium's "Load unpacked" picks the folder.
+        return browser.IsFirefox ? manifest : folder;
+    }
+
     public void OpenExtensionsPage(BrowserKind kind)
     {
         BrowserInfo browser = BrowserCatalog.Get(kind);

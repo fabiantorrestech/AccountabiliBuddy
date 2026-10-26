@@ -14,18 +14,30 @@ public partial class BrowserSetupList : UserControl
         InitializeComponent();
     }
 
-    /// <summary>Copies the extension folder, for pasting into the browser's "Load unpacked" dialog.</summary>
-    private async void OnCopyFolderClick(object? sender, RoutedEventArgs e)
+    /// <summary>
+    /// Copies the extension's path for pasting into the browser's load dialog: the folder for "Load unpacked",
+    /// manifest.json itself for Firefox's "Load Temporary Add-on…".
+    /// </summary>
+    private async void OnCopyPathClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is not Button { DataContext: BrowserSetupRowViewModel { InstallFolder: { } folder } } button
+        if (sender is not Button { DataContext: BrowserSetupRowViewModel { InstallPath: { } path } } button
             || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard)
         {
             return;
         }
 
-        await clipboard.SetTextAsync(folder);
-        button.Content = "Copied";
+        try
+        {
+            await clipboard.SetTextAsync(path);
+            button.Content = "Copied";
+        }
+        catch (Exception)
+        {
+            // Another program can hold the Windows clipboard open; say so instead of crashing the UI.
+            button.Content = "Couldn't copy";
+        }
+
         await Task.Delay(CopiedFeedback);
-        button.Content = "Copy";
+        button.Content = "Copy path";
     }
 }
