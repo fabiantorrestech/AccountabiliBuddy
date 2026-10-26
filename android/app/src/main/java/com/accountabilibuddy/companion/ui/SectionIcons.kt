@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.Backup
+import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Checklist
@@ -68,6 +69,7 @@ object SectionIcons {
         "Noise player" to Icons.Outlined.MusicNote,
         "Play when headphones connect" to Icons.Outlined.Headphones,
         "Curbox" to Icons.Outlined.PhoneAndroid,
+        "Other blockers" to Icons.Outlined.Block,
         "Pixel Watch" to Icons.Outlined.Watch,
         "PC" to Icons.Outlined.Computer,
         "Your devices" to Icons.Outlined.Devices,

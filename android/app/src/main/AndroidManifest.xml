@@ -48,6 +48,10 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.HOME" />
         </intent>
+        <!-- Other blockers, shown as installed or not (Settings → Permissions & setup); nothing of theirs is read. -->
+        <package android:name="cz.mobilesoft.appblock" />
+        <package android:name="com.stayfocused" />
+        <package android:name="to.freedom.android2" />
         <!-- Curbox's API. -->
         <intent>
             <action android:name="neth.iecal.curbox.api.BIND" />

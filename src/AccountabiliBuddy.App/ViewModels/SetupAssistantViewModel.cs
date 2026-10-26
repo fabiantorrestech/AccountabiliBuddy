@@ -98,6 +98,13 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     /// <summary>Cold Turkey's blocks, for the keys page.</summary>
     public ColdTurkeyService? ColdTurkey { get; init; }
 
+    /// <summary>Other blockers whose lists can't be read (Freedom, PluckEye), named on the import page; null skips it.</summary>
+    public IOtherBlockerDetector? OtherBlockers { get; init; }
+
+    /// <summary>E.g. "Also on this PC: Freedom. …", or null when none were found.</summary>
+    [ObservableProperty]
+    public partial string? OtherBlockersNote { get; set; }
+
     /// <summary>Cold Turkey is installed and readable.</summary>
     public bool HasColdTurkey => Keys is not null && ColdTurkey?.Blocks is not null;
 
@@ -704,6 +711,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         {
             ColdTurkeyDataFiles? coldTurkey = null;
             string? copyProblem = null;
+            IReadOnlyList<OtherBlocker> others = Array.Empty<OtherBlocker>();
             IReadOnlyList<DetectedImport> detected = await Task.Run(() =>
             {
                 try
@@ -715,6 +723,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
                     copyProblem = ex.Message;
                 }
 
+                others = OtherBlockers?.Detect() ?? Array.Empty<OtherBlocker>();
                 return BlockerSourceScanner.Scan(coldTurkey, _locator.FindBlockerExtensions());
             });
             _coldTurkeyFiles = coldTurkey;
@@ -731,8 +740,13 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
                 AddSource(source);
             }
 
+            OtherBlockersNote = others.Count == 0
+                ? null
+                : $"Also on this PC: {string.Join(", ", others.Select(other => other.Name))}. AccountabiliBuddy can't read "
+                    + (others.Count == 1 ? "its lists" : "their lists") + "; copy them from there and paste them below.";
+
             await LoadSuggestionsAsync();
-            StatusMessage = Sources.Count == 0
+            StatusMessage = Sources.Count == 0 && others.Count == 0
                 ? "No other blockers found on this PC. You can import a LeechBlock file or paste a list from any blocker."
                 : null;
         }
