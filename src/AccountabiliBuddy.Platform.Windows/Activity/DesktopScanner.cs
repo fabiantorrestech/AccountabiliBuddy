@@ -35,12 +35,29 @@ internal sealed class DesktopScanner
     {
         List<MonitorEntry> monitors = EnumerateMonitors();
         var topWindowByMonitor = new Dictionary<nint, HWND>();
+#if DEBUG
+        // DIAG (Task 4, remove): the first windows of the walk, eligible or not. No titles.
+        var diagWalk = new List<string>(DiagWalkLength);
+#endif
 
         PInvoke.EnumWindows((window, _) =>
         {
-            if (!IsEligible(window))
+            bool eligible = IsEligible(window);
+#if DEBUG
+            // DIAG (Task 4, remove)
+            if (diagWalk.Count < DiagWalkLength)
             {
+                diagWalk.Add($"{DiagDescribe(window)}:{(eligible ? "yes" : "no")}");
+            }
+#endif
+            if (!eligible)
+            {
+#if DEBUG
+                // DIAG (Task 4, remove): keep walking until the diag walk is full.
+                return topWindowByMonitor.Count < monitors.Count || diagWalk.Count < DiagWalkLength;
+#else
                 return true;
+#endif
             }
 
             HMONITOR monitor = PInvoke.MonitorFromWindow(window, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONULL);
@@ -50,8 +67,28 @@ internal sealed class DesktopScanner
             }
 
             // Stop once every monitor has its top window.
+#if DEBUG
+            // DIAG (Task 4, remove): keep walking until the diag walk is full (TryAdd keeps the first top window).
+            return topWindowByMonitor.Count < monitors.Count || diagWalk.Count < DiagWalkLength;
+#else
             return topWindowByMonitor.Count < monitors.Count;
+#endif
         }, default);
+
+#if DEBUG
+        // DIAG (Task 4, remove): foreground window, each monitor's chosen top window, the walk.
+        var diagTops = new List<string>(monitors.Count);
+        foreach (MonitorEntry monitor in monitors)
+        {
+            diagTops.Add(topWindowByMonitor.TryGetValue(monitor.Handle, out HWND top)
+                ? $"{monitor.DeviceName}={WindowIds.Format(top)}/{DiagDescribe(top)}"
+                : $"{monitor.DeviceName}=empty");
+        }
+
+        HWND foreground = PInvoke.GetForegroundWindow();
+        string diagForeground = foreground.IsNull ? "none" : DiagDescribe(foreground);
+        LastDiagScan = $"fg={diagForeground} | tops: {string.Join(", ", diagTops)} | walk: {string.Join(", ", diagWalk)}";
+#endif
 
         var snapshots = new List<ActivitySnapshot>(monitors.Count);
         foreach (MonitorEntry monitor in monitors)
@@ -63,6 +100,21 @@ internal sealed class DesktopScanner
 
         return snapshots;
     }
+
+#if DEBUG
+    // DIAG (Task 4, remove)
+    private const int DiagWalkLength = 6;
+
+    /// <summary>DIAG (Task 4, remove): what the last scan saw, without titles.</summary>
+    public string? LastDiagScan { get; private set; }
+
+    // DIAG (Task 4, remove): "class/process", never the title.
+    private string DiagDescribe(HWND window)
+    {
+        PInvoke.GetWindowThreadProcessId(window, out uint processId);
+        return $"{ReadClassName(window)}/{_processNames.Resolve(window, processId)}";
+    }
+#endif
 
     private ActivitySnapshot CreateSnapshot(DateTimeOffset timestamp, string monitorId, HWND window)
     {

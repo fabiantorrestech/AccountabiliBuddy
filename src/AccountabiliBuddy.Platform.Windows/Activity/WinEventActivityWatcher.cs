@@ -112,6 +112,9 @@ public sealed class WinEventActivityWatcher : IActivityWatcher, IDisposable
         nuint timerId = PInvoke.SetTimer(HWND.Null, 0, (uint)RecheckInterval.TotalMilliseconds, null);
         hooksInstalled.Set();
 
+#if DEBUG
+        _diagTrigger = "start"; // DIAG (Task 4, remove)
+#endif
         Rescan();
 
         // GetMessage returns 0 on WM_QUIT and -1 on error.
@@ -119,6 +122,9 @@ public sealed class WinEventActivityWatcher : IActivityWatcher, IDisposable
         {
             if (message.message == PInvoke.WM_TIMER)
             {
+#if DEBUG
+                _diagTrigger = "timer"; // DIAG (Task 4, remove)
+#endif
                 Rescan();
             }
 
@@ -161,6 +167,9 @@ public sealed class WinEventActivityWatcher : IActivityWatcher, IDisposable
 
         if (LayoutEvents.Contains(eventId) || IsRelevantWindowEvent(eventId, window))
         {
+#if DEBUG
+            _diagTrigger = $"0x{eventId:X4}"; // DIAG (Task 4, remove)
+#endif
             Rescan();
         }
     }
@@ -188,6 +197,9 @@ public sealed class WinEventActivityWatcher : IActivityWatcher, IDisposable
         lock (_scanLock)
         {
             IReadOnlyList<ActivitySnapshot> snapshots = _scanner.Scan(_timeProvider.GetUtcNow());
+#if DEBUG
+            DiagWrite(_scanner.LastDiagScan); // DIAG (Task 4, remove)
+#endif
 
             _currentTopWindowIds.Clear();
             var connectedMonitors = new HashSet<string>(StringComparer.Ordinal);
@@ -227,6 +239,36 @@ public sealed class WinEventActivityWatcher : IActivityWatcher, IDisposable
             ActivityChanged?.Invoke(this, snapshot);
         }
     }
+
+#if DEBUG
+    // DIAG (Task 4, remove): one line per Rescan, no titles.
+    private static readonly string DiagLogPath = Path.Combine(
+        Environment.GetEnvironmentVariable("ACCOUNTABILIBUDDY_DATA_DIR")
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AccountabiliBuddy-Dev"),
+        "alt-tab-diag.log");
+
+    // DIAG (Task 4, remove): what triggered the next Rescan (WinEvent id in hex, "timer" or "start").
+    private string _diagTrigger = "?";
+
+    // DIAG (Task 4, remove)
+    private void DiagWrite(string? scan)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(DiagLogPath)!);
+            string line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} trigger={_diagTrigger} {scan}{Environment.NewLine}";
+            File.AppendAllText(DiagLogPath, line);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+
+        _diagTrigger = "?";
+    }
+#endif
 
     private static bool ShowsSameThing(ActivitySnapshot previous, ActivitySnapshot current)
     {
