@@ -47,7 +47,8 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncEndEarlyOffer? EndEarly = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? GoalMinutes = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncProfileOption>? ProfileOptions = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? DefaultProfileId = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? DefaultProfileId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncBeeminderGoal>? Beeminder = null)
 {
     public const int CurrentFormatVersion = 1;
 }

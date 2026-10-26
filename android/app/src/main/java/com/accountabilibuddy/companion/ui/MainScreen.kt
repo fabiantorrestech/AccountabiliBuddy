@@ -56,6 +56,7 @@ fun MainScreen(
     val lunchLength by (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.lengthMinutes.collectAsStateWithLifecycle()
     val runningTasks by viewModel.runningTasks.collectAsStateWithLifecycle()
     val comebacks by viewModel.comebacks.collectAsStateWithLifecycle()
+    val beeminder by viewModel.beeminder.collectAsStateWithLifecycle()
     val pairedPc by viewModel.pairedPc.collectAsStateWithLifecycle()
     val watchSettings by viewModel.watchSettings.collectAsStateWithLifecycle()
     val detectedWatches by viewModel.detectedWatches.collectAsStateWithLifecycle()
@@ -202,6 +203,7 @@ fun MainScreen(
                     },
                     runningTasks = runningTasks,
                     comebacks = comebacks,
+                    beeminder = beeminder,
                     timersCard = {
                         TimersCard((context.applicationContext as com.accountabilibuddy.companion.CompanionApp).timers, viewModel.clock)
                     },

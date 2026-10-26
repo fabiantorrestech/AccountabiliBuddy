@@ -98,6 +98,9 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Today's deep work against the daily goal (redesign phase 4); null hides the card.</summary>
     public GoalCardViewModel? Goal { get; set; }
 
+    /// <summary>The user's Beeminder goals (ADR 43, read only); null hides the card, as does having no token.</summary>
+    public BeeminderViewModel? Beeminder { get; set; }
+
     /// <summary>The review card after a session (sites and apps with no rule); null when there's none.</summary>
     [ObservableProperty]
     public partial SessionReviewViewModel? Review { get; set; }

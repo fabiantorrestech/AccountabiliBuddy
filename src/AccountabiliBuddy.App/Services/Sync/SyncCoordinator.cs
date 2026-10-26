@@ -219,7 +219,7 @@ public sealed class SyncCoordinator
             _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles), Events = Events?.Invoke(),
                 Pickups = PcPickups?.PickupsForOtherPcs(), InputRuns = PcPickups?.InputRunsToday(),
                 ReminderActions = ReminderActions?.Invoke() is { Count: > 0 } actions ? actions : null,
-                Blockers = Blockers?.Invoke(),
+                Blockers = Blockers?.Invoke(), Beeminder = Beeminder?.Invoke(),
                 ActionResults = ActionResults?.Invoke() is { Count: > 0 } results ? results : null,
                 EndEarly = EndEarlyOffer?.Invoke(), GoalMinutes = GoalMinutes?.Invoke(),
                 // ADR 42: always, read-only, for the phone's start picker (the profiles document travels only once edited).
@@ -287,6 +287,9 @@ public sealed class SyncCoordinator
 
     /// <summary>This PC's Cold Turkey blocks and whether each is on (ADR 37); null without Cold Turkey. Set by the app.</summary>
     public Func<IReadOnlyList<SyncBlocker>?>? Blockers { get; set; }
+
+    /// <summary>The derived summary of the user's Beeminder goals (ADR 43); null without a token. Set by the app.</summary>
+    public Func<IReadOnlyList<SyncBeeminderGoal>?>? Beeminder { get; set; }
 
     /// <summary>Bedtime reminders dismissed or snoozed on this PC in the last day (ADR 38); set by the app.</summary>
     public Func<IReadOnlyList<SyncReminderAction>?>? ReminderActions { get; set; }
