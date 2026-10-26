@@ -44,14 +44,14 @@ public sealed record SleepSettings(
     /// <param name="phoneAlarm">The phone's next alarm (local time), used while <see cref="UsePhoneAlarm"/> is on.</param>
     /// <param name="phoneBedtime">The phone's smart bedtime (ADR 34), used while <see cref="UsePhoneBedtime"/> is on.</param>
     /// <param name="phoneWake">The phone's estimated wake per kind of morning (ADR 40), for a night woken by the alarm with
-    /// none known; used while <see cref="UsePhoneAlarm"/> is on, since it comes from the phone's alarms (this PC's alarm,
-    /// ADR 35, then rings at it).</param>
+    /// none known; used unless the wake time comes from neither alarm (<see cref="UsePhoneAlarm"/> or
+    /// <see cref="UsePcAlarm"/> on), so this PC's alarm (ADR 35) rings at it too.</param>
     public SleepSchedule ToSchedule(
         DayPlan? plan = null, DateTime? phoneAlarm = null, AccountabiliBuddy.Core.Sync.SyncSmartBedtime? phoneBedtime = null,
         AccountabiliBuddy.Core.Sync.SyncWakeEstimate? phoneWake = null)
     {
         Func<DateOnly, TimeOnly?>? wakeGuess = null;
-        if (UsePhoneAlarm && plan is not null && phoneWake is not null)
+        if ((UsePhoneAlarm || UsePcAlarm) && plan is not null && phoneWake is not null)
         {
             wakeGuess = morning => ParseTime(plan.Workdays.Contains(morning.DayOfWeek) ? phoneWake.Workdays : phoneWake.OffDays);
         }
