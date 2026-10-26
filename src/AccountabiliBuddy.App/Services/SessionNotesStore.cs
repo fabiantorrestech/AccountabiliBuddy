@@ -46,6 +46,8 @@ public sealed class SessionNotesStore
             Stored? stored = Task.Run(() => _store.LoadAsync<Stored>(DocumentKey)).GetAwaiter().GetResult();
             string? json = stored is null ? null : _protector.Unprotect(Convert.FromBase64String(stored.Data));
             _all = json is null ? [] : JsonSerializer.Deserialize<List<SessionNote>>(json, JsonOptions) ?? [];
+            // A note stored without an id gets one, so it can be edited or deleted; kept with the next save.
+            _all = _all.Select(note => note.Id == Guid.Empty ? note with { Id = Guid.NewGuid() } : note).ToList();
         }
         catch (Exception ex) when (ex is SqliteException or JsonException or FormatException)
         {
@@ -70,6 +72,31 @@ public sealed class SessionNotesStore
     public IReadOnlyList<string> Between(DateTimeOffset from, DateTimeOffset to)
     {
         return _all.Where(note => note.At >= from && note.At <= to).Select(note => note.Text).ToList();
+    }
+
+    /// <summary>Changes one's text (the Notebook's ✎); a blank text or an unknown id changes nothing.</summary>
+    public Task EditAsync(Guid id, string text)
+    {
+        string trimmed = text.Trim();
+        int index = _all.FindIndex(note => note.Id == id);
+        if (index < 0 || trimmed.Length == 0 || _all[index].Text == trimmed)
+        {
+            return Task.CompletedTask;
+        }
+
+        _all[index] = _all[index] with { Text = trimmed };
+        return SaveAsync();
+    }
+
+    /// <summary>Deletes one for good (the Notebook's ✕); an unknown id changes nothing.</summary>
+    public Task DeleteAsync(Guid id)
+    {
+        if (_all.RemoveAll(note => note.Id == id) == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        return SaveAsync();
     }
 
     private Task SaveAsync()

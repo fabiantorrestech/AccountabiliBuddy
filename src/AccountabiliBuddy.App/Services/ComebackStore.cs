@@ -76,6 +76,31 @@ public sealed class ComebackStore
         return SaveAsync();
     }
 
+    /// <summary>Changes one's text (the Notebook's ✎); a blank text or an unknown id changes nothing.</summary>
+    public Task EditAsync(Guid id, string text)
+    {
+        string trimmed = text.Trim();
+        int index = _all.FindIndex(comeback => comeback.Id == id);
+        if (index < 0 || trimmed.Length == 0 || _all[index].Text == trimmed)
+        {
+            return Task.CompletedTask;
+        }
+
+        _all[index] = _all[index] with { Text = trimmed };
+        return SaveAsync();
+    }
+
+    /// <summary>Deletes one for good, open or ticked (the Notebook's ✕); an unknown id changes nothing.</summary>
+    public Task DeleteAsync(Guid id)
+    {
+        if (_all.RemoveAll(comeback => comeback.Id == id) == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        return SaveAsync();
+    }
+
     private Task SaveAsync()
     {
         DateTimeOffset cutoff = _time.GetUtcNow().AddDays(-KeepDoneDays);

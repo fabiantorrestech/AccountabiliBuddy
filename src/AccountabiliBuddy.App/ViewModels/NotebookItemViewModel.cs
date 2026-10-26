@@ -5,7 +5,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// One line in the Notebook: a come-back, a note, or a task or subtask (unfinished or done), with its times. Tasks and
-/// subtasks can be renamed (✎, Enter keeps it, Esc cancels) or deleted (✕).
+/// subtasks, come-backs and notes can be edited (✎, Enter keeps it, Esc cancels) or deleted (✕).
 /// </summary>
 public sealed partial class NotebookItemViewModel : ObservableObject
 {
@@ -16,8 +16,8 @@ public sealed partial class NotebookItemViewModel : ObservableObject
     /// <param name="whenText">E.g. "Parked Thu 10/23 9:41 AM · ticked 2:05 PM" or "Session of Thu 10/23 9:00 AM · done 9:47 AM".</param>
     /// <param name="sort">For ordering, newest first.</param>
     /// <param name="tick">Ticks an open come-back off (null for everything else).</param>
-    /// <param name="rename">Renames a task or subtask (null: can't be renamed).</param>
-    /// <param name="delete">Deletes a task or subtask (null: can't be deleted).</param>
+    /// <param name="rename">Renames a task or subtask, or edits a come-back's or note's text (null: can't be edited).</param>
+    /// <param name="delete">Deletes the item (null: can't be deleted).</param>
     public NotebookItemViewModel(
         string kind, string text, string whenText, DateTimeOffset sort, IAsyncRelayCommand? tick = null,
         Func<string, Task>? rename = null, Func<Task>? delete = null, bool isSubtask = false)
@@ -46,6 +46,9 @@ public sealed partial class NotebookItemViewModel : ObservableObject
     public bool CanTick => Tick is not null;
 
     public bool CanEdit => _rename is not null;
+
+    /// <summary>The ✕ tooltip: a task takes its subtasks with it.</summary>
+    public string DeleteTip => Kind is "Unfinished task" or "Done task" ? "Delete (a task goes with its subtasks)" : "Delete";
 
     /// <summary>Drawn set in under its task.</summary>
     public bool IsSubtask { get; }
