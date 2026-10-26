@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AccountabiliBuddy.App.Services.Backup;
+using AccountabiliBuddy.App.Services.Remote;
 using AccountabiliBuddy.App.Services.Sync;
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.Core.Domain;
@@ -21,8 +22,6 @@ namespace AccountabiliBuddy.App.Services.Link;
 /// </summary>
 public sealed class LinkSessionHost : ILinkSessionHost
 {
-    private const int MaxMinutes = 12 * 60;
-
     // The documents a backup also carries for the phone (see BackupService.SettingsKeys).
     private static readonly string[] SettingsKeys = { "sleep", "daybar" };
 
@@ -36,7 +35,8 @@ public sealed class LinkSessionHost : ILinkSessionHost
     private readonly QuickSessionService _quickSession;
     private readonly SqliteJsonDocumentStore _documents;
     private readonly CalendarService _calendars;
-    private readonly DayPlanEditTimeService _planEditTime;
+    private readonly RemoteSessionControl _control;
+    private readonly RemotePlanEdits _planEdits;
     private readonly IActivityLog _log;
     private readonly OmittedSessionsService _omitted;
     private readonly DeletedUsageService _deleted;
@@ -83,16 +83,18 @@ public sealed class LinkSessionHost : ILinkSessionHost
         IActivityLog log,
         OmittedSessionsService omitted,
         DeletedUsageService deleted,
-        PrivacySettingsService privacy)
+        PrivacySettingsService privacy,
+        RemoteSessionControl control,
+        RemotePlanEdits planEdits)
     {
         _sessions = sessions;
         _configuration = configuration;
         _quickSession = quickSession;
         _documents = documents;
         _calendars = calendars;
-        // Here rather than in the app: only the link needs when the plan last changed (ADR 19).
-        _planEditTime = new DayPlanEditTimeService(configuration, documents, () => _sessions.Now);
-        _planEditTime.LoadBlocking();
+        // Shared with the sync files (ADR 42): starting, ending early and plan edits follow the same rules either way.
+        _control = control;
+        _planEdits = planEdits;
 
         _sessions.StateChanged += (_, _) => StateChanged?.Invoke(this, EventArgs.Empty);
         _configuration.Changed += (_, _) => StateChanged?.Invoke(this, EventArgs.Empty);
@@ -177,7 +179,7 @@ public sealed class LinkSessionHost : ILinkSessionHost
             appVersion = BackupService.AppVersion,
             // ADR 19: what a phone's day plan edit is based on, and when the PC's plan last changed.
             dayPlanVersion = DayPlanVersion.Of(_configuration.Current.DayPlan),
-            dayPlanEditedAt = _planEditTime.Current,
+            dayPlanEditedAt = _planEdits.PlanEditedAt,
         };
         return JsonSerializer.SerializeToElement(content, LinkFraming.JsonOptions);
     }
@@ -330,57 +332,12 @@ public sealed class LinkSessionHost : ILinkSessionHost
     public Task<string?> StartAsync(LinkStartRequest request)
     {
         return Dispatcher.UIThread.InvokeAsync(async () =>
-        {
-            if (_sessions.State.IsActive)
-            {
-                return "A session is already running on the PC.";
-            }
-
-            if (request.CountUp)
-            {
-                return await _quickSession.StartCountUpAsync() ? null : "The Quick Start profile couldn't be set up on the PC.";
-            }
-
-            if (request.ProfileId is not Guid profileId || _configuration.Current.Profiles.All(profile => profile.Id != profileId))
-            {
-                return "That profile isn't on the PC any more.";
-            }
-
-            if (request.Minutes is not int minutes || minutes < 1 || minutes > MaxMinutes)
-            {
-                return "Pick a length between 1 minute and 12 hours.";
-            }
-
-            return _sessions.StartManual(profileId, TimeSpan.FromMinutes(minutes)) ? (string?)null : "The session couldn't start.";
-        });
+            request.CountUp ? await _control.StartCountUpAsync() : _control.Start(request.ProfileId, request.Minutes));
     }
 
     public Task<LinkEndEarlyTerms?> GetEndEarlyTermsAsync()
     {
-        return Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            SessionState state = _sessions.State;
-            if (!state.IsActive)
-            {
-                return (LinkEndEarlyTerms?)null;
-            }
-
-            DateTimeOffset now = _sessions.Now;
-            if (!state.IsEnforcing)
-            {
-                return new LinkEndEarlyTerms(0, 0, now, "On a break: it ends right away.");
-            }
-
-            if (_sessions.EndsOnCommand)
-            {
-                return new LinkEndEarlyTerms(0, 0, now, state.Mode == SessionMode.Scheduled
-                    ? "A scheduled block: it ends right away (your blocker still applies its own blocks)."
-                    : "No set end: it ends right away.");
-            }
-
-            BypassSettings bypass = _sessions.BypassSettings;
-            return new LinkEndEarlyTerms((int)Math.Ceiling(bypass.WaitDuration.TotalSeconds), bypass.MinReasonLength, now + bypass.WaitDuration, null);
-        }).GetTask();
+        return Dispatcher.UIThread.InvokeAsync(() => _control.EndEarlyTerms()).GetTask();
     }
 
     /// <summary>The daily deep-work goal sent with today's focus (ADR 29); null sends none.</summary>
@@ -388,45 +345,21 @@ public sealed class LinkSessionHost : ILinkSessionHost
 
     public Task<LinkDayPlanAnswer> ApplyDayPlanAsync(LinkDayPlanEdit edit)
     {
-        return Dispatcher.UIThread.InvokeAsync(async () =>
-        {
-            if (_configuration.IsReadOnly)
-            {
-                // It couldn't be saved; the device keeps its edit instead of being told "Saved".
-                return new LinkDayPlanAnswer(LinkDayPlanStatus.Invalid, "The PC's settings are read-only right now (see the banner in its window).");
-            }
-
-            (LinkDayPlanAnswer answer, DayPlan? toSave) = DayPlanEditDecision.Decide(
-                _configuration.Current.DayPlan, _planEditTime.Current, edit, locked: _sessions.IsEnforcing);
-            if (toSave is not null)
-            {
-                _planEditTime.ExpectEdit(edit.EditedAt);
-                await _configuration.UpdateAsync(document => document with { DayPlan = toSave });
-                if (_configuration.DayPlanWaitText is string waits)
-                {
-                    return answer with { Message = $"On the PC: {waits}" };
-                }
-            }
-
-            return answer;
-        });
+        return Dispatcher.UIThread.InvokeAsync(() => _planEdits.ApplyAsync(edit));
     }
 
     public Task<string?> EndEarlyAsync(string reason)
     {
         return Dispatcher.UIThread.InvokeAsync(() =>
         {
-            if (!_sessions.State.IsActive)
+            if (!_control.TryEnd(reason, out string? notice))
             {
                 return (string?)"No session is running.";
             }
 
-            bool wasFocus = _sessions.IsEnforcing;
-            bool onCommand = _sessions.EndsOnCommand;
-            _sessions.EndSession(wasFocus && !onCommand ? reason : null);
-            if (wasFocus)
+            if (notice is not null)
             {
-                EndedFromDevice?.Invoke(this, onCommand ? "Ended on command." : reason);
+                EndedFromDevice?.Invoke(this, notice);
             }
 
             return (string?)null;

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace AccountabiliBuddy.Core.Sync;
 
 /// <summary>
@@ -9,4 +11,15 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="PhaseEndsAt">When it ends; null for a session with no set end.</param>
 /// <param name="IsBreak">A break between focus phases (Pomodoro).</param>
 /// <param name="AwaySince">Set while the user has stepped away (the countdown is paused).</param>
-public sealed record SyncRunning(string? Profile, DateTimeOffset PhaseStartedAt, DateTimeOffset? PhaseEndsAt, bool IsBreak, DateTimeOffset? AwaySince);
+/// <param name="CurrentTask">ADR 42: the task or subtask picked to show on the bar (its id, as the link's state); null for none.</param>
+/// <param name="ProfileId">ADR 42: the running profile's id.</param>
+/// <param name="CountUpProfileId">ADR 42: the profile "Quick Start with Default" starts; null when it isn't made yet.</param>
+public sealed record SyncRunning(
+    string? Profile,
+    DateTimeOffset PhaseStartedAt,
+    DateTimeOffset? PhaseEndsAt,
+    bool IsBreak,
+    DateTimeOffset? AwaySince,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? CurrentTask = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? ProfileId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? CountUpProfileId = null);

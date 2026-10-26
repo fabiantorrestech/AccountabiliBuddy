@@ -18,6 +18,9 @@ namespace AccountabiliBuddy.Core.Sync;
 /// doesn't say (then <see cref="SyncMerge.CoveredFrom"/> reads it from the sessions). Optional in the JSON: written only
 /// when set, so a format 1 file without it reads as before.
 /// </param>
+/// <param name="ActionResults">A PC's answers to the phone's actions (ADR 42); null from a PC that predates them.</param>
+/// <param name="EndEarly">A PC's open end-early offer (ADR 42); null when there's none.</param>
+/// <param name="GoalMinutes">A PC's daily focus goal in minutes (ADR 29); null when not sent.</param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
@@ -37,7 +40,10 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncSmartBedtime? SmartBedtime = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncWakeEstimate? WakeEstimate = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncReminderAction>? ReminderActions = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncBlocker>? Blockers = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncBlocker>? Blockers = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncActionResult>? ActionResults = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncEndEarlyOffer? EndEarly = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? GoalMinutes = null)
 {
     public const int CurrentFormatVersion = 1;
 }
