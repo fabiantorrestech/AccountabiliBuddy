@@ -14,7 +14,8 @@ import java.time.ZoneId
 /**
  * What the header knows at [now]: today's plan parts (every category), calendar events, the night around now (null with
  * sleep mode off) and the sleep goal, where the wake time comes from ([wakeSource], e.g. "alarm"; null: the plan), the
- * combined focus of the user's devices (null: none yet) and the phone's screen time today (null: no Usage access).
+ * combined focus of the user's devices (null: none yet), the phone's screen time today (null: no Usage access) and
+ * when the phone's test session ends ([testEndsAt], null: none runs; never part of [focus]).
  */
 data class HeaderInput(
     val now: LocalDateTime,
@@ -26,6 +27,7 @@ data class HeaderInput(
     val wakeSource: String?,
     val focus: WatchSnapshot?,
     val phoneMinutes: Int?,
+    val testEndsAt: Instant? = null,
 )
 
 /**
@@ -85,6 +87,11 @@ object DayHeader {
         if (open != null) {
             val where = open.device?.let { " on $it" } ?: ""
             return HeaderText("${open.profile ?: "Focus"}$where · ${minutesText(Duration.between(open.start, nowInstant))} so far", "")
+        }
+
+        // The phone's test session (Today → More options), after any real one.
+        input.testEndsAt?.takeIf { it.isAfter(nowInstant) }?.let { endsAt ->
+            return HeaderText("Test session · ${minutesText(Duration.between(nowInstant, endsAt))} left", "", endsAt, "Test session · %s left")
         }
 
         val night = input.night

@@ -11,7 +11,8 @@ import java.time.Instant
  * Curbox hard mode (optional, off by default): for each focus session on another device the phone starts a chosen
  * Curbox focus group (one made with exit off, so it can't be ended in Curbox) for the session's time left, and ends
  * it when the session ends early or the phone's emergency time starts. Curbox enforces; this only asks it through
- * its API (START_FOCUS, STOP_FOCUS). Preferences "curbox".
+ * its API (START_FOCUS, STOP_FOCUS). The phone's test session counts too (`EssentialsLaunch.runningSessionStart`).
+ * Preferences "curbox".
  */
 object CurboxHardMode {
     private const val TAG = "CurboxHardMode"
@@ -53,7 +54,8 @@ object CurboxHardMode {
             return
         }
 
-        val minutes = running.second?.let { Duration.between(now, it).toMinutes().toInt() } ?: OPEN_SESSION_MINUTES
+        // Rounded up, so a 1-minute test session asked a moment after it started still gets its minute.
+        val minutes = running.second?.let { EssentialsLaunch.ceilMinutes(Duration.between(now, it)).toInt() } ?: OPEN_SESSION_MINUTES
         if (minutes <= 0) return
         if (curbox.startFocus(group, minutes)) {
             prefs.edit()

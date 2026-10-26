@@ -34,6 +34,8 @@ object HeaderSource {
         val input = HeaderInput(
             now, zone, plan.partsIn(LocalWindow(start, start.plusDays(1))), state.events, night, state.sleep.goal,
             wakeSource = if (byAlarm) "alarm" else null, focus = focus, phoneMinutes = phoneMinutes,
+            // The clock now, not [now]: Today's [now] may be up to 30 s old when a test starts.
+            testEndsAt = app.testSession.running()?.second,
         )
         return DayHeader.build(input, clock)
     }

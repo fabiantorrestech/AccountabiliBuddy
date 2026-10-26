@@ -97,7 +97,8 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     /** Null while usage access isn't granted. */
     val phoneUsage = MutableStateFlow<PhoneUsage?>(null)
 
-    val model: StateFlow<DayBarModel> = combine(store.state, now, phoneUsage) { state, time, _ -> build(state, time) }
+    // The test session too, so its header line comes and goes at once.
+    val model: StateFlow<DayBarModel> = combine(store.state, now, phoneUsage, getApplication<CompanionApp>().testSession.window) { state, time, _, _ -> build(state, time) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, build(store.state.value, now.value))
 
     /** A message after an import or another action, shown once. */
