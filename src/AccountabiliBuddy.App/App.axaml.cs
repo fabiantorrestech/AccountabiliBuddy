@@ -998,12 +998,12 @@ public partial class App : Application
         mainViewModel.NoisePlayer = noisePlayer;
         mainViewModel.Settings.OpenDayPlan = () => mainViewModel.SelectedTab = MainWindowViewModel.DayPlanTab;
         _mainWindow = new MainWindow { DataContext = mainViewModel };
-        // The start nudge: Today, with the keyboard in "Add a task". After a session the user may be typing elsewhere,
-        // so the window stays where it is and only its taskbar button flashes.
+        // The start nudge: Today, with the keyboard in "Add a task". After a session (or a calendar event, lunch or the
+        // met goal) the user may be typing elsewhere, so the window stays where it is and only its taskbar button flashes.
         _startNudge!.Due += (_, reason) =>
         {
             mainViewModel.SelectedTab = (int)MainTab.Today;
-            if (reason is StartNudgeReason.SessionEnded)
+            if (reason is StartNudgeReason.SessionEnded or StartNudgeReason.Resumed)
             {
                 ShowMainWindowQuietly();
                 return;
