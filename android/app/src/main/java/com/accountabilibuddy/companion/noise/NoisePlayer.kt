@@ -1,7 +1,9 @@
 package com.accountabilibuddy.companion.noise
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.media.AudioAttributes
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
@@ -41,6 +43,23 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
     private var focus: AudioFocusRequest? = null
     private var pausedForFocus = false
     private val handler = Handler(Looper.getMainLooper())
+    private var noisyRegistered = false
+
+    /** True when the last [play] was refused by the lock (the service then says why). */
+    var lastPlayRefused = false
+        private set
+
+    // Android says "becoming noisy" before it moves sound to the speaker (wired unplugged, Bluetooth gone): pause
+    // then, so nothing leaks through the speaker. Listened to only while playing or paused for another app's sound.
+    private val noisy = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val settings = store.settings.value
+            if (intent.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY && (settings.headphoneLock || settings.stopOnDisconnect)) {
+                pause()
+            }
+        }
+    }
+
     private val clearHint = Runnable { _state.value = _state.value.copy(needsHeadphones = false); onChanged?.invoke() }
 
     // Headphones coming and going: kept in the state; the last ones going pauses it when locked or "Stop when
@@ -95,6 +114,7 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
     fun toggle() = if (_state.value.playing) pause() else play()
 
     fun play() {
+        lastPlayRefused = false
         if (files.isEmpty()) {
             reload()
         }
@@ -104,6 +124,7 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
         }
 
         if (lockedOut()) {
+            lastPlayRefused = true
             refuseForLock()
             return
         }
@@ -228,9 +249,12 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
             created.setOnCompletionListener { if (!store.settings.value.repeat) next() }
             created.setOnPreparedListener { ready ->
                 preparedIndex = target
-                if (startWhenReady) {
+                // Headphones may have gone while it was preparing: never start through the speaker.
+                if (startWhenReady && !lockedOut()) {
                     ready.start()
                     playing(true)
+                } else {
+                    playing(false)
                 }
             }
             created.setOnErrorListener { _, _, _ ->
@@ -249,6 +273,19 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
     }
 
     // The lock said no: the bar says "Connect headphones" for a few seconds.
+    private fun listenForNoisy(on: Boolean) {
+        if (on == noisyRegistered) {
+            return
+        }
+
+        if (on) {
+            ContextCompat.registerReceiver(context, noisy, IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY), ContextCompat.RECEIVER_NOT_EXPORTED)
+        } else {
+            runCatching { context.unregisterReceiver(noisy) }
+        }
+        noisyRegistered = on
+    }
+
     private fun refuseForLock() {
         _state.value = _state.value.copy(needsHeadphones = true)
         onChanged?.invoke()
@@ -273,6 +310,7 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
 
     private fun playing(on: Boolean) {
         _state.value = _state.value.copy(playing = on)
+        listenForNoisy(on || pausedForFocus)
         publish()
         notifyService()
     }

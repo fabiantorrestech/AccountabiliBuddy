@@ -27,11 +27,12 @@ class NoiseService : Service() {
         ServiceCompat.startForeground(this, ID, notification(noise), type())
         when (intent?.action) {
             ACTION_TOGGLE -> {
+                val wasPlaying = noise.state.value.playing
+                noise.toggle()
                 // From the widget or a notification the bar isn't in sight: say why nothing plays.
-                if (!noise.state.value.playing && noise.lockedOut()) {
+                if (!wasPlaying && noise.lastPlayRefused) {
                     android.widget.Toast.makeText(this, "Connect headphones", android.widget.Toast.LENGTH_SHORT).show()
                 }
-                noise.toggle()
             }
             ACTION_NEXT -> noise.next()
             ACTION_PREVIOUS -> noise.previous()
