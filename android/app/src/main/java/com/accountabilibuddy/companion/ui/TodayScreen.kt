@@ -300,7 +300,7 @@ private fun SleepCard(state: CompanionState, clock: ClockFormat, health: HealthS
 @Composable
 private fun PlanEditStatus(pending: PendingDayPlan, onEdit: (() -> Unit)?, onDiscard: () -> Unit) {
     val text = when (pending.status) {
-        PendingStatus.Waiting -> "Your plan edit is shown here and goes to the PC when they connect."
+        PendingStatus.Waiting -> "Your plan edit is shown here and goes to the PC when they connect or sync."
         PendingStatus.Locked -> pending.message ?: "It goes to the PC when its focus session ends."
         PendingStatus.Invalid -> "The PC didn't take your plan edit: ${pending.message ?: "it broke a rule"}."
         PendingStatus.NeedsPcUpdate -> pending.message ?: "Update AccountabiliBuddy on the PC to change the plan from here."

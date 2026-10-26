@@ -41,6 +41,9 @@ import java.time.ZoneId
 
 private val LENGTHS = listOf(25, 50, 90)
 
+// The phone's and the PC's clocks may differ by a little: through the sync files the phone sends a little after the wait.
+private const val SKEW_SECONDS = 3L
+
 /** Today: the linked PC's session, with Start (idle) or End early (running). Hidden while no PC is linked. */
 @Composable
 fun PcCard(
@@ -156,12 +159,75 @@ private fun StartOnPcDialog(state: PcState, onStart: (String?, Int?, Boolean) ->
     )
 }
 
+/**
+ * Today, while the Wi-Fi link isn't connected (ADR 42): the controlled PC's session as its sync file says, with Start
+ * or End early sent through the files, the request still waiting for the PC's answer, and "Update AccountabiliBuddy on
+ * <PC>" for a PC too old to answer.
+ */
+@Composable
+fun PcFileCard(
+    pcName: String,
+    state: PcState,
+    writtenAt: java.time.Instant,
+    updateNeeded: String?,
+    waiting: com.accountabilibuddy.shared.sync.SyncAction?,
+    clock: ClockFormat,
+    onStart: (profileId: String?, minutes: Int?, countUp: Boolean) -> Unit,
+    onEndEarly: () -> Unit,
+    onCancelWaiting: () -> Unit,
+) {
+    var choosingStart by remember { mutableStateOf(false) }
+    val zone = ZoneId.systemDefault()
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            IconTitle("PC · $pcName", style = MaterialTheme.typography.titleMedium)
+            Text(describe(state, clock), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                "Through the sync files · as of ${clock.time(java.time.LocalDateTime.ofInstant(writtenAt, zone))}",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            when {
+                updateNeeded != null -> Text(updateNeeded, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                waiting != null -> {
+                    val what = when (waiting.kind) {
+                        com.accountabilibuddy.shared.sync.SyncAction.START -> "Starting on $pcName"
+                        com.accountabilibuddy.shared.sync.SyncAction.END_EARLY_BEGIN -> "Asking $pcName to end early"
+                        else -> "Ending the session on $pcName"
+                    }
+                    Text(
+                        "$what… sent ${clock.time(java.time.LocalDateTime.ofInstant(waiting.at, zone))}; the PC answers when it next syncs.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    TextButton(onClick = onCancelWaiting) { Text("Cancel") }
+                }
+                state.isActive -> OutlinedButton(onClick = onEndEarly) { Text("End early…") }
+                else -> Button(onClick = { choosingStart = true }) { Text("Start on the PC…") }
+            }
+
+            if (choosingStart) {
+                StartOnPcDialog(
+                    state = state,
+                    onStart = { profileId, minutes, countUp ->
+                        choosingStart = false
+                        onStart(profileId, minutes, countUp)
+                    },
+                    onCancel = { choosingStart = false },
+                )
+            }
+        }
+    }
+}
+
 /** The PC's own friction: its wait counts down here (from when the PC answered), then the reason unlocks End. */
 @Composable
-fun EndEarlyDialog(terms: EndEarlyTerms, onEnd: (String) -> Unit, onCancel: () -> Unit) {
-    // One extra second, so the phone never asks before the PC's own clock says the wait is over.
-    fun secondsLeft(): Int = (terms.waitSeconds + 1 - ((SystemClock.elapsedRealtime() - terms.receivedAtElapsed) / 1000).toInt()).coerceAtLeast(0)
-    var left by remember(terms) { mutableIntStateOf(if (terms.waitSeconds == 0) 0 else secondsLeft()) }
+fun EndEarlyDialog(terms: EndEarlyTerms, onEnd: (String) -> Unit, onCancel: () -> Unit, sending: Boolean = false) {
+    // One extra second, so the phone never asks before the PC's own clock says the wait is over. Through the sync files
+    // the wait ends at the PC's allowed-from time, plus 3 seconds for the clocks' skew (ADR 42).
+    fun secondsLeft(): Int = terms.allowedFrom?.let { allowed ->
+        val millis = java.time.Duration.between(java.time.Instant.now(), allowed.plusSeconds(SKEW_SECONDS)).toMillis()
+        ((millis + 999) / 1000).toInt().coerceAtLeast(0)
+    } ?: (terms.waitSeconds + 1 - ((SystemClock.elapsedRealtime() - terms.receivedAtElapsed) / 1000).toInt()).coerceAtLeast(0)
+    var left by remember(terms) { mutableIntStateOf(if (terms.waitSeconds == 0 && terms.allowedFrom == null) 0 else secondsLeft()) }
     var reason by remember(terms) { mutableStateOf("") }
     LaunchedEffect(terms) {
         while (left > 0) {
@@ -188,7 +254,9 @@ fun EndEarlyDialog(terms: EndEarlyTerms, onEnd: (String) -> Unit, onCancel: () -
             }
         },
         confirmButton = {
-            TextButton(onClick = { onEnd(reason.trim()) }, enabled = left == 0 && reason.trim().length >= terms.minReasonLength) { Text("End session") }
+            TextButton(onClick = { onEnd(reason.trim()) }, enabled = !sending && left == 0 && reason.trim().length >= terms.minReasonLength) {
+                Text(if (sending) "Sending…" else "End session")
+            }
         },
         dismissButton = { TextButton(onClick = onCancel) { Text("Keep going") } },
     )

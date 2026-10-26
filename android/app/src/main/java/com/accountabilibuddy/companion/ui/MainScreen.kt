@@ -72,6 +72,13 @@ fun MainScreen(
     val pcBusy by viewModel.pcBusy.collectAsStateWithLifecycle()
     val endEarlyTerms by viewModel.endEarlyTerms.collectAsStateWithLifecycle()
     val planConflict by viewModel.planConflict.collectAsStateWithLifecycle()
+    val controlPc by viewModel.controlPc.collectAsStateWithLifecycle()
+    val pcWaiting by viewModel.pcWaiting.collectAsStateWithLifecycle()
+    val pcChoices by viewModel.pcChoices.collectAsStateWithLifecycle()
+    val chosenPcId by viewModel.chosenPcId.collectAsStateWithLifecycle()
+    // ADR 42: without the Wi-Fi link, the PC card and plan edits go through the controlled PC's sync file.
+    val filePc = controlPc?.takeIf { linkStatus !is LinkStatus.Connected }
+    val canControlPc = pairedPc != null || controlPc != null
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val planDraft by viewModel.planDraft.collectAsStateWithLifecycle()
     // The migration assistant (5 taps on About's logo, or the Today card).
@@ -182,22 +189,37 @@ fun MainScreen(
                     )
                     TodayScreen(
                     state, model, viewModel.clock, health, onPickFile, onConnectHealth, viewModel::refreshSleep, phoneUsage, onAllowUsage,
-                    showsPcCard = pairedPc != null,
+                    showsPcCard = canControlPc,
                     pcCard = {
-                        PcCard(
-                            status = linkStatus,
-                            clock = viewModel.clock,
-                            busy = pcBusy,
-                            onStart = viewModel::startOnPc,
-                            onEndEarly = viewModel::beginEndEarly,
-                            onRetry = viewModel::retryPc,
-                        )
+                        val pc = filePc
+                        if (pc == null) {
+                            PcCard(
+                                status = linkStatus,
+                                clock = viewModel.clock,
+                                busy = pcBusy,
+                                onStart = viewModel::startOnPc,
+                                onEndEarly = viewModel::beginEndEarly,
+                                onRetry = viewModel::retryPc,
+                            )
+                        } else {
+                            PcFileCard(
+                                pcName = pc.file.device.name,
+                                state = com.accountabilibuddy.companion.sync.PcFileControl.stateOf(pc.file, java.time.Instant.now()),
+                                writtenAt = pc.file.device.writtenAt,
+                                updateNeeded = com.accountabilibuddy.companion.sync.PcFileControl.updateNeeded(pc.file.device),
+                                waiting = pcWaiting?.takeIf { it.target == pc.file.device.deviceId },
+                                clock = viewModel.clock,
+                                onStart = viewModel::startOnPc,
+                                onEndEarly = viewModel::beginEndEarly,
+                                onCancelWaiting = viewModel::cancelPcWaiting,
+                            )
+                        }
                     },
-                    onEditPlan = if (pairedPc == null) null else {
+                    onEditPlan = if (!canControlPc) null else {
                         { viewModel.openPlanEditor()?.let { viewModel.message.value = it } }
                     },
                     onDiscardPlanEdit = viewModel::discardDayPlanEdit,
-                    onPlanDay = if (pairedPc == null) null else {
+                    onPlanDay = if (!canControlPc) null else {
                         { viewModel.planDayOpen.value = true }
                     },
                     runningTasks = runningTasks,
@@ -207,8 +229,9 @@ fun MainScreen(
                 1 -> ProfilesScreen(
                     state,
                     viewModel.clock,
-                    pcName = pairedPc?.pcName,
-                    pcState = (linkStatus as? LinkStatus.Connected)?.state,
+                    pcName = pairedPc?.pcName ?: controlPc?.file?.device?.name,
+                    pcState = (linkStatus as? LinkStatus.Connected)?.state
+                        ?: filePc?.let { com.accountabilibuddy.companion.sync.PcFileControl.stateOf(it.file, java.time.Instant.now()) },
                     deviceName = viewModel.deviceName,
                     curbox = curbox,
                 )
@@ -252,6 +275,9 @@ fun MainScreen(
                         onRelay = viewModel::setWatchRelay,
                         onWifi = viewModel::setWatchWifi,
                     ),
+                    pcChoices = pcChoices,
+                    chosenPcId = chosenPcId,
+                    onChoosePc = viewModel::choosePc,
                 )
                 3 -> {
                     // Curbox's status shows only here: ask it when Settings opens, or the app comes back to it.
@@ -339,11 +365,14 @@ fun MainScreen(
     }
 
     planConflict?.let { conflict ->
-        DayPlanConflictDialog(conflict, pairedPc?.pcName, viewModel.clock, onKeepPc = viewModel::keepPcPlan, onUseMine = viewModel::useMyPlan)
+        DayPlanConflictDialog(conflict, viewModel.conflictPcName(), viewModel.clock, onKeepPc = viewModel::keepPcPlan, onUseMine = viewModel::useMyPlan)
     }
 
     endEarlyTerms?.let { terms ->
-        EndEarlyDialog(terms, onEnd = viewModel::finishEndEarly, onCancel = viewModel::cancelEndEarly)
+        EndEarlyDialog(
+            terms, onEnd = viewModel::finishEndEarly, onCancel = viewModel::cancelEndEarly,
+            sending = pcWaiting?.kind == com.accountabilibuddy.shared.sync.SyncAction.END_EARLY,
+        )
     }
 
     passwordRequest?.let { request ->

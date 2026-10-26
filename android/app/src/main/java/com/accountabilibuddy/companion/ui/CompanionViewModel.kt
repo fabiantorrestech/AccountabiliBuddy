@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -77,14 +78,45 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     val joinOffer = MutableStateFlow<JoinLink?>(null)
     val pairing = MutableStateFlow(false)
 
-    /** Both the PC and the phone changed the day plan (ADR 19); the dialog asks which to keep. */
-    val planConflict: StateFlow<DayPlanConflict?> = (application as CompanionApp).planSync.conflict
+    private val pcRemote = (application as CompanionApp).pcRemote
+    private val planFileSync = (application as CompanionApp).planFileSync
+
+    /** Both the PC and the phone changed the day plan (ADR 19); the dialog asks which to keep. Over the link or the sync files (ADR 42). */
+    val planConflict: StateFlow<DayPlanConflict?> = combine((application as CompanionApp).planSync.conflict, planFileSync.conflict) { link, files -> link ?: files }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** The PC the open plan conflict is with. */
+    fun conflictPcName(): String? =
+        planFileSync.conflictPcName.takeIf { planFileSync.conflict.value != null } ?: link.pairedPc.value?.pcName
 
     /** While a request to the PC runs (start, end early). */
     val pcBusy = MutableStateFlow(false)
 
-    /** Ending the PC's session early: the PC's terms while the dialog is open. */
+    /** Ending the PC's session early: the PC's terms while the dialog is open (by the link, or a sync file's offer). */
     val endEarlyTerms = MutableStateFlow<EndEarlyTerms?>(null)
+
+    /** The PC controlled through the sync files (ADR 42): the newest PC file's, or the one picked in Devices. */
+    val controlPc: StateFlow<com.accountabilibuddy.companion.sync.ReceivedDevice?> =
+        combine(sync.received, pcRemote.chosenPcId) { received, chosen -> com.accountabilibuddy.companion.sync.PcFileControl.target(received, chosen) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, pcRemote.target())
+
+    /** The PC choices for Devices (id to name, newest first) and the one picked. */
+    val pcChoices: StateFlow<List<Pair<String, String>>> =
+        sync.received.map { received -> com.accountabilibuddy.companion.sync.PcFileControl.pcs(received).map { it.file.device.deviceId.toString() to it.file.device.name } }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val chosenPcId: StateFlow<String?> = pcRemote.chosenPcId
+
+    fun choosePc(id: String?) = pcRemote.choose(id)
+
+    /** The start or end-early request waiting for a PC's answer in its file; null for none. */
+    val pcWaiting: StateFlow<com.accountabilibuddy.shared.sync.SyncAction?> =
+        (application as CompanionApp).actions.pending.map { pending -> pending.lastOrNull { it.kind in com.accountabilibuddy.shared.sync.SyncAction.CONTROL_KINDS } }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    fun cancelPcWaiting() = pcRemote.cancelWaiting()
+
+    // Over the link while it's connected, else through the sync files (ADR 42) when a PC file is here.
+    private fun useFiles(): Boolean = link.status.value !is LinkStatus.Connected && pcRemote.target() != null
     private val now = MutableStateFlow(LocalDateTime.now())
 
     /** Runs only while the app is on screen; the notification and widget have their own refresh. */
@@ -112,6 +144,23 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
                 watchBridge.clearNews()
             }
         }
+        // A PC's answer through the sync files (ADR 42) shows once too.
+        viewModelScope.launch {
+            pcRemote.news.filterNotNull().collect { news ->
+                message.value = news
+                pcRemote.clearNews()
+            }
+        }
+        // A PC's end-early offer opens the dialog; it closes when the offer is answered or runs out.
+        viewModelScope.launch {
+            pcRemote.offer.collect { offer ->
+                if (offer != null) {
+                    endEarlyTerms.value = offer.terms()
+                } else if (endEarlyTerms.value?.allowedFrom != null) {
+                    endEarlyTerms.value = null
+                }
+            }
+        }
     }
     val passwordRequest = MutableStateFlow<PasswordRequest?>(null)
     val importing = MutableStateFlow(false)
@@ -137,6 +186,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
             while (true) {
                 delay(30_000)
                 now.value = LocalDateTime.now()
+                pcRemote.expire()
                 if (++ticks % 10 == 0) {
                     refreshPhoneUsage()
                 }
@@ -403,6 +453,11 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun startOnPc(profileId: String?, minutes: Int?, countUp: Boolean) {
+        if (useFiles()) {
+            message.value = pcRemote.start(profileId, minutes, countUp) ?: "Sent to ${pcRemote.target()?.file?.device?.name ?: "the PC"}; it starts when the PC next syncs."
+            return
+        }
+
         viewModelScope.launch {
             pcBusy.value = true
             message.value = link.start(profileId, minutes, countUp) ?: "Started on the PC."
@@ -411,6 +466,11 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun beginEndEarly() {
+        if (useFiles()) {
+            pcRemote.beginEndEarly()?.let { message.value = it }
+            return
+        }
+
         viewModelScope.launch {
             pcBusy.value = true
             link.beginEndEarly()
@@ -422,9 +482,19 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun cancelEndEarly() {
         endEarlyTerms.value = null
+        pcRemote.cancelEndEarly()
     }
 
     fun finishEndEarly(reason: String) {
+        // A sync file's offer: only the reason's length goes to the PC (ADR 42); the dialog closes with its answer.
+        if (endEarlyTerms.value?.allowedFrom != null) {
+            pcRemote.endEarly(reason)?.let { error ->
+                endEarlyTerms.value = null
+                message.value = error
+            }
+            return
+        }
+
         viewModelScope.launch {
             pcBusy.value = true
             val error = link.endEarly(reason)
@@ -480,7 +550,11 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
         store.savePendingPlan(draft.plan, Instant.now(), draft.baseVersion, draft.basePlan)
         planDraft.value = null
-        message.value = if (linkStatus.value is LinkStatus.Connected) "Sending the plan to the PC…" else "Saved; it goes to the PC when they connect."
+        message.value = when {
+            linkStatus.value is LinkStatus.Connected -> "Sending the plan to the PC…"
+            pcRemote.target() != null -> "Saved; it goes to ${pcRemote.target()?.file?.device?.name} through the sync files."
+            else -> "Saved; it goes to the PC when they connect."
+        }
         return true
     }
 
@@ -530,9 +604,15 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         message.value = "Edit discarded; showing the PC's plan."
     }
 
-    fun useMyPlan() = (getApplication<CompanionApp>()).planSync.useMine()
+    fun useMyPlan() {
+        (getApplication<CompanionApp>()).planSync.useMine()
+        planFileSync.useMine()
+    }
 
-    fun keepPcPlan() = (getApplication<CompanionApp>()).planSync.keepPc()
+    fun keepPcPlan() {
+        (getApplication<CompanionApp>()).planSync.keepPc()
+        planFileSync.keepPc()
+    }
 
     fun unpairPc() {
         viewModelScope.launch {

@@ -48,6 +48,16 @@ data class SyncFile(
     val blockers: List<SyncBlocker>? = null,
     /** A phone's estimated wake time per kind of morning (ADR 40): only the two times; null when it has none. */
     val wakeEstimate: SyncWakeEstimate? = null,
+    /** A PC's answers to the phone's actions (ADR 42); null from a PC that predates them. */
+    val actionResults: List<SyncActionResult>? = null,
+    /** A PC's open end-early offer (ADR 42); null when there's none. */
+    val endEarly: SyncEndEarlyOffer? = null,
+    /** A PC's daily focus goal in minutes (ADR 29); null when not sent. */
+    val goalMinutes: Int? = null,
+    /** A PC's profiles, always listed (ADR 42), for the phone's start picker; null from a phone or an older PC. */
+    val profileOptions: List<SyncProfileOption>? = null,
+    /** A PC's "Quick Start with Default" profile id (ADR 42); null when it isn't made yet. */
+    val defaultProfileId: String? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1
@@ -216,7 +226,9 @@ data class SyncLunch(val start: java.time.Instant, val end: java.time.Instant, v
 
 /**
  * Something the user did on the phone for a PC (ADR 26): tick a task, park a thought, tick a come-back, step away or
- * come back. [target] is that PC's sync device id; [item] the task, subtask or come-back; [text] the thought to park.
+ * come back; and (ADR 42) start a session, end one early in two steps, or edit the day plan. [target] is that PC's sync
+ * device id; [item] the task, subtask or come-back (the end-early offer's request id for [END_EARLY]); [text] the
+ * thought to park, the start or day plan request as JSON, or the end-early reason's length only (e.g. "24").
  */
 data class SyncAction(
     val id: String,
@@ -232,14 +244,35 @@ data class SyncAction(
         const val TICK_COMEBACK = "tickComeback"
         const val STEP_AWAY = "stepAway"
         const val BACK = "back"
+
+        /** Start a session (ADR 42); a PC takes it only within 2 minutes of first seeing it. */
+        const val START = "start"
+
+        /** Ask to end the running session early (ADR 42): the PC answers with a [SyncEndEarlyOffer]. */
+        const val END_EARLY_BEGIN = "endEarlyBegin"
+
+        /** End early after the offer's wait (ADR 42); taken until the offer's allowed-from time plus 10 minutes. */
+        const val END_EARLY = "endEarly"
+
+        /** Change the day plan (ADR 42, 19); taken only within a day. */
+        const val DAY_PLAN_EDIT = "dayPlanEdit"
+
+        /** The kinds that start or end a PC session (a PC answers them in its results). */
+        val CONTROL_KINDS: Set<String> = setOf(START, END_EARLY_BEGIN, END_EARLY)
     }
 }
 
-/** A PC's running session: the profile, the current phase's start and end (null: no set end), a break, stepped away since. */
+/**
+ * A PC's running session: the profile, the current phase's start and end (null: no set end), a break, stepped away since;
+ * and (ADR 42) the task or subtask picked on the PC (its id), the running profile's id and the Quick Start profile's id.
+ */
 data class SyncRunning(
     val profile: String?,
     val phaseStartedAt: java.time.Instant,
     val phaseEndsAt: java.time.Instant?,
     val isBreak: Boolean,
     val awaySince: java.time.Instant?,
+    val currentTask: String? = null,
+    val profileId: String? = null,
+    val countUpProfileId: String? = null,
 )
