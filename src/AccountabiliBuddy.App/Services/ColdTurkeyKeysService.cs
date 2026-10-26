@@ -158,8 +158,10 @@ public sealed class ColdTurkeyKeysService : IDisposable
 
     /// <summary>
     /// The user retyped the shown key: it becomes the password. Blocks still locked with an old key (a new key asked
-    /// for, ADR 41) are locked again with the new one at once, so the old key stops working and nothing is released.
-    /// False when it doesn't match, or when the key changed while it was being confirmed (a notice says so).
+    /// for, ADR 41) are locked again with the new one at once, so the old key stops working and nothing is released;
+    /// only once Cold Turkey's settings show every old lock gone, otherwise they're locked with the old key again and
+    /// the old key stays. False when it doesn't match, when an old lock wasn't seen gone, or when the key changed while
+    /// it was being confirmed (a notice says so).
     /// </summary>
     public async Task<bool> ConfirmSpareKeyAsync(string typed)
     {
@@ -176,12 +178,43 @@ public sealed class ColdTurkeyKeysService : IDisposable
         try
         {
             string? old = Unprotect(_state.ProtectedPassword);
-            List<string> relocked = new();
-            if (old is not null)
+            if (old is not null && _state.PasswordHeld.Count > 0)
             {
-                foreach (string name in _state.PasswordHeld.ToList())
+                // Pass 1: stop every block held with the old key and see in Cold Turkey's settings that each lock is
+                // gone. Cold Turkey's command line succeeds even when it refuses, so a stop counts only once it's seen.
+                List<string> heldWithOld = _state.PasswordHeld.ToList();
+                foreach (string name in heldWithOld)
                 {
                     await _control.StopAsync(name, old);
+                }
+
+                IReadOnlyList<string> stillLocked = await StillPasswordLockedAsync(heldWithOld);
+                if (stillLocked.Count > 0)
+                {
+                    // Never make the new key the password while a lock may still need the old one: lock the stopped
+                    // blocks again with the old key, keep the old key and the pending one, and let the user try again.
+                    foreach (string name in heldWithOld.Except(stillLocked))
+                    {
+                        if (!await _control.StartAsync(name, password: old))
+                        {
+                            // Left on; the next check holds it again (with a timed lock or the old key).
+                            _state = _state with { PasswordHeld = _state.PasswordHeld.Where(other => other != name).ToList() };
+                            await _control.StartAsync(name);
+                        }
+                    }
+
+                    string names = string.Join(", ", stillLocked);
+                    AddLog($"Couldn't confirm {names} unlocked from the old key; the old key stays");
+                    await SaveAsync();
+                    _coldTurkey.RefreshNow();
+                    Notice?.Invoke(this, ("Spare key", $"Cold Turkey didn't show {names} unlocked from your old key, so your old spare key stays in use. Try confirming the new key again in a minute."));
+                    return false;
+                }
+
+                // Pass 2: every old lock is confirmed gone; lock them again with the new key.
+                List<string> relocked = new();
+                foreach (string name in heldWithOld)
+                {
                     if (await _control.StartAsync(name, password: pending))
                     {
                         relocked.Add(name);
@@ -250,6 +283,30 @@ public sealed class ColdTurkeyKeysService : IDisposable
         {
             AddLog(unconfirmed.Contains(name) ? $"Couldn't confirm the lock on {name}" : $"Locked {name} with the new key");
         }
+    }
+
+    /// <summary>
+    /// After stopping blocks with the old key: the ones Cold Turkey's settings still show password-locked (or don't
+    /// show at all, or can't be read) after up to three reads a second apart. Empty when every stop is confirmed.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> StillPasswordLockedAsync(IReadOnlyList<string> stopped)
+    {
+        var unconfirmed = new List<string>(stopped);
+        for (int read = 0; read < LockConfirmReads && unconfirmed.Count > 0; read++)
+        {
+            if (read > 0)
+            {
+                await Task.Delay(LockConfirmDelay);
+            }
+
+            _coldTurkey.RefreshNow();
+            if (_coldTurkey.Blocks is ColdTurkeyBlocks blocks)
+            {
+                unconfirmed.RemoveAll(name => blocks.Blocks.FirstOrDefault(block => block.Name == name) is { PasswordLocked: false });
+            }
+        }
+
+        return unconfirmed;
     }
 
     /// <summary>Waits until no check (or confirm, or release) is running Cold Turkey commands.</summary>
