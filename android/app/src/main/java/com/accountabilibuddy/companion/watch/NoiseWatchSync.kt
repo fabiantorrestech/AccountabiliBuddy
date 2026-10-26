@@ -38,7 +38,7 @@ class NoiseWatchSync(
 
     fun start() {
         scope.launch {
-            combine(noise.state, noise.settings, links) { state, settings, _ -> state(state, settings.volume) }
+            combine(noise.state, noise.settings, links) { state, settings, _ -> state(state, settings) }
                 .collectLatest { state ->
                     // Volume turned on the crown sends many changes: the last one after a short pause.
                     delay(250)
@@ -49,7 +49,7 @@ class NoiseWatchSync(
 
     /** Sends what's playing now (after the watch said hello). */
     fun sendNow() {
-        scope.launch { send(state(noise.state.value, noise.settings.value.volume)) }
+        scope.launch { send(state(noise.state.value, noise.settings.value)) }
     }
 
     /** A command from [nodeId]: applied when it's the linked watch. */
@@ -66,8 +66,9 @@ class NoiseWatchSync(
         }
     }
 
-    private fun state(state: com.accountabilibuddy.companion.noise.NoiseState, volume: Int) =
-        NoiseRemote.State(state.playing, state.title, volume, state.hasFolder)
+    // Locked = the lock is on and no headphones are connected (the watch shows a small lock).
+    private fun state(state: com.accountabilibuddy.companion.noise.NoiseState, settings: com.accountabilibuddy.companion.noise.NoiseSettings) =
+        NoiseRemote.State(state.playing, state.title, settings.volume, state.hasFolder, settings.headphoneLock && !state.headphonesConnected)
 
     private suspend fun send(state: NoiseRemote.State) {
         val settings = links.value

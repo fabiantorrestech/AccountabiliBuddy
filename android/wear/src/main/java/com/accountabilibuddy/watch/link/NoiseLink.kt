@@ -31,7 +31,8 @@ object NoiseLink {
     suspend fun send(context: Context, command: NoiseRemote.Command) {
         _state.value = _state.value?.let { current ->
             when (command.action) {
-                NoiseRemote.TOGGLE -> current.copy(playing = !current.playing)
+                // Locked without headphones the phone won't play: don't show it playing.
+                NoiseRemote.TOGGLE -> if (current.locked && !current.playing) current else current.copy(playing = !current.playing)
                 NoiseRemote.VOLUME -> current.copy(volume = command.volume ?: current.volume)
                 else -> current
             }

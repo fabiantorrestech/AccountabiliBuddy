@@ -39,7 +39,8 @@ import kotlinx.coroutines.launch
 
 /**
  * The phone's noise player (ADR 36): the sound's name, previous, play/pause, next, and the volume as an arc around the
- * edge. On this page the crown changes the phone's noise volume, 5% a step.
+ * edge. On this page the crown changes the phone's noise volume, 5% a step. A small lock shows while the phone's player
+ * is locked to headphones and none are connected (play does nothing then).
  */
 @Composable
 fun NoisePage(isCurrent: Boolean) {
@@ -81,7 +82,11 @@ fun NoisePage(isCurrent: Boolean) {
                 current == null -> Text("Open the phone app once to control its noise player", fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 24.dp))
                 !current.hasFolder -> Text("Choose a folder of sounds on the phone", fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 24.dp))
                 else -> {
-                    Text("${current.volume}%", fontSize = 12.sp, color = Color(0xFF99F6E4))
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (current.locked) LockMark()
+                        Text(if (current.locked) "Connect headphones" else "${current.volume}%", fontSize = 12.sp,
+                            color = if (current.locked) Color(0xFFFCA5A5) else Color(0xFF99F6E4))
+                    }
                     Text(
                         current.title ?: "Noise", fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
                         modifier = Modifier.padding(horizontal = 28.dp),
@@ -97,6 +102,22 @@ fun NoisePage(isCurrent: Boolean) {
                 }
             }
         }
+    }
+}
+
+// A small padlock (the watch has no icon library): a shackle over a body.
+@Composable
+private fun LockMark() {
+    Canvas(Modifier.size(10.dp, 12.dp)) {
+        val color = Color(0xFFFCA5A5)
+        val body = size.height * 0.55f
+        drawRoundRect(color, topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - body),
+            size = androidx.compose.ui.geometry.Size(size.width, body), cornerRadius = androidx.compose.ui.geometry.CornerRadius(1.5.dp.toPx()))
+        val inset = size.width * 0.2f
+        drawArc(color, startAngle = 180f, sweepAngle = 180f, useCenter = false,
+            topLeft = androidx.compose.ui.geometry.Offset(inset, 0.5.dp.toPx()),
+            size = androidx.compose.ui.geometry.Size(size.width - 2 * inset, (size.height - body) * 1.6f),
+            style = Stroke(width = 1.5.dp.toPx()))
     }
 }
 

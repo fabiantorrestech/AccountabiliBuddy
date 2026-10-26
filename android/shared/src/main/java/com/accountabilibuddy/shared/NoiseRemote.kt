@@ -19,8 +19,11 @@ object NoiseRemote {
     const val PREVIOUS = "previous"
     const val VOLUME = "volume"
 
-    /** What's playing on the phone. [title] is the sound's shown name; null when no folder is chosen. */
-    data class State(val playing: Boolean, val title: String?, val volume: Int, val hasFolder: Boolean)
+    /**
+     * What's playing on the phone. [title] is the sound's shown name; null when no folder is chosen. [locked]: the
+     * player is locked to headphones and none are connected, so play does nothing (false when absent).
+     */
+    data class State(val playing: Boolean, val title: String?, val volume: Int, val hasFolder: Boolean, val locked: Boolean = false)
 
     /** A command from the watch: [action] is one of the constants; [volume] 0-100 for [VOLUME]. */
     data class Command(val action: String, val volume: Int? = null)
@@ -30,6 +33,7 @@ object NoiseRemote {
         state.title?.let { put("title", it) }
         put("volume", state.volume)
         put("hasFolder", state.hasFolder)
+        put("locked", state.locked)
     }.toString().toByteArray()
 
     fun readState(bytes: ByteArray): State? = runCatching {
@@ -39,6 +43,7 @@ object NoiseRemote {
             (json["title"] as? JsonPrimitive)?.takeIf { it.isString }?.content,
             (json["volume"] as? JsonPrimitive)?.intOrNull ?: 40,
             (json["hasFolder"] as? JsonPrimitive)?.booleanOrNull ?: false,
+            (json["locked"] as? JsonPrimitive)?.booleanOrNull ?: false,
         )
     }.getOrNull()
 

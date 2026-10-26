@@ -1,8 +1,12 @@
 package com.accountabilibuddy.companion.noise
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.media.AudioAttributes
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaMetadata
@@ -10,6 +14,8 @@ import android.media.MediaPlayer
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.provider.DocumentsContract
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
@@ -22,7 +28,9 @@ import kotlinx.coroutines.launch
  * The noise player, ported from the PC: sounds from a folder the user picks, play/pause, previous/next, its own volume
  * and repeat. With [NoiseSettings.systemControls] on it's media: a media session (Android's controls, headset buttons)
  * and audio focus (it pauses for other audio). Off, it asks for neither, so other audio plays over it. While playing,
- * [NoiseService] keeps it alive in the foreground. Use from the main thread.
+ * [NoiseService] keeps it alive in the foreground. With [NoiseSettings.headphoneLock] on it plays only while headphones
+ * are connected (every way of starting it comes through [play]); it pauses when the last headphones go, locked or with
+ * [NoiseSettings.stopOnDisconnect]. Use from the main thread.
  */
 class NoisePlayer(private val context: Context, private val store: NoiseSettingsStore, private val scope: CoroutineScope) {
     private val _state = MutableStateFlow(NoiseState())
@@ -34,6 +42,44 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
     private var session: MediaSession? = null
     private var focus: AudioFocusRequest? = null
     private var pausedForFocus = false
+    private val handler = Handler(Looper.getMainLooper())
+    private var noisyRegistered = false
+
+    /** True when the last [play] was refused by the lock (the service then says why). */
+    var lastPlayRefused = false
+        private set
+
+    // Android says "becoming noisy" before it moves sound to the speaker (wired unplugged, Bluetooth gone): pause
+    // then, so nothing leaks through the speaker. Listened to only while playing or paused for another app's sound.
+    private val noisy = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val settings = store.settings.value
+            if (intent.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY && (settings.headphoneLock || settings.stopOnDisconnect)) {
+                pause()
+            }
+        }
+    }
+
+    private val clearHint = Runnable { _state.value = _state.value.copy(needsHeadphones = false); onChanged?.invoke() }
+
+    // Headphones coming and going: kept in the state; the last ones going pauses it when locked or "Stop when
+    // headphones disconnect" is on.
+    private val devices = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+            headphones(Headphones.connected(audio))
+        }
+
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+            val wasConnected = _state.value.headphonesConnected
+            val connected = Headphones.connected(audio, ignoring = removedDevices.map { it.id }.toSet())
+            headphones(connected)
+            val settings = store.settings.value
+            // Paused for another app's sound counts as playing: it mustn't come back through the speaker.
+            if (wasConnected && !connected && (_state.value.playing || pausedForFocus) && (settings.headphoneLock || settings.stopOnDisconnect)) {
+                pause()
+            }
+        }
+    }
 
     val state: StateFlow<NoiseState> = _state
     val settings: StateFlow<NoiseSettings> get() = store.settings
@@ -42,8 +88,13 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
     var onChanged: (() -> Unit)? = null
 
     init {
+        _state.value = _state.value.copy(headphonesConnected = Headphones.connected(audio))
+        audio.registerAudioDeviceCallback(devices, handler)
         scope.launch(Dispatchers.Main) { reload() }
     }
+
+    /** True while the lock is on and no headphones are connected: Play does nothing. */
+    fun lockedOut(): Boolean = store.settings.value.headphoneLock && !_state.value.headphonesConnected
 
     /** The folder picked with Android's folder picker: kept across restarts. False when it can't be kept. */
     fun chooseFolder(uri: Uri): Boolean {
@@ -63,11 +114,18 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
     fun toggle() = if (_state.value.playing) pause() else play()
 
     fun play() {
+        lastPlayRefused = false
         if (files.isEmpty()) {
             reload()
         }
 
         if (index < 0) {
+            return
+        }
+
+        if (lockedOut()) {
+            lastPlayRefused = true
+            refuseForLock()
             return
         }
 
@@ -86,6 +144,7 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
 
     fun pause() {
         player?.takeIf { runCatching { it.isPlaying }.getOrDefault(false) }?.pause()
+        pausedForFocus = false
         abandonFocus()
         playing(false)
     }
@@ -128,6 +187,20 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
             session = null
         }
         notifyService()
+    }
+
+    /** The lock on the player: on while playing through the speaker pauses it at once. */
+    fun setHeadphoneLock(on: Boolean) {
+        store.save(store.settings.value.copy(headphoneLock = on))
+        if (on && _state.value.playing && !_state.value.headphonesConnected) {
+            pause()
+        } else {
+            onChanged?.invoke()
+        }
+    }
+
+    fun setStopOnDisconnect(on: Boolean) {
+        store.save(store.settings.value.copy(stopOnDisconnect = on))
     }
 
     fun setWidgetButton(on: Boolean) {
@@ -176,9 +249,12 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
             created.setOnCompletionListener { if (!store.settings.value.repeat) next() }
             created.setOnPreparedListener { ready ->
                 preparedIndex = target
-                if (startWhenReady) {
+                // Headphones may have gone while it was preparing: never start through the speaker.
+                if (startWhenReady && !lockedOut()) {
                     ready.start()
                     playing(true)
+                } else {
+                    playing(false)
                 }
             }
             created.setOnErrorListener { _, _, _ ->
@@ -196,6 +272,36 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
         }
     }
 
+    // The lock said no: the bar says "Connect headphones" for a few seconds.
+    private fun listenForNoisy(on: Boolean) {
+        if (on == noisyRegistered) {
+            return
+        }
+
+        if (on) {
+            ContextCompat.registerReceiver(context, noisy, IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY), ContextCompat.RECEIVER_NOT_EXPORTED)
+        } else {
+            runCatching { context.unregisterReceiver(noisy) }
+        }
+        noisyRegistered = on
+    }
+
+    private fun refuseForLock() {
+        _state.value = _state.value.copy(needsHeadphones = true)
+        onChanged?.invoke()
+        handler.removeCallbacks(clearHint)
+        handler.postDelayed(clearHint, HINT_MILLIS)
+    }
+
+    private fun headphones(connected: Boolean) {
+        if (connected == _state.value.headphonesConnected) {
+            return
+        }
+
+        _state.value = _state.value.copy(headphonesConnected = connected, needsHeadphones = _state.value.needsHeadphones && !connected)
+        onChanged?.invoke()
+    }
+
     private fun release() {
         player?.release()
         player = null
@@ -204,6 +310,7 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
 
     private fun playing(on: Boolean) {
         _state.value = _state.value.copy(playing = on)
+        listenForNoisy(on || pausedForFocus)
         publish()
         notifyService()
     }
@@ -247,6 +354,8 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
                     }
                     AudioManager.AUDIOFOCUS_GAIN -> if (pausedForFocus) {
                         pausedForFocus = false
+                        // Headphones went while another app had the sound: stay paused.
+                        if (lockedOut()) return@setOnAudioFocusChangeListener
                         player?.start()
                         playing(true)
                     }
@@ -306,5 +415,9 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
         found
     } catch (e: Exception) {
         emptyList() // Access was lost or the folder is gone: choose it again.
+    }
+
+    private companion object {
+        const val HINT_MILLIS = 3000L
     }
 }

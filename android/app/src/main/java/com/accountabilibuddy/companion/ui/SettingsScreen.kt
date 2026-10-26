@@ -259,6 +259,16 @@ private fun NoiseSection(player: com.accountabilibuddy.companion.noise.NoisePlay
         }
         ToggleRow("Repeat", "Play the same sound again and again", settings.repeat, onChange = player::setRepeat)
         ToggleRow(
+            "Lock to headphones",
+            "Plays only while headphones are connected (wired or Bluetooth), and pauses when they go. Also the lock on the player.",
+            settings.headphoneLock, onChange = player::setHeadphoneLock,
+        )
+        ToggleRow(
+            "Stop when headphones disconnect",
+            "Pauses the player when headphones go, locked or not. Separate from playing when they connect.",
+            settings.stopOnDisconnect, onChange = player::setStopOnDisconnect,
+        )
+        ToggleRow(
             "Use Android's media controls",
             "On: it shows in the media controls, headset buttons work, and it pauses when other audio plays. Off: other audio, like a YouTube video, plays over it.",
             settings.systemControls, onChange = player::setSystemControls,
