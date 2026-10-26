@@ -3,4 +3,5 @@
     <string name="app_name">AccountabiliBuddy</string>
     <string name="tile_label">Focus today</string>
     <string name="complication_label">Focus</string>
+    <string name="timers_complication_label">Timers</string>
 </resources>
