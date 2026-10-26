@@ -10,7 +10,8 @@ namespace AccountabiliBuddy.Core.Engine;
 /// (<see cref="WakeOnce"/>) moves only that morning. The phone's next alarm (ADR 23) sets the wake time of the morning it
 /// falls on, between the night's bedtime and noon, over a one-night change unless that change was confirmed over the
 /// alarm. A night whose wake is the alarm (<see cref="SleepTimes.WakeByAlarm"/>, ADR 33) with no alarm that morning
-/// ends at bedtime plus the sleep goal. A smart bedtime (ADR 34: time in bed before waking for the night leading into a
+/// ends at the phone's estimated wake for that morning (ADR 40) when it falls after bedtime and before noon, else at
+/// bedtime plus the sleep goal. A smart bedtime (ADR 34: time in bed before waking for the night leading into a
 /// day) moves only the bedtime, to the wake time minus that time. All times are local wall-clock times.
 /// </summary>
 public sealed class SleepSchedule
@@ -31,17 +32,20 @@ public sealed class SleepSchedule
     private readonly DateTime? _alarm;
     private readonly TimeSpan _goal;
     private readonly Func<DateOnly, TimeSpan?>? _bedLevel;
+    private readonly Func<DateOnly, TimeOnly?>? _wakeGuess;
 
     /// <param name="nightBefore">The times of the night before a day, from the day plan; null when it has none.</param>
     /// <param name="wakeOnce">A wake time changed for one morning only, or null.</param>
     /// <param name="alarm">The phone's next alarm (local time), or null.</param>
     /// <param name="goal">The sleep goal: the wake of a night woken by the alarm when there's none (8 hours when null).</param>
     /// <param name="bedLevel">The smart bedtime's time in bed before waking for the night leading into a day, or null (ADR 34).</param>
+    /// <param name="wakeGuess">The phone's estimated wake for a morning, or null (ADR 40): the wake of a night woken by the alarm when there's none.</param>
     public SleepSchedule(
         SleepTimes weeknights, SleepTimes weekends, Func<DateOnly, SleepTimes?>? nightBefore = null, WakeOnce? wakeOnce = null, DateTime? alarm = null,
-        TimeSpan? goal = null, Func<DateOnly, TimeSpan?>? bedLevel = null)
+        TimeSpan? goal = null, Func<DateOnly, TimeSpan?>? bedLevel = null, Func<DateOnly, TimeOnly?>? wakeGuess = null)
     {
         _bedLevel = bedLevel;
+        _wakeGuess = wakeGuess;
         _goal = goal ?? DefaultGoal;
         _weeknights = weeknights;
         _weekends = weekends;
@@ -103,7 +107,8 @@ public sealed class SleepSchedule
     }
 
     // The morning's wake time: the alarm when it falls between bedtime and noon (unless a one-night change was confirmed
-    // over it), else a one-night change, else bedtime plus the goal for a night woken by the alarm, else the plan's.
+    // over it), else a one-night change, else for a night woken by the alarm the phone's estimate (between bedtime and
+    // noon) or bedtime plus the goal, else the plan's.
     private (DateTime Wake, bool ByAlarm) WakeOf(DateOnly evening, DateTime bed, SleepTimes times)
     {
         DateOnly morning = evening.AddDays(1);
@@ -116,6 +121,12 @@ public sealed class SleepSchedule
 
         if (once is null && times.WakeByAlarm)
         {
+            // ADR 40: an estimate before the night's bedtime or at noon or later is ignored.
+            if (_wakeGuess?.Invoke(morning) is TimeOnly guess && morning.ToDateTime(guess) is DateTime estimated && estimated > bed && estimated < noon)
+            {
+                return (estimated, false);
+            }
+
             return (bed + _goal, false);
         }
 

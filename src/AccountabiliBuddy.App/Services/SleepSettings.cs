@@ -43,8 +43,19 @@ public sealed record SleepSettings(
     /// settings' times are the fallback for a day whose plan has no night.</param>
     /// <param name="phoneAlarm">The phone's next alarm (local time), used while <see cref="UsePhoneAlarm"/> is on.</param>
     /// <param name="phoneBedtime">The phone's smart bedtime (ADR 34), used while <see cref="UsePhoneBedtime"/> is on.</param>
-    public SleepSchedule ToSchedule(DayPlan? plan = null, DateTime? phoneAlarm = null, AccountabiliBuddy.Core.Sync.SyncSmartBedtime? phoneBedtime = null)
+    /// <param name="phoneWake">The phone's estimated wake per kind of morning (ADR 40), for a night woken by the alarm with
+    /// none known; used unless the wake time comes from neither alarm (<see cref="UsePhoneAlarm"/> or
+    /// <see cref="UsePcAlarm"/> on), so this PC's alarm (ADR 35) rings at it too.</param>
+    public SleepSchedule ToSchedule(
+        DayPlan? plan = null, DateTime? phoneAlarm = null, AccountabiliBuddy.Core.Sync.SyncSmartBedtime? phoneBedtime = null,
+        AccountabiliBuddy.Core.Sync.SyncWakeEstimate? phoneWake = null)
     {
+        Func<DateOnly, TimeOnly?>? wakeGuess = null;
+        if ((UsePhoneAlarm || UsePcAlarm) && plan is not null && phoneWake is not null)
+        {
+            wakeGuess = morning => ParseTime(plan.Workdays.Contains(morning.DayOfWeek) ? phoneWake.Workdays : phoneWake.OffDays);
+        }
+
         Func<DateOnly, TimeSpan?>? bedLevel = null;
         if (UsePhoneBedtime && plan is not null && phoneBedtime is not null)
         {
@@ -60,6 +71,15 @@ public sealed record SleepSettings(
             WakeOnce,
             UsePhoneAlarm && !UsePcAlarm ? phoneAlarm : null,
             Goal,
-            bedLevel);
+            bedLevel,
+            wakeGuess);
+    }
+
+    // "HH:mm" (invariant) from the phone's sync file; null when missing or unreadable.
+    private static TimeOnly? ParseTime(string? text)
+    {
+        return TimeOnly.TryParseExact(text, "HH:mm", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out TimeOnly time)
+            ? time
+            : null;
     }
 }
