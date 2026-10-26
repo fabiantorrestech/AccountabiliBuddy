@@ -9,7 +9,8 @@ namespace AccountabiliBuddy.App.Services;
 /// repeats by default, with its own volume, and never starts by itself. The player is only created on the first
 /// Play, so it costs nothing until then. Its shortcuts (play/pause, volume ±10%) work anywhere. Locked to headphones,
 /// nothing plays it without headphones connected (the buttons, shortcuts, media keys and auto-play alike), and it pauses
-/// when the last ones go; "Stop when headphones disconnect" pauses it when any go. Use from the UI thread;
+/// whenever sound would reach something else (headphones went and Windows' default output isn't headphones, or the
+/// default output was switched away from them); "Stop when headphones disconnect" pauses it when any go. Use from the UI thread;
 /// <see cref="Changed"/> is raised there.
 /// </summary>
 public sealed class NoisePlayerService : IDisposable
@@ -41,14 +42,10 @@ public sealed class NoisePlayerService : IDisposable
         _createPlayer = createPlayer;
         _settings = settings;
         _headphones = headphones;
-        _headphones.Changed += (_, change) => Dispatcher.UIThread.Post(() => _ = OnHeadphonesChangedAsync(change));
+        _headphones.Changed += OnHeadphonesChanged;
+        _headphones.DefaultOutputChanged += OnDefaultOutputChanged;
         _noticeTimer = new DispatcherTimer { Interval = NoticeDuration };
-        _noticeTimer.Tick += (_, _) =>
-        {
-            _noticeTimer.Stop();
-            Notice = null;
-            Changed?.Invoke(this, EventArgs.Empty);
-        };
+        _noticeTimer.Tick += OnNoticeTimerTick;
         _playPauseKey = createHotkey();
         _volumeUpKey = createHotkey();
         _volumeDownKey = createHotkey();
@@ -293,6 +290,10 @@ public sealed class NoisePlayerService : IDisposable
 
     public void Dispose()
     {
+        _headphones.Changed -= OnHeadphonesChanged;
+        _headphones.DefaultOutputChanged -= OnDefaultOutputChanged;
+        _noticeTimer.Stop();
+        _noticeTimer.Tick -= OnNoticeTimerTick;
         foreach (IGlobalHotkey hotkey in new[] { _playPauseKey, _volumeUpKey, _volumeDownKey })
         {
             hotkey.Unregister();
@@ -377,11 +378,45 @@ public sealed class NoisePlayerService : IDisposable
         {
             PauseNow();
         }
-        else if (settings.LockedToHeadphones && !await _headphones.AnyConnectedAsync())
+        else if (settings.LockedToHeadphones)
         {
-            PauseNow();
+            // A headset's extra endpoints (hands-free, A2DP) can go while sound still reaches headphones.
+            await PauseIfDefaultOutputNotHeadphonesAsync();
+        }
+    }
+
+    // Raised on a background thread.
+    private void OnHeadphonesChanged(object? sender, HeadphoneEvent change)
+    {
+        Dispatcher.UIThread.Post(() => _ = OnHeadphonesChangedAsync(change));
+    }
+
+    // Raised on a background thread: e.g. the default switched to speakers in Windows.
+    private void OnDefaultOutputChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (IsPlaying && _settings.Current.LockedToHeadphones)
+            {
+                _ = PauseIfDefaultOutputNotHeadphonesAsync();
+            }
+        });
+    }
+
+    private async Task PauseIfDefaultOutputNotHeadphonesAsync()
+    {
+        if (!await _headphones.IsDefaultOutputHeadphonesAsync() && _settings.Current.LockedToHeadphones && IsPlaying)
+        {
+            _player!.Pause();
             ShowNotice(ConnectHeadphonesNotice);
         }
+    }
+
+    private void OnNoticeTimerTick(object? sender, EventArgs e)
+    {
+        _noticeTimer.Stop();
+        Notice = null;
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     private void WatchHeadphonesIfNeeded()

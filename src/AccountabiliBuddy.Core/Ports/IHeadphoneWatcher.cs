@@ -12,6 +12,9 @@ public interface IHeadphoneWatcher : IDisposable
     /// <summary>Raised on a background thread. Outputs already connected at <see cref="Start"/> aren't reported.</summary>
     event EventHandler<HeadphoneEvent>? Changed;
 
+    /// <summary>Raised on a background thread when Windows' default sound output changes (after <see cref="Start"/>).</summary>
+    event EventHandler? DefaultOutputChanged;
+
     /// <summary>Starts watching (once; later calls do nothing).</summary>
     void Start();
 
@@ -21,6 +24,12 @@ public interface IHeadphoneWatcher : IDisposable
     /// for the first look at the outputs.
     /// </summary>
     Task<bool> AnyConnectedAsync();
+
+    /// <summary>
+    /// Whether the default sound output (where sound goes now) is headphones, by the same test as
+    /// <see cref="AnyConnectedAsync"/>; false for speakers, no output or one not seen yet. Starts watching if it hasn't.
+    /// </summary>
+    Task<bool> IsDefaultOutputHeadphonesAsync();
 
     /// <summary>The paired Bluetooth audio devices, to choose from in Settings.</summary>
     Task<IReadOnlyList<BluetoothAudioDevice>> ListBluetoothAudioAsync();

@@ -36,6 +36,8 @@ public sealed class WindowsHeadphoneWatcher : IHeadphoneWatcher
 
     public event EventHandler<HeadphoneEvent>? Changed;
 
+    public event EventHandler? DefaultOutputChanged;
+
     public void Start()
     {
         if (_watcher is not null)
@@ -44,6 +46,7 @@ public sealed class WindowsHeadphoneWatcher : IHeadphoneWatcher
         }
 
         _firstPairedLook = RefreshPairedAsync();
+        MediaDevice.DefaultAudioRenderDeviceChanged += OnDefaultChanged;
         _watcher = DeviceInformation.CreateWatcher(
             MediaDevice.GetAudioRenderSelector(), [ContainerIdKey, EnabledKey, FormFactorKey], DeviceInformationKind.DeviceInterface);
         _watcher.Added += (_, info) => OnAdded(info);
@@ -63,8 +66,7 @@ public sealed class WindowsHeadphoneWatcher : IHeadphoneWatcher
 
     public async Task<bool> AnyConnectedAsync()
     {
-        Start();
-        await Task.WhenAny(Task.WhenAll(_enumeration.Task, _firstPairedLook), Task.Delay(FirstLookTimeout));
+        await WaitForFirstLookAsync();
 
         List<Output> enabled;
         lock (_gate)
@@ -74,6 +76,25 @@ public sealed class WindowsHeadphoneWatcher : IHeadphoneWatcher
 
         IReadOnlyList<PairedDevice> paired = _paired;
         return enabled.Any(output => IsHeadphones(output) || Match(paired, output) is not null);
+    }
+
+    public async Task<bool> IsDefaultOutputHeadphonesAsync()
+    {
+        await WaitForFirstLookAsync();
+
+        string defaultId = MediaDevice.GetDefaultAudioRenderId(AudioDeviceRole.Default);
+        if (string.IsNullOrEmpty(defaultId))
+        {
+            return false;
+        }
+
+        Output? output;
+        lock (_gate)
+        {
+            output = _outputs.FirstOrDefault(pair => string.Equals(pair.Key, defaultId, StringComparison.OrdinalIgnoreCase)).Value;
+        }
+
+        return output is { Enabled: true } && (IsHeadphones(output) || Match(_paired, output) is not null);
     }
 
     public async Task<IReadOnlyList<BluetoothAudioDevice>> ListBluetoothAudioAsync()
@@ -90,6 +111,26 @@ public sealed class WindowsHeadphoneWatcher : IHeadphoneWatcher
         }
 
         _watcher = null;
+        MediaDevice.DefaultAudioRenderDeviceChanged -= OnDefaultChanged;
+    }
+
+    private void OnDefaultChanged(object? sender, DefaultAudioRenderDeviceChangedEventArgs args)
+    {
+        if (args.Role == AudioDeviceRole.Default)
+        {
+            DefaultOutputChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    // Starts watching and waits (once, up to a few seconds) for the first look at the outputs and the paired devices.
+    private async Task WaitForFirstLookAsync()
+    {
+        Start();
+        Task firstLook = Task.WhenAll(_enumeration.Task, _firstPairedLook);
+        if (!firstLook.IsCompleted)
+        {
+            await Task.WhenAny(firstLook, Task.Delay(FirstLookTimeout));
+        }
     }
 
     private void OnAdded(DeviceInformation info)
