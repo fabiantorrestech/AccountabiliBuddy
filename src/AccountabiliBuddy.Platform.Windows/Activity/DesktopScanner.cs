@@ -1,4 +1,5 @@
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Platform.Windows.Display;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.Graphics.Dwm;
@@ -27,20 +28,84 @@ internal sealed class DesktopScanner
         "Shell_SecondaryTrayWnd",
     };
 
+    // Windows' app switchers (Alt+Tab, Task view). They show other apps' windows as thumbnails and are never
+    // what the user is looking at; while one is in front the user hasn't picked a window yet.
+    private static readonly HashSet<string> SwitcherWindowClasses = new(StringComparer.Ordinal)
+    {
+        // Windows 10: Alt+Tab and Task view (Win+Tab), hosted by explorer.
+        "MultitaskingViewFrame",
+        // Windows 11: Alt+Tab, Task view and Snap Assist, XAML islands hosted by explorer.
+        "XamlExplorerHostIslandWindow",
+        // Explorer's window that holds the foreground for a moment while a switcher hands it to the chosen app.
+        "ForegroundStaging",
+        // The classic Alt+Tab grid (AltTabSettings = 1, or no DWM), hosted by explorer.
+        "TaskSwitcherWnd",
+        // The classic Alt+Tab's overlay that draws over the grid (Windows 7 and later), hosted by explorer.
+        "TaskSwitcherOverlayWnd",
+    };
+
     private readonly ProcessNameResolver _processNames = new();
     private readonly uint _ownProcessId = (uint)Environment.ProcessId;
+
+    /// <summary>
+    /// True while one of Windows' app switchers (Alt+Tab, Task view) has the foreground: the user is passing over
+    /// windows, not looking at one. Checked by class and by a shell process, so an app's window with the same class
+    /// name never counts.
+    /// </summary>
+    public bool IsSwitcherInFront()
+    {
+        HWND foreground = PInvoke.GetForegroundWindow();
+        if (foreground.IsNull || !SwitcherWindowClasses.Contains(ReadClassName(foreground)))
+        {
+            return false;
+        }
+
+        // A hidden or cloaked leftover switcher window must not hold the scan until the foreground changes.
+        if (!PInvoke.IsWindowVisible(foreground) || IsCloaked(foreground))
+        {
+            return false;
+        }
+
+        PInvoke.GetWindowThreadProcessId(foreground, out uint processId);
+        bool inFront = Win32OverlayWindowControl.ShellProcesses.Contains(_processNames.Resolve(foreground, processId));
+#if DEBUG
+        // DIAG (Task 4, remove)
+        if (inFront)
+        {
+            LastDiagScan = $"skipped: switcher in front fg={DiagDescribe(foreground)}";
+        }
+#endif
+        return inFront;
+    }
 
     /// <summary>One snapshot per connected monitor, in monitor enumeration order.</summary>
     public IReadOnlyList<ActivitySnapshot> Scan(DateTimeOffset timestamp)
     {
         List<MonitorEntry> monitors = EnumerateMonitors();
         var topWindowByMonitor = new Dictionary<nint, HWND>();
+#if DEBUG
+        // DIAG (Task 4, remove): the first windows of the walk, eligible or not. No titles.
+        var diagWalk = new List<string>(DiagWalkLength);
+#endif
 
         PInvoke.EnumWindows((window, _) =>
         {
-            if (!IsEligible(window))
+            bool eligible = IsEligible(window);
+#if DEBUG
+            // DIAG (Task 4, remove)
+            if (diagWalk.Count < DiagWalkLength)
             {
+                diagWalk.Add($"{DiagDescribe(window)}:{(eligible ? "yes" : "no")}");
+            }
+#endif
+            if (!eligible)
+            {
+#if DEBUG
+                // DIAG (Task 4, remove): keep walking until the diag walk is full.
+                return topWindowByMonitor.Count < monitors.Count || diagWalk.Count < DiagWalkLength;
+#else
                 return true;
+#endif
             }
 
             HMONITOR monitor = PInvoke.MonitorFromWindow(window, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONULL);
@@ -50,8 +115,28 @@ internal sealed class DesktopScanner
             }
 
             // Stop once every monitor has its top window.
+#if DEBUG
+            // DIAG (Task 4, remove): keep walking until the diag walk is full (TryAdd keeps the first top window).
+            return topWindowByMonitor.Count < monitors.Count || diagWalk.Count < DiagWalkLength;
+#else
             return topWindowByMonitor.Count < monitors.Count;
+#endif
         }, default);
+
+#if DEBUG
+        // DIAG (Task 4, remove): foreground window, each monitor's chosen top window, the walk.
+        var diagTops = new List<string>(monitors.Count);
+        foreach (MonitorEntry monitor in monitors)
+        {
+            diagTops.Add(topWindowByMonitor.TryGetValue(monitor.Handle, out HWND top)
+                ? $"{monitor.DeviceName}={WindowIds.Format(top)}/{DiagDescribe(top)}"
+                : $"{monitor.DeviceName}=empty");
+        }
+
+        HWND foreground = PInvoke.GetForegroundWindow();
+        string diagForeground = foreground.IsNull ? "none" : DiagDescribe(foreground);
+        LastDiagScan = $"fg={diagForeground} | tops: {string.Join(", ", diagTops)} | walk: {string.Join(", ", diagWalk)}";
+#endif
 
         var snapshots = new List<ActivitySnapshot>(monitors.Count);
         foreach (MonitorEntry monitor in monitors)
@@ -63,6 +148,21 @@ internal sealed class DesktopScanner
 
         return snapshots;
     }
+
+#if DEBUG
+    // DIAG (Task 4, remove)
+    private const int DiagWalkLength = 6;
+
+    /// <summary>DIAG (Task 4, remove): what the last scan saw, without titles.</summary>
+    public string? LastDiagScan { get; private set; }
+
+    // DIAG (Task 4, remove): "class/process", never the title.
+    private string DiagDescribe(HWND window)
+    {
+        PInvoke.GetWindowThreadProcessId(window, out uint processId);
+        return $"{ReadClassName(window)}/{_processNames.Resolve(window, processId)}";
+    }
+#endif
 
     private ActivitySnapshot CreateSnapshot(DateTimeOffset timestamp, string monitorId, HWND window)
     {
@@ -105,7 +205,9 @@ internal sealed class DesktopScanner
             return false;
         }
 
-        return !ShellWindowClasses.Contains(ReadClassName(window));
+        string className = ReadClassName(window);
+        // Switcher classes are skipped for any process on purpose: such a window is never content to judge.
+        return !ShellWindowClasses.Contains(className) && !SwitcherWindowClasses.Contains(className);
     }
 
     /// <summary>Cloaked windows exist but are not shown, e.g. on another virtual desktop or suspended Store apps.</summary>
