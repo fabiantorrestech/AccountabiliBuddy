@@ -87,6 +87,9 @@ class SyncCoordinator(
     /** The smart bedtime's share for the PCs (ADR 34); null when it's off. */
     var smartBedtime: () -> com.accountabilibuddy.shared.sync.SyncSmartBedtime? = { null }
 
+    /** The estimated wake times for the PCs (ADR 40); null when there's none. */
+    var wakeEstimate: () -> com.accountabilibuddy.shared.sync.SyncWakeEstimate? = { null }
+
     /** Today's flexible lunch (schema v8), when started here or taken from another device. */
     var lunch: () -> com.accountabilibuddy.shared.sync.SyncLunch? = { null }
 
@@ -192,6 +195,7 @@ class SyncCoordinator(
         smartBedtime = runCatching { smartBedtime() }.getOrNull(),
         reminderActions = runCatching { reminderActions() }.getOrNull()?.takeIf { it.isNotEmpty() },
         blockers = runCatching { blockers() }.getOrNull(),
+        wakeEstimate = runCatching { wakeEstimate() }.getOrNull(),
     )
 
     /** Everything to hand over by [method] (Drive or a share): this phone's own file first, then what it carries. */

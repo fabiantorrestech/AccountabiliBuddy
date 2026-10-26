@@ -46,6 +46,8 @@ data class SyncFile(
     val reminderActions: List<com.accountabilibuddy.shared.ReminderMessages.Action>? = null,
     /** This device's blocks and whether each is on (ADR 37); null when it has no blocker. */
     val blockers: List<SyncBlocker>? = null,
+    /** A phone's estimated wake time per kind of morning (ADR 40): only the two times; null when it has none. */
+    val wakeEstimate: SyncWakeEstimate? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1
@@ -183,6 +185,9 @@ data class SyncCompanion(val name: String, val kind: String, val linked: Boolean
         const val KIND_WATCH = "watch"
     }
 }
+/** A phone's estimated wake time (ADR 40) for workday and Off-Day mornings, each "HH:mm"; null for a kind without enough data. */
+data class SyncWakeEstimate(val workdays: String?, val offDays: String?)
+
 /** A phone's smart bedtime (ADR 34): per kind of night, null for a kind that's off. */
 data class SyncSmartBedtime(val workdays: SyncSmartLevel?, val offDays: SyncSmartLevel?)
 

@@ -96,6 +96,13 @@ object SyncFileJson {
                 smart.offDays?.let { put("offDays", writeSmartLevel(it)) }
             })
         }
+        // Optional (ADR 40): a phone's estimated wake times.
+        file.wakeEstimate?.let { estimate ->
+            put("wakeEstimate", buildJsonObject {
+                estimate.workdays?.let { put("workdays", it) }
+                estimate.offDays?.let { put("offDays", it) }
+            })
+        }
         file.running?.let { running ->
             put("running", buildJsonObject {
                 running.profile?.let { put("profile", it) }
@@ -235,6 +242,10 @@ object SyncFileJson {
                     text("on") == "true",
                     text("locked") == "true",
                 )
+            },
+            json.optionalObject("wakeEstimate")?.let { estimate ->
+                fun time(key: String) = (estimate[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
+                SyncWakeEstimate(time("workdays"), time("offDays"))
             },
         )
     }

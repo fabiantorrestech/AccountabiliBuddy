@@ -17,7 +17,8 @@ import java.time.LocalTime
  * times. A wake time changed for one night ([wakeOnce]) moves only that morning. The phone's next alarm ([alarm], ADR 23)
  * sets the wake time of the morning it falls on, between the night's bedtime and noon, over a one-night change unless
  * that change was confirmed over the alarm. A night woken by the alarm ([SleepTimes.wakeByAlarm], ADR 33) with no alarm
- * that morning ends at bedtime plus [goal]. A smart bedtime ([bedLevel], ADR 34: minutes in bed before waking for the
+ * that morning wakes at the phone's estimate for that morning ([wakeGuess], ADR 40) when it falls after bedtime and
+ * before noon, else at bedtime plus [goal]. A smart bedtime ([bedLevel], ADR 34: minutes in bed before waking for the
  * night leading into a day) moves only the bedtime, to the wake time minus that level.
  */
 class SleepSchedule(
@@ -28,6 +29,7 @@ class SleepSchedule(
     private val alarm: java.time.LocalDateTime? = null,
     private val goal: Duration = DefaultGoal,
     private val bedLevel: ((LocalDate) -> Int?)? = null,
+    private val wakeGuess: ((LocalDate) -> LocalTime?)? = null,
 ) {
     /** From bedtime to wake time of the night starting on [evening]. */
     fun night(evening: LocalDate): LocalWindow {
@@ -58,7 +60,7 @@ class SleepSchedule(
     }
 
     // The morning's wake: the alarm between bedtime and noon (unless a one-night change was confirmed over it), else
-    // the one-night change, else the plan's.
+    // the one-night change, else the plan's (woken by the alarm: the estimate between bedtime and noon, else bedtime + goal).
     private fun wakeOf(evening: LocalDate, bed: java.time.LocalDateTime, times: SleepTimes): Pair<java.time.LocalDateTime, Boolean> {
         val morning = evening.plusDays(1)
         val once = wakeOnce?.takeIf { it.morning == morning }
@@ -68,6 +70,11 @@ class SleepSchedule(
         }
 
         if (once == null && times.wakeByAlarm) {
+            val guess = wakeGuess?.invoke(morning)?.let(morning::atTime)
+            if (guess != null && guess.isAfter(bed) && guess.isBefore(morning.atTime(NOON))) {
+                return guess to false
+            }
+
             return bed.plus(goal) to false
         }
 

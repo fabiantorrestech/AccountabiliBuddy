@@ -27,6 +27,8 @@ data class SleepSettings(
     val reminders: BedtimeReminderSettings = BedtimeReminderSettings.Default,
     /** The smart bedtime's levels (minutes in bed before waking) for the kinds of night it's on for (ADR 34); set by the app, never saved. */
     val smartLevels: Map<com.accountabilibuddy.companion.engine.NightKind, Int> = emptyMap(),
+    /** The estimated wake time per kind of morning (ADR 40), for mornings woken by the alarm with none known; set by the app, never saved. */
+    val wakeEstimates: Map<com.accountabilibuddy.companion.engine.NightKind, LocalTime> = emptyMap(),
 ) {
     /** The smart bedtime is on for [kind]. */
     fun smartOn(kind: com.accountabilibuddy.companion.engine.NightKind): Boolean =
@@ -50,6 +52,8 @@ data class SleepSettings(
             goal,
             if (plan == null || smartLevels.isEmpty()) null
             else { day: java.time.LocalDate -> smartLevels[com.accountabilibuddy.companion.engine.SmartBedtime.kindOf(day, plan.workdays)] },
+            if (plan == null || wakeEstimates.isEmpty()) null
+            else { morning: java.time.LocalDate -> wakeEstimates[com.accountabilibuddy.companion.engine.SmartBedtime.kindOf(morning, plan.workdays)] },
         )
 
     companion object {

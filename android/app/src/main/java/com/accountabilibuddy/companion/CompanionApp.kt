@@ -15,6 +15,8 @@ import com.accountabilibuddy.companion.sync.DriveFolderSource
 import com.accountabilibuddy.companion.sync.AlarmHistoryStore
 import com.accountabilibuddy.companion.sync.NextAlarm
 import com.accountabilibuddy.companion.sync.WakeAlarm
+import com.accountabilibuddy.companion.sync.WakeEstimate
+import com.accountabilibuddy.companion.sync.AlarmSighting
 import com.accountabilibuddy.companion.sync.PhoneSyncSettingsStore
 import com.accountabilibuddy.companion.sync.ReceivedDevicesStore
 import com.accountabilibuddy.companion.sync.SyncCoordinator
@@ -168,6 +170,7 @@ class CompanionApp : Application() {
         sync.companions = { watchBridge.companions() }
         sync.nextAlarm = { wakeAlarm }
         sync.smartBedtime = { smartBedtime.forSyncFile() }
+        sync.wakeEstimate = { wakeEstimateForSync() }
         sync.sleepDocument = { sleepSync.document() }
         // The smart bedtime's switches used to be kept apart (ADR 34): handed to the shared sleep settings once.
         smartBedtime.store.takeOldSettings()?.let { old ->
@@ -314,13 +317,51 @@ class CompanionApp : Application() {
         }
 
         val state = store.state.value
-        val plan = state.sleep.copy(alarm = null).toSchedule(state.document.dayPlan)
+        // The plan's nights without the alarm or the estimate, so neither moves the window it's learned from.
+        val plan = state.sleep.copy(alarm = null, wakeEstimates = emptyMap()).toSchedule(state.document.dayPlan)
         learnedAlarmApp = WakeAlarm.learned(history) { at ->
             WakeAlarm.inMorningWindow(java.time.LocalDateTime.ofInstant(at, zone), plan::night)
         }
         val settings = sync.settings.value
         wakeAlarm = WakeAlarm.choose(next, history, settings.alarmApp, learnedAlarmApp, now)
         store.setPhoneAlarm(wakeAlarm?.takeIf { settings.alarmOn }?.let { java.time.LocalDateTime.ofInstant(it, zone) })
+        refreshWakeEstimate(history, settings.alarmApp ?: learnedAlarmApp, plan, now, zone)
+    }
+
+    /** The estimated wake times per kind of morning now (ADR 40), for the sleep schedule and this phone's sync file. */
+    @Volatile
+    var wakeEstimates: Map<com.accountabilibuddy.companion.engine.NightKind, java.time.LocalTime> = emptyMap()
+        private set
+
+    // ADR 40: the wake-up app's past alarms in the morning window, else Health Connect's measured wake times.
+    private fun refreshWakeEstimate(
+        history: List<AlarmSighting>,
+        app: String?,
+        plan: com.accountabilibuddy.companion.engine.SleepSchedule,
+        now: java.time.Instant,
+        zone: java.time.ZoneId,
+    ) {
+        val state = store.state.value
+        val alarms = if (app == null) emptyList() else history
+            .filter { it.app == app && !it.at.isAfter(now) }
+            .map { java.time.LocalDateTime.ofInstant(it.at, zone) }
+            .filter { WakeAlarm.inMorningWindow(it, plan::night) }
+        val measuredWakes = state.slept.map { it.end }.filter { it.isBefore(java.time.LocalDateTime.ofInstant(now, zone)) }
+        val workdays = state.document.dayPlan.workdays
+        wakeEstimates = WakeEstimate.of(alarms, measuredWakes) { morning ->
+            com.accountabilibuddy.companion.engine.SmartBedtime.kindOf(morning, workdays)
+        }
+        store.setWakeEstimates(wakeEstimates)
+    }
+
+    /** [wakeEstimates] in the sync file's shape; null when there's none. */
+    private fun wakeEstimateForSync(): com.accountabilibuddy.shared.sync.SyncWakeEstimate? {
+        val estimates = wakeEstimates
+        if (estimates.isEmpty()) return null
+        return com.accountabilibuddy.shared.sync.SyncWakeEstimate(
+            estimates[com.accountabilibuddy.companion.engine.NightKind.Workday]?.let(WakeEstimate::format),
+            estimates[com.accountabilibuddy.companion.engine.NightKind.OffDay]?.let(WakeEstimate::format),
+        )
     }
 
     /** Hands the PC this phone's file and what it carries now, when a PC is paired (and connected), after checking the watch link. */
