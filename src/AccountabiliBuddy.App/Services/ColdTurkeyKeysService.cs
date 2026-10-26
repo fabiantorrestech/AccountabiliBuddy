@@ -180,6 +180,22 @@ public sealed class ColdTurkeyKeysService : IDisposable
             string? old = Unprotect(_state.ProtectedPassword);
             if (old is not null && _state.PasswordHeld.Count > 0)
             {
+                // Nothing is stopped unless Cold Turkey's settings can be read now: without them no stop can be seen.
+                _coldTurkey.RefreshNow();
+                if (_coldTurkey.Blocks is not ColdTurkeyBlocks before)
+                {
+                    Notice?.Invoke(this, ("Spare key", "Cold Turkey's settings couldn't be read, so nothing was changed and your old spare key stays in use. Try confirming the new key again in a minute."));
+                    return false;
+                }
+
+                // A held block Cold Turkey no longer has (deleted there) holds no lock; it's forgotten so it can't
+                // stop every confirm.
+                foreach (string gone in _state.PasswordHeld.Where(name => before.Blocks.All(block => block.Name != name)).ToList())
+                {
+                    _state = _state with { PasswordHeld = _state.PasswordHeld.Where(other => other != gone).ToList() };
+                    AddLog($"{gone} isn't in Cold Turkey any more; no longer held with the key");
+                }
+
                 // Pass 1: stop every block held with the old key and see in Cold Turkey's settings that each lock is
                 // gone. Cold Turkey's command line succeeds even when it refuses, so a stop counts only once it's seen.
                 List<string> heldWithOld = _state.PasswordHeld.ToList();
@@ -188,22 +204,23 @@ public sealed class ColdTurkeyKeysService : IDisposable
                     await _control.StopAsync(name, old);
                 }
 
-                IReadOnlyList<string> stillLocked = await StillPasswordLockedAsync(heldWithOld);
-                if (stillLocked.Count > 0)
+                StopReading stops = await ReadStopsAsync(heldWithOld);
+                if (stops.Stopped.Count < heldWithOld.Count)
                 {
-                    // Never make the new key the password while a lock may still need the old one: lock the stopped
-                    // blocks again with the old key, keep the old key and the pending one, and let the user try again.
-                    foreach (string name in heldWithOld.Except(stillLocked))
+                    // Never make the new key the password while a lock may still need the old one, and never let a
+                    // failed confirm release anything: every block not seen still locked (stopped, or not known) is
+                    // locked again with the old key; the old key and the pending one stay; the user tries again.
+                    foreach (string name in heldWithOld.Where(name => !stops.SeenLocked.Contains(name)))
                     {
                         if (!await _control.StartAsync(name, password: old))
                         {
-                            // Left on; the next check holds it again (with a timed lock or the old key).
-                            _state = _state with { PasswordHeld = _state.PasswordHeld.Where(other => other != name).ToList() };
+                            // Still held with the old key (the next check locks it with it again); on meanwhile.
                             await _control.StartAsync(name);
+                            AddLog($"Couldn't lock {name} with the old key again; it's held again at the next check");
                         }
                     }
 
-                    string names = string.Join(", ", stillLocked);
+                    string names = string.Join(", ", heldWithOld.Where(name => !stops.Stopped.Contains(name)));
                     AddLog($"Couldn't confirm {names} unlocked from the old key; the old key stays");
                     await SaveAsync();
                     _coldTurkey.RefreshNow();
@@ -286,13 +303,15 @@ public sealed class ColdTurkeyKeysService : IDisposable
     }
 
     /// <summary>
-    /// After stopping blocks with the old key: the ones Cold Turkey's settings still show password-locked (or don't
-    /// show at all, or can't be read) after up to three reads a second apart. Empty when every stop is confirmed.
+    /// After stopping blocks with the old key, Cold Turkey's settings are read up to three times a second apart:
+    /// <see cref="StopReading.Stopped"/> are the blocks seen not password-locked, <see cref="StopReading.SeenLocked"/>
+    /// the ones the last read that listed them still showed password-locked. A block in neither isn't known.
     /// </summary>
-    private async Task<IReadOnlyList<string>> StillPasswordLockedAsync(IReadOnlyList<string> stopped)
+    private async Task<StopReading> ReadStopsAsync(IReadOnlyList<string> names)
     {
-        var unconfirmed = new List<string>(stopped);
-        for (int read = 0; read < LockConfirmReads && unconfirmed.Count > 0; read++)
+        var stopped = new HashSet<string>(StringComparer.Ordinal);
+        var seenLocked = new HashSet<string>(StringComparer.Ordinal);
+        for (int read = 0; read < LockConfirmReads && stopped.Count < names.Count; read++)
         {
             if (read > 0)
             {
@@ -300,14 +319,31 @@ public sealed class ColdTurkeyKeysService : IDisposable
             }
 
             _coldTurkey.RefreshNow();
-            if (_coldTurkey.Blocks is ColdTurkeyBlocks blocks)
+            if (_coldTurkey.Blocks is not ColdTurkeyBlocks blocks)
             {
-                unconfirmed.RemoveAll(name => blocks.Blocks.FirstOrDefault(block => block.Name == name) is { PasswordLocked: false });
+                continue;
+            }
+
+            foreach (string name in names.Where(name => !stopped.Contains(name)))
+            {
+                switch (blocks.Blocks.FirstOrDefault(block => block.Name == name))
+                {
+                    case { PasswordLocked: false }:
+                        stopped.Add(name);
+                        seenLocked.Remove(name);
+                        break;
+                    case { PasswordLocked: true }:
+                        seenLocked.Add(name);
+                        break;
+                }
             }
         }
 
-        return unconfirmed;
+        return new StopReading(stopped, seenLocked);
     }
+
+    /// <summary>What <see cref="ReadStopsAsync"/> saw.</summary>
+    private sealed record StopReading(IReadOnlySet<string> Stopped, IReadOnlySet<string> SeenLocked);
 
     /// <summary>Waits until no check (or confirm, or release) is running Cold Turkey commands.</summary>
     private async Task WaitForCheckAsync()
