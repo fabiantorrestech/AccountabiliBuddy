@@ -240,7 +240,7 @@ Three parts in order: 8a by the orchestrator, then 8b and 8c (in parallel once 8
 
 - [ ] **Step 1:** Full build of both apps; spot-check the dev app's Today, a session, the overlay and the migration assistant.
 - [ ] **Step 2:** Tick PC 3.1, PC 4, PC 5.1, PC 7, PC 9, PC 6.1.1, PC 6.1.2, PC 11.1 in the user's note (C 5 stays open until the Phase 2 "new spare key" part). Update the AI_Agents_Hub project log (Phase 1 → `[[~finished]]`, Timeline row). Update `handoffContext/handoff.md`.
-- [ ] **Step 3:** Ask about releasing (PC version bump + `publish-apks.ps1`) and pushing.
+- [ ] **Step 3:** No release for this phase alone (user, 2026-10-26: publish only when enough changes pile up); add the phase to the handoff's unreleased list.
 
 ## Execution waves (subagents: orchestrator Opus 5.5 high, implementers Opus 5.5 medium)
 
