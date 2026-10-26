@@ -927,7 +927,8 @@ public partial class App : Application
         coldTurkeyKeys.LoadBlocking();
         _coldTurkeyKeys = coldTurkeyKeys;
         coldTurkeyKeys.Notice += (_, notice) => presenter.ShowNotice(notice.Title, notice.Text);
-        coldTurkeyKeys.SpareKeyNeeded += (_, _) => ShowColdTurkeyKey(ColdTurkeyKeyMode.SpareKey);
+        // A new key comes from a timer, a check or a session ending, never straight from a click: shown without taking focus.
+        coldTurkeyKeys.SpareKeyNeeded += (_, _) => ShowColdTurkeyKey(ColdTurkeyKeyMode.SpareKey, quiet: true);
         _workHours!.Changed += (_, _) => coldTurkeyKeys.CheckSoon();
         _coldTurkey!.Changed += (_, _) => coldTurkeyKeys.CheckSoon();
         coldTurkeyKeys.Start();
@@ -1276,8 +1277,12 @@ public partial class App : Application
         window.Show();
     }
 
-    /// <summary>The spare key window (write down a new key), Emergency release (ADR 39) or Get a new spare key (ADR 41); one at a time.</summary>
-    private void ShowColdTurkeyKey(ColdTurkeyKeyMode mode)
+    /// <summary>
+    /// The spare key window (write down a new key), Emergency release (ADR 39) or Get a new spare key (ADR 41); one at a
+    /// time. Quiet when nothing the user just did asked for it (a new key made by a timer or when a session ended): it
+    /// shows without taking focus and its taskbar button flashes.
+    /// </summary>
+    private void ShowColdTurkeyKey(ColdTurkeyKeyMode mode, bool quiet = false)
     {
         if (_coldTurkeyKeys is null)
         {
@@ -1286,15 +1291,39 @@ public partial class App : Application
 
         if (_coldTurkeyKeyWindow is not null)
         {
-            _coldTurkeyKeyWindow.Activate();
+            if (quiet)
+            {
+                FlashTaskbarButton(_coldTurkeyKeyWindow);
+            }
+            else
+            {
+                _coldTurkeyKeyWindow.Activate();
+            }
+
             return;
         }
 
         var window = new ColdTurkeyKeyWindow { DataContext = new ColdTurkeyKeyViewModel(_coldTurkeyKeys, mode) };
         window.Closed += (_, _) => _coldTurkeyKeyWindow = null;
         _coldTurkeyKeyWindow = window;
+        if (quiet)
+        {
+            window.ShowActivated = false;
+            window.Show();
+            FlashTaskbarButton(window);
+            return;
+        }
+
         window.Show();
         window.Activate();
+    }
+
+    private void FlashTaskbarButton(Window window)
+    {
+        if (window.TryGetPlatformHandle() is IPlatformHandle handle)
+        {
+            _windowAttention?.Flash(handle.Handle);
+        }
     }
 
     private void CreateTrayIcon()
