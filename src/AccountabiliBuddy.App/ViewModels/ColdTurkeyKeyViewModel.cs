@@ -109,6 +109,15 @@ public sealed partial class ColdTurkeyKeyViewModel : ObservableObject
             return;
         }
 
+        if (_keys.PendingSpareKey is string newer && newer != Key)
+        {
+            // Another key was made meanwhile (the service told the user too).
+            Key = newer;
+            TypedKey = "";
+            Message = "A newer key was made. Write down the key above and type it back.";
+            return;
+        }
+
         Message = "That doesn't match the key above. Type it exactly as written (dashes are optional).";
     }
 
