@@ -342,6 +342,21 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     public bool IsColdTurkeyKeys => Step == AssistantStep.ColdTurkeyKeys;
 
+    // The migration assistant: only these pages (then Done), for features added since the last version.
+    private IReadOnlyList<AssistantStep>? _whatsNew;
+
+    /// <summary>Opens on the pages of features not set up yet (the migration assistant).</summary>
+    public void BeginWhatsNew(IReadOnlyList<AssistantStep> steps)
+    {
+        _whatsNew = steps;
+        if (steps.Contains(AssistantStep.ColdTurkeyKeys))
+        {
+            LoadColdTurkeyRows();
+        }
+
+        Step = steps[0];
+    }
+
     public bool IsSpareKey => Step == AssistantStep.SpareKey;
 
     public bool IsGoal => Step == AssistantStep.Goal;
@@ -989,6 +1004,18 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     private List<AssistantStep> VisibleSteps()
     {
+        if (_whatsNew is not null)
+        {
+            var steps = _whatsNew.ToList();
+            if (steps.Contains(AssistantStep.ColdTurkeyKeys) && Keys is { HasSpareKey: false } && !steps.Contains(AssistantStep.SpareKey))
+            {
+                steps.Insert(steps.IndexOf(AssistantStep.ColdTurkeyKeys) + 1, AssistantStep.SpareKey);
+            }
+
+            steps.Add(AssistantStep.Done);
+            return steps;
+        }
+
         return AssistantFlow.Steps(IsQuick, Identity is not null, Types is not null, HasUsage, _joined,
             HasColdTurkey, Keys is { HasSpareKey: false }).ToList();
     }

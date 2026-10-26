@@ -15,6 +15,10 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// </summary>
 public sealed partial class SessionViewModel : ObservableObject
 {
+    /// <summary>The quiet "New since your last version" card (migration assistant); set by the app.</summary>
+    [ObservableProperty]
+    public partial WhatsNewCardViewModel? WhatsNew { get; set; }
+
     private readonly SessionController _sessions;
     private readonly ConfigurationService _configuration;
     private readonly SessionEndFlow _endFlow;

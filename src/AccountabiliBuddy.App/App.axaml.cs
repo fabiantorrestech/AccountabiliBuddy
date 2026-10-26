@@ -80,6 +80,8 @@ public partial class App : Application
     private BedtimeReminderService? _bedtimeReminder;
     private ColdTurkeyService? _coldTurkey;
     private ColdTurkeyKeysService? _coldTurkeyKeys;
+    private AccountabiliBuddy.App.Services.Setup.SetupFeaturesService? _setupFeatures;
+    private EnforcementPresenter? _presenter;
     private Window? _coldTurkeyKeyWindow;
     private AccountabiliBuddy.App.Services.Link.LinkService? _link;
     private AccountabiliBuddy.App.Services.Sync.SyncFolderService? _syncFolder;
@@ -266,6 +268,7 @@ public partial class App : Application
 
         var windowsEnforcer = new WindowsEnforcer();
         var presenter = new EnforcementPresenter(windowsEnforcer, _browserSource, monitorLocator, time);
+        _presenter = presenter;
         var exemptionDefaults = new ExemptionDefaultsService(documents);
         exemptionDefaults.LoadBlocking();
         presenter.PreTickedExemptionProfiles = () => exemptionDefaults.PreTicked;
@@ -911,6 +914,17 @@ public partial class App : Application
         _workHours!.Changed += (_, _) => coldTurkeyKeys.CheckSoon();
         _coldTurkey!.Changed += (_, _) => coldTurkeyKeys.CheckSoon();
         coldTurkeyKeys.Start();
+
+        // The migration assistant: features added since the last version that aren't set up yet.
+        var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
+            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!), BackupService.AppVersion);
+        setupFeatures.LoadBlocking();
+        _setupFeatures = setupFeatures;
+        coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();
+        _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
+        sessionViewModel.WhatsNew = new WhatsNewCardViewModel(setupFeatures, ShowWhatsNew);
+        mainViewModel.Settings.Updates.OpenWhatsNew = ShowWhatsNew;
+        mainViewModel.Settings.Updates.ShowEmergencyRelease = () => ShowColdTurkeyKey(emergency: true);
         void ShowPlanDay()
         {
             var blocks = new List<(BlockRef Block, string Device, bool On)>();
@@ -1496,7 +1510,20 @@ public partial class App : Application
     }
 
     /// <param name="quick">The first run's three questions; otherwise the full setup.</param>
-    private void ShowSetupAssistant(bool quick)
+    /// <summary>The migration assistant: the pages of features not set up yet, or a notice when there are none.</summary>
+    private void ShowWhatsNew()
+    {
+        List<AssistantStep> steps = _setupFeatures?.Pending.Select(feature => feature.Step).Distinct().ToList() ?? new List<AssistantStep>();
+        if (steps.Count == 0)
+        {
+            _presenter?.ShowNotice("Nothing new to set up", "Everything added since your last version is set up.");
+            return;
+        }
+
+        ShowSetupAssistant(quick: false, whatsNew: steps);
+    }
+
+    private void ShowSetupAssistant(bool quick, IReadOnlyList<AssistantStep>? whatsNew = null)
     {
         if (_assistantWindow is not null)
         {
@@ -1513,6 +1540,10 @@ public partial class App : Application
         if (quick)
         {
             viewModel.BeginQuick();
+        }
+        else if (whatsNew is not null)
+        {
+            viewModel.BeginWhatsNew(whatsNew);
         }
 
         _assistantWindow = new SetupAssistantWindow { DataContext = viewModel };

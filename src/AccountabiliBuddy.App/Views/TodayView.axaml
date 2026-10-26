@@ -21,6 +21,17 @@
                         IsVisible="{Binding IsVisible, FallbackValue=False}" HorizontalAlignment="Left" />
             </Panel>
 
+            <!-- Migration assistant: after an upgrade that brought something to set up. -->
+            <Border Padding="14,10" CornerRadius="10" Background="#146366F1" BorderBrush="#446366F1" BorderThickness="1"
+                    DataContext="{Binding WhatsNew}" x:DataType="vm:WhatsNewCardViewModel"
+                    IsVisible="{Binding IsVisible, FallbackValue=False}">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Content="Set up" Command="{Binding SetUpCommand}" Classes="accent" Margin="8,0,0,0" />
+                    <Button Grid.Column="2" Content="Not now" Command="{Binding NotNowCommand}" Margin="8,0,0,0" />
+                </Grid>
+            </Border>
+
             <!-- ADR 37: one-off days from three questions (kind of day, sleep, blocks). -->
             <Button Content="Plan a day…" Command="{Binding PlanDayCommand}" IsVisible="{Binding !IsSessionActive}" HorizontalAlignment="Right"
                     ToolTip.Tip="An adjusted workday or an off-day: its sleep and which blocks to lift" />

@@ -37,7 +37,7 @@ public static class UpgradeSafety
                 }
 
                 string? copy = hadData ? await database.BackupAsync($"version-{appVersion}") : null;
-                await documents.SaveAsync(DocumentKey, new AppVersionRecord(appVersion, time.GetUtcNow()));
+                await documents.SaveAsync(DocumentKey, new AppVersionRecord(appVersion, time.GetUtcNow(), hadData ? last?.Version : null));
                 return copy;
             }
             catch (Exception ex) when (ex is SqliteException or IOException or System.Text.Json.JsonException)

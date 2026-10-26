@@ -20,6 +20,15 @@ public sealed partial class UpdatesViewModel : ObservableObject
 
     public string VersionText => $"Installed version: {Services.Backup.BackupService.AppVersion}";
 
+    /// <summary>The migration assistant (5 taps on the About logo); set by the app.</summary>
+    public Action? OpenWhatsNew { get; set; }
+
+    /// <summary>Emergency release of AB's Cold Turkey locks (ADR 39); set by the app.</summary>
+    public Action? ShowEmergencyRelease { get; set; }
+
+    [RelayCommand]
+    private void EmergencyRelease() => ShowEmergencyRelease?.Invoke();
+
     public bool CanUpdate => _updates.CanUpdate;
 
     [ObservableProperty]

@@ -8,7 +8,8 @@
     <ScrollViewer>
         <StackPanel Margin="24" Spacing="20" MaxWidth="640" HorizontalAlignment="Center">
             <StackPanel Spacing="8" HorizontalAlignment="Center" Margin="0,24,0,0">
-                <Image Source="/Assets/app-icon.png" Width="96" Height="96" HorizontalAlignment="Center" />
+                <!-- 5 taps open the migration assistant (set up what's new since your last version). -->
+                <Image x:Name="Logo" Source="/Assets/app-icon.png" Width="96" Height="96" HorizontalAlignment="Center" Tapped="OnLogoTapped" />
                 <TextBlock Text="AccountabiliBuddy" FontSize="28" FontWeight="SemiBold" HorizontalAlignment="Center" />
                 <TextBlock Text="{Binding VersionText}" Opacity="0.75" HorizontalAlignment="Center" />
             </StackPanel>
@@ -42,6 +43,15 @@
                     <!-- Off (the Local only type): the app makes no update check of its own; Check now still asks. -->
                     <CheckBox IsChecked="{Binding CheckForUpdates}" IsEnabled="{Binding CanUpdate}"
                               Content="Check for updates on its own (off: only when you click Check now)" />
+                </StackPanel>
+            </Border>
+
+            <!-- ADR 39: the one way out of AccountabiliBuddy's Cold Turkey locks. -->
+            <Border Background="#0F808080" BorderBrush="#26808080" BorderThickness="1" CornerRadius="10" Padding="18,16">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Emergency release (Cold Turkey)" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="If AccountabiliBuddy holds your Cold Turkey blocks and you truly need them off, release them for today with your spare key." Opacity="0.75" TextWrapping="Wrap" />
+                    <Button Content="Emergency release…" Command="{Binding EmergencyReleaseCommand}" HorizontalAlignment="Left" />
                 </StackPanel>
             </Border>
         </StackPanel>
