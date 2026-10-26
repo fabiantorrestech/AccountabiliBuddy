@@ -34,7 +34,7 @@ class LunchStore(private val context: Context) {
 
     @Synchronized
     fun start(minutes: Int, now: Instant = Instant.now()) {
-        save(SyncLunch(now, now.plus(Duration.ofMinutes(minutes.toLong()))), overTold = false)
+        save(clamped(SyncLunch(now, now.plus(Duration.ofMinutes(minutes.toLong())))), overTold = false)
         onChanged?.invoke()
     }
 
@@ -48,11 +48,18 @@ class LunchStore(private val context: Context) {
 
     /** A lunch from another device's file: taken when it's today's and at least as new as ours. */
     @Synchronized
-    fun receive(lunch: SyncLunch, now: Instant = Instant.now()) {
-        if (!isToday(lunch.start, now)) return
+    fun receive(received: SyncLunch, now: Instant = Instant.now()) {
+        if (!isToday(received.start, now)) return
+        val lunch = clamped(received)
         val ours = today(now)
         if (ours != null && (ours.start > lunch.start || ours == lunch)) return
         save(lunch, overTold = now >= lunch.end)
+    }
+
+    // A whole lunch (start to end) is never longer than MAX_LENGTH, as on the PC: lunch holds a session's step away there.
+    private fun clamped(lunch: SyncLunch): SyncLunch {
+        val latestEnd = lunch.start.plus(MAX_LENGTH)
+        return if (lunch.end.isAfter(latestEnd)) lunch.copy(end = latestEnd) else lunch
     }
 
     /** "Lunch over!" is due and not told yet. */
@@ -96,5 +103,10 @@ class LunchStore(private val context: Context) {
     private fun isToday(time: Instant, now: Instant): Boolean {
         val zone = ZoneId.systemDefault()
         return time.atZone(zone).toLocalDate() == now.atZone(zone).toLocalDate()
+    }
+
+    companion object {
+        /** The longest a whole lunch can be (the PC's LunchService.MaxLength). */
+        val MAX_LENGTH: Duration = Duration.ofMinutes(120)
     }
 }

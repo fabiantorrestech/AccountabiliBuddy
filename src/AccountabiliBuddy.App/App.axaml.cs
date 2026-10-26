@@ -415,7 +415,7 @@ public partial class App : Application
             () => _sessionCues?.Play(soundSettings.Current.BreakEndSound));
         _lunch.LoadBlocking();
         // Browsing at lunch isn't being back: lunch's step away ends with "I'm back" or the lunch ending, not input.
-        _stepAway!.HoldsAway = () => _lunch.IsOnLunch;
+        _stepAway!.HoldsAway = () => _lunch.HoldsSessionAway;
         // Animations at the chosen speed, or none (Settings → On screen & sound).
         _motion = new Motion(documents);
         _motion.LoadBlocking();
