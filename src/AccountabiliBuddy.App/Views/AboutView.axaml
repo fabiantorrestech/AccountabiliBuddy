@@ -50,8 +50,12 @@
             <Border Background="#0F808080" BorderBrush="#26808080" BorderThickness="1" CornerRadius="10" Padding="18,16">
                 <StackPanel Spacing="6">
                     <TextBlock Text="Emergency release (Cold Turkey)" FontSize="16" FontWeight="SemiBold" />
-                    <TextBlock Text="If AccountabiliBuddy holds your Cold Turkey blocks and you truly need them off, release them for today with your spare key." Opacity="0.75" TextWrapping="Wrap" />
-                    <Button Content="Emergency release…" Command="{Binding EmergencyReleaseCommand}" HorizontalAlignment="Left" />
+                    <TextBlock Text="If AccountabiliBuddy holds your Cold Turkey blocks and you truly need them off, release them for today with your spare key. Lost the key? Get a new one: it takes a reason and a 10-minute wait, and releases nothing." Opacity="0.75" TextWrapping="Wrap" />
+                    <!-- ADR 41: a new key without using the old one. -->
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Emergency release…" Command="{Binding EmergencyReleaseCommand}" />
+                        <Button Content="Get a new spare key…" Command="{Binding NewSpareKeyCommand}" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </StackPanel>

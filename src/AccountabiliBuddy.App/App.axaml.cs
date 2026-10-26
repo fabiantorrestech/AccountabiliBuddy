@@ -915,7 +915,7 @@ public partial class App : Application
         coldTurkeyKeys.LoadBlocking();
         _coldTurkeyKeys = coldTurkeyKeys;
         coldTurkeyKeys.Notice += (_, notice) => presenter.ShowNotice(notice.Title, notice.Text);
-        coldTurkeyKeys.SpareKeyNeeded += (_, _) => ShowColdTurkeyKey(emergency: false);
+        coldTurkeyKeys.SpareKeyNeeded += (_, _) => ShowColdTurkeyKey(ColdTurkeyKeyMode.SpareKey);
         _workHours!.Changed += (_, _) => coldTurkeyKeys.CheckSoon();
         _coldTurkey!.Changed += (_, _) => coldTurkeyKeys.CheckSoon();
         coldTurkeyKeys.Start();
@@ -929,7 +929,9 @@ public partial class App : Application
         _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
         sessionViewModel.WhatsNew = new WhatsNewCardViewModel(setupFeatures, ShowWhatsNew);
         mainViewModel.Settings.Updates.OpenWhatsNew = ShowWhatsNew;
-        mainViewModel.Settings.Updates.ShowEmergencyRelease = () => ShowColdTurkeyKey(emergency: true);
+        mainViewModel.Settings.Updates.ShowEmergencyRelease = () => ShowColdTurkeyKey(ColdTurkeyKeyMode.Emergency);
+        mainViewModel.Settings.Updates.ShowNewSpareKey = () => ShowColdTurkeyKey(ColdTurkeyKeyMode.NewKey);
+        mainViewModel.Integrations.ShowNewSpareKey = () => ShowColdTurkeyKey(ColdTurkeyKeyMode.NewKey);
         IReadOnlyList<(BlockRef Block, string Device, bool On)> PlanDayBlocks()
         {
             _coldTurkey!.RefreshNow();
@@ -1262,8 +1264,8 @@ public partial class App : Application
         window.Show();
     }
 
-    /// <summary>The spare key window (write down a new key) or Emergency release (ADR 39); one at a time.</summary>
-    private void ShowColdTurkeyKey(bool emergency)
+    /// <summary>The spare key window (write down a new key), Emergency release (ADR 39) or Get a new spare key (ADR 41); one at a time.</summary>
+    private void ShowColdTurkeyKey(ColdTurkeyKeyMode mode)
     {
         if (_coldTurkeyKeys is null)
         {
@@ -1276,7 +1278,7 @@ public partial class App : Application
             return;
         }
 
-        var window = new ColdTurkeyKeyWindow { DataContext = new ColdTurkeyKeyViewModel(_coldTurkeyKeys, emergency) };
+        var window = new ColdTurkeyKeyWindow { DataContext = new ColdTurkeyKeyViewModel(_coldTurkeyKeys, mode) };
         window.Closed += (_, _) => _coldTurkeyKeyWindow = null;
         _coldTurkeyKeyWindow = window;
         window.Show();
@@ -1304,7 +1306,7 @@ public partial class App : Application
 
         // ADR 39: the one way out of AB's Cold Turkey locks, with the spare key.
         var emergencyItem = new NativeMenuItem("Emergency release (Cold Turkey)…");
-        emergencyItem.Click += (_, _) => ShowColdTurkeyKey(emergency: true);
+        emergencyItem.Click += (_, _) => ShowColdTurkeyKey(ColdTurkeyKeyMode.Emergency);
 
         var quitItem = new NativeMenuItem("Quit");
         quitItem.Click += async (_, _) => await QuitAsync();
