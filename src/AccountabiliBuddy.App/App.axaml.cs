@@ -500,6 +500,8 @@ public partial class App : Application
             sleepSettings.SetPhoneAlarm(AccountabiliBuddy.App.Services.Sync.PhoneAlarm.Of(receivedDevices.Devices, time));
             // ADR 34: the phone's smart bedtime, from the same files.
             sleepSettings.SetPhoneBedtime(AccountabiliBuddy.App.Services.Sync.PhoneBedtime.Of(receivedDevices.Devices));
+            // ADR 40: the phone's estimated wake per kind of morning, for mornings with no alarm known.
+            sleepSettings.SetPhoneWake(AccountabiliBuddy.App.Services.Sync.PhoneWake.Of(receivedDevices.Devices));
         }
 
         receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(FollowPhoneAlarm);

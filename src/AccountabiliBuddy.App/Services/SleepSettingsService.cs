@@ -28,15 +28,29 @@ public sealed class SleepSettingsService
     /// <summary>A paired phone's smart bedtime (ADR 34) from its sync file; not saved here.</summary>
     public AccountabiliBuddy.Core.Sync.SyncSmartBedtime? PhoneBedtime { get; private set; }
 
+    /// <summary>A paired phone's estimated wake per kind of morning (ADR 40) from its sync file; not saved here.</summary>
+    public AccountabiliBuddy.Core.Sync.SyncWakeEstimate? PhoneWake { get; private set; }
+
     public event EventHandler<SleepSettings>? Changed;
 
-    /// <summary>The phone's alarm or smart bedtime changed (not a change of the settings themselves).</summary>
+    /// <summary>The phone's alarm, smart bedtime or wake estimate changed (not a change of the settings themselves).</summary>
     public event EventHandler? PhoneAlarmChanged;
 
-    /// <summary>The nights with the day plan, a one-night change, the phone's alarm and smart bedtime in their order.</summary>
+    /// <summary>The nights with the day plan, a one-night change, the phone's alarm, smart bedtime and wake estimate in their order.</summary>
     public SleepSchedule Schedule(DayPlan plan)
     {
-        return Current.ToSchedule(plan, PhoneAlarm, PhoneBedtime);
+        return Current.ToSchedule(plan, PhoneAlarm, PhoneBedtime, PhoneWake);
+    }
+
+    public void SetPhoneWake(AccountabiliBuddy.Core.Sync.SyncWakeEstimate? wake)
+    {
+        if (wake == PhoneWake)
+        {
+            return;
+        }
+
+        PhoneWake = wake;
+        PhoneAlarmChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void SetPhoneBedtime(AccountabiliBuddy.Core.Sync.SyncSmartBedtime? bedtime)
