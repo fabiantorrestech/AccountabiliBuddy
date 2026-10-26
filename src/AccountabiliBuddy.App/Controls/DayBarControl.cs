@@ -10,7 +10,7 @@ namespace AccountabiliBuddy.App.Controls;
 
 /// <summary>
 /// One day as labelled rows on one hour axis (Calendar, Plan, Focus, Blockers, as chosen in Settings), with a red line
-/// at now through every row (pinned to the nearer edge when now is outside the bar). Plan parts and events are drawn
+/// at now through every row, haloed in the theme's opposite colour (pinned to the nearer edge when now is outside the bar). Plan parts and events are drawn
 /// in their own colours, drift marks in red on the Focus row and the blockers' blocks in striped amber. With sleep
 /// mode on, the night is shaded behind the rows and sleep already lost by staying up is shaded red. Hovering shows
 /// what's under the pointer; clicking a session opens its profile (<see cref="OpenProfileCommand"/>) and clicking a
@@ -63,6 +63,18 @@ public sealed class DayBarControl : Control
     private static readonly IPen AddedStripePen = new Pen(new SolidColorBrush(Color.FromRgb(45, 212, 191), 0.55), 2);
     private static readonly IBrush NowBrush = new SolidColorBrush(Color.FromRgb(220, 38, 38));
     private static readonly IBrush QuietNowBrush = new SolidColorBrush(Color.FromRgb(220, 38, 38), 0.4);
+
+    // The now line and its halo in the opposite colour of the theme (white on dark, black on light; 90% as on the
+    // phone), 1 px wider on each side, so it stands out from the red drift marks. Made once: the line moves every second.
+    private const double NowWidth = 2;
+    private const double NowHaloWidth = NowWidth + 2;
+    private const double NowHaloOpacity = 0.9;
+    private static readonly IPen NowPen = new Pen(NowBrush, NowWidth);
+    private static readonly IPen QuietNowPen = new Pen(QuietNowBrush, NowWidth);
+    private static readonly IPen DarkHaloPen = new Pen(new SolidColorBrush(Colors.White, NowHaloOpacity), NowHaloWidth);
+    private static readonly IPen LightHaloPen = new Pen(new SolidColorBrush(Colors.Black, NowHaloOpacity), NowHaloWidth);
+    private static readonly IPen QuietDarkHaloPen = new Pen(new SolidColorBrush(Colors.White, NowHaloOpacity * 0.4), NowHaloWidth);
+    private static readonly IPen QuietLightHaloPen = new Pen(new SolidColorBrush(Colors.Black, NowHaloOpacity * 0.4), NowHaloWidth);
 
     // Marks at rest when they're dulled too (QuietMarks): same colours, mostly see-through.
     private const double QuietMarkOpacity = 0.35;
@@ -211,8 +223,14 @@ public sealed class DayBarControl : Control
 
         double now = double.IsNaN(NowFraction) ? layout.Now : NowFraction;
         double nowX = BarLeft(size) + (Math.Clamp(now, 0, 1) * BarWidth(size));
-        nowX = Math.Clamp(nowX, BarLeft(size) + 1, Math.Max(BarLeft(size) + 1, Bounds.Width - 1));
-        context.DrawLine(new Pen(DullsMarks ? QuietNowBrush : NowBrush, 2), new Point(nowX, size.RowTop - size.NowOverhang), new Point(nowX, rowsBottom + size.NowOverhang));
+        double halfHalo = NowHaloWidth / 2;
+        nowX = Math.Clamp(nowX, BarLeft(size) + halfHalo, Math.Max(BarLeft(size) + halfHalo, Bounds.Width - halfHalo));
+        var nowTop = new Point(nowX, size.RowTop - size.NowOverhang);
+        var nowBottom = new Point(nowX, rowsBottom + size.NowOverhang);
+        // The halo first, so the line sits on it over any block.
+        IPen haloPen = DullsMarks ? (isDark ? QuietDarkHaloPen : QuietLightHaloPen) : (isDark ? DarkHaloPen : LightHaloPen);
+        context.DrawLine(haloPen, nowTop, nowBottom);
+        context.DrawLine(DullsMarks ? QuietNowPen : NowPen, nowTop, nowBottom);
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)
