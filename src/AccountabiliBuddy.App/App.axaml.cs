@@ -492,9 +492,15 @@ public partial class App : Application
             new GoogleCalendarClient(_calendarNetwork, GoogleEndpointsFromEnvironment(), time),
             dataProtector,
             time);
+        // A phone starting, ending early or editing the plan (ADR 14, 19, 42): the same rules over the link and the sync files.
+        var planEditTime = new DayPlanEditTimeService(_configuration, documents, () => _sessions.Now);
+        planEditTime.LoadBlocking();
+        var remoteControl = new AccountabiliBuddy.App.Services.Remote.RemoteSessionControl(_sessions, _configuration, _quickSession);
+        var remotePlanEdits = new AccountabiliBuddy.App.Services.Remote.RemotePlanEdits(_sessions, _configuration, planEditTime);
         // Linked devices (ADR 14): off until turned on in Setup.
         var linkHost = new AccountabiliBuddy.App.Services.Link.LinkSessionHost(
-            _sessions, _configuration, _quickSession, documents, calendars, sleepSettings, dayBarSettings, activityLog, omittedSessions, deletedUsage, privacy);
+            _sessions, _configuration, _quickSession, documents, calendars, sleepSettings, dayBarSettings, activityLog, omittedSessions, deletedUsage, privacy,
+            remoteControl, remotePlanEdits);
         linkHost.Gaps = sessionGaps;
         // New activity and "Delete my data" change what paired devices were sent (ADR 15).
         _recorder.LogChanged += (_, _) => linkHost.NotifyHistoryChanged();
@@ -546,9 +552,15 @@ public partial class App : Application
         syncCoordinator.Lunch = () => _lunch!.Taken;
         // What the user did on the phone for this PC (ADR 26): applied once each, acknowledged in this PC's file.
         var syncActions = new AccountabiliBuddy.App.Services.Sync.SyncActionsService(
-            documents, receivedDevices, syncIdentity, sessionTasks, _comebacks!, _stepAway!, time);
+            documents, receivedDevices, syncIdentity, sessionTasks, _comebacks!, _stepAway!, _sessions, remoteControl, remotePlanEdits, time);
         syncActions.LoadBlocking();
         syncCoordinator.Acks = () => syncActions.Acks;
+        // ADR 42: the answers, the end-early offer and the running session's task and profiles, for a phone without the link.
+        syncCoordinator.ActionResults = () => syncActions.Results;
+        syncCoordinator.EndEarlyOffer = () => syncActions.EndEarlyOffer;
+        syncCoordinator.CurrentTask = () => sessionTasks.IsLive ? sessionTasks.Current.CurrentId : null;
+        syncCoordinator.CountUpProfileId = () => _quickSession.CountUpProfileId;
+        _quickSession.CountUpProfileChanged += (_, _) => syncCoordinator.NotifyHistoryChanged();
         // Pickups across PCs (design K): back at this PC during another PC's session, or straight from it during work hours.
         var pcPickups = new AccountabiliBuddy.App.Services.Sync.PcPickupsService(
             documents, _sessions, new Win32UserIdleDetector(), receivedDevices, syncIdentity,
@@ -646,6 +658,7 @@ public partial class App : Application
         goal.LoadBlocking();
         // ADR 29: the daily goal goes to paired devices with today's focus.
         linkHost.GoalMinutes = () => goal.Current.DailyMinutes;
+        syncCoordinator.GoalMinutes = () => goal.Current.DailyMinutes;
         var blockerLocator = new WindowsBlockerSourceLocator();
         ConfigurationService configuration = _configuration;
         SessionController sessions = _sessions;
@@ -740,6 +753,7 @@ public partial class App : Application
         _recorder!.LogChanged += (_, _) => Dispatcher.UIThread.Post(() => _deepWork?.NotifyLogChanged());
         receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(() => _deepWork?.NotifyLogChanged());
         goal.Changed += (_, _) => linkHost.NotifyHistoryChanged();
+        goal.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         _deepWork.GoalReached += (_, progress) =>
             presenter.ShowReminder(progress.Text, "Today's deep-work goal is reached. Anything more is a bonus.",
                 new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A9D8F")));
@@ -1069,6 +1083,7 @@ public partial class App : Application
         _coldTurkey.ExpectedBlocksOff += (_, names) => presenter.ShowNotice("Cold Turkey block off", ColdTurkeyService.Describe(names));
         _coldTurkey.Start();
         linkHost.EndedFromDevice += (_, reason) => presenter.ShowNotice("Session ended from your phone", reason);
+        syncActions.EndedFromDevice += (_, reason) => presenter.ShowNotice("Session ended from your phone", reason);
         _link.DevicePaired += (_, device) => presenter.ShowNotice("Device linked", $"{device.Name} is linked to this PC.");
         // Once per network: "Phone link paused" on a network Windows marks Public, with a way to Windows' setting.
         var publicNotices = new AccountabiliBuddy.App.Services.Link.PublicNetworkNoticeService(documents);

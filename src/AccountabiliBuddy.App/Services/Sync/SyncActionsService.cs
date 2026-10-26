@@ -1,4 +1,8 @@
+using System.Globalization;
+using System.Text.Json;
+using AccountabiliBuddy.App.Services.Remote;
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Link;
 using AccountabiliBuddy.Core.Storage;
 using AccountabiliBuddy.Core.Sync;
 using Microsoft.Data.Sqlite;
@@ -6,17 +10,31 @@ using Microsoft.Data.Sqlite;
 namespace AccountabiliBuddy.App.Services.Sync;
 
 /// <summary>
-/// Applies what the user did on the phone for this PC (ADR 26): the actions in the other devices' sync files that are
-/// meant for this PC, each once. Tick a task or subtask (left done if already done), park a thought (a come-back),
-/// tick a come-back, step away or come back (only within 10 minutes of doing it, so an old one never replays). The ids
-/// applied are kept 14 days (app-owned document "sync.actions") and go back in this PC's file as <see cref="SyncFile.Acks"/>,
-/// so the phone stops sending them. Use from the UI thread.
+/// Applies what the user did on the phone for this PC (ADR 26, 42): the actions in the other devices' sync files that
+/// are meant for this PC, each once. Tick a task or subtask (left done if already done), park a thought (a come-back),
+/// tick a come-back, step away or come back (only within 10 minutes of doing it, so an old one never replays); start a
+/// session or ask to end one early (only within 2 minutes), end early after the offer's wait (until its allowed-from
+/// time plus 10 minutes), and edit the day plan (within a day), all by the same rules as the link
+/// (<see cref="RemoteSessionControl"/>, <see cref="RemotePlanEdits"/>). An action past its freshness is refused, never
+/// applied late; freshness counts from when this PC first saw the action (its file's arrival, on this PC's clock), and
+/// an action the phone made more than a day ago is refused too, so neither clock's skew decides alone. The ids applied
+/// are kept 14 days (app-owned document "sync.actions") and go back in this PC's file as <see cref="SyncFile.Acks"/>,
+/// so the phone stops sending them, and every action gets a <see cref="SyncActionResult"/> (kinds this version doesn't
+/// know: "unsupported"). Ending early is two steps: the first makes an offer (<see cref="SyncEndEarlyOffers"/>) with
+/// this PC's wait on this PC's clock; the second ends the session, recording only "reason given on &lt;phone&gt;, N
+/// characters" (the reason never leaves the phone). Use from the UI thread.
 /// </summary>
 public sealed class SyncActionsService
 {
     private const string DocumentKey = "sync.actions";
+    private const string AskFirstMessage = "Ask to end the session first (the session may have changed meanwhile).";
     private static readonly TimeSpan KeptFor = TimeSpan.FromDays(14);
     private static readonly TimeSpan StepAwayFresh = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan ControlFresh = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan PlanEditFresh = TimeSpan.FromDays(1);
+
+    // A control action the phone made longer ago than this is refused whenever it arrives.
+    private static readonly TimeSpan MadeTooLongAgo = TimeSpan.FromDays(1);
 
     private readonly SqliteJsonDocumentStore _store;
     private readonly ReceivedDevicesService _received;
@@ -24,13 +42,22 @@ public sealed class SyncActionsService
     private readonly SessionTasksService _tasks;
     private readonly ComebackStore _comebacks;
     private readonly StepAwayService _stepAway;
+    private readonly SessionController _sessions;
+    private readonly RemoteSessionControl _control;
+    private readonly RemotePlanEdits _planEdits;
     private readonly TimeProvider _time;
+    private readonly SyncEndEarlyOffers _offers = new();
+
+    // When this PC first saw each action still in a file (its file's arrival). In memory: applied ones are kept by id.
+    private readonly Dictionary<Guid, DateTimeOffset> _firstSeen = [];
     private List<AppliedAction> _applied = [];
     private bool _applying;
+    private bool _rerunRequested;
 
     public SyncActionsService(
         SqliteJsonDocumentStore store, ReceivedDevicesService received, SyncIdentityService identity, SessionTasksService tasks,
-        ComebackStore comebacks, StepAwayService stepAway, TimeProvider time)
+        ComebackStore comebacks, StepAwayService stepAway, SessionController sessions, RemoteSessionControl control,
+        RemotePlanEdits planEdits, TimeProvider time)
     {
         _store = store;
         _received = received;
@@ -38,14 +65,37 @@ public sealed class SyncActionsService
         _tasks = tasks;
         _comebacks = comebacks;
         _stepAway = stepAway;
+        _sessions = sessions;
+        _control = control;
+        _planEdits = planEdits;
         _time = time;
+        sessions.StateChanged += (_, state) => OnSessionStateChanged(state);
     }
 
-    /// <summary>Raised after actions were applied: this PC's file is written again with the new acks.</summary>
+    /// <summary>Raised after actions were applied: this PC's file is written again with the new acks and results.</summary>
     public event EventHandler? Changed;
+
+    /// <summary>Raised with the notice text when the phone ended a focus session through the sync files.</summary>
+    public event EventHandler<string>? EndedFromDevice;
 
     /// <summary>The ids applied in the last 14 days, for this PC's sync file.</summary>
     public IReadOnlyList<Guid> Acks => _applied.Select(action => action.Id).ToList();
+
+    /// <summary>The answers for this PC's file: one per applied action that is still in the phone's file.</summary>
+    public IReadOnlyList<SyncActionResult> Results
+    {
+        get
+        {
+            HashSet<Guid> stillSent = ActionsForThisPc().Select(sent => sent.Action.Id).ToHashSet();
+            return _applied
+                .Where(action => action.Result is not null && stillSent.Contains(action.Id))
+                .Select(action => action.Result!)
+                .ToList();
+        }
+    }
+
+    /// <summary>The open end-early offer for this PC's file; null when there's none or it ran out.</summary>
+    public SyncEndEarlyOffer? EndEarlyOffer => _offers.Current(_time.GetUtcNow());
 
     public void LoadBlocking()
     {
@@ -53,40 +103,58 @@ public sealed class SyncActionsService
         {
             _applied = Task.Run(() => _store.LoadAsync<List<AppliedAction>>(DocumentKey)).GetAwaiter().GetResult() ?? [];
         }
-        catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
+        catch (Exception ex) when (ex is SqliteException or JsonException)
         {
             _applied = [];
         }
     }
 
-    /// <summary>Applies the received actions for this PC not applied yet.</summary>
+    /// <summary>Applies the received actions for this PC not applied yet; a call while applying runs again right after.</summary>
     public async Task ApplyAsync()
     {
         if (_applying)
         {
+            _rerunRequested = true;
             return;
         }
 
         _applying = true;
         try
         {
-            Guid self = _identity.DeviceId;
+            do
+            {
+                _rerunRequested = false;
+                await ApplyNewAsync();
+            }
+            while (_rerunRequested);
+        }
+        finally
+        {
+            _applying = false;
+        }
+    }
+
+    private async Task ApplyNewAsync()
+    {
+        try
+        {
             DateTimeOffset now = _time.GetUtcNow();
-            var done = _applied.Select(action => action.Id).ToHashSet();
-            List<SyncAction> fresh = _received.Devices
-                .SelectMany(device => device.File.Actions ?? [])
-                .Where(action => action.Target == self && !done.Contains(action.Id))
-                .OrderBy(action => action.At)
+            List<SentAction> sent = ActionsForThisPc().ToList();
+            NoteFirstSeen(sent, now);
+            var applied = _applied.Select(action => action.Id).ToHashSet();
+            List<SentAction> fresh = sent
+                .Where(action => !applied.Contains(action.Action.Id))
+                .OrderBy(action => action.Action.At)
                 .ToList();
             if (fresh.Count == 0)
             {
                 return;
             }
 
-            foreach (SyncAction action in fresh)
+            foreach (SentAction action in fresh)
             {
-                await ApplyOneAsync(action, now);
-                _applied.Add(new AppliedAction(action.Id, now));
+                SyncActionResult result = await ApplyOneAsync(action.Action, action.From, now);
+                _applied.Add(new AppliedAction(action.Action.Id, now, result));
             }
 
             _applied = _applied.Where(action => now - action.At < KeptFor).ToList();
@@ -95,40 +163,288 @@ public sealed class SyncActionsService
         }
         catch (SqliteException)
         {
-            // Applied for now; the ids are written with the next change.
-        }
-        finally
-        {
-            _applying = false;
+            // Applied for now; the ids are saved with the next change. The file still gets the new acks, results and offer.
+            Changed?.Invoke(this, EventArgs.Empty);
         }
     }
 
-    private async Task ApplyOneAsync(SyncAction action, DateTimeOffset now)
+    // The arrival of the file an action first came in, on this PC's clock (never later than now); forgotten once it
+    // leaves the phone's file.
+    private void NoteFirstSeen(IReadOnlyList<SentAction> sent, DateTimeOffset now)
+    {
+        foreach (SentAction action in sent)
+        {
+            if (!_firstSeen.ContainsKey(action.Action.Id))
+            {
+                _firstSeen[action.Action.Id] = action.ReceivedAt < now ? action.ReceivedAt : now;
+            }
+        }
+
+        HashSet<Guid> stillSent = sent.Select(action => action.Action.Id).ToHashSet();
+        foreach (Guid gone in _firstSeen.Keys.Where(id => !stillSent.Contains(id)).ToList())
+        {
+            _firstSeen.Remove(gone);
+        }
+    }
+
+    // Older than its freshness since this PC first saw it, or made on the phone more than a day ago.
+    private bool IsLate(SyncAction action, TimeSpan freshness, DateTimeOffset now)
+    {
+        DateTimeOffset firstSeen = _firstSeen.TryGetValue(action.Id, out DateTimeOffset seen) ? seen : now;
+        return now - firstSeen > freshness || now - action.At > MadeTooLongAgo;
+    }
+
+    private async Task<SyncActionResult> ApplyOneAsync(SyncAction action, string from, DateTimeOffset now)
     {
         switch (action.Kind)
         {
-            case SyncAction.KindTickTask when action.Item is Guid item && IsOpen(item):
-                await _tasks.ToggleAsync(item);
-                break;
-            case SyncAction.KindPark when !string.IsNullOrWhiteSpace(action.Text):
-                await _comebacks.AddAsync(action.Text.Trim());
-                break;
-            case SyncAction.KindTickComeback when action.Item is Guid comeback:
-                await _comebacks.TickAsync(comeback);
-                break;
-            case SyncAction.KindStepAway when now - action.At < StepAwayFresh && !_stepAway.IsAway:
-                _stepAway.StepAway(AwayKind.Break);
-                break;
-            case SyncAction.KindBack when now - action.At < StepAwayFresh && _stepAway.IsAway:
-                _stepAway.Return();
-                break;
+            case SyncAction.KindTickTask:
+                if (action.Item is Guid item && IsOpen(item))
+                {
+                    await _tasks.ToggleAsync(item);
+                }
+
+                return Ok(action);
+            case SyncAction.KindPark:
+                if (!string.IsNullOrWhiteSpace(action.Text))
+                {
+                    await _comebacks.AddAsync(action.Text.Trim());
+                }
+
+                return Ok(action);
+            case SyncAction.KindTickComeback:
+                if (action.Item is Guid comeback)
+                {
+                    await _comebacks.TickAsync(comeback);
+                }
+
+                return Ok(action);
+            case SyncAction.KindStepAway:
+                if (now - action.At >= StepAwayFresh)
+                {
+                    return TooLate(action);
+                }
+
+                if (!_stepAway.IsAway)
+                {
+                    _stepAway.StepAway(AwayKind.Break);
+                }
+
+                return Ok(action);
+            case SyncAction.KindBack:
+                if (now - action.At >= StepAwayFresh)
+                {
+                    return TooLate(action);
+                }
+
+                if (_stepAway.IsAway)
+                {
+                    _stepAway.Return();
+                }
+
+                return Ok(action);
+            case SyncAction.KindStart:
+                return await StartAsync(action, now);
+            case SyncAction.KindEndEarlyBegin:
+                return BeginEndEarly(action, now);
+            case SyncAction.KindEndEarly:
+                return EndEarly(action, from, now);
+            case SyncAction.KindDayPlanEdit:
+                return await EditPlanAsync(action, now);
+            default:
+                return Unsupported(action);
         }
     }
+
+    // Like the link's start: refused while a session runs, the profile must exist, the length 1 minute to 12 hours.
+    private async Task<SyncActionResult> StartAsync(SyncAction action, DateTimeOffset now)
+    {
+        if (IsLate(action, ControlFresh, now))
+        {
+            return TooLate(action);
+        }
+
+        if (Read<SyncStartRequest>(action.Text) is not SyncStartRequest request)
+        {
+            return Invalid(action, "The PC couldn't read this request.");
+        }
+
+        string? error;
+        if (!request.NoSetEnd)
+        {
+            error = _control.Start(request.ProfileId, request.Minutes);
+        }
+        else if (request.ProfileId is Guid profileId && profileId != _control.CountUpProfileId)
+        {
+            error = _control.StartCountUp(profileId);
+        }
+        else
+        {
+            // "Quick Start with Default" (made on first use, so a phone may not know its id yet).
+            error = await _control.StartCountUpAsync();
+        }
+
+        return error is null ? Ok(action, "Started.") : Refused(action, error);
+    }
+
+    // The first step: an offer with this PC's wait, or, for a break or a session that ends on command, the end at once.
+    private SyncActionResult BeginEndEarly(SyncAction action, DateTimeOffset now)
+    {
+        if (IsLate(action, ControlFresh, now))
+        {
+            return TooLate(action);
+        }
+
+        SessionState state = _sessions.State;
+        if (_control.EndEarlyTerms() is not LinkEndEarlyTerms terms)
+        {
+            return Refused(action, "No session is running.");
+        }
+
+        if (!state.IsEnforcing || _sessions.EndsOnCommand)
+        {
+            _offers.Clear();
+            _control.TryEnd(string.Empty, out string? notice);
+            if (notice is not null)
+            {
+                EndedFromDevice?.Invoke(this, notice);
+            }
+
+            return Ok(action, "Session ended.");
+        }
+
+        _offers.Make(state, terms.AllowedFrom, terms.MinReasonLength, terms.Note, now);
+        return Ok(action);
+    }
+
+    // The second step: the offer's id, its phase, the wait over on this PC's clock, not past its 10 minutes, a long
+    // enough reason (its length only).
+    private SyncActionResult EndEarly(SyncAction action, string from, DateTimeOffset now)
+    {
+        if (_offers.Open is not SyncEndEarlyOffer offer || action.Item != offer.RequestId)
+        {
+            return Refused(action, AskFirstMessage);
+        }
+
+        if (!_offers.BelongsTo(_sessions.State))
+        {
+            _offers.Clear();
+            return Refused(action, AskFirstMessage);
+        }
+
+        if (now > offer.AllowedFrom + SyncEndEarlyOffer.ValidFor || now - action.At > MadeTooLongAgo)
+        {
+            _offers.Clear();
+            return TooLate(action);
+        }
+
+        TimeSpan left = offer.AllowedFrom - now;
+        if (left > TimeSpan.Zero)
+        {
+            return Refused(action, $"Wait until the countdown ends ({Math.Ceiling(left.TotalSeconds):0} s left).");
+        }
+
+        if (!int.TryParse(action.Text, NumberStyles.None, CultureInfo.InvariantCulture, out int length) || length < offer.MinReasonLength)
+        {
+            return Refused(action, $"The reason needs at least {offer.MinReasonLength} characters.");
+        }
+
+        _offers.Clear();
+        string reason = $"reason given on {from}, {length} characters";
+        if (!_control.TryEnd(reason, out string? notice))
+        {
+            return Refused(action, "No session is running.");
+        }
+
+        if (notice is not null)
+        {
+            EndedFromDevice?.Invoke(this, notice);
+        }
+
+        return Ok(action, "Session ended.");
+    }
+
+    // ADR 19 by ADR 42's transport: the same decision as over the link.
+    private async Task<SyncActionResult> EditPlanAsync(SyncAction action, DateTimeOffset now)
+    {
+        if (IsLate(action, PlanEditFresh, now))
+        {
+            return TooLate(action);
+        }
+
+        if (Read<SyncDayPlanEditRequest>(action.Text) is not { BasedOn: not null, Plan.ValueKind: JsonValueKind.Object } request
+            || request.EditedAt == default)
+        {
+            return Invalid(action, "The PC couldn't read this day plan.");
+        }
+
+        LinkDayPlanAnswer answer = await _planEdits.ApplyAsync(new LinkDayPlanEdit(request.BasedOn, request.Plan, request.EditedAt));
+        return answer.Status switch
+        {
+            LinkDayPlanStatus.Applied => new SyncActionResult(action.Id, true, SyncActionStatus.Applied, answer.Message, answer.CurrentVersion),
+            LinkDayPlanStatus.Conflict => new SyncActionResult(
+                action.Id, false, SyncActionStatus.Conflict, answer.Message, answer.CurrentVersion, answer.CurrentEditedAt),
+            LinkDayPlanStatus.Locked => new SyncActionResult(action.Id, false, SyncActionStatus.Locked, answer.Message),
+            _ => Invalid(action, answer.Message),
+        };
+    }
+
+    // An offer belongs to its phase: a session ending or a new phase drops it, and the file loses it.
+    private void OnSessionStateChanged(SessionState state)
+    {
+        if (_offers.Open is not null && !_offers.BelongsTo(state))
+        {
+            _offers.Clear();
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private IEnumerable<SentAction> ActionsForThisPc()
+    {
+        Guid self = _identity.DeviceId;
+        return _received.Devices
+            .SelectMany(device => (device.File.Actions ?? []).Select(action => new SentAction(action, device.File.Device.Name, device.ReceivedAt)))
+            .Where(sent => sent.Action.Target == self);
+    }
+
+    private static T? Read<T>(string? text)
+        where T : class
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<T>(text, LinkFraming.JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static SyncActionResult Ok(SyncAction action, string? message = null) => new(action.Id, true, SyncActionStatus.Applied, message);
+
+    private static SyncActionResult Refused(SyncAction action, string message) => new(action.Id, false, SyncActionStatus.Refused, message);
+
+    private static SyncActionResult Invalid(SyncAction action, string message) => new(action.Id, false, SyncActionStatus.Invalid, message);
+
+    private static SyncActionResult TooLate(SyncAction action) => new(action.Id, false, SyncActionStatus.Late, SyncActionResult.TooLateMessage);
+
+    private static SyncActionResult Unsupported(SyncAction action) =>
+        new(action.Id, false, SyncActionStatus.Unsupported, SyncActionResult.NotSupportedMessage);
 
     // A task or subtask of the current checklist that isn't ticked yet (ticking twice would untick it).
     private bool IsOpen(Guid id) => _tasks.Current.Tasks
         .SelectMany(task => task.Subtasks.Select(subtask => (subtask.Id, subtask.IsDone)).Prepend((task.Id, task.IsDone)))
         .Any(entry => entry.Id == id && !entry.IsDone);
 
-    private sealed record AppliedAction(Guid Id, DateTimeOffset At);
+    /// <param name="Result">Null for actions applied before this PC answered them (ADR 42).</param>
+    private sealed record AppliedAction(Guid Id, DateTimeOffset At, SyncActionResult? Result = null);
+
+    /// <param name="From">The sending device's name.</param>
+    /// <param name="ReceivedAt">When its newest file arrived here (this PC's clock).</param>
+    private sealed record SentAction(SyncAction Action, string From, DateTimeOffset ReceivedAt);
 }
