@@ -438,6 +438,7 @@ public partial class App : Application
         // The start nudge's card: never in a calendar event or once today's goal is met.
         _startNudge.InCalendarEvent = inCalendarEvent;
         _startNudge.IsGoalMet = () => _deepWork?.Progress.Met == true;
+        _startNudge.IsGateOpen = () => _workGate?.Current is not null;
         _startNudge.CardChanged += (_, _) => ShowStartNudgeCard(monitorLocator);
         // ADR 31: Pre-Work parts ask whether today is a work day, then hold work tools and distractions back.
         _preWork = new PreWorkService(

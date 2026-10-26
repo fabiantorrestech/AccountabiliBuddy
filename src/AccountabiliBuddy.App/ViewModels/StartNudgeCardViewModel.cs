@@ -10,14 +10,22 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// </summary>
 public sealed partial class StartNudgeCardViewModel : ObservableObject
 {
+    private readonly TimeZoneInfo _localZone;
     private readonly Action<StartNudgeCardViewModel> _start;
     private readonly Action<StartNudgeCardViewModel, string> _notNow;
 
-    public StartNudgeCardViewModel(string untilText, DateTimeOffset now, Action<StartNudgeCardViewModel> onStart, Action<StartNudgeCardViewModel, string> onNotNow)
+    /// <param name="comesBack">False under "Only once": then the card doesn't say it comes back.</param>
+    public StartNudgeCardViewModel(
+        string untilText, DateTimeOffset now, TimeZoneInfo localZone, bool comesBack,
+        Action<StartNudgeCardViewModel> onStart, Action<StartNudgeCardViewModel, string> onNotNow)
     {
         UntilText = untilText;
+        _localZone = localZone;
         _start = onStart;
         _notNow = onNotNow;
+        Question = comesBack
+            ? "Start a session now, or say why not yet. This comes back until a session starts."
+            : "Start a session now, or say why not yet.";
         Reason = string.Empty;
         Title = string.Empty;
         Refresh(now);
@@ -26,7 +34,7 @@ public sealed partial class StartNudgeCardViewModel : ObservableObject
     /// <summary>E.g. "Work until 12:00 PM".</summary>
     public string UntilText { get; }
 
-    public string Question => "Start a session now, or say why not yet. This comes back until a session starts.";
+    public string Question { get; }
 
     /// <summary>"No session yet · 9:35 AM".</summary>
     [ObservableProperty]
@@ -40,7 +48,7 @@ public sealed partial class StartNudgeCardViewModel : ObservableObject
     /// <summary>Keeps the time on the title current. Runs every second.</summary>
     public void Refresh(DateTimeOffset now)
     {
-        DateTime local = TimeZoneInfo.ConvertTime(now, TimeZoneInfo.Local).DateTime;
+        DateTime local = TimeZoneInfo.ConvertTime(now, _localZone).DateTime;
         Title = $"No session yet · {local.ToString("h:mm tt", CultureInfo.InvariantCulture)}";
     }
 

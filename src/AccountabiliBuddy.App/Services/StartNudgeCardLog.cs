@@ -25,18 +25,32 @@ public sealed class StartNudgeCardLog
     /// <summary>Adds one reason and drops the ones older than <see cref="KeepFor"/>.</summary>
     public async Task AddAsync(DateTimeOffset at, string reason)
     {
-        IReadOnlyList<StartNudgeCardSkip> kept;
-        try
-        {
-            kept = await _store.LoadAsync<List<StartNudgeCardSkip>>(DocumentKey) ?? [];
-        }
-        catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
-        {
-            kept = [];
-        }
-
+        IReadOnlyList<StartNudgeCardSkip> kept = await LoadAsync();
         var skip = new StartNudgeCardSkip(at, Convert.ToBase64String(_protector.Protect(reason.Trim())));
         List<StartNudgeCardSkip> next = [.. kept.Where(entry => at - entry.At < KeepFor), skip];
         await _store.SaveAsync(DocumentKey, next);
+    }
+
+    /// <summary>Drops the reasons older than <see cref="KeepFor"/>; writes only when something went.</summary>
+    public async Task PruneAsync(DateTimeOffset now)
+    {
+        IReadOnlyList<StartNudgeCardSkip> kept = await LoadAsync();
+        List<StartNudgeCardSkip> next = kept.Where(entry => now - entry.At < KeepFor).ToList();
+        if (next.Count < kept.Count)
+        {
+            await _store.SaveAsync(DocumentKey, next);
+        }
+    }
+
+    private async Task<IReadOnlyList<StartNudgeCardSkip>> LoadAsync()
+    {
+        try
+        {
+            return await _store.LoadAsync<List<StartNudgeCardSkip>>(DocumentKey) ?? [];
+        }
+        catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
+        {
+            return [];
+        }
     }
 }

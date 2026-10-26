@@ -38,6 +38,9 @@ public sealed class StartNudgeService
     private bool _comingBack;
     private TimeSpan _lastIdle;
     private DateTimeOffset? _cardDueAt;
+    // A reason half typed when the card was closed some other way; the reopened card shows it again.
+    private string _keptReason = string.Empty;
+    private DateOnly _prunedOn;
 
     public StartNudgeService(SessionController sessions, ConfigurationService configuration, IUserIdleDetector idle, SqliteJsonDocumentStore store, StartNudgeCardLog cardLog)
     {
@@ -60,6 +63,9 @@ public sealed class StartNudgeService
     /// <summary>True once today's deep-work goal is met; then nothing steers. Set by the app.</summary>
     public Func<bool> IsGoalMet { get; set; } = () => false;
 
+    /// <summary>True while the work-hours gate shows; the card waits until it's closed. Set by the app.</summary>
+    public Func<bool> IsGateOpen { get; set; } = () => false;
+
     /// <summary>The card showing, or null.</summary>
     public StartNudgeCardViewModel? Card { get; private set; }
 
@@ -73,12 +79,21 @@ public sealed class StartNudgeService
     {
         try
         {
-            Settings = Task.Run(() => _store.LoadAsync<StartNudgeSettings>(DocumentKey)).GetAwaiter().GetResult() ?? StartNudgeSettings.Default;
+            StartNudgeSettings? stored = Task.Run(() => _store.LoadAsync<StartNudgeSettings>(DocumentKey)).GetAwaiter().GetResult();
+            Settings = stored ?? StartNudgeSettings.Default;
+            if (stored is not null && stored.Version < StartNudgeSettings.CurrentVersion)
+            {
+                // The repeat used to flash the taskbar; now it brings the card in front, so an older choice becomes 15 once.
+                Settings = stored with { RepeatMinutes = 15, Version = StartNudgeSettings.CurrentVersion };
+                Task.Run(() => _store.SaveAsync(DocumentKey, Settings)).GetAwaiter().GetResult();
+            }
         }
         catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
         {
             Settings = StartNudgeSettings.Default;
         }
+
+        PruneLog();
     }
 
     public async Task SaveAsync(StartNudgeSettings settings)
@@ -95,6 +110,7 @@ public sealed class StartNudgeService
             return;
         }
 
+        _keptReason = Card.Reason;
         Card = null;
         _cardDueAt = _sessions.Now;
         CardChanged?.Invoke(this, EventArgs.Empty);
@@ -108,6 +124,10 @@ public sealed class StartNudgeService
         bool sessionJustEnded = _sessionLastTick && !sessionRunning;
         _checkedOnce = true;
         _sessionLastTick = sessionRunning;
+        if (Today() != _prunedOn)
+        {
+            PruneLog(); // Old reasons go after 14 days even when no new one is added.
+        }
 
         LocalWindow? part = Settings.On && !sessionRunning && !IsDayOff() && !InCalendarEvent() && !IsGoalMet()
             ? CurrentWorkPart()
@@ -126,16 +146,14 @@ public sealed class StartNudgeService
             _wasInWork = true;
             if (sessionJustEnded)
             {
-                Nudge(StartNudgeReason.SessionEnded); // Quiet: the user may be typing elsewhere.
+                // Counts as arrived, so no loud nudge follows just because it ended while idle; quiet: the user may be typing elsewhere.
+                Arrive();
+                Nudge(StartNudgeReason.SessionEnded);
             }
-
-            if (idle < PresentWithin)
+            else if (idle < PresentWithin)
             {
                 Arrive();
-                if (!sessionJustEnded)
-                {
-                    Nudge(firstCheck ? StartNudgeReason.AppStarted : StartNudgeReason.WorkStarted);
-                }
+                Nudge(firstCheck ? StartNudgeReason.AppStarted : StartNudgeReason.WorkStarted);
             }
             else
             {
@@ -168,7 +186,8 @@ public sealed class StartNudgeService
             return;
         }
 
-        if (Card is null && _cardDueAt is DateTimeOffset due && _sessions.Now >= due)
+        // Only in front of someone at the computer, and never over the work-hours gate: otherwise it stays due.
+        if (Card is null && _cardDueAt is DateTimeOffset due && _sessions.Now >= due && idle < PresentWithin && !IsGateOpen())
         {
             OpenCard(workPart);
         }
@@ -188,7 +207,11 @@ public sealed class StartNudgeService
     {
         _cardDueAt = null;
         string until = $"Work until {workPart.End.ToString("h:mm tt", CultureInfo.InvariantCulture)}";
-        Card = new StartNudgeCardViewModel(until, _sessions.Now, OnCardStart, OnCardNotNow);
+        Card = new StartNudgeCardViewModel(until, _sessions.Now, _sessions.TimeProvider.LocalTimeZone, Settings.RepeatMinutes > 0, OnCardStart, OnCardNotNow)
+        {
+            Reason = _keptReason,
+        };
+        _keptReason = string.Empty;
         CardChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -223,6 +246,7 @@ public sealed class StartNudgeService
         }
 
         Card = null;
+        _keptReason = string.Empty;
         _cardDueAt = scheduleNext && Settings.RepeatMinutes > 0 ? _sessions.Now + TimeSpan.FromMinutes(Settings.RepeatMinutes) : null;
         CardChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -234,7 +258,17 @@ public sealed class StartNudgeService
         _comingBack = false;
         CloseCard(scheduleNext: false);
         _cardDueAt = null;
+        _keptReason = string.Empty;
     }
+
+    private void PruneLog()
+    {
+        _prunedOn = Today();
+        _ = _cardLog.PruneAsync(_sessions.Now);
+    }
+
+    private DateOnly Today() =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime);
 
     private void Nudge(StartNudgeReason reason)
     {
