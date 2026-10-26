@@ -42,6 +42,8 @@ data class SyncFile(
     val events: kotlinx.serialization.json.JsonArray? = null,
     /** A phone's smart bedtime (ADR 34): derived numbers per kind of night; null when it's off. */
     val smartBedtime: SyncSmartBedtime? = null,
+    /** Bedtime reminders dismissed or snoozed on this device in the last day (ADR 38); null for none. */
+    val reminderActions: List<com.accountabilibuddy.shared.ReminderMessages.Action>? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1

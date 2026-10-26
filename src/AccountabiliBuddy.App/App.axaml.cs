@@ -500,6 +500,7 @@ public partial class App : Application
         // The phone's pickups during this PC's sessions (ADR 26), from its sync file.
         _phonePickups = new AccountabiliBuddy.App.Services.Sync.PhonePickups(receivedDevices, syncIdentity, time);
         syncIdentity.LoadBlocking();
+        _bedtimeReminder!.DeviceId = () => syncIdentity.DeviceId == Guid.Empty ? null : syncIdentity.DeviceId;
         var syncEditTimes = new AccountabiliBuddy.App.Services.Sync.SyncEditTimesService(_configuration, sleepSettings, dayBarSettings, documents, time);
         syncEditTimes.LoadBlocking();
         var syncCoordinator = new AccountabiliBuddy.App.Services.Sync.SyncCoordinator(
@@ -547,6 +548,31 @@ public partial class App : Application
             }
         });
         _dayBar.Lunch = () => _lunch.Taken;
+        // ADR 38: bedtime reminders dismissed or snoozed here go in this PC's file; the others' stop them ringing here.
+        var reminderActions = new List<AccountabiliBuddy.Core.Sync.SyncReminderAction>();
+        var appliedReminderActions = new HashSet<string>();
+        syncCoordinator.ReminderActions = () => reminderActions.Where(a => a.At > time.GetUtcNow().AddDays(-1)).ToList();
+        _bedtimeReminder!.ActedHere += (_, acted) =>
+        {
+            var entry = new AccountabiliBuddy.Core.Sync.SyncReminderAction(acted.Night, acted.Number, acted.Action, time.GetUtcNow(), acted.Until);
+            appliedReminderActions.Add($"{entry.Night}/{entry.Number}/{entry.Action}/{entry.At.ToUnixTimeMilliseconds()}");
+            reminderActions.Add(entry);
+            syncCoordinator.NotifyHistoryChanged();
+        };
+        receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            foreach (var entry in receivedDevices.Devices.SelectMany(device => device.File.ReminderActions ?? Array.Empty<AccountabiliBuddy.Core.Sync.SyncReminderAction>()))
+            {
+                string key = $"{entry.Night}/{entry.Number}/{entry.Action}/{entry.At.ToUnixTimeMilliseconds()}";
+                if (entry.At < time.GetUtcNow().AddHours(-1) || entry.Night != _bedtimeReminder.Night || !appliedReminderActions.Add(key))
+                {
+                    continue;
+                }
+
+                if (entry.Action == "snooze") _bedtimeReminder.SnoozeIt(entry.Number, here: false, entry.Until);
+                else _bedtimeReminder.Dismiss(entry.Number, here: false);
+            }
+        });
         timelineDay.Lunch = () => _lunch.Taken;
         _comebacks!.Changed += (_, _) =>
         {
@@ -790,6 +816,7 @@ public partial class App : Application
                 PrivacyChoices = privacy,
                 GoogleGuide = new GoogleSetupGuide(calendars, _calendarSync, dataProtector, documents, OpenInBrowser),
                 PcAlarmWarning = () => _pcAlarm!.WakeProblem(),
+                Reminders = new BedtimeRemindersViewModel(sleepSettings, () => _bedtimeReminder!.DeviceId()),
                 // ADR 35: only a linked phone measures sleep.
                 HasLinkedPhone = () => receivedDevices.Devices.Any(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone)
                     || _link!.Devices.Any(device => device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone),
@@ -939,6 +966,8 @@ public partial class App : Application
         _sessionOverlay.Start();
         _bedtimeReminder.ReminderDue += (_, reminder) =>
             presenter.ShowReminder(reminder.Title, reminder.Message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#6366F1")));
+        // ADR 38: a reminder that rings opens the alarm window; this PC's sync id says which reminders are its own.
+        _ = new BedtimeAlarmRinger(_bedtimeReminder, _sessionCues, () => _sessionOverlay.Glow());
         _bedtimeReminder.Start();
         _coldTurkey.ExpectedBlocksOff += (_, names) => presenter.ShowNotice("Cold Turkey block off", ColdTurkeyService.Describe(names));
         _coldTurkey.Start();

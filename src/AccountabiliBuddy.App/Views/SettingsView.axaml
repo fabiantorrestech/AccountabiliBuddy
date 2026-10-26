@@ -372,6 +372,38 @@
                                    Opacity="0.75" TextWrapping="Wrap" Margin="28,0,0,0" />
                         <TextBlock Text="{Binding PcAlarmNote}" IsVisible="{Binding PcAlarmNote, Converter={x:Static ObjectConverters.IsNotNull}}"
                                    Foreground="#F59E0B" TextWrapping="Wrap" Margin="28,0,0,0" />
+                        <!-- ADR 38: the bedtime reminders, shared with the phone. -->
+                        <StackPanel Spacing="6" DataContext="{Binding Reminders}" x:DataType="vm:BedtimeRemindersViewModel">
+                            <CheckBox IsChecked="{Binding On}" Content="Bedtime reminders (shared with your phone; each says where it rings)" />
+                            <ItemsControl ItemsSource="{Binding Rows}" IsVisible="{Binding On}" Margin="28,0,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:BedtimeReminderRowViewModel">
+                                        <WrapPanel Orientation="Horizontal" Margin="0,2">
+                                            <ComboBox ItemsSource="{Binding MinuteChoices}" SelectedItem="{Binding MinutesBefore}" MinWidth="90" Margin="0,0,8,0">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="x:Int32">
+                                                        <TextBlock Text="{Binding StringFormat='{}{0} min'}" />
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <TextBlock Text="before bedtime" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                            <CheckBox IsChecked="{Binding Alarm}" Content="Rings" Margin="0,0,12,0" />
+                                            <CheckBox IsChecked="{Binding Phone}" Content="Phone" Margin="0,0,8,0" />
+                                            <CheckBox IsChecked="{Binding Watch}" Content="Watch" Margin="0,0,8,0" />
+                                            <CheckBox IsChecked="{Binding AllPcs}" Content="All PCs" Margin="0,0,8,0" />
+                                            <CheckBox IsChecked="{Binding ThisPc}" Content="This PC" IsVisible="{Binding HasThisPc}" Margin="0,0,8,0" />
+                                            <Button Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this reminder" />
+                                        </WrapPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,0,0,0" IsVisible="{Binding On}">
+                                <Button Content="Add a reminder" Command="{Binding AddCommand}" />
+                                <Button Content="Reset to the 3 defaults" Command="{Binding ResetCommand}" />
+                            </StackPanel>
+                            <TextBlock Text="0 min = at bedtime. A reminder that rings has Dismiss and Snooze 5 min; dismissing it on one device stops it on the others. Sound and volume for the phone are set on the phone."
+                                       Opacity="0.75" TextWrapping="Wrap" Margin="28,0,0,0" />
+                        </StackPanel>
                         <!-- ADR 34: the phone learns a smart bedtime; the PC takes its time in bed before waking. -->
                         <CheckBox IsChecked="{Binding UsePhoneBedtime}"
                                   Content="Use my phone's smart bedtime (it learns from your measured sleep and moves bedtime earlier as you earn it)" />

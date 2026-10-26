@@ -38,6 +38,12 @@ class WatchListenerService : WearableListenerService() {
 
             WatchPaths.UNLINK -> forgetEverything()
 
+            // ADR 38: a bedtime reminder to ring, or one dismissed/snoozed elsewhere ("/reminder" is a prefix of both).
+            WatchPaths.REMINDER -> com.accountabilibuddy.shared.ReminderMessages.readRing(event.data)?.let { com.accountabilibuddy.watch.alerts.ReminderAlert.show(this, it) }
+            WatchPaths.REMINDER_ACTION -> com.accountabilibuddy.shared.ReminderMessages.readAction(event.data)?.let {
+                com.accountabilibuddy.watch.alerts.ReminderAlert.stop(this, it.night, it.number)
+            }
+
             // ADR 36: what the phone's noise player is doing.
             WatchPaths.NOISE -> com.accountabilibuddy.shared.NoiseRemote.readState(event.data)?.let(NoiseLink::received)
 

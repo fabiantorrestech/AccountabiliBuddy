@@ -54,6 +54,10 @@ class WatchActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Always 12-hour AM/PM (project convention), whatever the watch's setting.
         use24HourClock = false
+        // Bedtime reminders (ADR 38) post notifications: asked once.
+        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+        }
         val snapshots = SnapshotStore.snapshot(this)
         setContent {
             MaterialTheme {

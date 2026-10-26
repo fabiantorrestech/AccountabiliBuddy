@@ -78,6 +78,9 @@ class SyncCoordinator(
     /** This phone's sleep settings as a document, once changed here (ADR 35); null before. */
     var sleepDocument: () -> com.accountabilibuddy.shared.sync.SyncDocument? = { null }
 
+    /** Bedtime reminders dismissed or snoozed here in the last day (ADR 38). */
+    var reminderActions: () -> List<com.accountabilibuddy.shared.ReminderMessages.Action> = { emptyList() }
+
     /** The smart bedtime's share for the PCs (ADR 34); null when it's off. */
     var smartBedtime: () -> com.accountabilibuddy.shared.sync.SyncSmartBedtime? = { null }
 
@@ -184,6 +187,7 @@ class SyncCoordinator(
         lunch = lunch(),
         actions = actions().takeIf { it.isNotEmpty() },
         smartBedtime = runCatching { smartBedtime() }.getOrNull(),
+        reminderActions = runCatching { reminderActions() }.getOrNull()?.takeIf { it.isNotEmpty() },
     )
 
     /** Everything to hand over by [method] (Drive or a share): this phone's own file first, then what it carries. */

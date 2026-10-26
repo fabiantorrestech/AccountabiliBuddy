@@ -217,7 +217,8 @@ public sealed class SyncCoordinator
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
         return SyncFileBuilder.Build(card, records, drift, _omitted.IsOmitted, id => ProfileOptions.NameOf(profiles, id),
             _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles), Events = Events?.Invoke(),
-                Pickups = PcPickups?.PickupsForOtherPcs(), InputRuns = PcPickups?.InputRunsToday() };
+                Pickups = PcPickups?.PickupsForOtherPcs(), InputRuns = PcPickups?.InputRunsToday(),
+                ReminderActions = ReminderActions?.Invoke() is { Count: > 0 } actions ? actions : null };
     }
 
     /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
@@ -261,6 +262,9 @@ public sealed class SyncCoordinator
 
     /// <summary>The phone's actions this PC applied (ADR 26), acknowledged in its file; set by the app.</summary>
     public Func<IReadOnlyList<Guid>>? Acks { get; set; }
+
+    /// <summary>Bedtime reminders dismissed or snoozed on this PC in the last day (ADR 38); set by the app.</summary>
+    public Func<IReadOnlyList<SyncReminderAction>?>? ReminderActions { get; set; }
 
     /// <summary>Today's flexible lunch once started on this PC or taken from another device (schema v8); set by the app.</summary>
     public Func<SyncLunch?>? Lunch { get; set; }

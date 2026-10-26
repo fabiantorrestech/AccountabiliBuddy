@@ -73,6 +73,10 @@ object SyncFileJson {
         }
         file.acks?.let { list -> put("acks", JsonArray(list.map { kotlinx.serialization.json.JsonPrimitive(it) })) }
         file.events?.let { put("events", it) }
+        // Optional (ADR 38): bedtime reminders dismissed or snoozed.
+        file.reminderActions?.takeIf { it.isNotEmpty() }?.let { list ->
+            put("reminderActions", JsonArray(list.map { com.accountabilibuddy.shared.ReminderMessages.toJson(it) }))
+        }
         // Optional (ADR 34): a phone's smart bedtime.
         file.smartBedtime?.let { smart ->
             put("smartBedtime", buildJsonObject {
@@ -208,6 +212,7 @@ object SyncFileJson {
             json.optionalObject("smartBedtime")?.let { smart ->
                 SyncSmartBedtime(smart.optionalObject("workdays")?.let(::readSmartLevel), smart.optionalObject("offDays")?.let(::readSmartLevel))
             },
+            (json["reminderActions"] as? JsonArray)?.mapNotNull { (it as? JsonObject)?.let(com.accountabilibuddy.shared.ReminderMessages::fromJson) },
         )
     }
 

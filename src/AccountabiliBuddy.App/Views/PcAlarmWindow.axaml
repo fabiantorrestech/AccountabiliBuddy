@@ -12,10 +12,10 @@
     <Border Padding="24,20" Background="#FF15191E" BorderBrush="#AAF59E0B" BorderThickness="2" CornerRadius="10">
         <StackPanel Spacing="14">
             <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
-            <TextBlock Text="Your wake time. Snooze rings again in 9 minutes." Opacity="0.8" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Text}" Opacity="0.8" TextWrapping="Wrap" />
             <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
-                <Button Content="Snooze 9 min" Command="{Binding SnoozeCommand}" />
-                <Button Content="Stop" Command="{Binding StopCommand}" Classes="accent" />
+                <Button Content="{Binding SnoozeText}" Command="{Binding SnoozeCommand}" />
+                <Button Content="{Binding StopText}" Command="{Binding StopCommand}" Classes="accent" />
             </StackPanel>
         </StackPanel>
     </Border>

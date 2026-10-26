@@ -228,6 +228,11 @@ class CompanionApp : Application() {
         com.accountabilibuddy.companion.noise.HeadphoneWatcher(this, headphones, noise).start()
         noiseWatch = com.accountabilibuddy.companion.watch.NoiseWatchSync(this, noise, watchBridge.linkSettings, appScope).also { it.start() }
         reminderRelay = com.accountabilibuddy.companion.notify.ReminderRelay(this, watchBridge.linkSettings, appScope)
+        sync.reminderActions = { reminderRelay.actions.value }
+        // A PC's dismiss or snooze stops the reminder here (ADR 38).
+        appScope.launch {
+            sync.received.collect { devices -> devices.flatMap { it.file.reminderActions.orEmpty() }.forEach(reminderRelay::received) }
+        }
         // The widget's play/pause follows the player.
         noise.onChanged = {
             appScope.launch { runCatching { com.accountabilibuddy.companion.widget.TimelineWidget().updateAll(this@CompanionApp) } }

@@ -440,6 +440,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>The bedtime reminders' list (ADR 38); set by the app.</summary>
+    public BedtimeRemindersViewModel? Reminders { get; set; }
+
     /// <summary>The phone's smart bedtime sets the bedtime (ADR 34); saved at once.</summary>
     public bool UsePhoneBedtime
     {
