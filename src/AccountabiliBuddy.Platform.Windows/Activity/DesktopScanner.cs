@@ -60,6 +60,12 @@ internal sealed class DesktopScanner
             return false;
         }
 
+        // A hidden or cloaked leftover switcher window must not hold the scan until the foreground changes.
+        if (!PInvoke.IsWindowVisible(foreground) || IsCloaked(foreground))
+        {
+            return false;
+        }
+
         PInvoke.GetWindowThreadProcessId(foreground, out uint processId);
         bool inFront = Win32OverlayWindowControl.ShellProcesses.Contains(_processNames.Resolve(foreground, processId));
 #if DEBUG
@@ -200,6 +206,7 @@ internal sealed class DesktopScanner
         }
 
         string className = ReadClassName(window);
+        // Switcher classes are skipped for any process on purpose: such a window is never content to judge.
         return !ShellWindowClasses.Contains(className) && !SwitcherWindowClasses.Contains(className);
     }
 
