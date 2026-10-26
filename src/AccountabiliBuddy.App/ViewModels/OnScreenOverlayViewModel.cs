@@ -408,6 +408,14 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ShowsSubtaskLine { get; set; }
 
+    /// <summary>The colour of the task line's category (a dot before it).</summary>
+    [ObservableProperty]
+    public partial IBrush TaskCategoryBrush { get; set; } = Brushes.Transparent;
+
+    /// <summary>The task the line shows is in a category.</summary>
+    [ObservableProperty]
+    public partial bool ShowsTaskCategory { get; set; }
+
     /// <summary>Up to 2 lines, then "…"; the whole name while Ctrl+Alt is held (0 = no limit).</summary>
     public int SubtaskMaxLines => ShowsDetails ? 0 : 2;
 
@@ -432,6 +440,8 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
         TaskLine = checklist is null ? string.Empty : $"{checklist.ProgressText} ▸ {checklist.CurrentTaskText}";
         SubtaskLine = checklist is { CurrentSubtaskText.Length: > 0 } ? $"↳ {checklist.CurrentSubtaskText}" : string.Empty;
         ShowsSubtaskLine = ShowsTasks && SubtaskLine.Length > 0;
+        TaskCategoryBrush = checklist?.CurrentCategoryBrush ?? Brushes.Transparent;
+        ShowsTaskCategory = checklist is { HasCurrentCategory: true };
         RefreshTaskLine();
         checklist?.RefreshEndAtOnce();
     }

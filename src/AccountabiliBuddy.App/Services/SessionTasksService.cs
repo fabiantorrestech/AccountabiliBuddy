@@ -9,8 +9,9 @@ namespace AccountabiliBuddy.App.Services;
 /// <summary>
 /// Guided sessions (ADR 24, 25): the checklist of the next or running session. Tasks added while no session runs are a
 /// draft (the quick-session popup and the Session tab share it); starting a session makes it that session's checklist,
-/// which survives a restart; ending the session keeps it in history (90 days) and starts an empty draft. Stored
-/// DPAPI-encrypted ("session.tasks", "session.taskHistory"), like notes on added sessions. Use from the UI thread only.
+/// which survives a restart; ending the session keeps it in history (90 days) and starts an empty draft. Tasks can be in
+/// categories (named, coloured; the checklist is grouped under them, no category last). Stored DPAPI-encrypted
+/// ("session.tasks", "session.taskHistory", "session.categories"), like notes on added sessions. Use from the UI thread only.
 /// </summary>
 public sealed class SessionTasksService : IDisposable
 {
@@ -18,6 +19,7 @@ public sealed class SessionTasksService : IDisposable
 
     private const string DocumentKey = "session.tasks";
     private const string HistoryKey = "session.taskHistory";
+    private const string CategoriesKey = "session.categories";
     private static readonly TimeSpan HistoryKept = TimeSpan.FromDays(90);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -27,6 +29,7 @@ public sealed class SessionTasksService : IDisposable
     private readonly TimeProvider _time;
     private bool _wasActive;
     private List<SessionChecklist> _history = [];
+    private IReadOnlyList<TaskCategory> _categories = [];
 
     public SessionTasksService(SqliteJsonDocumentStore store, IDataProtector protector, SessionController sessions, TimeProvider time)
     {
@@ -43,6 +46,9 @@ public sealed class SessionTasksService : IDisposable
 
     /// <summary>Checklists of ended sessions, oldest first (90 days).</summary>
     public IReadOnlyList<SessionChecklist> History => _history;
+
+    /// <summary>The task categories in the order the checklist groups them.</summary>
+    public IReadOnlyList<TaskCategory> Categories => _categories;
 
     /// <summary>Offer to end the session when every task is ticked (on by default).</summary>
     public bool NotifyAllDone { get; private set; } = true;
@@ -64,6 +70,8 @@ public sealed class SessionTasksService : IDisposable
             NotifyAllDone = stored?.NotifyAllDone ?? true;
             List<StoredHistory>? history = Task.Run(() => _store.LoadAsync<List<StoredHistory>>(HistoryKey)).GetAwaiter().GetResult();
             _history = (history ?? []).Select(item => Open(item.Data)).OfType<SessionChecklist>().ToList();
+            StoredCategories? categories = Task.Run(() => _store.LoadAsync<StoredCategories>(CategoriesKey)).GetAwaiter().GetResult();
+            _categories = OpenCategories(categories?.Data) ?? [];
         }
         catch (Exception ex) when (ex is SqliteException or JsonException)
         {
@@ -78,9 +86,68 @@ public sealed class SessionTasksService : IDisposable
         return Current.SessionStart is not null && !_sessions.State.IsActive ? ArchiveAsync() : Task.CompletedTask;
     }
 
-    public Task AddAsync(string title, Guid? parentId)
+    /// <summary>A task in <paramref name="categoryId"/> (null: no category), or a subtask of the task <paramref name="parentId"/>.</summary>
+    public Task AddAsync(string title, Guid? parentId, Guid? categoryId = null)
     {
-        return SetAsync(Current.Add(title, parentId));
+        return SetAsync(Current.Add(title, parentId, categoryId));
+    }
+
+    /// <summary>
+    /// A task as the very first of the checklist (the shutdown card's "tomorrow's first task"): it takes the first open
+    /// task's category, so grouping keeps it on top.
+    /// </summary>
+    public Task AddFirstAsync(string title)
+    {
+        return SetAsync(Current.AddFirst(title));
+    }
+
+    /// <summary>Puts a task in a category (null: no category).</summary>
+    public Task SetCategoryAsync(Guid taskId, Guid? categoryId)
+    {
+        return SetAsync(Current.SetCategory(taskId, categoryId));
+    }
+
+    /// <summary>A new category with <paramref name="name"/>, in the first palette colour no category has yet; a blank name adds nothing.</summary>
+    public Task AddCategoryAsync(string name)
+    {
+        string trimmed = name.Trim();
+        if (trimmed.Length == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var used = _categories.Select(category => category.Color).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        string color = TaskCategory.Palette.FirstOrDefault(hex => !used.Contains(hex))
+                       ?? TaskCategory.Palette[_categories.Count % TaskCategory.Palette.Count];
+        return SetCategoriesAsync([.. _categories, new TaskCategory(Guid.NewGuid(), trimmed, color)]);
+    }
+
+    /// <summary>A blank name keeps the old one.</summary>
+    public Task RenameCategoryAsync(Guid id, string name)
+    {
+        string trimmed = name.Trim();
+        return trimmed.Length == 0
+            ? Task.CompletedTask
+            : SetCategoriesAsync(_categories.Select(category => category.Id == id ? category with { Name = trimmed } : category).ToList());
+    }
+
+    public Task RecolorCategoryAsync(Guid id, string color)
+    {
+        return SetCategoriesAsync(_categories.Select(category => category.Id == id ? category with { Color = color } : category).ToList());
+    }
+
+    /// <summary>Its tasks have no category after it (ended sessions' checklists keep the name and colour they had).</summary>
+    public async Task DeleteCategoryAsync(Guid id)
+    {
+        _categories = _categories.Where(category => category.Id != id).ToList();
+        await SaveCategoriesAsync();
+        await SetAsync(Current.WithoutCategory(id));
+    }
+
+    /// <summary>The checklist's tasks with their category's name and colour, as paired devices get them (ADR 24).</summary>
+    public IReadOnlyList<SessionTask> Labelled(SessionChecklist checklist)
+    {
+        return checklist.Labelled(_categories);
     }
 
     public Task RemoveAsync(Guid id)
@@ -199,7 +266,9 @@ public sealed class SessionTasksService : IDisposable
         if (Current.HasTasks)
         {
             DateTimeOffset cutoff = _time.GetUtcNow() - HistoryKept;
-            _history = [.. _history.Where(item => item.SessionStart is DateTimeOffset start && start >= cutoff), Current];
+            // History keeps each task's category name and colour as they were, so deleting a category later loses nothing.
+            SessionChecklist labelled = Current with { Tasks = Labelled(Current) };
+            _history = [.. _history.Where(item => item.SessionStart is DateTimeOffset start && start >= cutoff), labelled];
             await _store.SaveAsync(HistoryKey, _history.Select(item => new StoredHistory(Seal(item))).ToList());
         }
 
@@ -208,7 +277,7 @@ public sealed class SessionTasksService : IDisposable
 
     private async Task SetAsync(SessionChecklist checklist)
     {
-        Current = checklist;
+        Current = checklist.Grouped(_categories);
         Changed?.Invoke(this, EventArgs.Empty);
         await SaveAsync();
     }
@@ -216,6 +285,38 @@ public sealed class SessionTasksService : IDisposable
     private Task SaveAsync()
     {
         return _store.SaveAsync(DocumentKey, new Stored(Seal(Current), NotifyAllDone));
+    }
+
+    private async Task SetCategoriesAsync(IReadOnlyList<TaskCategory> categories)
+    {
+        _categories = categories;
+        await SaveCategoriesAsync();
+        // Set again so it's regrouped in the categories' order (and Changed is raised).
+        await SetAsync(Current);
+    }
+
+    private Task SaveCategoriesAsync()
+    {
+        string data = Convert.ToBase64String(_protector.Protect(JsonSerializer.Serialize(_categories, JsonOptions)));
+        return _store.SaveAsync(CategoriesKey, new StoredCategories(data));
+    }
+
+    private IReadOnlyList<TaskCategory>? OpenCategories(string? data)
+    {
+        if (string.IsNullOrEmpty(data))
+        {
+            return null;
+        }
+
+        try
+        {
+            string? json = _protector.Unprotect(Convert.FromBase64String(data));
+            return json is null ? null : JsonSerializer.Deserialize<List<TaskCategory>>(json, JsonOptions);
+        }
+        catch (Exception ex) when (ex is FormatException or JsonException)
+        {
+            return null;
+        }
     }
 
     private string Seal(SessionChecklist checklist)
@@ -244,4 +345,6 @@ public sealed class SessionTasksService : IDisposable
     private sealed record Stored(string Data, bool NotifyAllDone = true);
 
     private sealed record StoredHistory(string Data);
+
+    private sealed record StoredCategories(string Data);
 }

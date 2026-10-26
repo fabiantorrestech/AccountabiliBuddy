@@ -101,10 +101,10 @@ public sealed class ShutdownService : IDisposable
         List<ShutdownTaskRow> unfinished = _tasks.History
             .Where(checklist => checklist.SessionStart is DateTimeOffset start
                 && DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(start, _sessions.TimeProvider.LocalTimeZone).DateTime) == date)
-            .SelectMany(checklist => checklist.Tasks.Where(task => !task.IsDone).Select(task => task.Title))
-            .Distinct(StringComparer.Ordinal)
-            .Where(title => !waiting.Contains(title))
-            .Select(title => new ShutdownTaskRow(title))
+            .SelectMany(checklist => checklist.Tasks.Where(task => !task.IsDone))
+            .DistinctBy(task => task.Title, StringComparer.Ordinal)
+            .Where(task => !waiting.Contains(task.Title))
+            .Select(task => new ShutdownTaskRow(task.Title, ExistingCategory(task.CategoryId)))
             .ToList();
         List<ShutdownComebackRow> comebacks = _comebacks.Open.Select(comeback => new ShutdownComebackRow(comeback.Id, comeback.Text)).ToList();
         Current = new ShutdownCardViewModel(comebacks, unfinished, ApplyAsync, CloseAsync);
@@ -121,21 +121,22 @@ public sealed class ShutdownService : IDisposable
         string tomorrow = card.TomorrowTask.Trim();
         if (tomorrow.Length > 0)
         {
-            await _tasks.AddAsync(tomorrow, null);
             // Tomorrow's first task goes to the top of the checklist.
-            int index = _tasks.Current.Tasks.Count - 1;
-            if (index > 0)
-            {
-                await _tasks.MoveAsync(_tasks.Current.Tasks[index].Id, -index);
-            }
+            await _tasks.AddFirstAsync(tomorrow);
         }
 
         foreach (ShutdownTaskRow row in card.Unfinished.Where(row => row.Carry))
         {
-            await _tasks.AddAsync(row.Title, null);
+            await _tasks.AddAsync(row.Title, null, ExistingCategory(row.CategoryId));
         }
 
         await CloseAsync();
+    }
+
+    // A carried task keeps its category only while that category still exists.
+    private Guid? ExistingCategory(Guid? categoryId)
+    {
+        return _tasks.Categories.Any(category => category.Id == categoryId) ? categoryId : null;
     }
 
     private Task CloseAsync()

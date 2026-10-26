@@ -49,6 +49,15 @@ public partial class ChecklistView : UserControl
         }
     }
 
+    // A category's name: clicking away keeps it, like Enter.
+    private void OnCategoryNameLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox { DataContext: TaskCategoryRowViewModel row })
+        {
+            row.SaveNameCommand.Execute(null);
+        }
+    }
+
     // Clicking away keeps the new name, like Enter; Escape has already closed the box, so nothing is saved then.
     private void OnRenameBoxLostFocus(object? sender, RoutedEventArgs e)
     {

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
+using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -8,20 +9,30 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// A guided session's checklist (ADR 24, 25) as the quick-session popup, the Session tab and the on-screen window show it:
-/// open tasks with their subtasks, the done ones under a collapsed "Done (n)", and "End session · all tasks done" when the
-/// session may end at once. All views of it share <see cref="SessionTasksService"/>.
+/// open tasks with their subtasks, grouped under their categories (in each one's colour, "No category" last), the done
+/// ones under a collapsed "Done (n)", and "End session · all tasks done" when the session may end at once. All views of
+/// it share <see cref="SessionTasksService"/>.
 /// </summary>
 public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
 {
+    // A category's name on the on-screen window's dark panel: white like its other text, for contrast.
+    private static readonly IBrush CompactHeaderBrush = new SolidColorBrush(Color.Parse("#E6FFFFFF"));
+
     private readonly SessionTasksService _tasks;
     private readonly TimeProvider _time;
+    private IReadOnlyList<TaskCategory>? _shownCategories;
+
+    // The category the "Add a task" box puts new tasks in (null: none); kept until changed or the category is deleted.
+    private Guid? _newTaskCategoryId;
 
     public ChecklistViewModel(SessionTasksService tasks, ChecklistMode mode, TimeProvider time)
     {
         _tasks = tasks;
         _time = time;
         Mode = mode;
-        NewTaskTitle = Heading = DoneHeader = ProgressText = CurrentTaskText = CurrentSubtaskText = string.Empty;
+        NewTaskTitle = Heading = DoneHeader = ProgressText = CurrentTaskText = CurrentSubtaskText = NewCategoryName = NewTaskCategoryTip = string.Empty;
+        NewTaskCategoryChoices = [];
+        NewTaskCategoryBrush = CurrentCategoryBrush = Brushes.Transparent;
         _tasks.Changed += OnChanged;
         Refresh();
     }
@@ -38,9 +49,47 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     /// <summary>Adding, renaming, moving, removing and subtasks: not in the on-screen window (it can't take typing).</summary>
     public bool CanEdit => Mode != ChecklistMode.Compact;
 
-    public ObservableCollection<TaskRowViewModel> OpenTasks { get; } = new();
+    /// <summary>The open tasks grouped by category, in the categories' order, "No category" last.</summary>
+    public ObservableCollection<ChecklistGroupViewModel> OpenGroups { get; } = new();
 
     public ObservableCollection<TaskRowViewModel> DoneTasks { get; } = new();
+
+    /// <summary>The "Categories" panel's rows (rename, recolour, delete).</summary>
+    public ObservableCollection<TaskCategoryRowViewModel> CategoryRows { get; } = new();
+
+    /// <summary>Any task category exists: the "Add a task" box's category dot shows.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsCategoryPickers))]
+    public partial bool HasCategories { get; set; }
+
+    /// <summary>The dot on each open task that changes its category: where tasks are edited, once a category exists.</summary>
+    public bool ShowsCategoryPickers => CanEdit && HasCategories;
+
+    /// <summary>The "Categories" panel is open (add, rename, recolour, delete).</summary>
+    [ObservableProperty]
+    public partial bool IsManagingCategories { get; set; }
+
+    [ObservableProperty]
+    public partial string NewCategoryName { get; set; }
+
+    /// <summary>The menu by the "Add a task" box: which category new tasks go in.</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<TaskCategoryChoiceViewModel> NewTaskCategoryChoices { get; set; }
+
+    /// <summary>The colour of the category new tasks go in; transparent for no category.</summary>
+    [ObservableProperty]
+    public partial IBrush NewTaskCategoryBrush { get; set; }
+
+    /// <summary>The dot's tip, e.g. "New tasks go in Work (click to change)".</summary>
+    [ObservableProperty]
+    public partial string NewTaskCategoryTip { get; set; }
+
+    /// <summary>The colour of the task the on-screen bar shows (its dot there); transparent with no category.</summary>
+    [ObservableProperty]
+    public partial IBrush CurrentCategoryBrush { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasCurrentCategory { get; set; }
 
     [ObservableProperty]
     public partial string Heading { get; set; }
@@ -110,7 +159,29 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     {
         string title = NewTaskTitle;
         NewTaskTitle = string.Empty;
-        await _tasks.AddAsync(title, null);
+        await _tasks.AddAsync(title, null, _newTaskCategoryId);
+    }
+
+    [RelayCommand]
+    private void ToggleManageCategories()
+    {
+        IsManagingCategories = !IsManagingCategories;
+    }
+
+    /// <summary>Enter in the panel's "New category" box: added in the next colour no category has yet.</summary>
+    [RelayCommand]
+    private async Task AddCategoryAsync()
+    {
+        string name = NewCategoryName;
+        NewCategoryName = string.Empty;
+        await _tasks.AddCategoryAsync(name);
+    }
+
+    private Task PickNewTaskCategory(Guid? categoryId)
+    {
+        _newTaskCategoryId = categoryId;
+        RefreshNewTaskCategory();
+        return Task.CompletedTask;
     }
 
     [RelayCommand]
@@ -141,13 +212,37 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     private void Refresh()
     {
         SessionChecklist checklist = _tasks.Current;
-        OpenTasks.Clear();
+        IReadOnlyList<TaskCategory> categories = _tasks.Categories;
+        RefreshCategories(categories);
+
+        var openTasks = new List<TaskRowViewModel>();
         DoneTasks.Clear();
         foreach (SessionTask task in checklist.Tasks)
         {
-            var row = new TaskRowViewModel(task, DoneText(task, checklist), checklist.Shown, _tasks);
-            (task.IsDone && CanTick ? DoneTasks : OpenTasks).Add(row);
+            var row = new TaskRowViewModel(task, DoneText(task, checklist), checklist.Shown, categories, _tasks);
+            if (task.IsDone && CanTick)
+            {
+                DoneTasks.Add(row);
+            }
+            else
+            {
+                openTasks.Add(row);
+            }
         }
+
+        // The service keeps the tasks grouped in the categories' order, so the groups come out in that order.
+        bool showsHeaders = openTasks.Any(row => row.HasCategory);
+        OpenGroups.Clear();
+        foreach (IGrouping<Guid?, TaskRowViewModel> group in openTasks.GroupBy(row => row.CategoryId))
+        {
+            TaskRowViewModel first = group.First();
+            IBrush nameBrush = IsCompact ? CompactHeaderBrush : first.CategoryBrush;
+            OpenGroups.Add(new ChecklistGroupViewModel(first.CategoryName, first.CategoryBrush, nameBrush, first.HasCategory, showsHeaders, group.ToList()));
+        }
+
+        TaskCategory? currentCategory = categories.FirstOrDefault(category => category.Id == checklist.Shown?.Task.CategoryId);
+        CurrentCategoryBrush = TaskCategoryBrushes.Of(currentCategory?.Color);
+        HasCurrentCategory = currentCategory is not null;
 
         HasTasks = checklist.HasTasks;
         HasDone = DoneTasks.Count > 0;
@@ -159,6 +254,45 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
             ? "What are you doing first? (optional)"
             : checklist.HasTasks ? $"Tasks · {ProgressText}" : "Tasks";
         RefreshEndAtOnce();
+    }
+
+    // The "Categories" panel is rebuilt only when the categories changed, so a name being typed there isn't lost when a
+    // task is ticked meanwhile (on the phone, say).
+    private void RefreshCategories(IReadOnlyList<TaskCategory> categories)
+    {
+        if (ReferenceEquals(categories, _shownCategories))
+        {
+            return;
+        }
+
+        _shownCategories = categories;
+        HasCategories = categories.Count > 0;
+        CategoryRows.Clear();
+        foreach (TaskCategory category in categories)
+        {
+            CategoryRows.Add(new TaskCategoryRowViewModel(category, _tasks));
+        }
+
+        if (_newTaskCategoryId is Guid id && categories.All(category => category.Id != id))
+        {
+            _newTaskCategoryId = null;
+        }
+
+        RefreshNewTaskCategory();
+    }
+
+    private void RefreshNewTaskCategory()
+    {
+        IReadOnlyList<TaskCategory> categories = _tasks.Categories;
+        TaskCategory? chosen = categories.FirstOrDefault(category => category.Id == _newTaskCategoryId);
+        NewTaskCategoryBrush = TaskCategoryBrushes.Of(chosen?.Color);
+        NewTaskCategoryTip = chosen is null ? "New tasks have no category (click to choose one)" : $"New tasks go in {chosen.Name} (click to change)";
+        NewTaskCategoryChoices =
+        [
+            .. categories.Select(category => new TaskCategoryChoiceViewModel(
+                category.Id, category.Name, TaskCategoryBrushes.Of(category.Color), category.Id == _newTaskCategoryId, PickNewTaskCategory)),
+            new TaskCategoryChoiceViewModel(null, "No category", Brushes.Transparent, _newTaskCategoryId is null, PickNewTaskCategory),
+        ];
     }
 
     // "Done 10:42 AM · 25m": when, and how long since the previous tick (or the session's start).
