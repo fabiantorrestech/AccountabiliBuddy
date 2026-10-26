@@ -84,9 +84,13 @@ public sealed partial class BrowserSetupRowViewModel : ObservableObject
     /// <summary>
     /// What the browser's load dialog asks for, for the Copy path button: the unpacked extension folder for
     /// Chromium browsers, the full path of its manifest.json for Firefox ("Load Temporary Add-on…" picks a file).
+    /// Null until the extension has been copied into the data folder.
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasInstallPath))]
     public partial string? InstallPath { get; set; }
+
+    public bool HasInstallPath => InstallPath is not null;
 
     public bool HasInstallSteps => InstallSteps is not null;
 
@@ -96,6 +100,8 @@ public sealed partial class BrowserSetupRowViewModel : ObservableObject
         DisplayName = status.DisplayName;
         IsInstalled = status.IsInstalled;
         IsGranted = status.IsHostRegistered;
+        // Known whenever the extension copy is in the data folder (installed earlier or before a restart).
+        InstallPath = _setup.FindPreparedExtensionPath(Browser);
 
         StatusText = !status.IsInstalled ? "Not installed"
             : status.Problem is not null ? status.Problem
@@ -169,8 +175,7 @@ public sealed partial class BrowserSetupRowViewModel : ObservableObject
             // The extension is useless without the host registration, so grant it as part of installing.
             _setup.Register(Browser);
             ExtensionInstallGuide guide = _setup.PrepareExtensionInstall(Browser);
-            // Firefox's "Load Temporary Add-on…" asks for the manifest file itself, not its folder.
-            InstallPath = guide.IsTemporary ? Path.Combine(guide.Folder, "manifest.json") : guide.Folder;
+            // InstallPath follows from the copy just made when Run refreshes the row.
             InstallSteps = DescribeSteps(guide);
             _setup.OpenExtensionsPage(Browser);
         });

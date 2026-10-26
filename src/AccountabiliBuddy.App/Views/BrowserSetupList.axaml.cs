@@ -26,8 +26,17 @@ public partial class BrowserSetupList : UserControl
             return;
         }
 
-        await clipboard.SetTextAsync(path);
-        button.Content = "Copied";
+        try
+        {
+            await clipboard.SetTextAsync(path);
+            button.Content = "Copied";
+        }
+        catch (Exception)
+        {
+            // Another program can hold the Windows clipboard open; say so instead of crashing the UI.
+            button.Content = "Couldn't copy";
+        }
+
         await Task.Delay(CopiedFeedback);
         button.Content = "Copy path";
     }

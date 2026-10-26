@@ -19,6 +19,12 @@ public interface IBrowserSetup
     /// <summary>Copies the extension to a stable folder that the browser can load it from.</summary>
     ExtensionInstallGuide PrepareExtensionInstall(BrowserKind browser);
 
+    /// <summary>
+    /// The path the browser loads the extension from, if <see cref="PrepareExtensionInstall"/> already made the copy:
+    /// the folder for Chromium browsers, its manifest.json for Firefox. Null when there is no copy yet; copies nothing.
+    /// </summary>
+    string? FindPreparedExtensionPath(BrowserKind browser);
+
     /// <summary>Opens the browser on its extensions page (best effort; some browsers refuse internal pages from the command line).</summary>
     void OpenExtensionsPage(BrowserKind browser);
 

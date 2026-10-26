@@ -63,8 +63,8 @@
                                     <Button Content="Revoke" Command="{Binding RevokeCommand}" />
                                 </StackPanel>
                             </Grid>
-                            <StackPanel IsVisible="{Binding HasInstallSteps}" Spacing="4" Margin="16,4,0,0">
-                                <TextBlock Text="{Binding InstallSteps}" FontSize="12" TextWrapping="Wrap" />
+                            <StackPanel Spacing="4" Margin="16,4,0,0" IsVisible="{Binding HasInstallPath}">
+                                <TextBlock Text="{Binding InstallSteps}" IsVisible="{Binding HasInstallSteps}" FontSize="12" TextWrapping="Wrap" />
                                 <Grid ColumnDefinitions="*,Auto">
                                     <SelectableTextBlock Text="{Binding InstallPath}" FontFamily="Consolas,monospace" FontSize="12"
                                                          TextWrapping="Wrap" VerticalAlignment="Center" />
