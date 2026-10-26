@@ -273,8 +273,7 @@
 
                 <!-- 5. Browsers -->
                 <StackPanel IsVisible="{Binding IsBrowsers}" Spacing="12">
-                    <TextBlock Classes="muted"
-                               Text="Install the AccountabiliBuddy extension in each browser you use, so it can see the active tab's address and send distracting tabs to its block page. It talks only to this app." />
+                    <TextBlock Classes="muted" Text="Install the extension in each browser you use." />
                     <views:BrowserSetupList DataContext="{Binding Setup}" />
                 </StackPanel>
 

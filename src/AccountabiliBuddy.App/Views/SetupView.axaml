@@ -64,11 +64,8 @@
                 </Grid>
             </Border>
 
-            <!-- Browsers -->
-            <TextBlock Text="Browsers" Classes="title" Margin="0,8,0,0" />
-            <TextBlock Classes="muted"
-                       Text="Lets AccountabiliBuddy see the address of the active tab (and the YouTube channel) and send a tab to its block page. It talks only to this app; nothing leaves the computer." />
-            <views:BrowserSetupList />
+            <!-- Browser extensions (the list has its own heading and one-line explanation) -->
+            <views:BrowserSetupList Margin="0,8,0,0" />
 
             <!-- Linked devices (ADR 14) moved to the Devices tab (ADR 22). -->
 

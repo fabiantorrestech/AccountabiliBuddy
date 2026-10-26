@@ -13,8 +13,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// </summary>
 public sealed partial class BrowserSetupRowViewModel : ObservableObject
 {
-    private const string ColdTurkeyHint =
-        "If a Cold Turkey block is running, it may lock the extensions page; install when no block is active.";
+    private const string ColdTurkeyHint = "A running Cold Turkey block may lock the extensions page.";
 
     private readonly IBrowserSetup _setup;
     private readonly Func<IReadOnlyList<BrowserConnection>> _currentConnections;
@@ -82,8 +81,12 @@ public sealed partial class BrowserSetupRowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasInstallSteps))]
     public partial string? InstallSteps { get; set; }
 
+    /// <summary>
+    /// What the browser's load dialog asks for, for the Copy path button: the unpacked extension folder for
+    /// Chromium browsers, the full path of its manifest.json for Firefox ("Load Temporary Add-on…" picks a file).
+    /// </summary>
     [ObservableProperty]
-    public partial string? InstallFolder { get; set; }
+    public partial string? InstallPath { get; set; }
 
     public bool HasInstallSteps => InstallSteps is not null;
 
@@ -94,20 +97,20 @@ public sealed partial class BrowserSetupRowViewModel : ObservableObject
         IsInstalled = status.IsInstalled;
         IsGranted = status.IsHostRegistered;
 
-        StatusText = !status.IsInstalled ? "Not installed on this computer."
+        StatusText = !status.IsInstalled ? "Not installed"
             : status.Problem is not null ? status.Problem
-            : status.IsHostRegistered ? "Allowed to talk to AccountabiliBuddy."
-            : "Not allowed yet. Grant to let the extension talk to the app.";
+            : status.IsHostRegistered ? "Installed · allowed"
+            : "Installed · not allowed yet (Grant)";
         if (status.SharesRegistrationWith is not null)
         {
-            StatusText += $" (Shared with {status.SharesRegistrationWith}: granting or revoking one affects both.)";
+            StatusText += $" · shared with {status.SharesRegistrationWith}";
         }
 
         BrowserConnection? connection = connections.FirstOrDefault(candidate => candidate.Browser == Browser);
         IsConnected = connection is not null;
         ConnectionText = connection is null
-            ? "Extension not connected"
-            : $"Extension {connection.ExtensionVersion} connected · {connection.ActiveTabs.Count} window(s)";
+            ? "Not connected"
+            : $"Connected · {connection.ExtensionVersion} · {connection.ActiveTabs.Count} window(s)";
 
         DescribePrivateWindows(connection);
     }
@@ -115,9 +118,6 @@ public sealed partial class BrowserSetupRowViewModel : ObservableObject
     private void DescribePrivateWindows(BrowserConnection? connection)
     {
         bool watched = _watched.Watched.Contains(Browser);
-        string watchNote = watched
-            ? " During focus, windows of this browser that the extension can't see count as distracting."
-            : string.Empty;
 
         // While the browser runs the extension reports it; otherwise the browser's settings are read.
         bool? allowed = connection?.PrivateWindowsAllowed ?? _privateAccess(Browser) switch
@@ -126,15 +126,16 @@ public sealed partial class BrowserSetupRowViewModel : ObservableObject
             PrivateWindowAccess.NotAllowed => false,
             _ => null,
         };
-        string blockNote = watched ? " Until it's allowed, this browser counts as distracting during focus." : string.Empty;
+        string blockNote = watched ? " Counts as distracting during focus until allowed." : string.Empty;
 
+        // What watching means (unseen windows count as distracting) is said once, above the list.
         IsPrivateWindowsWarning = allowed == false;
         PrivateWindowsText = allowed switch
         {
-            true => "Allowed in private windows, so your rules apply there too." + watchNote,
+            true => "Allowed in private windows",
             false => $"Not allowed in private windows.{blockNote} To allow it: {PrivateWindowSteps.For(Browser)}.",
-            null when connection is not null => "Private windows: unknown. Update the extension (Install extension… again)." + watchNote,
-            _ when watched => "Watched (the extension connects when the browser is open)." + watchNote,
+            null when connection is not null => "Private windows: unknown. Press Install extension… again to update it.",
+            _ when watched => "Watched",
             _ => null,
         };
     }
@@ -168,20 +169,11 @@ public sealed partial class BrowserSetupRowViewModel : ObservableObject
             // The extension is useless without the host registration, so grant it as part of installing.
             _setup.Register(Browser);
             ExtensionInstallGuide guide = _setup.PrepareExtensionInstall(Browser);
-            InstallFolder = guide.Folder;
+            // Firefox's "Load Temporary Add-on…" asks for the manifest file itself, not its folder.
+            InstallPath = guide.IsTemporary ? Path.Combine(guide.Folder, "manifest.json") : guide.Folder;
             InstallSteps = DescribeSteps(guide);
-            _setup.OpenFolder(guide.Folder);
             _setup.OpenExtensionsPage(Browser);
         });
-    }
-
-    [RelayCommand]
-    private void OpenInstallFolder()
-    {
-        if (InstallFolder is not null)
-        {
-            Run(() => _setup.OpenFolder(InstallFolder));
-        }
     }
 
     private void Run(Action action)
@@ -205,17 +197,13 @@ public sealed partial class BrowserSetupRowViewModel : ObservableObject
         if (guide.IsTemporary)
         {
             return string.Join(Environment.NewLine,
-                $"1. In Firefox, open {guide.ExtensionsPageUrl} (it should have opened already).",
-                "2. Click \"Load Temporary Add-on…\" and choose manifest.json in the folder below.",
-                "3. Firefox removes temporary add-ons when it restarts, so repeat this after a restart (a signed, permanent install comes later).",
+                $"Open {guide.ExtensionsPageUrl}, click \"Load Temporary Add-on…\" and paste the path below as the file name.",
+                "Firefox removes it when it restarts, so do this again after a restart.",
                 ColdTurkeyHint);
         }
 
         return string.Join(Environment.NewLine,
-            $"1. Open {guide.ExtensionsPageUrl} in the browser (it should have opened; if not, type it into the address bar).",
-            "2. Turn on \"Developer mode\" (top right).",
-            "3. Click \"Load unpacked\" and choose the folder below.",
-            "4. This row shows \"connected\" within a few seconds.",
+            $"Open {guide.ExtensionsPageUrl}, turn on \"Developer mode\", click \"Load unpacked\" and paste the path below as the folder.",
             ColdTurkeyHint);
     }
 }
