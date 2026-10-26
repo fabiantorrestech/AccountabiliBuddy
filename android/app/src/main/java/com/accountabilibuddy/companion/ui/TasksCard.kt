@@ -6,6 +6,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.Card
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
@@ -29,7 +37,8 @@ import com.accountabilibuddy.shared.sync.SessionTaskItem
 
 /**
  * The running session's checklist (ADR 24), read only: open tasks with their subtasks (the one the PC's bar shows
- * marked ▸), the done ones behind "Done (n)".
+ * marked ▸), the done ones behind "Done (n)". Once any open task has a category, the open ones sit under their
+ * category's name and colour dot in the PC's order, "No category" last.
  */
 @Composable
 fun TasksCard(running: RunningTasks) {
@@ -50,7 +59,14 @@ fun TasksCard(running: RunningTasks) {
                 Text("All tasks done", style = MaterialTheme.typography.bodyMedium)
             }
 
-            open.forEach { task -> TaskLine(task, indent = false, markedId = running.markedId, ticking, onTick) }
+            val groups = categoryGroups(open)
+            groups.forEach { group ->
+                if (groups.any { it.name != null }) {
+                    CategoryHeader(group)
+                }
+
+                group.tasks.forEach { task -> TaskLine(task, indent = false, markedId = running.markedId, ticking, onTick) }
+            }
             if (done.isNotEmpty()) {
                 TextButton(onClick = { showDone = !showDone }) { Text(if (showDone) "Hide done (${done.size})" else "Done (${done.size})") }
                 if (showDone) {
@@ -80,4 +96,44 @@ private fun TaskLine(task: SessionTaskItem, indent: Boolean, markedId: String?, 
         )
     }
     task.subtasks.forEach { subtask -> TaskLine(subtask, indent = true, markedId = markedId, ticking, onTick) }
+}
+
+/** Open tasks of one category; [name] null = no category. */
+private class CategoryGroup(val name: String?, val color: String?, val tasks: List<SessionTaskItem>)
+
+// Groups by category id (else name) in the order they first appear, which is the PC's order; tasks with no category last.
+private fun categoryGroups(tasks: List<SessionTaskItem>): List<CategoryGroup> {
+    val keyOf: (SessionTaskItem) -> String? = { it.categoryId ?: it.category }
+    val named = tasks.filter { keyOf(it) != null }.groupBy(keyOf).values.map { inGroup ->
+        val first = inGroup.first()
+        CategoryGroup(first.category ?: "Category", first.categoryColor, inGroup)
+    }
+    val uncategorized = tasks.filter { keyOf(it) == null }
+    return if (uncategorized.isEmpty()) named else named + CategoryGroup(null, null, uncategorized)
+}
+
+@Composable
+private fun CategoryHeader(group: CategoryGroup) {
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (group.name != null) {
+            val dot = parseCategoryColor(group.color) ?: MaterialTheme.colorScheme.secondary
+            Box(Modifier.size(8.dp).background(dot, CircleShape))
+            Spacer(Modifier.width(6.dp))
+        }
+
+        Text(
+            group.name ?: "No category",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+// "#RRGGBB" as the PC sends it; anything else is null, so the caller falls back to the theme's colour.
+private fun parseCategoryColor(hex: String?): Color? {
+    if (hex == null || hex.length != 7 || hex[0] != '#') return null
+    val rgb = hex.substring(1).toLongOrNull(16) ?: return null
+    return Color(0xFF000000 or rgb)
 }
