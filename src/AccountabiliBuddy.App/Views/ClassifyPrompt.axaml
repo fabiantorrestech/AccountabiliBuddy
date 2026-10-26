@@ -33,18 +33,13 @@
             </StackPanel>
             <TextBlock Text="{Binding PatternLabel}" FontSize="12" Opacity="0.75" />
             <TextBox Text="{Binding Pattern}" />
-            <TextBox Text="{Binding Reason}" PlaceholderText="Why? Needed to allow it (one word is enough)" />
-            <TextBlock Text="{Binding Error}" Foreground="#E76F51" TextWrapping="Wrap"
-                       IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                <Button Content="Distracting" Command="{Binding MarkDistractingCommand}" />
-                <Button Content="On track (this session)" Command="{Binding MarkOnTrackCommand}" Classes="accent" />
+            <!-- One answer of three (a pill toggle, On track picked at first); Done or Enter in the reason box applies it. -->
+            <StackPanel Orientation="Horizontal" Spacing="0">
+                <ToggleButton Content="Distracting" IsChecked="{Binding IsDistracting}" CornerRadius="14,0,0,14" />
+                <ToggleButton Content="On track (this session)" IsChecked="{Binding IsOnTrack}" CornerRadius="0" />
+                <ToggleButton Content="Exempt (always)" IsChecked="{Binding IsExempt}" CornerRadius="0,14,14,0" />
             </StackPanel>
-
-            <Button Content="Add exemption to profile…" Command="{Binding ToggleExemptionCommand}"
-                    Background="Transparent" BorderThickness="0" Padding="0" FontSize="12" Opacity="0.7"
-                    HorizontalAlignment="Left" />
-            <StackPanel Spacing="4" IsVisible="{Binding IsExemptionOpen}">
+            <StackPanel Spacing="4" IsVisible="{Binding IsExempt}">
                 <TextBlock Text="{Binding ExemptionProfileText}" FontSize="12" TextWrapping="Wrap"
                            IsVisible="{Binding HasOtherProfiles}" />
                 <ItemsControl ItemsSource="{Binding OtherProfiles}">
@@ -54,8 +49,11 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-                <Button Content="Add exemption" Command="{Binding AddExemptionCommand}" HorizontalAlignment="Right" />
             </StackPanel>
+            <TextBox x:Name="ReasonBox" Text="{Binding Reason}" PlaceholderText="Why? Needed for On track and Exempt (one word is enough)" />
+            <TextBlock Text="{Binding Error}" Foreground="#E76F51" TextWrapping="Wrap"
+                       IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            <Button Content="Done" Command="{Binding DoneCommand}" Classes="accent" HorizontalAlignment="Right" />
         </StackPanel>
     </Grid>
 </Window>
