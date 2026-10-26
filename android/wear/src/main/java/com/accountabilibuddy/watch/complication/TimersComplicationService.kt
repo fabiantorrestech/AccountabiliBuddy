@@ -20,7 +20,7 @@ import java.time.Instant
 /**
  * The second watch-face complication, "Timers" (beside the Focus one): the watch's own timer that ends soonest, its time
  * left counting down by itself on the watch face, titled with its name; as a ring (RANGED_VALUE) it's what's left of its
- * length. "No timer" when none runs. The store asks for an update whenever the timers change and at each end. Tapping
+ * length. "None" when none runs. The store asks for an update whenever the timers change and at each end. Tapping
  * opens the Timers page.
  */
 class TimersComplicationService : SuspendingComplicationDataSourceService() {
@@ -66,7 +66,8 @@ class TimersComplicationService : SuspendingComplicationDataSourceService() {
         PendingIntent.getActivity(this, OPEN_TIMERS_REQUEST, WatchActivity.timersIntent(this), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
     private companion object {
-        const val NO_TIMER = "No timer"
+        // Short enough for a small slot; the description says "No timer running".
+        const val NO_TIMER = "None"
         // Apart from the Focus complication's open-the-app intent (request 0), so the Timers page extra isn't merged away.
         const val OPEN_TIMERS_REQUEST = 2
     }
