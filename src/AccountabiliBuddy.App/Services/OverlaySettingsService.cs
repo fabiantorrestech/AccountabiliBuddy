@@ -29,6 +29,8 @@ public sealed class OverlaySettingsService
                 : WithDefaultTimer(loaded with
                 {
                     Opacity = Math.Clamp(loaded.Opacity, OverlaySettings.MinOpacity, 1),
+                    TimelineOpacity = Math.Clamp(loaded.TimelineOpacity, OverlaySettings.MinOpacity, 1),
+                    TimelineHeldOpacity = Math.Clamp(loaded.TimelineHeldOpacity, OverlaySettings.MinOpacity, 1),
                     Profiles = loaded.Profiles ?? OverlaySettings.Default.Profiles,
                 });
         }
@@ -70,6 +72,8 @@ public sealed class OverlaySettingsService
         return changed with
         {
             Opacity = Math.Clamp(changed.Opacity, OverlaySettings.MinOpacity, 1),
+            TimelineOpacity = Math.Clamp(changed.TimelineOpacity, OverlaySettings.MinOpacity, 1),
+            TimelineHeldOpacity = Math.Clamp(changed.TimelineHeldOpacity, OverlaySettings.MinOpacity, 1),
             Divisions = Math.Max(0, changed.Divisions),
             QuickHideSeconds = Math.Clamp(changed.QuickHideSeconds, OverlaySettings.MinQuickHideSeconds, OverlaySettings.MaxQuickHideSeconds),
             MaximizedAppDrop = Math.Clamp(changed.MaximizedAppDrop, 0, OverlaySettings.MaxMaximizedAppDrop),

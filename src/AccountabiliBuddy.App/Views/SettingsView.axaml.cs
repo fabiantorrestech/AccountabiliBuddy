@@ -42,7 +42,7 @@ public partial class SettingsView : UserControl
         }, DispatcherPriority.Background);
     }
 
-    // Another group: start at its top (one scroll viewer holds all four groups, so its offset would carry over).
+    // Another group: start at its top (one scroll viewer holds all the groups, so its offset would carry over).
     private void OnGroupChanged(object? sender, SelectionChangedEventArgs e)
     {
         SectionsScroller.Offset = default;

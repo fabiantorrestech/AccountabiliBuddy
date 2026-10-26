@@ -34,6 +34,8 @@ namespace AccountabiliBuddy.App.Services;
 /// rest too, instead of staying in full colour. On by default.</param>
 /// <param name="TaskOnlyWithCtrlAlt">The current task line shows only while Ctrl+Alt is held. Off by default.</param>
 /// <param name="HeldOpacity">How opaque the whole window (background, task line and all) is while Ctrl+Alt is held (0.2 to 1).</param>
+/// <param name="TimelineOpacity">The timeline's opacity while no session runs (0.2 to 1); in a session <paramref name="Opacity"/> applies.</param>
+/// <param name="TimelineHeldOpacity">The same while Ctrl+Alt is held (0.2 to 1); in a session <paramref name="HeldOpacity"/> applies.</param>
 public sealed record OverlaySettings(
     OverlayStyle Style,
     double Opacity,
@@ -59,7 +61,9 @@ public sealed record OverlaySettings(
     bool Quiet = true,
     bool QuietMarks = true,
     bool TaskOnlyWithCtrlAlt = false,
-    double HeldOpacity = 1.0)
+    double HeldOpacity = 1.0,
+    double TimelineOpacity = OverlaySettings.DefaultOpacity,
+    double TimelineHeldOpacity = 1.0)
 {
     /// <summary>Default vertical distance for maximized apps from a top corner (clears tabs, toolbars, window buttons).</summary>
     public const int TopCornerDrop = 110;
@@ -75,11 +79,12 @@ public sealed record OverlaySettings(
     public const int MaxAppShift = 2000;
     public const int MaxMaximizedAppDrop = 600;
     public const double MinOpacity = 0.2;
+    public const double DefaultOpacity = 0.85;
     public const int MinQuickHideSeconds = 3;
     public const int MaxQuickHideSeconds = 600;
 
     public static OverlaySettings Default { get; } = new(
-        OverlayStyle.BarWithEndTime, 0.85, OverlaySize.Medium, null, null, new Dictionary<Guid, ProfileOverlay>(),
+        OverlayStyle.BarWithEndTime, DefaultOpacity, OverlaySize.Medium, null, null, new Dictionary<Guid, ProfileOverlay>(),
         DefaultTimer: ProfileOverlay.Off);
 
     /// <summary>How far to slide down for this maximized app: its own distance, or the default.</summary>

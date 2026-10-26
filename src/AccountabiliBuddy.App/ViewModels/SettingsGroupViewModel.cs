@@ -19,6 +19,7 @@ public sealed partial class SettingsGroupViewModel : ObservableObject
         "Focus sessions" => Material.Icons.MaterialIconKind.Target,
         "Your day" => Material.Icons.MaterialIconKind.WeatherSunny,
         "On screen & sound" => Material.Icons.MaterialIconKind.MonitorSpeaker,
+        "Overlay" => Material.Icons.MaterialIconKind.LayersOutline,
         _ => Material.Icons.MaterialIconKind.CogOutline,
     };
 

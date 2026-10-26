@@ -21,11 +21,14 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     // With the mouse over it, it almost disappears, so what's under it can be seen (clicks already pass through).
     private const double HoveredFade = 0.12;
 
-    // Quiet mode at rest: no more than this opaque.
+    // Quiet mode at rest in a session: the timer is no more than this opaque (outside a session the timeline's own opacity shows).
     private const double QuietOpacity = 0.6;
 
     private OverlaySettings _settings = OverlaySettings.Default;
     private bool _showsTimer;
+
+    // No session runs: the timeline's own opacity pair applies instead of the timer's.
+    private bool _noSession;
     private Action? _stepAway;
 
     // The glow rises and falls over the transition set in the window (0.9 s each way), held lit in between.
@@ -353,6 +356,13 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
         IsQuiet = _settings.Quiet && !ShowsDetails && !_settleTimer.IsEnabled && !loud;
         RefreshTaskLine();
         QuietMarks = _settings.QuietMarks;
+        if (_noSession)
+        {
+            // The timeline's own pair; quiet mode only turns its colours slate (IsQuiet), never caps its opacity.
+            PanelOpacity = ShowsDetails ? Math.Clamp(_settings.TimelineHeldOpacity, 0.2, 1) : _settings.TimelineOpacity;
+            return;
+        }
+
         PanelOpacity = ShowsDetails ? Math.Clamp(_settings.HeldOpacity, 0.2, 1)
             : IsQuiet ? Math.Min(_settings.Opacity, QuietOpacity)
             : _settings.Opacity;
@@ -452,7 +462,9 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     }
 
     /// <param name="doneText">Shown when neither the timer nor the timeline shows; null = nothing to say.</param>
-    public void Update(bool showsTimer, bool showsTimeline, bool showsSleep, string? doneText, DateTime localNow, OverlaySettings settings)
+    /// <param name="sessionActive">False uses the timeline's own opacity (<see cref="OverlaySettings.TimelineOpacity"/>).</param>
+    public void Update(
+        bool showsTimer, bool showsTimeline, bool showsSleep, string? doneText, DateTime localNow, OverlaySettings settings, bool sessionActive)
     {
         ShowsTimer = showsTimer;
         ShowsTimeline = showsTimeline;
@@ -464,6 +476,7 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
         HideButtonText = $"Hide {settings.QuickHideSeconds}s";
         _settings = settings;
         _showsTimer = showsTimer;
+        _noSession = !sessionActive;
         ApplyQuiet();
         Scale = settings.Size switch
         {
