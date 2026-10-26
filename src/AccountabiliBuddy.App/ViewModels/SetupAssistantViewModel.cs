@@ -290,9 +290,30 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsLinkFirst), nameof(IsComputerType), nameof(IsImport), nameof(IsUsage), nameof(IsReview), nameof(IsBrowsers),
-        nameof(IsBasics), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
+        nameof(IsBasics), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(BackCommand))]
     public partial AssistantStep Step { get; set; }
+
+    // The spare key page always has a key to show: the pending one (so the paper copy stays right), else a new one.
+    partial void OnStepChanged(AssistantStep value)
+    {
+        if (value == AssistantStep.SpareKey && SpareKey is null && Keys is not null)
+        {
+            _ = LoadSpareKeyAsync(Keys);
+        }
+    }
+
+    private async Task LoadSpareKeyAsync(ColdTurkeyKeysService keys)
+    {
+        try
+        {
+            SpareKey = keys.PendingSpareKey ?? await keys.NewSpareKeyAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = "Couldn't make the spare key: " + ex.Message;
+        }
+    }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(BackCommand), nameof(ImportFileCommand), nameof(AddPasteCommand))]
@@ -416,6 +437,11 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         foreach (PlannedProfileRowViewModel row in PlannedProfiles)
         {
             row.PropertyChanged -= OnPlannedProfileChanged;
+        }
+
+        foreach (ColdTurkeySetupRow row in ColdTurkeyRows)
+        {
+            row.PropertyChanged -= OnColdTurkeyRowChanged;
         }
 
         _coldTurkeyFiles?.Dispose();
@@ -933,6 +959,11 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     // ADR 39: one row per Cold Turkey block with what's assigned now; the re-arm switch and re-enable times (ADR 37).
     private void LoadColdTurkeyRows()
     {
+        foreach (ColdTurkeySetupRow row in ColdTurkeyRows)
+        {
+            row.PropertyChanged -= OnColdTurkeyRowChanged;
+        }
+
         ColdTurkeyRows.Clear();
         if (ColdTurkey?.Blocks is not { } blocks || Keys is null)
         {
@@ -942,7 +973,9 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         DateTime now = TimeZoneInfo.ConvertTime(_time.GetUtcNow(), _time.LocalTimeZone).DateTime;
         foreach (AccountabiliBuddy.Core.Import.ColdTurkeyBlockState block in blocks.Blocks.OrderBy(b => b.Name, StringComparer.CurrentCultureIgnoreCase))
         {
-            ColdTurkeyRows.Add(new ColdTurkeySetupRow(block, Keys.Held.FirstOrDefault(held => held.Name == block.Name), now));
+            var row = new ColdTurkeySetupRow(block, Keys.Held.FirstOrDefault(held => held.Name == block.Name), now);
+            row.PropertyChanged += OnColdTurkeyRowChanged;
+            ColdTurkeyRows.Add(row);
         }
 
         RearmOn = Keys.RearmOn;
@@ -951,6 +984,13 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         OffDayReenable = plan.OtherDay.Rules.ReenableAt.ToTimeSpan();
         OnPropertyChanged(nameof(ColdTurkeyNotPro));
         OnPropertyChanged(nameof(NextText));
+    }
+
+    // Ticking a block decides whether the spare key page follows: Next/Finish and the step count follow it.
+    private void OnColdTurkeyRowChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(NextText));
+        OnPropertyChanged(nameof(StepNumberText));
     }
 
     /// <summary>Reads Cold Turkey's settings again after the user changed them there.</summary>
@@ -1007,7 +1047,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         if (_whatsNew is not null)
         {
             var steps = _whatsNew.ToList();
-            if (steps.Contains(AssistantStep.ColdTurkeyKeys) && Keys is { HasSpareKey: false } && !steps.Contains(AssistantStep.SpareKey))
+            if (steps.Contains(AssistantStep.ColdTurkeyKeys) && NeedsSpareKeyPage && !steps.Contains(AssistantStep.SpareKey))
             {
                 steps.Insert(steps.IndexOf(AssistantStep.ColdTurkeyKeys) + 1, AssistantStep.SpareKey);
             }
@@ -1017,8 +1057,11 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         }
 
         return AssistantFlow.Steps(IsQuick, Identity is not null, Types is not null, HasUsage, _joined,
-            HasColdTurkey, Keys is { HasSpareKey: false }).ToList();
+            HasColdTurkey, NeedsSpareKeyPage).ToList();
     }
+
+    // As NextAsync: the spare key page follows only when no key is written down yet and a block is ticked.
+    private bool NeedsSpareKeyPage => Keys is { HasSpareKey: false } && ColdTurkeyRows.Any(row => row.IsUsed);
 
     private void OnSessionStateChanged(object? sender, SessionState state)
     {
