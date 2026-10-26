@@ -1,6 +1,7 @@
 using AccountabiliBuddy.App.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 
 namespace AccountabiliBuddy.App.Views;
 
@@ -9,7 +10,8 @@ public partial class ClassifyPrompt : Window
     public ClassifyPrompt()
     {
         InitializeComponent();
-        ReasonBox.KeyDown += OnReasonKeyDown;
+        // Tunnel, so the TextBox can't take Enter before this sees it.
+        ReasonBox.AddHandler(KeyDownEvent, OnReasonKeyDown, RoutingStrategies.Tunnel);
     }
 
     /// <summary>Enter in the reason box is Done.</summary>

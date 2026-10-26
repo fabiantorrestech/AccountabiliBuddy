@@ -1,7 +1,6 @@
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -212,44 +211,28 @@ public sealed partial class ClassifyPromptViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
     private void MarkOnTrack()
     {
         Answer(RuleVerdict.Allow, LabelLifetime.Session, Array.Empty<Guid>());
     }
 
-    [RelayCommand]
     private void MarkDistracting()
     {
         Answer(RuleVerdict.Block, LabelLifetime.Permanent, Array.Empty<Guid>());
     }
 
-    [RelayCommand]
     private void AddExemption()
     {
         IReadOnlyList<Guid> others = OtherProfiles.Where(profile => profile.IsSelected).Select(profile => profile.Id).ToList();
         Answer(RuleVerdict.Allow, LabelLifetime.Permanent, others);
     }
 
-    /// <summary>
-    /// One choice is always picked: clicking the picked toggle again doesn't clear it, so its helper is raised again
-    /// (after the click) to check the toggle back.
-    /// </summary>
+    /// <summary>One choice is always picked: the pills are radio buttons, so only picking one sets it.</summary>
     private void Choose(ClassifyChoice choice, bool selected)
     {
         if (selected)
         {
             Choice = choice;
-        }
-        else if (Choice == choice)
-        {
-            string helper = choice switch
-            {
-                ClassifyChoice.Distracting => nameof(IsDistracting),
-                ClassifyChoice.Exempt => nameof(IsExempt),
-                _ => nameof(IsOnTrack),
-            };
-            Dispatcher.UIThread.Post(() => OnPropertyChanged(helper));
         }
     }
 

@@ -33,11 +33,11 @@
             </StackPanel>
             <TextBlock Text="{Binding PatternLabel}" FontSize="12" Opacity="0.75" />
             <TextBox Text="{Binding Pattern}" />
-            <!-- One answer of three (a pill toggle, On track picked at first); Done or Enter in the reason box applies it. -->
+            <!-- One answer of three (radio buttons in the toggle look, so a pill, On track picked at first); Done or Enter in the reason box applies it. -->
             <StackPanel Orientation="Horizontal" Spacing="0">
-                <ToggleButton Content="Distracting" IsChecked="{Binding IsDistracting}" CornerRadius="14,0,0,14" />
-                <ToggleButton Content="On track (this session)" IsChecked="{Binding IsOnTrack}" CornerRadius="0" />
-                <ToggleButton Content="Exempt (always)" IsChecked="{Binding IsExempt}" CornerRadius="0,14,14,0" />
+                <RadioButton GroupName="choice" Theme="{StaticResource {x:Type ToggleButton}}" Content="Distracting" IsChecked="{Binding IsDistracting}" CornerRadius="14,0,0,14" />
+                <RadioButton GroupName="choice" Theme="{StaticResource {x:Type ToggleButton}}" Content="On track (this session)" IsChecked="{Binding IsOnTrack}" CornerRadius="0" />
+                <RadioButton GroupName="choice" Theme="{StaticResource {x:Type ToggleButton}}" Content="Exempt (always)" IsChecked="{Binding IsExempt}" CornerRadius="0,14,14,0" />
             </StackPanel>
             <StackPanel Spacing="4" IsVisible="{Binding IsExempt}">
                 <TextBlock Text="{Binding ExemptionProfileText}" FontSize="12" TextWrapping="Wrap"
