@@ -343,10 +343,12 @@ public partial class App : Application
         _dayBar.Gaps = sessionGaps;
         _noiseSettings = new NoiseSettingsService(documents);
         _noiseSettings.LoadBlocking();
+        // One watcher for auto-play and the player's headphone lock; auto-play's service disposes it.
+        var headphoneWatcher = new AccountabiliBuddy.Platform.Windows.Audio.WindowsHeadphoneWatcher();
         _noise = new NoisePlayerService(
-            () => new AccountabiliBuddy.Platform.Windows.Audio.WindowsNoisePlayer(), _noiseSettings, () => new Win32GlobalHotkey());
+            () => new AccountabiliBuddy.Platform.Windows.Audio.WindowsNoisePlayer(), _noiseSettings, () => new Win32GlobalHotkey(), headphoneWatcher);
         _noise.Start();
-        _headphones = new HeadphoneAutoPlayService(documents, new AccountabiliBuddy.Platform.Windows.Audio.WindowsHeadphoneWatcher(), _noise);
+        _headphones = new HeadphoneAutoPlayService(documents, headphoneWatcher, _noise);
         _headphones.LoadBlocking();
         var noisePlayer = new NoisePlayerViewModel(_noise);
         _sessionOverlay.SetNoisePlayer(noisePlayer);

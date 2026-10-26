@@ -23,14 +23,20 @@ public sealed class WindowsHeadphoneWatcher : IHeadphoneWatcher
     private const uint HeadphonesFormFactor = 3;
     private const uint HeadsetFormFactor = 5;
     private const ushort AudioVideoMajorClass = 4;
+    // How long AnyConnectedAsync waits for the first look at the outputs and the paired devices.
+    private static readonly TimeSpan FirstLookTimeout = TimeSpan.FromSeconds(3);
 
     private readonly object _gate = new();
     private readonly Dictionary<string, Output> _outputs = new();
     private IReadOnlyList<PairedDevice> _paired = [];
+    private readonly TaskCompletionSource _enumeration = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private DeviceWatcher? _watcher;
+    private Task _firstPairedLook = Task.CompletedTask;
     private bool _enumerated;
 
     public event EventHandler<HeadphoneEvent>? Changed;
+
+    public event EventHandler? DefaultOutputChanged;
 
     public void Start()
     {
@@ -39,7 +45,8 @@ public sealed class WindowsHeadphoneWatcher : IHeadphoneWatcher
             return;
         }
 
-        _ = RefreshPairedAsync();
+        _firstPairedLook = RefreshPairedAsync();
+        MediaDevice.DefaultAudioRenderDeviceChanged += OnDefaultChanged;
         _watcher = DeviceInformation.CreateWatcher(
             MediaDevice.GetAudioRenderSelector(), [ContainerIdKey, EnabledKey, FormFactorKey], DeviceInformationKind.DeviceInterface);
         _watcher.Added += (_, info) => OnAdded(info);
@@ -51,8 +58,43 @@ public sealed class WindowsHeadphoneWatcher : IHeadphoneWatcher
             {
                 _enumerated = true;
             }
+
+            _enumeration.TrySetResult();
         };
         _watcher.Start();
+    }
+
+    public async Task<bool> AnyConnectedAsync()
+    {
+        await WaitForFirstLookAsync();
+
+        List<Output> enabled;
+        lock (_gate)
+        {
+            enabled = _outputs.Values.Where(output => output.Enabled).ToList();
+        }
+
+        IReadOnlyList<PairedDevice> paired = _paired;
+        return enabled.Any(output => IsHeadphones(output) || Match(paired, output) is not null);
+    }
+
+    public async Task<bool> IsDefaultOutputHeadphonesAsync()
+    {
+        await WaitForFirstLookAsync();
+
+        string defaultId = MediaDevice.GetDefaultAudioRenderId(AudioDeviceRole.Default);
+        if (string.IsNullOrEmpty(defaultId))
+        {
+            return false;
+        }
+
+        Output? output;
+        lock (_gate)
+        {
+            output = _outputs.FirstOrDefault(pair => string.Equals(pair.Key, defaultId, StringComparison.OrdinalIgnoreCase)).Value;
+        }
+
+        return output is { Enabled: true } && (IsHeadphones(output) || Match(_paired, output) is not null);
     }
 
     public async Task<IReadOnlyList<BluetoothAudioDevice>> ListBluetoothAudioAsync()
@@ -69,6 +111,26 @@ public sealed class WindowsHeadphoneWatcher : IHeadphoneWatcher
         }
 
         _watcher = null;
+        MediaDevice.DefaultAudioRenderDeviceChanged -= OnDefaultChanged;
+    }
+
+    private void OnDefaultChanged(object? sender, DefaultAudioRenderDeviceChangedEventArgs args)
+    {
+        if (args.Role == AudioDeviceRole.Default)
+        {
+            DefaultOutputChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    // Starts watching and waits (once, up to a few seconds) for the first look at the outputs and the paired devices.
+    private async Task WaitForFirstLookAsync()
+    {
+        Start();
+        Task firstLook = Task.WhenAll(_enumeration.Task, _firstPairedLook);
+        if (!firstLook.IsCompleted)
+        {
+            await Task.WhenAny(firstLook, Task.Delay(FirstLookTimeout));
+        }
     }
 
     private void OnAdded(DeviceInformation info)
@@ -137,7 +199,7 @@ public sealed class WindowsHeadphoneWatcher : IHeadphoneWatcher
             {
                 Changed?.Invoke(this, new HeadphoneEvent(connected, true, paired.Device.Id, output.Name));
             }
-            else if (output.FormFactor is HeadphonesFormFactor or HeadsetFormFactor)
+            else if (IsHeadphones(output))
             {
                 Changed?.Invoke(this, new HeadphoneEvent(connected, false, null, output.Name));
             }
@@ -147,6 +209,8 @@ public sealed class WindowsHeadphoneWatcher : IHeadphoneWatcher
             // Bluetooth off or unavailable: nothing to report.
         }
     }
+
+    private static bool IsHeadphones(Output output) => output.FormFactor is HeadphonesFormFactor or HeadsetFormFactor;
 
     private static PairedDevice? Match(IReadOnlyList<PairedDevice> paired, Output output) =>
         output.Container is Guid container ? paired.FirstOrDefault(device => device.Container == container) : null;

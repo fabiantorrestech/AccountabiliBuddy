@@ -1,4 +1,5 @@
 using AccountabiliBuddy.App.Services;
+using Material.Icons;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -23,7 +24,7 @@ public sealed partial class NoisePlayerViewModel : ObservableObject
         Show();
     }
 
-    /// <summary>The file playing or next, or why there's nothing to play.</summary>
+    /// <summary>The file playing or next, why there's nothing to play, or a short notice such as "Connect headphones".</summary>
     [ObservableProperty]
     public partial string TrackText { get; set; }
 
@@ -45,6 +46,21 @@ public sealed partial class NoisePlayerViewModel : ObservableObject
     public string PlayGlyph => IsPlaying ? "" : "";
 
     public string PlayTip => IsPlaying ? "Pause the noise" : "Play the noise";
+
+    /// <summary>The lock: plays only while headphones are connected.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LockIcon), nameof(LockTip))]
+    public partial bool IsLocked { get; set; }
+
+    public MaterialIconKind LockIcon => IsLocked ? MaterialIconKind.Lock : MaterialIconKind.LockOpenVariantOutline;
+
+    public string LockTip => IsLocked
+        ? "Locked to headphones: plays only while headphones are connected. Click to unlock."
+        : "Lock to headphones: don't play unless headphones are connected";
+
+    /// <summary>A notice such as "Connect headphones" is showing in place of the name.</summary>
+    [ObservableProperty]
+    public partial bool HasNotice { get; set; }
 
     /// <summary>0–100.</summary>
     [ObservableProperty]
@@ -79,6 +95,12 @@ public sealed partial class NoisePlayerViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private Task ToggleLockAsync()
+    {
+        return _noise.SetLockedToHeadphonesAsync(!_noise.IsLockedToHeadphones);
+    }
+
+    [RelayCommand]
     private void Next()
     {
         _noise.Next();
@@ -98,7 +120,7 @@ public sealed partial class NoisePlayerViewModel : ObservableObject
             return;
         }
 
-        RenameText = TrackText;
+        RenameText = _noise.CurrentName ?? TrackText;
         IsRenaming = true;
     }
 
@@ -120,8 +142,10 @@ public sealed partial class NoisePlayerViewModel : ObservableObject
         _showing = true;
         NoiseSettings settings = _noise.Settings;
         HasFiles = _noise.HasFiles;
-        TrackText = _noise.CurrentName ?? "No sound files in the folder (choose one in Settings)";
+        HasNotice = _noise.Notice is not null;
+        TrackText = _noise.Notice ?? _noise.CurrentName ?? "No sound files in the folder (choose one in Settings)";
         IsPlaying = _noise.IsPlaying;
+        IsLocked = _noise.IsLockedToHeadphones;
         Volume = settings.Volume;
         Repeat = settings.Repeat;
         _showing = false;
