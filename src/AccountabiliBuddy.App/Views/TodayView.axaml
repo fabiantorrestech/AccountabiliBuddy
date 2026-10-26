@@ -8,6 +8,16 @@
     <!-- The Today page (redesign phase 1): one job, starting. Tasks first, then the big Quick Start, Start, and the
          rest folded away. The day bar above the page is the timeline. While a session runs, the running card and its
          tasks show instead. -->
+    <UserControl.Styles>
+        <!-- A come-back's ✎ and "Add to tasks": small and flat, like the checklist's row buttons. -->
+        <Style Selector="Button.comebackAction">
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="MinHeight" Value="22" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
     <ScrollViewer>
         <StackPanel Margin="16" Spacing="16" Width="560" HorizontalAlignment="Center">
 
@@ -130,11 +140,24 @@
                     <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="FlagOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" /><TextBlock Text="Come back to" FontWeight="SemiBold" /></StackPanel>
                     <ItemsControl ItemsSource="{Binding Items}">
                         <ItemsControl.ItemTemplate>
+                            <!-- ✎ edits it in place (Enter or click away saves, Esc cancels); the list icon makes it a task at the end of the checklist. -->
                             <DataTemplate x:DataType="vm:ComebackRowViewModel">
-                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="0,2">
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8" Margin="0,2">
                                     <CheckBox Command="{Binding TickCommand}" ToolTip.Tip="Done: tick it off" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" IsVisible="{Binding !IsEditing}" />
+                                    <TextBox Grid.Column="1" Text="{Binding EditText}" IsVisible="{Binding IsEditing}" AutomationProperties.Name="Come-back text"
+                                             PropertyChanged="OnComebackBoxPropertyChanged" LostFocus="OnComebackBoxLostFocus">
+                                        <TextBox.KeyBindings>
+                                            <KeyBinding Gesture="Enter" Command="{Binding SaveEditCommand}" />
+                                            <KeyBinding Gesture="Escape" Command="{Binding CancelEditCommand}" />
+                                        </TextBox.KeyBindings>
+                                    </TextBox>
                                     <TextBlock Grid.Column="2" Text="{Binding When}" FontSize="11" Opacity="0.6" VerticalAlignment="Center" />
+                                    <Button Grid.Column="3" Classes="comebackAction" Content="✎" Command="{Binding BeginEditCommand}" ToolTip.Tip="Edit" />
+                                    <Button Grid.Column="4" Classes="comebackAction" Command="{Binding AddToTasksCommand}" IsVisible="{Binding CanAddToTasks}"
+                                            ToolTip.Tip="Add to tasks: it goes at the end of the checklist and leaves this list" AutomationProperties.Name="Add to tasks">
+                                        <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
+                                    </Button>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
