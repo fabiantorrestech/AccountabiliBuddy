@@ -51,14 +51,15 @@
                             <TextBlock Text="{Binding AwayText}" Foreground="White" FontSize="12" FontWeight="SemiBold" />
                         </Border>
                         <!-- Guided sessions: how far along and the task now on one line ("2/5 ▸ Fix tests"), its subtask
-                             under it (2 lines then "…", all of it while Ctrl+Alt is held). -->
+                             under it (2 lines then "…"); all of both while Ctrl+Alt is held. -->
                         <StackPanel Spacing="1" IsVisible="{Binding TaskLineShown}"
                                     Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
                             <!-- While Ctrl+Alt is held, a box by each line ticks it right here. -->
                             <Grid ColumnDefinitions="Auto,*">
                                 <Button Classes="tick" Command="{Binding Checklist.TickCurrentTaskCommand}" IsVisible="{Binding ShowsDetails}"
-                                        ToolTip.Tip="Tick this task (and its subtasks)" AutomationProperties.Name="Tick the task" />
-                                <TextBlock Grid.Column="1" Text="{Binding TaskLine}" Foreground="#E6FFFFFF" FontSize="11" TextTrimming="CharacterEllipsis"
+                                        VerticalAlignment="Top" ToolTip.Tip="Tick this task (and its subtasks)" AutomationProperties.Name="Tick the task" />
+                                <TextBlock Grid.Column="1" Text="{Binding TaskLine}" Foreground="#E6FFFFFF" FontSize="11"
+                                           TextWrapping="Wrap" MaxLines="{Binding TaskMaxLines}" TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center" />
                             </Grid>
                             <Grid ColumnDefinitions="Auto,*" Margin="10,0,0,0" IsVisible="{Binding ShowsSubtaskLine}">
