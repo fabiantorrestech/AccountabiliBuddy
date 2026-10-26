@@ -46,6 +46,7 @@ fun WhatsNewScreen(onConnectCurbox: () -> Unit, onReenableTime: (Boolean, java.t
         pending.forEach { feature ->
             when (feature.id) {
                 SetupFeatures.CURBOX -> CurboxSetupPage(onConnectCurbox, onReenableTime)
+                SetupFeatures.BEDTIME -> BedtimeSetupPage()
             }
         }
         Button(onClick = {

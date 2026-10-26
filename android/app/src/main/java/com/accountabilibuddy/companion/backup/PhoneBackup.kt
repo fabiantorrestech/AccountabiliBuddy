@@ -30,7 +30,7 @@ object PhoneBackup {
     const val MIME = "application/json"
 
     /** Preference files backed up: the user's settings. */
-    val PREFS = listOf("ui", "emergency", "essentials", "headphones", "noise", "pause", "startup", "nudges", "takeover", "smartBedtime")
+    val PREFS = listOf("ui", "emergency", "essentials", "bedtimeEssentials", "headphones", "noise", "pause", "startup", "nudges", "takeover", "smartBedtime")
 
     // Keys left out of those files: today's state, not settings.
     private val SKIPPED_KEYS = mapOf(

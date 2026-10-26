@@ -40,6 +40,8 @@ object Refresher {
     // When the start nudge could come again: the next redraw comes then if that's sooner.
     @Volatile
     private var nudgeAt: java.time.Instant? = null
+    // Tonight's bedtime, when a LockMyPhone-Extended profile is set for the night: the refresher runs then to start it.
+    private var bedtimeAt: java.time.Instant? = null
 
     // The pickups last sent to the PC for the running session (sent again only when they change).
     @Volatile
@@ -110,6 +112,11 @@ object Refresher {
             val running = focus?.running
             // Hardcore: a session started on another device asks LockMyPhone-Extended for the chosen profile.
             if (running != null) com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartHardcore(context)
+            // The night's lock: LockMyPhone-Extended's profile from bedtime until the wake time.
+            com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartBedtimeHardcore(context)
+            bedtimeAt = app.bedtimeEssentials.hardcoreProfile?.let {
+                com.accountabilibuddy.companion.essentials.BedtimeNight.nextStart(app)?.atZone(java.time.ZoneId.systemDefault())?.toInstant()
+            }
             // Curbox hard mode: a focus group that can't be exited, for each session on another device.
             runCatching { com.accountabilibuddy.companion.curbox.CurboxHardMode.check(context) }
             val pickups = running?.let { app.sync.unlocksSince(it.startedAt)?.size }
@@ -136,8 +143,9 @@ object Refresher {
         )
         val untilCountdownEnd = countdownEnd?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         val untilNudge = nudgeAt?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
+        val untilBedtime = bedtimeAt?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         val untilMinute = if (minutely) 60_000L - System.currentTimeMillis() % 60_000L + 500L else null
-        val delay = listOfNotNull(untilCountdownEnd, untilNudge, untilMinute).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
+        val delay = listOfNotNull(untilCountdownEnd, untilNudge, untilBedtime, untilMinute).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
         alarms.set(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + delay, intent)
     }
 }

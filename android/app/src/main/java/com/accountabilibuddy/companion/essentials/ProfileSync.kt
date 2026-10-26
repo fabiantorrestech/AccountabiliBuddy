@@ -6,16 +6,15 @@ import android.util.Log
 
 /**
  * Keeps the "Accountabilibuddy" profile in LockMyPhone-Extended in sync with the essentials (LockMyPhone-Extended's
- * ADR 0008): its allowed apps are the essentials, hidden ones hidden. LockMyPhone-Extended only accepts this from an
+ * ADR 0008): its allowed apps are the essentials, hidden ones hidden. The bedtime essentials keep a second one,
+ * "Accountabilibuddy Bedtime", in its slot "bedtime" (its ADR 0010, LockMyPhone-Extended 0.13.0 on; an older one
+ * would take it for the first profile, so it isn't sent). LockMyPhone-Extended only accepts this from an
  * app signed with its key (permission MANAGE_PROFILES, which it defines: install it before this app, or reinstall this
  * app after it). A lock that's already running doesn't change. Folders go along (with the row order) for LockMyPhone-Extended to show;
  * an essential allowed only in parts is allowed whole there (LockMyPhone-Extended can't tell screens apart).
  */
 object ProfileSync {
     private const val TAG = "ProfileSync"
-
-    /** The profile's name when LockMyPhone-Extended first creates it; renaming it there is kept. */
-    const val PROFILE_NAME = "Accountabilibuddy"
 
     private const val ACTION_SYNC = "${EssentialsLaunch.LOCK_MY_PHONE}.action.SYNC_PROFILE"
 
@@ -37,20 +36,22 @@ object ProfileSync {
         return kotlinx.serialization.json.JsonArray(keys.map { kotlinx.serialization.json.JsonPrimitive(it) }).toString()
     }
 
-    /** Sends [essentials] to LockMyPhone-Extended, if it's installed. */
-    fun send(context: Context, essentials: Essentials) {
+    /** Sends [essentials] to LockMyPhone-Extended's profile for [kind], if it's installed (and new enough for a slot). */
+    fun send(context: Context, essentials: Essentials, kind: EssentialsKind = EssentialsKind.Focus) {
         if (!EssentialsLaunch.lockMyPhoneInstalled(context)) return
+        if (kind.lockMyPhoneSlot != null && !EssentialsLaunch.lockMyPhoneHasSlots(context)) return
         val intent = Intent(ACTION_SYNC)
             .setPackage(EssentialsLaunch.LOCK_MY_PHONE)
             .putExtra("manager", context.packageName)
-            .putExtra("name", PROFILE_NAME)
+            .putExtra("name", kind.lockMyPhoneName)
+            .apply { kind.lockMyPhoneSlot?.let { putExtra("slot", it) } }
             .putExtra("allowed", essentials.apps.map { it.packageName }.toTypedArray())
             .putExtra("hidden", essentials.apps.filter { it.hidden }.map { it.packageName }.toTypedArray())
             // Folders and the row order (optional; an older LockMyPhone-Extended ignores them).
             .putExtra("folders", foldersJson(essentials))
             .putExtra("order", orderJson(essentials))
         runCatching { context.sendBroadcast(intent) }
-            .onSuccess { Log.i(TAG, "sent ${essentials.apps.size} essentials to LockMyPhone-Extended") }
+            .onSuccess { Log.i(TAG, "sent ${essentials.apps.size} ${kind.name.lowercase()} essentials to LockMyPhone-Extended") }
             .onFailure { Log.w(TAG, "LockMyPhone-Extended not reached", it) }
     }
 }

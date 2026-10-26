@@ -94,6 +94,12 @@ class CompanionApp : Application() {
 
     /** The essential apps (allowed, the essentials screen), folders, and the LockMyPhone-Extended hardcore profile. */
     val essentials by lazy { com.accountabilibuddy.companion.essentials.EssentialsStore(this) }
+    /** The night's essentials (Settings → Sleep): from bedtime until the wake time. */
+    val bedtimeEssentials by lazy { com.accountabilibuddy.companion.essentials.EssentialsStore(this, com.accountabilibuddy.companion.essentials.EssentialsKind.Bedtime) }
+
+    /** The essentials list of [kind]. */
+    fun essentialsOf(kind: com.accountabilibuddy.companion.essentials.EssentialsKind) =
+        if (kind == com.accountabilibuddy.companion.essentials.EssentialsKind.Bedtime) bedtimeEssentials else essentials
 
     /** The sleep settings both ways with the PCs (ADR 35). */
     val sleepSync by lazy { com.accountabilibuddy.companion.sync.SleepSettingsSync(this, store) }

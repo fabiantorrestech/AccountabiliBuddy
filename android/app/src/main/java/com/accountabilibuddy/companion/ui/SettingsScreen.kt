@@ -145,6 +145,12 @@ fun SettingsScreen(
                         }
                         item { BedtimeRemindersSection() }
                         item {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                NeedsLine(listOf(usageNeed), forWhat = "Bedtime essentials")
+                                EssentialsSection(com.accountabilibuddy.companion.essentials.EssentialsKind.Bedtime)
+                            }
+                        }
+                        item {
                             Section("Health Connect", summary = if (health == HealthStatus.Connected) "Reading your sleep" else "Not connected") {
                                 Text(
                                     when (health) {

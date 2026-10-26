@@ -20,6 +20,7 @@ data class SetupFeature(
  */
 object SetupFeatures {
     const val CURBOX = "curbox.setup"
+    const val BEDTIME = "bedtime.essentials"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
@@ -28,6 +29,11 @@ object SetupFeatures {
             CURBOX, "0.1.58", "Curbox: guided setup, when blocks come back on, hard mode",
             relevant = { CurboxClient(it).findPackage() != null },
             setUp = { done(it, CURBOX) },
+        ),
+        SetupFeature(
+            BEDTIME, "0.1.59", "Bedtime essentials: the night's own apps and LockMyPhone-Extended lock",
+            relevant = { true },
+            setUp = { done(it, BEDTIME) },
         ),
     )
 

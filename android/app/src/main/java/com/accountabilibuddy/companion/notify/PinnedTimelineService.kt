@@ -55,7 +55,9 @@ class PinnedTimelineService : Service() {
         lastNight = isNight(resources.configuration)
         // Unlocking too: a pickup during a session updates the parked notice and goes to the PC at once.
         val filter = IntentFilter(Intent.ACTION_SCREEN_ON).apply { addAction(Intent.ACTION_USER_PRESENT) }
-        ContextCompat.registerReceiver(this, screenOn, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        // Exported: SystemUI sends USER_PRESENT and isn't the system user, so a not-exported receiver never got it (the
+        // essentials screen never came up on unlocking). Both actions are protected broadcasts no app can send.
+        ContextCompat.registerReceiver(this, screenOn, filter, ContextCompat.RECEIVER_EXPORTED)
         // The sync folder at its chosen 1 or 5 minutes, which Android allows only while this service runs (ADR 22).
         scope.launch { (application as CompanionApp).folderSource.syncWhilePinned() }
     }
