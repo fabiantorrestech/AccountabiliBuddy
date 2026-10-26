@@ -34,7 +34,10 @@ fun BeeminderCard(goals: BeeminderGoals, clock: ClockFormat) {
     val today = LocalDate.now(zone)
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            IconTitle("Beeminder · ${goals.source}", style = MaterialTheme.typography.titleSmall)
+            // When the PC wrote this summary, so an old one reads as old.
+            val written = LocalDateTime.ofInstant(goals.writtenAt, zone)
+            val writtenText = if (written.toLocalDate() == today) clock.time(written) else "${weekday(written)} ${clock.time(written)}"
+            IconTitle("Beeminder · ${goals.source} · $writtenText", style = MaterialTheme.typography.titleSmall)
             goals.goals.forEach { goal -> GoalRow(goal, LocalDateTime.ofInstant(goal.dueAt, zone), today, clock) }
         }
     }

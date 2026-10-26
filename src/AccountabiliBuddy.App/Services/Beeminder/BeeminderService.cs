@@ -19,7 +19,8 @@ public sealed class BeeminderService : IDisposable
 {
     private const string DocumentKey = "beeminder";
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromMinutes(30);
-    // Opening Today asks again only when the last answer is older than this, so tab switching doesn't hammer Beeminder.
+    // Opening Today asks again only when the last attempt (answered or not) is older than this, so tab switching
+    // doesn't hammer Beeminder, also while it fails.
     private static readonly TimeSpan TodayOpenMinimumAge = TimeSpan.FromMinutes(5);
     // After Beeminder says "too many requests", wait this long before asking again.
     private static readonly TimeSpan RateLimitPause = TimeSpan.FromMinutes(30);
@@ -32,6 +33,9 @@ public sealed class BeeminderService : IDisposable
     private DispatcherTimer? _timer;
     private bool _busy;
     private DateTimeOffset _notBefore = DateTimeOffset.MinValue;
+    private DateTimeOffset? _lastAttemptAt;
+    // Beeminder refused the token: no more automatic reads until the user presses Test or saves a token.
+    private bool _tokenRejected;
     // Bumped when the token changes, so an answer to an older token's request is dropped.
     private int _generation;
 
@@ -74,19 +78,19 @@ public sealed class BeeminderService : IDisposable
         if (_timer is null)
         {
             _timer = new DispatcherTimer { Interval = RefreshInterval };
-            _timer.Tick += (_, _) => _ = RefreshAsync();
+            _timer.Tick += (_, _) => _ = RefreshAsync(userAsked: false);
             _timer.Start();
         }
 
-        _ = RefreshAsync();
+        _ = RefreshAsync(userAsked: false);
     }
 
-    /// <summary>Today opened: reads again when the last answer is a few minutes old.</summary>
+    /// <summary>Today opened: reads again when the last attempt (answered or not) is a few minutes old.</summary>
     public void RefreshIfStale()
     {
-        if (HasToken && (_state.FetchedAt is not DateTimeOffset fetched || _time.GetUtcNow() - fetched >= TodayOpenMinimumAge))
+        if (HasToken && (_lastAttemptAt is not DateTimeOffset attempted || _time.GetUtcNow() - attempted >= TodayOpenMinimumAge))
         {
-            _ = RefreshAsync();
+            _ = RefreshAsync(userAsked: false);
         }
     }
 
@@ -111,13 +115,14 @@ public sealed class BeeminderService : IDisposable
         try
         {
             int generation = ++_generation;
-            (IReadOnlyList<BeeminderGoal>? goals, string? problem) = await ReadAsync(trimmed);
+            (IReadOnlyList<BeeminderGoal>? goals, string? problem, _) = await ReadAsync(trimmed);
             if (goals is null || generation != _generation)
             {
                 return problem ?? "Beeminder didn't answer; try again.";
             }
 
             Problem = null;
+            _tokenRejected = false;
             await SaveAsync(new Stored(Convert.ToBase64String(_protector.Protect(trimmed)), goals.ToList(), _time.GetUtcNow()));
             return null;
         }
@@ -127,33 +132,56 @@ public sealed class BeeminderService : IDisposable
         }
     }
 
-    /// <summary>Reads the goals now with the saved token; does nothing without one or while Beeminder asked to wait.</summary>
-    public async Task RefreshAsync()
+    /// <summary>
+    /// Reads the goals now with the saved token. Nothing is asked without a token, while Beeminder asked to wait, or,
+    /// unless the user asked (Test), after Beeminder refused the token.
+    /// </summary>
+    public async Task<BeeminderRefresh> RefreshAsync(bool userAsked = false)
     {
-        if (_busy || !HasToken || _time.GetUtcNow() < _notBefore || Token() is not string token)
+        if (!HasToken)
         {
-            return;
+            return BeeminderRefresh.NoToken;
+        }
+
+        if (_busy)
+        {
+            return BeeminderRefresh.Busy;
+        }
+
+        if (_time.GetUtcNow() < _notBefore || (_tokenRejected && !userAsked))
+        {
+            return BeeminderRefresh.Waiting;
+        }
+
+        if (Token() is not string token)
+        {
+            // DPAPI can't open it (e.g. the data folder came from another user or PC): nothing to ask with.
+            Problem = "Paste your token again: this PC can't read the saved one.";
+            Changed?.Invoke(this, EventArgs.Empty);
+            return BeeminderRefresh.Failed;
         }
 
         _busy = true;
         try
         {
             int generation = _generation;
-            (IReadOnlyList<BeeminderGoal>? goals, string? problem) = await ReadAsync(token);
+            (IReadOnlyList<BeeminderGoal>? goals, string? problem, bool rejected) = await ReadAsync(token);
             if (generation != _generation || !HasToken)
             {
-                return;
+                return BeeminderRefresh.Failed;
             }
 
             Problem = problem;
+            _tokenRejected = rejected;
             if (goals is null)
             {
                 // The last answer stays; the card says when it's from.
                 Changed?.Invoke(this, EventArgs.Empty);
-                return;
+                return BeeminderRefresh.Failed;
             }
 
             await SaveAsync(_state with { Goals = goals.ToList(), FetchedAt = _time.GetUtcNow() });
+            return BeeminderRefresh.Read;
         }
         finally
         {
@@ -167,6 +195,8 @@ public sealed class BeeminderService : IDisposable
         _generation++;
         Problem = null;
         _notBefore = DateTimeOffset.MinValue;
+        _lastAttemptAt = null;
+        _tokenRejected = false;
         return SaveAsync(Stored.Empty);
     }
 
@@ -181,29 +211,35 @@ public sealed class BeeminderService : IDisposable
         _timer?.Stop();
     }
 
-    private async Task<(IReadOnlyList<BeeminderGoal>? Goals, string? Problem)> ReadAsync(string token)
+    // Rejected = Beeminder refused this token (401/403).
+    private async Task<(IReadOnlyList<BeeminderGoal>? Goals, string? Problem, bool Rejected)> ReadAsync(string token)
     {
+        _lastAttemptAt = _time.GetUtcNow();
         try
         {
             using JsonDocument answer = await _network.GetBeeminderGoalsAsync(token, CancellationToken.None);
-            return (BeeminderGoalsParser.Parse(answer.RootElement, _time.GetUtcNow()), null);
+            return (BeeminderGoalsParser.Parse(answer.RootElement, _time.GetUtcNow()), null, false);
         }
         catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
-            return (null, "Check your token: Beeminder didn't accept it.");
+            return (null, "Check your token: Beeminder didn't accept it.", true);
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
         {
             _notBefore = _time.GetUtcNow() + RateLimitPause;
-            return (null, "Beeminder asked to wait; trying again later.");
+            return (null, "Beeminder asked to wait; trying again later.", false);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode status && (int)status >= 500)
+        {
+            return (null, "Beeminder had a problem; trying again later.", false);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            return (null, "Couldn't reach Beeminder; trying again later.");
+            return (null, "Couldn't reach Beeminder; trying again later.", false);
         }
         catch (JsonException)
         {
-            return (null, "Beeminder's answer couldn't be read; trying again later.");
+            return (null, "Beeminder's answer couldn't be read; trying again later.", false);
         }
     }
 

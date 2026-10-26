@@ -74,8 +74,15 @@ public sealed partial class BeeminderViewModel : ObservableObject
     private async Task TestAsync()
     {
         Message = "Asking Beeminder…";
-        await _service.RefreshAsync();
-        Message = _service.Problem ?? $"Works: {Goals.Count} goal(s) read.";
+        BeeminderRefresh result = await _service.RefreshAsync(userAsked: true);
+        Message = result switch
+        {
+            BeeminderRefresh.Read => $"Works: {Goals.Count} goal(s) read.",
+            BeeminderRefresh.NoToken => "No token saved: paste one first.",
+            BeeminderRefresh.Busy => "Already asking Beeminder; try again in a moment.",
+            BeeminderRefresh.Waiting => "Beeminder asked to wait; not asked again yet.",
+            _ => _service.Problem ?? "That didn't work; try again.",
+        };
     }
 
     [RelayCommand]
