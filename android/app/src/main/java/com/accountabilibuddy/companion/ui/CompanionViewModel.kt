@@ -511,6 +511,19 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         return if (savePlanDraft()) null else message.value ?: "Not saved."
     }
 
+    /**
+     * Sets when Workdays' or Off-Days' blocks come back on (ADR 37); saved like an Edit plan change and sent to the
+     * PC. Null when saved, else why not.
+     */
+    fun setReenableTime(offDay: Boolean, time: java.time.LocalTime): String? {
+        openPlanEditor()?.let { return it }
+        val plan = planDraft.value?.plan ?: return "The plan couldn't be opened."
+        val template = if (offDay) plan.otherDay else plan.workday
+        val updated = template.copy(blocks = template.rules.copy(reenableAt = time))
+        updatePlanDraft(if (offDay) plan.copy(otherDay = updated) else plan.copy(workday = updated))
+        return if (savePlanDraft()) null else message.value ?: "Not saved."
+    }
+
     fun discardDayPlanEdit() {
         store.clearPendingPlan(null)
         message.value = "Edit discarded; showing the PC's plan."

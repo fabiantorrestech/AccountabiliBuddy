@@ -250,6 +250,7 @@ fun MainScreen(
                         onSaveSleep = viewModel::saveSleep,
                         onTimelineNotification = onTimelineNotification,
                         onBedtimeReminder = viewModel::setBedtimeReminder,
+                        onReenableTime = viewModel::setReenableTime,
                         onConnectHealth = onConnectHealth,
                         onAddWidget = onAddWidget,
                         curbox = curbox,

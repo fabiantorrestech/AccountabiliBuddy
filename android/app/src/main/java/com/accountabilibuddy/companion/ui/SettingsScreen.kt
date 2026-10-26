@@ -76,6 +76,8 @@ fun SettingsScreen(
     pauseActions: PauseActions = PauseActions(),
     onAllowUsage: () -> Unit = {},
     onOpenSetup: () -> Unit = {},
+    /** Sets when Workdays' (false) or Off-Days' (true) blocks come back on (ADR 37); null when saved, else why not. */
+    onReenableTime: (Boolean, java.time.LocalTime) -> String? = { _, _ -> null },
     /** The wake-up alarm rows (from the Devices tab's sync settings), shown on the Sleep page. */
     wakeAlarm: @Composable () -> Unit = {},
     /** "On · Clock" or "Off": the Wake-up alarm card's summary. */
@@ -180,7 +182,7 @@ fun SettingsScreen(
                             }
                         }
                         item { EmergencySection() }
-                        item { CurboxSection(curbox, onConnectCurbox) }
+                        item { CurboxSection(curbox, onConnectCurbox, onReenableTime) }
                     }
                     SettingsCategory.Notification -> {
                         item {
@@ -260,7 +262,7 @@ private fun NoiseSection(player: com.accountabilibuddy.companion.noise.NoisePlay
 }
 
 @Composable
-private fun CurboxSection(curbox: CurboxStatus, onConnect: () -> Unit) {
+private fun CurboxSection(curbox: CurboxStatus, onConnect: () -> Unit, onReenableTime: (Boolean, java.time.LocalTime) -> String?) {
     val summary = when {
         !curbox.installed -> "Not installed"
         !curbox.granted -> "Not connected"
@@ -300,6 +302,7 @@ private fun CurboxSection(curbox: CurboxStatus, onConnect: () -> Unit) {
                     rearm = it
                     com.accountabilibuddy.companion.blocks.BlockGuard.setEnabled(context, it)
                 }
+                if (rearm) ReenableTimes(onReenableTime)
                 com.accountabilibuddy.companion.blocks.BlockGuard.history(context).take(5).forEach {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }

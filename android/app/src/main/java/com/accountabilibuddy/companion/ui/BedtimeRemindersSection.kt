@@ -1,5 +1,6 @@
 package com.accountabilibuddy.companion.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -7,7 +8,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -32,7 +34,8 @@ import com.accountabilibuddy.companion.model.BedtimeReminderSettings
 
 /**
  * Settings → Sleep → Bedtime reminders (ADR 38): on/off and the list (shared with the PCs): each at some minutes before
- * bedtime, a notification or an alarm (sound, volume, vibration), on the chosen devices. Tap one to change it.
+ * bedtime (a wheel, 0-180 minutes), a notification or an alarm (sound, volume, vibration), on the chosen devices. Each
+ * reminder folds open with its arrow; "Delete reminder" is at the bottom of an open one.
  */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -58,27 +61,35 @@ internal fun BedtimeRemindersSection() {
         ToggleRow("Bedtime reminders", "Before bedtime on your devices; a live countdown from the first one. Set here or on a PC.", settings.on) { save(settings.copy(on = it)) }
         if (!settings.on) return@Section
         ordered.forEachIndexed { position, (index, reminder) ->
+            // Keyed by the reminder, so an open one keeps its wheel when the list re-sorts.
+            androidx.compose.runtime.key(index) {
             HorizontalDivider()
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.weight(1f)) {
-                    TextButton(onClick = { editing = if (editing == index) null else index }) {
-                        Text("${position + 1}/${ordered.size} · ${whenText(reminder.minutesBefore)} · ${if (reminder.alarm) "Alarm" else "Notification"}")
-                    }
-                    Text(devicesText(reminder.devices, pcs), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 12.dp))
+            val open = editing == index
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().clickable { editing = if (open) null else index }.padding(vertical = 6.dp),
+            ) {
+                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                    Text("${position + 1}/${ordered.size} · ${whenText(reminder.minutesBefore)} · ${if (reminder.alarm) "Alarm" else "Notification"}",
+                        style = MaterialTheme.typography.bodyLarge)
+                    Text(devicesText(reminder.devices, pcs), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                IconButton(onClick = { save(settings.copy(list = settings.list.filterIndexed { i, _ -> i != index })); editing = null }) {
-                    Icon(Icons.Outlined.Close, contentDescription = "Remove this reminder")
+                IconButton(onClick = { editing = if (open) null else index }) {
+                    Icon(if (open) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown, contentDescription = if (open) "Collapse" else "Expand")
                 }
             }
-            if (editing == index) {
+            if (open) {
                 Column(Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("When", style = MaterialTheme.typography.labelLarge)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf(0, 5, 10, 15, 30, 45, 60, 90, 120).forEach { minutes ->
-                            FilterChip(selected = reminder.minutesBefore == minutes, onClick = { change(index) { it.copy(minutesBefore = minutes) } },
-                                label = { Text(whenText(minutes)) })
-                        }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        WheelPicker(
+                            items = minuteLabels,
+                            selected = reminder.minutesBefore.coerceIn(0, MAX_MINUTES),
+                            onSelected = { minutes -> if (minutes != reminder.minutesBefore) change(index) { it.copy(minutesBefore = minutes) } },
+                            width = 72.dp,
+                        )
+                        Text(if (reminder.minutesBefore == 0) "min before bedtime\n(at bedtime)" else "min before bedtime\n(${whenText(reminder.minutesBefore)})",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     ToggleRow("Ring as an alarm", "Else a notification", reminder.alarm) { on -> change(index) { it.copy(alarm = on) } }
                     Text("On", style = MaterialTheme.typography.labelLarge)
@@ -104,7 +115,11 @@ internal fun BedtimeRemindersSection() {
                             onValueChangeFinished = { change(index) { it.copy(volume = volume.toInt()) } })
                         ToggleRow("Vibrate", "With the sound", reminder.vibrate) { on -> change(index) { it.copy(vibrate = on) } }
                     }
+                    TextButton(onClick = { save(settings.copy(list = settings.list.filterIndexed { i, _ -> i != index })); editing = null }) {
+                        Text("Delete reminder", color = MaterialTheme.colorScheme.error)
+                    }
                 }
+            }
             }
         }
         HorizontalDivider()
@@ -118,6 +133,11 @@ internal fun BedtimeRemindersSection() {
         }
     }
 }
+
+private const val MAX_MINUTES = 180
+
+/** The wheel's values: 0 to 180 minutes before bedtime, a minute apart. */
+private val minuteLabels = (0..MAX_MINUTES).map { it.toString() }
 
 private fun whenText(minutes: Int): String = when {
     minutes == 0 -> "At bedtime"

@@ -130,8 +130,8 @@ class BedtimeAlarmActivity : ComponentActivity() {
                 .setOngoing(true)
                 .setFullScreenIntent(full, true)
                 .setContentIntent(full)
-                .addAction(0, "Snooze 5 min", action(BedtimeReminders.ACTION_SNOOZE, 60 + number))
                 .addAction(0, "Dismiss", action(BedtimeReminders.ACTION_DISMISS, 70 + number))
+                .addAction(0, "Snooze 5 min", action(BedtimeReminders.ACTION_SNOOZE, 60 + number))
                 .build()
             runCatching { NotificationManagerCompat.from(app).notify(BedtimeReminders.ALARM_ID, notification) }
         }
