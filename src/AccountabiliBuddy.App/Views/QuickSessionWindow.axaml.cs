@@ -8,7 +8,7 @@ namespace AccountabiliBuddy.App.Views;
 
 /// <summary>
 /// The quick-session card. Keyboard first: Enter starts, Esc closes, 1–5 pick a preset, ←/→ change the length
-/// by 5 minutes (Shift: 1 minute), B toggles the break. Holding Shift also makes the slider move in 1-minute steps.
+/// by 1 minute (Shift: 5), B toggles the break. Holding Shift also makes the slider move in 5-minute steps.
 /// While the end-time editor is open, Enter applies the time and Esc cancels the edit.
 /// Clicking anywhere else closes the card. The controls themselves are <see cref="QuickStartPanel"/>.
 /// </summary>
@@ -29,9 +29,6 @@ public partial class QuickSessionWindow : Window
         // Tunnel so the shortcuts work wherever focus is inside the card (sliders would otherwise eat the arrows).
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
         AddHandler(KeyUpEvent, OnPreviewKeyUp, RoutingStrategies.Tunnel);
-        // Shift may have been pressed before the card had focus; pointer events carry the current modifiers.
-        AddHandler(PointerMovedEvent, OnPreviewPointer, RoutingStrategies.Tunnel);
-        AddHandler(PointerPressedEvent, OnPreviewPointer, RoutingStrategies.Tunnel);
         Deactivated += OnDeactivated;
     }
 
@@ -51,19 +48,11 @@ public partial class QuickSessionWindow : Window
         }
     }
 
-    private void OnPreviewPointer(object? sender, PointerEventArgs e)
-    {
-        if (ViewModel is { } viewModel)
-        {
-            viewModel.FineAdjust = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
-        }
-    }
-
     private void OnPreviewKeyUp(object? sender, KeyEventArgs e)
     {
         if (ViewModel is { } viewModel && e.Key is Key.LeftShift or Key.RightShift)
         {
-            viewModel.FineAdjust = false;
+            viewModel.ShiftHeld = false;
         }
     }
 
@@ -77,7 +66,7 @@ public partial class QuickSessionWindow : Window
 
         if (e.Key is Key.LeftShift or Key.RightShift)
         {
-            viewModel.FineAdjust = true;
+            viewModel.ShiftHeld = true;
             return;
         }
 
@@ -119,10 +108,10 @@ public partial class QuickSessionWindow : Window
                 viewModel.SelectPresetByNumber(e.Key - Key.NumPad1 + 1);
                 break;
             case Key.Left:
-                viewModel.NudgeFocus(-1, fine: shift);
+                viewModel.NudgeFocus(-1, coarse: shift);
                 break;
             case Key.Right:
-                viewModel.NudgeFocus(1, fine: shift);
+                viewModel.NudgeFocus(1, coarse: shift);
                 break;
             case Key.B:
                 viewModel.BreakEnabled = !viewModel.BreakEnabled;

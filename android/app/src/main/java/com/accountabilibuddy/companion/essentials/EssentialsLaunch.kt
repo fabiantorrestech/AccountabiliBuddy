@@ -10,11 +10,13 @@ import java.time.Duration
 import java.time.Instant
 
 /**
- * When the essentials screen comes up by itself, and the LockMyPhone-Extended "hardcore" profile.
+ * When the essentials screen comes up by itself, and the LockMyPhone-Extended "hardcore" profiles.
  * - Unlocking during emergency phone time, or during a session on another device (Settings switch, on by default),
- *   lands on the essentials screen.
+ *   lands on the essentials screen; unlocking during the night (bedtime until wake, Settings → Sleep, off by default)
+ *   lands on the bedtime essentials screen. A session on another device wins over the night.
  * - Hardcore: when a session starts on another device, LockMyPhone-Extended's public intent API starts the named
- *   profile for the session's length (that app enforces; this one only asks it).
+ *   profile for the session's length; at bedtime, the night's profile until the wake time (that app enforces; this
+ *   one only asks it).
  */
 object EssentialsLaunch {
     private const val TAG = "Essentials"
@@ -24,15 +26,48 @@ object EssentialsLaunch {
     private const val LMP_START = "$LMP_PACKAGE.action.START_LOCK"
     private const val PREFS = "essentials-launch"
     private const val KEY_HARDCORE_FOR = "hardcoreFor"
+    private const val KEY_BEDTIME_FOR = "bedtimeFor"
+    /** The first LockMyPhone-Extended that keeps more than one synced profile (its ADR 0010, 0.13.0). */
+    private const val SLOTS_SINCE_VERSION_CODE = 7L
 
     /** The phone was just unlocked. */
     fun onUnlock(context: Context, now: Instant = Instant.now()) {
         val app = context.applicationContext as CompanionApp
-        val inSession = runningSessionStart(app, now) != null && app.essentials.onUnlockInSession
-        if (app.emergency.isActive(now) || inSession) {
-            Log.d(TAG, "unlock: essentials (emergency ${app.emergency.isActive(now)}, session $inSession)")
-            Takeover.startFromBackground(context, EssentialsActivity.intent(context))
+        val session = runningSessionStart(app, now) != null
+        val night = if (session) null else BedtimeNight.current(app)
+        if (night != null) maybeStartBedtimeHardcore(context, now)
+        val kind = when {
+            session && app.essentials.onUnlockInSession -> EssentialsKind.Focus
+            night != null && app.bedtimeEssentials.onUnlockInSession -> EssentialsKind.Bedtime
+            app.emergency.isActive(now) -> EssentialsKind.Focus
+            else -> null
         }
+        Log.d(TAG, "unlock: ${kind ?: "no"} essentials (emergency ${app.emergency.isActive(now)}, session $session, night $night)")
+        kind?.let { Takeover.startFromBackground(context, EssentialsActivity.intent(context, it)) }
+    }
+
+    /**
+     * During the night (and no session on another device): asks LockMyPhone-Extended to start the night's profile
+     * until the wake time, once per night.
+     */
+    fun maybeStartBedtimeHardcore(context: Context, now: Instant = Instant.now()) {
+        val app = context.applicationContext as CompanionApp
+        if (!app.essentials.useLockMyPhone) return
+        val profile = app.bedtimeEssentials.hardcoreProfile ?: return
+        if (runningSessionStart(app, now) != null) return
+        val night = BedtimeNight.current(app) ?: return
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (prefs.getString(KEY_BEDTIME_FOR, null) == night.start.toString()) {
+            return
+        }
+
+        prefs.edit().putString(KEY_BEDTIME_FOR, night.start.toString()).apply()
+        val wake = night.end.atZone(java.time.ZoneId.systemDefault()).toInstant()
+        val minutes = Duration.between(now, wake).toMinutes()
+        if (minutes <= 0) return
+        val intent = Intent(LMP_START).setPackage(LMP_PACKAGE).putExtra("profile", profile).putExtra("duration_min", minutes.toInt())
+        runCatching { context.sendBroadcast(intent) }.onFailure { Log.w(TAG, "LockMyPhone-Extended not reached", it) }
+        Log.i(TAG, "bedtime: asked LockMyPhone-Extended for '$profile' until ${night.end}")
     }
 
     /** A session started on another device: asks LockMyPhone-Extended to start the hardcore profile, once per session. */
@@ -63,6 +98,11 @@ object EssentialsLaunch {
     /** True when LockMyPhone-Extended is installed. */
     fun lockMyPhoneInstalled(context: Context): Boolean =
         runCatching { context.packageManager.getPackageInfo(LMP_PACKAGE, 0) }.isSuccess
+
+    /** True when the installed LockMyPhone-Extended keeps a synced profile per slot (0.13.0 on). */
+    fun lockMyPhoneHasSlots(context: Context): Boolean =
+        runCatching { androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(context.packageManager.getPackageInfo(LMP_PACKAGE, 0)) }
+            .getOrNull()?.let { it >= SLOTS_SINCE_VERSION_CODE } ?: false
 
     // The newest PC file's running focus session (start, end), not a break, its phase not over; else the linked PC's.
     internal fun runningSessionStart(app: CompanionApp, now: Instant): Pair<Instant, Instant?>? {

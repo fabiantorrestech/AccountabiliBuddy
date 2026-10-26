@@ -1,0 +1,14 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="AccountabiliBuddy.App.Views.OverlayHintWindow"
+        Title="AccountabiliBuddy hint"
+        WindowDecorations="None" CanResize="False" SizeToContent="WidthAndHeight"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False" Focusable="False"
+        WindowStartupLocation="Manual" RequestedThemeVariant="Dark"
+        TransparencyLevelHint="Transparent" Background="Transparent">
+    <!-- The on-screen window's hints: above it, next to the cursor; clicks pass through. -->
+    <Border CornerRadius="6" Padding="8,4" Background="#F21F242B" BorderBrush="#33FFFFFF" BorderThickness="1"
+            MaxWidth="260" IsHitTestVisible="False">
+        <TextBlock x:Name="HintText" Foreground="White" FontSize="11" TextWrapping="Wrap" />
+    </Border>
+</Window>

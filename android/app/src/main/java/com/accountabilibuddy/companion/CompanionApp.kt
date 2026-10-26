@@ -94,6 +94,12 @@ class CompanionApp : Application() {
 
     /** The essential apps (allowed, the essentials screen), folders, and the LockMyPhone-Extended hardcore profile. */
     val essentials by lazy { com.accountabilibuddy.companion.essentials.EssentialsStore(this) }
+    /** The night's essentials (Settings → Sleep): from bedtime until the wake time. */
+    val bedtimeEssentials by lazy { com.accountabilibuddy.companion.essentials.EssentialsStore(this, com.accountabilibuddy.companion.essentials.EssentialsKind.Bedtime) }
+
+    /** The essentials list of [kind]. */
+    fun essentialsOf(kind: com.accountabilibuddy.companion.essentials.EssentialsKind) =
+        if (kind == com.accountabilibuddy.companion.essentials.EssentialsKind.Bedtime) bedtimeEssentials else essentials
 
     /** The sleep settings both ways with the PCs (ADR 35). */
     val sleepSync by lazy { com.accountabilibuddy.companion.sync.SleepSettingsSync(this, store) }
@@ -162,6 +168,9 @@ class CompanionApp : Application() {
         // A file that came by QR code, Drive or a share goes on to the PC at once when connected.
         sync.onCarryChanged = { sendSyncFilesToPc() }
         planSync = DayPlanSync(store, link, appScope).also { it.start() }
+        // ADR 40: the PC's settings (profiles, day plan, sleep, day bar, events) from its sync file when the Wi-Fi link
+        // isn't bringing them.
+        appScope.launch { sync.received.collect { devices -> applyPcFileSettings(devices.map { it.file }) } }
         watchBridge = WatchBridge(this, store, link, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope, { appOnScreen }, sync.received)
             .also { it.start() }
         // The phone's card names its linked watch (Task 18); linking or unlinking it tells the PC at once.
@@ -357,6 +366,19 @@ class CompanionApp : Application() {
     }
 
     /** The linked PC's profiles, sleep, day bar and events (L2): kept like an import, then the card and widget redraw. */
+    private fun applyPcFileSettings(files: List<com.accountabilibuddy.shared.sync.SyncFile>) {
+        if (link.status.value is com.accountabilibuddy.companion.link.LinkStatus.Connected) return
+        val prefs = getSharedPreferences("pcFiles", MODE_PRIVATE)
+        val name = link.pairedPc.value?.pcName ?: prefs.getString("pcName", null)
+        val file = com.accountabilibuddy.companion.sync.PcFileSettings.choose(files, name) ?: return
+        val content = com.accountabilibuddy.companion.sync.PcFileSettings.content(file) ?: return
+        val fingerprint = com.accountabilibuddy.companion.sync.PcFileSettings.fingerprint(content)
+        if (prefs.getString("applied", null) == fingerprint) return
+        if (applyPcSettings(content, file.device.name)) {
+            prefs.edit().putString("applied", fingerprint).putString("pcName", file.device.name).apply()
+        }
+    }
+
     private fun applyPcSettings(content: JsonObject, pcName: String): Boolean {
         val data = try {
             Importer.fromLink(content, pcName)

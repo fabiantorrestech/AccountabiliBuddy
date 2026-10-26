@@ -51,19 +51,20 @@
                             <TextBlock Text="{Binding AwayText}" Foreground="White" FontSize="12" FontWeight="SemiBold" />
                         </Border>
                         <!-- Guided sessions: how far along and the task now on one line ("2/5 ▸ Fix tests"), its subtask
-                             under it (2 lines then "…", all of it while Ctrl+Alt is held). -->
+                             under it (2 lines then "…"); all of both while Ctrl+Alt is held. -->
                         <StackPanel Spacing="1" IsVisible="{Binding TaskLineShown}"
                                     Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
                             <!-- While Ctrl+Alt is held, a box by each line ticks it right here. -->
                             <Grid ColumnDefinitions="Auto,*">
                                 <Button Classes="tick" Command="{Binding Checklist.TickCurrentTaskCommand}" IsVisible="{Binding ShowsDetails}"
-                                        ToolTip.Tip="Tick this task (and its subtasks)" AutomationProperties.Name="Tick the task" />
-                                <TextBlock Grid.Column="1" Text="{Binding TaskLine}" Foreground="#E6FFFFFF" FontSize="11" TextTrimming="CharacterEllipsis"
+                                        VerticalAlignment="Top" views:OverlayHint.Text="Tick this task (and its subtasks)" AutomationProperties.Name="Tick the task" />
+                                <TextBlock Grid.Column="1" Text="{Binding TaskLine}" Foreground="#E6FFFFFF" FontSize="11"
+                                           TextWrapping="Wrap" MaxLines="{Binding TaskMaxLines}" TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center" />
                             </Grid>
                             <Grid ColumnDefinitions="Auto,*" Margin="10,0,0,0" IsVisible="{Binding ShowsSubtaskLine}">
                                 <Button Classes="tick" Command="{Binding Checklist.TickCurrentSubtaskCommand}" IsVisible="{Binding ShowsDetails}"
-                                        VerticalAlignment="Top" ToolTip.Tip="Tick this subtask" AutomationProperties.Name="Tick the subtask" />
+                                        VerticalAlignment="Top" views:OverlayHint.Text="Tick this subtask" AutomationProperties.Name="Tick the subtask" />
                                 <TextBlock Grid.Column="1" Text="{Binding SubtaskLine}" Foreground="#C8FFFFFF" FontSize="11"
                                            TextWrapping="Wrap" MaxLines="{Binding SubtaskMaxLines}" TextTrimming="CharacterEllipsis" />
                             </Grid>
@@ -182,13 +183,13 @@
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <Button Content="{Binding KeepText}" Click="OnKeepClick" Padding="8,2" FontSize="11" Foreground="White"
                                         Background="#4D0F766E" CornerRadius="5" />
-                                <Button Content="↺" Click="OnUndoMoveClick" ToolTip.Tip="Put it back" Padding="8,2" FontSize="11"
+                                <Button Content="↺" Click="OnUndoMoveClick" views:OverlayHint.Text="Put it back" Padding="8,2" FontSize="11"
                                         Foreground="White" Background="#33FFFFFF" CornerRadius="5" />
                             </StackPanel>
                         </StackPanel>
                         <Panel IsVisible="{Binding ShowsDetails}">
                             <Button Content="{Binding UseDefaultText}" Command="{Binding UseDefaultForAppCommand}" IsVisible="{Binding ShowsUseDefaultForApp}"
-                                    ToolTip.Tip="Forget this app's own spot" Padding="8,2" FontSize="11" Foreground="White" Background="#33FFFFFF"
+                                    views:OverlayHint.Text="Forget this app's own spot" Padding="8,2" FontSize="11" Foreground="White" Background="#33FFFFFF"
                                     CornerRadius="5" HorizontalAlignment="Left" />
                         </Panel>
                         <Panel IsVisible="{Binding ShowsDetails}">
@@ -202,9 +203,9 @@
                                         Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
                                 <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="4">
                                     <TextBlock Text="{Binding WakeText}" Foreground="White" FontSize="11" VerticalAlignment="Center" />
-                                    <Button Grid.Column="1" Content="−" Command="{Binding EarlierCommand}" ToolTip.Tip="15 minutes earlier, tonight only"
+                                    <Button Grid.Column="1" Content="−" Command="{Binding EarlierCommand}" views:OverlayHint.Text="15 minutes earlier, tonight only"
                                             Padding="8,1" FontSize="12" Foreground="White" Background="#33FFFFFF" CornerRadius="5" />
-                                    <Button Grid.Column="2" Content="+" Command="{Binding LaterCommand}" ToolTip.Tip="15 minutes later, tonight only"
+                                    <Button Grid.Column="2" Content="+" Command="{Binding LaterCommand}" views:OverlayHint.Text="15 minutes later, tonight only"
                                             Padding="8,1" FontSize="12" Foreground="White" Background="#33FFFFFF" CornerRadius="5" />
                                 </Grid>
                                 <Button Content="{Binding PlanWakeText}" Command="{Binding BackToPlanCommand}" IsVisible="{Binding IsChanged}"
@@ -217,11 +218,11 @@
                           <Panel IsVisible="{Binding Noise, Converter={x:Static ObjectConverters.IsNotNull}}">
                             <Grid DataContext="{Binding Noise}" x:DataType="vm:NoisePlayerViewModel" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6"
                                   Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
-                                <Button Content="{Binding PlayGlyph}" Command="{Binding PlayPauseCommand}" ToolTip.Tip="{Binding PlayTip}"
+                                <Button Content="{Binding PlayGlyph}" Command="{Binding PlayPauseCommand}" views:OverlayHint.Text="{Binding PlayTip}"
                                         FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="12" Padding="8,4" Foreground="White"
                                         Background="#33FFFFFF" CornerRadius="5" />
                                 <Slider Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Volume}" TickFrequency="1" IsSnapToTickEnabled="True"
-                                        VerticalAlignment="Center" Margin="0,-10" ToolTip.Tip="Noise volume" />
+                                        VerticalAlignment="Center" Margin="0,-10" views:OverlayHint.Text="Noise volume" />
                                 <TextBlock Grid.Column="2" Text="{Binding VolumeText}" Foreground="#CCFFFFFF" FontSize="10" MinWidth="28"
                                            VerticalAlignment="Center" TextAlignment="Right" />
                             </Grid>
@@ -229,13 +230,13 @@
                         </Panel>
                         <Panel IsVisible="{Binding ShowsDetails}">
                             <Button Content="I'm ready" Command="{Binding ReadyCommand}" IsVisible="{Binding ShowsReady}"
-                                    ToolTip.Tip="End the planning minutes now"
+                                    views:OverlayHint.Text="End the planning minutes now"
                                     Padding="8,2" FontSize="11" Foreground="White" Background="#4D0F766E" CornerRadius="5" HorizontalAlignment="Left" />
                         </Panel>
                         <!-- Step away: pauses the countdown until any key or mouse movement. -->
                         <Panel IsVisible="{Binding ShowsDetails}">
                             <Button Content="{Binding StepAwayText}" Command="{Binding StepAwayCommand}" IsVisible="{Binding ShowsStepAway}"
-                                    ToolTip.Tip="Pauses the countdown; any key or mouse movement brings you back"
+                                    views:OverlayHint.Text="Pauses the countdown; any key or mouse movement brings you back"
                                     Padding="8,2" FontSize="11" Foreground="White" Background="#4D0F766E" CornerRadius="5" HorizontalAlignment="Left" />
                         </Panel>
                         <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" IsVisible="{Binding ShowsDetails}">
@@ -243,11 +244,11 @@
                             <!-- Only reachable while Ctrl+Alt is held (otherwise clicks pass through the window). -->
                             <!-- Today's sync QR codes for the phone (ADR 22), while the QR code method is on. -->
                             <Button Grid.Column="1" Content="QR" Command="{Binding ShowSyncQrCommand}" IsVisible="{Binding ShowsQrButton}"
-                                    ToolTip.Tip="Show today's QR codes for your phone to scan"
+                                    views:OverlayHint.Text="Show today's QR codes for your phone to scan"
                                     Padding="8,2" FontSize="11" Foreground="White" Background="#33FFFFFF" CornerRadius="5" />
                             <!-- Also Ctrl+Alt + double-click on an empty spot of the window. -->
                             <Button Grid.Column="2" Content="Open AccountabiliBuddy" Command="{Binding OpenAppCommand}"
-                                    ToolTip.Tip="Or Ctrl+Alt + double-click the timer or timeline"
+                                    views:OverlayHint.Text="Or Ctrl+Alt + double-click the timer or timeline"
                                     Padding="8,2" FontSize="11" Foreground="White" Background="#33FFFFFF" CornerRadius="5" />
                             <Button Grid.Column="3" Content="{Binding HideButtonText}" Command="{Binding HideBrieflyCommand}"
                                     Padding="8,2" FontSize="11" Foreground="White" Background="#33FFFFFF" CornerRadius="5" />

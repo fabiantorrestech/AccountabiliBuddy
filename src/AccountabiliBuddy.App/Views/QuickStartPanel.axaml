@@ -70,11 +70,11 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <!-- 5-minute steps; 1-minute while Shift is held. -->
+                    <!-- 1-minute steps; 5-minute while Shift is held. -->
                     <Grid ColumnDefinitions="*,Auto">
                         <Slider Minimum="5" Maximum="180" TickFrequency="{Binding SliderStep}" IsSnapToTickEnabled="True"
                                 SmallChange="{Binding SliderStep}" LargeChange="15" Value="{Binding SliderMinutes}"
-                                ToolTip.Tip="Hold Shift for 1-minute steps" />
+                                ToolTip.Tip="Hold Shift for 5-minute steps" />
                         <TextBlock Grid.Column="1" Text="{Binding FocusLabel}" FontSize="16" FontWeight="SemiBold"
                                    MinWidth="70" Margin="12,0,0,0" TextAlignment="Right"
                                    VerticalAlignment="Center" HorizontalAlignment="Right" />

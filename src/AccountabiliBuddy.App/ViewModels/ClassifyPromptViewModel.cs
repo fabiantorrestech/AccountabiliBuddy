@@ -11,10 +11,11 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// "not now"; unanswered activity escalates). For a browser tab it asks first: the whole site, or only certain parts
 /// (the page's section, channel or path; only this page; or only this view by its window title), so a part answers
 /// for that part and the rest of the site is still asked about. Other apps: the whole app or only this view. The
-/// pattern can be edited before answering.
+/// pattern can be edited before answering. The answer is one choice of three (On track picked at first), applied with Done
+/// (or Enter in the reason box).
 /// <list type="bullet">
 /// <item>On track: allowed for this session only, and needs a reason (at least one word).</item>
-/// <item>Add exemption (the quieter option): a permanent Allow rule in the session's profile and any others ticked,
+/// <item>Exempt: a permanent Allow rule in the session's profile and any others ticked,
 /// right away; needs a reason too.</item>
 /// <item>Distracting: a Block rule in the session's profile; the reason is optional.</item>
 /// </list>
@@ -144,9 +145,29 @@ public sealed partial class ClassifyPromptViewModel : ObservableObject
     [ObservableProperty]
     public partial string Reason { get; set; }
 
-    /// <summary>True while the "add exemption" panel is open.</summary>
+    /// <summary>The answer Done applies; On track until another is picked.</summary>
     [ObservableProperty]
-    public partial bool IsExemptionOpen { get; set; }
+    [NotifyPropertyChangedFor(nameof(IsDistracting), nameof(IsOnTrack), nameof(IsExempt))]
+    public partial ClassifyChoice Choice { get; set; } = ClassifyChoice.OnTrack;
+
+    public bool IsDistracting
+    {
+        get => Choice == ClassifyChoice.Distracting;
+        set => Choose(ClassifyChoice.Distracting, value);
+    }
+
+    public bool IsOnTrack
+    {
+        get => Choice == ClassifyChoice.OnTrack;
+        set => Choose(ClassifyChoice.OnTrack, value);
+    }
+
+    /// <summary>While true, the profiles the exemption can also go to are shown.</summary>
+    public bool IsExempt
+    {
+        get => Choice == ClassifyChoice.Exempt;
+        set => Choose(ClassifyChoice.Exempt, value);
+    }
 
     public string ExemptionProfileText => $"Always allowed in {ProfileName}, and also in:";
 
@@ -168,29 +189,51 @@ public sealed partial class ClassifyPromptViewModel : ObservableObject
         Error = null;
     }
 
+    partial void OnChoiceChanged(ClassifyChoice value)
+    {
+        Error = null;
+    }
+
     [RelayCommand]
+    private void Done()
+    {
+        switch (Choice)
+        {
+            case ClassifyChoice.Distracting:
+                MarkDistracting();
+                break;
+            case ClassifyChoice.Exempt:
+                AddExemption();
+                break;
+            default:
+                MarkOnTrack();
+                break;
+        }
+    }
+
     private void MarkOnTrack()
     {
         Answer(RuleVerdict.Allow, LabelLifetime.Session, Array.Empty<Guid>());
     }
 
-    [RelayCommand]
     private void MarkDistracting()
     {
         Answer(RuleVerdict.Block, LabelLifetime.Permanent, Array.Empty<Guid>());
     }
 
-    [RelayCommand]
-    private void ToggleExemption()
-    {
-        IsExemptionOpen = !IsExemptionOpen;
-    }
-
-    [RelayCommand]
     private void AddExemption()
     {
         IReadOnlyList<Guid> others = OtherProfiles.Where(profile => profile.IsSelected).Select(profile => profile.Id).ToList();
         Answer(RuleVerdict.Allow, LabelLifetime.Permanent, others);
+    }
+
+    /// <summary>One choice is always picked: the pills are radio buttons, so only picking one sets it.</summary>
+    private void Choose(ClassifyChoice choice, bool selected)
+    {
+        if (selected)
+        {
+            Choice = choice;
+        }
     }
 
     private void SelectScope(ClassifyScope scope, bool selected)

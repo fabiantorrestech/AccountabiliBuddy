@@ -18,7 +18,8 @@ public partial class PlanDayWindow : Window
             }
 
             viewModel.Done += (_, _) => Close();
-            DatePicker.DisplayDateStart = viewModel.Today.ToDateTime(TimeOnly.MinValue);
+            // Past days stay in the month but greyed out (a start date would leave the weeks before it empty).
+            DatePicker.BlackoutDates.Add(new CalendarDateRange(DateTime.MinValue, viewModel.Today.AddDays(-1).ToDateTime(TimeOnly.MinValue)));
             foreach (DateOnly date in viewModel.Dates)
             {
                 DatePicker.SelectedDates.Add(date.ToDateTime(TimeOnly.MinValue));

@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0040](0040-estimate-the-wake-time-from-past-alarms.md) | Estimate the wake time from past alarms | Accepted | — |
 | [0039](0039-hold-cold-turkeys-keys-during-abs-windows.md) | Hold Cold Turkey's keys during AB's windows | Accepted | — |
 | [0038](0038-set-bedtime-reminders-in-the-shared-sleep-settings.md) | Set bedtime reminders in the shared sleep settings | Accepted | — |
 | [0037](0037-re-arm-blocks-by-rules-in-the-day-plan.md) | Re-arm blocks by rules in the day plan | Accepted | — |

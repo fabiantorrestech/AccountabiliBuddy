@@ -20,7 +20,8 @@ import androidx.compose.ui.unit.dp
 
 /**
  * The phone's first-run setup: every permission in one place, then Curbox (what to make there, allowing
- * AccountabiliBuddy, when blocks come back on, hard mode), then into the app. Shown once; Settings → Permissions &
+ * AccountabiliBuddy, when blocks come back on, hard mode), then the night (bedtime essentials and a
+ * LockMyPhone-Extended lock for it), then into the app. Shown once; Settings → Permissions &
  * setup keeps the list.
  */
 @Composable
@@ -42,9 +43,19 @@ fun SetupScreen(
             CurboxSetupPage(onConnectCurbox, onReenableTime)
             Button(onClick = {
                 com.accountabilibuddy.companion.setup.SetupFeatures.markDone(context, com.accountabilibuddy.companion.setup.SetupFeatures.CURBOX)
+                page = 2
+            }, modifier = Modifier.fillMaxWidth()) { Text("Next: the night") }
+            TextButton(onClick = { page = 0 }, modifier = Modifier.fillMaxWidth()) { Text("Back") }
+            return@Column
+        }
+
+        if (page == 2) {
+            BedtimeSetupPage()
+            Button(onClick = {
+                com.accountabilibuddy.companion.setup.SetupFeatures.markDone(context, com.accountabilibuddy.companion.setup.SetupFeatures.BEDTIME)
                 onDone()
             }, modifier = Modifier.fillMaxWidth()) { Text("Done") }
-            TextButton(onClick = { page = 0 }, modifier = Modifier.fillMaxWidth()) { Text("Back") }
+            TextButton(onClick = { page = 1 }, modifier = Modifier.fillMaxWidth()) { Text("Back") }
             return@Column
         }
 

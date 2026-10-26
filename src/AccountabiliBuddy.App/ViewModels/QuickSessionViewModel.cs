@@ -105,12 +105,12 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
     [ObservableProperty]
     public partial bool ShowsOptions { get; set; }
 
-    /// <summary>True while Shift is held: the slider and arrow keys move in 1-minute steps.</summary>
+    /// <summary>True while Shift is held: the slider and arrow keys move in 5-minute steps; 1-minute otherwise.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SliderStep))]
-    public partial bool FineAdjust { get; set; }
+    public partial bool ShiftHeld { get; set; }
 
-    public double SliderStep => FineAdjust ? FineStep : CoarseStep;
+    public double SliderStep => ShiftHeld ? CoarseStep : FineStep;
 
     /// <summary>Slider position. Longer "run until" sessions park the slider at its end.</summary>
     public double SliderMinutes
@@ -118,7 +118,7 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
         get => Math.Min(DisplayMinutes, MaxSliderMinutes);
         set
         {
-            int step = FineAdjust ? FineStep : CoarseStep;
+            int step = ShiftHeld ? CoarseStep : FineStep;
             int snapped = (int)(Math.Round(value / step) * step);
             if (snapped != (int)Math.Round(SliderMinutes))
             {
@@ -247,12 +247,12 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
         }
     }
 
-    /// <summary>Arrow keys: ±5 minutes, or ±1 with Shift.</summary>
-    public void NudgeFocus(int direction, bool fine)
+    /// <summary>Arrow keys: ±1 minute, or ±5 with Shift (snapped to a multiple of 5).</summary>
+    public void NudgeFocus(int direction, bool coarse)
     {
-        int step = fine ? FineStep : CoarseStep;
+        int step = coarse ? CoarseStep : FineStep;
         int current = Math.Min(DisplayMinutes, MaxSliderMinutes);
-        int target = fine ? current + (direction * step) : (int)(Math.Round((double)current / step) * step) + (direction * step);
+        int target = coarse ? (int)(Math.Round((double)current / step) * step) + (direction * step) : current + (direction * step);
         SetDuration(target);
     }
 

@@ -29,7 +29,7 @@ data class PhoneGuard(val name: String, val state: String, val details: List<Str
 object PhoneGuards {
     fun read(context: Context, curbox: CurboxStatus): List<PhoneGuard> {
         val app = context.applicationContext as CompanionApp
-        return listOf(curbox(curbox), lockMyPhone(context, app), essentials(app), emergency(app), workCard(context))
+        return listOf(curbox(curbox), lockMyPhone(context, app), essentials(app), bedtime(app), emergency(app), workCard(context))
     }
 
     /** One line for the phone's row: what's on now. */
@@ -73,6 +73,22 @@ object PhoneGuards {
             if (store.onUnlockInSession) "Opens on unlock during PC sessions and emergency time" else "Opens on unlock during emergency time",
         )
         return PhoneGuard("Essentials screen", if (app.emergency.isActive()) "On (emergency time)" else "Ready", details)
+    }
+
+    private fun bedtime(app: CompanionApp): PhoneGuard {
+        val store = app.bedtimeEssentials
+        val lock = store.hardcoreProfile?.takeIf { app.essentials.useLockMyPhone }
+        val details = listOfNotNull(
+            "${store.essentials.value.apps.size} apps",
+            if (store.onUnlockInSession) "Opens on unlock from bedtime until wake" else "Doesn't open by itself (Settings → Sleep)",
+            lock?.let { "LockMyPhone-Extended \"$it\" locks the phone for the night" },
+        )
+        val state = when {
+            !store.onUnlockInSession && lock == null -> "Off"
+            com.accountabilibuddy.companion.essentials.BedtimeNight.current(app) != null -> "On now (the night)"
+            else -> "Ready: from bedtime until wake"
+        }
+        return PhoneGuard("Bedtime essentials", state, details)
     }
 
     private fun emergency(app: CompanionApp): PhoneGuard {

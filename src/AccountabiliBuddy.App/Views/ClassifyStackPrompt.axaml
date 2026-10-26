@@ -24,10 +24,10 @@
                                     <TextBlock Text="{Binding Prompt.WindowTitleText}" FontSize="12" Opacity="0.7"
                                                TextTrimming="CharacterEllipsis" MaxLines="1" />
                                     <ComboBox ItemsSource="{Binding ScopeOptions}" SelectedItem="{Binding SelectedScope}" HorizontalAlignment="Stretch" />
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <ToggleButton Content="Distracting" IsChecked="{Binding IsDistracting}" />
-                                        <ToggleButton Content="On track (this session)" IsChecked="{Binding IsOnTrack}" />
-                                        <ToggleButton Content="Exempt (always)" IsChecked="{Binding IsExempt}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="0">
+                                        <ToggleButton Content="Distracting" IsChecked="{Binding IsDistracting}" CornerRadius="14,0,0,14" />
+                                        <ToggleButton Content="On track (this session)" IsChecked="{Binding IsOnTrack}" CornerRadius="0" />
+                                        <ToggleButton Content="Exempt (always)" IsChecked="{Binding IsExempt}" CornerRadius="0,14,14,0" />
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -35,7 +35,7 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </ScrollViewer>
-            <TextBox Text="{Binding Reason}" PlaceholderText="Why? Needed for On track and Exempt (one word is enough)" />
+            <TextBox x:Name="ReasonBox" Text="{Binding Reason}" PlaceholderText="Why? Needed for On track and Exempt (one word is enough)" />
             <TextBlock Text="{Binding Error}" Foreground="#E76F51" TextWrapping="Wrap"
                        IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
             <Button Content="Done" Command="{Binding DoneCommand}" Classes="accent" HorizontalAlignment="Right" />

@@ -36,8 +36,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.essentials.AppFolder
+import com.accountabilibuddy.companion.essentials.EssentialsKind
 import com.accountabilibuddy.companion.essentials.EssentialsLaunch
-import com.accountabilibuddy.companion.essentials.ProfileSync
 import com.accountabilibuddy.companion.usage.PhoneUsageReader
 import java.util.UUID
 
@@ -45,13 +45,18 @@ import java.util.UUID
  * Settings → Essentials (the essentials screen and the always-allowed apps): ticked apps first (in the order they had
  * when this opened, so rows don't jump), an eye to hide one from the screen (still allowed), "Parts" to allow only some
  * screens of an app (e.g. Gemini's overlay), a folder per app; the folders, shown or search-only; when the screen comes
- * up; and the LockMyPhone-Extended hardcore profile.
+ * up; and the LockMyPhone-Extended hardcore profile. With [kind] Bedtime it's Settings → Sleep → Bedtime essentials:
+ * the night's own list, screen and LockMyPhone-Extended profile (from bedtime until the wake time).
  */
 @Composable
-internal fun EssentialsSection() {
+internal fun EssentialsSection(kind: EssentialsKind = EssentialsKind.Focus, startOpen: Boolean = false) {
     val context = LocalContext.current
     val app = context.applicationContext as CompanionApp
-    val store = app.essentials
+    val store = app.essentialsOf(kind)
+    val night = kind == EssentialsKind.Bedtime
+    val syncedName = kind.lockMyPhoneName
+    // The night's synced profile needs a LockMyPhone-Extended that keeps one per slot.
+    val canSync = !night || EssentialsLaunch.lockMyPhoneHasSlots(context)
     val essentials by store.essentials.collectAsState()
     var all by remember { mutableStateOf(emptyList<com.accountabilibuddy.companion.essentials.LaunchableApp>()) }
     androidx.compose.runtime.LaunchedEffect(Unit) { all = com.accountabilibuddy.companion.essentials.AppCatalog.apps(context, refresh = true) }
@@ -65,11 +70,34 @@ internal fun EssentialsSection() {
     var partsOpen by remember { mutableStateOf<String?>(null) }
     val reader = remember { PhoneUsageReader(context) }
 
-    Section("Essentials", summary = "${essentials.apps.size} apps · ${essentials.folders.size} folders${if (store.useLockMyPhone && store.hardcoreProfile != null) " · hardcore on" else ""}") {
-        Text("Essentials are always allowed (no work card, not a pickup) and listed on the essentials screen, which comes up on unlocking during a session on another device or emergency time, and from the work card. Everything else is behind a search that shows nothing until Enter.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        ToggleRow("On unlocking during a session", "On another device, unlocking the phone lands on the essentials screen", onUnlock) {
+    val summary = if (night) {
+        listOfNotNull(
+            "${essentials.apps.size} apps",
+            if (onUnlock) "on unlock at night" else "screen off",
+            "lock for the night".takeIf { useLmp && hardcore.isNotBlank() },
+        ).joinToString(" · ")
+    } else {
+        "${essentials.apps.size} apps · ${essentials.folders.size} folders${if (store.useLockMyPhone && store.hardcoreProfile != null) " · hardcore on" else ""}"
+    }
+    Section(if (night) "Bedtime essentials" else "Essentials", summary = summary, startOpen = startOpen) {
+        Text(
+            if (night) "The apps for the night, from bedtime until your wake time: listed on a black screen that comes up when you unlock the phone at night. Everything else is behind a search that shows nothing until Enter. Nothing is blocked unless LockMyPhone-Extended locks the phone for the night (below)."
+            else "Essentials are always allowed (no work card, not a pickup) and listed on the essentials screen, which comes up on unlocking during a session on another device or emergency time, and from the work card. Everything else is behind a search that shows nothing until Enter.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (night && !app.store.state.collectAsState().value.sleep.enabled) {
+            Text("Sleep mode is off: the night needs a bedtime and a wake time (Sleep times).", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+        ToggleRow(
+            if (night) "On unlocking at night" else "On unlocking during a session",
+            if (night) "From bedtime until your wake time, unlocking the phone lands on the bedtime essentials screen (a session on another device shows its own)"
+            else "On another device, unlocking the phone lands on the essentials screen",
+            onUnlock,
+        ) {
             store.onUnlockInSession = it; onUnlock = it
+        }
+        if (night) {
+            TextButton(onClick = { store.update { app.essentials.essentials.value } }) { Text("Replace with a copy of my focus essentials") }
         }
         ToggleRow("App icons", "Icons next to the names on the essentials screen", icons) { store.showIcons = it; icons = it }
         // What a session will look like, for one minute: LockMyPhone-Extended's real lock with the chosen profile when
@@ -78,10 +106,10 @@ internal fun EssentialsSection() {
         androidx.compose.material3.OutlinedButton(
             onClick = {
                 if (lmpTest) EssentialsLaunch.startTestLock(context, hardcore)
-                else context.startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.testIntent(context))
+                else context.startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.testIntent(context, kind))
             },
             modifier = Modifier.fillMaxWidth(),
-        ) { Text(if (lmpTest) "Try LockMyPhone-Extended's \"$hardcore\" lock for 1 minute" else "Try the essentials screen for 1 minute") }
+        ) { Text(if (lmpTest) "Try LockMyPhone-Extended's \"$hardcore\" lock for 1 minute" else "Try the ${if (night) "bedtime " else ""}essentials screen for 1 minute") }
         if (lmpTest) {
             Text(
                 "Asks LockMyPhone-Extended for a 1-minute lock with that profile. It won't start while a stronger lock (schedule, NFC, place…) runs, and a Limited profile gives free use first.",
@@ -90,30 +118,45 @@ internal fun EssentialsSection() {
         }
         // The real screen with ↑ ↓ on every row: the order of apps and folders, apps inside folders, the Phone corner.
         androidx.compose.material3.Button(
-            onClick = { context.startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.arrangeIntent(context)) },
+            onClick = { context.startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.arrangeIntent(context, kind)) },
             modifier = Modifier.fillMaxWidth(),
-        ) { Text("Arrange the essentials screen") }
+        ) { Text("Arrange the ${if (night) "bedtime " else ""}essentials screen") }
 
-        // Hardcore: LockMyPhone-Extended really locks the phone for the session.
-        Text("Hardcore (LockMyPhone-Extended)", style = MaterialTheme.typography.labelLarge)
-        ToggleRow(
-            "Use LockMyPhone-Extended",
-            "Off: AccountabiliBuddy never starts its profiles or keeps its \"${ProfileSync.PROFILE_NAME}\" profile in step",
-            useLmp,
-        ) { store.useLockMyPhone = it; useLmp = it }
+        // Hardcore: LockMyPhone-Extended really locks the phone for the session (or the night).
+        Text(if (night) "Lock for the night (LockMyPhone-Extended)" else "Hardcore (LockMyPhone-Extended)", style = MaterialTheme.typography.labelLarge)
+        if (night) {
+            if (!useLmp) {
+                Text("LockMyPhone-Extended is off (Phone guard → Essentials → Use LockMyPhone-Extended).", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            ToggleRow(
+                "Use LockMyPhone-Extended",
+                "Off: AccountabiliBuddy never starts its profiles or keeps its \"$syncedName\" profiles in step",
+                useLmp,
+            ) {
+                store.useLockMyPhone = it; useLmp = it
+                // The night's synced profile follows the same switch.
+                app.bedtimeEssentials.resync()
+            }
+        }
         LockMyPhoneProfilePicker(
             selected = hardcore.ifBlank { null },
             enabled = useLmp,
+            noneLabel = if (night) "none (no lock at night)" else "none (no lock for sessions)",
             onPick = { name -> hardcore = name.orEmpty(); store.hardcoreProfile = name },
         )
         Text(
-            if (EssentialsLaunch.lockMyPhoneInstalled(context)) "When a session starts on another device, LockMyPhone-Extended starts that profile for the session's length; it decides what's allowed. Its \"${ProfileSync.PROFILE_NAME}\" profile always allows exactly these essentials."
-            else "LockMyPhone-Extended isn't installed on this phone.",
+            when {
+                !EssentialsLaunch.lockMyPhoneInstalled(context) -> "LockMyPhone-Extended isn't installed on this phone."
+                night && !canSync -> "At bedtime LockMyPhone-Extended starts that profile until your wake time; it decides what's allowed. Update LockMyPhone-Extended to 0.13.0 to get an \"$syncedName\" profile kept in step with this list."
+                night -> "At bedtime LockMyPhone-Extended starts that profile until your wake time (or at your first unlock after it); it decides what's allowed. Its \"$syncedName\" profile always allows exactly these bedtime essentials."
+                else -> "When a session starts on another device, LockMyPhone-Extended starts that profile for the session's length; it decides what's allowed. Its \"$syncedName\" profile always allows exactly these essentials."
+            },
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (useLmp && EssentialsLaunch.lockMyPhoneInstalled(context) && hardcore != ProfileSync.PROFILE_NAME) {
-            androidx.compose.material3.TextButton(onClick = { hardcore = ProfileSync.PROFILE_NAME; store.hardcoreProfile = ProfileSync.PROFILE_NAME }) {
-                Text("Use \"${ProfileSync.PROFILE_NAME}\" (kept in sync with these essentials)")
+        if (useLmp && canSync && EssentialsLaunch.lockMyPhoneInstalled(context) && hardcore != syncedName) {
+            androidx.compose.material3.TextButton(onClick = { hardcore = syncedName; store.hardcoreProfile = syncedName }) {
+                Text("Use \"$syncedName\" (kept in sync with these essentials)")
             }
         }
 
@@ -243,7 +286,7 @@ private fun screenLabel(className: String): String {
  * list them: the current name stays and it says to update.
  */
 @Composable
-private fun LockMyPhoneProfilePicker(selected: String?, enabled: Boolean, onPick: (String?) -> Unit) {
+private fun LockMyPhoneProfilePicker(selected: String?, enabled: Boolean, noneLabel: String, onPick: (String?) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var names by remember { mutableStateOf<List<String>?>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -259,10 +302,10 @@ private fun LockMyPhoneProfilePicker(selected: String?, enabled: Boolean, onPick
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.weight(1f)) {
             androidx.compose.material3.OutlinedButton(onClick = { open = true }, enabled = enabled && names != null, modifier = Modifier.fillMaxWidth()) {
-                Text(selected?.let { "Profile: $it" } ?: "Profile: none (no lock for sessions)", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(selected?.let { "Profile: $it" } ?: "Profile: $noneLabel", maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                DropdownMenuItem(text = { Text("None (no lock for sessions)") }, onClick = { onPick(null); open = false })
+                DropdownMenuItem(text = { Text(noneLabel.replaceFirstChar { it.uppercase() }) }, onClick = { onPick(null); open = false })
                 names.orEmpty().forEach { name ->
                     DropdownMenuItem(text = { Text(name) }, onClick = { onPick(name); open = false })
                 }

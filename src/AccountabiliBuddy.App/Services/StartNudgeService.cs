@@ -23,6 +23,8 @@ public sealed class StartNudgeService
     private readonly SqliteJsonDocumentStore _store;
     private bool _wasInWork;
     private bool _sawAway;
+    private bool _checkedOnce;
+    private bool _sessionLastTick;
     private DateTimeOffset _lastNudge = DateTimeOffset.MinValue;
 
     public StartNudgeService(SessionController sessions, ConfigurationService configuration, IUserIdleDetector idle, SqliteJsonDocumentStore store)
@@ -39,8 +41,8 @@ public sealed class StartNudgeService
     /// <summary>True on a day off on this computer (ADR 31); then nothing steers. Set by the app.</summary>
     public Func<bool> IsDayOff { get; set; } = () => false;
 
-    /// <summary>Time to steer: the app opens Today with the task box ready.</summary>
-    public event EventHandler? Due;
+    /// <summary>Time to steer: the app opens Today with the task box ready, or only flashes its taskbar button.</summary>
+    public event EventHandler<StartNudgeReason>? Due;
 
     public void LoadBlocking()
     {
@@ -63,7 +65,13 @@ public sealed class StartNudgeService
     /// <summary>Runs every second.</summary>
     public void CheckNow()
     {
-        bool inWork = Settings.On && !_sessions.State.IsActive && !IsDayOff() && InWorkPart();
+        bool sessionRunning = _sessions.State.IsActive;
+        bool firstCheck = !_checkedOnce;
+        bool sessionJustEnded = _sessionLastTick && !sessionRunning;
+        _checkedOnce = true;
+        _sessionLastTick = sessionRunning;
+
+        bool inWork = Settings.On && !sessionRunning && !IsDayOff() && InWorkPart();
         if (!inWork)
         {
             _wasInWork = false;
@@ -73,9 +81,11 @@ public sealed class StartNudgeService
 
         if (!_wasInWork)
         {
-            // Work just started, or the app just started during it.
+            // Work just started, the app just started during it, or a session just ended inside it.
             _wasInWork = true;
-            Nudge();
+            Nudge(firstCheck ? StartNudgeReason.AppStarted
+                : sessionJustEnded ? StartNudgeReason.SessionEnded
+                : StartNudgeReason.WorkStarted);
             return;
         }
 
@@ -87,19 +97,19 @@ public sealed class StartNudgeService
         {
             // Back at the desk.
             _sawAway = false;
-            Nudge();
+            Nudge(StartNudgeReason.Back);
         }
         else if (Settings.RepeatMinutes > 0 && _sessions.Now - _lastNudge >= TimeSpan.FromMinutes(Settings.RepeatMinutes))
         {
             // Still no session: again, every few minutes, while someone's at the computer.
-            Nudge();
+            Nudge(StartNudgeReason.Repeat);
         }
     }
 
-    private void Nudge()
+    private void Nudge(StartNudgeReason reason)
     {
         _lastNudge = _sessions.Now;
-        Due?.Invoke(this, EventArgs.Empty);
+        Due?.Invoke(this, reason);
     }
 
     private bool InWorkPart()

@@ -97,6 +97,7 @@ class EssentialsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val app = application as CompanionApp
         val arranging = intent.getBooleanExtra(EXTRA_ARRANGE, false)
+        val kind = intent.getStringExtra(EXTRA_KIND)?.let { name -> EssentialsKind.entries.firstOrNull { it.name == name } } ?: EssentialsKind.Focus
         // A test (Settings → Essentials → Try it for 1 minute) closes by itself when its minute is up.
         val testUntil = intent.getLongExtra(EXTRA_TEST_UNTIL, 0L).takeIf { it > 0 }?.let(Instant::ofEpochMilli)
         testUntil?.let { until ->
@@ -105,7 +106,7 @@ class EssentialsActivity : ComponentActivity() {
         setContent {
             CompanionTheme {
                 androidx.compose.runtime.key(resetKey) {
-                    EssentialsScreen(app, arranging, onOpen = ::openApp, onDial = ::dial, onDone = ::finish, testUntil = testUntil)
+                    EssentialsScreen(app, kind, arranging, onOpen = ::openApp, onDial = ::dial, onDone = ::finish, testUntil = testUntil)
                 }
             }
         }
@@ -135,16 +136,20 @@ class EssentialsActivity : ComponentActivity() {
     companion object {
         const val EXTRA_ARRANGE = "arrange"
         const val EXTRA_TEST_UNTIL = "testUntil"
+        /** Which list: an [EssentialsKind] name (Focus when missing). */
+        const val EXTRA_KIND = "kind"
 
-        /** Opens the essentials screen (from the work card, emergency time, or an unlock during a session). */
-        fun intent(context: Context): Intent =
+        /** Opens the essentials screen of [kind] (from the work card, emergency time, or an unlock during a session or the night). */
+        fun intent(context: Context, kind: EssentialsKind = EssentialsKind.Focus): Intent =
             Intent(context, EssentialsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                .putExtra(EXTRA_KIND, kind.name)
 
-        /** The same screen to arrange (Settings → Essentials). */
-        fun arrangeIntent(context: Context): Intent = intent(context).putExtra(EXTRA_ARRANGE, true)
+        /** The same screen to arrange (Settings → Essentials, Settings → Sleep → Bedtime essentials). */
+        fun arrangeIntent(context: Context, kind: EssentialsKind = EssentialsKind.Focus): Intent = intent(context, kind).putExtra(EXTRA_ARRANGE, true)
 
-        /** The screen as it is in a session, for one minute: to try it out. */
-        fun testIntent(context: Context): Intent = intent(context).putExtra(EXTRA_TEST_UNTIL, Instant.now().plusSeconds(60).toEpochMilli())
+        /** The screen as it is in a session (or the night), for one minute: to try it out. */
+        fun testIntent(context: Context, kind: EssentialsKind = EssentialsKind.Focus): Intent =
+            intent(context, kind).putExtra(EXTRA_TEST_UNTIL, Instant.now().plusSeconds(60).toEpochMilli())
     }
 }
 
@@ -155,9 +160,9 @@ data class LaunchableApp(val packageName: String, val name: String, val icon: Dr
 private val LocalShowIcons = androidx.compose.runtime.compositionLocalOf { true }
 
 @Composable
-private fun EssentialsScreen(app: CompanionApp, arranging: Boolean, onOpen: (String) -> Unit, onDial: () -> Unit, onDone: () -> Unit, testUntil: Instant? = null) {
+private fun EssentialsScreen(app: CompanionApp, kind: EssentialsKind, arranging: Boolean, onOpen: (String) -> Unit, onDial: () -> Unit, onDone: () -> Unit, testUntil: Instant? = null) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val store = app.essentials
+    val store = app.essentialsOf(kind)
     val essentials by store.essentials.collectAsState()
     var corner by remember { mutableStateOf(store.phoneCorner) }
     // Read off the main thread (it froze the screen); the clock and the Phone button show at once.
@@ -197,7 +202,7 @@ private fun EssentialsScreen(app: CompanionApp, arranging: Boolean, onOpen: (Str
             }
             Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
                 Text(LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm", Locale.US)), color = Color.White, fontSize = 56.sp, modifier = Modifier.weight(1f))
-                (testUntil?.let { "Test · ${Duration.between(now, it).seconds.coerceAtLeast(0)} s left" } ?: timeLeft(app, now))?.let { Text(it, color = Color(0xCCFFFFFF), fontSize = 16.sp, modifier = Modifier.padding(top = 18.dp)) }
+                (testUntil?.let { "Test · ${Duration.between(now, it).seconds.coerceAtLeast(0)} s left" } ?: timeLeft(app, kind, now))?.let { Text(it, color = Color(0xCCFFFFFF), fontSize = 16.sp, modifier = Modifier.padding(top = 18.dp)) }
             }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 item { Spacer(Modifier.height(40.dp)) }
@@ -384,9 +389,15 @@ private fun MoveButtons(onMove: (Int) -> Unit) {
     IconButton(onClick = { onMove(1) }) { Icon(Icons.Outlined.ArrowDownward, contentDescription = "Move down", tint = Color.White) }
 }
 
-// The time left: the emergency time, else the session on another device (from its sync file), else nothing.
-private fun timeLeft(app: CompanionApp, now: Instant): String? {
+// The time left: the emergency time, else the night's wake time (bedtime list), else the session on another device
+// (from its sync file), else nothing.
+private fun timeLeft(app: CompanionApp, kind: EssentialsKind, now: Instant): String? {
     app.emergency.active(now)?.let { return "Phone time · ${minutes(Duration.between(now, it.end))} left" }
+    if (kind == EssentialsKind.Bedtime) {
+        val night = BedtimeNight.current(app) ?: return null
+        val wake = night.end.atZone(java.time.ZoneId.systemDefault()).toInstant()
+        return "Up at ${night.end.format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))} · ${minutes(Duration.between(now, wake))}"
+    }
     val running = app.sync.received.value
         .filter { it.file.device.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC }
         .mapNotNull { it.file.running }

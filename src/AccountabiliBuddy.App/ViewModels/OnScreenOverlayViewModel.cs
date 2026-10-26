@@ -151,6 +151,7 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(ShowsTemporary));
         OnPropertyChanged(nameof(SubtaskMaxLines));
+        OnPropertyChanged(nameof(TaskMaxLines));
         ApplyQuiet();
         if (value)
         {
@@ -399,6 +400,9 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
 
     /// <summary>Up to 2 lines, then "…"; the whole name while Ctrl+Alt is held (0 = no limit).</summary>
     public int SubtaskMaxLines => ShowsDetails ? 0 : 2;
+
+    /// <summary>One line, then "…"; the whole task while Ctrl+Alt is held (0 = no limit).</summary>
+    public int TaskMaxLines => ShowsDetails ? 0 : 1;
 
     /// <summary>The task line shows: tasks exist, and Ctrl+Alt is held when it's set to show only then.</summary>
     [ObservableProperty]
