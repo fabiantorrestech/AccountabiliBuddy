@@ -49,6 +49,9 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     /// <summary>Adding, renaming, moving, removing and subtasks: not in the on-screen window (it can't take typing).</summary>
     public bool CanEdit => Mode != ChecklistMode.Compact;
 
+    /// <summary>A task's ⚑ parks it as a come-back: where tasks are edited, once the come-backs exist.</summary>
+    public bool CanPark => CanEdit && _tasks.Comebacks is not null;
+
     /// <summary>The open tasks grouped by category, in the categories' order, "No category" last.</summary>
     public ObservableCollection<ChecklistGroupViewModel> OpenGroups { get; } = new();
 
@@ -152,6 +155,15 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _tasks.Changed -= OnChanged;
+    }
+
+    /// <summary>
+    /// A row dropped by its drag handle: a task before or after another task (taking that task's category, so it can
+    /// join another group), or a subtask before or after another subtask of its task.
+    /// </summary>
+    public Task MoveToAsync(Guid id, Guid targetId, bool after)
+    {
+        return _tasks.MoveToAsync(id, targetId, after);
     }
 
     [RelayCommand]

@@ -7,7 +7,9 @@
     <!-- A guided session's checklist (ADR 24, 25): before Start (add/edit), while it runs (tick/add/edit) or in the
          on-screen window's Ctrl+Alt details (tick and pick only, small). Clicking a name picks it for the on-screen bar
          (marked ▸). Move and rename show on hover in the app's lists. Open tasks are grouped under their categories
-         (a task's dot changes its category; ↑ ↓ move it within its group). Done tasks sit under a collapsed "Done (n)". -->
+         (a task's dot changes its category; ↑ ↓ move it within its group). The ⠿ handle drags a task (dropped among another
+         category's tasks it joins that category) or a subtask within its task. ⚑ parks a task as a come-back. Done tasks sit
+         under a collapsed "Done (n)". -->
     <UserControl.Styles>
         <!-- A category's header over its tasks; smaller in the on-screen window (the style after it). -->
         <Style Selector="TextBlock.groupHeader">
@@ -58,6 +60,23 @@
         <Style Selector="Grid.row:pointerover Button.onHover">
             <Setter Property="Opacity" Value="1" />
         </Style>
+        <!-- The drag handle (⠿) at a row's left: shows on hover like move and rename. -->
+        <Style Selector="Border.dragHandle">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Cursor" Value="SizeNorthSouth" />
+            <Setter Property="Width" Value="16" />
+            <Setter Property="Opacity" Value="0" />
+        </Style>
+        <Style Selector="Grid.row:pointerover Border.dragHandle">
+            <Setter Property="Opacity" Value="0.6" />
+        </Style>
+        <!-- Where a dragged row would go: a line above or below the row under the pointer. -->
+        <Style Selector="Border.dropLine">
+            <Setter Property="Height" Value="2" />
+            <Setter Property="CornerRadius" Value="1" />
+            <Setter Property="Background" Value="#2A9D8F" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
     </UserControl.Styles>
     <UserControl.Resources>
         <!-- A category menu's entries (a task's dot, the "Add a task" box's dot): colour, name, ✓ for the one it has. -->
@@ -94,13 +113,20 @@
                         <ItemsControl ItemsSource="{Binding Tasks}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:TaskRowViewModel">
+                                    <Panel Classes="taskItem">
                                     <StackPanel Spacing="2">
-                                        <Grid Classes="row" ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto,Auto">
-                                            <CheckBox IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="0,0,6,0" VerticalAlignment="Center"
+                                        <Grid Classes="row" ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto,Auto,Auto,Auto">
+                                            <Border Classes="dragHandle" ToolTip.Tip="Drag to move" AutomationProperties.Name="Drag to move"
+                                                    IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}"
+                                                    PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
+                                                    PointerCaptureLost="OnHandleCaptureLost">
+                                                <TextBlock Text="⠿" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                            </Border>
+                                            <CheckBox Grid.Column="1" IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="0,0,6,0" VerticalAlignment="Center"
                                                       IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanTick}"
                                                       Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
                                             <!-- Its category: the dot opens the menu to put it in another one. -->
-                                            <Button Grid.Column="1" Classes="small" Padding="2,0" ToolTip.Tip="{Binding CategoryName, StringFormat='Category: {0} (click to change)'}"
+                                            <Button Grid.Column="2" Classes="small" Padding="2,0" ToolTip.Tip="{Binding CategoryName, StringFormat='Category: {0} (click to change)'}"
                                                     AutomationProperties.Name="Change category"
                                                     IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).ShowsCategoryPickers}">
                                                 <Ellipse Width="10" Height="10" Fill="{Binding CategoryBrush}" Stroke="#80808080" StrokeThickness="1" />
@@ -109,7 +135,7 @@
                                                                 ItemTemplate="{StaticResource CategoryChoiceTemplate}" />
                                                 </Button.Flyout>
                                             </Button>
-                                            <Button Grid.Column="2" Classes="name" Command="{Binding PickCommand}" IsVisible="{Binding !IsEditing}"
+                                            <Button Grid.Column="3" Classes="name" Command="{Binding PickCommand}" IsVisible="{Binding !IsEditing}"
                                                     AutomationProperties.Name="{Binding Title}"
                                                     ToolTip.Tip="Show this on the on-screen bar (click it again: back to the first open task)">
                                                 <Grid ColumnDefinitions="Auto,*">
@@ -119,32 +145,43 @@
                                                                Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
                                                 </Grid>
                                             </Button>
-                                            <TextBox Grid.Column="2" Classes="taskEntry" Text="{Binding EditTitle}" IsVisible="{Binding IsEditing}"
+                                            <TextBox Grid.Column="3" Classes="taskEntry" Text="{Binding EditTitle}" IsVisible="{Binding IsEditing}"
                                                      PropertyChanged="OnRenameBoxPropertyChanged" LostFocus="OnRenameBoxLostFocus">
                                                 <TextBox.KeyBindings>
                                                     <KeyBinding Gesture="Enter" Command="{Binding SaveEditCommand}" />
                                                     <KeyBinding Gesture="Escape" Command="{Binding CancelEditCommand}" />
                                                 </TextBox.KeyBindings>
                                             </TextBox>
-                                            <Button Grid.Column="3" Classes="small onHover" Content="↑" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up"
+                                            <Button Grid.Column="4" Classes="small onHover" Content="↑" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up"
                                                     IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
-                                            <Button Grid.Column="4" Classes="small onHover" Content="↓" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down"
+                                            <Button Grid.Column="5" Classes="small onHover" Content="↓" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down"
                                                     IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
-                                            <Button Grid.Column="5" Classes="small onHover" Content="✎" Command="{Binding BeginEditCommand}" ToolTip.Tip="Rename"
+                                            <Button Grid.Column="6" Classes="small onHover" Content="✎" Command="{Binding BeginEditCommand}" ToolTip.Tip="Rename"
                                                     IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
-                                            <Button Grid.Column="6" Classes="small" Content="+ step" Command="{Binding BeginAddSubtaskCommand}" ToolTip.Tip="Add a subtask"
+                                            <Button Grid.Column="7" Classes="small onHover" Content="⚑" Command="{Binding ParkCommand}"
+                                                    ToolTip.Tip="Park: it leaves the checklist and waits under Come back to"
+                                                    AutomationProperties.Name="Park"
+                                                    IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanPark}" />
+                                            <Button Grid.Column="8" Classes="small" Content="+ step" Command="{Binding BeginAddSubtaskCommand}" ToolTip.Tip="Add a subtask"
                                                     IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
-                                            <Button Grid.Column="7" Classes="small" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove"
+                                            <Button Grid.Column="9" Classes="small" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove"
                                                     IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
                                         </Grid>
                                         <ItemsControl ItemsSource="{Binding Subtasks}" Margin="24,0,0,0" IsVisible="{Binding HasSubtasks}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:SubtaskRowViewModel">
-                                                    <Grid Classes="row" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
-                                                        <CheckBox IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                    <Panel Classes="subtaskItem">
+                                                    <Grid Classes="row" ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto">
+                                                        <Border Classes="dragHandle" ToolTip.Tip="Drag to move" AutomationProperties.Name="Drag to move"
+                                                                IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}"
+                                                                PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
+                                                                PointerCaptureLost="OnHandleCaptureLost">
+                                                            <TextBlock Text="⠿" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                        </Border>
+                                                        <CheckBox Grid.Column="1" IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="0,0,6,0" VerticalAlignment="Center"
                                                                   IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanTick}"
                                                                   Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
-                                                        <Button Grid.Column="1" Classes="name" Command="{Binding PickCommand}" IsVisible="{Binding !IsEditing}"
+                                                        <Button Grid.Column="2" Classes="name" Command="{Binding PickCommand}" IsVisible="{Binding !IsEditing}"
                                                     AutomationProperties.Name="{Binding Title}"
                                                                 ToolTip.Tip="Show this on the on-screen bar (click it again: back to the first open task)">
                                                             <Grid ColumnDefinitions="Auto,*">
@@ -154,32 +191,38 @@
                                                                            Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
                                                             </Grid>
                                                         </Button>
-                                                        <TextBox Grid.Column="1" Classes="taskEntry" Text="{Binding EditTitle}" IsVisible="{Binding IsEditing}"
+                                                        <TextBox Grid.Column="2" Classes="taskEntry" Text="{Binding EditTitle}" IsVisible="{Binding IsEditing}"
                                                      PropertyChanged="OnRenameBoxPropertyChanged" LostFocus="OnRenameBoxLostFocus">
                                                             <TextBox.KeyBindings>
                                                                 <KeyBinding Gesture="Enter" Command="{Binding SaveEditCommand}" />
                                                                 <KeyBinding Gesture="Escape" Command="{Binding CancelEditCommand}" />
                                                             </TextBox.KeyBindings>
                                                         </TextBox>
-                                                        <Button Grid.Column="2" Classes="small onHover" Content="↑" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up"
+                                                        <Button Grid.Column="3" Classes="small onHover" Content="↑" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up"
                                                                 IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
-                                                        <Button Grid.Column="3" Classes="small onHover" Content="↓" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down"
+                                                        <Button Grid.Column="4" Classes="small onHover" Content="↓" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down"
                                                                 IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
-                                                        <Button Grid.Column="4" Classes="small onHover" Content="✎" Command="{Binding BeginEditCommand}" ToolTip.Tip="Rename"
+                                                        <Button Grid.Column="5" Classes="small onHover" Content="✎" Command="{Binding BeginEditCommand}" ToolTip.Tip="Rename"
                                                                 IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
-                                                        <Button Grid.Column="5" Classes="small" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove"
+                                                        <Button Grid.Column="6" Classes="small" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove"
                                                                 IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
                                                     </Grid>
+                                                    <Border Classes="dropLine" VerticalAlignment="Top" IsVisible="{Binding IsDropAbove}" />
+                                                    <Border Classes="dropLine" VerticalAlignment="Bottom" IsVisible="{Binding IsDropBelow}" />
+                                                    </Panel>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
-                                        <TextBox Classes="taskEntry" Margin="24,0,0,0" Text="{Binding NewSubtaskTitle}" PlaceholderText="Subtask (Enter)"
+                                        <TextBox Classes="taskEntry" Margin="40,0,0,0" Text="{Binding NewSubtaskTitle}" PlaceholderText="Subtask (Enter)"
                                                  IsVisible="{Binding IsAddingSubtask}">
                                             <TextBox.KeyBindings>
                                                 <KeyBinding Gesture="Enter" Command="{Binding AddSubtaskCommand}" />
                                             </TextBox.KeyBindings>
                                         </TextBox>
                                     </StackPanel>
+                                    <Border Classes="dropLine" VerticalAlignment="Top" IsVisible="{Binding IsDropAbove}" />
+                                    <Border Classes="dropLine" VerticalAlignment="Bottom" IsVisible="{Binding IsDropBelow}" />
+                                    </Panel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>

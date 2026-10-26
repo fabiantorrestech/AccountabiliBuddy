@@ -50,6 +50,14 @@ public abstract partial class ChecklistRowViewModel : ObservableObject
     [ObservableProperty]
     public partial string EditTitle { get; set; }
 
+    /// <summary>While a row is dragged over this one: the line above it shows where it would go.</summary>
+    [ObservableProperty]
+    public partial bool IsDropAbove { get; set; }
+
+    /// <summary>While a row is dragged over this one: the line below it shows where it would go.</summary>
+    [ObservableProperty]
+    public partial bool IsDropBelow { get; set; }
+
     protected SessionTasksService Tasks => _tasks;
 
     /// <summary>Clicking its name: the on-screen bar shows it; clicking the current one again goes back to the first open task.</summary>

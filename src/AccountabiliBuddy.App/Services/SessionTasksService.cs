@@ -53,6 +53,12 @@ public sealed class SessionTasksService : IDisposable
     /// <summary>Offer to end the session when every task is ticked (on by default).</summary>
     public bool NotifyAllDone { get; private set; } = true;
 
+    /// <summary>
+    /// The come-backs a task is parked to and brought back from; set once the store exists. Null: no parking (the
+    /// checklist hides ⚑).
+    /// </summary>
+    public ComebackStore? Comebacks { get; set; }
+
     /// <summary>True while the checklist belongs to a running session.</summary>
     public bool IsLive => Current.SessionStart is not null && _sessions.State.IsActive;
 
@@ -169,6 +175,39 @@ public sealed class SessionTasksService : IDisposable
     public Task MoveAsync(Guid id, int offset)
     {
         return SetAsync(Current.Move(id, offset));
+    }
+
+    /// <summary>Drag and drop: a task before or after another (taking its category), or a subtask among its task's subtasks.</summary>
+    public Task MoveToAsync(Guid id, Guid targetId, bool after)
+    {
+        return SetAsync(Current.MoveTo(id, targetId, after));
+    }
+
+    /// <summary>
+    /// Parks a task as a come-back (its title, plus " (+N steps)" for open subtasks) and takes it off the checklist; the
+    /// bar moves on when it showed it. Allowed during a session: it loosens nothing.
+    /// </summary>
+    public async Task ParkAsync(Guid taskId)
+    {
+        if (Comebacks is null || Current.ParkText(taskId) is not string text)
+        {
+            return;
+        }
+
+        await Comebacks.AddAsync(text);
+        await SetAsync(Current.Parked(taskId));
+    }
+
+    /// <summary>A come-back becomes a task at the end of the checklist (no category) and is ticked off the come-backs.</summary>
+    public async Task AddFromComebackAsync(Guid comebackId)
+    {
+        if (Comebacks?.Open.FirstOrDefault(comeback => comeback.Id == comebackId) is not Comeback comeback)
+        {
+            return;
+        }
+
+        await AddAsync(comeback.Text, null);
+        await Comebacks.TickAsync(comebackId);
     }
 
     public async Task ToggleAsync(Guid id)

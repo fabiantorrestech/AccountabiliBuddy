@@ -392,6 +392,8 @@ public partial class App : Application
         // Capture at the source: Ctrl+Alt+N parks an idea as a come-back (this computer, encrypted).
         _comebacks = new ComebackStore(documents, new DpapiDataProtector(), time);
         _comebacks.LoadBlocking();
+        // A task can be parked as a come-back, and a come-back brought into the checklist.
+        sessionTasks.Comebacks = _comebacks;
         // Notes kept in Focus mode (redesign phase 5): this computer only, sealed.
         _sessionNotes = new SessionNotesStore(documents, new DpapiDataProtector(), time);
         _sessionNotes.LoadBlocking();
@@ -720,7 +722,7 @@ public partial class App : Application
             ColdTurkey = new ColdTurkeyStatusViewModel(_coldTurkey, _sessions),
         };
         // Focus mode: the Today page while a session runs (the main window's day bar is the one it reads).
-        sessionViewModel.Comebacks = new ComebacksViewModel(_comebacks!);
+        sessionViewModel.Comebacks = new ComebacksViewModel(_comebacks!, sessionTasks);
         sessionViewModel.Lunch = new LunchCardViewModel(_lunch!, _sessions);
         sessionViewModel.DayOff = new DayOffCardViewModel(_preWork!);
         // Deep work against the daily goal (redesign phase 4): Today's card, the on-screen details, "Goal met" once a day.
