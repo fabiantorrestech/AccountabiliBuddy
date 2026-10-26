@@ -73,6 +73,7 @@ fun MainScreen(
     val planConflict by viewModel.planConflict.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val planDraft by viewModel.planDraft.collectAsStateWithLifecycle()
+    val planDayOpen by viewModel.planDayOpen.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val noise = (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).noise
     val noiseState by noise.state.collectAsStateWithLifecycle()
@@ -115,6 +116,16 @@ fun MainScreen(
                     SetupState.markShown(context)
                     showSetup = false
                 }
+                return@Column
+            }
+
+            if (planDayOpen) {
+                PlanDayScreen(
+                    plan = state.document.dayPlan,
+                    blocks = remember { viewModel.planDayBlocks() },
+                    onSave = viewModel::savePlannedDays,
+                    onClose = { viewModel.planDayOpen.value = false },
+                )
                 return@Column
             }
 
@@ -170,6 +181,9 @@ fun MainScreen(
                         { viewModel.openPlanEditor()?.let { viewModel.message.value = it } }
                     },
                     onDiscardPlanEdit = viewModel::discardDayPlanEdit,
+                    onPlanDay = if (pairedPc == null) null else {
+                        { viewModel.planDayOpen.value = true }
+                    },
                     runningTasks = runningTasks,
                     comebacks = comebacks,
                 )

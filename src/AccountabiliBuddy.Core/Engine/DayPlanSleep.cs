@@ -38,6 +38,22 @@ public static class DayPlanSleep
         };
     }
 
+    /// <summary>
+    /// One template with its night set to <paramref name="times"/> (wake by alarm included), e.g. a one-off day from
+    /// "Plan a day"; unchanged when the plan has no Sleep category.
+    /// </summary>
+    public static DayTemplate WithNight(DayTemplate template, DayPlan plan, SleepTimes times)
+    {
+        DayCategory? category = plan.Categories.FirstOrDefault(candidate => candidate.Behavior == CategoryBehavior.Sleep);
+        if (category is null)
+        {
+            return template;
+        }
+
+        DayTemplate set = WithSleep(template, plan, category, times);
+        return set with { Parts = set.Parts.Select(part => part.Id == SleepPart(set, plan)?.Id ? part with { WakeByAlarm = times.WakeByAlarm } : part).ToList() };
+    }
+
     private static DayTemplate WithSleep(DayTemplate template, DayPlan plan, DayCategory category, SleepTimes times)
     {
         PlanPart? existing = SleepPart(template, plan);

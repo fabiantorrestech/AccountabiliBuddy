@@ -62,6 +62,8 @@ fun TodayScreen(
     /** Opens the day plan editor (ADR 19); null hides the button. */
     onEditPlan: (() -> Unit)? = null,
     onDiscardPlanEdit: () -> Unit = {},
+    /** Opens "Plan a day" (ADR 37); null hides the button. */
+    onPlanDay: (() -> Unit)? = null,
     /** The running session's checklist (ADR 24), from the linked PC or a sync file; null hides the card. */
     runningTasks: com.accountabilibuddy.companion.sync.RunningTasks? = null,
     /** The PC's open come-backs (ADR 30); null hides the card. */
@@ -86,6 +88,7 @@ fun TodayScreen(
                     Text(model.dateText, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.width(10.dp))
                     Text(model.statusText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                    onPlanDay?.let { TextButton(onClick = it) { Text("Plan a day") } }
                     onEditPlan?.let { TextButton(onClick = it) { Text("Edit plan") } }
                 }
                 model.sleepLine?.let { line ->

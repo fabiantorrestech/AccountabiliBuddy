@@ -1,0 +1,93 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.PlanDayWindow"
+        x:DataType="vm:PlanDayViewModel"
+        Title="Plan a day"
+        Width="640" Height="640" MinWidth="460" MinHeight="480"
+        WindowStartupLocation="CenterScreen">
+    <!-- "Plan a day" (ADR 37): four steps that make one-off days from Workdays or Off-Days. -->
+    <DockPanel Margin="20">
+        <TextBlock DockPanel.Dock="Top" Text="{Binding StepTitle}" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12" />
+        <Border DockPanel.Dock="Top" IsVisible="{Binding IsLocked}" Background="#33F59E0B" Padding="12,8" Margin="0,0,0,12" CornerRadius="6">
+            <TextBlock Text="You can look, but saving waits until the focus session you started ends." TextWrapping="Wrap" />
+        </Border>
+
+        <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,12,0,0">
+            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" IsVisible="{Binding StatusMessage, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button Content="Cancel" Click="OnClose" />
+                <Button Content="Back" Command="{Binding BackCommand}" IsVisible="{Binding CanGoBack}" />
+                <Button Content="Next" Command="{Binding NextCommand}" Classes="accent" IsVisible="{Binding !IsStep4}" />
+                <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" IsVisible="{Binding IsStep4}" IsEnabled="{Binding !IsLocked}" />
+            </StackPanel>
+        </StackPanel>
+
+        <ScrollViewer>
+            <Panel>
+                <!-- 1: kind of day and dates. -->
+                <StackPanel Spacing="10" IsVisible="{Binding IsStep1}">
+                    <RadioButton GroupName="kind" IsChecked="{Binding IsWorkday}" Content="Adjusted workday (starts from your Workdays plan)" />
+                    <RadioButton GroupName="kind" IsChecked="{Binding IsOffDay}" Content="Off-day (starts from your Off-Days plan)" />
+                    <TextBlock Text="Dates (click to pick; Ctrl or Shift for several)" Margin="0,8,0,0" Opacity="0.8" />
+                    <Calendar x:Name="DatePicker" SelectionMode="MultipleRange" HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding DatesText}" TextWrapping="Wrap" />
+                    <TextBox Text="{Binding Note}" Watermark="A note (optional), e.g. Dentist, Half day" />
+                </StackPanel>
+
+                <!-- 2: the night before. -->
+                <StackPanel Spacing="10" IsVisible="{Binding IsStep2}">
+                    <TextBlock Text="The night before each date (as your plan has it unless you change it)." TextWrapping="Wrap" Opacity="0.8" />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="Bed by" VerticalAlignment="Center" Width="70" />
+                        <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding Bedtime}" MinuteIncrement="5" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="Up at" VerticalAlignment="Center" Width="70" />
+                        <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding Wake}" MinuteIncrement="5" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding SleepText}" FontWeight="SemiBold" />
+                    <CheckBox IsChecked="{Binding WakeByAlarm}" Content="Follow my alarm that morning (your phone's alarm wins over 'Up at')" />
+                </StackPanel>
+
+                <!-- 3: blocks. -->
+                <StackPanel Spacing="10" IsVisible="{Binding IsStep3}">
+                    <TextBlock Text="Tick the blocks to lift on these days." TextWrapping="Wrap" Opacity="0.8" />
+                    <TextBlock Text="No blocks seen yet: Curbox on your phone and Cold Turkey on your PCs show up here once they've synced."
+                               TextWrapping="Wrap" Opacity="0.7" IsVisible="{Binding !HasBlocks}" />
+                    <ItemsControl ItemsSource="{Binding Blocks}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PlanDayBlockRow">
+                                <CheckBox IsChecked="{Binding Lift}" Content="{Binding Label}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="Lifted from" VerticalAlignment="Center" Width="110" />
+                        <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding LiftFrom}" MinuteIncrement="5" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="until" VerticalAlignment="Center" Width="110" />
+                        <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding LiftTo}" MinuteIncrement="5" />
+                    </StackPanel>
+                    <RadioButton GroupName="mode" IsChecked="{Binding !LiftAuto}" Content="Allow: I may turn them off myself in that window" />
+                    <RadioButton GroupName="mode" IsChecked="{Binding LiftAuto}" Content="Auto: turn them off for me when it starts" />
+                    <Separator Margin="0,6" />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="Blocks back on at" VerticalAlignment="Center" Width="110" />
+                        <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding ReenableAt}" MinuteIncrement="5" />
+                    </StackPanel>
+                    <TextBlock Text="12:00 AM = midnight, the end of the day. Any block you turned off comes back on then." TextWrapping="Wrap" Opacity="0.7" />
+                    <CheckBox IsChecked="{Binding HeadsUp}" Content="Heads-up 5 minutes before, on the device with the block" />
+                </StackPanel>
+
+                <!-- 4: summary. -->
+                <StackPanel Spacing="10" IsVisible="{Binding IsStep4}">
+                    <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" LineHeight="22" />
+                    <TextBlock Text="Saving makes a one-off day for each date; your Workdays and Off-Days plans stay as they are. You can change or remove them later in Calendar."
+                               TextWrapping="Wrap" Opacity="0.7" />
+                </StackPanel>
+            </Panel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

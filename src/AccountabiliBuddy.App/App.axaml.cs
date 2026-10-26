@@ -886,6 +886,34 @@ public partial class App : Application
         }
 
         mainViewModel.ShowSyncQr = ShowSyncQr;
+
+        // ADR 37: this PC's Cold Turkey blocks go in its sync file; "Plan a day" lists every device's blocks.
+        IReadOnlyList<AccountabiliBuddy.Core.Sync.SyncBlocker>? OwnBlockers() =>
+            _coldTurkey!.Blocks?.Blocks.Select(block => new AccountabiliBuddy.Core.Sync.SyncBlocker(BlockRef.ColdTurkeyBlock, block.Name, block.Name, block.IsSwitchedOn)).ToList();
+        syncCoordinator.Blockers = OwnBlockers;
+        void ShowPlanDay()
+        {
+            var blocks = new List<(BlockRef Block, string Device, bool On)>();
+            if (syncIdentity.DeviceId != Guid.Empty)
+            {
+                string me = BlockRef.Pc(syncIdentity.DeviceId);
+                blocks.AddRange((OwnBlockers() ?? Array.Empty<AccountabiliBuddy.Core.Sync.SyncBlocker>())
+                    .Select(b => (new BlockRef(me, b.Kind, b.Id, b.Name), "This PC", b.On)));
+            }
+
+            foreach (var device in receivedDevices.Devices.Where(d => d.File.Blockers is not null))
+            {
+                var card = device.File.Device;
+                string who = card.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone ? BlockRef.Phone : BlockRef.Pc(card.DeviceId);
+                blocks.AddRange(device.File.Blockers!.Select(b => (new BlockRef(who, b.Kind, b.Id, b.Name), card.Name, b.On)));
+            }
+
+            var viewModel = new PlanDayViewModel(_configuration!, _sessions!, blocks, DateOnly.FromDateTime(time.GetLocalNow().DateTime));
+            new PlanDayWindow { DataContext = viewModel }.Show();
+        }
+
+        sessionViewModel.ShowPlanDay = ShowPlanDay;
+        mainViewModel.DayPlan.ShowPlanDay = ShowPlanDay;
         devices.ShowSyncQr = ShowSyncQr;
         devices.Import = syncImport;
         devices.PairedDevices = () => _link.Devices;

@@ -242,4 +242,10 @@ public sealed partial class SessionViewModel : ObservableObject
 
         return false;
     }
+
+    /// <summary>Opens "Plan a day" (ADR 37); set by the app.</summary>
+    public Action? ShowPlanDay { get; set; }
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void PlanDay() => ShowPlanDay?.Invoke();
 }

@@ -483,6 +483,34 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         return true
     }
 
+    /** "Plan a day" (ADR 37) is open. */
+    val planDayOpen = MutableStateFlow(false)
+
+    /** Every device's blocks for "Plan a day": Curbox here, Cold Turkey on the PCs (from their sync files). */
+    fun planDayBlocks(): List<PlanDayBlock> {
+        val app = getApplication<CompanionApp>()
+        val own = com.accountabilibuddy.companion.blocks.BlockGuard.lastBlockers(app).orEmpty().map {
+            PlanDayBlock(com.accountabilibuddy.companion.model.BlockRef(com.accountabilibuddy.companion.model.BlockRef.PHONE, it.kind, it.id, it.name), "This phone", it.on)
+        }
+        val pcs = app.sync.received.value.filter { it.file.device.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC }.flatMap { device ->
+            device.file.blockers.orEmpty().map {
+                PlanDayBlock(com.accountabilibuddy.companion.model.BlockRef("pc:${device.file.device.deviceId}", it.kind, it.id, it.name), device.file.device.name, it.on)
+            }
+        }
+        return own + pcs
+    }
+
+    /**
+     * Saves "Plan a day"'s one-off days like an Edit plan change (ADR 19): kept and sent to the PC. Null when saved,
+     * else why not.
+     */
+    fun savePlannedDays(request: com.accountabilibuddy.companion.engine.DayPlanRequest): String? {
+        openPlanEditor()?.let { return it }
+        val draft = planDraft.value ?: return "The plan couldn't be opened."
+        updatePlanDraft(com.accountabilibuddy.companion.engine.DayPlanner.apply(draft.plan, request))
+        return if (savePlanDraft()) null else message.value ?: "Not saved."
+    }
+
     fun discardDayPlanEdit() {
         store.clearPendingPlan(null)
         message.value = "Edit discarded; showing the PC's plan."
