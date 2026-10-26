@@ -665,7 +665,7 @@ public sealed class ColdTurkeyKeysService : IDisposable
     }
 
     /// <summary>A focus session the user started is running, breaks included (what the keys are held for).</summary>
-    private bool InFocusSession =>
+    public bool InFocusSession =>
         _sessions.State.IsActive && _sessions.State.Mode is SessionMode.Manual or SessionMode.Pomodoro;
 
     private HoldWindows Windows(DateTime now)
