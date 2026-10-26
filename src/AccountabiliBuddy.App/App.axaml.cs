@@ -347,7 +347,10 @@ public partial class App : Application
         _timers.LoadBlocking();
         _sessionOverlay.SetTimers(_timers);
         _ = new AccountabiliBuddy.App.Services.Timers.TimerRinger(
-            _timers, () => _sessionCues.Play(soundSettings.Current.FocusEndSound), () => _sessionOverlay.Glow());
+            _timers,
+            // Never silent: with "Focus ends" set to Off they ring with the bell.
+            () => _sessionCues.Play(soundSettings.Current.FocusEndSound == SoundChoice.OffId ? SoundChoice.BellId : soundSettings.Current.FocusEndSound),
+            () => _sessionOverlay.Glow());
         _dayBar.Gaps = sessionGaps;
         _noiseSettings = new NoiseSettingsService(documents);
         _noiseSettings.LoadBlocking();

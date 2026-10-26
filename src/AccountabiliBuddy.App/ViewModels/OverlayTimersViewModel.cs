@@ -35,6 +35,17 @@ public sealed class OverlayTimersViewModel
     /// <param name="fillUp">The bar fills as time passes (Settings → On-screen timer), else it empties.</param>
     public void Refresh(bool quiet, bool fillUp)
     {
+        // An unused feature costs nothing per tick.
+        if (_timers.Timers.Count == 0 && _timers.Alarms.Count == 0)
+        {
+            if (Lines.Count > 0)
+            {
+                Lines.Clear();
+            }
+
+            return;
+        }
+
         DateTimeOffset now = _timers.Now;
         DateTime localNow = _timers.LocalNow;
 

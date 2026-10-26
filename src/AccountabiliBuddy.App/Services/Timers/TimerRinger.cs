@@ -1,6 +1,7 @@
 using System.Globalization;
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.App.Views;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
 
@@ -8,15 +9,17 @@ namespace AccountabiliBuddy.App.Services.Timers;
 
 /// <summary>
 /// Rings a timer or alarm on this PC like a phase end: the on-screen window's glow and the chosen "time is up" chime
-/// (Settings → Sounds when time is up; "Off" plays nothing), plus a small window ("Timer · Tea is up" with Dismiss and
+/// (Settings → Sounds when time is up; with "Off" the bell, so it's never silent), plus a small window ("Timer · Tea is up" with Dismiss and
 /// +1 min; "Alarm · Wake" with Dismiss and Snooze 9 min). The chime comes again every 10 seconds while it rings, for at
-/// most 2 minutes (a timer) or 10 (an alarm). Several can ring at once, one window each. The window shows without
+/// most 2 minutes (a timer) or 10 (an alarm). Several can ring at once, one window each, each 24 px further down and
+/// right than the last so none hides another. The window shows without
 /// taking focus, so typing elsewhere isn't caught. Use from the UI thread only.
 /// </summary>
 public sealed class TimerRinger
 {
     private static readonly TimeSpan TimerMaxRing = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan AlarmMaxRing = TimeSpan.FromMinutes(10);
+    private const double StackOffset = 24;
 
     private readonly TimersService _timers;
     private readonly Action _playChime;
@@ -68,6 +71,17 @@ public sealed class TimerRinger
         _playChime();
         var window = new PcAlarmWindow { DataContext = viewModel, ShowActivated = false, Title = isAlarm ? "Alarm" : "Timer" };
         var ringing = new Ringing(window, DateTime.UtcNow, maxRing, isAlarm);
+        // Each window already ringing moves this one 24 px down and right (centred first), so several show as several.
+        int alreadyOpen = _ringing.Count;
+        if (alreadyOpen > 0)
+        {
+            window.Opened += (_, _) =>
+            {
+                int offset = (int)Math.Round(StackOffset * alreadyOpen * window.DesktopScaling);
+                window.Position = new PixelPoint(window.Position.X + offset, window.Position.Y + offset);
+            };
+        }
+
         _ringing[id] = ringing;
         // Closed some other way (Alt+F4): counts as Dismiss.
         window.Closed += (_, _) =>
