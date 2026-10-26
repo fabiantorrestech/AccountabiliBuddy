@@ -82,12 +82,15 @@ class TimersStore(private val context: Context) {
     @Synchronized
     fun editTimer(id: Int, name: String, lengthMs: Long, nowMs: Long = System.currentTimeMillis()) {
         val length = lengthMs.coerceIn(MIN_LENGTH_MS, MAX_LENGTH_MS)
+        // One that's up stops ringing and is set again with the new length.
+        if (_timers.value.any { it.id == id && it.state == TimerState.DONE }) TimerRinger.stop(context, RingingItem.Kind.TIMER, id)
         updateTimer(id) {
             val renamed = it.copy(name = name.trim().ifEmpty { TimerItem.DEFAULT_NAME }, lengthMs = length)
             when (it.state) {
                 TimerState.RUNNING -> started(renamed, nowMs)
                 TimerState.PAUSED -> renamed.copy(remainingMs = length, totalMs = length)
-                TimerState.IDLE, TimerState.DONE -> renamed.copy(totalMs = length)
+                TimerState.IDLE -> renamed.copy(totalMs = length)
+                TimerState.DONE -> renamed.copy(state = TimerState.IDLE, endAtMs = null, remainingMs = null, totalMs = length)
             }
         }
     }

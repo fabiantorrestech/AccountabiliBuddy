@@ -283,6 +283,8 @@ class CompanionApp : Application() {
                 .collect { Refresher.refresh(this@CompanionApp) }
         }
         Refresher.start(this)
+        // Timers and alarms set again at every start: a force stop or a battery manager drops the app's alarms.
+        runCatching { com.accountabilibuddy.companion.timers.TimerScheduler.restore(this) }
     }
 
     /** Android's next alarm changed (ADR 23): the wake time, the header, and this phone's file for the PCs follow. */

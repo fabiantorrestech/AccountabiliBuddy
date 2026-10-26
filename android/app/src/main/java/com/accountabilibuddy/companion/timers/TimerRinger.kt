@@ -103,10 +103,13 @@ object TimerRinger {
             .setFullScreenIntent(full, true)
             .setContentIntent(full)
             .setColor(COLOR)
+        // Swiped away (Android 14+ allows it for ongoing ones): the same as Dismiss, so the sound never keeps playing.
         if (item.kind == RingingItem.Kind.TIMER) {
+            builder.setDeleteIntent(TimerNotifications.action(app, TimerReceiver.ACTION_DISMISS_TIMER, item.id, 0))
             builder.addAction(0, "Dismiss", TimerNotifications.action(app, TimerReceiver.ACTION_DISMISS_TIMER, item.id, 5))
                 .addAction(0, "+1 min", TimerNotifications.action(app, TimerReceiver.ACTION_ADD_MINUTE, item.id, 6))
         } else {
+            builder.setDeleteIntent(TimerNotifications.action(app, TimerReceiver.ACTION_DISMISS_ALARM, item.id, 0))
             builder.addAction(0, "Dismiss", TimerNotifications.action(app, TimerReceiver.ACTION_DISMISS_ALARM, item.id, 5))
                 .addAction(0, "Snooze 9 min", TimerNotifications.action(app, TimerReceiver.ACTION_SNOOZE_ALARM, item.id, 7))
         }

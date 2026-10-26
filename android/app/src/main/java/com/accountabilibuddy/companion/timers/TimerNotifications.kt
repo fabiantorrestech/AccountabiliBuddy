@@ -32,7 +32,9 @@ object TimerNotifications {
                 TimerState.RUNNING, TimerState.PAUSED ->
                     if (TimelineNotifier.canPost(context)) runCatching { manager.notify(id(RingingItem.Kind.TIMER, timer.id), build(context, timer, nowMs)) }
                 TimerState.IDLE -> manager.cancel(id(RingingItem.Kind.TIMER, timer.id))
-                TimerState.DONE -> Unit
+                // Ringing: the ringer's notification. Not ringing (e.g. after a restart): no countdown left behind.
+                TimerState.DONE ->
+                    if (TimerRinger.ringing.value.none { it.isSame(RingingItem.Kind.TIMER, timer.id) }) manager.cancel(id(RingingItem.Kind.TIMER, timer.id))
             }
         }
     }
