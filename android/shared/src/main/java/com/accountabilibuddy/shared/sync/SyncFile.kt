@@ -60,6 +60,8 @@ data class SyncFile(
     val defaultProfileId: String? = null,
     /** A PC's derived summary of the user's Beeminder goals (ADR 43); null without a token there or from an older app. */
     val beeminder: List<SyncBeeminderGoal>? = null,
+    /** A PC's noise player (ADR 42, 36): what it plays, for the watch's device switcher; null without sound files or from an older app. */
+    val noise: SyncNoise? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1
@@ -268,6 +270,9 @@ data class SyncAction(
 
         /** Change the day plan (ADR 42, 19); taken only within a day. */
         const val DAY_PLAN_EDIT = "dayPlanEdit"
+
+        /** Control a PC's noise player (ADR 42, 36); [text] is `{ "op": "toggle|next|prev|volume", "value": 0.0-1.0? }`; a PC takes it only within 2 minutes. */
+        const val NOISE = "noise"
 
         /** The kinds that start or end a PC session (a PC answers them in its results). */
         val CONTROL_KINDS: Set<String> = setOf(START, END_EARLY_BEGIN, END_EARLY)

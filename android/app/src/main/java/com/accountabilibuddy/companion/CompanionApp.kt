@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 import androidx.glance.appwidget.updateAll
 import com.accountabilibuddy.companion.sync.DayPlanFileSync
 import com.accountabilibuddy.companion.sync.PcFileRemote
+import com.accountabilibuddy.companion.sync.PcNoiseRemote
 import com.accountabilibuddy.shared.sync.SyncAction
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -192,9 +193,12 @@ class CompanionApp : Application() {
         planFileSync = DayPlanFileSync(
             store, actions, pcRemote, sync.received, { link.status.value is com.accountabilibuddy.companion.link.LinkStatus.Connected }, appScope,
         ).also { it.start() }
+        // ADR 42, 36: the watch's Noise page controls a PC's noise player through the same files.
+        val pcNoise = PcNoiseRemote(actions, sync.received, appScope)
         actions.onAnswered = { action, result, pc ->
             pcRemote.answered(action, result, pc)
             planFileSync.answered(action, result, pc)
+            pcNoise.answered(action, result, pc)
         }
         // ADR 40: the PC's settings (profiles, day plan, sleep, day bar, events) from its sync file when the Wi-Fi link
         // isn't bringing them.
@@ -247,6 +251,7 @@ class CompanionApp : Application() {
                 devices.mapNotNull { it.file.lunch }.forEach { lunch.receive(it) }
                 actions.prune(devices)
                 pcRemote.expire()
+                pcNoise.expire()
                 // The newest PC file's calendar events, when newer than what the phone has (ADR 26).
                 devices.filter { it.file.device.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC && it.file.events != null }
                     .maxByOrNull { it.file.device.writtenAt }
@@ -275,7 +280,7 @@ class CompanionApp : Application() {
         appScope.launch { driveSource.loop { driveBusy() } }
         noise = com.accountabilibuddy.companion.noise.NoisePlayer(this, com.accountabilibuddy.companion.noise.NoiseSettingsStore(this), appScope)
         com.accountabilibuddy.companion.noise.HeadphoneWatcher(this, headphones, noise).start()
-        noiseWatch = com.accountabilibuddy.companion.watch.NoiseWatchSync(this, noise, watchBridge.linkSettings, appScope).also { it.start() }
+        noiseWatch = com.accountabilibuddy.companion.watch.NoiseWatchSync(this, noise, watchBridge.linkSettings, appScope, pcNoise).also { it.start() }
         reminderRelay = com.accountabilibuddy.companion.notify.ReminderRelay(this, watchBridge.linkSettings, appScope)
         sync.reminderActions = { reminderRelay.actions.value }
         sync.blockers = { com.accountabilibuddy.companion.blocks.BlockGuard.lastBlockers(this) }
@@ -328,9 +333,10 @@ class CompanionApp : Application() {
             return true
         }
 
-        // A request to a PC counts for the 10 minutes it is worth answering (PcFileRemote.expire); a plan edit may wait for days.
+        // A request to a PC counts for the 10 minutes it is worth answering (PcFileRemote.expire), a noise command too; a plan edit may wait for days.
         val now = java.time.Instant.now()
-        if (actions.pending.value.any { (it.kind in SyncAction.CONTROL_KINDS || it.kind == SyncAction.DAY_PLAN_EDIT) && java.time.Duration.between(it.at, now) <= PcFileRemote.GIVE_UP_AFTER }) {
+        val answeredSoon = setOf(SyncAction.DAY_PLAN_EDIT, SyncAction.NOISE)
+        if (actions.pending.value.any { (it.kind in SyncAction.CONTROL_KINDS || it.kind in answeredSoon) && java.time.Duration.between(it.at, now) <= PcFileRemote.GIVE_UP_AFTER }) {
             return true
         }
 

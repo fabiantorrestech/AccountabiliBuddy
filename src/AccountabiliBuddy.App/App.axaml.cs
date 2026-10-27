@@ -582,9 +582,19 @@ public partial class App : Application
         // Lunch is the user's, not this PC's: started here or on another device, every device takes the newest.
         syncCoordinator.Lunch = () => _lunch!.Taken;
         // What the user did on the phone for this PC (ADR 26): applied once each, acknowledged in this PC's file.
+        var remoteNoise = new AccountabiliBuddy.App.Services.Remote.RemoteNoiseControl(_noise!, time);
         var syncActions = new AccountabiliBuddy.App.Services.Sync.SyncActionsService(
-            documents, receivedDevices, syncIdentity, sessionTasks, _comebacks!, _stepAway!, _sessions, remoteControl, remotePlanEdits, time);
+            documents, receivedDevices, syncIdentity, sessionTasks, _comebacks!, _stepAway!, _sessions, remoteControl, remotePlanEdits, remoteNoise, time);
         syncActions.LoadBlocking();
+        // ADR 36, 42: the noise player in this PC's file for the phone and watch; a change goes out with the next write, and
+        // playing or a phone's command speeds the Drive poll up.
+        syncCoordinator.Noise = remoteNoise.StateAsync;
+        remoteNoise.StateChanged += (_, _) =>
+        {
+            syncCoordinator.NotifyHistoryChanged();
+            _syncDrive?.UpdatePollInterval();
+        };
+        syncActions.Changed += (_, _) => _syncDrive?.UpdatePollInterval();
         syncCoordinator.Acks = () => syncActions.Acks;
         // ADR 42: the answers, the end-early offer and the running session's task and profiles, for a phone without the link.
         syncCoordinator.ActionResults = () => syncActions.Results;
@@ -663,6 +673,7 @@ public partial class App : Application
             new AccountabiliBuddy.App.Services.Sync.GoogleDriveFiles(_calendarNetwork, googleEndpoints, driveAccount.GetAccessTokenAsync))
         {
             IsSignedIn = () => driveAccount.IsSignedIn,
+            NoiseBusy = () => remoteNoise.WantsFastPoll,
             // Every 10 seconds during work parts too, for pickups across PCs (design K).
             InWorkHours = () =>
             {

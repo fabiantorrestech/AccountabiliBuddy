@@ -215,6 +215,7 @@ public sealed class SyncCoordinator
         }
 
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
+        SyncNoise? noise = Noise is null ? null : await Noise();
         return SyncFileBuilder.Build(card, records, drift, _omitted.IsOmitted, id => ProfileOptions.NameOf(profiles, id),
             _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles), Events = Events?.Invoke(),
                 Pickups = PcPickups?.PickupsForOtherPcs(), InputRuns = PcPickups?.InputRunsToday(),
@@ -224,7 +225,7 @@ public sealed class SyncCoordinator
                 EndEarly = EndEarlyOffer?.Invoke(), GoalMinutes = GoalMinutes?.Invoke(),
                 // ADR 42: always, read-only, for the phone's start picker (the profiles document travels only once edited).
                 ProfileOptions = profiles.Select(profile => new SyncProfileOption(profile.Id, profile.Name)).ToList(),
-                DefaultProfileId = CountUpProfileId?.Invoke() };
+                DefaultProfileId = CountUpProfileId?.Invoke(), Noise = noise };
     }
 
     /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
@@ -272,6 +273,9 @@ public sealed class SyncCoordinator
 
     /// <summary>ADR 42: the open end-early offer, null for none; set by the app.</summary>
     public Func<SyncEndEarlyOffer?>? EndEarlyOffer { get; set; }
+
+    /// <summary>ADR 36, 42: the noise player's state, null when it has no sound files; set by the app.</summary>
+    public Func<Task<SyncNoise?>>? Noise { get; set; }
 
     /// <summary>ADR 29, 42: the daily focus goal in minutes; set by the app.</summary>
     public Func<int?>? GoalMinutes { get; set; }

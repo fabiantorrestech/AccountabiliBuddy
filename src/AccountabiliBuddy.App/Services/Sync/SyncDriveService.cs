@@ -8,7 +8,8 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// <summary>
 /// The Google Drive method (ADR 26): this PC writes its sealed sync file into the app's Drive folder under the same
 /// opaque name as in a sync folder (<see cref="SyncFolderService.FileNameFor"/>) and reads the other devices' files from
-/// it. It writes and reads every 20 seconds while a session runs, else every 5 minutes, and writes 5 seconds after its
+/// it. It writes and reads every 10 seconds while a session runs, the noise player plays or a phone controlled it in
+/// the last 10 minutes (<see cref="NoiseBusy"/>), else every 5 minutes, and writes 5 seconds after its
 /// own last change and when a session ends. A file is downloaded again only when Drive says it changed. Nothing is
 /// written or read while the switch is off, the PC isn't in a group, or no Drive account is signed in. Use from the UI
 /// thread only.
@@ -56,10 +57,23 @@ public sealed class SyncDriveService : IDisposable
     public Func<bool> IsSignedIn { get; set; } = () => true;
 
     /// <summary>How often it writes and reads now: 20 seconds while a session runs, else 5 minutes.</summary>
-    public TimeSpan PollInterval => _sessions.State.IsActive || InWorkHours?.Invoke() == true ? BusyPoll : IdlePoll;
+    public TimeSpan PollInterval =>
+        _sessions.State.IsActive || InWorkHours?.Invoke() == true || NoiseBusy?.Invoke() == true ? BusyPoll : IdlePoll;
 
     /// <summary>True during the day plan's work parts (polled as often as in a session); set by the app.</summary>
     public Func<bool>? InWorkHours { get; set; }
+
+    /// <summary>True while the noise player plays and for 10 minutes after a phone's noise command (ADR 42); set by the app.</summary>
+    public Func<bool>? NoiseBusy { get; set; }
+
+    /// <summary>Follows the busy state now (noise started playing, or a noise command came in), not only at the next poll.</summary>
+    public void UpdatePollInterval()
+    {
+        if (_timer is not null && _timer.Interval != PollInterval)
+        {
+            _timer.Interval = PollInterval;
+        }
+    }
 
     public void Start()
     {
@@ -217,7 +231,12 @@ public sealed class SyncDriveService : IDisposable
         }
 
         _timer = new DispatcherTimer { Interval = PollInterval };
-        _timer.Tick += (_, _) => _ = WriteThenReadAsync();
+        _timer.Tick += (_, _) =>
+        {
+            // Noise commands ran out of their 10 minutes, or the player stopped: back to the slow rate.
+            UpdatePollInterval();
+            _ = WriteThenReadAsync();
+        };
         _timer.Start();
         _ = WriteThenReadAsync();
     }

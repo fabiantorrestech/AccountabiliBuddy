@@ -14,7 +14,8 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// are meant for this PC, each once. Tick a task or subtask (left done if already done), park a thought (a come-back),
 /// tick a come-back, step away or come back (only within 10 minutes of doing it, so an old one never replays); start a
 /// session or ask to end one early (only within 2 minutes), end early after the offer's wait (until its allowed-from
-/// time plus 10 minutes), and edit the day plan (within a day), all by the same rules as the link
+/// time plus 10 minutes), edit the day plan (within a day), and control the noise player (within 2 minutes, by its own
+/// buttons' rules: <see cref="RemoteNoiseControl"/>), all by the same rules as the link where it has them
 /// (<see cref="RemoteSessionControl"/>, <see cref="RemotePlanEdits"/>). An action past its freshness is refused, never
 /// applied late; freshness counts from when this PC first saw the action (its file's arrival, on this PC's clock), and
 /// an action the phone made more than a day ago is refused too, so neither clock's skew decides alone. The ids applied
@@ -45,6 +46,7 @@ public sealed class SyncActionsService
     private readonly SessionController _sessions;
     private readonly RemoteSessionControl _control;
     private readonly RemotePlanEdits _planEdits;
+    private readonly RemoteNoiseControl _noise;
     private readonly TimeProvider _time;
     private readonly SyncEndEarlyOffers _offers = new();
 
@@ -57,7 +59,7 @@ public sealed class SyncActionsService
     public SyncActionsService(
         SqliteJsonDocumentStore store, ReceivedDevicesService received, SyncIdentityService identity, SessionTasksService tasks,
         ComebackStore comebacks, StepAwayService stepAway, SessionController sessions, RemoteSessionControl control,
-        RemotePlanEdits planEdits, TimeProvider time)
+        RemotePlanEdits planEdits, RemoteNoiseControl noise, TimeProvider time)
     {
         _store = store;
         _received = received;
@@ -68,6 +70,7 @@ public sealed class SyncActionsService
         _sessions = sessions;
         _control = control;
         _planEdits = planEdits;
+        _noise = noise;
         _time = time;
         sessions.StateChanged += (_, state) => OnSessionStateChanged(state);
     }
@@ -251,6 +254,8 @@ public sealed class SyncActionsService
                 return EndEarly(action, from, now);
             case SyncAction.KindDayPlanEdit:
                 return await EditPlanAsync(action, now);
+            case SyncAction.KindNoise:
+                return await ControlNoiseAsync(action, now);
             default:
                 return Unsupported(action);
         }
@@ -387,6 +392,23 @@ public sealed class SyncActionsService
             LinkDayPlanStatus.Locked => new SyncActionResult(action.Id, false, SyncActionStatus.Locked, answer.Message),
             _ => Invalid(action, answer.Message),
         };
+    }
+
+    // ADR 36 by ADR 42's transport: the noise player's own buttons. Never worth applying late, and allowed in a session.
+    private async Task<SyncActionResult> ControlNoiseAsync(SyncAction action, DateTimeOffset now)
+    {
+        if (IsLate(action, ControlFresh, now))
+        {
+            return TooLate(action);
+        }
+
+        if (Read<SyncNoiseRequest>(action.Text) is not SyncNoiseRequest request || !RemoteNoiseControl.IsValid(request))
+        {
+            return Invalid(action, "The PC couldn't read this request.");
+        }
+
+        string? error = await _noise.ApplyAsync(request, _identity.DeviceName);
+        return error is null ? Ok(action) : Refused(action, error);
     }
 
     // An offer belongs to its phase: a session ending or a new phase drops it, and the file loses it.
