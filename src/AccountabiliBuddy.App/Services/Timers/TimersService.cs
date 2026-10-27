@@ -105,14 +105,18 @@ public sealed class TimersService
         });
     }
 
-    /// <summary>A minute more; a done timer runs again for a minute (the ring window's "+1 min").</summary>
-    public Task AddMinuteAsync(Guid id)
+    /// <summary>A minute more; a done timer runs again for a minute (the Today row's and on-screen window's "+1 min").</summary>
+    public Task AddMinuteAsync(Guid id) => AddMinutesAsync(id, 1);
+
+    /// <summary>Some minutes more; a done timer runs again for that long (the ring window's "+5 min" and the rest of its menu).</summary>
+    public Task AddMinutesAsync(Guid id, int minutes)
     {
+        TimeSpan extra = TimeSpan.FromMinutes(minutes);
         return UpdateTimer(id, timer => timer.State switch
         {
-            TimerState.Running => timer with { EndsAt = (timer.EndsAt ?? Now) + OneMinute },
-            TimerState.Paused => timer with { Remaining = (timer.Remaining ?? timer.Length) + OneMinute },
-            _ => timer with { State = TimerState.Running, EndsAt = Now + OneMinute, Remaining = null, Dismissed = false },
+            TimerState.Running => timer with { EndsAt = (timer.EndsAt ?? Now) + extra },
+            TimerState.Paused => timer with { Remaining = (timer.Remaining ?? timer.Length) + extra },
+            _ => timer with { State = TimerState.Running, EndsAt = Now + extra, Remaining = null, Dismissed = false },
         });
     }
 
