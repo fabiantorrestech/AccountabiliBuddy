@@ -21,11 +21,79 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
 
     public IReadOnlyList<DayCategory> Categories { get; private set; }
 
+    /// <summary>
+    /// The categories a part may pick: all of them, but on a Budget day only the non-productive ones (rest, sleep,
+    /// pre-work), because its parts are the windows that don't count toward the budget (ADR 47).
+    /// </summary>
+    public IReadOnlyList<DayCategory> PickableCategories =>
+        Mode == DayMode.Budget ? Categories.Where(category => !category.Behavior.IsWork()).ToList() : Categories;
+
+    /// <summary>How the day is guarded (schema v12, ADR 47): the timeline, a budget of hours, or not at all.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SelectedModeIndex), nameof(IsSchedule), nameof(IsBudget), nameof(IsFree), nameof(ShowWindow),
+        nameof(ShowTimeline), nameof(ShowPartsEditor), nameof(ShowPartsInExpander), nameof(PartsTitle), nameof(PickableCategories))]
+    public partial DayMode Mode { get; set; }
+
+    /// <summary>A Schedule day that is just a work window ("9:00 AM to 5:00 PM") instead of the full timeline (C 15).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowWindow), nameof(ShowTimeline), nameof(ShowPartsEditor), nameof(ShowPartsInExpander), nameof(PartsTitle))]
+    public partial bool UseWorkWindow { get; set; }
+
+    [ObservableProperty]
+    public partial TimeSpan? WindowStart { get; set; }
+
+    [ObservableProperty]
+    public partial TimeSpan? WindowEnd { get; set; }
+
+    /// <summary>A Budget day's productive hours, in quarters of an hour.</summary>
+    [ObservableProperty]
+    public partial decimal? BudgetHours { get; set; }
+
+    /// <summary>The mode picker's index (Schedule, Budget, Free: the order of <see cref="DayMode"/>).</summary>
+    public int SelectedModeIndex
+    {
+        get => (int)Mode;
+        set
+        {
+            if (value >= 0 && value <= (int)DayMode.Free)
+            {
+                Mode = (DayMode)value;
+            }
+        }
+    }
+
+    public static IReadOnlyList<string> ModeNames { get; } = new[] { "Schedule", "Budget", "Free day" };
+
+    public bool IsSchedule => Mode == DayMode.Schedule;
+
+    public bool IsBudget => Mode == DayMode.Budget;
+
+    public bool IsFree => Mode == DayMode.Free;
+
+    /// <summary>The two work-window times show instead of the timeline.</summary>
+    public bool ShowWindow => IsSchedule && UseWorkWindow;
+
+    /// <summary>The full timeline editor is the day's editor (Schedule without a work window).</summary>
+    public bool ShowTimeline => IsSchedule && !UseWorkWindow;
+
+    /// <summary>The bar and list show directly: a full timeline, or a Budget day's non-productive windows.</summary>
+    public bool ShowPartsEditor => ShowTimeline || IsBudget;
+
+    /// <summary>The bar and list are tucked in an expander (rest and sleep around a work window, or a free day's sleep).</summary>
+    public bool ShowPartsInExpander => ShowWindow || IsFree;
+
+    public string PartsTitle => IsBudget ? "Non-productive windows (lunch, rest, sleep): the budget is found in the waking day outside them"
+        : ShowWindow ? "Lunch, rest and sleep around the work window (optional)"
+        : IsFree ? "Sleep and rest on a free day (optional)"
+        : "Timeline";
+
     /// <summary>This template's block rules (ADR 37), kept through part edits; null = the defaults.</summary>
     public BlockRules? Blocks { get; set; }
 
-    /// <summary>This template's mode, work window and budget (schema v12, ADR 47), kept through part edits; no editor changes them yet.</summary>
-    private DayTemplate _modeFields = DayTemplate.Empty;
+    private const int DefaultBudgetMinutes = 6 * 60;
+
+    // True while a template is being loaded into the mode fields, so loading isn't reported back as an edit.
+    private bool _loading;
 
     /// <summary>The sleep goal, for a Sleep part woken by the alarm (its end is bedtime plus this); 8 hours unless set.</summary>
     public Func<TimeSpan> SleepGoal { get; set; } = () => AccountabiliBuddy.Core.Engine.SleepSchedule.DefaultGoal;
@@ -57,7 +125,13 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
     public void Load(DayTemplate template)
     {
         Blocks = template.Blocks;
-        _modeFields = template;
+        _loading = true;
+        Mode = template.Mode;
+        UseWorkWindow = template.Mode == DayMode.Schedule && template.WorkWindow is not null;
+        WindowStart = template.WorkWindow?.Start.ToTimeSpan() ?? new TimeSpan(9, 0, 0);
+        WindowEnd = template.WorkWindow?.End.ToTimeSpan() ?? new TimeSpan(17, 0, 0);
+        BudgetHours = (decimal)((template.BudgetMinutes ?? DefaultBudgetMinutes) / 60.0);
+        _loading = false;
         Parts.Clear();
         foreach (PlanPart part in template.Parts.OrderBy(PositionInDay))
         {
@@ -89,8 +163,104 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
 
     public DayTemplate ToTemplate()
     {
-        return new DayTemplate(Parts.Select(row => row.ToPart()).OfType<PlanPart>().ToList(), Blocks,
-            _modeFields.Mode, _modeFields.WorkWindow, _modeFields.BudgetMinutes);
+        WorkWindow? window = Mode == DayMode.Schedule && UseWorkWindow && WindowStart is TimeSpan start && WindowEnd is TimeSpan end
+            ? new WorkWindow(TimeOnly.FromTimeSpan(start), TimeOnly.FromTimeSpan(end))
+            : null;
+        int? budget = Mode == DayMode.Budget ? (int)Math.Round((double)(BudgetHours ?? DefaultBudgetMinutes / 60m) * 60) : null;
+        return new DayTemplate(Parts.Select(row => row.ToPart()).OfType<PlanPart>().ToList(), Blocks, Mode, window, budget);
+    }
+
+    partial void OnModeChanged(DayMode value)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        if (value == DayMode.Budget)
+        {
+            // A Budget day's parts are only non-productive windows: the day's work parts give way to the budget.
+            LoadParts(Parts.Select(row => row.ToPart()).OfType<PlanPart>().Where(part => !IsWorkPart(part)).ToList());
+        }
+
+        foreach (PlanPartRowViewModel row in Parts)
+        {
+            row.RefreshCategories();
+        }
+
+        Refresh(rowsChanged: false);
+    }
+
+    partial void OnUseWorkWindowChanged(bool value)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        List<PlanPart> parts = Parts.Select(row => row.ToPart()).OfType<PlanPart>().ToList();
+        if (value)
+        {
+            // The timeline's work parts become the window: the first start to the last end, cut back where a fixed rest
+            // or sleep part starts inside it (a window can't overlap them), so the result is a valid day to adjust.
+            List<PlanPart> work = parts.Where(IsWorkPart).ToList();
+            if (work.Count > 0)
+            {
+                TimeSpan start = work.Min(part => part.Start.ToTimeSpan());
+                TimeSpan end = work.Where(part => !part.CrossesMidnight).Select(part => part.End.ToTimeSpan()).DefaultIfEmpty(new TimeSpan(17, 0, 0)).Max();
+                TimeSpan firstBreak = parts
+                    .Where(part => !IsWorkPart(part) && !part.IsFlexible && !part.CrossesMidnight && part.Start.ToTimeSpan() > start && part.Start.ToTimeSpan() < end)
+                    .Select(part => part.Start.ToTimeSpan())
+                    .DefaultIfEmpty(end)
+                    .Min();
+                WindowStart = start;
+                WindowEnd = firstBreak;
+            }
+
+            LoadParts(parts.Where(part => !IsWorkPart(part)).ToList());
+        }
+        else if (WindowStart is TimeSpan start && WindowEnd is TimeSpan end
+                 && Categories.FirstOrDefault(category => category.Behavior == CategoryBehavior.Watch) is DayCategory work
+                 && !parts.Any(IsWorkPart))
+        {
+            // Back to the timeline: the window becomes its one work part.
+            parts.Add(new PlanPart(Guid.NewGuid(), work.Id, TimeOnly.FromTimeSpan(start), TimeOnly.FromTimeSpan(end)));
+            LoadParts(parts);
+        }
+
+        Refresh(rowsChanged: false);
+    }
+
+    partial void OnWindowStartChanged(TimeSpan? value) => FieldEdited();
+
+    partial void OnWindowEndChanged(TimeSpan? value) => FieldEdited();
+
+    partial void OnBudgetHoursChanged(decimal? value) => FieldEdited();
+
+    private void FieldEdited()
+    {
+        if (!_loading)
+        {
+            Refresh(rowsChanged: false);
+        }
+    }
+
+    private bool IsWorkPart(PlanPart part)
+    {
+        return Categories.FirstOrDefault(category => category.Id == part.CategoryId)?.Behavior.IsWork() == true;
+    }
+
+    // Replaces the rows with these parts, leaving the mode fields as they are.
+    private void LoadParts(IReadOnlyList<PlanPart> parts)
+    {
+        Parts.Clear();
+        foreach (PlanPart part in parts.OrderBy(PositionInDay))
+        {
+            Parts.Add(new PlanPartRowViewModel(part, this));
+        }
+
+        Selected = null;
+        Refresh(rowsChanged: true);
     }
 
     /// <summary>Adds an hour-long part (the first Rest category) at the clicked time, shortened to fit, and selects it.</summary>

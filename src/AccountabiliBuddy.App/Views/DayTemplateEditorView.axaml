@@ -1,0 +1,51 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             x:Class="AccountabiliBuddy.App.Views.DayTemplateEditorView"
+             x:DataType="vm:PlanTemplateEditorViewModel">
+    <!-- One named day type (ADR 47): its name and mode, then what the mode needs: a work window or the timeline, a
+         budget with its non-productive windows, or nothing. -->
+    <StackPanel Spacing="10">
+        <Grid ColumnDefinitions="Auto,240,Auto,160" ColumnSpacing="8">
+            <TextBlock Text="Name" VerticalAlignment="Center" />
+            <TextBox Grid.Column="1" Text="{Binding Name}" ToolTip.Tip="Rename this day type" />
+            <TextBlock Grid.Column="2" Text="Mode" VerticalAlignment="Center" Margin="12,0,0,0" />
+            <ComboBox Grid.Column="3" ItemsSource="{x:Static vm:DayPlanEditorViewModel.ModeNames}"
+                      SelectedIndex="{Binding Editor.SelectedModeIndex}" HorizontalAlignment="Stretch"
+                      ToolTip.Tip="Schedule: timed parts or a work window · Budget: a number of productive hours · Free day: no guard" />
+        </Grid>
+
+        <!-- Schedule: just a work window, or the full timeline below. -->
+        <StackPanel Spacing="8" IsVisible="{Binding Editor.IsSchedule}">
+            <CheckBox IsChecked="{Binding Editor.UseWorkWindow}" Content="Just a work window (no timeline)"
+                      ToolTip.Tip="The guards watch this one stretch of the day. Turn it off to plan the day part by part." />
+            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding Editor.ShowWindow}">
+                <TextBlock Text="Work from" VerticalAlignment="Center" />
+                <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding Editor.WindowStart}" MinuteIncrement="15" MinWidth="0" Width="196" />
+                <TextBlock Text="to" VerticalAlignment="Center" />
+                <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding Editor.WindowEnd}" MinuteIncrement="15" MinWidth="0" Width="196" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Budget: N productive hours between waking and bedtime, outside the windows below; lunch is kept. -->
+        <StackPanel Spacing="4" IsVisible="{Binding Editor.IsBudget}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Productive hours" VerticalAlignment="Center" />
+                <NumericUpDown Value="{Binding Editor.BudgetHours}" Minimum="0.25" Maximum="24" Increment="0.25" FormatString="0.00" Width="130" />
+                <TextBlock Text="hours" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock TextWrapping="Wrap" Opacity="0.75"
+                       Text="From waking to bedtime, the buddy guards every stretch outside the windows below (lunch counts as one) until that many hours of focus are done." />
+        </StackPanel>
+
+        <TextBlock IsVisible="{Binding Editor.IsFree}" TextWrapping="Wrap" Opacity="0.75"
+                   Text="No guard on this day: no work-hours guard, Pre-Work or work nudge." />
+
+        <TextBlock Text="{Binding Editor.Error}" IsVisible="{Binding Editor.HasError}" Foreground="#DC2626" TextWrapping="Wrap" />
+
+        <Expander Header="{Binding Editor.PartsTitle}" IsExpanded="{Binding Editor.ShowPartsEditor, Mode=OneWay}" HorizontalAlignment="Stretch">
+            <views:DayPlanEditorView DataContext="{Binding Editor}" Margin="0,8,0,0" />
+        </Expander>
+    </StackPanel>
+</UserControl>

@@ -16,6 +16,9 @@ public enum AssistantStep
     Browsers,
     Basics,
 
+    /// <summary>ADR 47 (C 15): which days are workdays, and a work window or a budget of hours for them.</summary>
+    Workdays,
+
     /// <summary>ADR 39: which Cold Turkey blocks the app holds, where, and Cold Turkey's settings for it.</summary>
     ColdTurkeyKeys,
 

@@ -817,15 +817,31 @@ public partial class App : Application
         _deepWork.GoalReached += (_, progress) =>
             presenter.ShowReminder(progress.Text, "Today's deep-work goal is reached. Anything more is a bonus.",
                 new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A9D8F")));
-        _deepWork.Changed += (_, _) => _sessionOverlay?.SetGoalText($"Goal · {_deepWork.Progress.Text}");
+        // A Budget day's pace (ADR 47): the budget left and the day left for it, read from the day plan, the counted focus and the clock.
+        Func<BudgetPace?> budgetPace = () =>
+        {
+            DateTime now = time.GetLocalNow().DateTime;
+            DateOnly today = DateOnly.FromDateTime(now);
+            return DayWorkWindows.Pace(_configuration.Current.DayPlan, today, _deepWork?.FocusedOn(today) ?? TimeSpan.Zero, now, _workHours?.NightFallback);
+        };
+        Func<string> goalOverlayText = () => budgetPace() is BudgetPace pace
+            ? $"Goal · {_deepWork.Progress.Text} · {BudgetPaceText.Describe(pace)}"
+            : $"Goal · {_deepWork.Progress.Text}";
+        _deepWork.Changed += (_, _) => _sessionOverlay?.SetGoalText(goalOverlayText());
         Func<bool> goalLowerWaits = () => _workHours?.HasWorkLeftToday == true;
         syncCoordinator.GoalLowerWaits = goalLowerWaits;
         sessionViewModel.Goal = new GoalCardViewModel(_deepWork, goal)
         {
             LowerWaits = goalLowerWaits,
             PhoneLine = _phonePickups!.SummaryText,
+            PaceNow = budgetPace,
         };
         sessionViewModel.Goal.RefreshPhone();
+        sessionViewModel.Goal.RefreshPace();
+        // The pace moves with the clock and the plan: the overlay's goal line follows the card's refreshes.
+        sessionViewModel.Goal.PaceRefreshed += (_, _) => _sessionOverlay?.SetGoalText(goalOverlayText());
+        _configuration.Changed += (_, _) => sessionViewModel.Goal?.RefreshPace();
+        sessionViewModel.Week = new WeekCardViewModel(_configuration, _sessions, () => DateOnly.FromDateTime(time.GetLocalNow().DateTime));
         // A phone's file arrived: its pickups show on Today, the review card and the Focus row.
         receivedDevices.Changed += (_, _) =>
         {
@@ -918,7 +934,7 @@ public partial class App : Application
         var mainViewModel = new MainWindowViewModel(
             sessionViewModel,
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, receivedDevices, exemptionDefaults),
-            WithSleepGoal(new DayPlanViewModel(_configuration, _sessions), sleepSettings),
+            WithSleepGoal(new DayPlanViewModel(_configuration, _sessions) { Today = () => DateOnly.FromDateTime(time.GetLocalNow().DateTime) }, sleepSettings),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
             new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time,
                 _programPaths, desktopShell, isSessionRunning: () => _sessions!.State.IsRealSession)
@@ -1055,7 +1071,7 @@ public partial class App : Application
 
         // The migration assistant: features added since the last version that aren't set up yet.
         var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
-            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings), BackupService.AppVersion);
+            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration), BackupService.AppVersion);
         setupFeatures.LoadBlocking();
         _setupFeatures = setupFeatures;
         coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();
@@ -1237,12 +1253,10 @@ public partial class App : Application
     // The Day plan tab's Sleep parts woken by the alarm end at bedtime plus the current sleep goal (ADR 33).
     private static DayPlanViewModel WithSleepGoal(DayPlanViewModel dayPlan, SleepSettingsService sleep)
     {
-        dayPlan.Workday.SleepGoal = () => sleep.Current.Goal;
-        dayPlan.OtherDay.SleepGoal = () => sleep.Current.Goal;
-        // ADR 34: the phone's smart bedtime under each template's Sleep part.
-        dayPlan.Workday.SmartNote = () => sleep.Current.UsePhoneBedtime && sleep.PhoneBedtime?.Workdays is { } level
-            ? AccountabiliBuddy.App.Services.Sync.PhoneBedtime.Describe(level) : null;
-        dayPlan.OtherDay.SmartNote = () => sleep.Current.UsePhoneBedtime && sleep.PhoneBedtime?.OffDays is { } level
+        dayPlan.SleepGoal = () => sleep.Current.Goal;
+        // ADR 34: the phone's smart bedtime under each day type's Sleep part (workday types get the workday level).
+        dayPlan.SmartNoteFor = workday => sleep.Current.UsePhoneBedtime
+            && (workday ? sleep.PhoneBedtime?.Workdays : sleep.PhoneBedtime?.OffDays) is { } level
             ? AccountabiliBuddy.App.Services.Sync.PhoneBedtime.Describe(level) : null;
         return dayPlan;
     }

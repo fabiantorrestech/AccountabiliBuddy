@@ -25,7 +25,7 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
 
     public Guid Id { get; }
 
-    public IReadOnlyList<DayCategory> Categories => _owner.Categories;
+    public IReadOnlyList<DayCategory> Categories => _owner.PickableCategories;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Name), nameof(ColorBrush), nameof(Color), nameof(IsSleep), nameof(EndEditable))]

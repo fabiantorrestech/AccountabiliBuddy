@@ -8,7 +8,8 @@ namespace AccountabiliBuddy.App.Services.Setup;
 /// </summary>
 public static class SetupFeatures
 {
-    public static IReadOnlyList<SetupFeature> All(ColdTurkeyKeysService keys, ColdTurkeyService coldTurkey, Sync.SyncSettingsService sync) => new[]
+    public static IReadOnlyList<SetupFeature> All(ColdTurkeyKeysService keys, ColdTurkeyService coldTurkey, Sync.SyncSettingsService sync,
+        ConfigurationService configuration) => new[]
     {
         new SetupFeature(
             "coldturkey.keys", "0.1.106",
@@ -24,5 +25,13 @@ public static class SetupFeatures
             IsRelevant: () => true,
             IsSetUp: () => sync.Current.RelayOn && !string.IsNullOrWhiteSpace(sync.Current.RelayUrl),
             Step: ViewModels.AssistantStep.OwnRelay),
+        new SetupFeature(
+            "dayplan.modes", "0.1.111",
+            "Day plan modes: a work window, a budget of hours, alternating weeks",
+            "Describes your workdays as just a work window or a number of productive hours instead of a full timeline, with free days and week A / week B.",
+            IsRelevant: () => true,
+            IsSetUp: () => configuration.Current.DayPlan is { } plan
+                && (plan.Week.B is not null || plan.Templates.Any(template => template.Template.Mode != Core.Domain.DayMode.Schedule || template.Template.WorkWindow is not null)),
+            Step: ViewModels.AssistantStep.Workdays),
     };
 }

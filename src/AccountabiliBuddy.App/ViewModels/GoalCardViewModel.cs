@@ -1,4 +1,5 @@
 using AccountabiliBuddy.App.Services;
+using AccountabiliBuddy.Core.Engine;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -20,7 +21,32 @@ public sealed partial class GoalCardViewModel : ObservableObject
         Text = string.Empty;
         Refresh();
         _deepWork.Changed += (_, _) => Refresh();
+        // The Budget pace moves with the clock even when no session runs: once a minute.
+        var paceTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        paceTimer.Tick += (_, _) => RefreshPace();
+        paceTimer.Start();
     }
+
+    /// <summary>
+    /// How today's Budget is going (ADR 47); null when today isn't a Budget day. Set by the app, from the day plan, the
+    /// counted focus and the clock.
+    /// </summary>
+    public Func<BudgetPace?>? PaceNow { get; set; }
+
+    /// <summary>"2h 10m left · 5h of day left"; empty on a day that isn't a Budget day.</summary>
+    [ObservableProperty]
+    public partial string PaceText { get; set; } = string.Empty;
+
+    /// <summary>The pace line shows on track (plain).</summary>
+    [ObservableProperty]
+    public partial bool IsPaceOnTrack { get; set; }
+
+    /// <summary>The pace line shows, in amber: the day can no longer hold the budget left.</summary>
+    [ObservableProperty]
+    public partial bool IsPaceBehind { get; set; }
+
+    /// <summary>Raised when the pace line was read again (the overlay's goal line follows).</summary>
+    public event EventHandler? PaceRefreshed;
 
     /// <summary>"Phone-free: 2 sessions today · 3-day streak" (ADR 26); empty when no phone counts.</summary>
     [ObservableProperty]
@@ -90,6 +116,17 @@ public sealed partial class GoalCardViewModel : ObservableObject
         Percent = _deepWork.Progress.Fraction * 100;
         IsMet = _deepWork.Progress.Met;
         RefreshPhone();
+        RefreshPace();
+    }
+
+    /// <summary>Reads the Budget pace line again (a minute passed, or the plan or the focus changed).</summary>
+    public void RefreshPace()
+    {
+        BudgetPace? pace = PaceNow?.Invoke();
+        PaceText = pace is null ? string.Empty : BudgetPaceText.Describe(pace);
+        IsPaceBehind = pace?.Behind == true;
+        IsPaceOnTrack = pace is not null && !IsPaceBehind;
+        PaceRefreshed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Reads the phone-free line again (a phone's file arrived).</summary>
