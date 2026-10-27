@@ -176,11 +176,10 @@ class CompanionApp : Application() {
     /** Why the user added a 4th task to the next session's list (ADR 48); stays on this phone. */
     val overLimit by lazy { com.accountabilibuddy.companion.sync.OverLimitStore(this) }
 
-    /**
-     * Sends add/edit/reorder of a running PC session's tasks (ADR 48). Wire in once the PC's task actions are on main:
-     * an implementation over [actions] replaces [com.accountabilibuddy.companion.sync.UnwiredRunningTaskEdits].
-     */
-    val runningTaskEdits: com.accountabilibuddy.companion.sync.RunningTaskEdits by lazy { com.accountabilibuddy.companion.sync.UnwiredRunningTaskEdits }
+    /** Sends add/edit/reorder of a running PC session's tasks as sync actions the PC applies under its own rules (ADR 48). */
+    val runningTaskEdits: com.accountabilibuddy.companion.sync.RunningTaskEdits by lazy {
+        com.accountabilibuddy.companion.sync.PcFileRunningTaskEdits(pcRemote)
+    }
 
     /** "Play when headphones connect" (Settings → Noise player). */
     val headphones by lazy { com.accountabilibuddy.companion.noise.HeadphoneStore(this) }

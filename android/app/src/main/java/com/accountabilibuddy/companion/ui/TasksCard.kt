@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.OutlinedTextField
+import com.accountabilibuddy.companion.sync.PcFileRemote
 import com.accountabilibuddy.companion.sync.TaskCategoryChoices
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
@@ -134,11 +135,13 @@ fun TasksCard(running: RunningTasks) {
         TaskEditDialog(
             title = task.title, steps = task.subtasks, categories = null, categoryName = null,
             onSave = { title, _, steps ->
-                val stepTitles = steps.filter { it.title.isNotBlank() }.map { it.title.trim() }
+                // Steps go with their ids, so the PC keeps the ticks of the ones that stay.
+                val newSteps = steps.filter { it.title.isNotBlank() }.map { PcFileRemote.TaskStep(it.id, it.title.trim()) }
+                val oldSteps = task.subtasks.map { PcFileRemote.TaskStep(it.id, it.title) }
                 // Only what changed is sent; a task that was deleted on the PC meanwhile is answered by the PC.
                 edits.editTask(
                     target!!, task.id!!, title.trim().takeIf { it != task.title },
-                    stepTitles.takeIf { it != task.subtasks.map { step -> step.title } },
+                    newSteps.takeIf { it != oldSteps },
                 )
                 sent = true
                 editing = null

@@ -39,6 +39,11 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
     /** The PC's end-early offer while the phone counts it down; null when none is open. */
     val offer: StateFlow<OpenOffer?> = _offer.asStateFlow()
 
+    /** Shows [message] once, like a PC's answer (why a change could not be sent). */
+    fun tell(message: String) {
+        _news.value = message
+    }
+
     fun clearNews() {
         _news.value = null
     }

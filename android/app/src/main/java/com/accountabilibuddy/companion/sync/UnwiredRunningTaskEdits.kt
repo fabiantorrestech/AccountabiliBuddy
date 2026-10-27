@@ -8,7 +8,7 @@ object UnwiredRunningTaskEdits : RunningTaskEdits {
 
     override fun addTask(pcId: UUID, title: String, categoryId: String?) = Unit
 
-    override fun editTask(pcId: UUID, taskId: String, title: String?, steps: List<String>?) = Unit
+    override fun editTask(pcId: UUID, taskId: String, title: String?, steps: List<PcFileRemote.TaskStep>?) = Unit
 
     override fun reorderTasks(pcId: UUID, orderedIds: List<String>) = Unit
 }
