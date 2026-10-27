@@ -78,11 +78,10 @@ public sealed class SessionOverlayService : IDisposable
     public bool IsOnForSession => _sessions.State.IsActive
                                   && (_settings.Current.For(_sessions.State.ProfileId).Enabled || IsCountUp(_sessions.State));
 
-    // A Quick Start (with the default profile or the one picked) has no set end: it always shows the timer, since the
-    // bar counting up is the point.
+    // A session started with "No set end" has no set end: it always shows the timer, since the bar counting up is the point.
     private static bool IsCountUp(SessionState state)
     {
-        return state.Mode == SessionMode.Manual && state.PhaseEndsAt is null;
+        return state.Mode == SessionMode.Manual && !state.HasSetEnd;
     }
 
     /// <summary>Raised when the timer is shown, hidden or turned on or off for the session.</summary>
@@ -286,9 +285,10 @@ public sealed class SessionOverlayService : IDisposable
 
         if (_planFirst is not null)
         {
+            // The planning stage shows as the timer's own bar (Planning, in its colour); a first session's learning keeps its line.
             _viewModel.SetPlanning(
-                !_planFirst.IsPlanning ? null : _planFirst.IsLearning ? "Learning · first session" : $"Planning · {_planFirst.LeftText} left",
-                _planFirst.IsLearning ? null : _planFirst.Ready);
+                _planFirst.IsLearning ? "Learning · first session" : null,
+                _planFirst.InStage ? _planFirst.Ready : null);
         }
 
         DateTime localNow = TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime;

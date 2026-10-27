@@ -33,7 +33,14 @@ data class PcState(
     val currentTask: String? = null,
     /** The PC's open come-backs (ADR 30); empty when it has none open, null from an older PC that doesn't send them. */
     val comebacks: List<com.accountabilibuddy.shared.sync.SyncComeback>? = null,
+    /**
+     * Set while the PC is in its planning stage (not focus time), from its sync file only: when it began and when its time is up.
+     * [phaseStartedAt] and [phaseEndsAt] are then the focus phase it leads to. Null outside planning and for an older PC.
+     */
+    val planningStartedAt: OffsetDateTime? = null,
+    val planningEndsAt: OffsetDateTime? = null,
 ) {
+    val isPlanning: Boolean get() = planningEndsAt != null && !isBreak
     val isActive: Boolean get() = mode != null
     val isBreak: Boolean get() = phase == "shortBreak" || phase == "longBreak"
     val isScheduledBlock: Boolean get() = mode == "scheduled"

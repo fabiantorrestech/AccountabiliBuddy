@@ -313,12 +313,14 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial string GoalText { get; set; } = string.Empty;
 
-    /// <summary>Plan first: the line on the bar and what "I'm ready" does (set by the service).</summary>
+    /// <summary>Plan first: the line above the bar (a first session's "Learning"; the planning stage has its own bar instead) and what "I'm ready" does (set by the service).</summary>
+    /// <param name="text">The line above the bar; null shows none.</param>
+    /// <param name="ready">What "I'm ready" does; null hides the button (nothing to end).</param>
     public void SetPlanning(string? text, Action? ready)
     {
         PlanningText = text ?? string.Empty;
         ShowsPlanning = text is not null;
-        ShowsReady = text is not null && ready is not null;
+        ShowsReady = ready is not null;
         _ready = ready;
     }
 

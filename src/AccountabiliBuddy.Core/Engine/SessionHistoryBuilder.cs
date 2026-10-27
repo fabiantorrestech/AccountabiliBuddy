@@ -6,7 +6,9 @@ namespace AccountabiliBuddy.Core.Engine;
 /// Pairs session start and end events into <see cref="SessionRecord"/>s for the History list. A start followed by
 /// another start (the app was closed mid-session and did not resume) becomes a record without an end.
 /// Interrupted/Resumed pairs inside a session add up to <see cref="SessionRecord.AppClosedFor"/>; AwayStarted/AwayEnded
-/// pairs become <see cref="SessionRecord.Away"/> (an away with no return closes at the session's end). Sessions added by hand
+/// pairs become <see cref="SessionRecord.Away"/> (an away with no return closes at the session's end), and so do the
+/// PlanningStarted/PlanningEnded pair of the planning stage (kind <see cref="AwayKind.Planning"/>: it is not focus time, and
+/// a planning stage still going closes at the session's end). Sessions added by hand
 /// (ADR 20) are paired on their own, so one placed inside a recorded session never cuts it.
 /// </summary>
 public static class SessionHistoryBuilder
@@ -30,6 +32,7 @@ public static class SessionHistoryBuilder
         TimeSpan closedFor = TimeSpan.Zero;
         DateTimeOffset? awaySince = null;
         AwayKind awayKind = AwayKind.Break;
+        DateTimeOffset? planningSince = null;
         List<AwayStretch>? away = null;
 
         foreach (SessionEvent sessionEvent in events)
@@ -40,14 +43,32 @@ public static class SessionHistoryBuilder
                     if (open is not null)
                     {
                         records.Add(new SessionRecord(open.At, open.Mode, open.ProfileId, null, null, null, closedFor,
-                            CloseAway(away, awaySince, awayKind, DateTimeOffset.MaxValue)));
+                            CloseAway(away, awaySince, awayKind, planningSince, DateTimeOffset.MaxValue)));
                     }
 
                     open = sessionEvent;
                     interruptedAt = null;
                     closedFor = TimeSpan.Zero;
                     awaySince = null;
+                    planningSince = null;
                     away = null;
+                    continue;
+
+                case SessionEventKind.PlanningStarted:
+                    if (open is not null && planningSince is null)
+                    {
+                        planningSince = sessionEvent.At;
+                    }
+
+                    continue;
+
+                case SessionEventKind.PlanningEnded:
+                    if (planningSince is DateTimeOffset planned && sessionEvent.At >= planned)
+                    {
+                        (away ??= []).Add(new AwayStretch(planned, sessionEvent.At, AwayKind.Planning));
+                    }
+
+                    planningSince = null;
                     continue;
 
                 case SessionEventKind.AwayStarted:
@@ -93,30 +114,37 @@ public static class SessionHistoryBuilder
 
             records.Add(new SessionRecord(
                 open.At, open.Mode, open.ProfileId, sessionEvent.At, sessionEvent.Kind, sessionEvent.Reason, closedFor,
-                CloseAway(away, awaySince, awayKind, sessionEvent.At)));
+                CloseAway(away, awaySince, awayKind, planningSince, sessionEvent.At)));
             open = null;
             closedFor = TimeSpan.Zero;
             awaySince = null;
+            planningSince = null;
             away = null;
         }
 
         if (open is not null)
         {
             records.Add(new SessionRecord(open.At, open.Mode, open.ProfileId, null, null, null, closedFor,
-                CloseAway(away, awaySince, awayKind, DateTimeOffset.MaxValue)));
+                CloseAway(away, awaySince, awayKind, planningSince, DateTimeOffset.MaxValue)));
         }
 
         return records;
     }
 
-    /// <summary>The session's away stretches, with one still going closed at <paramref name="end"/>.</summary>
-    private static IReadOnlyList<AwayStretch>? CloseAway(List<AwayStretch>? away, DateTimeOffset? awaySince, AwayKind kind, DateTimeOffset end)
+    /// <summary>The session's away stretches, with an away or a planning stage still going closed at <paramref name="end"/>.</summary>
+    private static IReadOnlyList<AwayStretch>? CloseAway(
+        List<AwayStretch>? away, DateTimeOffset? awaySince, AwayKind kind, DateTimeOffset? planningSince, DateTimeOffset end)
     {
         if (awaySince is DateTimeOffset since && end >= since)
         {
             (away ??= []).Add(new AwayStretch(since, end, kind));
         }
 
-        return away;
+        if (planningSince is DateTimeOffset planned && end >= planned)
+        {
+            (away ??= []).Add(new AwayStretch(planned, end, AwayKind.Planning));
+        }
+
+        return away?.OrderBy(stretch => stretch.From).ToList();
     }
 }

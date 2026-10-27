@@ -112,6 +112,7 @@ public partial class App : Application
     private WorkGateWindow? _workGateWindow;
     private StartNudgeCardWindow? _startNudgeCardWindow;
     private AwayCardWindow? _awayCardWindow;
+    private ReadyCardWindow? _readyCardWindow;
     private PreWorkService? _preWork;
     private PreWorkWindow? _preWorkWindow;
     private Win32GlobalHotkey? _stepAwayHotkey;
@@ -401,6 +402,8 @@ public partial class App : Application
                 profiles.Where(profile => profile.Id != state.ProfileId).Select(ProfileOption.From).ToList());
         };
         _sessionOverlay.SetPlanFirst(_planFirst);
+        // Planning time is up: the focus-end chime and the overlay's glow (the "Ready?" card follows).
+        _planFirst.TimeUp += (_, _) => _sessionCues?.RaisePlanningUp();
         // Capture at the source: Ctrl+Alt+N parks an idea as a come-back (this computer, encrypted).
         _comebacks = new ComebackStore(documents, new DpapiDataProtector(), time);
         _comebacks.LoadBlocking();
@@ -876,7 +879,14 @@ public partial class App : Application
         };
         _stepAway.EndSessionAsync = () => _endFlow!.TryEndSessionAsync(null);
         _stepAway.PlaySideTaskChime = () => _sessionCues?.Play(soundSettings.Current.FocusEndSound);
-        _stepAway.CardChanged += (_, _) => ShowAwayCard(monitorLocator);
+        // The planning "Ready?" card shares the task line; it waits while the away card is up, so two never stack.
+        _planFirst!.CurrentTaskName = _stepAway.CurrentTaskName;
+        _stepAway.CardChanged += (_, _) =>
+        {
+            ShowAwayCard(monitorLocator);
+            ShowReadyCard(monitorLocator);
+        };
+        _planFirst.CardChanged += (_, _) => ShowReadyCard(monitorLocator);
         // Capture in Focus mode (redesign phase 5): notes for the session's review, come-backs with ⚑ or "!".
         sessionViewModel.Focus.Capture = new CaptureBoxViewModel(_sessionNotes!, _comebacks!);
         var notebook = new NotebookViewModel(_comebacks!, _sessionNotes!, sessionTasks, time);
@@ -1616,6 +1626,54 @@ public partial class App : Application
         }
 
         _awayCardWindow = window;
+        window.Show();
+        window.Activate();
+    }
+
+    /// <summary>
+    /// Shows, raises or closes the planning "Ready?" card as the plan-first service opens it, asks again (an unanswered one comes
+    /// back every 2 minutes) or closes it. One window at a time, and none while the away card is up, so they never stack.
+    /// </summary>
+    private void ShowReadyCard(IMonitorLocator monitors)
+    {
+        ReadyCardViewModel? card = _stepAway?.Card is not null ? null : _planFirst?.Card;
+        if (card is null)
+        {
+            ReadyCardWindow? open = _readyCardWindow;
+            _readyCardWindow = null;
+            open?.Close();
+            return;
+        }
+
+        if (_readyCardWindow is not null)
+        {
+            if (!ReferenceEquals(_readyCardWindow.DataContext, card))
+            {
+                _readyCardWindow.DataContext = card;
+            }
+
+            // Raised again: back in front of everything.
+            _readyCardWindow.Topmost = false;
+            _readyCardWindow.Topmost = true;
+            _readyCardWindow.Activate();
+            return;
+        }
+
+        var window = new ReadyCardWindow { DataContext = card };
+        window.Closed += (_, _) =>
+        {
+            if (_readyCardWindow == window)
+            {
+                // Closed some other way: it opens again at the next time it is due while planning is still unanswered.
+                _readyCardWindow = null;
+            }
+        };
+        if (monitors.Find(monitors.FindMonitorUnderCursor()) is MonitorArea area)
+        {
+            MonitorPlacement.Center(window, area);
+        }
+
+        _readyCardWindow = window;
         window.Show();
         window.Activate();
     }

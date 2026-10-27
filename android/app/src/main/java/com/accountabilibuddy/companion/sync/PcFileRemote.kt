@@ -53,12 +53,16 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
     fun waitingFor(pc: UUID, pending: List<SyncAction> = actions.pending.value): SyncAction? =
         pending.lastOrNull { it.target == pc && it.kind in SyncAction.CONTROL_KINDS }
 
-    /** Asks the PC to start a profile for [minutes], or with no set end ([countUp]; no profile: Quick Start with Default). Null when sent. */
+    /**
+     * Asks the PC to start a profile for [minutes]; with no set end ([countUp], explicit: the PC's bar counts up); or, with no
+     * [minutes] and no [countUp], a Quick Start that runs for the length the PC remembers and counts down. No profile means the PC's
+     * default profile. Null when sent.
+     */
     fun start(profileId: String?, minutes: Int?, countUp: Boolean): String? {
         val pc = controllable().getOrElse { return it.message }
         val request = buildJsonObject {
             profileId?.let { put("profileId", it) }
-            if (countUp) put("noSetEnd", true) else put("minutes", (minutes ?: DEFAULT_MINUTES).coerceIn(1, 720))
+            if (countUp) put("noSetEnd", true) else minutes?.let { put("minutes", it.coerceIn(1, 720)) }
         }
         actions.add(SyncAction.START, pc.file.device.deviceId, text = request.toString())
         return null
@@ -174,7 +178,6 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
 
     companion object {
         private const val KEY_CHOSEN = "chosen"
-        private const val DEFAULT_MINUTES = 25
         private const val TOO_LATE = "Too late — ask to end it again."
         /** How long a request to a PC is worth answering. */
         val GIVE_UP_AFTER: Duration = Duration.ofMinutes(10)

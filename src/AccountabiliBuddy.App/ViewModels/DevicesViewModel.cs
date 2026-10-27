@@ -510,7 +510,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
 
         List<TimeRange> mine = own.Sessions
             .Select(session => new TimeRange(session.Start, session.End ?? own.Device.WrittenAt))
-            .Where(range => range.To > dayStart && range.From < dayEnd)
+            .Where(range => range.To > dayStart && range.From < dayEnd && range.To > range.From)
             .ToList();
         IReadOnlyList<ReceivedSession> theirs = ReceivedSessions.In(_received.Devices, dayStart, dayEnd);
         // Time any device was in focus counts once.

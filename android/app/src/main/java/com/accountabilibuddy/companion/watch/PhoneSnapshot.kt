@@ -89,12 +89,15 @@ object PhoneSnapshot {
             .filter { it.device.kind == SyncDeviceCard.KIND_PC && it.running != null }
             .filter { than == null || it.device.writtenAt.isAfter(than) }
             .filter { java.time.Duration.between(it.device.writtenAt, now) <= java.time.Duration.ofHours(12) }
-            .filter { file -> file.running!!.phaseEndsAt?.let { now.isBefore(it.plusSeconds(600)) } ?: true }
+            .filter { file -> file.running!!.isLiveAt(now, java.time.Duration.ofSeconds(600)) }
             .maxByOrNull { it.device.writtenAt }
             ?.let { file ->
                 val running = file.running!!
                 val tasks = file.sessions.lastOrNull { it.end == null }?.tasks.orEmpty()
-                RunningSession(running.profile, running.phaseStartedAt, running.phaseEndsAt, running.isBreak).withTasks(tasks, running.currentTask)
+                RunningSession(
+                    running.profile, running.phaseStartedAt, running.phaseEndsAt, running.isBreak,
+                    planningStartedAt = running.planningStartedAt, planningEndsAt = running.planningEndsAt,
+                ).withTasks(tasks, running.currentTask)
             }
 
     /** The PC's session when it's one that counts as focus (a scheduled block isn't); breaks belong to it. */
@@ -104,6 +107,9 @@ object PhoneSnapshot {
         }
 
         val startedAt = state.phaseStartedAt?.toInstant() ?: return null
-        return RunningSession(state.profileName, startedAt, state.phaseEndsAt?.toInstant(), state.isBreak).withTasks(state.tasks, state.currentTask)
+        return RunningSession(
+            state.profileName, startedAt, state.phaseEndsAt?.toInstant(), state.isBreak,
+            planningStartedAt = state.planningStartedAt?.toInstant(), planningEndsAt = state.planningEndsAt?.toInstant(),
+        ).withTasks(state.tasks, state.currentTask)
     }
 }

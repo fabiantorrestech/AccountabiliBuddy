@@ -255,23 +255,48 @@ public sealed class QuickSessionService
         CountUpProfileChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>The remembered focus length (last Start): what the Quick Starts run for when no start panel chose one.</summary>
+    private TimeSpan RememberedLength => ClampedLength(TimeSpan.FromMinutes(Preferences.FocusMinutes));
+
+    // 1 minute to 12 hours, the range a phone or watch may start (RemoteSessionControl.MaxMinutes).
+    private static TimeSpan ClampedLength(TimeSpan length) =>
+        TimeSpan.FromMinutes(Math.Clamp(length.TotalMinutes, 1, Remote.RemoteSessionControl.MaxMinutes));
+
     /// <summary>
-    /// "Quick Start with Default": the default profile (Settings; "QS - Default" unless another is chosen) with no set
-    /// end; the on-screen bar counts up (it never runs out on its own).
+    /// "Quick Start with Default": the default profile (Settings; "QS - Default" unless another is chosen) for
+    /// <paramref name="length"/> (the start panel's chosen length; the remembered one when null or under a minute), so
+    /// its on-screen bar counts down.
     /// </summary>
     /// <returns>True when it started (also used by linked devices).</returns>
-    public async Task<bool> StartCountUpAsync()
+    public async Task<bool> StartWithDefaultAsync(TimeSpan? length = null)
+    {
+        CloseAll();
+        return await EnsureCountUpProfileAsync() is Guid profileId && _sessions.StartManual(profileId, LengthOrRemembered(length));
+    }
+
+    /// <summary>"Quick Start" of a phone or watch: <paramref name="profileId"/> for the remembered focus length.</summary>
+    public bool StartQuick(Guid profileId)
+    {
+        CloseAll();
+        return _sessions.StartManual(profileId, RememberedLength);
+    }
+
+    /// <summary>"No set end" (start panel, More options; a phone's explicit choice): <paramref name="profileId"/> runs until it is ended; the on-screen bar counts up.</summary>
+    public bool StartOpenEnded(Guid profileId)
+    {
+        CloseAll();
+        return _sessions.StartManual(profileId, duration: null);
+    }
+
+    /// <summary>"No set end" with the default profile (made on first use), for a phone's explicit choice.</summary>
+    public async Task<bool> StartOpenEndedWithDefaultAsync()
     {
         CloseAll();
         return await EnsureCountUpProfileAsync() is Guid profileId && _sessions.StartManual(profileId, duration: null);
     }
 
-    /// <summary>"Quick Start": <paramref name="profileId"/> (the one picked in the start panel) with no set end.</summary>
-    public bool StartCountUp(Guid profileId)
-    {
-        CloseAll();
-        return _sessions.StartManual(profileId, duration: null);
-    }
+    private TimeSpan LengthOrRemembered(TimeSpan? length) =>
+        length is TimeSpan chosen && chosen >= TimeSpan.FromMinutes(1) ? ClampedLength(chosen) : RememberedLength;
 
     /// <summary>
     /// At launch: every install has the default profile. When the saved one is missing, a profile named "Quick Start"
@@ -317,12 +342,12 @@ public sealed class QuickSessionService
         return named.Id;
     }
 
-    // Both start buttons of a start panel: the default profile, and the profile picked there.
+    // The start panel's buttons: the default profile for the chosen length, and "No set end" for the profile picked there.
     private void HookQuickStart(QuickSessionViewModel viewModel)
     {
         viewModel.DefaultProfileName = CountUpProfileName;
-        viewModel.QuickStartDefaultRequested += async (_, _) => await StartCountUpAsync();
-        viewModel.QuickStartRequested += (_, profileId) => StartCountUp(profileId);
+        viewModel.QuickStartDefaultRequested += async (_, _) => await StartWithDefaultAsync(viewModel.FocusLength);
+        viewModel.OpenEndedRequested += (_, profileId) => StartOpenEnded(profileId);
         viewModel.StartTestRequested += async (_, _) => await StartTestAsync(viewModel);
     }
 

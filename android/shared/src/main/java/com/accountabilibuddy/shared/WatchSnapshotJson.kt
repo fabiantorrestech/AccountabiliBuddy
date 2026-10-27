@@ -51,6 +51,9 @@ object WatchSnapshotJson {
                 put("startedAt", running.startedAt.toString())
                 running.endsAt?.let { put("endsAt", it.toString()) }
                 put("onBreak", running.onBreak)
+                // Phase 11: the PC's planning stage (not focus time); left out by older phones.
+                running.planningStartedAt?.let { put("planningStartedAt", it.toString()) }
+                running.planningEndsAt?.let { put("planningEndsAt", it.toString()) }
                 // Guided sessions (ADR 24): only while it has a checklist.
                 if (running.tasksTotal > 0) {
                     running.task?.let { put("task", it) }
@@ -106,6 +109,7 @@ object WatchSnapshotJson {
             json.string("profile"), startedAt, json.instant("endsAt"), json.bool("onBreak"),
             json.string("task"), json.int("tasksDone") ?: 0, json.int("tasksTotal") ?: 0,
             json.int("taskNumber") ?: 0,
+            json.instant("planningStartedAt"), json.instant("planningEndsAt"),
         )
     }
 }

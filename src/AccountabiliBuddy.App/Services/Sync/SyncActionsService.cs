@@ -274,19 +274,25 @@ public sealed class SyncActionsService
             return Invalid(action, "The PC couldn't read this request.");
         }
 
+        // Three kinds of request: a profile for some minutes; "no set end" (explicit: it counts up); and a Quick Start, which
+        // names no length and runs for the PC's remembered one (the default profile when it names no profile; made on first use,
+        // so a phone may not know its id yet).
         string? error;
-        if (!request.NoSetEnd)
+        if (request.NoSetEnd)
         {
-            error = _control.Start(request.ProfileId, request.Minutes);
+            error = request.ProfileId is Guid openProfile
+                ? _control.StartOpenEnded(openProfile)
+                : await _control.StartOpenEndedWithDefaultAsync();
         }
-        else if (request.ProfileId is Guid profileId && profileId != _control.CountUpProfileId)
+        else if (request.Minutes is null)
         {
-            error = _control.StartCountUp(profileId);
+            error = request.ProfileId is Guid quickProfile
+                ? _control.StartQuick(quickProfile)
+                : await _control.StartWithDefaultAsync();
         }
         else
         {
-            // "Quick Start with Default" (made on first use, so a phone may not know its id yet).
-            error = await _control.StartCountUpAsync();
+            error = _control.Start(request.ProfileId, request.Minutes);
         }
 
         return error is null ? Ok(action, "Started.") : Refused(action, error);

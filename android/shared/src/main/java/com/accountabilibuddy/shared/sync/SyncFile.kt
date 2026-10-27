@@ -292,4 +292,20 @@ data class SyncRunning(
     val currentTask: String? = null,
     val profileId: String? = null,
     val countUpProfileId: String? = null,
-)
+    /**
+     * Phase 11, optional (a build that doesn't know planning leaves them out): set while the PC is in its planning stage, which is
+     * not focus time. [phaseStartedAt] and [phaseEndsAt] are then the focus phase it leads to (planning's end, and the focus
+     * length after it). Planning keeps counting past [planningEndsAt] until the user answers "Ready?" on the PC.
+     */
+    val planningStartedAt: java.time.Instant? = null,
+    val planningEndsAt: java.time.Instant? = null,
+) {
+    /**
+     * Still worth showing at [now] (a PC that went off mid-session stops counting down): before the end of its phase and
+     * [grace] after it, with no set end, or while planning (which has no end of its own until "Ready?" is answered, but is
+     * believed only until its time, the focus length it leads to and 10 minutes have passed).
+     */
+    fun isLiveAt(now: java.time.Instant, grace: java.time.Duration): Boolean =
+        if (planningEndsAt != null) now.isBefore(planningEndsAt.plus(com.accountabilibuddy.shared.PlanningBound.after(phaseStartedAt, phaseEndsAt)))
+        else phaseEndsAt?.let { end -> now.isBefore(end.plus(grace)) } ?: true
+}

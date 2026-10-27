@@ -77,9 +77,13 @@ public sealed partial class FocusViewModel : ObservableObject
         }
     }
 
-    /// <summary>A session's planning minutes: unknown sites aren't asked about yet.</summary>
+    /// <summary>A session's planning stage, or a first session's learning: unknown sites aren't asked about yet.</summary>
     [ObservableProperty]
     public partial bool IsPlanning { get; set; }
+
+    /// <summary>The planning stage before the focus countdown (not learning): the timer and the bar show in the planning colour.</summary>
+    [ObservableProperty]
+    public partial bool InPlanningStage { get; set; }
 
     /// <summary>"I'm ready" shows: planning, not a first session's learning (which only the session's end ends).</summary>
     [ObservableProperty]
@@ -88,6 +92,10 @@ public sealed partial class FocusViewModel : ObservableObject
     /// <summary>E.g. "Planning · 4:12 left · new sites are asked about after".</summary>
     [ObservableProperty]
     public partial string PlanningText { get; set; } = string.Empty;
+
+    /// <summary>The part of the planning stage still to go, 0 to 100 (empty once its time is up).</summary>
+    [ObservableProperty]
+    public partial double PlanningLeftPercent { get; set; }
 
     [RelayCommand]
     private void Ready()
@@ -98,11 +106,25 @@ public sealed partial class FocusViewModel : ObservableObject
     private void RefreshPlanning()
     {
         IsPlanning = _planFirst is { IsPlanning: true };
+        InPlanningStage = _planFirst is { InStage: true };
         bool learning = _planFirst is { IsLearning: true };
-        CanReady = IsPlanning && !learning;
+        CanReady = InPlanningStage;
         PlanningText = !IsPlanning ? string.Empty
             : learning ? "First session: nothing new is asked · sort what you used on Today at the end"
-            : $"Planning · {_planFirst!.LeftText} left · new sites are asked about after";
+            : _planFirst!.IsTimeUp ? "Planning time is up · Start when you are ready · new sites are asked about after"
+            : $"Planning · {_planFirst.LeftText} left · new sites are asked about after";
+        PlanningLeftPercent = InPlanningStage ? PlanningLeft(_sessions.State, _sessions.Now) * 100 : 0;
+    }
+
+    // The planning stage's own bar: what is left of the stage's start-to-end span.
+    private static double PlanningLeft(SessionState state, DateTimeOffset now)
+    {
+        if (state.PhaseStartedAt is not DateTimeOffset start || state.PhaseEndsAt is not DateTimeOffset end || end <= start)
+        {
+            return 0;
+        }
+
+        return Math.Clamp((end - state.CountdownTime(now)) / (end - start), 0, 1);
     }
 
     /// <summary>The running session's checklist; null when the app doesn't offer guided sessions.</summary>
@@ -226,12 +248,14 @@ public sealed partial class FocusViewModel : ObservableObject
         DateTimeOffset now = _sessions.Now;
         DateTimeOffset clock = state.CountdownTime(now);
         string profile = ProfileOptions.NameOf(_configuration.Current.Profiles, state.ProfileId) ?? "Focus";
-        string who = state.IsTest ? "Test session" : state.IsEnforcing ? profile : "Break";
+        string who = state.IsTest ? "Test session" : state.IsPlanning ? $"Planning · {profile}" : state.IsEnforcing ? profile : "Break";
         TimeZoneInfo zone = _sessions.TimeProvider.LocalTimeZone;
         if (state.PhaseEndsAt is DateTimeOffset end)
         {
             TimeLeftText = SessionStatusFormatter.FormatDuration(end - clock);
-            PhaseText = $"left · {who} · until {TimeZoneInfo.ConvertTime(end, zone):t}";
+            PhaseText = state.IsPlanning
+                ? $"left · {who} · not focus time"
+                : $"left · {who} · until {TimeZoneInfo.ConvertTime(end, zone):t}";
         }
         else
         {

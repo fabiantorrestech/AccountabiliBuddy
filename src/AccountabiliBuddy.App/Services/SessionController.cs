@@ -77,6 +77,26 @@ public sealed class SessionController : IDisposable
 
     public SessionCheckpoint CreateCheckpoint() => _engine.CreateCheckpoint();
 
+    /// <summary>
+    /// How long a session the user starts plans first (the stage before its focus countdown), or null for none. Set by
+    /// <see cref="PlanFirstService"/>; a test session never plans.
+    /// </summary>
+    public Func<TimeSpan?> PlanningLength { get; set; } = () => null;
+
+    /// <summary>"I'm ready", the first task ticked or Start on the "Ready?" card: planning ends and the focus countdown starts fresh.</summary>
+    /// <returns>False when the session isn't planning, or the user is away.</returns>
+    public bool EndPlanning()
+    {
+        return _engine.EndPlanning();
+    }
+
+    /// <summary>+2, +5 or +15 on the "Ready?" card: planning goes on for that long more (still not focus time).</summary>
+    /// <returns>False when the session isn't planning, or the user is away.</returns>
+    public bool ExtendPlanning(TimeSpan extra)
+    {
+        return _engine.ExtendPlanning(extra);
+    }
+
     /// <param name="saved">The session saved before the app last stopped, if any; a running one is resumed.</param>
     /// <returns>The resumed session, or null when nothing was resumed.</returns>
     public SessionResume? Start(SavedSession? saved)
@@ -91,7 +111,7 @@ public sealed class SessionController : IDisposable
 
     public bool StartManual(Guid profileId, TimeSpan? duration)
     {
-        return _engine.StartManual(profileId, duration);
+        return _engine.StartManual(profileId, duration, PlanningLength());
     }
 
     /// <summary>
@@ -112,7 +132,7 @@ public sealed class SessionController : IDisposable
     public bool StartPomodoro(Guid profileId, int? totalCycles)
     {
         PomodoroSettings settings = _configuration.Current.PomodoroDefaults with { TotalCycles = totalCycles };
-        return _engine.StartPomodoro(profileId, settings);
+        return _engine.StartPomodoro(profileId, settings, planning: PlanningLength());
     }
 
     /// <summary>One focus block followed by one break, then the session ends (quick session with a break).</summary>
@@ -120,7 +140,7 @@ public sealed class SessionController : IDisposable
     {
         // One cycle never reaches the long-break count, so the single break is shown as a short break.
         var settings = new PomodoroSettings(focus, breakLength, breakLength, CyclesBeforeLongBreak: 2, TotalCycles: 1);
-        return _engine.StartPomodoro(profileId, settings, breakAfterLastCycle: true);
+        return _engine.StartPomodoro(profileId, settings, breakAfterLastCycle: true, planning: PlanningLength());
     }
 
     /// <summary>The user steps away: the countdown pauses until <see cref="Return"/> (see <see cref="StepAwayService"/>).</summary>

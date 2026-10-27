@@ -572,6 +572,12 @@ public sealed partial class HistoryViewModel : ObservableObject
             outcome += $" · interrupted {FormatDuration(interrupted)}";
         }
 
+        // The planning stage before the focus countdown: shown apart and never counted as focus.
+        if (record.PlanningTime > TimeSpan.Zero)
+        {
+            outcome += $" · planning {FormatDuration(record.PlanningTime)}";
+        }
+
         // A side task is time away from the session's focus, shown apart and never counted as focus.
         if (record.AwayTimeOf(AwayKind.SideTask) is { } sideTasks && sideTasks > TimeSpan.Zero)
         {

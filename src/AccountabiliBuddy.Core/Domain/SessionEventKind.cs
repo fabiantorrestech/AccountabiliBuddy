@@ -27,4 +27,10 @@ public enum SessionEventKind
 
     /// <summary>The user added 5 minutes to a side task; the reason they typed is stored encrypted and never leaves the PC.</summary>
     SideTaskExtended,
+
+    /// <summary>The session's planning stage began (at the session's start); it is not focus time.</summary>
+    PlanningStarted,
+
+    /// <summary>The planning stage ended (Ready, a ticked task, Start on the card); focus began.</summary>
+    PlanningEnded,
 }
