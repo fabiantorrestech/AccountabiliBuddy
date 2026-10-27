@@ -60,11 +60,15 @@ class SyncCoordinator(
             SyncDeviceCard.METHOD_FILE.takeIf { settings.fileOn },
             SyncDeviceCard.METHOD_FOLDER.takeIf { settings.folderOn && settings.folderUri != null },
             SyncDeviceCard.METHOD_DRIVE.takeIf { settings.driveOn },
+            SyncDeviceCard.METHOD_RELAY.takeIf { settings.relayOn && settings.relayUrl != null },
         )
     }
 
-    /** Called after a file that didn't come by Drive was taken in, so it can go on to the PCs through Drive. */
-    var onCarryChanged: (() -> Unit)? = null
+    /**
+     * Called with the method a file came by after it was taken in, so it can go on through the other network methods
+     * (a file that didn't come by Drive goes on through Drive, one that didn't come by the relay through the relay).
+     */
+    var onCarryChanged: ((String) -> Unit)? = null
 
     /** The phone's linked watch for its card (Task 18), as the watch bridge last checked it. */
     var companions: () -> List<SyncCompanion> = { emptyList() }
@@ -137,7 +141,7 @@ class SyncCoordinator(
     }
 
     /**
-     * Takes in a file another device sealed, carried by [method] (QR, folder, Drive or file).
+     * Takes in a file another device sealed, carried by [method] (QR, folder, Drive, relay or file).
      * Null when taken in (or already held); otherwise why not.
      */
     @Synchronized
@@ -146,6 +150,7 @@ class SyncCoordinator(
         when {
             method == SyncDeviceCard.METHOD_FILE && !settings.fileOn -> return "Turn on \"Sync files\" in Devices to open sync files."
             method == SyncDeviceCard.METHOD_FOLDER && !settings.folderOn -> return "The sync folder is off on this phone."
+            method == SyncDeviceCard.METHOD_RELAY && !settings.relayOn -> return "The relay is off on this phone."
         }
 
         val key = identity.key.value ?: return NOT_JOINED
@@ -156,9 +161,7 @@ class SyncCoordinator(
         }
 
         store.save(outcome.devices)
-        if (method != SyncDeviceCard.METHOD_DRIVE) {
-            onCarryChanged?.invoke()
-        }
+        onCarryChanged?.invoke(method)
 
         return null
     }
@@ -209,7 +212,7 @@ class SyncCoordinator(
     fun cardOf(bytes: ByteArray): SyncDeviceCard? = identity.key.value?.let { SyncFileCodec.open(bytes, it)?.device }
 
     /**
-     * For the sync folder (or Drive, [cameBy]): this phone's own file, and what it carries that didn't come that way and
+     * For the sync folder (or Drive or the relay, [cameBy]): this phone's own file, and what it carries that didn't come that way and
      * is newer than that device's file there ([inFolder]), each under its device's folder name.
      */
     fun filesForFolder(inFolder: Map<UUID, Instant>, cameBy: String = SyncDeviceCard.METHOD_FOLDER): List<FolderFile> {

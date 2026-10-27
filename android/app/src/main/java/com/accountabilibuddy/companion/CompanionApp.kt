@@ -76,6 +76,10 @@ class CompanionApp : Application() {
         private set
     val driveSignIn by lazy { com.accountabilibuddy.companion.sync.DriveSignIn(this) }
 
+    /** The user's own sealed relay (ADR 46): the same files as Drive, pushed in about a second while the phone is busy. */
+    lateinit var relaySource: com.accountabilibuddy.companion.sync.RelaySyncSource
+        private set
+
     /** The phone's master switch and car pause. */
     val pause by lazy { com.accountabilibuddy.companion.pause.PauseStore(this) }
 
@@ -91,9 +95,15 @@ class CompanionApp : Application() {
     /** Bedtime reminders between devices (ADR 38). */
     lateinit var reminderRelay: com.accountabilibuddy.companion.notify.ReminderRelay
 
-    /** Syncs with Google Drive in the background, so the PCs get this phone's file and what it carries soon (a reminder dismissed here). */
+    /** Syncs with Google Drive and the relay in the background, so the PCs get this phone's file and what it carries soon (a reminder dismissed here). */
     fun sendSyncFilesSoon() {
         appScope.launch { runCatching { driveSource.syncNow() } }
+        relaySoon()
+    }
+
+    /** Sends the relay this phone's file now (a phone action, ADR 46); nothing happens while the relay is off. */
+    private fun relaySoon() {
+        appScope.launch { runCatching { relaySource.syncNow() } }
     }
 
     /** The noise player on the linked watch (ADR 36). */
@@ -169,8 +179,17 @@ class CompanionApp : Application() {
             appVersion(),
             PhoneSyncSettingsStore(File(filesDir, "companion/sync-settings.json")),
         )
-        // A file that came by QR code, a folder or a share goes on to the PCs through Drive soon.
-        sync.onCarryChanged = { sendSyncFilesSoon() }
+        // A file that came by QR code, a folder or a share goes on to the PCs through Drive and the relay soon; one that
+        // came by Drive also goes to the relay, and one that came by the relay to Drive, never back where it came from.
+        sync.onCarryChanged = { method ->
+            if (method != com.accountabilibuddy.shared.sync.SyncDeviceCard.METHOD_DRIVE) {
+                appScope.launch { runCatching { driveSource.syncNow() } }
+            }
+
+            if (method != com.accountabilibuddy.shared.sync.SyncDeviceCard.METHOD_RELAY) {
+                relaySource.syncSoon()
+            }
+        }
         // ADR 42: starting and ending the PC's sessions and sending plan edits go through the sync files.
         pcRemote = PcFileRemote(this, actions, sync.received)
         planFileSync = DayPlanFileSync(store, actions, pcRemote, sync.received, appScope).also { it.start() }
@@ -190,7 +209,10 @@ class CompanionApp : Application() {
             lunch = { lunch.forWatch(store.state.value.document.dayPlan) },
             lunchChanges = kotlinx.coroutines.flow.combine(lunch.lunch, lunch.lengthMinutes) { taken, length -> taken to length },
             // ADR 42: the watch's "/hello" reads the PCs' files from Drive before it answers.
-            syncNow = { driveSource.syncNow() },
+            syncNow = {
+                driveSource.syncNow()
+                relaySource.syncNow()
+            },
         )
             .also { it.start() }
         // The phone's card names its linked watch (Task 18); linking or unlinking it tells the PC at once.
@@ -214,12 +236,14 @@ class CompanionApp : Application() {
         sync.actions = { actions.pending.value }
         // A tick or a parked thought goes to the PC at once (Drive), and shows ticked here meanwhile.
         actions.onChanged = {
+            relaySoon()
             appScope.launch {
                 driveSource.syncNow()
                 Refresher.refresh(this@CompanionApp)
             }
         }
         lunch.onChanged = {
+            relaySoon()
             appScope.launch {
                 driveSource.syncNow()
                 Refresher.refresh(this@CompanionApp)
@@ -273,6 +297,9 @@ class CompanionApp : Application() {
         driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn, beforeSync = { watchBridge.refreshKnownWatches() })
         // Drive (ADR 26): every 30 s while a session runs or the timeline is pinned, else 15 min.
         appScope.launch { driveSource.loop { driveBusy() } }
+        // The relay (ADR 46): the same pace, plus a push stream open while a session runs or the timeline is pinned.
+        relaySource = com.accountabilibuddy.companion.sync.RelaySyncSource(sync, appScope, beforeSync = { watchBridge.refreshKnownWatches() })
+        appScope.launch { relaySource.loop { driveBusy() } }
         noise = com.accountabilibuddy.companion.noise.NoisePlayer(this, com.accountabilibuddy.companion.noise.NoiseSettingsStore(this), appScope)
         com.accountabilibuddy.companion.noise.HeadphoneWatcher(this, headphones, noise).start()
         noiseWatch = com.accountabilibuddy.companion.watch.NoiseWatchSync(this, noise, watchBridge.linkSettings, appScope, pcNoise).also { it.start() }
@@ -297,6 +324,7 @@ class CompanionApp : Application() {
                 folderSource.schedule()
                 folderSource.syncNow()
                 if (it.driveOn) driveSource.syncNow() else driveSource.forget()
+                if (it.relayOn) relaySource.syncNow() else relaySource.forget()
             }
         }
         // The header follows the devices' sessions and focus: redraw (at most every 2 s) when they change.
@@ -313,6 +341,7 @@ class CompanionApp : Application() {
     /** Android's next alarm changed (ADR 23): the wake time, the header, and this phone's file for the PCs follow. */
     fun onNextAlarmChanged() {
         refreshWakeAlarm()
+        relaySoon()
         appScope.launch {
             folderSource.syncNow()
             driveSource.syncNow()
@@ -421,6 +450,7 @@ class CompanionApp : Application() {
 
     /** A work use started or ended (phase 11b): the PC hears at once (Drive), and the notice and detector follow. */
     fun workUseChanged() {
+        relaySoon()
         appScope.launch {
             runCatching { driveSource.syncNow() }
             Refresher.refresh(this@CompanionApp)
@@ -441,6 +471,7 @@ class CompanionApp : Application() {
             val problems = listOfNotNull(
                 runCatching { folderSource.syncNow() }.exceptionOrNull()?.let { "sync folder: ${it.message}" },
                 runCatching { driveSource.syncNow() }.exceptionOrNull()?.let { "Drive: ${it.message}" },
+                runCatching { relaySource.syncNow() }.exceptionOrNull()?.let { "relay: ${it.message}" },
             )
             Refresher.refresh(this@CompanionApp)
             val at = java.time.LocalTime.now().withSecond(0).withNano(0)

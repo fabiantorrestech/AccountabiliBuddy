@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- ADR 26: the only connection is to Google Drive, over TLS; nothing in cleartext. -->
+<!-- ADR 26 and 46: the connections are to Google Drive and to the user's own relay (https only, optionally pinned to its
+     certificate in code); nothing in cleartext. -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />
 </network-security-config>

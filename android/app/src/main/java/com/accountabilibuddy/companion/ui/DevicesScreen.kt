@@ -50,6 +50,7 @@ import com.accountabilibuddy.companion.sync.DriveFolderSource
 import com.accountabilibuddy.companion.sync.DriveSyncSource
 import com.accountabilibuddy.companion.sync.FolderStatus
 import com.accountabilibuddy.companion.sync.PhoneSyncSettings
+import com.accountabilibuddy.companion.sync.RelayAddress
 import com.accountabilibuddy.companion.sync.ReceivedDevice
 import com.accountabilibuddy.shared.sync.FocusDayCombine
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
@@ -70,6 +71,8 @@ data class DevicesState(
     val folder: FolderStatus = FolderStatus(),
     /** Google Drive's last result (ADR 26). */
     val drive: FolderStatus = FolderStatus(),
+    /** The own relay's last result (ADR 46). */
+    val relay: FolderStatus = FolderStatus(),
     /** Apps seen setting alarms (id to name), and the one learned as the wake-up alarm. */
     val alarmApps: List<Pair<String, String>> = emptyList(),
     val learnedAlarmApp: String? = null,
@@ -90,6 +93,7 @@ data class DevicesActions(
     val beginDriveSignIn: suspend () -> android.app.PendingIntent? = { null },
     val onDriveSignInResult: (android.content.Intent?) -> Unit = {},
     val onSyncDriveNow: () -> Unit = {},
+    val onSyncRelayNow: () -> Unit = {},
 )
 
 /**
@@ -164,6 +168,7 @@ fun DevicesScreen(
                 "QR".takeIf { devices.settings.qrOn },
                 "files".takeIf { devices.settings.fileOn },
                 "Drive".takeIf { devices.settings.driveOn },
+                "relay".takeIf { devices.settings.relayOn },
                 "folder".takeIf { devices.settings.folderOn },
             )
             Section("How this phone shares", summary = if (methods.isEmpty()) "Nothing on" else methods.joinToString(" · ")) {
@@ -186,6 +191,7 @@ fun DevicesScreen(
                     Text("Show as picture")
                 }
                 DriveSection(devices, actions, now)
+                RelaySection(devices, actions, now)
                 FolderSection(devices, actions, now) { pickFolder.launch(null) }
             }
         }
@@ -210,7 +216,7 @@ fun DevicesScreen(
             QrDialog(
                 "Link another device",
                 code?.let { "Scan this on the other device, or type the code there: ${SyncKeyCode.display(it)}" } ?: "This phone isn't in a group.",
-                listOfNotNull(code?.let { "accountabilibuddy://join?c=$it&n=${Uri.encode(devices.deviceName)}" }),
+                listOfNotNull(code?.let { joinLink(it, devices) }),
             ) { dialog = null }
         }
         DevicesDialog.Leave -> AlertDialog(
@@ -230,6 +236,15 @@ fun DevicesScreen(
 }
 
 private enum class DevicesDialog { Scan, Picture, LinkDevice, Leave }
+
+// The link another device scans to join: the code, this phone's name and, when the relay is on, its address and pin (ADR 46).
+private fun joinLink(code: String, devices: DevicesState): String {
+    val settings = devices.settings
+    val relay = settings.relayUrl?.takeIf { settings.relayOn }?.let { url ->
+        "&r=${Uri.encode(url)}" + (settings.relayPin?.let { "&p=${Uri.encode(it)}" } ?: "")
+    }.orEmpty()
+    return "accountabilibuddy://join?c=$code&n=${Uri.encode(devices.deviceName)}$relay"
+}
 
 /** Which app's alarms are the wake-up alarm: learned (calendar apps never count) or pinned. */
 /**
@@ -309,6 +324,87 @@ private fun DriveSection(devices: DevicesState, actions: DevicesActions, now: In
             OutlinedButton(onClick = signIn) { Text("Sign in again") }
         }
     }
+}
+
+/** The short steps for the phone's own relay; the full guide is on the PC (Devices -> Own relay). */
+private val RELAY_STEPS = """
+    1. Run the relay on a PC, a home server or a rented server (the PC's Devices page has the steps and the full guide).
+    2. Easiest: on a device that already uses the relay, show its link QR (Link a device) and scan it here: the address and pin come with it.
+    3. Or type the relay's https address here, and its pin (43 characters) when the relay made its own certificate. No pin: the relay needs a normal certificate (a reverse proxy with Let's Encrypt).
+    4. Switch it on. This phone checks the pin on every connection and shows a problem instead of connecting if it doesn't match.
+    The relay stores only sealed files and your link code never reaches it. While a session runs or the timeline is pinned, a change arrives in about a second; otherwise this phone looks every 15 minutes.
+""".trimIndent()
+
+/** The user's own sealed relay (ADR 46): its https address and pin, and a switch. */
+@Composable
+private fun RelaySection(devices: DevicesState, actions: DevicesActions, now: Instant) {
+    val settings = devices.settings
+    var address by remember(settings.relayUrl) { mutableStateOf(settings.relayUrl.orEmpty()) }
+    var pin by remember(settings.relayPin) { mutableStateOf(settings.relayPin.orEmpty()) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    // The fields as the settings would hold them, or null with the reason shown under them.
+    fun checked(): PhoneSyncSettings? {
+        val url = RelayAddress.normalize(address)
+        if (url == null) {
+            error = "Type the relay's address starting with https://, e.g. https://192.168.1.20:8743."
+            return null
+        }
+
+        val typedPin = pin.trim()
+        if (typedPin.isNotEmpty() && !RelayAddress.isPin(typedPin)) {
+            error = "The pin is 43 letters, digits, - and _ (leave it empty for a relay with a normal certificate)."
+            return null
+        }
+
+        error = null
+        return settings.copy(relayUrl = url, relayPin = typedPin.ifEmpty { null })
+    }
+
+    ToggleRow(
+        "Own relay",
+        "Sync through a small relay you run yourself: changes arrive in about a second while a session runs or the " +
+            "timeline is pinned, with no Google account. It only ever holds sealed files.",
+        settings.relayOn,
+        enabled = devices.joined,
+    ) { on ->
+        if (!on) {
+            actions.onSettings(settings.copy(relayOn = false))
+        } else {
+            checked()?.let { actions.onSettings(it.copy(relayOn = true)) }
+        }
+    }
+    OutlinedTextField(
+        value = address,
+        onValueChange = { address = it },
+        label = { Text("Relay address (https://...)") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    OutlinedTextField(
+        value = pin,
+        onValueChange = { pin = it },
+        label = { Text("Certificate pin (empty: normal certificate)") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Color(0xFFFCA5A5)) }
+    val changed = RelayAddress.normalize(address) != settings.relayUrl || pin.trim().ifEmpty { null } != settings.relayPin
+    if (settings.relayOn && changed) {
+        OutlinedButton(onClick = { checked()?.let { actions.onSettings(it) } }) { Text("Use this address and pin") }
+    }
+    Hint(RELAY_STEPS, label = "Sync through your own relay")
+    if (!settings.relayOn) {
+        return
+    }
+
+    val status = devices.relay
+    Text(
+        status.problem ?: status.lastSyncAt?.let { "Synced ${DevicesModel.ago(Duration.between(it, now))}" } ?: "Not synced yet.",
+        style = MaterialTheme.typography.bodySmall,
+        color = if (status.problem != null) Color(0xFFFCA5A5) else MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    OutlinedButton(onClick = actions.onSyncRelayNow) { Text("Sync now") }
 }
 
 /** The short steps for a sync folder kept in step through the user's own server; the full guide is on the PC. */
@@ -507,6 +603,7 @@ object DevicesModel {
         SyncDeviceCard.METHOD_FOLDER -> "sync folder"
         SyncDeviceCard.METHOD_QR -> "QR codes"
         SyncDeviceCard.METHOD_DRIVE -> "Google Drive"
+        SyncDeviceCard.METHOD_RELAY -> "own relay"
         else -> "sync file"
     }
 }

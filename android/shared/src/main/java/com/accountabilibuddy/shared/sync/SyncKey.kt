@@ -1,5 +1,6 @@
 package com.accountabilibuddy.shared.sync
 
+import android.util.Base64
 import java.security.SecureRandom
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -7,18 +8,25 @@ import javax.crypto.spec.SecretKeySpec
 /**
  * The sync group's key (ADR 22), derived from the link code's 200 random bits as on the PC (Core's SyncKey):
  * HKDF-SHA256 with salt "AccountabiliBuddy sync" gives the 32-byte AES-GCM [key] (info "key") and a 4-byte group id
- * (info "group") that tells one group's files from another's without trying the key. Made from a code with
- * [SyncKeyCode.parse].
+ * (info "group") that tells one group's files from another's without trying the key. Two more values are for the
+ * self-hosted relay (ADR 46): a relay group id (info "relay-group", 16 bytes) and a bearer token (info "relay-auth",
+ * 32 bytes). Neither can be turned back into the key or the code. Made from a code with [SyncKeyCode.parse].
  *
  * @property key The AES-256-GCM key (32 bytes).
  * @property groupId The group id as 8 lower-case hex characters; its 4 bytes start every sealed file after "ABS1".
+ * @property relayGroupId The relay's group id as 32 lower-case hex characters.
+ * @property relayToken The relay's bearer token as 43 base64url characters (no padding). Never logged or put in a URL.
  */
-class SyncKey(val key: ByteArray, val groupId: String) {
+class SyncKey(val key: ByteArray, val groupId: String, val relayGroupId: String, val relayToken: String) {
     init {
         require(key.size == KEY_BYTES) { "The sync key is $KEY_BYTES bytes." }
         require(groupId.length == GROUP_ID_BYTES * 2 && groupId.all { it in HEX_DIGITS }) {
             "The group id is ${GROUP_ID_BYTES * 2} lower-case hex characters."
         }
+        require(relayGroupId.length == RELAY_GROUP_BYTES * 2 && relayGroupId.all { it in HEX_DIGITS }) {
+            "The relay group id is ${RELAY_GROUP_BYTES * 2} lower-case hex characters."
+        }
+        require(relayToken.length == RELAY_TOKEN_CHARACTERS) { "The relay token is $RELAY_TOKEN_CHARACTERS characters." }
     }
 
     /** The group id's 4 bytes, as they follow "ABS1" in a sealed file. */
@@ -31,19 +39,30 @@ class SyncKey(val key: ByteArray, val groupId: String) {
 
         private const val KEY_BYTES = 32
         private const val GROUP_ID_BYTES = 4
+        private const val RELAY_GROUP_BYTES = 16
+        private const val RELAY_TOKEN_BYTES = 32
+
+        // 32 bytes in base64url without padding.
+        private const val RELAY_TOKEN_CHARACTERS = 43
         private const val HEX_DIGITS = "0123456789abcdef"
         private const val HMAC = "HmacSHA256"
 
         private val salt = "AccountabiliBuddy sync".toByteArray(Charsets.UTF_8)
         private val keyInfo = "key".toByteArray(Charsets.UTF_8)
         private val groupInfo = "group".toByteArray(Charsets.UTF_8)
+        private val relayGroupInfo = "relay-group".toByteArray(Charsets.UTF_8)
+        private val relayAuthInfo = "relay-auth".toByteArray(Charsets.UTF_8)
 
         /** @throws IllegalArgumentException The secret isn't [SECRET_BYTES] bytes. */
         fun fromSecret(secret: ByteArray): SyncKey {
             require(secret.size == SECRET_BYTES) { "The link code's secret is $SECRET_BYTES bytes." }
             val key = hkdf(secret, keyInfo, KEY_BYTES)
             val groupId = hkdf(secret, groupInfo, GROUP_ID_BYTES)
-            return SyncKey(key, toHex(groupId))
+            val relayGroup = hkdf(secret, relayGroupInfo, RELAY_GROUP_BYTES)
+            val relayAuth = hkdf(secret, relayAuthInfo, RELAY_TOKEN_BYTES)
+            val relayToken = Base64.encodeToString(relayAuth, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
+            relayAuth.fill(0)
+            return SyncKey(key, toHex(groupId), toHex(relayGroup), relayToken)
         }
 
         /** HKDF-SHA256 (RFC 5869) with [salt]: extract, then expand to [length] bytes. */

@@ -51,6 +51,7 @@ fun MainScreen(
     val curbox by viewModel.curbox.collectAsStateWithLifecycle()
     val folderStatus by viewModel.folderStatus.collectAsStateWithLifecycle()
     val driveStatus by viewModel.driveStatus.collectAsStateWithLifecycle()
+    val relayStatus by viewModel.relayStatus.collectAsStateWithLifecycle()
     val pauseState by viewModel.pauseState.collectAsStateWithLifecycle()
     val lunchTaken by (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.lunch.collectAsStateWithLifecycle()
     val lunchLength by (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.lengthMinutes.collectAsStateWithLifecycle()
@@ -236,6 +237,7 @@ fun MainScreen(
                         received = syncReceived,
                         folder = folderStatus,
                         drive = driveStatus,
+                        relay = relayStatus,
                         alarmApps = viewModel.alarmApps(),
                         learnedAlarmApp = viewModel.learnedAlarmApp(),
                     ),
@@ -251,6 +253,7 @@ fun MainScreen(
                         beginDriveSignIn = viewModel::beginDriveSignIn,
                         onDriveSignInResult = viewModel::finishDriveSignIn,
                         onSyncDriveNow = viewModel::syncDriveNow,
+                        onSyncRelayNow = viewModel::syncRelayNow,
                     ),
                     watch = WatchSectionState(watchSettings, detectedWatches),
                     watchActions = WatchSectionActions(
@@ -292,6 +295,7 @@ fun MainScreen(
                         devicesSummary = listOfNotNull(
                             if (syncKey != null) "In your device group" else "Not linked yet",
                             "Drive".takeIf { syncSettings.driveOn },
+                            "relay".takeIf { syncSettings.relayOn },
                             pcName,
                         ).joinToString(" · "),
                         onOpenDevices = { tab = 2 },
@@ -332,7 +336,11 @@ fun MainScreen(
             text = {
                 Text(
                     "This phone joins your device group: it shares its sync file with your other devices and carries " +
-                        "theirs between them, encrypted with this link code.",
+                        "theirs between them, encrypted with this link code." +
+                        (offer.relayUrl?.let {
+                            "\n\nIt also syncs through the relay at ${it.removePrefix("https://")}" +
+                                (if (offer.relayPin != null) ", checking its certificate pin." else ".")
+                        } ?: ""),
                 )
             },
             confirmButton = { TextButton(onClick = viewModel::confirmJoin) { Text("Join") } },

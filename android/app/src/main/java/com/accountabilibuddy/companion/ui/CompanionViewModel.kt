@@ -194,6 +194,13 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
             return
         }
 
+        // A link from a device that uses its own relay (ADR 46) sets this phone's relay up the same way.
+        if (offer.relayUrl != null) {
+            sync.saveSettings(sync.settings.value.copy(relayOn = true, relayUrl = offer.relayUrl, relayPin = offer.relayPin))
+            message.value = "Joined ${offer.pcName}'s devices, through the relay."
+            return
+        }
+
         message.value = "Joined ${offer.pcName}'s devices."
     }
 
@@ -306,6 +313,18 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     /** Google Drive's last result (ADR 26). */
     val driveStatus = driveSource.status
 
+    private val relaySource = (application as CompanionApp).relaySource
+
+    /** The own relay's last result (ADR 46). */
+    val relayStatus = relaySource.status
+
+    fun syncRelayNow() {
+        viewModelScope.launch {
+            relaySource.syncNow()
+            message.value = relaySource.status.value.problem ?: "Synced with the relay."
+        }
+    }
+
     /** Starts the Drive sign-in: null when access was granted at once (Drive is turned on), else Google's screen to show. */
     suspend fun beginDriveSignIn(): android.app.PendingIntent? =
         when (val step = driveSignIn.begin()) {
@@ -356,6 +375,8 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun leaveSyncGroup() {
+        // The relay's copy of this phone's file goes first, while the group's key is still here (ADR 46).
+        relaySource.leaveGroup()
         sync.leave()
         message.value = "Left your device group. What came from your other devices is gone from this phone."
     }
