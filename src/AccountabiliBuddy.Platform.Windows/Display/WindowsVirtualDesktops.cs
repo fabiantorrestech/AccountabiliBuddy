@@ -12,8 +12,10 @@ namespace AccountabiliBuddy.Platform.Windows.Display;
 /// </summary>
 public sealed class WindowsVirtualDesktops : IVirtualDesktops
 {
+    private const long RetryAfterMilliseconds = 10_000;
+
     private IVirtualDesktopManager? _manager;
-    private bool _unavailable;
+    private long _retryAtTick;
 
     public bool IsOnCurrentDesktop(nint windowHandle)
     {
@@ -30,6 +32,8 @@ public sealed class WindowsVirtualDesktops : IVirtualDesktops
         }
         catch (Exception)
         {
+            // The object may be dead (Explorer restarted): a new one is made at the next call.
+            _manager = null;
             return true;
         }
     }
@@ -59,13 +63,14 @@ public sealed class WindowsVirtualDesktops : IVirtualDesktops
         }
         catch (Exception)
         {
+            _manager = null; // see IsOnCurrentDesktop
             return false;
         }
     }
 
     private IVirtualDesktopManager? Manager()
     {
-        if (_manager is not null || _unavailable)
+        if (_manager is not null || Environment.TickCount64 < _retryAtTick)
         {
             return _manager;
         }
@@ -76,8 +81,8 @@ public sealed class WindowsVirtualDesktops : IVirtualDesktops
         }
         catch (Exception)
         {
-            // No virtual desktop support (e.g. a stripped-down shell): the cards then simply stay where they are.
-            _unavailable = true;
+            // No virtual desktop support, or Explorer isn't up: the cards stay where they are, and it is tried again in a while.
+            _retryAtTick = Environment.TickCount64 + RetryAfterMilliseconds;
         }
 
         return _manager;

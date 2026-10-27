@@ -2,92 +2,175 @@ using AccountabiliBuddy.App.Views;
 using AccountabiliBuddy.Core.Ports;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform;
 
 namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
-/// The dim layer behind a "in front of everything" card: one 55% black window per monitor under the card, so the screen is
-/// dimmed and clicks can't reach the apps underneath. Shown before the card, closed with it.
+/// The dim layer behind "in front of everything" cards: one 55% black window per monitor, under the cards, so the screen is
+/// dimmed and clicks can't reach the apps underneath. The dims never take focus and stay out of Alt+Tab. Z-order, bottom to top:
+/// the dims, the cards (oldest first, so the newest is in front), then this app's other always-on-top windows (an alarm, a toast…),
+/// which stay reachable.
 /// </summary>
 public sealed class CardBackdrop : IDisposable
 {
-    private readonly Window _card;
+    private readonly IOverlayWindowControl _windowControl;
     private readonly List<ScreenDimWindow> _dims = new();
-    private string _screenSignature = string.Empty;
+    private List<Window> _cards = new();
+    private Screens? _watchedScreens;
+    private bool _rebuildNeeded;
+    private bool _closingDims;
+    private bool _disposed;
 
-    public CardBackdrop(Window card)
+    public CardBackdrop(IOverlayWindowControl windowControl)
     {
-        _card = card;
+        _windowControl = windowControl;
     }
 
-    /// <summary>The dim windows followed by the card: everything that has to be on the user's current virtual desktop.</summary>
-    public IReadOnlyList<Window> Windows => _dims.Cast<Window>().Append(_card).ToList();
+    /// <summary>The card in front (the last one set), or null when there is none.</summary>
+    public Window? Newest => _cards.Count > 0 ? _cards[^1] : null;
 
-    /// <summary>Covers every monitor. Call before the card is shown so the card opens on top.</summary>
-    public void Show()
+    /// <summary>The dim windows followed by the cards: everything that has to be on the user's current virtual desktop.</summary>
+    public IReadOnlyList<Window> Windows => _dims.Cast<Window>().Concat(_cards).ToList();
+
+    /// <summary>The cards the dims sit behind, oldest first.</summary>
+    public void SetCards(IReadOnlyList<Window> cards)
     {
-        IReadOnlyList<Screen> screens = _card.Screens?.All ?? [];
-        _screenSignature = Signature(screens);
-        foreach (Screen screen in screens)
-        {
-            PixelRect bounds = screen.Bounds;
-            var area = new MonitorArea(
-                new PixelBox(bounds.X, bounds.Y, bounds.Right, bounds.Bottom),
-                new PixelBox(bounds.X, bounds.Y, bounds.Right, bounds.Bottom));
-            var dim = new ScreenDimWindow();
-            dim.Pressed += (_, _) => Raise();
-            MonitorPlacement.Cover(dim, area);
-            _dims.Add(dim);
-            dim.Show();
-        }
+        _cards = cards.ToList();
+        WatchScreens();
     }
 
-    /// <summary>Covers the monitors again when one was plugged in, unplugged or moved while the card is up.</summary>
-    public void RefreshScreens()
+    /// <summary>
+    /// Covers every monitor if the dims aren't up yet, and again when a monitor was plugged in, unplugged or moved, or a dim was
+    /// closed (Alt+F4). Cheap when nothing changed; called on every keeper tick.
+    /// </summary>
+    public void Maintain()
     {
-        IReadOnlyList<Screen> screens = _card.Screens?.All ?? [];
-        if (screens.Count == 0 || Signature(screens) == _screenSignature)
+        Window? newest = Newest;
+        if (_disposed || newest is null || (_dims.Count > 0 && !_rebuildNeeded))
         {
             return;
         }
 
+        IReadOnlyList<Screen>? screens = newest.Screens?.All;
+        if (screens is null || screens.Count == 0)
+        {
+            return;
+        }
+
+        _rebuildNeeded = false;
         CloseDims();
-        Show();
+        foreach (Screen screen in screens)
+        {
+            PixelRect bounds = screen.Bounds;
+            var box = new PixelBox(bounds.X, bounds.Y, bounds.Right, bounds.Bottom);
+            var dim = new ScreenDimWindow();
+            dim.Pressed += (_, _) => RaiseAndFocus();
+            dim.Closed += (_, _) =>
+            {
+                if (!_closingDims)
+                {
+                    _dims.Remove(dim);
+                    _rebuildNeeded = true; // Closed by someone else: covered again at the next tick.
+                }
+            };
+            MonitorPlacement.Cover(dim, new MonitorArea(box, box));
+            _dims.Add(dim);
+            dim.Show();
+            nint handle = dim.TryGetPlatformHandle()?.Handle ?? 0;
+            if (handle != 0)
+            {
+                _windowControl.SetClickThrough(handle, false); // Takes the mouse, but never the focus, and stays out of Alt+Tab.
+            }
+        }
+
         Raise();
     }
 
-    /// <summary>Back in front of everything, the dim under the card.</summary>
+    /// <summary>Puts the windows back in order in front of everything, without taking focus.</summary>
     public void Raise()
     {
-        foreach (ScreenDimWindow dim in _dims)
+        var done = new HashSet<Window>();
+        foreach (Window window in _dims.Cast<Window>().Concat(_cards))
         {
-            dim.Topmost = false;
-            dim.Topmost = true;
+            KeepOnTop(window);
+            done.Add(window);
         }
 
-        _card.Topmost = false;
-        _card.Topmost = true;
-        _card.Activate();
+        // Always-on-top windows of this app that came up before (an alarm, a toast…) go back above the cards.
+        foreach (Window window in OwnWindows().Where(window => window.Topmost && window.IsVisible && !done.Contains(window)))
+        {
+            KeepOnTop(window);
+        }
     }
 
     public void Dispose()
     {
+        _disposed = true;
+        if (_watchedScreens is not null)
+        {
+            _watchedScreens.Changed -= OnScreensChanged;
+            _watchedScreens = null;
+        }
+
         CloseDims();
+    }
+
+    private void RaiseAndFocus()
+    {
+        Raise();
+        Newest?.Activate();
+    }
+
+    private void KeepOnTop(Window window)
+    {
+        nint handle = window.TryGetPlatformHandle()?.Handle ?? 0;
+        if (handle != 0)
+        {
+            _windowControl.KeepOnTop(handle);
+        }
+    }
+
+    private void WatchScreens()
+    {
+        Screens? screens = Newest?.Screens;
+        if (ReferenceEquals(screens, _watchedScreens))
+        {
+            return;
+        }
+
+        if (_watchedScreens is not null)
+        {
+            _watchedScreens.Changed -= OnScreensChanged;
+        }
+
+        _watchedScreens = screens;
+        if (_watchedScreens is not null)
+        {
+            _watchedScreens.Changed += OnScreensChanged;
+        }
+    }
+
+    private void OnScreensChanged(object? sender, EventArgs e)
+    {
+        _rebuildNeeded = true;
     }
 
     private void CloseDims()
     {
-        foreach (ScreenDimWindow dim in _dims)
+        _closingDims = true;
+        foreach (ScreenDimWindow dim in _dims.ToList())
         {
             dim.Close();
         }
 
         _dims.Clear();
+        _closingDims = false;
     }
 
-    private static string Signature(IReadOnlyList<Screen> screens)
+    private static IReadOnlyList<Window> OwnWindows()
     {
-        return string.Join(';', screens.Select(screen => $"{screen.Bounds.X},{screen.Bounds.Y},{screen.Bounds.Width},{screen.Bounds.Height}"));
+        return (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Windows ?? [];
     }
 }

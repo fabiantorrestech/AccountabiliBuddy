@@ -24,7 +24,7 @@ public sealed class WindowsForegroundFocus : IForegroundFocus
         return processId != (uint)Environment.ProcessId;
     }
 
-    public unsafe void TakeForeground(nint windowHandle)
+    public unsafe bool TakeForeground(nint windowHandle)
     {
         var window = new HWND(windowHandle);
         HWND foreground = PInvoke.GetForegroundWindow();
@@ -44,5 +44,7 @@ public sealed class WindowsForegroundFocus : IForegroundFocus
                 PInvoke.AttachThreadInput(thisThread, foregroundThread, false);
             }
         }
+
+        return PInvoke.GetForegroundWindow() == window;
     }
 }

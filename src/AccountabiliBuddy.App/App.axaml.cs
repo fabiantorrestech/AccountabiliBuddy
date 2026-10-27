@@ -112,10 +112,8 @@ public partial class App : Application
     private WorkGateService? _workGate;
     private WorkGateWindow? _workGateWindow;
     private StartNudgeCardWindow? _startNudgeCardWindow;
-    private CardBackdrop? _startNudgeBackdrop;
-    private CardKeeper? _startNudgeKeeper;
-    private readonly IVirtualDesktops _virtualDesktops = new WindowsVirtualDesktops();
-    private readonly IForegroundFocus _foregroundFocus = new WindowsForegroundFocus();
+    // The cards in front of everything (gate, Pre-Work, start nudge, session cards): dim behind, kept in front, follow the virtual desktop.
+    private readonly FrontCardHost _frontCards = new(new WindowsVirtualDesktops(), new WindowsForegroundFocus(), new Win32OverlayWindowControl());
     private AwayCardWindow? _awayCardWindow;
     private PickTasksWindow? _pickTasksWindow;
     private ReadyCardWindow? _readyCardWindow;
@@ -1518,8 +1516,7 @@ public partial class App : Application
 
         _pickTasksWindow = window;
         ShowReadyCard(monitors); // Pick comes first: an already-open "Ready?" card closes until it is answered.
-        window.Show();
-        window.Activate();
+        _frontCards.Show(window);
     }
 
     /// <summary>Shows or closes the Pre-Work window (ADR 31) as the service opens or closes it.</summary>
@@ -1556,8 +1553,7 @@ public partial class App : Application
         }
 
         _preWorkWindow = window;
-        window.Show();
-        window.Activate();
+        _frontCards.Show(window);
     }
 
     /// <summary>Shows or closes the work-hours gate (ADR 27) as the service opens or closes it.</summary>
@@ -1593,8 +1589,7 @@ public partial class App : Application
         }
 
         _workGateWindow = window;
-        window.Show();
-        window.Activate();
+        _frontCards.Show(window);
     }
 
     /// <summary>Shows or closes the start nudge's card, like the work-hours gate, as the service opens or closes it.</summary>
@@ -1617,11 +1612,6 @@ public partial class App : Application
         var window = new StartNudgeCardWindow { DataContext = card };
         window.Closed += (_, _) =>
         {
-            // The dim layers and the keeper go with the card, however it closed.
-            _startNudgeKeeper?.Dispose();
-            _startNudgeKeeper = null;
-            _startNudgeBackdrop?.Dispose();
-            _startNudgeBackdrop = null;
             if (_startNudgeCardWindow == window)
             {
                 // Closed some other way: it opens again at the next check.
@@ -1635,13 +1625,7 @@ public partial class App : Application
         }
 
         _startNudgeCardWindow = window;
-        // Dim every monitor behind the card, and keep both on the virtual desktop the user is looking at and in the foreground.
-        _startNudgeBackdrop = new CardBackdrop(window);
-        _startNudgeBackdrop.Show();
-        window.Show();
-        window.Activate();
-        _startNudgeBackdrop.Raise();
-        _startNudgeKeeper = new CardKeeper(_virtualDesktops, _foregroundFocus, _startNudgeBackdrop, window);
+        _frontCards.Show(window); // Dimmed behind, kept in front, follows the virtual desktop.
     }
 
     /// <summary>
@@ -1689,8 +1673,7 @@ public partial class App : Application
         }
 
         _awayCardWindow = window;
-        window.Show();
-        window.Activate();
+        _frontCards.Show(window);
     }
 
     /// <summary>
@@ -1738,8 +1721,7 @@ public partial class App : Application
         }
 
         _readyCardWindow = window;
-        window.Show();
-        window.Activate();
+        _frontCards.Show(window);
     }
 
     private void UpdateTray()
