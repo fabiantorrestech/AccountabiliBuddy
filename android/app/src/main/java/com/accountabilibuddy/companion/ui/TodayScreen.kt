@@ -139,6 +139,7 @@ fun TodayScreen(
         runningTasks?.let { tasks ->
             item { TasksCard(tasks) }
         }
+        item { NextTasksCard() }
         comebacks?.let { list ->
             item { ComebacksCard(list) }
         }

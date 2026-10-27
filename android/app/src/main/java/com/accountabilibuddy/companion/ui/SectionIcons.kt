@@ -81,6 +81,7 @@ object SectionIcons {
         "Tomorrow" to Icons.Outlined.EventNote,
         "Phone today" to Icons.Outlined.Smartphone,
         "Come back to" to Icons.Outlined.Flag,
+        "Next session" to Icons.Outlined.Checklist,
         "Beeminder" to Icons.Outlined.EmojiNature,
         "Tasks" to Icons.Outlined.TaskAlt,
         "Lunch" to Icons.Outlined.Restaurant,
