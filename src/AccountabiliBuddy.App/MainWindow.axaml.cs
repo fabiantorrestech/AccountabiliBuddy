@@ -26,11 +26,15 @@ public partial class MainWindow : Window
     private int _shownTab;
 
     // The timeline's slide in a session: the strip left at the top, the slide time and the wait before it slides away.
-    private const double TimelineStripHeight = 6;
+    private const double TimelineStripHeight = 10;
     private static readonly TimeSpan TimelineSlideTime = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan TimelineHideDelay = TimeSpan.FromMilliseconds(400);
 
+    // The pointer must rest on the handle this long before the timeline opens, so passing over it (on the way to the title bar) does nothing.
+    private static readonly TimeSpan TimelineOpenDelay = TimeSpan.FromMilliseconds(250);
+
     private readonly DispatcherTimer _timelineHideTimer = new() { Interval = TimelineHideDelay };
+    private readonly DispatcherTimer _timelineOpenTimer = new() { Interval = TimelineOpenDelay };
     private bool _timelineCollapsed;
     private bool _timelineFocusMode;
     private bool _timelineHovered;
@@ -44,9 +48,30 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         AddHandler(DragDrop.DropEvent, OnDrop);
-        TimelineHost.PointerEntered += (_, _) => SetTimelineHovered(true);
+        TimelineHandle.PointerEntered += (_, _) =>
+        {
+            if (_timelineCollapsed)
+            {
+                _timelineHideTimer.Stop();
+                _timelineOpenTimer.Start();
+                TimelineHandle.Opacity = 0.9;
+            }
+        };
+        TimelineHandle.PointerExited += (_, _) =>
+        {
+            _timelineOpenTimer.Stop();
+            TimelineHandle.Opacity = 0.35;
+        };
+        _timelineOpenTimer.Tick += (_, _) =>
+        {
+            _timelineOpenTimer.Stop();
+            SetTimelineHovered(true);
+        };
+        // Entering the timeline body once it is open keeps it open; opening itself only happens from the handle.
+        TimelineHost.PointerEntered += (_, _) => _timelineHideTimer.Stop();
         TimelineHost.PointerExited += (_, _) =>
         {
+            _timelineOpenTimer.Stop();
             if (_timelineCollapsed)
             {
                 _timelineHideTimer.Start();
@@ -99,6 +124,7 @@ public partial class MainWindow : Window
 
         _timelineHovered = false;
         _timelineHideTimer.Stop();
+        _timelineOpenTimer.Stop();
         int generation = ++_timelineGeneration;
         double height = MeasureTimeline();
         if (collapsed)
@@ -197,6 +223,9 @@ public partial class MainWindow : Window
         // Slid away: its buttons are not clickable and are skipped by Tab.
         bool away = _timelineCollapsed && !shown;
         TimelineBody.IsHitTestVisible = !away;
+        TimelineClip.IsHitTestVisible = !away; // The strip itself does nothing; only the handle opens it.
+        TimelineHandle.IsVisible = away;
+        TimelineHandle.Opacity = 0.35;
         KeyboardNavigation.SetTabNavigation(TimelineBody, away ? KeyboardNavigationMode.None : KeyboardNavigationMode.Continue);
     }
 
