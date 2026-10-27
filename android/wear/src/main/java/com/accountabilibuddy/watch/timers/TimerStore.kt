@@ -57,6 +57,9 @@ object TimerStore {
         }
     }
 
+    /** Runs [done] once the background work queued so far (saving, alarms, notification, complication) has finished. */
+    fun afterPendingWork(done: () -> Unit) = background.run(done)
+
     private fun update(context: Context, id: Int, transform: (WatchTimer) -> WatchTimer) =
         change(context) { timers -> timers.map { if (it.id == id) transform(it) else it } }
 
