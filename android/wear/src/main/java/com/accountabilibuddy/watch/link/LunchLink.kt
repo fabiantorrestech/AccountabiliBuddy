@@ -5,7 +5,6 @@ import com.accountabilibuddy.shared.LunchRemote
 import com.accountabilibuddy.shared.WatchLunch
 import com.accountabilibuddy.shared.WatchPaths
 import com.google.android.gms.tasks.Task
-import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.time.Duration
@@ -26,12 +25,13 @@ object LunchLink {
         val stored = SnapshotStore.snapshot(context).value
         val relayAllowed = stored?.relayAllowed ?: true
         val delivered = runCatching {
-            val phones = Wearable.getCapabilityClient(context)
-                .getCapability(WatchPaths.PHONE_CAPABILITY, CapabilityClient.FILTER_REACHABLE).await().nodes
-                .filter { relayAllowed || it.isNearby }
+            val phones = PhoneNodes.reachable(context, relayAllowed)
             val messages = Wearable.getMessageClient(context)
             phones.count { phone -> runCatching { messages.sendMessage(phone.id, WatchPaths.LUNCH, LunchRemote.write(action)).await() }.isSuccess } > 0
         }.getOrDefault(false)
+        if (!delivered) {
+            PhoneNodes.invalidate()
+        }
 
         val lunch = stored?.lunch
         if (delivered && lunch != null) {

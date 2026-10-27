@@ -5,12 +5,18 @@ import android.os.SystemClock
 import com.accountabilibuddy.shared.NoiseRemote
 import com.accountabilibuddy.shared.WatchPaths
 import com.google.android.gms.tasks.Task
-import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.Wearable
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -29,6 +35,8 @@ object NoiseLink {
     private val _chosen = MutableStateFlow<String?>(null)
     private val _overrides = MutableStateFlow<Map<String, PcOverride>>(emptyMap())
     private var loaded = false
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val volumeJobs = ConcurrentHashMap<String, Job>()
 
     /** What's playing on the phone; null until the phone said. */
     val state: StateFlow<NoiseRemote.State?> = _state.asStateFlow()
@@ -85,13 +93,33 @@ object NoiseLink {
                 }
             }
         }
+        if (command.action == NoiseRemote.VOLUME) {
+            sendVolumeLater(context.applicationContext, command)
+        } else {
+            transmit(context, command)
+        }
+    }
+
+    // Turning the crown makes a volume command per step; the screen already shows each, and only the last one (per
+    // device) needs to reach the phone, so it goes once the crown has paused for a moment.
+    private fun sendVolumeLater(context: Context, command: NoiseRemote.Command) {
+        val key = command.device.orEmpty()
+        volumeJobs.remove(key)?.cancel()
+        volumeJobs[key] = scope.launch {
+            delay(VOLUME_PAUSE_MS)
+            transmit(context, command)
+        }
+    }
+
+    private suspend fun transmit(context: Context, command: NoiseRemote.Command) {
         val relayAllowed = SnapshotStore.snapshot(context).value?.relayAllowed ?: true
         runCatching {
-            val phones = Wearable.getCapabilityClient(context)
-                .getCapability(WatchPaths.PHONE_CAPABILITY, CapabilityClient.FILTER_REACHABLE).await().nodes
-                .filter { relayAllowed || it.isNearby }
+            val phones = PhoneNodes.reachable(context, relayAllowed)
             val messages = Wearable.getMessageClient(context)
-            phones.forEach { phone -> runCatching { messages.sendMessage(phone.id, WatchPaths.NOISE_COMMAND, NoiseRemote.write(command)).await() } }
+            val sent = phones.count { phone -> runCatching { messages.sendMessage(phone.id, WatchPaths.NOISE_COMMAND, NoiseRemote.write(command)).await() }.isSuccess }
+            if (sent == 0) {
+                PhoneNodes.invalidate()
+            }
         }
     }
 
@@ -124,4 +152,7 @@ object NoiseLink {
 
     // The phone says it is sending within a second or two; a command it never got stops showing after this.
     private const val ASKED_FOR_MS = 5_000L
+
+    // How long the crown must rest before its last volume goes to the phone.
+    private const val VOLUME_PAUSE_MS = 120L
 }

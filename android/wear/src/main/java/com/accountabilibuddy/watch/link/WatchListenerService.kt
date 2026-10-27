@@ -1,5 +1,6 @@
 package com.accountabilibuddy.watch.link
 
+import android.content.Context
 import com.accountabilibuddy.shared.WatchPaths
 import com.accountabilibuddy.shared.WatchSnapshot
 import com.accountabilibuddy.shared.WatchSnapshotJson
@@ -8,7 +9,10 @@ import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -30,7 +34,7 @@ class WatchListenerService : WearableListenerService() {
                 val snapshot = WatchSnapshotJson.read(json) ?: return
                 if (snapshot.linked) {
                     // Newer data from the PC over Wi-Fi stays; the phone's switches still apply.
-                    SnapshotStore.save(this, WatchSnapshot.newerOf(SnapshotStore.snapshot(this).value, snapshot))
+                    SnapshotStore.save(this, WatchSnapshot.newerOf(SnapshotStore.snapshot(this).value, snapshot), wait = true)
                 } else {
                     forgetEverything()
                 }
@@ -50,23 +54,31 @@ class WatchListenerService : WearableListenerService() {
             WatchPaths.PC_OFFER -> {
                 val json = runCatching { Json.parseToJsonElement(event.data.decodeToString()) as? JsonObject }.getOrNull() ?: return
                 val offer = PcOffer.read(json) ?: return
-                // Called on a background thread; pairing waits for Wi-Fi and the PC.
-                // Null from the timeout means it took too long; pair's own null means paired.
-                val outcome = runBlocking { withTimeoutOrNull(PAIR_LIMIT_MS) { Result.success(PcLink.pair(this@WatchListenerService, offer)) } }
-                val error = if (outcome == null) "It took too long." else outcome.getOrNull()
-                val answer = buildJsonObject {
-                    put("ok", error == null)
-                    error?.let { put("message", it) }
-                }
-                // With the relay off, the answer goes only while the phone is nearby.
-                val relayAllowed = SnapshotStore.snapshot(this).value?.relayAllowed ?: true
-                val reachable = relayAllowed || runCatching {
-                    Tasks.await(Wearable.getNodeClient(this).connectedNodes).any { it.id == event.sourceNodeId && it.isNearby }
-                }.getOrDefault(false)
-                if (reachable) {
-                    runCatching { Wearable.getMessageClient(this).sendMessage(event.sourceNodeId, WatchPaths.PC_PAIRED, answer.toString().toByteArray()) }
-                }
+                // Pairing waits for Wi-Fi and the PC (up to 45 s): done off this listener thread, so the phone's other
+                // messages (snapshots, noise) aren't queued behind it. The scope outlives this service instance, which
+                // the system ends as soon as this call returns.
+                val service = applicationContext
+                val sourceNodeId = event.sourceNodeId
+                pairing.launch { pairAndAnswer(service, offer, sourceNodeId) }
             }
+        }
+    }
+
+    // Null from the timeout means it took too long; pair's own null means paired.
+    private suspend fun pairAndAnswer(service: Context, offer: PcOffer, sourceNodeId: String) {
+        val outcome = withTimeoutOrNull(PAIR_LIMIT_MS) { Result.success(PcLink.pair(service, offer)) }
+        val error = if (outcome == null) "It took too long." else outcome.getOrNull()
+        val answer = buildJsonObject {
+            put("ok", error == null)
+            error?.let { put("message", it) }
+        }
+        // With the relay off, the answer goes only while the phone is nearby.
+        val relayAllowed = SnapshotStore.snapshot(service).value?.relayAllowed ?: true
+        val reachable = relayAllowed || runCatching {
+            Tasks.await(Wearable.getNodeClient(service).connectedNodes).any { it.id == sourceNodeId && it.isNearby }
+        }.getOrDefault(false)
+        if (reachable) {
+            runCatching { Wearable.getMessageClient(service).sendMessage(sourceNodeId, WatchPaths.PC_PAIRED, answer.toString().toByteArray()) }
         }
     }
 
@@ -78,5 +90,6 @@ class WatchListenerService : WearableListenerService() {
 
     private companion object {
         const val PAIR_LIMIT_MS = 45_000L
+        val pairing = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 }
