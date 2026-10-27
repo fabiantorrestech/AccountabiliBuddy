@@ -108,11 +108,11 @@ public sealed class ShutdownService : IDisposable
             .ToList();
         List<ShutdownTaskGroup> unfinished = GroupByCategory(unfinishedRows);
         List<ShutdownComebackRow> comebacks = _comebacks.Open.Select(comeback => new ShutdownComebackRow(comeback.Id, comeback.Text)).ToList();
-        Current = new ShutdownCardViewModel(comebacks, unfinished, ApplyAsync, CloseAsync);
+        Current = new ShutdownCardViewModel(comebacks, unfinished, card => ApplyAsync(card, date), CloseAsync);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    private async Task ApplyAsync(ShutdownCardViewModel card)
+    private async Task ApplyAsync(ShutdownCardViewModel card, DateOnly date)
     {
         foreach (ShutdownComebackRow row in card.Comebacks.Where(row => row.IsDone))
         {
@@ -134,7 +134,7 @@ public sealed class ShutdownService : IDisposable
         HashSet<string> ticked = card.Unfinished.Where(row => row.IsDone).Select(row => row.Title).ToHashSet(StringComparer.Ordinal);
         if (ticked.Count > 0)
         {
-            await _tasks.MarkHistoryDoneAsync(_state.LastShownOn!.Value, ticked);
+            await _tasks.MarkHistoryDoneAsync(date, ticked);
         }
 
         await CloseAsync();

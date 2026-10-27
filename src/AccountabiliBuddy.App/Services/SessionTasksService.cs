@@ -231,7 +231,9 @@ public sealed class SessionTasksService : IDisposable
                 && DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(start, _sessions.TimeProvider.LocalTimeZone).DateTime) == date
             ? checklist with
             {
-                Tasks = checklist.Tasks.Select(task => !task.IsDone && titles.Contains(task.Title) ? task with { DoneAt = now } : task).ToList(),
+                Tasks = checklist.Tasks.Select(task => !task.IsDone && titles.Contains(task.Title)
+                    ? task with { DoneAt = now, Subtasks = task.Subtasks.Select(subtask => subtask with { DoneAt = subtask.DoneAt ?? now }).ToList() }
+                    : task).ToList(),
             }
             : checklist).ToList();
         await _store.SaveAsync(HistoryKey, _history.Select(item => new StoredHistory(Seal(item))).ToList());
