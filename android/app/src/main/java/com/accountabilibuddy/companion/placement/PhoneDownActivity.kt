@@ -1,10 +1,13 @@
 package com.accountabilibuddy.companion.placement
 
-import android.app.KeyguardManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.PowerManager
+import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -33,6 +36,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,9 +52,7 @@ import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.essentials.EssentialsActivity
 import com.accountabilibuddy.companion.essentials.EssentialsLaunch
 import com.accountabilibuddy.companion.nudge.EmergencyChooser
-import com.accountabilibuddy.companion.nudge.Takeover
 import com.accountabilibuddy.companion.ui.CompanionTheme
-import com.accountabilibuddy.companion.usage.PhoneUsageReader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -75,40 +78,78 @@ class PhoneDownActivity : ComponentActivity() {
     // An option closed the screen on purpose (or it's going away): no coming back.
     private var done = false
 
+    // Bumped by every new unlock's intent: the screen starts afresh (wait, mode, pickups), nothing carries over.
+    private var generation by mutableIntStateOf(0)
+    // True between onStart and onStop: the clock loop runs only while the screen is visible.
+    private var shown by mutableStateOf(false)
+
+    // The screen going off (the phone locked) ends this screen: the next unlock brings a new one.
+    private val screenOff = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            done = true
+            finish()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val app = application as CompanionApp
-        val pocket = intent.getBooleanExtra(EXTRA_POCKET, false)
+        ContextCompat.registerReceiver(this, screenOff, IntentFilter(Intent.ACTION_SCREEN_OFF), ContextCompat.RECEIVER_EXPORTED)
         setContent {
             CompanionTheme {
-                PhoneDownScreen(
-                    app, pocket,
-                    onPutAway = { done = true; finish() },
-                    onEssentials = { toEssentials() },
-                )
+                key(generation) {
+                    PhoneDownScreen(
+                        app, intent.getBooleanExtra(EXTRA_POCKET, false), shown,
+                        onPutAway = { putAway() },
+                        onEssentials = { toEssentials() },
+                    )
+                }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        done = false
+        generation++
+    }
+
+    override fun onStart() {
+        super.onStart()
+        shown = true
     }
 
     override fun onResume() {
         super.onResume()
         (application as CompanionApp).phoneDownOnScreen = true
+        PhoneDownLaunch.cancelReopen()
         handler.removeCallbacksAndMessages(null)
         stillAppliesCheck.run()
     }
 
     override fun onStop() {
         super.onStop()
+        shown = false
         handler.removeCallbacksAndMessages(null)
         (application as CompanionApp).phoneDownOnScreen = false
+        // Home (or anything else that hid the screen): back after ~3 s.
         if (!done && !isFinishing) {
-            handler.postDelayed(reopenCheck, REOPEN_DELAY_MS)
+            PhoneDownLaunch.scheduleReopen(this, REOPEN_DELAY_MS, intent.getBooleanExtra(EXTRA_POCKET, false))
         }
     }
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        runCatching { unregisterReceiver(screenOff) }
         super.onDestroy()
+    }
+
+    // Putting it away: the screen closes, but a phone still unlocked 10 s later brings it back, like Home does.
+    private fun putAway() {
+        done = true
+        PhoneDownLaunch.scheduleReopen(this, PUT_AWAY_RECHECK_MS, pocket = false)
+        finish()
     }
 
     // Closes when the conditions end while it's showing: a break, lunch, the session's end, a work use or emergency
@@ -122,27 +163,6 @@ class PhoneDownActivity : ComponentActivity() {
             }
 
             handler.postDelayed(this, CHECK_MS)
-        }
-    }
-
-    // Home (or anything that hid the screen): back after ~3 s, as long as the conditions hold, the phone is unlocked and
-    // the app in front isn't an essential (with Usage access; without it nothing is known and it comes back at once).
-    private val reopenCheck: Runnable = object : Runnable {
-        override fun run() {
-            val app = application as CompanionApp
-            val now = Instant.now()
-            val awake = getSystemService(PowerManager::class.java).isInteractive && !getSystemService(KeyguardManager::class.java).isKeyguardLocked
-            if (done || !awake || !PhoneDownLaunch.applies(this@PhoneDownActivity, now) || app.phoneDownOnScreen || app.essentialsOnScreen) {
-                return
-            }
-
-            val inFront = PhoneUsageReader(this@PhoneDownActivity).foregroundApp(now)
-            val essentialInFront = inFront != null && app.essentials.isAllowed(inFront.first, inFront.second)
-            if (essentialInFront) {
-                handler.postDelayed(this, REOPEN_DELAY_MS)
-            } else {
-                Takeover.startFromBackground(this@PhoneDownActivity, PhoneDownLaunch.intent(this@PhoneDownActivity, intent.getBooleanExtra(EXTRA_POCKET, false)))
-            }
         }
     }
 
@@ -160,6 +180,7 @@ class PhoneDownActivity : ComponentActivity() {
         /** How long the options wait behind the unlock friction. */
         const val PENALTY_WAIT_SECONDS = 10L
         private const val REOPEN_DELAY_MS = 3_000L
+        private const val PUT_AWAY_RECHECK_MS = 10_000L
         private const val CHECK_MS = 5_000L
     }
 }
@@ -167,14 +188,15 @@ class PhoneDownActivity : ComponentActivity() {
 private enum class Mode { Main, Work, Emergency }
 
 @Composable
-private fun PhoneDownScreen(app: CompanionApp, pocket: Boolean, onPutAway: () -> Unit, onEssentials: () -> Unit) {
+private fun PhoneDownScreen(app: CompanionApp, pocket: Boolean, shown: Boolean, onPutAway: () -> Unit, onEssentials: () -> Unit) {
     // Back does nothing here: the ways out are the options (and the session ending).
     BackHandler {}
     var mode by remember { mutableStateOf(Mode.Main) }
     val shownAt = remember { Instant.now() }
     var now by remember { mutableStateOf(Instant.now()) }
-    LaunchedEffect(Unit) {
-        while (true) {
+    // Ticks only while the screen is visible.
+    LaunchedEffect(shown) {
+        while (shown) {
             now = Instant.now()
             delay(500)
         }
@@ -224,7 +246,7 @@ private fun PhoneDownScreen(app: CompanionApp, pocket: Boolean, onPutAway: () ->
                 else -> {
                     Button(onClick = onPutAway, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Outlined.Lock, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Text("  Putting it away")
+                        Text("  Putting it away (lock the phone)")
                     }
                     OutlinedButton(onClick = { mode = Mode.Work }, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Outlined.Work, contentDescription = null, modifier = Modifier.size(20.dp))

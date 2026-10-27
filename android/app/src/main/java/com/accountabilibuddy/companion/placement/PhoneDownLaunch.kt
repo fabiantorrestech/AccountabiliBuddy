@@ -1,8 +1,13 @@
 package com.accountabilibuddy.companion.placement
 
 import android.content.Context
+import android.app.KeyguardManager
 import android.content.Intent
 import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
+import android.os.PowerManager
+import com.accountabilibuddy.companion.usage.PhoneUsageReader
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.essentials.EssentialsLaunch
 import com.accountabilibuddy.companion.nudge.Takeover
@@ -47,6 +52,49 @@ object PhoneDownLaunch {
         Intent(context, PhoneDownActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             .putExtra(PhoneDownActivity.EXTRA_POCKET, pocket)
+
+    private val main = Handler(Looper.getMainLooper())
+    private var pendingReopen: Runnable? = null
+
+    /**
+     * Brings the screen back in [delayMs] when it should be there: the conditions hold ([applies]), the phone is unlocked
+     * with the screen on, and no screen of ours is up. With Usage access an essential app in front is left alone and
+     * asked again every 3 s; without it nothing is known and the screen comes back. One re-open waits at a time.
+     */
+    fun scheduleReopen(context: Context, delayMs: Long, pocket: Boolean) {
+        val appContext = context.applicationContext
+        cancelReopen()
+        val runnable = object : Runnable {
+            override fun run() {
+                val app = appContext as CompanionApp
+                val now = Instant.now()
+                val awake = appContext.getSystemService(PowerManager::class.java).isInteractive &&
+                    !appContext.getSystemService(KeyguardManager::class.java).isKeyguardLocked
+                if (!awake || !applies(appContext, now) || app.phoneDownOnScreen || app.essentialsOnScreen) {
+                    pendingReopen = null
+                    return
+                }
+
+                val inFront = PhoneUsageReader(appContext).foregroundApp(now)
+                if (inFront != null && app.essentials.isAllowed(inFront.first, inFront.second)) {
+                    main.postDelayed(this, RETRY_MS)
+                } else {
+                    pendingReopen = null
+                    Takeover.startFromBackground(appContext, intent(appContext, pocket))
+                }
+            }
+        }
+        pendingReopen = runnable
+        main.postDelayed(runnable, delayMs)
+    }
+
+    /** Drops a waiting re-open (the screen is back, or the phone was locked). */
+    fun cancelReopen() {
+        pendingReopen?.let(main::removeCallbacks)
+        pendingReopen = null
+    }
+
+    private const val RETRY_MS = 3_000L
 
     // A call, ringing too.
     private fun inCall(context: Context): Boolean = context.getSystemService(AudioManager::class.java).mode.let {

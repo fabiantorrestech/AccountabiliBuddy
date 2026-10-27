@@ -64,9 +64,15 @@ public sealed class PhonePickups
     /// <summary>E.g. "out 2× · pocket 14 min" from the phone's placement for the session; null when the phone sent none.</summary>
     public string? DescribePlacement(DateTimeOffset sessionStart)
     {
-        return PhonePlacementLookup.Newest(_received.Devices, sessionStart) is { Placement: SyncPlacement placement }
-            ? $"out {placement.OutCount}× · pocket {placement.PocketMinutes} min{(placement.PocketMinutes > PocketLimitMinutes ? " (no phone-free credit)" : string.Empty)}"
-            : null;
+        if (PhonePlacementLookup.Newest(_received.Devices, sessionStart) is not { Placement: SyncPlacement placement })
+        {
+            return null;
+        }
+
+        string pocket = placement.PocketMinutes > 0
+            ? $" · pocket {placement.PocketMinutes} min{(placement.PocketMinutes > PocketLimitMinutes ? " (no phone-free credit)" : string.Empty)}"
+            : string.Empty;
+        return $"out {placement.OutCount}×{pocket}";
     }
 
     /// <summary>E.g. "DESK-PC: used 2×" for each other PC that went back to during the session (design K); null for none.</summary>

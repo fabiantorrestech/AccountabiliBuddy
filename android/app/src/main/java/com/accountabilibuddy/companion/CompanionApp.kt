@@ -351,8 +351,7 @@ class CompanionApp : Application() {
         sync.placement = {
             // Guard off: no placement in the file, so the PC sees unknown and never nags.
             val now = java.time.Instant.now()
-            // "No phone-free credit" off: the pocket minutes aren't sent, so the PC counts none.
-            if (placementGuard.isOn(now)) placementStore.forSyncFile(now, workUse, phoneDown.isOn(com.accountabilibuddy.companion.placement.PocketPenalty.NoPhoneFreeCredit, now)) else null
+            if (placementGuard.isOn(now)) placementStore.forSyncFile(now, workUse) else null
         }
         sync.emergencyWindows = { emergency.all().map { it.start to minOf(it.end, java.time.Instant.now()) } }
         // Linking or unlinking the watch tells the PCs through Drive at once (Task 18).

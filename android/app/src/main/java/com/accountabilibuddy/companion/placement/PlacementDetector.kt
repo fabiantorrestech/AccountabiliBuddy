@@ -198,7 +198,7 @@ class PlacementDetector(context: Context) {
             session.onBreak || app.pause.isQuiet -> {
                 stopSensing()
                 val before = app.placementStore.load()
-                app.placementStore.begin(session, now)
+                app.placementStore.begin(session, now, app.phoneDown.isOn(PocketPenalty.NoPhoneFreeCredit, now))
                 app.placementStore.pause(now)
                 if (before?.active == true) syncSoon(now)
                 resetStretch()
@@ -206,7 +206,7 @@ class PlacementDetector(context: Context) {
             }
         }
 
-        app.placementStore.begin(session, now)
+        app.placementStore.begin(session, now, app.phoneDown.isOn(PocketPenalty.NoPhoneFreeCredit, now))
         startSensing()
         val interactive = power.isInteractive
         if (interactive) {
