@@ -39,7 +39,7 @@
 - **PC 13:** first find and fix the snap-back.
   - Suspect: the 400 ms `MoveSettleDelay` fires during a mid-drag pause. That sets `_isTemporary`, the "Moved for now" row makes the window taller, and `SizeChanged` → `ApplyAnchor()` jumps back to the stale `_anchor` (`axaml.cs:122-187`).
   - Also check `SlideTowardTarget`, `MoveToDefaultCorner` and `UpdateTaskbarLift`, which run without a `_movedByUser` guard.
-  - Then the anchoring. On drop, pick a 3×3 zone of the overlay's monitor work area from the overlay's centre. Corners anchor at that corner, edge-middles at the edge's middle, and the centre zone grows evenly both ways. Store the zone plus the offset from the anchor point, so the folded and expanded sizes share one anchor.
+  - Then the anchoring. On drop, pick a 3×3 zone of the overlay's monitor work area from the overlay's centre. Corners anchor at that corner, edge-middles at the edge's middle. *(Changed after review: the bar never moves when Ctrl+Alt opens; the middle row grows down, the middle column grows right, instead of the centre growing evenly, which moved the bar under the cursor.)* Store the zone plus the offset from the anchor point, so the folded and expanded sizes share one anchor.
   - Always clamp to the monitor's work area. Per-monitor DPI is respected.
   - Keep today's snap-to-default-corner and the "Moved for now / Keep" flow.
 - **PC 12:** the details panel and its children (Goal, profile, timer line, timers, task list, noise, footer) align to the anchored edge: Left for the left and centre columns, Right for the right column. The text stays left-aligned.
