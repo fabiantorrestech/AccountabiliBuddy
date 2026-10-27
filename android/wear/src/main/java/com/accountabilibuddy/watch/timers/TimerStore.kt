@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import androidx.wear.watchface.complications.datasource.ComplicationDataSourceUpdateRequester
 import com.accountabilibuddy.watch.complication.TimersComplicationService
+import com.accountabilibuddy.watch.link.SerialBackground
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,6 +23,8 @@ object TimerStore {
     private const val NEXT_ID = "nextId"
 
     private val lock = Any()
+    private val effectsLock = Any()
+    private val background = SerialBackground("timer-store")
     private val _timers = MutableStateFlow<List<WatchTimer>>(emptyList())
     @Volatile private var loaded = false
 
@@ -48,21 +51,31 @@ object TimerStore {
     /** After a restart or a timer's end: the alarms and the complication follow the stored timers again. */
     fun refresh(context: Context) {
         load(context)
-        TimerAlarms.schedule(context, _timers.value)
-        requestComplicationUpdate(context)
+        synchronized(effectsLock) {
+            TimerAlarms.schedule(context, _timers.value)
+            requestComplicationUpdate(context)
+        }
     }
 
     private fun update(context: Context, id: Int, transform: (WatchTimer) -> WatchTimer) =
         change(context) { timers -> timers.map { if (it.id == id) transform(it) else it } }
 
+    // The list changes in memory at once (the page follows in the same frame); saving it, the alarms, the notification
+    // and the complication follow on a background thread, in the order of the changes, each from the then-latest list.
     private fun change(context: Context, transform: (List<WatchTimer>) -> List<WatchTimer>) {
-        val timers = synchronized(lock) {
-            load(context)
-            val changed = transform(_timers.value)
-            prefs(context).edit().putString(LIST, write(changed).toString()).apply()
-            _timers.value = changed
-            changed
+        val app = context.applicationContext
+        synchronized(lock) {
+            load(app)
+            _timers.value = transform(_timers.value)
         }
+        background.run {
+            val timers = _timers.value
+            prefs(app).edit().putString(LIST, write(timers).toString()).apply()
+            applySideEffects(app, timers)
+        }
+    }
+
+    private fun applySideEffects(context: Context, timers: List<WatchTimer>) = synchronized(effectsLock) {
         TimerAlarms.schedule(context, timers)
         TimerRing.cancelGone(context, timers)
         requestComplicationUpdate(context)

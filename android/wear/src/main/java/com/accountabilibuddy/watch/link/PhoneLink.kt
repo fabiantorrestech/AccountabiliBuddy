@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.SystemClock
 import com.accountabilibuddy.shared.WatchPaths
 import com.google.android.gms.tasks.Task
-import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,12 +49,13 @@ object PhoneLink {
 
         lastAsked = now
         val reached = runCatching {
-            val phones = Wearable.getCapabilityClient(context)
-                .getCapability(WatchPaths.PHONE_CAPABILITY, CapabilityClient.FILTER_REACHABLE).await().nodes
-                .filter { relayAllowed || it.isNearby }
+            val phones = PhoneNodes.reachable(context, relayAllowed)
             val messages = Wearable.getMessageClient(context)
             phones.count { phone -> runCatching { messages.sendMessage(phone.id, WatchPaths.HELLO, ByteArray(0)).await() }.isSuccess } > 0
         }.getOrDefault(false)
+        if (!reached) {
+            PhoneNodes.invalidate()
+        }
         _phoneReachable.value = reached
         return true
     }
