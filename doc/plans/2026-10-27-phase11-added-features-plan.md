@@ -109,6 +109,22 @@
 - The "Ready?" answer happens on the PC *(choice; phone and watch display only)*.
 - [ ] Commit `PC, phone, watch: planning has its own bar and a Ready? card; timers count down`.
 
+### Task 6: Three tasks per session (user, 2026-10-27)
+**Files:**
+- PC: `ViewModels/ChecklistViewModel.cs` (the add path), `Services/SessionTasksService.cs` (`AddAsync`), `Services/ComebacksService` (park), `Views/ChecklistView.axaml`, `SessionReviewService` (the count).
+- Phone: `ui/TasksCard.kt` and its add path, if the phone can add tasks.
+
+**What changes:**
+- At most **3 tasks per session**. Done tasks still count (3 per session, not 3 open). Subtasks don't count.
+- Adding a 4th shows a prompt: "Keep it to 3: park this for later?"
+  - **Park** adds it to Come back to.
+  - **Add anyway** needs a short reason (at least 10 characters, sealed like other reasons; it never leaves the PC).
+  - Each "Add anyway" is counted, and the session review shows "Over 3 tasks: N".
+- Before a session starts (the next session's checklist on Today), the same rule applies to the draft list.
+- A test session doesn't count.
+- The orchestrator records it in `doc/hard-rules.md`.
+- [ ] Commit `Three tasks per session: park the 4th or give a reason`.
+
 ## Execution
 - Task 2 and Task 3 can run together with phase 10's Task 2: their files don't overlap.
 - Task 1 runs after phase 10's Task 2 merges (both edit `OnScreenOverlayViewModel.cs`).
