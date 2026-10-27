@@ -57,7 +57,7 @@ object Takeover {
             return
         }
 
-        store.save(state.copy(lastShown = now))
+        store.save(state.copy(lastShown = now, unanswered = true))
         val until = focus.parts.filter { it.kind == "watch" && it.start <= now && now < it.end }.maxOfOrNull { it.end }
             ?.let { "Work until ${clock.time(LocalDateTime.ofInstant(it, zone))}" }
         val parked = OpenComebacks.of(app.link.pairedPc.value?.pcName, app.link.lastState.value?.state, app.sync.received.value, now)

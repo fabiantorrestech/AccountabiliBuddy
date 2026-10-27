@@ -1,5 +1,6 @@
 package com.accountabilibuddy.companion.nudge
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
@@ -57,6 +58,7 @@ class NudgeActivity : ComponentActivity() {
                 NudgeCard(store, app.emergency, untilText, parked, bonus, onEssentials = {
                     startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.intent(this))
                 }, onDone = {
+                    store.update { it.copy(unanswered = false) }
                     finish()
                     app.refreshSoon()
                 })
@@ -64,7 +66,22 @@ class NudgeActivity : ComponentActivity() {
         }
     }
 
+    // Home (or anything else that hides the card) leaves it without an answer: it stays flagged in the store, and a
+    // refresh in 5 minutes shows it again (the refresh also runs on its normal schedule).
+    override fun onStop() {
+        super.onStop()
+        if (isFinishing) return
+        val alarms = getSystemService(android.app.AlarmManager::class.java)
+        val refresh = android.app.PendingIntent.getBroadcast(
+            this, REFRESH_REQUEST, Intent(this, com.accountabilibuddy.companion.notify.RefreshReceiver::class.java),
+            android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val at = System.currentTimeMillis() + NudgeRules.SNOOZE.toMillis()
+        runCatching { alarms.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, at, refresh) }
+    }
+
     companion object {
+        private const val REFRESH_REQUEST = 41
         const val EXTRA_UNTIL = "until"
         const val EXTRA_PARKED = "parked"
         const val EXTRA_BONUS_FOCUSED = "bonusFocused"
