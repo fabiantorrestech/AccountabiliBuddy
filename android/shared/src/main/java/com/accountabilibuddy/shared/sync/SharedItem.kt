@@ -24,6 +24,9 @@ interface SharedItem {
      * device picks the same one. Built exactly as the PC builds it. Never logged or shown.
      */
     val tieBreak: String
+
+    /** The same item with other edit and deletion times ([SharedListMerge] uses it to clamp a far-future stamp). */
+    fun withStamps(editedAt: Instant, deletedAt: Instant?): SharedItem
 }
 
 /** Time as .NET counts it (100 ns ticks since 0001-01-01 UTC), so times compare as they do on the PC. */

@@ -34,6 +34,8 @@ data class SyncNextTask(
             subtasks.orEmpty().joinToString("\u0002") { step -> "${step.id?.lowercase() ?: ""}\u0003${step.title}\u0003${step.doneAt?.ticks() ?: ""}" },
         ).joinToString("\u0001")
 
+    override fun withStamps(editedAt: Instant, deletedAt: Instant?): SyncNextTask = copy(editedAt = editedAt, deletedAt = deletedAt)
+
     /** The task as a tombstone: its text is gone, and it is deleted at [at]. */
     fun deleted(at: Instant): SyncNextTask =
         copy(title = "", doneAt = null, category = null, categoryColor = null, subtasks = null, editedAt = at, deletedAt = at)

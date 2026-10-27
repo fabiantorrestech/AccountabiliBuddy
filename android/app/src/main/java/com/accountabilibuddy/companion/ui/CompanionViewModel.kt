@@ -263,8 +263,12 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     /** The open come-backs (ADR 30, 48): the list every device shares, merged from the received files; edited on Today. */
     val comebacks: StateFlow<com.accountabilibuddy.companion.sync.OpenComebacks?> =
         (application as CompanionApp).sharedLists.let { lists ->
-            lists.parked.map { parked -> com.accountabilibuddy.companion.sync.OpenComebacks.of(parked) }
-                .stateIn(viewModelScope, SharingStarted.Eagerly, com.accountabilibuddy.companion.sync.OpenComebacks.of(lists.parked.value))
+            combine(lists.parked, sync.received) { parked, received ->
+                com.accountabilibuddy.companion.sync.OpenComebacks.of(parked, received, java.time.Instant.now())
+            }.stateIn(
+                viewModelScope, SharingStarted.Eagerly,
+                com.accountabilibuddy.companion.sync.OpenComebacks.of(lists.parked.value, sync.received.value, java.time.Instant.now()),
+            )
         }
 
     /** The user's Beeminder goals (ADR 43) from the newest PC sync file that carries them; read-only on Today. */

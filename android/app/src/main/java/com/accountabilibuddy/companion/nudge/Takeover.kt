@@ -63,7 +63,7 @@ object Takeover {
         store.save(state.copy(lastShown = now, unanswered = true))
         val until = focus.parts.filter { it.kind == "watch" && it.start <= now && now < it.end }.maxOfOrNull { it.end }
             ?.let { "Work until ${clock.time(LocalDateTime.ofInstant(it, zone))}" }
-        val parked = OpenComebacks.of(app.sharedLists.parked.value).items.map { it.text }
+        val parked = OpenComebacks.of(app.sharedLists.parked.value, app.sync.received.value, now).items.map { it.text }
         val intent = Intent(context, NudgeActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             .putExtra(NudgeActivity.EXTRA_UNTIL, until)

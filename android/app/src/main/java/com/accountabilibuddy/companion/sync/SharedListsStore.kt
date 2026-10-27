@@ -25,6 +25,10 @@ import java.util.UUID
  * devices' lists merge in item by item ([SharedListMerge], the same function the PC runs). Kept in the app's private
  * prefs, sealed with a key in the Android Keystore ([TokenVault]), never logged: task and thought text is only in
  * sealed files and sealed here. The running session's checklist is not one of these lists; it belongs to its PC.
+ *
+ * A change reads the clock once, and each item it touches is stamped with [SharedListMerge.nextStamp] (that time, or one
+ * tick past the item's own newest time), so it always outranks what it changed. A task's position only means something
+ * among the tasks of its category (the PC groups its checklist by category).
  */
 class SharedListsStore(context: Context, private val now: () -> Instant = { Instant.now().truncatedTo(ChronoUnit.MILLIS) }) {
     private val prefs = context.getSharedPreferences("shared_lists", Context.MODE_PRIVATE)
@@ -70,7 +74,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
             return false
         }
 
-        save(Lists(mergedTasks, mergedParked))
+        save(Lists(mergedTasks, mergedParked), time)
         return true
     }
 
@@ -81,28 +85,27 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
             return
         }
 
-        edit { lists ->
-            val time = now()
+        edit { lists, time ->
             val last = lists.parked.maxOfOrNull { it.position }
             lists.copy(parked = lists.parked + SyncParked(newId(), trimmed, time, null, time, null, SharedListMerge.positionBetween(last, null)))
         }
     }
 
     /** Ticks a come-back: it leaves the open list, keeping when it was ticked. */
-    fun tickParked(id: String) = changeParked(id) { it.copy(doneAt = now(), editedAt = now()) }
+    fun tickParked(id: String) = changeParked(id) { item, time -> item.copy(doneAt = time, editedAt = SharedListMerge.nextStamp(time, item)) }
 
     /** Changes a come-back's text; a blank text changes nothing. */
     fun editParked(id: String, text: String) {
         val trimmed = text.trim()
         if (trimmed.isNotEmpty()) {
-            changeParked(id) { it.copy(text = trimmed, editedAt = now()) }
+            changeParked(id) { item, time -> item.copy(text = trimmed, editedAt = SharedListMerge.nextStamp(time, item)) }
         }
     }
 
     /** Deletes a come-back: its text goes at once and a tombstone tells the other devices. */
-    fun deleteParked(id: String) = changeParked(id) { it.deleted(now()) }
+    fun deleteParked(id: String) = changeParked(id) { item, time -> item.deleted(SharedListMerge.nextStamp(time, item)) }
 
-    /** Adds a task to the end of the next session's list; a blank title adds nothing. The three-tasks prompt is the screen's. */
+    /** Adds a task to the end of its category's tasks; a blank title adds nothing. The three-tasks prompt is the screen's. */
     fun addNextTask(title: String, category: String? = null, categoryColor: String? = null): String? {
         val trimmed = title.trim()
         if (trimmed.isEmpty()) {
@@ -110,74 +113,105 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         }
 
         val id = newId()
-        edit { lists ->
-            val time = now()
-            val last = lists.nextTasks.maxOfOrNull { it.position }
+        edit { lists, time ->
+            val last = lists.nextTasks.filter { it.deletedAt == null && it.category == category }.maxOfOrNull { it.position }
             lists.copy(nextTasks = lists.nextTasks + SyncNextTask(id, trimmed, null, category, categoryColor, null, time, null, SharedListMerge.positionBetween(last, null)))
         }
         return id
     }
 
-    /** Changes a task's title and category; a blank title changes nothing. */
+    /**
+     * Changes a task's title and category; a blank title changes nothing. A task put in another category goes to the end
+     * of that category's tasks.
+     */
     fun editNextTask(id: String, title: String, category: String?, categoryColor: String?) {
         val trimmed = title.trim()
-        if (trimmed.isNotEmpty()) {
-            changeNextTask(id) { it.copy(title = trimmed, category = category, categoryColor = categoryColor, editedAt = now()) }
+        if (trimmed.isEmpty()) {
+            return
+        }
+
+        edit { lists, time ->
+            val task = lists.nextTasks.firstOrNull { it.id == id && it.deletedAt == null } ?: return@edit lists
+            val position = if (task.category == category) {
+                task.position
+            } else {
+                SharedListMerge.positionBetween(lists.nextTasks.filter { it.deletedAt == null && it.category == category }.maxOfOrNull { it.position }, null)
+            }
+            lists.replace(task, task.copy(
+                title = trimmed, category = category, categoryColor = categoryColor, position = position,
+                editedAt = SharedListMerge.nextStamp(time, task),
+            ))
         }
     }
 
     /** Ticks or unticks a task (its steps follow, as on the PC). */
-    fun toggleNextTask(id: String) = changeNextTask(id) { task ->
-        val doneAt = if (task.isDone) null else now()
+    fun toggleNextTask(id: String) = changeNextTask(id) { task, time ->
+        val doneAt = if (task.isDone) null else time
         task.copy(
             doneAt = doneAt,
             subtasks = task.subtasks?.map { step -> step.copy(doneAt = if (doneAt == null) null else step.doneAt ?: doneAt) },
-            editedAt = now(),
+            editedAt = SharedListMerge.nextStamp(time, task),
         )
     }
 
     /** Deletes a task: its text goes at once and a tombstone tells the other devices. */
-    fun deleteNextTask(id: String) = changeNextTask(id) { it.deleted(now()) }
+    fun deleteNextTask(id: String) = changeNextTask(id) { task, time -> task.deleted(SharedListMerge.nextStamp(time, task)) }
 
-    /** Moves a task to [index] among the tasks (0 = first); only that task is edited, it takes a position between its new neighbours. */
-    fun moveNextTask(id: String, index: Int) = edit { lists ->
-        val live = lists.nextTasks.filter { it.deletedAt == null }.sortedBy { it.position }
-        val moving = live.firstOrNull { it.id == id } ?: return@edit lists
-        val others = live.filter { it.id != id }
+    /**
+     * Moves a task to [index] among its category's tasks (0 = first); only that task is edited, it takes a position
+     * between its new neighbours. When two positions get too close the category's tasks are numbered 1, 2, 3 again.
+     */
+    fun moveNextTask(id: String, index: Int) = edit { lists, time ->
+        val moving = lists.nextTasks.firstOrNull { it.id == id && it.deletedAt == null } ?: return@edit lists
+        val others = lists.nextTasks.filter { it.deletedAt == null && it.category == moving.category && it.id != id }.sortedBy { it.position }
         val at = index.coerceIn(0, others.size)
-        val position = SharedListMerge.positionBetween(others.getOrNull(at - 1)?.position, others.getOrNull(at)?.position)
-        lists.copy(nextTasks = lists.nextTasks.map { if (it.id == id) moving.copy(position = position, editedAt = now()) else it })
+        val before = others.getOrNull(at - 1)?.position
+        val after = others.getOrNull(at)?.position
+        if (before != null && after != null && after - before < MIN_POSITION_GAP) {
+            val ordered = others.toMutableList().apply { add(at, moving) }
+            val numbered = ordered.mapIndexed { number, task -> task.id to (number + 1).toDouble() }.toMap()
+            lists.copy(nextTasks = lists.nextTasks.map { task ->
+                val position = numbered[task.id]
+                if (position == null || position == task.position) task else task.copy(position = position, editedAt = SharedListMerge.nextStamp(time, task))
+            })
+        } else {
+            lists.replace(moving, moving.copy(position = SharedListMerge.positionBetween(before, after), editedAt = SharedListMerge.nextStamp(time, moving)))
+        }
     }
 
     /** Puts a step on a task. */
     fun addNextSubtask(taskId: String, title: String) {
         val trimmed = title.trim()
         if (trimmed.isNotEmpty()) {
-            changeNextTask(taskId) { task ->
+            changeNextTask(taskId) { task, time ->
                 task.copy(
                     doneAt = null,
                     subtasks = task.subtasks.orEmpty() + SessionTaskItem(newId(), trimmed, null, emptyList()),
-                    editedAt = now(),
+                    editedAt = SharedListMerge.nextStamp(time, task),
                 )
             }
         }
     }
 
-    private fun changeParked(id: String, change: (SyncParked) -> SyncParked) = edit { lists ->
-        lists.copy(parked = lists.parked.map { if (it.id == id && it.deletedAt == null) change(it) else it })
+    private fun changeParked(id: String, change: (SyncParked, Instant) -> SyncParked) = edit { lists, time ->
+        lists.copy(parked = lists.parked.map { if (it.id == id && it.deletedAt == null) change(it, time) else it })
     }
 
-    private fun changeNextTask(id: String, change: (SyncNextTask) -> SyncNextTask) = edit { lists ->
-        lists.copy(nextTasks = lists.nextTasks.map { if (it.id == id && it.deletedAt == null) change(it) else it })
+    private fun changeNextTask(id: String, change: (SyncNextTask, Instant) -> SyncNextTask) = edit { lists, time ->
+        lists.copy(nextTasks = lists.nextTasks.map { if (it.id == id && it.deletedAt == null) change(it, time) else it })
     }
 
-    private fun edit(change: (Lists) -> Lists) {
+    private fun Lists.replace(old: SyncNextTask, new: SyncNextTask) = copy(nextTasks = nextTasks.map { if (it === old) new else it })
+
+    // The clock is read once per change, so everything one change touches is stamped from the same moment.
+    private fun edit(change: (Lists, Instant) -> Lists) {
         val changed = synchronized(this) {
-            val updated = change(all)
+            val time = now()
+            val updated = change(all, time)
             if (updated == all) {
                 false
             } else {
-                save(updated)
+                save(updated, time)
                 true
             }
         }
@@ -187,8 +221,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     }
 
     // Kept: the open and the ticked ones of the last 90 days (as on the PC), and tombstones of the last 30.
-    private fun save(lists: Lists) {
-        val time = now()
+    private fun save(lists: Lists, time: Instant) {
         val tombstonesFrom = time.minus(SharedListMerge.TOMBSTONES_KEPT)
         val doneFrom = time.minus(java.time.Duration.ofDays(90))
         all = Lists(
@@ -226,5 +259,8 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     companion object {
         private const val KEY = "lists"
         private const val ALIAS = "accountabilibuddy-shared-lists"
+
+        // Two positions closer than this are renumbered (halving a gap again and again runs out of precision).
+        private const val MIN_POSITION_GAP = 1e-9
     }
 }

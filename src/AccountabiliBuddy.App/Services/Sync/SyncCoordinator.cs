@@ -376,10 +376,19 @@ public sealed class SyncCoordinator
         return null;
     }
 
+    private static readonly TimeSpan FutureWrittenAtLimit = TimeSpan.FromSeconds(60);
+
     // ADR 48: the next session's tasks and the come-backs merge item by item on every accepted file, whatever carried it.
     // A file without them (a QR file, an older app) leaves this PC's lists alone.
+    // A file written more than a minute ahead of this PC's clock (the sender's clock runs fast) is not taken for its lists; a
+    // later file from it, once the clocks agree, is. Item times past 2 minutes ahead are clamped by the merge itself.
     private async Task ReceiveSharedListsAsync(SyncFile file)
     {
+        if (file.Device.WrittenAt > _sessions.Now + FutureWrittenAtLimit)
+        {
+            return;
+        }
+
         if (file.NextTasks is { } nextTasks && MergeNextTasks is not null)
         {
             await MergeNextTasks(nextTasks);

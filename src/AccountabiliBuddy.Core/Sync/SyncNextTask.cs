@@ -29,6 +29,11 @@ public sealed record SyncNextTask(
         Title, DoneAt?.UtcTicks.ToString() ?? string.Empty, Category ?? string.Empty, CategoryColor ?? string.Empty,
         string.Join("\u0002", (Subtasks ?? []).Select(step => $"{step.Id:D}\u0003{step.Title}\u0003{step.DoneAt?.UtcTicks}")));
 
+    public ISharedItem WithStamps(DateTimeOffset editedAt, DateTimeOffset? deletedAt)
+    {
+        return this with { EditedAt = editedAt, DeletedAt = deletedAt };
+    }
+
     /// <summary>The task as a tombstone: its text is gone, and it is deleted at <paramref name="at"/>.</summary>
     public SyncNextTask Deleted(DateTimeOffset at)
     {

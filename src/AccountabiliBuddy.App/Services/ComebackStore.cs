@@ -83,7 +83,7 @@ public sealed class ComebackStore
         }
 
         DateTimeOffset now = _time.GetUtcNow();
-        _all[index] = _all[index] with { DoneAt = now, EditedAt = now };
+        _all[index] = _all[index] with { DoneAt = now, EditedAt = EditStamp(now, _all[index]) };
         return SaveAsync();
     }
 
@@ -97,7 +97,7 @@ public sealed class ComebackStore
             return Task.CompletedTask;
         }
 
-        _all[index] = _all[index] with { Text = trimmed, EditedAt = _time.GetUtcNow() };
+        _all[index] = _all[index] with { Text = trimmed, EditedAt = EditStamp(_time.GetUtcNow(), _all[index]) };
         return SaveAsync();
     }
 
@@ -113,9 +113,16 @@ public sealed class ComebackStore
             return Task.CompletedTask;
         }
 
-        DateTimeOffset now = _time.GetUtcNow();
-        _all[index] = _all[index] with { Text = string.Empty, DoneAt = null, EditedAt = now, DeletedAt = now };
+        DateTimeOffset stamp = EditStamp(_time.GetUtcNow(), _all[index]);
+        _all[index] = _all[index] with { Text = string.Empty, DoneAt = null, EditedAt = stamp, DeletedAt = stamp };
         return SaveAsync();
+    }
+
+    // A change is stamped with now, or one tick past the item's own newest time when that is later (a faster clock's edit
+    // must not outlast this one), so the newest change always carries the newest stamp.
+    private static DateTimeOffset EditStamp(DateTimeOffset now, Comeback held)
+    {
+        return SharedListMerge.NextStamp(now, ToShared(held));
     }
 
     /// <summary>

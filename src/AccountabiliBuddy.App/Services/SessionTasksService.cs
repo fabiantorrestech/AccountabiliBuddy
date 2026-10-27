@@ -32,6 +32,9 @@ public sealed class SessionTasksService : IDisposable
     private const string CategoriesKey = "session.categories";
     private const string OverLimitKey = "session.overLimit";
     private const string NextTasksKey = "session.nextTasks";
+
+    // Two positions closer than this are renumbered (halving a gap again and again runs out of precision).
+    private const double MinPositionGap = 1e-9;
     private static readonly TimeSpan HistoryKept = TimeSpan.FromDays(90);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -505,7 +508,15 @@ public sealed class SessionTasksService : IDisposable
             await _store.SaveAsync(HistoryKey, _history.Select(item => new StoredHistory(Seal(item))).ToList());
         }
 
-        // The next session's list: empty, unless another device added tasks to it while this session ran (ADR 48).
+        // The next session's list: empty, unless another device added tasks to it while this session ran (ADR 48); a task of
+        // the session that just ended is never on it.
+        List<SyncNextTask> remaining = TombstoneConsumed(_nextTasks, _time.GetUtcNow(), out bool tombstoned);
+        if (tombstoned)
+        {
+            _nextTasks = remaining;
+            await SaveNextTasksAsync();
+        }
+
         await ShowSharedDraftAsync();
     }
 
@@ -544,19 +555,54 @@ public sealed class SessionTasksService : IDisposable
     {
         DateTimeOffset now = _time.GetUtcNow();
         List<SyncNextTask> merged = SharedListMerge.Merge(_nextTasks, incoming, now);
-        if (merged.SequenceEqual(SharedListMerge.Merge(_nextTasks, [], now), new NextTaskComparer()))
+        bool changed = !merged.SequenceEqual(SharedListMerge.Merge(_nextTasks, [], now), new NextTaskComparer());
+        List<SyncNextTask> result = TombstoneConsumed(merged, now, out bool tombstoned);
+        if (!changed && !tombstoned)
         {
             return false;
         }
 
-        _nextTasks = merged;
+        _nextTasks = result;
         await SaveNextTasksAsync();
         if (Current.SessionStart is null)
         {
             await ShowSharedDraftAsync();
         }
+        else
+        {
+            // The running checklist stays as it is; the merged list goes out in this PC's file.
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
 
         return true;
+    }
+
+    // A task that already belongs to a session (the running checklist, or one in history) can't be on the next list: a late
+    // edit from another device that brought it back from its tombstone is deleted again, so it can't show twice.
+    private List<SyncNextTask> TombstoneConsumed(List<SyncNextTask> items, DateTimeOffset now, out bool tombstoned)
+    {
+        HashSet<Guid> consumed = _history.SelectMany(checklist => checklist.Tasks).Select(task => task.Id).ToHashSet();
+        if (Current.SessionStart is not null)
+        {
+            consumed.UnionWith(Current.Tasks.Select(task => task.Id));
+        }
+
+        tombstoned = false;
+        var result = new List<SyncNextTask>(items.Count);
+        foreach (SyncNextTask item in items)
+        {
+            if (item.DeletedAt is null && consumed.Contains(item.Id))
+            {
+                result.Add(item.Deleted(SharedListMerge.NextStamp(now, item)));
+                tombstoned = true;
+            }
+            else
+            {
+                result.Add(item);
+            }
+        }
+
+        return result;
     }
 
     // The draft becomes the live items of the shared list (grouped by this device's categories); nothing is stamped, so a
@@ -623,7 +669,9 @@ public sealed class SessionTasksService : IDisposable
 
     /// <summary>
     /// Makes the shared list say what the draft says, stamping only what the user changed: a changed task, a new one, a
-    /// moved one (it takes a position between its neighbours), and a tombstone for each task taken off.
+    /// task that moved within its category (it takes a position between its new neighbours), and a tombstone for each task
+    /// taken off. Positions only mean something within a category (the checklist is grouped by category), so a task whose
+    /// order among its category's tasks didn't change keeps its stamp, whatever the other categories do.
     /// </summary>
     /// <returns>True when the shared list changed.</returns>
     private bool ReconcileNextTasks(SessionChecklist draft)
@@ -631,19 +679,27 @@ public sealed class SessionTasksService : IDisposable
         DateTimeOffset now = _time.GetUtcNow();
         IReadOnlyList<SessionTask> tasks = draft.Labelled(_categories);
         Dictionary<Guid, SyncNextTask> items = _nextTasks.ToDictionary(task => task.Id);
+        var positions = new Dictionary<Guid, double>();
+        foreach (IGrouping<string, SessionTask> group in tasks.GroupBy(task => task.Category ?? string.Empty))
+        {
+            List<SessionTask> members = group.ToList();
+            double[] assigned = GroupPositions(members
+                .Select(task => items.TryGetValue(task.Id, out SyncNextTask? held) && held.DeletedAt is null ? (double?)held.Position : null)
+                .ToList());
+            for (int index = 0; index < members.Count; index++)
+            {
+                positions[members[index].Id] = assigned[index];
+            }
+        }
+
         var inDraft = new HashSet<Guid>();
         bool changed = false;
-        double? previous = null;
-        for (int index = 0; index < tasks.Count; index++)
+        foreach (SessionTask task in tasks)
         {
-            SessionTask task = tasks[index];
             inDraft.Add(task.Id);
-            items.TryGetValue(task.Id, out SyncNextTask? existing);
-            SyncNextTask? live = existing is { DeletedAt: null } ? existing : null;
-            double position = live is not null && (previous is null || live.Position > previous)
-                ? live.Position
-                : SharedListMerge.PositionBetween(previous, NextKeptPosition(tasks, index, items, previous));
-            previous = position;
+            items.TryGetValue(task.Id, out SyncNextTask? held);
+            SyncNextTask? live = held is { DeletedAt: null } ? held : null;
+            double position = positions[task.Id];
             bool same = live is not null
                 && live.Title == task.Title
                 && live.DoneAt == task.DoneAt
@@ -657,13 +713,14 @@ public sealed class SessionTasksService : IDisposable
             }
 
             items[task.Id] = new SyncNextTask(
-                task.Id, task.Title, task.DoneAt, task.Category, task.CategoryColor, task.Subtasks.Count > 0 ? task.Subtasks : null, now, null, position);
+                task.Id, task.Title, task.DoneAt, task.Category, task.CategoryColor, task.Subtasks.Count > 0 ? task.Subtasks : null,
+                SharedListMerge.NextStamp(now, held), null, position);
             changed = true;
         }
 
         foreach (SyncNextTask gone in items.Values.Where(item => item.DeletedAt is null && !inDraft.Contains(item.Id)).ToList())
         {
-            items[gone.Id] = gone.Deleted(now);
+            items[gone.Id] = gone.Deleted(SharedListMerge.NextStamp(now, gone));
             changed = true;
         }
 
@@ -675,18 +732,75 @@ public sealed class SessionTasksService : IDisposable
         return changed;
     }
 
-    // The position of the first task after <index> that keeps its place (its stored position is past <previous>), else null.
-    private static double? NextKeptPosition(IReadOnlyList<SessionTask> tasks, int index, Dictionary<Guid, SyncNextTask> items, double? previous)
+    // The positions of one category's tasks in their order, given the stored ones (null for a task that has none yet). The
+    // largest set of tasks whose stored positions already ascend keeps them; each other task gets a position between its
+    // neighbours. When two positions get too close, the category is numbered 1, 2, 3 again.
+    private static double[] GroupPositions(IReadOnlyList<double?> stored)
     {
-        for (int next = index + 1; next < tasks.Count; next++)
+        bool[] keep = LongestAscending(stored);
+        var positions = new double[stored.Count];
+        double? lower = null;
+        for (int index = 0; index < stored.Count; index++)
         {
-            if (items.TryGetValue(tasks[next].Id, out SyncNextTask? item) && item.DeletedAt is null && (previous is null || item.Position > previous))
+            if (keep[index])
             {
-                return item.Position;
+                positions[index] = stored[index]!.Value;
+            }
+            else
+            {
+                double? upper = null;
+                for (int next = index + 1; next < stored.Count && upper is null; next++)
+                {
+                    upper = keep[next] ? stored[next] : null;
+                }
+
+                positions[index] = SharedListMerge.PositionBetween(lower, upper);
+            }
+
+            lower = positions[index];
+        }
+
+        bool tooClose = Enumerable.Range(1, Math.Max(0, positions.Length - 1)).Any(index => positions[index] - positions[index - 1] < MinPositionGap);
+        return tooClose ? Enumerable.Range(1, positions.Length).Select(number => (double)number).ToArray() : positions;
+    }
+
+    private static bool[] LongestAscending(IReadOnlyList<double?> stored)
+    {
+        int count = stored.Count;
+        var length = new int[count];
+        var before = new int[count];
+        int best = -1;
+        for (int index = 0; index < count; index++)
+        {
+            before[index] = -1;
+            if (stored[index] is not double position)
+            {
+                continue;
+            }
+
+            length[index] = 1;
+            for (int earlier = 0; earlier < index; earlier++)
+            {
+                if (stored[earlier] is double earlierPosition && earlierPosition < position && length[earlier] + 1 > length[index])
+                {
+                    length[index] = length[earlier] + 1;
+                    before[index] = earlier;
+                }
+            }
+
+            if (best < 0 || length[index] > length[best])
+            {
+                best = index;
             }
         }
 
-        return null;
+        var keep = new bool[count];
+        for (int index = best; index >= 0; index = before[index])
+        {
+            keep[index] = true;
+        }
+
+        return keep;
     }
 
     private async Task TombstoneNextTasksAsync()
@@ -697,7 +811,7 @@ public sealed class SessionTasksService : IDisposable
             return;
         }
 
-        _nextTasks = Pruned(_nextTasks.Select(task => task.DeletedAt is null ? task.Deleted(now) : task), now);
+        _nextTasks = Pruned(_nextTasks.Select(task => task.DeletedAt is null ? task.Deleted(SharedListMerge.NextStamp(now, task)) : task), now);
         await SaveNextTasksAsync();
     }
 

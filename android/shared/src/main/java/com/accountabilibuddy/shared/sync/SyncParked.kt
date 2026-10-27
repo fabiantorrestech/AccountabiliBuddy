@@ -21,6 +21,8 @@ data class SyncParked(
     override val tieBreak: String
         get() = listOf(text, createdAt.ticks().toString(), doneAt?.ticks()?.toString() ?: "").joinToString("\u0001")
 
+    override fun withStamps(editedAt: Instant, deletedAt: Instant?): SyncParked = copy(editedAt = editedAt, deletedAt = deletedAt)
+
     /** The come-back as a tombstone: its text is gone, and it is deleted at [at]. */
     fun deleted(at: Instant): SyncParked = copy(text = "", doneAt = null, editedAt = at, deletedAt = at)
 }

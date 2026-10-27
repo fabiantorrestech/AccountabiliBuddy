@@ -19,4 +19,9 @@ public sealed record SyncParked(
 {
     [JsonIgnore]
     public string TieBreak => string.Join("\u0001", Text, CreatedAt.UtcTicks.ToString(), DoneAt?.UtcTicks.ToString() ?? string.Empty);
+
+    public ISharedItem WithStamps(DateTimeOffset editedAt, DateTimeOffset? deletedAt)
+    {
+        return this with { EditedAt = editedAt, DeletedAt = deletedAt };
+    }
 }

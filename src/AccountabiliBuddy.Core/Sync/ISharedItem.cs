@@ -22,4 +22,7 @@ public interface ISharedItem
     /// picks the same one. Never logged or shown.
     /// </summary>
     string TieBreak { get; }
+
+    /// <summary>The same item with other edit and deletion times (<see cref="SharedListMerge"/> uses it to clamp a far-future stamp).</summary>
+    ISharedItem WithStamps(DateTimeOffset editedAt, DateTimeOffset? deletedAt);
 }
