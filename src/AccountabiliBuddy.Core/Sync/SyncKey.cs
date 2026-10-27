@@ -7,9 +7,10 @@ namespace AccountabiliBuddy.Core.Sync;
 /// The sync group's key (ADR 22), derived from the link code's 200 random bits with HKDF-SHA256 (salt
 /// "AccountabiliBuddy sync"): the 32-byte AES-GCM key (info "key") and a 4-byte group id (info "group") that tells one
 /// group's files from another's without trying the key. Made from a code with <see cref="SyncKeyCode.TryParse"/>.
-/// For the own relay (ADR 46) two more values come from the same secret, neither of which can be turned back into the
-/// key: a relay group id (info "relay-group", 16 bytes, hex) and a bearer token (info "relay-auth", 32 bytes,
-/// base64url). The phone derives them the same way (android/shared).
+/// For the own relay (ADR 46) the same secret gives a third value, a relay root (info "relay-root", 32 bytes), from which
+/// each relay gets ITS OWN group id and bearer token, named by the relay's identity (its pin, else its address): a relay that
+/// learns its token can't use it on another relay, and two relays can't tell they hold the same group. None of them can
+/// be turned back into the key. The phone derives them the same way (android/shared).
 /// </summary>
 public sealed class SyncKey
 {
@@ -18,21 +19,22 @@ public sealed class SyncKey
 
     private const int KeyBytes = 32;
     private const int GroupIdBytes = 4;
+    private const int RelayRootBytes = 32;
     private const int RelayGroupIdBytes = 16;
     private const int RelayTokenBytes = 32;
 
     private static readonly byte[] Salt = Encoding.UTF8.GetBytes("AccountabiliBuddy sync");
     private static readonly byte[] KeyInfo = Encoding.UTF8.GetBytes("key");
     private static readonly byte[] GroupInfo = Encoding.UTF8.GetBytes("group");
-    private static readonly byte[] RelayGroupInfo = Encoding.UTF8.GetBytes("relay-group");
-    private static readonly byte[] RelayAuthInfo = Encoding.UTF8.GetBytes("relay-auth");
+    private static readonly byte[] RelayRootInfo = Encoding.UTF8.GetBytes("relay-root");
 
-    private SyncKey(byte[] key, string groupId, string relayGroupId, string relayToken)
+    private readonly byte[] _relayRoot;
+
+    private SyncKey(byte[] key, string groupId, byte[] relayRoot)
     {
         Key = key;
         GroupId = groupId;
-        RelayGroupId = relayGroupId;
-        RelayToken = relayToken;
+        _relayRoot = relayRoot;
     }
 
     /// <summary>The AES-256-GCM key (32 bytes).</summary>
@@ -41,14 +43,30 @@ public sealed class SyncKey
     /// <summary>The group id as 8 lower-case hex characters; its 4 bytes start every sealed file after "ABS1".</summary>
     public string GroupId { get; }
 
-    /// <summary>The group's id on a relay: 32 lower-case hex characters (16 bytes). Names the group in the relay's addresses.</summary>
-    public string RelayGroupId { get; }
+    /// <summary>
+    /// The group's id on the relay named <paramref name="relayIdentity"/>: 32 lower-case hex characters (16 bytes). Names the group in
+    /// the relay's addresses.
+    /// </summary>
+    /// <param name="relayIdentity">What names the relay, from <see cref="RelayIdentity.Of"/>.</param>
+    public string RelayGroupIdFor(string relayIdentity)
+    {
+        byte[] bytes = new byte[RelayGroupIdBytes];
+        HKDF.DeriveKey(HashAlgorithmName.SHA256, _relayRoot, bytes, Salt, Encoding.UTF8.GetBytes("relay-group|" + relayIdentity));
+        return Convert.ToHexStringLower(bytes);
+    }
 
     /// <summary>
-    /// The bearer token that proves a device belongs to the group on a relay: 43 base64url characters (32 bytes, no
-    /// padding). A secret of the group: sent only in the Authorization header over HTTPS, never logged or put in an address.
+    /// The bearer token that proves a device belongs to the group on the relay named <paramref name="relayIdentity"/>: 43 base64url
+    /// characters (32 bytes, no padding). A secret of the group on that relay: sent only in the Authorization header over
+    /// HTTPS, never logged or put in an address.
     /// </summary>
-    public string RelayToken { get; }
+    /// <param name="relayIdentity">What names the relay, from <see cref="RelayIdentity.Of"/>.</param>
+    public string RelayTokenFor(string relayIdentity)
+    {
+        byte[] bytes = new byte[RelayTokenBytes];
+        HKDF.DeriveKey(HashAlgorithmName.SHA256, _relayRoot, bytes, Salt, Encoding.UTF8.GetBytes("relay-auth|" + relayIdentity));
+        return Base64Url(bytes);
+    }
 
     /// <exception cref="ArgumentException">The secret isn't <see cref="SecretBytes"/> bytes.</exception>
     public static SyncKey FromSecret(ReadOnlySpan<byte> secret25)
@@ -62,11 +80,9 @@ public sealed class SyncKey
         HKDF.DeriveKey(HashAlgorithmName.SHA256, secret25, key, Salt, KeyInfo);
         byte[] groupId = new byte[GroupIdBytes];
         HKDF.DeriveKey(HashAlgorithmName.SHA256, secret25, groupId, Salt, GroupInfo);
-        byte[] relayGroupId = new byte[RelayGroupIdBytes];
-        HKDF.DeriveKey(HashAlgorithmName.SHA256, secret25, relayGroupId, Salt, RelayGroupInfo);
-        byte[] relayToken = new byte[RelayTokenBytes];
-        HKDF.DeriveKey(HashAlgorithmName.SHA256, secret25, relayToken, Salt, RelayAuthInfo);
-        return new SyncKey(key, Convert.ToHexStringLower(groupId), Convert.ToHexStringLower(relayGroupId), Base64Url(relayToken));
+        byte[] relayRoot = new byte[RelayRootBytes];
+        HKDF.DeriveKey(HashAlgorithmName.SHA256, secret25, relayRoot, Salt, RelayRootInfo);
+        return new SyncKey(key, Convert.ToHexStringLower(groupId), relayRoot);
     }
 
     private static string Base64Url(byte[] bytes)

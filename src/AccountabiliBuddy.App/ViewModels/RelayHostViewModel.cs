@@ -35,6 +35,7 @@ public sealed partial class RelayHostViewModel : ObservableObject, IDisposable
         StatusText = string.Empty;
         PortText = string.Empty;
         PinText = string.Empty;
+        AdmissionKeyText = string.Empty;
         StorageText = string.Empty;
         LogText = string.Empty;
         host.Changed += (_, _) => Refresh();
@@ -76,6 +77,13 @@ public sealed partial class RelayHostViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string PinText { get; set; }
 
+    /// <summary>
+    /// The relay's admission key: a secret that lets a device start a new group on this relay. The join QR carries it, so
+    /// a phone that scans the QR can make its own group; shown here for typing into a device by hand. Empty until the relay made it.
+    /// </summary>
+    [ObservableProperty]
+    public partial string AdmissionKeyText { get; set; }
+
     [ObservableProperty]
     public partial string StorageText { get; set; }
 
@@ -109,8 +117,8 @@ public sealed partial class RelayHostViewModel : ObservableObject, IDisposable
     public bool ReplacesOtherRelay => _settings.Current.RelayOn && !string.IsNullOrWhiteSpace(_settings.Current.RelayUrl) && !IsOwnAddress(_settings.Current.RelayUrl);
 
     /// <summary>The address and pin for the join QR, or null when the relay isn't hosted here or its pin isn't known yet.</summary>
-    public (string Address, string Pin)? JoinTarget =>
-        HostOn && SelectedShareAddress is not null && PinText.Length > 0 ? (SelectedShareAddress, PinText) : null;
+    public (string Address, string Pin, string? AdmissionKey)? JoinTarget =>
+        HostOn && SelectedShareAddress is not null && PinText.Length > 0 ? (SelectedShareAddress, PinText, AdmissionKeyText.Length > 0 ? AdmissionKeyText : null) : null;
 
     /// <summary>The relay runs here but Windows has no firewall rule for it: other devices may be blocked.</summary>
     public bool ShowAddFirewallRule => HostOn && HasFirewallRule == false;
@@ -152,6 +160,7 @@ public sealed partial class RelayHostViewModel : ObservableObject, IDisposable
         }
 
         PinText = _host.Files.ReadPin() ?? string.Empty;
+        AdmissionKeyText = _host.Files.ReadAdmissionKey() ?? string.Empty;
         StatusText = BuildStatus(settings);
         LastChangeText = _host.LastChange is { } at ? $"Last change on the relay: {at.LocalDateTime:h:mm tt}" : null;
         LogText = string.Join(Environment.NewLine, _host.LogLines);
@@ -240,7 +249,7 @@ public sealed partial class RelayHostViewModel : ObservableObject, IDisposable
         }
 
         await _host.SetPortAsync(port);
-        Message = $"Port {port} saved. A phone that joined by QR needs a new QR code (Link a device).";
+        Message = $"Port {port} saved. A phone that joined by QR needs a new QR code (Link a device). The firewall rule is for one port, so Windows needs one more permission: use \"Add the firewall rule\" when it shows.";
     }
 
     partial void OnAlsoPublicChanged(bool value)

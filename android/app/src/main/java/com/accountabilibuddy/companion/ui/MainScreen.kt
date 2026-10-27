@@ -329,23 +329,8 @@ fun MainScreen(
         }
     }
 
-    joinOffer?.let { offer ->
-        AlertDialog(
-            onDismissRequest = viewModel::cancelJoin,
-            title = { Text("Join ${offer.pcName}'s devices?") },
-            text = {
-                Text(
-                    "This phone joins your device group: it shares its sync file with your other devices and carries " +
-                        "theirs between them, encrypted with this link code." +
-                        (offer.relayUrl?.let {
-                            "\n\nIt also syncs through the relay at ${it.removePrefix("https://")}" +
-                                (if (offer.relayPin != null) ", checking its certificate pin." else ".")
-                        } ?: ""),
-                )
-            },
-            confirmButton = { TextButton(onClick = viewModel::confirmJoin) { Text("Join") } },
-            dismissButton = { TextButton(onClick = viewModel::cancelJoin) { Text("Cancel") } },
-        )
+    joinOffer?.let { prompt ->
+        JoinPromptDialog(prompt, onContinue = viewModel::continueJoin, onCancel = viewModel::cancelJoin)
     }
 
     planConflict?.let { conflict ->

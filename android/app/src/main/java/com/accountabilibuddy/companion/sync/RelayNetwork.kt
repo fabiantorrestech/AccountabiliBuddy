@@ -19,7 +19,14 @@ import javax.net.ssl.SSLException
  * certificate [pin] when it is self-signed (null: a normal certificate authority check), the relay group id and the
  * bearer token. The token only ever goes in the Authorization header; it has no toString, so it can't reach a log.
  */
-class RelayEndpoint(val baseUrl: String, val pin: String?, val groupId: String, internal val token: String)
+class RelayEndpoint(
+    val baseUrl: String,
+    val pin: String?,
+    val groupId: String,
+    internal val token: String,
+    /** The relay's admission key; sent only with the PUT that can start the group, never with a read. */
+    internal val admission: String? = null,
+)
 
 /** A file in the relay's list: its name and the etag (SHA-256, base64url) of its bytes. */
 class RelayFileInfo(val name: String, val etag: String)
@@ -28,7 +35,7 @@ class RelayFileInfo(val name: String, val etag: String)
 class RelayFile(val bytes: ByteArray, val etag: String?)
 
 /** Why a relay call failed, for the status line. A pin that doesn't match is [Certificate] and is never retried without the pin. */
-enum class RelayProblem { Address, Unreachable, Certificate, Unauthorized, OtherGroup, Busy, Refused, Server }
+enum class RelayProblem { Address, Unreachable, Certificate, Unauthorized, OtherGroup, AdmissionRequired, Busy, Refused, Server }
 
 /** A relay call that didn't work. The message never holds a body or a token. */
 class RelayException(val problem: RelayProblem, message: String) : IOException(message)
@@ -115,6 +122,7 @@ object RelayNetwork {
         try {
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/octet-stream")
+            endpoint.admission?.let { connection.setRequestProperty("X-Relay-Admission", it) }
             connection.setFixedLengthStreamingMode(bytes.size)
             val code = send(connection) { connection.outputStream.use { it.write(bytes) } }
             ensureOk(code)
@@ -204,6 +212,7 @@ object RelayNetwork {
             in 200..299 -> Unit
             401 -> throw RelayException(RelayProblem.Unauthorized, "The relay refused this phone's sign-in.")
             403 -> throw RelayException(RelayProblem.OtherGroup, "The relay's group belongs to another code.")
+            428 -> throw RelayException(RelayProblem.AdmissionRequired, "The relay needs its admission key to start a new group.")
             429 -> throw RelayException(RelayProblem.Busy, "The relay is busy.")
             400, 413 -> throw RelayException(RelayProblem.Refused, "The relay refused the request ($code).")
             else -> throw RelayException(RelayProblem.Server, "The relay answered $code.")

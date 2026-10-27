@@ -38,6 +38,10 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     // The relay settings the address and pin boxes were last filled from, so a refresh doesn't overwrite what is being typed.
     private string? _loadedRelayUrl;
     private string? _loadedRelayPin;
+    private string? _loadedRelayAdmission;
+
+    // The typed code a "Join" press asked to confirm because it would leave the current group; null when none is waiting.
+    private string? _joinConfirmedFor;
 
     public DevicesViewModel(
         SyncIdentityService identity,
@@ -57,6 +61,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         DriveStatusText = string.Empty;
         RelayUrlText = string.Empty;
         RelayPinText = string.Empty;
+        RelayAdmissionText = string.Empty;
         RelayStatusText = string.Empty;
         JoinCode = string.Empty;
         IsLocked = sessions.IsEnforcing;
@@ -178,6 +183,10 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string RelayPinText { get; set; }
 
+    /// <summary>The relay's admission key as typed (a secret that lets this PC start the group on the relay); empty when the relay has none.</summary>
+    [ObservableProperty]
+    public partial string RelayAdmissionText { get; set; }
+
     /// <summary>"Connected: changes arrive in about a second", or what is wrong; empty while the method is off.</summary>
     [ObservableProperty]
     public partial string RelayStatusText { get; set; }
@@ -215,12 +224,15 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         FileShareOn = settings.FileShareOn;
         DriveOn = settings.DriveOn;
         RelayOn = settings.RelayOn;
-        if (settings.RelayUrl != _loadedRelayUrl || settings.RelayPin != _loadedRelayPin)
+        string? admission = _settings.ReadRelayAdmission();
+        if (settings.RelayUrl != _loadedRelayUrl || settings.RelayPin != _loadedRelayPin || admission != _loadedRelayAdmission)
         {
             _loadedRelayUrl = settings.RelayUrl;
             _loadedRelayPin = settings.RelayPin;
+            _loadedRelayAdmission = admission;
             RelayUrlText = settings.RelayUrl ?? string.Empty;
             RelayPinText = settings.RelayPin ?? string.Empty;
+            RelayAdmissionText = admission ?? string.Empty;
         }
 
         RelayStatusText = !settings.RelayOn ? string.Empty
@@ -364,7 +376,19 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
             return;
         }
 
-        Message = await _identity.JoinAsync(JoinCode.Trim())
+        // Joining another group while in one leaves the current group: ask once more, naming what changes.
+        string typed = JoinCode.Trim();
+        if (_identity.Key is { } current && SyncKeyCode.TryParse(typed, out SyncKey? target) && target.GroupId != current.GroupId
+            && _joinConfirmedFor != typed)
+        {
+            _joinConfirmedFor = typed;
+            Message = "This PC is already in a device group, and this code is a different one. Joining it LEAVES your current group: " +
+                "your other devices stop syncing with this PC. Press Join again to confirm.";
+            return;
+        }
+
+        _joinConfirmedFor = null;
+        Message = await _identity.JoinAsync(typed)
             ? "Linked to your other devices."
             : "That isn't a link code (40 characters, from Devices on your other device).";
         JoinCode = string.Empty;
@@ -515,11 +539,19 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
             return;
         }
 
+        if (!RelayAddress.TryNormalizeAdmissionKey(RelayAdmissionText, out string? admission))
+        {
+            Message = "The admission key is the 43-character key the relay prints (letters, digits, - and _), or leave it empty.";
+            Refresh();
+            return;
+        }
+
         await _settings.SaveAsync(_settings.Current with
         {
             RelayOn = turnOn || _settings.Current.RelayOn,
             RelayUrl = RelayAddress.Format(address),
             RelayPin = pin,
+            RelayAdmissionProtected = _settings.ProtectRelayAdmission(admission),
         });
         Message = "Saved the relay address.";
     }
@@ -603,7 +635,8 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         CombinedTodayText = count > 1 ? $"Today: {Duration(total)} focused across {count} devices" : $"Today: {Duration(total)} focused";
     }
 
-    // "&r=<address>&p=<pin>" when the own relay is on, so a device that scans the QR joins the relay too (the pin is not secret).
+    // "&r=<address>&p=<pin>&k=<admission key>" when the own relay is on, so a device that scans the QR joins the relay too
+    // and can start a group on it. The pin is not secret; the admission key and the code in the same QR are.
     private string RelayJoinParameters()
     {
         SyncSettings settings = _settings.Current;
@@ -619,12 +652,18 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         if (settings.HostRelayOn)
         {
             return RelayHost?.JoinTarget is { } target
-                ? "&r=" + Uri.EscapeDataString(target.Address) + "&p=" + Uri.EscapeDataString(target.Pin)
+                ? "&r=" + Uri.EscapeDataString(target.Address) + "&p=" + Uri.EscapeDataString(target.Pin) + AdmissionParameter(target.AdmissionKey)
                 : string.Empty;
         }
 
         string parameters = "&r=" + Uri.EscapeDataString(RelayAddress.Format(address));
-        return pin is not null ? parameters + "&p=" + Uri.EscapeDataString(pin) : parameters;
+        parameters = pin is not null ? parameters + "&p=" + Uri.EscapeDataString(pin) : parameters;
+        return parameters + AdmissionParameter(_settings.ReadRelayAdmission());
+    }
+
+    private static string AdmissionParameter(string? admissionKey)
+    {
+        return string.IsNullOrEmpty(admissionKey) ? string.Empty : "&k=" + Uri.EscapeDataString(admissionKey);
     }
 
     private static List<string> OwnMethods(SyncSettings settings)

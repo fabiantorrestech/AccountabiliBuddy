@@ -215,7 +215,7 @@ fun DevicesScreen(
             val code = actions.linkCode()
             QrDialog(
                 "Link another device",
-                code?.let { "Scan this on the other device, or type the code there: ${SyncKeyCode.display(it)}" } ?: "This phone isn't in a group.",
+                code?.let { "Scan this on the other device, or type the code there: ${SyncKeyCode.display(it)}. Never photograph, screen-share or post it: it is the key to all your synced data." } ?: "This phone isn't in a group.",
                 listOfNotNull(code?.let { joinLink(it, devices) }),
             ) { dialog = null }
         }
@@ -237,11 +237,13 @@ fun DevicesScreen(
 
 private enum class DevicesDialog { Scan, Picture, LinkDevice, Leave }
 
-// The link another device scans to join: the code, this phone's name and, when the relay is on, its address and pin (ADR 46).
+// The link another device scans to join: the code, this phone's name and, when the relay is on, its address, pin and
+// admission key (ADR 46). The whole link is a secret: whoever has it can read and write the group's files.
 private fun joinLink(code: String, devices: DevicesState): String {
     val settings = devices.settings
     val relay = settings.relayUrl?.takeIf { settings.relayOn }?.let { url ->
-        "&r=${Uri.encode(url)}" + (settings.relayPin?.let { "&p=${Uri.encode(it)}" } ?: "")
+        "&r=${Uri.encode(url)}" + (settings.relayPin?.let { "&p=${Uri.encode(it)}" } ?: "") +
+            (settings.relayAdmission?.let { "&k=${Uri.encode(it)}" } ?: "")
     }.orEmpty()
     return "accountabilibuddy://join?c=$code&n=${Uri.encode(devices.deviceName)}$relay"
 }
@@ -329,8 +331,8 @@ private fun DriveSection(devices: DevicesState, actions: DevicesActions, now: In
 /** The short steps for the phone's own relay; the full guide is on the PC (Devices -> Own relay). */
 internal val RELAY_STEPS = """
     1. Run the relay on a PC, a home server or a rented server (the PC's Devices page has the steps and the full guide).
-    2. Easiest: on a device that already uses the relay, show its link QR (Link a device) and scan it here: the address and pin come with it.
-    3. Or type the relay's https address here, and its pin (43 characters) when the relay made its own certificate. No pin: the relay needs a normal certificate (a reverse proxy with Let's Encrypt).
+    2. Easiest: on a device that already uses the relay, show its link QR (Link a device) and scan it here: the address, pin and admission key come with it. Never photograph or post that QR: it is the key to all your synced data.
+    3. Or type the relay's https address here, its pin (43 characters) when the relay made its own certificate, and its admission key (43 characters, the relay prints it; it lets this phone start the group on the relay). No pin: the relay needs a normal certificate (a reverse proxy with Let's Encrypt).
     4. Switch it on. This phone checks the pin on every connection and shows a problem instead of connecting if it doesn't match.
     The relay stores only sealed files and your link code never reaches it. While a session runs or the timeline is pinned, a change arrives in about a second; otherwise this phone looks every 15 minutes.
 """.trimIndent()
@@ -341,6 +343,7 @@ private fun RelaySection(devices: DevicesState, actions: DevicesActions, now: In
     val settings = devices.settings
     var address by remember(settings.relayUrl) { mutableStateOf(settings.relayUrl.orEmpty()) }
     var pin by remember(settings.relayPin) { mutableStateOf(settings.relayPin.orEmpty()) }
+    var admission by remember(settings.relayAdmission) { mutableStateOf(settings.relayAdmission.orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
 
     // The fields as the settings would hold them, or null with the reason shown under them.
@@ -357,8 +360,14 @@ private fun RelaySection(devices: DevicesState, actions: DevicesActions, now: In
             return null
         }
 
+        val typedAdmission = admission.trim()
+        if (typedAdmission.isNotEmpty() && !RelayAddress.isAdmissionKey(typedAdmission)) {
+            error = "The admission key is 43 letters, digits, - and _ (leave it empty if the relay has none)."
+            return null
+        }
+
         error = null
-        return settings.copy(relayUrl = url, relayPin = typedPin.ifEmpty { null })
+        return settings.copy(relayUrl = url, relayPin = typedPin.ifEmpty { null }, relayAdmission = typedAdmission.ifEmpty { null })
     }
 
     ToggleRow(
@@ -388,10 +397,19 @@ private fun RelaySection(devices: DevicesState, actions: DevicesActions, now: In
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
     )
+    OutlinedTextField(
+        value = admission,
+        onValueChange = { admission = it },
+        label = { Text("Admission key (from the relay)") },
+        singleLine = true,
+        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+        modifier = Modifier.fillMaxWidth(),
+    )
     error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Color(0xFFFCA5A5)) }
-    val changed = RelayAddress.normalize(address) != settings.relayUrl || pin.trim().ifEmpty { null } != settings.relayPin
+    val changed = RelayAddress.normalize(address) != settings.relayUrl || pin.trim().ifEmpty { null } != settings.relayPin ||
+        admission.trim().ifEmpty { null } != settings.relayAdmission
     if (settings.relayOn && changed) {
-        OutlinedButton(onClick = { checked()?.let { actions.onSettings(it) } }) { Text("Use this address and pin") }
+        OutlinedButton(onClick = { checked()?.let { actions.onSettings(it) } }) { Text("Use this address, pin and key") }
     }
     Hint(RELAY_STEPS, label = "Sync through your own relay")
     if (!settings.relayOn) {

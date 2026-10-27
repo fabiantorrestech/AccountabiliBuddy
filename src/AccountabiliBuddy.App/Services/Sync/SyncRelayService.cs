@@ -297,10 +297,15 @@ public sealed class SyncRelayService : IDisposable
             return "The pin is the 43-character fingerprint the relay prints (letters, digits, - and _).";
         }
 
-        SyncKey? key = _identity.Key;
+        // The group's own id and token go only to the relay already saved here; an address that isn't saved yet gets a
+        // made-up group, so a mistyped or unfamiliar address learns nothing about the group.
+        SyncSettings saved = _settings.Current;
+        bool isSavedRelay = RelayAddress.TryNormalize(saved.RelayUrl, out Uri? savedAddress) && savedAddress == address
+            && RelayAddress.TryNormalizePin(saved.RelayPin, out string? savedPin) && savedPin == pin;
+        SyncKey? key = isSavedRelay ? _identity.Key : null;
         RelayAccess access = key is null
             ? new RelayAccess(address, pin, Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16)), Base64Url(RandomNumberGenerator.GetBytes(32)))
-            : new RelayAccess(address, pin, key.RelayGroupId, key.RelayToken);
+            : RelayAccess.For(key, address, pin, null);
         string certificate = pin is null ? "its certificate is trusted" : "the pinned certificate matches";
         try
         {
@@ -350,7 +355,7 @@ public sealed class SyncRelayService : IDisposable
         }
 
         SyncSettings settings = _settings.Current;
-        string applied = $"{settings.RelayOn}|{settings.RelayUrl}|{settings.RelayPin}|{_identity.Key?.RelayGroupId}";
+        string applied = $"{settings.RelayOn}|{settings.RelayUrl}|{settings.RelayPin}|{settings.RelayAdmissionProtected}|{_identity.Key?.GroupId}";
         if (applied == _appliedKey)
         {
             return;
@@ -358,6 +363,7 @@ public sealed class SyncRelayService : IDisposable
 
         _appliedKey = applied;
         RelayAccess? previous = _access;
+        SyncKey? previousKey = _key;
         string previousName = _ownName;
         _lifetime.Cancel();
         _lifetime = new CancellationTokenSource();
@@ -374,7 +380,7 @@ public sealed class SyncRelayService : IDisposable
         _streamProblem = null;
 
         // Left the group, or joined or made another: the old group's file leaves the relay.
-        if (previous is not null && previous.GroupId != _identity.Key?.RelayGroupId)
+        if (previous is not null && previousKey?.GroupId != _identity.Key?.GroupId)
         {
             _ = ForgetFileAsync(previous, previousName);
         }
@@ -534,7 +540,7 @@ public sealed class SyncRelayService : IDisposable
             return false;
         }
 
-        access = new RelayAccess(address, pin, key.RelayGroupId, key.RelayToken);
+        access = RelayAccess.For(key, address, pin, _settings.ReadRelayAdmission());
         return true;
     }
 
@@ -684,7 +690,8 @@ public sealed class SyncRelayService : IDisposable
             {
                 HttpStatusCode.Unauthorized => "The relay didn't accept this PC's sign-in (401). Check the address, and that the relay is up to date.",
                 HttpStatusCode.Forbidden => "This group already belongs to someone else on that relay (403). Use a relay of your own, or clear the group's files on it.",
-                HttpStatusCode.RequestEntityTooLarge => "The sync file is too big for the relay (413).",
+                HttpStatusCode.PreconditionRequired => "This relay needs its admission key to start a new group (428). Enter the key it printed in Devices > Own relay, or join with the link from a device that has it.",
+                HttpStatusCode.RequestEntityTooLarge =>"The sync file is too big for the relay (413).",
                 HttpStatusCode.TooManyRequests => "The relay is limiting this PC for now (429). It will try again.",
                 HttpStatusCode.InsufficientStorage => "The relay's disk is full (507).",
                 _ => $"The relay answered with an error ({(int)status}).",

@@ -126,6 +126,10 @@
                             <TextBox Grid.Column="1" Text="{Binding RelayPinText}" IsEnabled="{Binding !RelayHost.HostOn}"
                                      PlaceholderText="Pin (empty if the relay has a normal certificate)" />
                         </Grid>
+                        <TextBox Text="{Binding RelayAdmissionText}" IsEnabled="{Binding !RelayHost.HostOn}" MaxWidth="560" HorizontalAlignment="Left"
+                                 PlaceholderText="Admission key (from the relay; lets this PC start the group on it)" />
+                        <TextBlock Classes="muted" TextWrapping="Wrap" MaxWidth="560"
+                                   Text="The admission key is printed by the relay with its address and pin. Joining with a link from a device that has it fills this in. Keep it private: whoever has it can start groups on your relay." />
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button Content="Save address" Command="{Binding SaveRelayCommand}" />
                             <Button Content="Test connection" Command="{Binding TestRelayCommand}" />
@@ -138,8 +142,8 @@
                         <Expander Header="Run your own relay" HorizontalAlignment="Stretch">
                             <StackPanel Spacing="6">
                                 <TextBlock TextWrapping="Wrap" Text="1. Run the relay program (AccountabiliBuddy.Relay) on a computer that stays on: your home PC or server, a Raspberry Pi, a Docker container or a rented server. On its first start it prints a line like &quot;relay address: https://192.168.1.20:8743   pin: …&quot;." />
-                                <TextBlock TextWrapping="Wrap" Text="2. Type that address and pin above, tick Own relay, and press Test connection." />
-                                <TextBlock TextWrapping="Wrap" Text="3. Link the phone: Devices → Link a device shows a QR code that carries the address and pin, so scanning it sets the relay up there too." />
+                                <TextBlock TextWrapping="Wrap" Text="2. Type that address, pin and admission key above, tick Own relay, and press Test connection." />
+                                <TextBlock TextWrapping="Wrap" Text="3. Link the phone: Devices → Link a device shows a QR code that carries the address, pin and admission key, so scanning it sets the relay up there too. Never photograph, screen-share or post that QR: it is the key to all your synced data." />
                                 <TextBlock TextWrapping="Wrap" Text="4. Away from home, reach the relay through a VPN such as Tailscale, or put it behind a reverse proxy with a real certificate (then leave the pin empty). Never forward the relay's port on a home router without that." />
                                 <TextBlock Classes="muted" TextWrapping="Wrap"
                                            Text="The relay stores only sealed bytes. The key never leaves your devices, and the connection is HTTPS with the relay's certificate checked. The full guide has every setup, step by step." />
@@ -200,7 +204,13 @@
                                     <TextBlock Text="Pin:" VerticalAlignment="Center" />
                                     <SelectableTextBlock Text="{Binding RelayHost.PinText}" FontFamily="Consolas, Courier New, monospace" TextWrapping="Wrap" MaxWidth="520" VerticalAlignment="Center" />
                                 </StackPanel>
-                                <Button Content="Show join QR (carries the address, the pin and the group code)" Command="{Binding LinkDeviceCommand}" HorizontalAlignment="Left" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="Admission key:" VerticalAlignment="Center" />
+                                    <SelectableTextBlock Text="{Binding RelayHost.AdmissionKeyText}" FontFamily="Consolas, Courier New, monospace" TextWrapping="Wrap" MaxWidth="520" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <TextBlock Classes="muted" TextWrapping="Wrap" MaxWidth="560"
+                                           Text="The admission key lets a device start a new group on this relay (groups that already exist need only their own code). The join QR carries it. Keep it private." />
+                                <Button Content="Show join QR (carries the address, the pin, the admission key and the group code)" Command="{Binding LinkDeviceCommand}" HorizontalAlignment="Left" />
                                 <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding HasLinkCode}">
                                     <Border Background="White" Padding="8" CornerRadius="6" VerticalAlignment="Top">
                                         <Image Source="{Binding LinkQrImage}" Width="200" Height="200" RenderOptions.BitmapInterpolationMode="None" />

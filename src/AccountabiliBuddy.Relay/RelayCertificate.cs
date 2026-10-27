@@ -8,8 +8,9 @@ namespace AccountabiliBuddy.Relay;
 
 /// <summary>
 /// The relay's own TLS certificate for the pinned (no reverse proxy) mode: a self-signed ECDSA P-256 certificate made on
-/// the first run, valid 10 years, with the host's names and addresses as alternative names, kept as <c>relay.pfx</c> in
-/// the data folder. The apps pin its SHA-256 fingerprint. Deleting the file makes a new one (and a new pin).
+/// the first run, valid 10 years, with only <c>localhost</c> as a name (the apps ignore names and check the pin), kept
+/// as <c>relay.pfx</c> in the data folder. The apps pin its SHA-256 fingerprint. Deleting the file makes a new one (and
+/// a new pin).
 /// </summary>
 internal static class RelayCertificate
 {
@@ -21,7 +22,6 @@ internal static class RelayCertificate
         created = !File.Exists(path);
         if (created)
         {
-            Directory.CreateDirectory(dataDirectory);
             WritePrivateFile(path, CreatePfx());
         }
 
@@ -49,7 +49,9 @@ internal static class RelayCertificate
     private static byte[] CreatePfx()
     {
         using ECDsa key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        var request = new CertificateRequest($"CN=AccountabiliBuddy Relay on {Environment.MachineName}", key, HashAlgorithmName.SHA256);
+        // No machine name or addresses in the certificate: the pin is the identity, and anyone who connects (the relay may
+        // face a coffee shop's Wi-Fi or the internet) can read the certificate.
+        var request = new CertificateRequest("CN=AccountabiliBuddy Relay", key, HashAlgorithmName.SHA256);
         request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
         request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, true));
         request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(
@@ -63,15 +65,9 @@ internal static class RelayCertificate
     private static X509Extension BuildAlternativeNames()
     {
         var names = new SubjectAlternativeNameBuilder();
-        names.AddDnsName(Environment.MachineName);
         names.AddDnsName("localhost");
         names.AddIpAddress(IPAddress.Loopback);
         names.AddIpAddress(IPAddress.IPv6Loopback);
-        foreach (IPAddress address in LocalIPv4Addresses())
-        {
-            names.AddIpAddress(address);
-        }
-
         return names.Build();
     }
 

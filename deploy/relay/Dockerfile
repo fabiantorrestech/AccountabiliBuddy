@@ -1,6 +1,12 @@
 # The sealed relay (ADR 46). Build from the repository root:
 #   docker build -f deploy/relay/Dockerfile -t accountabilibuddy-relay .
 # Data (the stored sealed files and, in pinned mode, relay.pfx) lives in the /data volume.
+#
+# Keeping it patched: the image carries its own .NET runtime, and "restart: unless-stopped" never rebuilds it. Rebuild it on
+# every AccountabiliBuddy release and about once a month (.NET security fixes ship on the second Tuesday), pulling the
+# newest base images:
+#   docker compose build --pull && docker compose up -d
+# The relay logs its build and runtime at start ("docker compose logs relay"); "docker compose run --rm relay --version" prints them.
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src

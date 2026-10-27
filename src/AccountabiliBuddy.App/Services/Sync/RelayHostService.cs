@@ -73,7 +73,7 @@ public sealed class RelayHostService : IDisposable
 
     public bool ProgramExists => File.Exists(_executablePath);
 
-    public bool HasFirewallRule => _firewall.HasRule(_executablePath);
+    public bool HasFirewallRule => _firewall.HasRule(_executablePath, Port);
 
     /// <summary>Starts the relay when the switch is on. Called once when the app starts.</summary>
     public void Start()
@@ -117,6 +117,7 @@ public sealed class RelayHostService : IDisposable
             RelayOn = pointsHere ? false : current.RelayOn,
             RelayUrl = pointsHere ? null : current.RelayUrl,
             RelayPin = pointsHere ? null : current.RelayPin,
+            RelayAdmissionProtected = pointsHere ? null : current.RelayAdmissionProtected,
         });
         Raise();
     }
@@ -166,12 +167,12 @@ public sealed class RelayHostService : IDisposable
     /// <summary>Makes (or remakes) the firewall rule; Windows asks for permission.</summary>
     public Task<FirewallResult> AllowFirewallAsync()
     {
-        return _firewall.AllowAsync(_executablePath, _settings.Current.HostRelayPublic);
+        return _firewall.AllowAsync(_executablePath, Port, _settings.Current.HostRelayPublic);
     }
 
     public Task<FirewallResult> RemoveFirewallRuleAsync()
     {
-        return _firewall.RemoveAsync(_executablePath);
+        return _firewall.RemoveAsync(_executablePath, Port);
     }
 
     /// <summary>Deletes every stored sync file. The relay is stopped for the deletion (it keeps a list in memory) and started again.</summary>
@@ -346,12 +347,20 @@ public sealed class RelayHostService : IDisposable
 
         _useForOwnMethod = false;
         string address = RelayAddress.Format(new Uri($"https://127.0.0.1:{settings.HostRelayPort}/"));
-        if (settings.RelayOn && settings.RelayUrl == address && settings.RelayPin == pin)
+        // This PC runs the relay, so it knows the relay's admission key and keeps it to start the group (and to put in the join link).
+        string? admission = Files.ReadAdmissionKey();
+        if (settings.RelayOn && settings.RelayUrl == address && settings.RelayPin == pin && _settings.ReadRelayAdmission() == admission)
         {
             return;
         }
 
-        await _settings.SaveAsync(settings with { RelayOn = true, RelayUrl = address, RelayPin = pin });
+        await _settings.SaveAsync(settings with
+        {
+            RelayOn = true,
+            RelayUrl = address,
+            RelayPin = pin,
+            RelayAdmissionProtected = _settings.ProtectRelayAdmission(admission),
+        });
     }
 
     private void AddLog(string line)

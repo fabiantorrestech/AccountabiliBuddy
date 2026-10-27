@@ -527,7 +527,7 @@ public partial class App : Application
         var remoteControl = new AccountabiliBuddy.App.Services.Remote.RemoteSessionControl(_sessions, _configuration, _quickSession);
         var remotePlanEdits = new AccountabiliBuddy.App.Services.Remote.RemotePlanEdits(_sessions, _configuration, planEditTime);
         // Sharing progress between the user's own devices (ADR 22): every method is off until turned on.
-        var syncSettings = new AccountabiliBuddy.App.Services.Sync.SyncSettingsService(documents);
+        var syncSettings = new AccountabiliBuddy.App.Services.Sync.SyncSettingsService(documents, dataProtector);
         syncSettings.LoadBlocking();
         var receivedDevices = new AccountabiliBuddy.App.Services.Sync.ReceivedDevicesService(documents, time);
         receivedDevices.LoadBlocking();

@@ -1,3 +1,4 @@
+using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using Microsoft.Data.Sqlite;
 
@@ -9,10 +10,12 @@ public sealed class SyncSettingsService
     private const string DocumentKey = "sync.settings";
 
     private readonly SqliteJsonDocumentStore _store;
+    private readonly IDataProtector _protector;
 
-    public SyncSettingsService(SqliteJsonDocumentStore store)
+    public SyncSettingsService(SqliteJsonDocumentStore store, IDataProtector protector)
     {
         _store = store;
+        _protector = protector;
     }
 
     public SyncSettings Current { get; private set; } = SyncSettings.Default;
@@ -36,5 +39,40 @@ public sealed class SyncSettingsService
         Current = settings;
         Changed?.Invoke(this, settings);
         await _store.SaveAsync(DocumentKey, settings);
+    }
+
+    /// <summary>The relay's admission key (DPAPI, ADR 46); null when none is saved or it can't be unprotected (copied from another user or PC).</summary>
+    public string? ReadRelayAdmission()
+    {
+        string? stored = Current.RelayAdmissionProtected;
+        if (string.IsNullOrEmpty(stored))
+        {
+            return null;
+        }
+
+        try
+        {
+            return _protector.Unprotect(Convert.FromBase64String(stored));
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The value for <see cref="SyncSettings.RelayAdmissionProtected"/> that holds <paramref name="admissionKey"/>: the
+    /// stored one when it already holds the same key (so saving without a change doesn't look like a change), else a
+    /// newly protected one; null for no key.
+    /// </summary>
+    public string? ProtectRelayAdmission(string? admissionKey)
+    {
+        if (string.IsNullOrWhiteSpace(admissionKey))
+        {
+            return null;
+        }
+
+        string key = admissionKey.Trim();
+        return ReadRelayAdmission() == key ? Current.RelayAdmissionProtected : Convert.ToBase64String(_protector.Protect(key));
     }
 }

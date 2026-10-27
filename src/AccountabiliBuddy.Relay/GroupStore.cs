@@ -20,14 +20,17 @@ internal sealed class GroupStore
     private readonly Dictionary<string, CachedETag> _etags = new(StringComparer.Ordinal);
 
     private readonly long _maxDiskBytes;
+    private readonly int _maxGroups;
     private long _usedBytes;
 
     /// <param name="root">The data folder.</param>
     /// <param name="maxDiskBytes">Writes that would grow the stored files past this are refused (disk full, 507).</param>
-    public GroupStore(string root, long maxDiskBytes)
+    /// <param name="maxGroups">A write that would make a group past this many is refused (429).</param>
+    public GroupStore(string root, long maxDiskBytes, int maxGroups)
     {
         _root = Path.GetFullPath(root);
         _maxDiskBytes = maxDiskBytes;
+        _maxGroups = maxGroups;
         Directory.CreateDirectory(_root);
         _usedBytes = MeasureStoredBytes();
     }
@@ -82,7 +85,7 @@ internal sealed class GroupStore
 
             if (owner is null)
             {
-                if (CountGroups() >= RelayLimits.MaxGroups)
+                if (CountGroups() >= _maxGroups)
                 {
                     return new PutResult(PutStatus.TooManyGroups, string.Empty, default);
                 }

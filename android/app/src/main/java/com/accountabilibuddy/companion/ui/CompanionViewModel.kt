@@ -36,6 +36,8 @@ import kotlinx.coroutines.withContext
 import com.accountabilibuddy.companion.sync.EndEarlyTerms
 import com.accountabilibuddy.companion.sync.JoinLink
 import com.accountabilibuddy.companion.sync.PhoneSyncSettings
+import com.accountabilibuddy.companion.sync.RelayAddress
+import com.accountabilibuddy.shared.sync.SyncKeyCode
 import com.accountabilibuddy.companion.sync.SyncShare
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.companion.engine.DayPlanValidator
@@ -66,8 +68,8 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     val deviceName: String = (application as CompanionApp).deviceName
 
-    /** A scanned link code waiting for "Join <PC name>'s devices?" (ADR 22). */
-    val joinOffer = MutableStateFlow<JoinLink?>(null)
+    /** A join link waiting for the user's answer (ADR 22, 46): what it would change is shown first, and nothing joins before. */
+    val joinOffer = MutableStateFlow<JoinPrompt?>(null)
 
     private val pcRemote = (application as CompanionApp).pcRemote
     private val planFileSync = (application as CompanionApp).planFileSync
@@ -176,19 +178,42 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         ticker = null
     }
 
-    /** The PC's link code for device sync was scanned (ADR 22): asks before joining. */
-    fun offerJoin(offer: JoinLink) {
-        joinOffer.value = offer
+    /**
+     * A join link was opened (ADR 22): from the camera, a message, a web page or another app, so it is never trusted.
+     * Works out what joining would change and asks; a link that would leave the current group asks twice.
+     */
+    fun offerJoin(link: JoinLink) {
+        val currentGroup = sync.key.value?.groupId
+        val linkGroup = SyncKeyCode.parse(link.code)?.groupId
+        val settings = sync.settings.value
+        joinOffer.value = JoinPrompt(
+            link = link,
+            leavesCurrentGroup = currentGroup != null && currentGroup != linkGroup,
+            newRelay = link.relayUrl != null && !(settings.relayOn && settings.relayUrl == link.relayUrl),
+            relayOnInternet = link.relayUrl != null && !RelayAddress.isLocalNetwork(link.relayUrl),
+        )
     }
 
     fun cancelJoin() {
         joinOffer.value = null
     }
 
+    /** The first answer: a link that leaves the current group goes on to the second question; any other joins now. */
+    fun continueJoin() {
+        val prompt = joinOffer.value ?: return
+        if (prompt.leavesCurrentGroup && !prompt.confirmingLeave) {
+            joinOffer.value = prompt.copy(confirmingLeave = true)
+            return
+        }
+
+        confirmJoin()
+    }
+
     /** Joins the group; this phone's file goes out with the next Drive or folder sync. */
-    fun confirmJoin() {
-        val offer = joinOffer.value ?: return
+    private fun confirmJoin() {
+        val prompt = joinOffer.value ?: return
         joinOffer.value = null
+        val offer = prompt.link
         if (!sync.join(offer.code)) {
             message.value = "That link code didn't work. Show it again on ${offer.pcName}."
             return
@@ -196,7 +221,9 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
         // A link from a device that uses its own relay (ADR 46) sets this phone's relay up the same way.
         if (offer.relayUrl != null) {
-            sync.saveSettings(sync.settings.value.copy(relayOn = true, relayUrl = offer.relayUrl, relayPin = offer.relayPin))
+            sync.saveSettings(
+                sync.settings.value.copy(relayOn = true, relayUrl = offer.relayUrl, relayPin = offer.relayPin, relayAdmission = offer.relayAdmission),
+            )
             message.value = "Joined ${offer.pcName}'s devices, through the relay."
             return
         }
@@ -366,7 +393,23 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     /** Joins the group from a typed link code; this phone's file goes out with the next Drive or folder sync. */
     fun joinWithCode(code: String): Boolean {
-        if (!sync.join(code.trim())) {
+        val typed = code.trim()
+        val target = SyncKeyCode.parse(typed) ?: return false
+
+        // A different group than the one this phone is in: the same question and second confirmation as a join link.
+        val currentGroup = sync.key.value?.groupId
+        if (currentGroup != null && currentGroup != target.groupId) {
+            joinOffer.value = JoinPrompt(
+                link = JoinLink(typed, "your other device"),
+                leavesCurrentGroup = true,
+                newRelay = false,
+                relayOnInternet = false,
+                typedCode = true,
+            )
+            return true
+        }
+
+        if (!sync.join(typed)) {
             return false
         }
 

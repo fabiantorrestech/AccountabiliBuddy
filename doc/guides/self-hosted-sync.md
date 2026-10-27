@@ -276,7 +276,8 @@ can run next to the other methods; the files are the same, so Drive, a folder an
 |---|---|
 | That a group exists, under an id that means nothing (it comes from your link code but can't be turned back into it) | The contents of any file: focus times, profiles, sites, the day plan |
 | The names of the files (opaque ids), their sizes and when they changed | Your link code, or the key that opens the files |
-| The address each device connects from, and when | Which devices you own, or what they are called |
+| The address each device connects from, and when (so it can tell a phone's pattern from a PC's) | What the devices are called, or anything about their owner |
+| How many devices write to a group: one stable file name per device, its size and write times | |
 | A hash of the group's token (to tell whether a device belongs to the group) | |
 
 How it is protected:
@@ -287,19 +288,34 @@ How it is protected:
 - **HTTPS only**, as a second layer that also hides the file names and the token from the network. Either the relay
   makes its own certificate and the apps **pin** it (they check the certificate's fingerprint, and refuse to talk
   to anything else), or a normal certificate from Let's Encrypt is checked the usual way.
-- **A bearer token** (another value derived from the link code) proves a device belongs to the group. The first device to
-  write a group owns it on that relay; any other token gets "403 Forbidden". Rejoining with the same code gives the
-  same token. A new group (a new code) is a new, separate group.
-- **Limits** keep a public relay from being used up: files up to 4 MiB, 64 files per group, files untouched for 30
-  days are deleted, 120 requests a minute per address, and a few new groups per address per day.
+- **A bearer token** (another value derived from the link code, and from the relay's own certificate pin or address, so
+  it is different on every relay) proves a device belongs to the group. The first device to write a group owns it on
+  that relay; any other token gets "403 Forbidden". Rejoining with the same code on the same relay gives the same
+  token. A new group (a new code) is a new, separate group. A relay that learns its token can't use it on another relay.
+- **An admission key** (made by the relay on its first start, kept next to its certificate) is needed to start a **new**
+  group on it. Without that, anyone who could reach the relay could claim groups and store files on it. A group that
+  already exists needs only its own token, so the devices of your group never need the key again.
+- **Limits** bound what one address can do: files up to 4 MiB, 64 files per group, files untouched for 30 days are
+  deleted, 120 requests a minute per address (an IPv6 address counts as its whole /64, the block one connection
+  gets), a few new groups per address per day, and a cap on the number of groups (`--max-groups`, default 16). They are
+  a backstop. **Without the admission key, anyone who can reach a relay could store files on it**; the key is what
+  stops that, so keep it as private as the link code.
 
 What it does not do:
 
 - There is no key rotation: someone who gets your link code can read everything sealed with it, including old files
-  still on the relay. If a code leaks, make a new group on every device (Devices → Leave group, then Link a device).
-- A lost or stolen device is removed only by making a new group.
-- The relay can delete or hold back files (then devices just don't see each other's changes), but it can't change
-  them: a changed file doesn't open.
+  still on the relay (they stay up to 30 days after the last write). If a code leaks, make a new group on every device
+  (Devices → Leave group, then Link a device).
+- A lost or stolen device is removed only by making a new group. Every device in a group can write any other device's
+  file and delete it, because they share one key.
+- The relay can't read or change the contents of a file (a changed file doesn't open). It **can** hold files back, delete
+  them, and serve an older copy of a file; a device then just doesn't see a newer change (the Devices tab shows
+  "Behind by …" for a device whose file is old). Anyone who has the group's token on that relay (a hostile relay that
+  saw it, for example) can also overwrite or delete the group's files there.
+- **The join QR and the link code are the key to all your data.** Never photograph, screen-share or post them, and
+  never open a join link that you did not just make yourself on your own device. A link from a message or a web page
+  can move your phone into someone else's group and send its data to their server; the phone asks before it does
+  (and asks twice before leaving your current group), but only you can tell whose link it is.
 
 ### 10.2 Get the relay program
 
@@ -310,17 +326,27 @@ The relay is built from AccountabiliBuddy's source (you need the .NET 10 SDK), o
 - Docker: from the source folder `deploy/relay`, run `docker compose up -d --build`.
 
 Options: `--urls <https address>` (default `https://0.0.0.0:8743`), `--data <folder>` (where it keeps the files and its
-certificate), `--proxy` (plain HTTP on 127.0.0.1 for a reverse proxy, section 10.4) and `--max-disk-mb <n>` (default 2048).
+certificate and admission key), `--proxy` (plain HTTP on 127.0.0.1 for a reverse proxy, section 10.4),
+`--max-disk-mb <n>` (default 2048), `--max-groups <n>` (default 16) and `--version` (prints the build and the .NET
+runtime it runs on, then exits; the same line is printed every time the relay starts).
 
-On its first start without `--proxy` it makes a self-signed certificate (`relay.pfx` in the data folder, valid 10 years)
-and prints, and keeps in `relay-address-and-pin.txt` in the data folder, lines like:
+On its first start without `--proxy` it makes a self-signed certificate (`relay.pfx` in the data folder, valid 10 years,
+no names in it) and, with or without `--proxy`, an admission key (`relay-admission.key`). It prints, and keeps in
+`relay-address-and-pin.txt` in the data folder, lines like:
 
 ```
 relay address: https://192.168.1.20:8743   pin: ZAgybCIdjRsEetCcRP0UHQ9oJRvHalRvDK-ih1-by1I
+admission key: 3q2-7wXk0b1v9c5lYtPzJq8mRnHdQ4aUe6sGfBoTiVw   (a device needs it to start a new group here; ...)
 ```
 
 The pin is the same for every address of that relay. Deleting `relay.pfx` makes a new certificate and a new pin, and
-every device must then be given the new pin.
+every device must then be given the new pin. Deleting `relay-admission.key` makes a new key (devices that already have a
+group keep working; a device that still has to start a group needs the new key). The data folder is made readable only by
+the account that runs the relay; if you make the folder yourself, do the same (on Windows, remove "Users" from its
+permissions), because it holds the certificate's private key and the key.
+
+The in-app relay (Devices → Run a relay on this PC) knows its own key and puts it in the join QR by itself; you only
+need to copy the key by hand for a relay that runs somewhere else.
 
 ### 10.3 At home, and away from home through a VPN (pinned certificate)
 
@@ -330,17 +356,18 @@ This is the simplest and safest setup: the relay is never on the public internet
    - **Windows:** in an administrator PowerShell, from the source folder:
      `pwsh deploy/relay/install-windows-task.ps1 -ExePath .\publish\relay\win-x64\AccountabiliBuddy.Relay.exe -OpenFirewall`.
      It runs the relay at startup under a service account and opens the port on Private and Domain networks only.
-     The address and pin are in `C:\ProgramData\AccountabiliBuddyRelay\relay-address-and-pin.txt`.
+     The address, pin and admission key are in `C:\ProgramData\AccountabiliBuddyRelay\relay-address-and-pin.txt`.
    - **Linux:** copy the linux build to `/opt/accountabilibuddy-relay/`, copy `deploy/relay/accountabilibuddy-relay.service`
      to `/etc/systemd/system/` and run `sudo systemctl enable --now accountabilibuddy-relay` (the unit's comments have the
-     user and folder to make first). Read the pin with `journalctl -u accountabilibuddy-relay`.
+     user and folder to make first). Read the pin and the admission key with `journalctl -u accountabilibuddy-relay`.
    - **Docker:** `docker compose up -d --build` in `deploy/relay`, then `docker compose logs relay`. In Docker the printed
-     names are the container's own: use your host's address with port 8743 and the printed pin.
+     names are the container's own: use your host's address with port 8743 and the printed pin. Note that Docker publishes
+     the port around `ufw` and most host firewalls, so in this mode 8743 is open to every network the machine is on.
 2. At home, devices on the same network use the relay's LAN address (`https://192.168.1.20:8743`). Give that computer a
    fixed address in your router so it doesn't change.
 3. Away from home, put the relay's computer and your phone on a **mesh VPN** such as Tailscale (or your own WireGuard,
    section 7) and use the relay's VPN address or name instead. Open nothing on your router.
-4. In the apps, type the address and the **pin** exactly as printed. The pin is what proves it is your relay; the
+4. In the apps, type the address, the **pin** and the **admission key** exactly as printed. The pin is what proves it is your relay; the
    certificate's name doesn't have to match the address.
 
 If the pin ever doesn't match, the apps stop and say so. They never fall back to an unchecked connection.
@@ -355,10 +382,16 @@ Use this when you want to reach the relay from anywhere without a VPN. It needs 
 3. Install **Caddy** and use `deploy/relay/Caddyfile` with your name. Caddy gets and renews the Let's Encrypt
    certificate by itself and forwards to the relay. Ports **80** (only for the certificate check) and **443** must reach
    the server. The Caddyfile already sends the push stream through without buffering and limits bodies to 5 MB.
-4. In the apps type `https://relay.example.com` and **leave the pin empty**: the certificate is checked normally.
+4. In the apps type `https://relay.example.com`, **leave the pin empty** (the certificate is checked normally) and enter
+   the **admission key** the relay printed.
 
-Keep the server patched. A public relay is a target for scanners; the token check and the limits stop most abuse, but
-it is not hardened like a hosted service. If you can, prefer section 10.3.
+The relay tells clients apart by the **last** `X-Forwarded-For` entry, which the proxy must set itself. Caddy does that
+by default. With another proxy, replace the header with the real client address, never append to the one the client
+sent (nginx: `proxy_set_header X-Forwarded-For $remote_addr;`); otherwise anyone can dodge the per-address limits.
+
+**Keep the server patched, and the relay too** (section 10.7: the operating system's updates do not update the relay).
+A public relay is a target for scanners; the admission key, the token check and the limits stop most abuse, but it is
+not hardened like a hosted service. If you can, prefer section 10.3.
 
 ### 10.5 On a rented server (VPS)
 
@@ -366,27 +399,33 @@ Any small Linux server works: 1 vCPU, 1 GB RAM and 10 GB of disk are plenty (the
 
 1. Set it up as in section 8 (SSH key only, no root login, `ufw`, automatic updates).
 2. Firewall: allow **only** SSH, 80 and 443 (`sudo ufw allow OpenSSH`, `sudo ufw allow 80/tcp`, `sudo ufw allow 443/tcp`).
-   The relay's own port (8743) stays closed, because Caddy reaches it on 127.0.0.1.
+   The relay's own port (8743) stays closed **only when the relay runs with `--proxy`** (it then listens on 127.0.0.1 and
+   Caddy reaches it there). In Docker, use the proxy-mode lines of `docker-compose.yml` (host network): the default
+   `ports: "8743:8743"` publishes the port around `ufw`, so `ufw` would not keep it closed.
 3. Install Docker (or copy the `linux-x64` or `linux-arm64` build and the systemd unit) and run the relay with `--proxy`,
    then set up Caddy as in section 10.4.
 4. Or skip Caddy and a DNS name: run it pinned (section 10.2) and open only its port (`sudo ufw allow 8743/tcp`), then use
-   `https://<server address>:8743` with the pin. The pinned certificate still protects the connection; a name and
-   Let's Encrypt only make the address nicer.
+   `https://<server address>:8743` with the pin and the admission key. The pinned certificate still protects the
+   connection; a name and Let's Encrypt only make the address nicer. Without the admission key, strangers could use
+   the open port to store files on your server, so never remove that requirement.
 
 ### 10.6 Turn it on in AccountabiliBuddy
 
 **PC**
 
-1. Devices → How this PC shares → **Own relay**. Type the address and the pin (empty for a Caddy relay), then
-   **Save address**.
+1. Devices → How this PC shares → **Own relay**. Type the address, the pin (empty for a Caddy relay) and the admission
+   key, then **Save address**. (A relay you run on this PC with "Run a relay on this PC" fills all three in itself.)
 2. Press **Test connection**. It says whether the relay answered and whether the certificate was accepted.
 3. Tick **Own relay**. The line under it says "Connected" once the push stream is open.
 
 **Phone and other PCs**
 
-- Devices → **Link a device** on the PC shows a QR code that carries the relay's address and pin next to the link
-  code. Scanning it on the phone joins the group and sets up the relay in one step. (The pin is not secret.)
-- Or enter the address and pin by hand in the phone's Own relay section.
+- Devices → **Link a device** on the PC shows a QR code that carries the relay's address, pin and admission key next
+  to the link code. Scanning it on the phone joins the group and sets up the relay in one step. (The pin is not secret.
+  **The QR is the key to all your data**, so never photograph, screen-share or post it.) The phone first shows what the
+  link would change: whether it leaves the group it is in (that asks twice), and the relay's host, with a warning when
+  that is a relay on the internet or one the phone doesn't use now. Only tap Join for a link you just made yourself.
+- Or enter the address, pin and admission key by hand in the phone's Own relay section.
 
 The PC writes its file about a second after a change, reads other devices' files as soon as the relay says they
 changed, and checks again every 5 minutes in case the push stream missed something (every 10 seconds during a session
@@ -396,12 +435,34 @@ it as up to date. The stream reconnects by itself, waiting 1 second at first and
 When this PC leaves the group (or joins another), it deletes its own file from the relay. Other devices' files stay
 until those devices leave or 30 days pass.
 
-### 10.7 Updating the relay
+### 10.7 Keeping the relay patched
 
-Build the new version the same way and replace the program: Windows, run `install-windows-task.ps1` again with the new
-`-ExePath` (it keeps the data); Linux, copy the new file over `/opt/accountabilibuddy-relay/` and
-`sudo systemctl restart accountabilibuddy-relay`; Docker, `docker compose up -d --build`. The stored files and the
-certificate (the data folder or volume) stay, so the pin stays. Keep the relay at least as new as your apps.
+The relay is the one part of AccountabiliBuddy that listens for connections, and the program that does that is .NET's
+web server (Kestrel), which gets security fixes (usually on the second Tuesday of a month). **Updating the server's
+operating system does not update it**: a self-contained build and a Docker image carry their own copy of .NET, frozen
+at the day they were built. So a relay you built once and left running keeps its old runtime until you rebuild it.
+
+| How the relay runs | When to rebuild | How |
+|---|---|---|
+| On this PC (Devices → Run a relay on this PC) | Nothing to do | It ships inside the app and updates with it (Updates in About). |
+| Windows task (`install-windows-task.ps1`) | On every AccountabiliBuddy release, and after each monthly .NET security update | `pwsh scripts/publish-relay.ps1 -Rids win-x64` from an up-to-date source folder, then `pwsh deploy/relay/install-windows-task.ps1 -ExePath .\publish\relay\win-x64\AccountabiliBuddy.Relay.exe -OpenFirewall` (it keeps the data). Install the current .NET 10 SDK first (Windows Update does not update it; `dotnet --version`). |
+| Linux (systemd) | Same | `pwsh scripts/publish-relay.ps1 -Rids linux-x64` (or `linux-arm64`), copy the file over `/opt/accountabilibuddy-relay/`, then `sudo systemctl restart accountabilibuddy-relay`. |
+| Docker | Same, and at least once a month | In `deploy/relay`: `docker compose build --pull && docker compose up -d`. (`--pull` fetches the newest .NET images; without it Docker may reuse an old one. `restart: unless-stopped` never rebuilds anything.) |
+
+How to check: the relay prints its build and .NET runtime when it starts (`journalctl -u accountabilibuddy-relay`,
+`docker compose logs relay`, the PC's relay log) and with `--version` (Docker: `docker compose run --rm relay --version`).
+Compare the runtime version with the newest .NET 10 release on dotnet.microsoft.com. The stored files, the certificate
+and the admission key (the data folder or volume) stay through a rebuild, so the pin and the key stay.
+
+Put a reminder in your calendar for the second week of every month. A relay on the public internet (section 10.4) that
+is months behind is the most likely way for this setup to be attacked; a relay on your home network or a VPN (10.3) is
+much less exposed, but patch it too. Keep the relay at least as new as your apps.
+
+After updating the apps from a version before the relay used one group id and token per relay, the devices start a new
+group on the relay (the old one is cleaned up after 30 days), and starting a group needs the admission key: enter it on
+each device that doesn't get it from a join link.
+
+### 10.8 When the relay doesn't work
 
 ### 10.8 When the relay doesn't work
 
@@ -411,6 +472,7 @@ certificate (the data folder or volume) stay, so the pin stays. Keep the relay a
 | "The relay's certificate doesn't match the pin" | Nothing was sent. If you deleted `relay.pfx` or moved to a new relay, enter the new pin. If you did not, something may be sitting between the device and the relay: don't go on until you know what. |
 | "The relay's certificate isn't trusted" | A relay with its own certificate needs its pin typed in. For a Caddy relay, check the DNS name and that Caddy got its certificate. |
 | "This group already belongs to someone else on that relay (403)" | Your group's id and token come from the same link code, so this shouldn't happen for your own group. It means the relay already holds that group id under a different token (for example data left by another build). Delete that group's folder (named by the group id) in the relay's data folder, or wait 30 days, and let the devices write again. |
-| "The relay is limiting this PC (429)" | Too many requests, or too many new groups from one address in a day. It tries again by itself. |
+| "This relay needs its admission key to start a new group (428)" | Enter the admission key the relay printed (Devices → Own relay on the PC, the phone's Own relay section), or join with the link from a device that has it. The key is in `relay-admission.key` and `relay-address-and-pin.txt` in the relay's data folder. |
+| "The relay is limiting this PC (429)" | Too many requests, or too many new groups from one address in a day, or the relay already holds its maximum number of groups (`--max-groups`, default 16; groups with no files for 30 days are removed). It tries again by itself. |
 | "The relay's disk is full (507)" | Raise `--max-disk-mb` or free space. |
 | Changes arrive in minutes, not seconds | The push stream isn't open: some proxies and security software cut long-lived connections. Behind Caddy use the provided Caddyfile; the fallback checks still work (every 10 seconds in a session, else every 5 minutes). |

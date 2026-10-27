@@ -6,8 +6,17 @@ internal static class RelayLimits
     public const int MaxFileBytes = 4 * 1024 * 1024;
     public const int MaxFilesPerGroup = 64;
 
-    /// <summary>Trust-on-first-use lets anyone claim a new group id, so the number of groups is capped too.</summary>
-    public const int MaxGroups = 1000;
+    /// <summary>
+    /// The default for <c>--max-groups</c>: a personal relay serves a handful of groups. A cap stops a flood of new
+    /// groups, and the admission key (<see cref="AdmissionKey"/>) stops strangers from making any.
+    /// </summary>
+    public const int DefaultMaxGroups = 16;
+
+    /// <summary>The header that carries the admission key on the PUT that creates a group.</summary>
+    public const string AdmissionHeader = "X-Relay-Admission";
+
+    /// <summary>The longest a request body may take to arrive (a slow trickle would hold a connection slot).</summary>
+    public static readonly TimeSpan BodyDeadline = TimeSpan.FromSeconds(30);
 
     public const int MaxStreamsPerIp = 8;
     public const int MaxConnectionsPerIp = 32;

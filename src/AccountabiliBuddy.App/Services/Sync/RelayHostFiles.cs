@@ -7,13 +7,16 @@ using AccountabiliBuddy.Core.Sync;
 namespace AccountabiliBuddy.App.Services.Sync;
 
 /// <summary>
-/// The hosted relay's data folder (ADR 46): the certificate it made (<c>relay.pfx</c>, whose fingerprint is the pin), the
+/// The hosted relay's data folder (ADR 46): the certificate it made (<c>relay.pfx</c>, whose fingerprint is the pin), its
+/// admission key (<c>relay-admission.key</c>, which lets a device start a new group on it), the
 /// sealed files it stores (one folder per group, named by 32 hex characters), and the addresses other devices reach this
 /// PC by. Never opens or shows what the stored files hold: they are sealed bytes.
 /// </summary>
 public sealed class RelayHostFiles
 {
     private const string CertificateFileName = "relay.pfx";
+    private const string AdmissionFileName = "relay-admission.key";
+    private const int AdmissionKeyLength = 43;
     private const int GroupFolderNameLength = 32;
 
     private string? _cachedPin;
@@ -46,6 +49,23 @@ public sealed class RelayHostFiles
             return _cachedPin;
         }
         catch (Exception ex) when (ex is IOException or System.Security.Cryptography.CryptographicException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The relay's admission key (what lets a device start a new group on it), or null until the relay has made it. It is
+    /// read from the data folder, where only this user can read it.
+    /// </summary>
+    public string? ReadAdmissionKey()
+    {
+        try
+        {
+            string key = File.ReadAllText(Path.Combine(DataDirectory, AdmissionFileName)).Trim();
+            return key.Length == AdmissionKeyLength ? key : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return null;
         }

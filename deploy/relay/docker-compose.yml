@@ -13,11 +13,15 @@ services:
     restart: unless-stopped
     volumes:
       - relay-data:/data
+    # Docker publishes this port itself, around ufw and most host firewalls: in this mode 8743 IS open to every network the
+    # machine is on, whatever "ufw status" says. Behind Caddy use the proxy mode below, which publishes nothing.
     ports:
       - "8743:8743"
     # Proxy mode instead (delete "ports" above, then uncomment these two lines):
     # network_mode: host
     # command: ["--proxy"]
+    # Optional: a personal relay holds a handful of groups (default 16); lower it to stop strangers filling it.
+    # command: ["--max-groups", "4"]
 
 volumes:
   relay-data:
