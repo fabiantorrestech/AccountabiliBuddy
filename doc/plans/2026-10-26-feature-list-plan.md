@@ -56,6 +56,9 @@ Opus 5.5 high, implementers Opus 5.5 medium), one item or one group of items tha
 | C 12 + C 13 planning | Planning has its own countdown bar. When it ends: a sound + "Ready?" with Start / +2 / +5 / +15. Then a fresh countdown bar for the full session length. The session timer counts down by default. Planning isn't focus time. PC, phone, watch. Record in doc/hard-rules.md. |
 | C 14 | Number the tasks (1. 2. 3.) in Today on PC, phone, watch and in the Ctrl+Alt overlay. |
 | C 15 work window | Folded into the day plan rework (phase 8). |
+| PC test session (new, like A 1) | Today → More options, 1 minute by default, adjustable. Runs like a real session on the PC (enforcement, prompts, overlay), but is never counted, never in History and never synced. First use: confirm the Alt+Tab fix (PC 7), then remove its DIAG logging. |
+| Places (new, not in the note yet) | Location-based focus spots per device: Focus / Sometimes / Free / Not now; network first (VPN-proof), location as backup; spots only add rules. Full decisions: `doc/plans/2026-10-26-phase12-places-plan.md` (ADR 44 first). |
+| Future: auto-start at a spot | An option, off by default; needs an ADR 18 amendment. After Places. |
 
 ## Phases
 
@@ -68,7 +71,8 @@ Opus 5.5 high, implementers Opus 5.5 medium), one item or one group of items tha
 7. **Integrations.** C 7, C 11 (ADR).
 8. **Day plan rework** once the week is described (now includes C 15).
 9. **Claude Design.** PC 6.1 overlay redesign, C 4.1-4.3.
-10. **Added bugs.** PC 12, PC 13, PC 14, PC 17, PC 19, PC 20, A 2, A 3. After phase 4a and the goal-sync bug.
+10. **Added bugs.** PC test session first (needed to test the rest), then PC 12, PC 13, PC 14, PC 17, PC 19, PC 20, A 2, A 3. After phase 4a and the goal-sync bug.
 11. **Added features.** PC 16, PC 18.1, PC 21, C 14, then PC 15 (step away + side task), then C 12 + C 13 (planning bar). Before phase 9.
+12. **Places.** ADR 44, Core, PC network sensor + cards + Settings → Places, PC location fallback, then the phone. After phase 11, before phase 9.
 
 Each phase: a detailed plan (files, steps, acceptance checks) agreed with the user, then implementation.
