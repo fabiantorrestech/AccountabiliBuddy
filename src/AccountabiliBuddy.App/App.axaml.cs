@@ -112,6 +112,10 @@ public partial class App : Application
     private WorkGateService? _workGate;
     private WorkGateWindow? _workGateWindow;
     private StartNudgeCardWindow? _startNudgeCardWindow;
+    private CardBackdrop? _startNudgeBackdrop;
+    private CardKeeper? _startNudgeKeeper;
+    private readonly IVirtualDesktops _virtualDesktops = new WindowsVirtualDesktops();
+    private readonly IForegroundFocus _foregroundFocus = new WindowsForegroundFocus();
     private AwayCardWindow? _awayCardWindow;
     private PickTasksWindow? _pickTasksWindow;
     private ReadyCardWindow? _readyCardWindow;
@@ -1613,6 +1617,11 @@ public partial class App : Application
         var window = new StartNudgeCardWindow { DataContext = card };
         window.Closed += (_, _) =>
         {
+            // The dim layers and the keeper go with the card, however it closed.
+            _startNudgeKeeper?.Dispose();
+            _startNudgeKeeper = null;
+            _startNudgeBackdrop?.Dispose();
+            _startNudgeBackdrop = null;
             if (_startNudgeCardWindow == window)
             {
                 // Closed some other way: it opens again at the next check.
@@ -1626,8 +1635,13 @@ public partial class App : Application
         }
 
         _startNudgeCardWindow = window;
+        // Dim every monitor behind the card, and keep both on the virtual desktop the user is looking at and in the foreground.
+        _startNudgeBackdrop = new CardBackdrop(window);
+        _startNudgeBackdrop.Show();
         window.Show();
         window.Activate();
+        _startNudgeBackdrop.Raise();
+        _startNudgeKeeper = new CardKeeper(_virtualDesktops, _foregroundFocus, _startNudgeBackdrop, window);
     }
 
     /// <summary>

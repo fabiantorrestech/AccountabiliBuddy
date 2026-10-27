@@ -1,0 +1,11 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="AccountabiliBuddy.App.Views.ScreenDimWindow"
+        Title="AccountabiliBuddy dim"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False"
+        WindowStartupLocation="Manual"
+        TransparencyLevelHint="Transparent" Background="Transparent">
+    <!-- A 55% black layer over one monitor, behind a card. Not fully transparent, so clicks land here instead of the app underneath. -->
+    <Border Background="#8C000000" />
+</Window>
