@@ -4,7 +4,7 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="Name">The device's own name, e.g. the PC's machine name. Never part of a file name (ADR 22).</param>
 /// <param name="Kind"><see cref="KindPc"/>, <see cref="KindPhone"/> or <see cref="KindWatch"/>.</param>
 /// <param name="WrittenAt">When the device wrote the file; a running session's end is taken as this time.</param>
-/// <param name="Methods">The methods this device uses: <see cref="MethodLink"/> (old files only), <see cref="MethodFolder"/>, <see cref="MethodQr"/>, <see cref="MethodFile"/>.</param>
+/// <param name="Methods">The methods this device uses: <see cref="MethodLink"/> (old files only), <see cref="MethodFolder"/>, <see cref="MethodQr"/>, <see cref="MethodFile"/>, <see cref="MethodDrive"/>.</param>
 /// <param name="HistoryOff">
 /// Activity history is off on the device: the file carries no sessions or drift, and receivers delete the ones they
 /// have from it (ADR 15).

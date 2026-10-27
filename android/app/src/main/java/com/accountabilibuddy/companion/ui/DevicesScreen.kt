@@ -506,6 +506,7 @@ object DevicesModel {
         SyncDeviceCard.METHOD_LINK -> "network link (old)"
         SyncDeviceCard.METHOD_FOLDER -> "sync folder"
         SyncDeviceCard.METHOD_QR -> "QR codes"
+        SyncDeviceCard.METHOD_DRIVE -> "Google Drive"
         else -> "sync file"
     }
 }

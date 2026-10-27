@@ -808,6 +808,11 @@ public sealed class SyncCoordinator
             methods.Add(SyncDeviceCard.MethodFile);
         }
 
+        if (settings.DriveOn)
+        {
+            methods.Add(SyncDeviceCard.MethodDrive);
+        }
+
         return methods;
     }
 

@@ -496,6 +496,11 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
             methods.Add(SyncDeviceCard.MethodFile);
         }
 
+        if (settings.DriveOn)
+        {
+            methods.Add(SyncDeviceCard.MethodDrive);
+        }
+
         return methods;
     }
 
@@ -511,6 +516,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
             SyncDeviceCard.MethodLink => "network link (deleted)", // old files may still name it
             SyncDeviceCard.MethodFolder => "sync folder",
             SyncDeviceCard.MethodQr => "QR codes",
+            SyncDeviceCard.MethodDrive => "Google Drive",
             _ => "sync file",
         };
     }
