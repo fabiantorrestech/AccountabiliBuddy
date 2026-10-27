@@ -107,6 +107,9 @@ class SyncCoordinator(
     /** Where the phone is during a PC session (phase 11b): label, times and counts; null when there's none. */
     var placement: () -> com.accountabilibuddy.shared.sync.SyncPlacement? = { null }
 
+    /** True while a PC focus session runs (phase 11b), so the phone's file is rewritten every 2 minutes for the placement; set by the app. */
+    var inFocusSession: () -> Boolean = { false }
+
     /** The pickups during the other devices' counted sessions of the last 14 days; null without Usage access. */
     fun pickups(): List<SyncPickup>? {
         val now = now()
@@ -217,16 +220,22 @@ class SyncCoordinator(
 
     /**
      * For the sync folder (or Drive or the relay, [cameBy]): this phone's own file, and what it carries that didn't come that way and
-     * is newer than that device's file there ([inFolder]), each under its device's folder name.
+     * is newer than that device's file there ([inFolder]), each under its device's folder name. The own file is left out
+     * while [gate] says nothing changed (see [OwnFileWriteGate]); call [OwnFileWriteGate.written] after writing it.
      */
-    fun filesForFolder(inFolder: Map<UUID, Instant>, cameBy: String = SyncDeviceCard.METHOD_FOLDER): List<FolderFile> {
+    fun filesForFolder(inFolder: Map<UUID, Instant>, gate: OwnFileWriteGate, cameBy: String = SyncDeviceCard.METHOD_FOLDER): List<FolderFile> {
         val key = identity.key.value ?: return emptyList()
         val own = ownFile()
         val carried = store.devices.value
             .filter { it.method != cameBy }
             .filter { device -> inFolder[device.file.device.deviceId]?.let { device.file.device.writtenAt > it } ?: true }
             .map { FolderFile(SyncFolder.fileNameFor(key.groupId, it.file.device.deviceId), it.file.device.deviceId, it.file.device.writtenAt, it.sealed) }
-        return listOf(FolderFile(SyncFolder.fileNameFor(key.groupId, identity.deviceId), identity.deviceId, own.device.writtenAt, SyncFileCodec.seal(own, key))) + carried
+        val ownFile = if (gate.due(own, now(), inFocusSession())) {
+            listOf(FolderFile(SyncFolder.fileNameFor(key.groupId, identity.deviceId), identity.deviceId, own.device.writtenAt, SyncFileCodec.seal(own, key), own = true))
+        } else {
+            emptyList()
+        }
+        return ownFile + carried
     }
 
     private fun ownSealed(): ByteArray? = identity.key.value?.let { SyncFileCodec.seal(ownFile(), it) }
