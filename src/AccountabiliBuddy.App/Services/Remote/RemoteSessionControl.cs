@@ -1,12 +1,12 @@
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
-using AccountabiliBuddy.Core.Link;
+using AccountabiliBuddy.Core.Sync;
 
 namespace AccountabiliBuddy.App.Services.Remote;
 
 /// <summary>
-/// Starting and ending the PC's session from another device, by the PC's own rules, for both ways a phone reaches the
-/// PC: the link (ADR 14) and the sync files (ADR 42). A start is refused while a session runs; ending early takes the
+/// Starting and ending the PC's session from another device, by the PC's own rules, as the phone asks in a sync file
+/// (ADR 42). A start is refused while a session runs; ending early takes the
 /// End session dialog's wait and reason, except for breaks and sessions that end on command
 /// (<see cref="BypassPolicy.EndsOnCommand"/>). UI thread only: the callers move there.
 /// </summary>
@@ -110,7 +110,7 @@ public sealed class RemoteSessionControl
     public Guid? CountUpProfileId => _quickSession.CountUpProfileId;
 
     /// <summary>What ending the running session early takes now; null when none runs.</summary>
-    public LinkEndEarlyTerms? EndEarlyTerms()
+    public EndEarlyTerms? EndEarlyTerms()
     {
         SessionState state = _sessions.State;
         if (!state.IsActive)
@@ -121,18 +121,18 @@ public sealed class RemoteSessionControl
         DateTimeOffset now = _sessions.Now;
         if (!state.IsEnforcing)
         {
-            return new LinkEndEarlyTerms(0, 0, now, "On a break: it ends right away.");
+            return new EndEarlyTerms(0, 0, now, "On a break: it ends right away.");
         }
 
         if (_sessions.EndsOnCommand)
         {
-            return new LinkEndEarlyTerms(0, 0, now, state.Mode == SessionMode.Scheduled
+            return new EndEarlyTerms(0, 0, now, state.Mode == SessionMode.Scheduled
                 ? "A scheduled block: it ends right away (your blocker still applies its own blocks)."
                 : "No set end: it ends right away.");
         }
 
         BypassSettings bypass = _sessions.BypassSettings;
-        return new LinkEndEarlyTerms((int)Math.Ceiling(bypass.WaitDuration.TotalSeconds), bypass.MinReasonLength, now + bypass.WaitDuration, null);
+        return new EndEarlyTerms((int)Math.Ceiling(bypass.WaitDuration.TotalSeconds), bypass.MinReasonLength, now + bypass.WaitDuration, null);
     }
 
     /// <summary>

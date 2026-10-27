@@ -454,7 +454,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
-    /// <summary>A phone is linked (paired, or its sync file received): only it measures sleep (ADR 35). Set by the app.</summary>
+    /// <summary>A phone is linked (its sync file received): only it measures sleep (ADR 35). Set by the app.</summary>
     public Func<bool> HasLinkedPhone { get; set; } = () => false;
 
     public bool CanUseSmartBedtime => HasLinkedPhone();

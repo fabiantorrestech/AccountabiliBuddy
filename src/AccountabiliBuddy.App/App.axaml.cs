@@ -84,7 +84,6 @@ public partial class App : Application
     private AccountabiliBuddy.App.Services.Setup.SetupFeaturesService? _setupFeatures;
     private EnforcementPresenter? _presenter;
     private Window? _coldTurkeyKeyWindow;
-    private AccountabiliBuddy.App.Services.Link.LinkService? _link;
     private AccountabiliBuddy.App.Services.Sync.SyncFolderService? _syncFolder;
     private AccountabiliBuddy.App.Services.Sync.SyncDriveService? _syncDrive;
     private AccountabiliBuddy.App.Services.Sync.QrSyncService? _qrSync;
@@ -519,22 +518,12 @@ public partial class App : Application
         // Beeminder (ADR 43): read only, through CalendarNetwork, only once the user pastes a token.
         _beeminder = new AccountabiliBuddy.App.Services.Beeminder.BeeminderService(_calendarNetwork, documents, dataProtector, time);
         _beeminder.LoadBlocking();
-        // A phone starting, ending early or editing the plan (ADR 14, 19, 42): the same rules over the link and the sync files.
+        // A phone starting, ending early or editing the plan (ADR 19, 42), through the sync files.
         var planEditTime = new DayPlanEditTimeService(_configuration, documents, () => _sessions.Now);
         planEditTime.LoadBlocking();
         var remoteControl = new AccountabiliBuddy.App.Services.Remote.RemoteSessionControl(_sessions, _configuration, _quickSession);
         var remotePlanEdits = new AccountabiliBuddy.App.Services.Remote.RemotePlanEdits(_sessions, _configuration, planEditTime);
-        // Linked devices (ADR 14): off until turned on in Setup.
-        var linkHost = new AccountabiliBuddy.App.Services.Link.LinkSessionHost(
-            _sessions, _configuration, _quickSession, documents, calendars, sleepSettings, dayBarSettings, activityLog, omittedSessions, deletedUsage, privacy,
-            remoteControl, remotePlanEdits);
-        linkHost.Gaps = sessionGaps;
-        // New activity and "Delete my data" change what paired devices were sent (ADR 15).
-        _recorder.LogChanged += (_, _) => linkHost.NotifyHistoryChanged();
-        _link = new AccountabiliBuddy.App.Services.Link.LinkService(
-            documents, new DpapiDataProtector(), linkHost, _sessions, new AccountabiliBuddy.Platform.Windows.Network.WindowsNetworkTrust());
-        _link.LoadBlocking();
-        // Sharing progress between the user's own devices (ADR 22): every method but the link is off until turned on.
+        // Sharing progress between the user's own devices (ADR 22): every method is off until turned on.
         var syncSettings = new AccountabiliBuddy.App.Services.Sync.SyncSettingsService(documents);
         syncSettings.LoadBlocking();
         var receivedDevices = new AccountabiliBuddy.App.Services.Sync.ReceivedDevicesService(documents, time);
@@ -564,18 +553,14 @@ public partial class App : Application
             _sessions, _configuration, activityLog, omittedSessions, deletedUsage, privacy, sleepSettings, dayBarSettings, goal, documents, syncSettings,
             syncIdentity, receivedDevices, syncEditTimes);
         syncCoordinator.Gaps = sessionGaps;
-        // Guided sessions (ADR 24): the checklist goes to paired devices in the link's state and in this PC's sync file,
-        // each task with its category's name and colour.
-        linkHost.Tasks = () => sessionTasks.IsLive ? sessionTasks.Labelled(sessionTasks.Current) : null;
-        linkHost.CurrentTask = () => sessionTasks.IsLive ? sessionTasks.Current.CurrentId : null;
+        // Guided sessions (ADR 24): the checklist goes to other devices in this PC's sync file, each task
+        // with its category's name and colour.
         syncCoordinator.TasksOf = start => sessionTasks.ForSession(start) is { HasTasks: true } checklist ? sessionTasks.Labelled(checklist) : null;
         sessionTasks.Changed += (_, _) =>
         {
-            linkHost.NotifyTasksChanged();
             syncCoordinator.NotifyHistoryChanged();
         };
-        // Come-backs (ADR 30): the open ones go to paired devices in the link's state and in this PC's sync file.
-        linkHost.Comebacks = () => _comebacks!.Open.Select(comeback => new AccountabiliBuddy.Core.Link.LinkComeback(comeback.Id, comeback.Text, comeback.CreatedAt)).ToList();
+        // Come-backs (ADR 30): the open ones go to other devices in this PC's sync file.
         syncCoordinator.Comebacks = () => _comebacks!.Open.Select(comeback => new AccountabiliBuddy.Core.Sync.SyncComeback(comeback.Id, comeback.Text, comeback.CreatedAt)).ToList();
         // Beeminder (ADR 43): only the derived summary goes in this PC's sync file; removing the token removes it.
         syncCoordinator.Beeminder = _beeminder.SyncSummary;
@@ -609,7 +594,7 @@ public partial class App : Application
         };
         syncActions.Changed += (_, _) => _syncDrive?.UpdatePollInterval();
         syncCoordinator.Acks = () => syncActions.Acks;
-        // ADR 42: the answers, the end-early offer and the running session's task and profiles, for a phone without the link.
+        // ADR 42: the answers, the end-early offer and the running session's task and profiles, for the phone.
         syncCoordinator.ActionResults = () => syncActions.Results;
         syncCoordinator.EndEarlyOffer = () => syncActions.EndEarlyOffer;
         syncCoordinator.CurrentTask = () => sessionTasks.IsLive ? sessionTasks.Current.CurrentId : null;
@@ -629,7 +614,7 @@ public partial class App : Application
             remind: (title, message) => presenter.ShowReminder(title, message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#CA8A04"))));
         // Calendar events in this PC's file too (ADR 26), so the phone's Calendar row stays current on Drive alone.
         syncCoordinator.Events = () => System.Text.Json.JsonSerializer.SerializeToElement(
-            AccountabiliBuddy.App.Services.Link.DeviceCalendarEvents.Build(calendars, DateOnly.FromDateTime(time.GetLocalNow().DateTime)));
+            AccountabiliBuddy.App.Services.Sync.DeviceCalendarEvents.Build(calendars, DateOnly.FromDateTime(time.GetLocalNow().DateTime)));
         calendars.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         syncActions.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() => _ = syncActions.ApplyAsync());
@@ -670,11 +655,9 @@ public partial class App : Application
         timelineDay.Lunch = () => _lunch.Taken;
         _comebacks!.Changed += (_, _) =>
         {
-            linkHost.NotifyTasksChanged();
             syncCoordinator.NotifyHistoryChanged();
         };
         syncCoordinator.LoadBlocking();
-        linkHost.UseSync(syncCoordinator, receivedDevices, syncIdentity, syncSettings);
         // The running log (ADR 22): the other devices' sessions on both day bars (History gets them below).
         _dayBar.UseReceived(receivedDevices);
         _dayBar.UseTasks(sessionTasks);
@@ -714,8 +697,7 @@ public partial class App : Application
         _setupAssistant = new SetupAssistantService(documents, time);
         _setupAssistant.LoadBlocking();
         _ = learnMode.BeginIfFirstRunAsync(_setupAssistant.HasBeenShown);
-        // ADR 29: the daily goal goes to paired devices with today's focus.
-        linkHost.GoalMinutes = () => goal.Current.DailyMinutes;
+        // ADR 29: the daily goal goes to other devices with today's focus.
         syncCoordinator.GoalMinutes = () => goal.Current.DailyMinutes;
         var blockerLocator = new WindowsBlockerSourceLocator();
         ConfigurationService configuration = _configuration;
@@ -780,11 +762,8 @@ public partial class App : Application
             return DataSearchSource.Entries(_configuration!.Current, events, searchUsage, shownNames);
         }
 
-        // The Devices tab (ADR 22): the group, the sharing methods and the phones paired over the link (from Setup).
-        var devices = new DevicesViewModel(syncIdentity, syncSettings, receivedDevices, syncCoordinator, _sessions, time)
-        {
-            LinkedDevices = new LinkedDevicesViewModel(_link, _sessions),
-        };
+        // The Devices tab (ADR 22): the group and the sharing methods.
+        var devices = new DevicesViewModel(syncIdentity, syncSettings, receivedDevices, syncCoordinator, _sessions, time);
         var sessionViewModel = new SessionViewModel(
             _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks), _quickSession)
         {
@@ -813,7 +792,6 @@ public partial class App : Application
         // Read again once the log has the session's start or end (not on the state change, which comes first).
         _recorder!.LogChanged += (_, _) => Dispatcher.UIThread.Post(() => _deepWork?.NotifyLogChanged());
         receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(() => _deepWork?.NotifyLogChanged());
-        goal.Changed += (_, _) => linkHost.NotifyHistoryChanged();
         goal.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         _deepWork.GoalReached += (_, progress) =>
             presenter.ShowReminder(progress.Text, "Today's deep-work goal is reached. Anything more is a bonus.",
@@ -904,7 +882,7 @@ public partial class App : Application
         var notebook = new NotebookViewModel(_comebacks!, _sessionNotes!, sessionTasks, time);
         var mainViewModel = new MainWindowViewModel(
             sessionViewModel,
-            new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, _link, exemptionDefaults),
+            new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, receivedDevices, exemptionDefaults),
             WithSleepGoal(new DayPlanViewModel(_configuration, _sessions), sleepSettings),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
             new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time,
@@ -938,8 +916,7 @@ public partial class App : Application
                 PcAlarmWarning = () => _pcAlarm!.WakeProblem(),
                 Reminders = new BedtimeRemindersViewModel(sleepSettings, () => _bedtimeReminder!.DeviceId()),
                 // ADR 35: only a linked phone measures sleep.
-                HasLinkedPhone = () => receivedDevices.Devices.Any(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone)
-                    || _link!.Devices.Any(device => device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone),
+                HasLinkedPhone = () => receivedDevices.Devices.Any(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone),
             },
             activityViewModel,
             Environment.GetEnvironmentVariable(DevToolsVariable) == "1",
@@ -982,7 +959,6 @@ public partial class App : Application
 
             await Step("sync folder", _syncFolder is null ? null : async () => { await _syncFolder.WriteNowAsync(); await _syncFolder.ReadNowAsync(); });
             await Step("Google Drive", _syncDrive is null ? null : async () => { await _syncDrive.WriteNowAsync(); await _syncDrive.ReadNowAsync(); });
-            linkHost.PushAll();
             await Step("calendars", _calendarSync is null ? null : _calendarSync.RefreshAllAsync);
             _dayBar?.ReloadHistory();
             await mainViewModel.History.RefreshCommand.ExecuteAsync(null);
@@ -990,13 +966,12 @@ public partial class App : Application
             return problems.Count == 0 ? $"Up to date · refreshed {at}" : $"Refreshed {at}, but: " + string.Join("; ", problems);
         };
 
-        // A session added, edited or deleted by hand (ADR 20): both day bars read the history again, and linked devices get it.
+        // A session added, edited or deleted by hand (ADR 20): both day bars read the history again, and other devices get it.
         DayBarViewModel addedSessionsBar = _dayBar;
         mainViewModel.History.AddedSessionsChanged += (_, _) =>
         {
             addedSessionsBar.ReloadHistory();
             timelineDay.ReloadHistory();
-            linkHost.NotifyHistoryChanged();
             syncCoordinator.NotifyHistoryChanged();
         };
         mainViewModel.History.UseReceived(receivedDevices);
@@ -1081,15 +1056,13 @@ public partial class App : Application
         mainViewModel.DayPlan.ShowPlanDay = ShowPlanDay;
         devices.ShowSyncQr = ShowSyncQr;
         devices.Import = syncImport;
-        devices.PairedDevices = () => _link.Devices;
-        devices.UnpairDevice = _link.UnpairAsync;
         devices.DriveAccount = driveAccount;
         devices.OpenBrowser = OpenInBrowser;
         devices.SyncNow = async () =>
         {
             await _syncFolder!.WriteNowAsync();
             await _syncDrive!.WriteNowAsync();
-            // Seals this PC's file again for the link, which hands it to connected devices.
+            // Seals this PC's file again.
             syncCoordinator.NotifyHistoryChanged();
         };
         ShowQrButtons(syncSettings.Current);
@@ -1172,27 +1145,7 @@ public partial class App : Application
         _bedtimeReminder.Start();
         _coldTurkey.ExpectedBlocksOff += (_, names) => presenter.ShowNotice("Cold Turkey block off", ColdTurkeyService.Describe(names));
         _coldTurkey.Start();
-        linkHost.EndedFromDevice += (_, reason) => presenter.ShowNotice("Session ended from your phone", reason);
         syncActions.EndedFromDevice += (_, reason) => presenter.ShowNotice("Session ended from your phone", reason);
-        _link.DevicePaired += (_, device) => presenter.ShowNotice("Device linked", $"{device.Name} is linked to this PC.");
-        // Once per network: "Phone link paused" on a network Windows marks Public, with a way to Windows' setting.
-        var publicNotices = new AccountabiliBuddy.App.Services.Link.PublicNetworkNoticeService(documents);
-        publicNotices.LoadBlocking();
-        _link.PausedOnPublicNetwork += async (_, network) =>
-        {
-            if (await publicNotices.ShouldTellAsync(network.Name, _link.Devices.Count > 0))
-            {
-                presenter.ShowChoice(
-                    $"Phone link paused on {network.Name}",
-                    $"Windows marks {network.Name} as Public, so AccountabiliBuddy doesn't listen for your phone here. If it's your own "
-                    + $"network, set it to Private: Settings → Network & internet → {(network.IsWireless ? "Wi-Fi" : "Ethernet")} → "
-                    + $"{network.Name} → Private network. Your phone reconnects by itself, no new pairing.",
-                    "Open network settings",
-                    () => OpenInBrowser(new Uri(network.IsWireless ? "ms-settings:network-wifi" : "ms-settings:network-ethernet")),
-                    () => { });
-            }
-        };
-        _ = _link.StartIfEnabledAsync();
         syncCoordinator.ClashRaised += (_, request) => ShowDayPlanClash(syncCoordinator, request, presenter, time);
         _syncFolder.Start();
         _syncDrive.Start();
@@ -2049,7 +2002,6 @@ public partial class App : Application
         _privateAccess?.Dispose();
         _coldTurkey?.Dispose();
         _coldTurkeyKeys?.Dispose();
-        _link?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
         _syncFolder?.Dispose();
         _syncDrive?.Dispose();
         _qrSync?.Dispose();

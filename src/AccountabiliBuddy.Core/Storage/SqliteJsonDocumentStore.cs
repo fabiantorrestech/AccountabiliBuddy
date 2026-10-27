@@ -49,4 +49,15 @@ public sealed class SqliteJsonDocumentStore
 
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>Removes the document; a key that was never saved is not an error.</summary>
+    public async Task DeleteAsync(string key, CancellationToken cancellationToken = default)
+    {
+        await using SqliteConnection connection = await _database.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM documents WHERE key = $key;";
+        command.Parameters.AddWithValue("$key", key);
+
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
 }

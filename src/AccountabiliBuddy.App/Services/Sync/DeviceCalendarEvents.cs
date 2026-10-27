@@ -1,13 +1,12 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using AccountabiliBuddy.Core.Link;
+using AccountabiliBuddy.Core.Sync;
 
-namespace AccountabiliBuddy.App.Services.Link;
+namespace AccountabiliBuddy.App.Services.Sync;
 
 /// <summary>
 /// The calendar events the user's other devices get (the visible calendars, yesterday to two weeks ahead), each with its
-/// calendar's colour: the same list for the link's settings message and the sync file (ADR 26), so the phone reads one
-/// shape.
+/// calendar's colour, in the sync file (ADR 26).
 /// </summary>
 public static class DeviceCalendarEvents
 {
@@ -23,7 +22,7 @@ public static class DeviceCalendarEvents
             {
                 if (seen.Add((entry.Event.CalendarId, entry.Event.Id)))
                 {
-                    JsonObject json = JsonSerializer.SerializeToNode(entry.Event, LinkFraming.JsonOptions)!.AsObject();
+                    JsonObject json = JsonSerializer.SerializeToNode(entry.Event, SyncJson.Options)!.AsObject();
                     json["color"] = entry.Calendar.Color;
                     events.Add(json);
                 }

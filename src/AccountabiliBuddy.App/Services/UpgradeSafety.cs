@@ -7,10 +7,16 @@ namespace AccountabiliBuddy.App.Services;
 /// Protects the data across updates. At launch, before anything reads the data: a database written by a newer
 /// version is refused, and the first launch of a new version saves a copy of the database to the backups folder
 /// (database migrations make their own copy too). Profiles migrate in memory when loaded, so the copy holds the old form.
+/// The same first launch deletes the stored secrets of the deleted Wi-Fi link (ADR 45).
 /// </summary>
 public static class UpgradeSafety
 {
     private const string DocumentKey = "app.version";
+
+    // What the deleted Wi-Fi link (ADR 14, 45) kept: its on/off and port, the paired devices (token hashes), the TLS
+    // certificate (DPAPI-encrypted) and the networks already told "Phone link paused".
+    private static readonly string[] WifiLinkDocumentKeys =
+        ["devices.settings", "devices.paired", "devices.identity", "devices.publicNetworksTold"];
 
     /// <returns>Why the data can't be opened, or null when it can.</returns>
     public static string? CheckBlocking(LocalDatabase database)
@@ -37,6 +43,11 @@ public static class UpgradeSafety
                 }
 
                 string? copy = hadData ? await database.BackupAsync($"version-{appVersion}") : null;
+                if (hadData)
+                {
+                    await DeleteWifiLinkDocumentsAsync(documents);
+                }
+
                 await documents.SaveAsync(DocumentKey, new AppVersionRecord(appVersion, time.GetUtcNow(), hadData ? last?.Version : null));
                 return copy;
             }
@@ -46,5 +57,17 @@ public static class UpgradeSafety
                 return null;
             }
         }).GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// Deletes the Wi-Fi link's stored secrets once, on the first launch of a new version (the version record is saved
+    /// after it, so a failure tries again next launch). Keys that were never saved are skipped quietly.
+    /// </summary>
+    private static async Task DeleteWifiLinkDocumentsAsync(SqliteJsonDocumentStore documents)
+    {
+        foreach (string key in WifiLinkDocumentKeys)
+        {
+            await documents.DeleteAsync(key);
+        }
     }
 }

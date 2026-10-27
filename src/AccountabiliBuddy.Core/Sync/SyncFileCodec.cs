@@ -1,14 +1,13 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
-using AccountabiliBuddy.Core.Link;
 
 namespace AccountabiliBuddy.Core.Sync;
 
 /// <summary>
 /// Seals and opens sync files (ADR 22). A sealed file is "ABS1", the key's 4-byte group id, a 12-byte random nonce, and
 /// then AES-256-GCM over the raw-Deflated UTF-8 JSON of the <see cref="SyncFile"/> (camelCase,
-/// <see cref="LinkFraming.JsonOptions"/>), ending with the 16-byte tag. The phone writes and reads the same bytes
+/// <see cref="SyncJson.Options"/>), ending with the 16-byte tag. The phone writes and reads the same bytes
 /// (android/shared).
 /// </summary>
 public static class SyncFileCodec
@@ -80,7 +79,7 @@ public static class SyncFileCodec
         SyncFile? file;
         try
         {
-            file = JsonSerializer.Deserialize<SyncFile>(json, LinkFraming.JsonOptions);
+            file = JsonSerializer.Deserialize<SyncFile>(json, SyncJson.Options);
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException or ArgumentException or FormatException)
         {
@@ -116,7 +115,7 @@ public static class SyncFileCodec
 
     private static byte[] Compress(SyncFile file)
     {
-        return Deflate(JsonSerializer.SerializeToUtf8Bytes(file, LinkFraming.JsonOptions));
+        return Deflate(JsonSerializer.SerializeToUtf8Bytes(file, SyncJson.Options));
     }
 
     private static byte[] Deflate(byte[] json)
