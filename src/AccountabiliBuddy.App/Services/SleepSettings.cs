@@ -18,11 +18,12 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="MaxHours">The smart bedtime's maximum sleep.</param>
 /// <param name="BedtimeReminders">The bedtime reminders (ADR 38; shared); null = the defaults.</param>
 /// <param name="UsePcAlarm">This PC rings its own alarm at the night's wake time, which is then the wake time (ADR 35); this PC's own, never shared.</param>
+/// <param name="OffWaited">With <see cref="Enabled"/> false: sleep mode was turned off after the looser-change wait (here or on the PC it came from), so another PC taking it from the sync file needn't wait again. Shared with the sleep document.</param>
 public sealed record SleepSettings(
     bool Enabled, bool SameEveryNight, SleepTimes Weeknights, SleepTimes Weekends, double GoalHours = 8, WakeOnce? WakeOnce = null,
     bool UsePhoneAlarm = true, bool UsePhoneBedtime = true,
     bool SmartWorkdays = false, bool SmartOffDays = false, double MinHours = 6.5, double MaxHours = 9, bool UsePcAlarm = false,
-    BedtimeReminderSettings? BedtimeReminders = null)
+    BedtimeReminderSettings? BedtimeReminders = null, bool OffWaited = false)
 {
     /// <summary>The bedtime reminders, the defaults when none were set (ADR 38).</summary>
     public BedtimeReminderSettings Reminders => BedtimeReminders ?? BedtimeReminderSettings.Default;

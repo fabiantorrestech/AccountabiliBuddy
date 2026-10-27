@@ -7,17 +7,28 @@ namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
 /// Loads, saves and announces changes to <see cref="SleepSettings"/>. The times follow the day plan's Sleep parts
-/// (<see cref="SaveFromPlanAsync"/>); only on/off is the user's own. Use from the UI thread only.
+/// (<see cref="SaveFromPlanAsync"/>); only on/off is the user's own. Turning sleep mode on applies at once; turning it
+/// off is a looser change, so it is refused during a focus session and otherwise waits like the other looser changes
+/// (<see cref="LockSettings.LooseningDelay"/>, counted by the trusted clock, kept in documents "sleep.pendingOff" so a
+/// restart doesn't skip the wait, and applied only while no session runs). Use from the UI thread only.
 /// </summary>
 public sealed class SleepSettingsService
 {
     private const string DocumentKey = "sleep";
+    private const string PendingOffKey = "sleep.pendingOff";
 
     private readonly SqliteJsonDocumentStore _store;
+    private readonly TimeProvider _time;
+    private readonly SessionController _sessions;
+    private readonly Func<TimeSpan> _offWait;
 
-    public SleepSettingsService(SqliteJsonDocumentStore store)
+    /// <param name="offWait">How long turning sleep mode off waits: the looser-change wait of the configuration in effect.</param>
+    public SleepSettingsService(SqliteJsonDocumentStore store, TimeProvider time, SessionController sessions, Func<TimeSpan> offWait)
     {
         _store = store;
+        _time = time;
+        _sessions = sessions;
+        _offWait = offWait;
     }
 
     public SleepSettings Current { get; private set; } = SleepSettings.Default;
@@ -31,7 +42,16 @@ public sealed class SleepSettingsService
     /// <summary>A paired phone's estimated wake per kind of morning (ADR 40) from its sync file; not saved here.</summary>
     public AccountabiliBuddy.Core.Sync.SyncWakeEstimate? PhoneWake { get; private set; }
 
+    /// <summary>When sleep mode turns off, while that is waiting; null when no off is pending.</summary>
+    public DateTimeOffset? PendingOffAt { get; private set; }
+
+    /// <summary>"Sleep mode turns off at 4:05 PM.", while an off is pending; otherwise null.</summary>
+    public string? PendingOffText => PendingOffAt is DateTimeOffset at ? $"Sleep mode turns off at {at.ToLocalTime():t}." : null;
+
     public event EventHandler<SleepSettings>? Changed;
+
+    /// <summary>A pending off was started, cancelled or applied.</summary>
+    public event EventHandler? PendingOffChanged;
 
     /// <summary>The phone's alarm, smart bedtime or wake estimate changed (not a change of the settings themselves).</summary>
     public event EventHandler? PhoneAlarmChanged;
@@ -110,13 +130,101 @@ public sealed class SleepSettingsService
         {
             Current = SleepSettings.Default;
         }
+
+        try
+        {
+            DateTimeOffset? pending = Task.Run(() => _store.LoadAsync<DateTimeOffset?>(PendingOffKey)).GetAwaiter().GetResult();
+            // An off that is no longer needed (sleep mode is off already) is dropped.
+            PendingOffAt = Current.Enabled ? pending : null;
+        }
+        catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
+        {
+            // Unreadable: sleep mode stays on, the stricter state.
+            PendingOffAt = null;
+        }
     }
 
-    public async Task SaveAsync(SleepSettings settings)
+    /// <summary>
+    /// Saves the settings. Turning sleep mode off is a looser change: it starts the wait (or leaves the running one as it
+    /// is) and sleep mode stays on until then; during a focus session it is refused. Everything else in
+    /// <paramref name="settings"/> is saved either way. Saving with sleep mode on leaves a pending off alone (other
+    /// settings change meanwhile): turning it back on is <see cref="CancelPendingOffAsync"/>.
+    /// </summary>
+    /// <param name="fromAnotherDevice">The settings came from another device's sync file: an off that device already waited
+    /// for (<see cref="SleepSettings.OffWaited"/>) applies at once, any other off waits here too, also during a session
+    /// (it then applies after it).</param>
+    /// <returns>Null when everything was saved as asked; otherwise what happened to the off.</returns>
+    public async Task<string?> SaveAsync(SleepSettings settings, bool fromAnotherDevice = false)
     {
+        string? note = null;
+        if (Current.Enabled && !settings.Enabled && (!fromAnotherDevice || !settings.OffWaited))
+        {
+            if (!fromAnotherDevice && _sessions.IsEnforcing)
+            {
+                note = "Sleep mode stays on: turning it off is locked while a focus session you started is running.";
+            }
+            else
+            {
+                await StartPendingOffAsync();
+                note = PendingOffText;
+            }
+
+            settings = settings with { Enabled = true, OffWaited = false };
+        }
+        else if (settings.Enabled)
+        {
+            settings = settings with { OffWaited = false };
+        }
+
         Current = settings;
         Changed?.Invoke(this, settings);
         await _store.SaveAsync(DocumentKey, settings);
+        return note;
+    }
+
+    /// <summary>Drops a pending off, which is turning sleep mode back on: it stays on.</summary>
+    public async Task CancelPendingOffAsync()
+    {
+        if (PendingOffAt is null)
+        {
+            return;
+        }
+
+        PendingOffAt = null;
+        PendingOffChanged?.Invoke(this, EventArgs.Empty);
+        await _store.DeleteAsync(PendingOffKey);
+    }
+
+    /// <summary>Turns sleep mode off once its wait is over and no session is running. Runs every second.</summary>
+    public async Task ApplyPendingOffIfDueAsync()
+    {
+        if (PendingOffAt is not DateTimeOffset at || _sessions.State.IsActive || _time.GetUtcNow() < at)
+        {
+            return;
+        }
+
+        PendingOffAt = null;
+        // Marked as waited, so another PC that gets this off from the sync file doesn't wait again.
+        SleepSettings updated = Current with { Enabled = false, OffWaited = true };
+        Current = updated;
+        Changed?.Invoke(this, updated);
+        PendingOffChanged?.Invoke(this, EventArgs.Empty);
+        await _store.DeleteAsync(PendingOffKey);
+        await _store.SaveAsync(DocumentKey, updated);
+    }
+
+    // A running wait is not restarted by asking again.
+    private async Task StartPendingOffAsync()
+    {
+        if (PendingOffAt is not null)
+        {
+            return;
+        }
+
+        DateTimeOffset readyAt = _time.GetUtcNow() + _offWait();
+        PendingOffAt = readyAt;
+        PendingOffChanged?.Invoke(this, EventArgs.Empty);
+        await _store.SaveAsync<DateTimeOffset?>(PendingOffKey, readyAt);
     }
 
     /// <summary>Changes the wake time of one night only (null = back to the plan's); the day plan stays as it is.</summary>

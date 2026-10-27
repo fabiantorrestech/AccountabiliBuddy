@@ -775,8 +775,8 @@ public sealed partial class DpAssistantViewModel : ObservableObject
         : (int)Math.Clamp(Math.Round((GoalHours ?? 1) * 2, MidpointRounding.AwayFromZero) * 30, MinGoalMinutes, MaxGoalMinutes);
 
     // The sleep settings with this page's answers; the wake source only when the page changed it (the stored plan night may be
-    // woken by an alarm while the source stays the user's). Skipping turns sleep mode off at once, as Settings → Sleep does
-    // (these are the user's own switches, saved at once and not held, and also changeable during focus there).
+    // woken by an alarm while the source stays the user's). Skipping turns sleep mode off, which waits like any looser
+    // change, as Settings → Sleep does (SleepSettingsService.SaveAsync); the other switches are the user's own, saved at once.
     private SleepSettings BuildSleepSettings()
     {
         SleepSettings now = _sleep.Current;
@@ -787,6 +787,20 @@ public sealed partial class DpAssistantViewModel : ObservableObject
 
         SleepSettings next = now with { Enabled = true, SmartWorkdays = SmartWorkdays, SmartOffDays = SmartOffDays };
         return WakeChoice == _initialWakeChoice ? next : next with { UsePhoneAlarm = WakeChoice == 0, UsePcAlarm = WakeChoice == 1 };
+    }
+
+    // Skipping Sleep turns sleep mode off, a looser change: it waits (the running wait, if one already counts down).
+    private string SleepSkipNote()
+    {
+        const string Loses = "bedtime reminders, the sleep line on the day bar and the wake-up alarms won't work";
+        if (!_sleep.Current.Enabled)
+        {
+            return $"Sleep is skipped and sleep mode is off already: {Loses}.";
+        }
+
+        DateTimeOffset turnsOffAt = _sleep.PendingOffAt
+            ?? _sessions.Now + _configuration.Current.Locks.LooseningDelay;
+        return $"Sleep is skipped, so sleep mode turns off at {turnsOffAt.ToLocalTime():t} (it waits like other looser changes, and a banner in Settings can cancel it); then {Loses}.";
     }
 
     private void BuildReview()
@@ -821,7 +835,7 @@ public sealed partial class DpAssistantViewModel : ObservableObject
 
         if (!SetUpSleep)
         {
-            notes.Add("Sleep is skipped, so sleep mode goes off: bedtime reminders, the sleep line on the day bar and the wake-up alarms won't work.");
+            notes.Add(SleepSkipNote());
         }
 
         if (choices.Weeks.Count > 1 && choices.Weeks.Any(week => week.Any(entry => entry.TemplateId != DayPlan.WorkdayTemplateId && entry.TemplateId != DayPlan.OffDayTemplateId)))
@@ -900,10 +914,19 @@ public sealed partial class DpAssistantViewModel : ObservableObject
             }
 
             // After the plan, whose change re-derives the nights from it; the wake source, smart bedtime and on/off are the user's own.
+            // Sleep mode on again cancels an off that was waiting; off waits (SaveAsync says when).
             SleepSettings sleep = BuildSleepSettings();
+            if (sleep.Enabled)
+            {
+                await _sleep.CancelPendingOffAsync();
+            }
+
             if (sleep != _sleep.Current)
             {
-                await _sleep.SaveAsync(sleep);
+                if (await _sleep.SaveAsync(sleep) is string sleepNote)
+                {
+                    saved.Add(sleepNote);
+                }
             }
 
             await _state.MarkRunAsync();

@@ -316,7 +316,7 @@ public partial class App : Application
         dayBarSettings.LoadBlocking();
         var overlaySettings = new OverlaySettingsService(documents);
         overlaySettings.LoadBlocking();
-        var sleepSettings = new SleepSettingsService(documents);
+        var sleepSettings = new SleepSettingsService(documents, time, _sessions!, () => _configuration!.Current.Locks.LooseningDelay);
         sleepSettings.LoadBlocking();
         _ = FollowPlanForSleepAsync(documents, sleepSettings);
         _bedtimeReminder = new BedtimeReminderService(sleepSettings, documents, time, () => _configuration!.Current.DayPlan);
@@ -1257,6 +1257,9 @@ public partial class App : Application
         // Looser changes take effect once their countdown is over and no session is running.
         _sessions.StateChanged += (_, state) => _ = _configuration.ApplyPendingIfDueAsync(state.IsActive);
         _sessions.Ticked += (_, _) => _ = _configuration.ApplyPendingIfDueAsync(_sessions.State.IsActive);
+        // Turning sleep mode off waits the same way (and not during a session).
+        _sessions.Ticked += (_, _) => _ = sleepSettings.ApplyPendingOffIfDueAsync();
+        _sessions.StateChanged += (_, _) => _ = sleepSettings.ApplyPendingOffIfDueAsync();
 
         _recorder.Start();
         SessionResume? resumed = _sessions.Start(savedSession);
