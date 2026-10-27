@@ -6,7 +6,7 @@
              x:DataType="vm:ChecklistViewModel">
     <!-- A guided session's checklist (ADR 24, 25): before Start (add/edit), while it runs (tick/add/edit) or in the
          on-screen window's Ctrl+Alt details (tick and pick only, small). Clicking a name picks it for the on-screen bar
-         (marked ▸). Move and rename show on hover in the app's lists. Open tasks are grouped under their categories
+         (marked with a pin icon). Move and rename show on hover in the app's lists. Open tasks are grouped under their categories
          (a task's dot changes its category; ↑ ↓ move it within its group). The ⠿ handle drags a task (dropped among another
          category's tasks it joins that category) or a subtask within its task. ⚑ parks a task as a come-back. Done tasks sit
          under a collapsed "Done (n)". -->
@@ -139,8 +139,11 @@
                                                     AutomationProperties.Name="{Binding Title}"
                                                     ToolTip.Tip="Show this on the on-screen bar (click it again: back to the first open task)">
                                                 <Grid ColumnDefinitions="Auto,*">
-                                                    <TextBlock Text="▸ " FontWeight="Bold" IsVisible="{Binding IsCurrent}" VerticalAlignment="Center"
-                                                               Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
+                                                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="0,0,6,0">
+                                                        <mi:MaterialIcon Kind="Pin" Width="14" Height="14" IsVisible="{Binding IsCurrent}" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding NumberText}" IsVisible="{Binding HasNumber}" Opacity="0.7" VerticalAlignment="Center"
+                                                                   Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
+                                                    </StackPanel>
                                                     <TextBlock Grid.Column="1" Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Center"
                                                                Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
                                                 </Grid>
@@ -185,8 +188,7 @@
                                                     AutomationProperties.Name="{Binding Title}"
                                                                 ToolTip.Tip="Show this on the on-screen bar (click it again: back to the first open task)">
                                                             <Grid ColumnDefinitions="Auto,*">
-                                                                <TextBlock Text="▸ " FontWeight="Bold" IsVisible="{Binding IsCurrent}" VerticalAlignment="Center"
-                                                                           Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
+                                                                <mi:MaterialIcon Kind="Pin" Width="14" Height="14" IsVisible="{Binding IsCurrent}" VerticalAlignment="Center" Margin="0,0,6,0" />
                                                                 <TextBlock Grid.Column="1" Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Center" Opacity="0.85"
                                                                            Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
                                                             </Grid>

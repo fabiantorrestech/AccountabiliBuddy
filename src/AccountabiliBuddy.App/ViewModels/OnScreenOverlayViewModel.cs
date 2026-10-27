@@ -420,7 +420,7 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ShowsTasks { get; set; }
 
-    /// <summary>One line, e.g. "2/5 ▸ Fix the failing tests": the count first, so a long name cuts off its end, not the count.</summary>
+    /// <summary>One line, e.g. "2/5 · 3. Fix the failing tests" (a pin icon before it): the count first, so a long name cuts off its end, not the count.</summary>
     [ObservableProperty]
     public partial string TaskLine { get; set; } = string.Empty;
 
@@ -460,7 +460,9 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     {
         ChecklistViewModel? checklist = Checklist;
         ShowsTasks = sessionActive && checklist is { HasTasks: true };
-        TaskLine = checklist is null ? string.Empty : $"{checklist.ProgressText} ▸ {checklist.CurrentTaskText}";
+        TaskLine = checklist is null ? string.Empty : checklist.CurrentTaskNumber > 0
+            ? $"{checklist.ProgressText} · {checklist.CurrentTaskNumber}. {checklist.CurrentTaskText}"
+            : $"{checklist.ProgressText} · {checklist.CurrentTaskText}";
         SubtaskLine = checklist is { CurrentSubtaskText.Length: > 0 } ? $"↳ {checklist.CurrentSubtaskText}" : string.Empty;
         ShowsSubtaskLine = ShowsTasks && SubtaskLine.Length > 0;
         TaskCategoryBrush = checklist?.CurrentCategoryBrush ?? Brushes.Transparent;

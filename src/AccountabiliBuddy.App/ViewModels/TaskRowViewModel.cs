@@ -13,7 +13,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// </summary>
 public sealed partial class TaskRowViewModel : ChecklistRowViewModel
 {
-    /// <param name="shown">What the on-screen bar shows, to mark this task or one of its subtasks with ▸.</param>
+    /// <param name="shown">What the on-screen bar shows, to mark this task or one of its subtasks with the pin icon.</param>
     /// <param name="categories">The task categories, for its colour dot and its category menu.</param>
     public TaskRowViewModel(SessionTask task, string? doneText, ShownTask? shown, IReadOnlyList<TaskCategory> categories, SessionTasksService tasks)
         : base(task.Id, task.Title, task.IsDone, shown is { Subtask: null } && shown.Task.Id == task.Id, tasks)
@@ -39,6 +39,14 @@ public sealed partial class TaskRowViewModel : ChecklistRowViewModel
 
     /// <summary>E.g. "Done 10:42 AM · 25m" for a ticked task; null while open.</summary>
     public string? DoneText { get; }
+
+    /// <summary>Its place among the open tasks in the order shown (1, 2, 3…); 0 = not numbered (done).</summary>
+    public int Number { get; set; }
+
+    public bool HasNumber => Number > 0;
+
+    /// <summary>E.g. "3."</summary>
+    public string NumberText => $"{Number}.";
 
     public ObservableCollection<SubtaskRowViewModel> Subtasks { get; } = new();
 

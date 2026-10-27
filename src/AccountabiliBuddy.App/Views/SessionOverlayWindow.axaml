@@ -51,18 +51,20 @@
                         <Border IsVisible="{Binding ShowsAway}" Background="#33FFFFFF" CornerRadius="6" Padding="8,2" HorizontalAlignment="Left">
                             <TextBlock Text="{Binding AwayText}" Foreground="White" FontSize="12" FontWeight="SemiBold" />
                         </Border>
-                        <!-- Guided sessions: how far along and the task now on one line ("2/5 ▸ Fix tests"), its subtask
+                        <!-- Guided sessions: how far along and the task now on one line ("2/5 · 3. Fix tests", with a pin), its subtask
                              under it (2 lines then "…"); all of both while Ctrl+Alt is held. -->
                         <StackPanel Spacing="1" IsVisible="{Binding TaskLineShown}"
                                     Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
                             <!-- While Ctrl+Alt is held, a box by each line ticks it right here. -->
-                            <Grid ColumnDefinitions="Auto,Auto,*">
+                            <Grid ColumnDefinitions="Auto,Auto,Auto,*">
                                 <Button Classes="tick" Command="{Binding Checklist.TickCurrentTaskCommand}" IsVisible="{Binding ShowsDetails}"
                                         VerticalAlignment="Top" views:OverlayHint.Text="Tick this task (and its subtasks)" AutomationProperties.Name="Tick the task" />
                                 <!-- The task's category colour. -->
                                 <Ellipse Grid.Column="1" Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center"
                                          Fill="{Binding TaskCategoryBrush}" IsVisible="{Binding ShowsTaskCategory}" />
-                                <TextBlock Grid.Column="2" Text="{Binding TaskLine}" Foreground="#E6FFFFFF" FontSize="11"
+                                <mi:MaterialIcon Grid.Column="2" Kind="Pin" Width="12" Height="12" Margin="0,0,4,0" VerticalAlignment="Center"
+                                                 Foreground="#E6FFFFFF" />
+                                <TextBlock Grid.Column="3" Text="{Binding TaskLine}" Foreground="#E6FFFFFF" FontSize="11"
                                            TextWrapping="Wrap" MaxLines="{Binding TaskMaxLines}" TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center" />
                             </Grid>

@@ -115,6 +115,10 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string CurrentTaskText { get; set; }
 
+    /// <summary>The shown task's number among the open tasks (as on its row); 0 = none.</summary>
+    [ObservableProperty]
+    public partial int CurrentTaskNumber { get; set; }
+
     /// <summary>Its subtask shown under it (the picked one, else its first open one); empty when it has none.</summary>
     [ObservableProperty]
     public partial string CurrentSubtaskText { get; set; }
@@ -250,6 +254,19 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
             TaskRowViewModel first = group.First();
             IBrush nameBrush = IsCompact ? CompactHeaderBrush : first.CategoryBrush;
             OpenGroups.Add(new ChecklistGroupViewModel(first.CategoryName, first.CategoryBrush, nameBrush, first.HasCategory, showsHeaders, group.ToList()));
+        }
+
+        // One sequence over the open tasks in the order shown, across the groups; done tasks and subtasks aren't numbered.
+        int number = 0;
+        CurrentTaskNumber = 0;
+        foreach (TaskRowViewModel row in OpenGroups.SelectMany(group => group.Tasks).Where(row => !row.IsDone))
+        {
+            number++;
+            row.Number = number;
+            if (checklist.Shown?.Task.Id == row.Id)
+            {
+                CurrentTaskNumber = number;
+            }
         }
 
         TaskCategory? currentCategory = categories.FirstOrDefault(category => category.Id == checklist.Shown?.Task.CategoryId);

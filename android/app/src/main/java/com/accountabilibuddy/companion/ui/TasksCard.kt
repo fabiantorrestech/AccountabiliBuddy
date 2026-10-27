@@ -15,6 +15,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
@@ -37,7 +40,7 @@ import com.accountabilibuddy.shared.sync.SessionTaskItem
 
 /**
  * The running session's checklist (ADR 24), read only: open tasks with their subtasks (the one the PC's bar shows
- * marked ▸), the done ones behind "Done (n)". Once any open task has a category, the open ones sit under their
+ * marked with a pin), the done ones behind "Done (n)". Once any open task has a category, the open ones sit under their
  * category's name and colour dot in the PC's order, "No category" last.
  */
 @Composable
@@ -60,12 +63,14 @@ fun TasksCard(running: RunningTasks) {
             }
 
             val groups = categoryGroups(open)
+            // One sequence over the open tasks in the order shown (the PC's numbering); done tasks aren't numbered.
+            val numbers = groups.flatMap { it.tasks }.mapIndexed { index, task -> task.id to index + 1 }.toMap()
             groups.forEach { group ->
                 if (groups.any { it.name != null }) {
                     CategoryHeader(group)
                 }
 
-                group.tasks.forEach { task -> TaskLine(task, indent = false, markedId = running.markedId, ticking, onTick) }
+                group.tasks.forEach { task -> TaskLine(task, indent = false, markedId = running.markedId, ticking, onTick, number = numbers[task.id]) }
             }
             if (done.isNotEmpty()) {
                 TextButton(onClick = { showDone = !showDone }) { Text(if (showDone) "Hide done (${done.size})" else "Done (${done.size})") }
@@ -77,10 +82,10 @@ fun TasksCard(running: RunningTasks) {
     }
 }
 
-// [markedId]: the task or subtask the PC's bar shows, marked ▸.
+// [markedId]: the task or subtask the PC's bar shows, marked with a pin.
 // [onTick]: ticks an open line on the PC (null: read-only); a line ticked here shows done until the PC catches up.
 @Composable
-private fun TaskLine(task: SessionTaskItem, indent: Boolean, markedId: String?, ticking: (String?) -> Boolean, onTick: ((String) -> Unit)?) {
+private fun TaskLine(task: SessionTaskItem, indent: Boolean, markedId: String?, ticking: (String?) -> Boolean, onTick: ((String) -> Unit)?, number: Int? = null) {
     val done = task.isDone || ticking(task.id)
     val canTick = !done && onTick != null && task.id != null
     Row(
@@ -89,11 +94,14 @@ private fun TaskLine(task: SessionTaskItem, indent: Boolean, markedId: String?, 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            (if (done) "☑ " else "☐ ") + (if (task.id != null && task.id == markedId) "▸ " else "") + task.title,
+            (if (done) "☑ " else "☐ ") + (if (number != null) "$number. " else "") + task.title,
             style = MaterialTheme.typography.bodyMedium,
             textDecoration = if (done) TextDecoration.LineThrough else null,
             color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
         )
+        if (task.id != null && task.id == markedId) {
+            Icon(Icons.Filled.PushPin, contentDescription = "Current task", modifier = Modifier.padding(start = 6.dp).size(14.dp))
+        }
     }
     task.subtasks.forEach { subtask -> TaskLine(subtask, indent = true, markedId = markedId, ticking, onTick) }
 }
