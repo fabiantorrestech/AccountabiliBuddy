@@ -12,6 +12,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 public sealed partial class BeeminderViewModel : ObservableObject
 {
     private readonly BeeminderService _service;
+    private static readonly TimeSpan RefreshCooldown = TimeSpan.FromSeconds(60);
+
     private readonly TimeProvider _time;
 
     public BeeminderViewModel(BeeminderService service, TimeProvider time)
@@ -52,6 +54,19 @@ public sealed partial class BeeminderViewModel : ObservableObject
     [ObservableProperty]
     public partial string? Message { get; set; }
 
+    /// <summary>A manual Refresh ran under a minute ago: the button waits.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RefreshGoalsCommand))]
+    [NotifyPropertyChangedFor(nameof(RefreshTip))]
+    [NotifyPropertyChangedFor(nameof(RefreshLabel))]
+    public partial bool IsCoolingDown { get; set; }
+
+    /// <summary>The Integrations Refresh button's text.</summary>
+    public string RefreshLabel => IsCoolingDown ? "Refreshed just now" : "Refresh";
+
+    /// <summary>The Refresh button's tooltip.</summary>
+    public string RefreshTip => IsCoolingDown ? "Refreshed just now" : "Refresh goals";
+
     private bool CanSave => !string.IsNullOrWhiteSpace(TokenText);
 
     [RelayCommand(CanExecute = nameof(CanSave))]
@@ -84,6 +99,26 @@ public sealed partial class BeeminderViewModel : ObservableObject
             _ => _service.Problem ?? "That didn't work; try again.",
         };
     }
+
+    [RelayCommand(CanExecute = nameof(CanRefreshGoals))]
+    private async Task RefreshGoalsAsync()
+    {
+        IsCoolingDown = true;
+        Message = "Asking Beeminder…";
+        BeeminderRefresh result = await _service.RefreshAsync(userAsked: true);
+        Message = result switch
+        {
+            BeeminderRefresh.Read => null,
+            BeeminderRefresh.NoToken => "No token saved: paste one first.",
+            BeeminderRefresh.Busy => "Already asking Beeminder; try again in a moment.",
+            BeeminderRefresh.Waiting => "Beeminder asked to wait; not asked again yet.",
+            _ => _service.Problem ?? "That didn't work; try again.",
+        };
+        await Task.Delay(RefreshCooldown, _time);
+        IsCoolingDown = false;
+    }
+
+    private bool CanRefreshGoals => !IsCoolingDown;
 
     [RelayCommand]
     private async Task RemoveAsync()

@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              x:Class="AccountabiliBuddy.App.Views.IntegrationsView"
              x:DataType="vm:IntegrationsViewModel">
@@ -87,6 +88,12 @@
                             ToolTip.Tip="Signed in to Beeminder, the page shows your personal auth token at once: copy the text after &quot;auth_token&quot;." />
                     <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasToken}">
                         <Button Content="Test" Command="{Binding TestCommand}" />
+                        <Button Command="{Binding RefreshGoalsCommand}" ToolTip.Tip="{Binding RefreshTip}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <mi:MaterialIcon Kind="Refresh" Width="16" Height="16" />
+                                <TextBlock Text="{Binding RefreshLabel}" />
+                            </StackPanel>
+                        </Button>
                         <Button Content="Remove token" Command="{Binding RemoveCommand}" />
                         <TextBlock Text="{Binding Status}" Classes="muted" VerticalAlignment="Center" />
                     </StackPanel>

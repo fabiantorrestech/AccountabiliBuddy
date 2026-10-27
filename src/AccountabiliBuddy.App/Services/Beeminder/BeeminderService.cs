@@ -60,6 +60,9 @@ public sealed class BeeminderService : IDisposable
 
     public event EventHandler? Changed;
 
+    /// <summary>The user asked for a read (Refresh, Test) and it worked; the sync file is sealed again even if the goals look the same.</summary>
+    public event EventHandler? ReadOnRequest;
+
     public void LoadBlocking()
     {
         try
@@ -181,6 +184,11 @@ public sealed class BeeminderService : IDisposable
             }
 
             await SaveAsync(_state with { Goals = goals.ToList(), FetchedAt = _time.GetUtcNow() });
+            if (userAsked)
+            {
+                ReadOnRequest?.Invoke(this, EventArgs.Empty);
+            }
+
             return BeeminderRefresh.Read;
         }
         finally
