@@ -15,10 +15,10 @@ public sealed partial class ShutdownCardViewModel : ObservableObject
     /// <param name="apply">Writes the choices and closes the card (set by the service).</param>
     /// <param name="close">Closes it without changes.</param>
     public ShutdownCardViewModel(
-        IReadOnlyList<ShutdownComebackRow> comebacks, IReadOnlyList<ShutdownTaskRow> unfinished, Func<ShutdownCardViewModel, Task> apply, Func<Task> close)
+        IReadOnlyList<ShutdownComebackRow> comebacks, IReadOnlyList<ShutdownTaskGroup> unfinished, Func<ShutdownCardViewModel, Task> apply, Func<Task> close)
     {
         Comebacks = comebacks;
-        Unfinished = unfinished;
+        UnfinishedGroups = unfinished;
         _apply = apply;
         _close = close;
         TomorrowTask = string.Empty;
@@ -26,11 +26,18 @@ public sealed partial class ShutdownCardViewModel : ObservableObject
 
     public IReadOnlyList<ShutdownComebackRow> Comebacks { get; }
 
-    public IReadOnlyList<ShutdownTaskRow> Unfinished { get; }
+    /// <summary>Today's unfinished tasks under their category, the ones with no category last.</summary>
+    public IReadOnlyList<ShutdownTaskGroup> UnfinishedGroups { get; }
+
+    public IEnumerable<ShutdownTaskRow> Unfinished => UnfinishedGroups.SelectMany(group => group.Rows);
+
+    public int ComebackCount => Comebacks.Count;
+
+    public int UnfinishedCount => Unfinished.Count();
 
     public bool HasComebacks => Comebacks.Count > 0;
 
-    public bool HasUnfinished => Unfinished.Count > 0;
+    public bool HasUnfinished => UnfinishedGroups.Count > 0;
 
     /// <summary>Tomorrow's first task: it waits in Today's checklist, first.</summary>
     [ObservableProperty]

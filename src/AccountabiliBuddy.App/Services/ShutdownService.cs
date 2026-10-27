@@ -98,7 +98,7 @@ public sealed class ShutdownService : IDisposable
         _state = new ShutdownState(date);
         _ = SaveAsync();
         List<string> waiting = _tasks.Current.Tasks.Select(task => task.Title).ToList();
-        List<ShutdownTaskRow> unfinished = _tasks.History
+        List<ShutdownTaskRow> unfinishedRows = _tasks.History
             .Where(checklist => checklist.SessionStart is DateTimeOffset start
                 && DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(start, _sessions.TimeProvider.LocalTimeZone).DateTime) == date)
             .SelectMany(checklist => checklist.Tasks.Where(task => !task.IsDone))
@@ -106,12 +106,13 @@ public sealed class ShutdownService : IDisposable
             .Where(task => !waiting.Contains(task.Title))
             .Select(task => new ShutdownTaskRow(task.Title, ExistingCategory(task.CategoryId)))
             .ToList();
+        List<ShutdownTaskGroup> unfinished = GroupByCategory(unfinishedRows);
         List<ShutdownComebackRow> comebacks = _comebacks.Open.Select(comeback => new ShutdownComebackRow(comeback.Id, comeback.Text)).ToList();
-        Current = new ShutdownCardViewModel(comebacks, unfinished, ApplyAsync, CloseAsync);
+        Current = new ShutdownCardViewModel(comebacks, unfinished, card => ApplyAsync(card, date), CloseAsync);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    private async Task ApplyAsync(ShutdownCardViewModel card)
+    private async Task ApplyAsync(ShutdownCardViewModel card, DateOnly date)
     {
         foreach (ShutdownComebackRow row in card.Comebacks.Where(row => row.IsDone))
         {
@@ -125,12 +126,35 @@ public sealed class ShutdownService : IDisposable
             await _tasks.AddFirstAsync(tomorrow);
         }
 
-        foreach (ShutdownTaskRow row in card.Unfinished.Where(row => row.Carry))
+        foreach (ShutdownTaskRow row in card.Unfinished.Where(row => !row.IsDone))
         {
             await _tasks.AddAsync(row.Title, null, ExistingCategory(row.CategoryId));
         }
 
+        HashSet<string> ticked = card.Unfinished.Where(row => row.IsDone).Select(row => row.Title).ToHashSet(StringComparer.Ordinal);
+        if (ticked.Count > 0)
+        {
+            await _tasks.MarkHistoryDoneAsync(date, ticked);
+        }
+
         await CloseAsync();
+    }
+
+    // Categories in their own order, then the rows with no category last.
+    private List<ShutdownTaskGroup> GroupByCategory(IReadOnlyList<ShutdownTaskRow> rows)
+    {
+        List<ShutdownTaskGroup> groups = _tasks.Categories
+            .Select(category => new ShutdownTaskGroup(
+                category.Name, TaskCategoryBrushes.Of(category.Color), true, rows.Where(row => row.CategoryId == category.Id).ToList()))
+            .Where(group => group.Rows.Count > 0)
+            .ToList();
+        List<ShutdownTaskRow> uncategorised = rows.Where(row => row.CategoryId is null).ToList();
+        if (uncategorised.Count > 0)
+        {
+            groups.Add(new ShutdownTaskGroup("No category", TaskCategoryBrushes.Of(null), false, uncategorised));
+        }
+
+        return groups;
     }
 
     // A carried task keeps its category only while that category still exists.
