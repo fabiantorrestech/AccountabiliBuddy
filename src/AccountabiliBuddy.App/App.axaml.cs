@@ -1577,7 +1577,8 @@ public partial class App : Application
     /// </summary>
     private void ShowAwayCard(IMonitorLocator monitors)
     {
-        AwayCardViewModel? card = _stepAway?.Card;
+        // While the end-early dialog from the card is open the card's window is closed (never raised over the dialog).
+        AwayCardViewModel? card = _stepAway is { IsEndDialogOpen: true } ? null : _stepAway?.Card;
         if (card is null)
         {
             AwayCardWindow? open = _awayCardWindow;

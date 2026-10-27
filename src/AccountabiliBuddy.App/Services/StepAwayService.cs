@@ -126,6 +126,9 @@ public sealed class StepAwayService : IDisposable
     /// <summary>The away card showing (a side task's length, or "Back to the task?"), or null.</summary>
     public AwayCardViewModel? Card { get; private set; }
 
+    /// <summary>True while the end-early dialog opened from the card is up: the card's window steps aside meanwhile.</summary>
+    public bool IsEndDialogOpen { get; private set; }
+
     /// <summary>Raised when <see cref="Card"/> opens or closes, and when an unanswered one is due again (the app shows or raises the window).</summary>
     public event EventHandler? CardChanged;
 
@@ -373,7 +376,23 @@ public sealed class StepAwayService : IDisposable
     // End session: the normal end-early flow with its wait and reason; if it is cancelled the card stays.
     private async Task EndSessionFromCardAsync()
     {
-        await EndSessionAsync();
+        if (IsEndDialogOpen)
+        {
+            return;
+        }
+
+        // The card steps aside (and isn't raised) while the dialog is open, so the dialog is never under it.
+        IsEndDialogOpen = true;
+        CardChanged?.Invoke(this, EventArgs.Empty);
+        try
+        {
+            await EndSessionAsync();
+        }
+        finally
+        {
+            IsEndDialogOpen = false;
+            CardChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     // New input with the pointer where it was = a key, click or scroll. New input with the pointer moved = mouse

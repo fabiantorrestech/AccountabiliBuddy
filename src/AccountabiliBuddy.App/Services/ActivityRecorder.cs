@@ -91,8 +91,9 @@ public sealed class ActivityRecorder : IDisposable
             return;
         }
 
-        // A test session logs its activity as outside any session, so it never reaches focus time or the review.
-        bool inFocus = state.IsEnforcing && !state.IsTest;
+        // A test session logs its activity as outside any session, so it never reaches focus time or the review. Neither
+        // does time away from the focus clock (a step away, a side task): enforcement still judges it, but it isn't focus.
+        bool inFocus = state.IsEnforcing && !state.IsAway && !state.IsTest;
         Guid? profileId = state.IsRealSession ? state.ProfileId : null;
         IEnumerable<ObservedActivity> observations = decisions.Select(decision => new ObservedActivity(
             decision.Snapshot,

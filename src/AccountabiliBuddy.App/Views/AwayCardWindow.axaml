@@ -8,6 +8,12 @@
         WindowDecorations="None" CanResize="False"
         Topmost="True" ShowInTaskbar="True"
         WindowStartupLocation="Manual">
+    <!-- No button takes keyboard focus: the card appears on a keystroke, and a typed Space or Enter must not answer it. -->
+    <Window.Styles>
+        <Style Selector="Button">
+            <Setter Property="Focusable" Value="False" />
+        </Style>
+    </Window.Styles>
     <!-- The away card: a side task's length, "Back to the task?" after input while stepped away, and when a side task's time is up. -->
     <Border Padding="24,20" Background="#FF15191E" BorderBrush="#AA2A9D8F" BorderThickness="2" CornerRadius="10">
         <StackPanel Spacing="12">
