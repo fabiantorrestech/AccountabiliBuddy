@@ -42,3 +42,5 @@ More work applies at once.
 The user can describe real weeks: alternating rotas, budget days and free days. A simple work window is enough to make the guards work, so onboarding gets lighter. Sleep gets per-weekday nights for free, because nights already come from each day's template.
 
 It is a schema change on both the PC and the phone, with a migration and an identical plan-version hash on both sides. An older phone refuses a v12 plan and asks for an update. Every guard moves onto the new engine at once, so a mistake there shows up in all of them. The Budget mode ties enforcement to counted focus, so whatever counts as focus (never test sessions, side tasks or planning) now also decides when the guard eases off. Undoing the modes later would need a v13 migration back to two templates.
+
+Amended 2026-10-27 (Setup DP Assistant, `doc/plans/2026-10-27-dp-assistant-plan.md`): schema v13 replaces the A/B week map with a repeating cycle of 1 to 8 weeks from a chosen Monday (A only becomes a 1-week cycle, A/B a 2-week cycle, every date resolving as before), and a lunch part can be a fixed period that starts by itself, with a prompt when a session would run into it.
