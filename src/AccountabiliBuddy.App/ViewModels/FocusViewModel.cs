@@ -234,7 +234,9 @@ public sealed partial class FocusViewModel : ObservableObject
     private void RefreshTasks()
     {
         ChecklistViewModel? checklist = Checklist;
-        CurrentTaskText = checklist?.CurrentTaskText ?? string.Empty;
+        CurrentTaskText = checklist is { CurrentTaskNumber: > 0 }
+            ? $"{checklist.CurrentTaskNumber}. {checklist.CurrentTaskText}"
+            : checklist?.CurrentTaskText ?? string.Empty;
         CurrentSubtaskText = checklist?.CurrentSubtaskText ?? string.Empty;
         NowText = checklist is { HasTasks: true } ? $"Now · {checklist.ProgressText.Replace("/", " of ")} done" : string.Empty;
         OnPropertyChanged(nameof(HasTasks));

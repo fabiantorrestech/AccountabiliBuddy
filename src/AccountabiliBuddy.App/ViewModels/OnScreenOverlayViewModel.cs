@@ -420,7 +420,7 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ShowsTasks { get; set; }
 
-    /// <summary>One line, e.g. "2/5 ▸ Fix the failing tests": the count first, so a long name cuts off its end, not the count.</summary>
+    /// <summary>One line, e.g. "2/5 · 3. Fix the failing tests" (a pin icon before it): the count first, so a long name cuts off its end, not the count.</summary>
     [ObservableProperty]
     public partial string TaskLine { get; set; } = string.Empty;
 
@@ -430,6 +430,10 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool ShowsSubtaskLine { get; set; }
+
+    /// <summary>A current task exists (not all done): the pin before the line shows.</summary>
+    [ObservableProperty]
+    public partial bool ShowsTaskPin { get; set; }
 
     /// <summary>The colour of the task line's category (a dot before it).</summary>
     [ObservableProperty]
@@ -460,8 +464,11 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     {
         ChecklistViewModel? checklist = Checklist;
         ShowsTasks = sessionActive && checklist is { HasTasks: true };
-        TaskLine = checklist is null ? string.Empty : $"{checklist.ProgressText} ▸ {checklist.CurrentTaskText}";
+        TaskLine = checklist is null ? string.Empty : checklist.CurrentTaskNumber > 0
+            ? $"{checklist.ProgressText} · {checklist.CurrentTaskNumber}. {checklist.CurrentTaskText}"
+            : $"{checklist.ProgressText} · {checklist.CurrentTaskText}";
         SubtaskLine = checklist is { CurrentSubtaskText.Length: > 0 } ? $"↳ {checklist.CurrentSubtaskText}" : string.Empty;
+        ShowsTaskPin = checklist is { CurrentTaskNumber: > 0 };
         ShowsSubtaskLine = ShowsTasks && SubtaskLine.Length > 0;
         TaskCategoryBrush = checklist?.CurrentCategoryBrush ?? Brushes.Transparent;
         ShowsTaskCategory = checklist is { HasCurrentCategory: true };

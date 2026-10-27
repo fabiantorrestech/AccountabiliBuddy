@@ -87,7 +87,7 @@ data class SessionView(
     val fraction: Float,
     val active: Boolean,
     val updated: String? = null,
-    /** The guided checklist: "▸ Fix tests · 1/3", "All tasks done · 3/3"; null without one. */
+    /** The guided checklist: "3. Fix tests · 1/3", "All tasks done · 3/3"; null without one. */
     val task: String? = null,
     /** Today's focus as a share of the daily goal (ADR 29): the thin outer ring; null without a goal. */
     val goalFraction: Float? = null,
@@ -103,7 +103,7 @@ data class SessionView(
             val task = when {
                 session.tasksTotal == 0 -> null
                 session.task == null -> "All tasks done · ${session.tasksDone}/${session.tasksTotal}"
-                else -> "▸ ${session.task} · ${session.tasksDone}/${session.tasksTotal}"
+                else -> "${if (session.taskNumber > 0) "${session.taskNumber}. " else ""}${session.task} · ${session.tasksDone}/${session.tasksTotal}"
             }
             val endsAt = session.endsAt
             if (endsAt == null) {

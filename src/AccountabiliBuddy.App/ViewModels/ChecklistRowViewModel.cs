@@ -27,7 +27,7 @@ public abstract partial class ChecklistRowViewModel : ObservableObject
 
     public string Title { get; }
 
-    /// <summary>The one the on-screen bar shows (marked ▸).</summary>
+    /// <summary>The one the on-screen bar shows (marked with the pin icon).</summary>
     public bool IsCurrent { get; }
 
     /// <summary>Ticking it here ticks it in the checklist.</summary>

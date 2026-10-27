@@ -17,6 +17,8 @@ data class RunningSession(
     val task: String? = null,
     val tasksDone: Int = 0,
     val tasksTotal: Int = 0,
+    /** The current task's place among the open tasks (1, 2, 3…, as numbered on the PC); 0 = unknown or none. */
+    val taskNumber: Int = 0,
 ) {
     /**
      * With the checklist's current task, as the PC's bar shows it ("Fix tests › Lint": the task picked on the PC, else
@@ -25,7 +27,8 @@ data class RunningSession(
     fun withTasks(tasks: List<com.accountabilibuddy.shared.sync.SessionTaskItem>, currentId: String? = null): RunningSession {
         val shown = com.accountabilibuddy.shared.sync.SessionTaskItem.shown(tasks, currentId)
         val text = shown?.let { (task, subtask) -> if (subtask == null) task.title else "${task.title} › ${subtask.title}" }
-        return copy(task = text, tasksDone = tasks.count { it.isDone }, tasksTotal = tasks.size)
+        val number = shown?.let { (task, _) -> com.accountabilibuddy.shared.sync.SessionTaskItem.openInShownOrder(tasks).indexOfFirst { it.id == task.id } + 1 } ?: 0
+        return copy(task = text, tasksDone = tasks.count { it.isDone }, tasksTotal = tasks.size, taskNumber = number)
     }
 }
 

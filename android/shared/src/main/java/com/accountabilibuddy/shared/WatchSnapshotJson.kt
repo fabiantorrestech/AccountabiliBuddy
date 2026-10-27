@@ -56,6 +56,7 @@ object WatchSnapshotJson {
                     running.task?.let { put("task", it) }
                     put("tasksDone", running.tasksDone)
                     put("tasksTotal", running.tasksTotal)
+                    if (running.taskNumber > 0) put("taskNumber", running.taskNumber)
                 }
             })
         }
@@ -104,6 +105,7 @@ object WatchSnapshotJson {
         return RunningSession(
             json.string("profile"), startedAt, json.instant("endsAt"), json.bool("onBreak"),
             json.string("task"), json.int("tasksDone") ?: 0, json.int("tasksTotal") ?: 0,
+            json.int("taskNumber") ?: 0,
         )
     }
 }

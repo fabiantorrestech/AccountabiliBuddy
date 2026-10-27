@@ -12,7 +12,7 @@ import java.time.Instant
 data class RunningTasks(val source: String, val tasks: List<SessionTaskItem>, val currentId: String? = null) {
     val doneCount: Int get() = tasks.count { it.isDone }
 
-    /** The item marked ▸: the shown subtask, else the shown task (as the PC's bar shows it). */
+    /** The item marked with the pin icon: the shown subtask, else the shown task (as the PC's bar shows it). */
     val markedId: String? get() = SessionTaskItem.shown(tasks, currentId)?.let { (task, subtask) -> subtask?.id ?: task.id }
 
     companion object {

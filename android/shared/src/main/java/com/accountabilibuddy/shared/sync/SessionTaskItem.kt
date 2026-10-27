@@ -55,6 +55,16 @@ data class SessionTaskItem(
             return task to task.subtasks.firstOrNull { !it.isDone }
         }
 
+        /**
+         * The open tasks in the order the PC lists them: grouped by category (id, else name) in the order each first
+         * appears, tasks with no category last. Their numbers (1, 2, 3…) are their places in this list.
+         */
+        fun openInShownOrder(tasks: List<SessionTaskItem>): List<SessionTaskItem> {
+            val keyOf: (SessionTaskItem) -> String? = { it.categoryId ?: it.category }
+            val open = tasks.filter { !it.isDone }
+            return open.filter { keyOf(it) != null }.groupBy(keyOf).values.flatten() + open.filter { keyOf(it) == null }
+        }
+
         fun write(items: List<SessionTaskItem>, time: (Instant) -> String): JsonArray = JsonArray(items.map { item ->
             buildJsonObject {
                 put("id", item.id)
