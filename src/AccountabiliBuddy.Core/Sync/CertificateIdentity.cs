@@ -5,7 +5,8 @@ namespace AccountabiliBuddy.Core.Sync;
 
 /// <summary>
 /// A self-signed TLS certificate and its SHA-256 fingerprint, for pinning instead of trusting an authority. Kept from
-/// the deleted Wi-Fi link (ADR 45) as the reference for the relay's pinned TLS (phase 6, ADR 46); nothing uses it yet.
+/// the deleted Wi-Fi link (ADR 45); the own relay's pinned TLS (ADR 46) checks a server certificate with
+/// <see cref="Fingerprint"/>, the same format the relay prints.
 /// </summary>
 public static class CertificateIdentity
 {
@@ -25,7 +26,7 @@ public static class CertificateIdentity
     }
 
     /// <summary>The SHA-256 of the certificate, base64url.</summary>
-    public static string Fingerprint(X509Certificate2 certificate)
+    public static string Fingerprint(X509Certificate certificate)
     {
         return Convert.ToBase64String(certificate.GetCertHash(HashAlgorithmName.SHA256)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
