@@ -57,6 +57,9 @@ public sealed class QrSyncService : IDisposable
     /// <summary>Counted focus on a date, for the day plan's Budget days (a met budget ends the day's work windows). Set by the app.</summary>
     public Func<DateOnly, TimeSpan>? FocusedOn { get; set; }
 
+    /// <summary>The night before a date from the sleep settings, for a Budget day whose plan has no Sleep part. Set by the app.</summary>
+    public Func<DateOnly, SleepTimes?>? NightFallback { get; set; }
+
     /// <summary>The reminder is due: show "Scan today's code to sync your phone" with Show code and Later.</summary>
     public event EventHandler? ReminderDue;
 
@@ -127,7 +130,7 @@ public sealed class QrSyncService : IDisposable
             return new DateTimeOffset(local, zone.GetUtcOffset(local));
         }
 
-        DateTime? lastWorkEnd = DayWorkWindows.WorkWindows(_configuration.Current.DayPlan, new LocalWindow(day, day.AddDays(1)), TimeZoneInfo.ConvertTime(now, zone).DateTime, FocusedOn)
+        DateTime? lastWorkEnd = DayWorkWindows.WorkWindows(_configuration.Current.DayPlan, new LocalWindow(day, day.AddDays(1)), TimeZoneInfo.ConvertTime(now, zone).DateTime, FocusedOn, NightFallback)
             .Select(focus => (DateTime?)focus.Window.End)
             .Max();
         return lastWorkEnd is DateTime end ? new DateTimeOffset(end, zone.GetUtcOffset(end)) : null;

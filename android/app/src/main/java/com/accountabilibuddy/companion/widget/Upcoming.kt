@@ -14,7 +14,7 @@ object Upcoming {
 
     fun items(now: LocalDateTime, state: CompanionState, clock: ClockFormat): List<String> {
         val window = LocalWindow(now, now.plusHours(24))
-        val blocks = DayWorkWindows.workWindows(state.document.dayPlan, LocalWindow(now.minusDays(1), window.end), now)
+        val blocks = DayWorkWindows.workWindows(state.document.dayPlan, LocalWindow(now.minusDays(1), window.end), now, nightFallback = state.sleep::fallbackNightBefore)
             .filter { it.window.end.isAfter(now) }
             .map { it.window.start to "${it.name}${if (it.window.contains(now)) " · now" else ""}" }
         val events = state.events

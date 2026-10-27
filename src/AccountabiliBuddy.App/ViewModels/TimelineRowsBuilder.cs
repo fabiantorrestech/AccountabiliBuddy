@@ -52,9 +52,9 @@ public static class TimelineRowsBuilder
     /// The day plan's parts around <paramref name="span"/> with their real times: a day either side, so a night that
     /// starts the evening before or runs into the next morning keeps its whole window for the tip (the rows clip it).
     /// </summary>
-    public static IReadOnlyList<PlannedPart> PartsAround(DayPlan plan, LocalWindow span, DateTime now, Func<DateOnly, TimeSpan>? focusedOn)
+    public static IReadOnlyList<PlannedPart> PartsAround(DayPlan plan, LocalWindow span, DateTime now, Func<DateOnly, TimeSpan>? focusedOn, Func<DateOnly, SleepTimes?>? nightFallback = null)
     {
-        return DayWorkWindows.PartsIn(plan, new LocalWindow(span.Start.AddDays(-1), span.End.AddDays(1)), now, focusedOn);
+        return DayWorkWindows.PartsIn(plan, new LocalWindow(span.Start.AddDays(-1), span.End.AddDays(1)), now, focusedOn, nightFallback);
     }
 
     /// <summary>The drift marks that count: inside a session drawn on the Focus row, inside the bar.</summary>

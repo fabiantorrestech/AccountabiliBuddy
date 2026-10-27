@@ -8,6 +8,7 @@ import com.accountabilibuddy.companion.model.LocalWindow
 import com.accountabilibuddy.companion.model.PlanPart
 import com.accountabilibuddy.companion.model.PlannedFocus
 import com.accountabilibuddy.companion.model.PlannedPart
+import com.accountabilibuddy.companion.model.SleepTimes
 import com.accountabilibuddy.shared.WatchSnapshot
 import java.time.Duration
 import java.time.LocalDate
@@ -42,7 +43,7 @@ object DayWorkWindows {
      * Pre-Work parts, a Budget day with only its non-productive windows and first Pre-Work) plus each Budget day's guarded
      * windows as parts of the first Watch category, clipped to the range, in order.
      */
-    fun partsIn(plan: DayPlan, range: LocalWindow, now: LocalDateTime, focusedOn: ((LocalDate) -> Duration)? = null): List<PlannedPart> {
+    fun partsIn(plan: DayPlan, range: LocalWindow, now: LocalDateTime, focusedOn: ((LocalDate) -> Duration)? = null, nightFallback: ((LocalDate) -> SleepTimes?)? = null): List<PlannedPart> {
         val view = viewOf(plan)
         val parts = view.partsIn(range).toMutableList()
         val hasBudgetDay = plan.templates.any { it.template.mode == DayMode.Budget } || plan.oneOffDays.any { it.template.mode == DayMode.Budget }
@@ -51,7 +52,7 @@ object DayWorkWindows {
             var date = range.start.toLocalDate().minusDays(1)
             val last = range.end.toLocalDate().plusDays(1)
             while (!date.isAfter(last)) {
-                for (window in budgetWindows(plan, view, date, focusedOn, now)) {
+                for (window in budgetWindows(plan, view, date, focusedOn, now, nightFallback)) {
                     val shown = DayTimeline.clip(window, range) ?: continue
                     val part = PlanPart(BUDGET_WINDOW_PART_ID, work.id, window.start.toLocalTime(), window.end.toLocalTime())
                     parts.add(PlannedPart(part, work, shown))
@@ -65,46 +66,47 @@ object DayWorkWindows {
     }
 
     /**
-     * Counted focus for the plan's Budget days from the devices' combined focus today (sessions that count; only today is
+     * Counted focus for the plan's Budget days from the devices' combined focus today (sessions they ran, never ones added by hand; only today is
      * known here, other dates give zero); null without a focus snapshot, which counts nothing.
      */
     fun focusedToday(focus: WatchSnapshot?, now: LocalDateTime, zone: ZoneId): ((LocalDate) -> Duration)? {
         if (focus == null) return null
-        val minutes = focus.focusedMinutes(now.atZone(zone).toInstant(), zone)
+        // Sessions added by hand never count toward a Budget, as on the PC.
+        val minutes = focus.copy(sessions = focus.sessions.filter { !it.added }).focusedMinutes(now.atZone(zone).toInstant(), zone)
         return { date -> if (date == now.toLocalDate()) Duration.ofMinutes(minutes.toLong()) else Duration.ZERO }
     }
 
     /** The part at [time] as the guards see it, or null when nothing is planned then. */
-    fun partAt(plan: DayPlan, time: LocalDateTime, focusedOn: ((LocalDate) -> Duration)? = null): PlannedPart? =
-        partsIn(plan, LocalWindow(time, time.plusMinutes(1)), time, focusedOn).firstOrNull { it.window.contains(time) }
+    fun partAt(plan: DayPlan, time: LocalDateTime, focusedOn: ((LocalDate) -> Duration)? = null, nightFallback: ((LocalDate) -> SleepTimes?)? = null): PlannedPart? =
+        partsIn(plan, LocalWindow(time, time.plusMinutes(1)), time, focusedOn, nightFallback).firstOrNull { it.window.contains(time) }
 
     /**
      * The guarded work windows (work and Comms parts, a Budget day's windows) touching [range], cut to it, earliest first.
      * What the former `DayTimeline.planned` gave, now by mode.
      */
-    fun workWindows(plan: DayPlan, range: LocalWindow, now: LocalDateTime, focusedOn: ((LocalDate) -> Duration)? = null): List<PlannedFocus> =
-        partsIn(plan, range, now, focusedOn)
+    fun workWindows(plan: DayPlan, range: LocalWindow, now: LocalDateTime, focusedOn: ((LocalDate) -> Duration)? = null, nightFallback: ((LocalDate) -> SleepTimes?)? = null): List<PlannedFocus> =
+        partsIn(plan, range, now, focusedOn, nightFallback)
             .filter { it.category.behavior.isWork }
             .map { PlannedFocus(it.name, it.category.argb, it.window) }
 
     /** The guarded windows of one date (midnight to midnight), given that day's counted focus so far. */
-    fun workWindows(plan: DayPlan, date: LocalDate, focusedSoFar: Duration, now: LocalDateTime): List<PlannedFocus> {
+    fun workWindows(plan: DayPlan, date: LocalDate, focusedSoFar: Duration, now: LocalDateTime, nightFallback: ((LocalDate) -> SleepTimes?)? = null): List<PlannedFocus> {
         val start = date.atStartOfDay()
-        return workWindows(plan, LocalWindow(start, start.plusDays(1)), now) { day -> if (day == date) focusedSoFar else Duration.ZERO }
+        return workWindows(plan, LocalWindow(start, start.plusDays(1)), now, { day -> if (day == date) focusedSoFar else Duration.ZERO }, nightFallback)
     }
 
     /**
      * How a Budget day is going: the budget left after [focusedSoFar] and the available time left from [now], with "behind"
      * when the available time can no longer hold the budget. Null when the date isn't a Budget day.
      */
-    fun pace(plan: DayPlan, date: LocalDate, focusedSoFar: Duration, now: LocalDateTime): BudgetPace? {
+    fun pace(plan: DayPlan, date: LocalDate, focusedSoFar: Duration, now: LocalDateTime, nightFallback: ((LocalDate) -> SleepTimes?)? = null): BudgetPace? {
         val template = plan.templateFor(date)
         val minutes = template.budgetMinutes
         if (template.mode != DayMode.Budget || minutes == null) return null
 
         val left = Duration.ofMinutes(minutes.toLong()).minus(focusedSoFar).let { if (it.isNegative) Duration.ZERO else it }
         val ahead = LocalWindow(now, LATEST)
-        val available = budgetWindows(plan, viewOf(plan), date, null, now)
+        val available = budgetWindows(plan, viewOf(plan), date, null, now, nightFallback)
             .mapNotNull { DayTimeline.clip(it, ahead) }
             .fold(Duration.ZERO) { sum, window -> sum.plus(Duration.between(window.start, window.end)) }
         return BudgetPace(left, available, !left.isZero && available < left)
@@ -113,14 +115,14 @@ object DayWorkWindows {
     // A Budget day's guarded windows: from the night's wake time (after the day's Pre-Work part) to the next night's
     // bedtime, minus every other part the guards see in that stretch. Once the counted focus meets the budget, only what
     // lies before now is left.
-    private fun budgetWindows(plan: DayPlan, view: DayPlan, date: LocalDate, focusedOn: ((LocalDate) -> Duration)?, now: LocalDateTime): List<LocalWindow> {
+    private fun budgetWindows(plan: DayPlan, view: DayPlan, date: LocalDate, focusedOn: ((LocalDate) -> Duration)?, now: LocalDateTime, nightFallback: ((LocalDate) -> SleepTimes?)?): List<LocalWindow> {
         val template = plan.templateFor(date)
         val budget = template.budgetMinutes
         if (template.mode != DayMode.Budget || budget == null || budget <= 0) return emptyList()
 
         val midnight = date.atStartOfDay()
-        var start = plan.nightBefore(date)?.let { midnight.with(it.wake) } ?: midnight
-        val end = bedtimeOf(plan, date)
+        var start = (plan.nightBefore(date) ?: nightFallback?.invoke(date))?.let { midnight.with(it.wake) } ?: midnight
+        val end = bedtimeOf(plan, date, nightFallback)
         val warmUp = view.templateFor(date).parts.firstOrNull {
             plan.category(it.categoryId)?.behavior == CategoryBehavior.PreWork && !it.crossesMidnight
         }
@@ -142,9 +144,9 @@ object DayWorkWindows {
 
     // When the waking day ends: the next night's bedtime (the evening of the date, or past midnight for an early-hours
     // bedtime); the end of the date when its next night isn't planned.
-    private fun bedtimeOf(plan: DayPlan, date: LocalDate): LocalDateTime {
+    private fun bedtimeOf(plan: DayPlan, date: LocalDate, nightFallback: ((LocalDate) -> SleepTimes?)?): LocalDateTime {
         val nextMidnight = date.plusDays(1).atStartOfDay()
-        val next = plan.nightBefore(date.plusDays(1)) ?: return nextMidnight
+        val next = plan.nightBefore(date.plusDays(1)) ?: nightFallback?.invoke(date.plusDays(1)) ?: return nextMidnight
         val evening = !next.wake.isAfter(next.bedtime)
         return (if (evening) nextMidnight.minusDays(1) else nextMidnight).with(next.bedtime)
     }

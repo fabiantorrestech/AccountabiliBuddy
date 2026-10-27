@@ -541,7 +541,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
             val state = store.state.value
             val day = builder.dayAt(LocalDateTime.now(), state.dayBar, state.sleep, state.document.dayPlan)
-            val focus = DayWorkWindows.workWindows(state.document.dayPlan, day, LocalDateTime.now()).map { it.window }
+            val focus = DayWorkWindows.workWindows(state.document.dayPlan, day, LocalDateTime.now(), nightFallback = state.sleep::fallbackNightBefore).map { it.window }
             phoneUsage.value = runCatching { withContext(Dispatchers.IO) { usageReader.read(day, focus) } }.getOrNull()
         }
     }

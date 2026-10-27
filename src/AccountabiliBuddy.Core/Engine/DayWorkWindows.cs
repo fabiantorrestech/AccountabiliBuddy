@@ -14,9 +14,10 @@ namespace AccountabiliBuddy.Core.Engine;
 /// budget. From that moment no window is left: the guard eases off exactly when the budget is met, never before.</item>
 /// <item>Free: none, and no Comms or Pre-Work parts either.</item>
 /// </list>
-/// "Counted focus" is what the day bar and the goal count (sessions the user started and ones added by hand; never test
-/// sessions, side tasks or planning), passed in as <c>focusedOn</c>; without it nothing is counted and a Budget day shows
-/// all its available time. All times are local wall-clock times.
+/// "Counted focus" for a Budget is the sessions the user ran, never ones added by hand in History, test
+/// sessions, side tasks, breaks or planning, passed in as <c>focusedOn</c>; without it nothing is counted and a Budget day shows
+/// all its available time. A Budget day whose plan has no Sleep part takes its night from <c>nightFallback</c> (the sleep
+/// settings' weeknight or weekend night). All times are local wall-clock times.
 /// </summary>
 public static class DayWorkWindows
 {
@@ -32,7 +33,8 @@ public static class DayWorkWindows
     /// day's guarded windows as parts of the first Watch category, clipped to the range, in order.
     /// </summary>
     /// <param name="focusedOn">Counted focus on a date (Budget days); null = nothing counted.</param>
-    public static IReadOnlyList<PlannedPart> PartsIn(DayPlan plan, LocalWindow range, DateTime now, Func<DateOnly, TimeSpan>? focusedOn = null)
+    /// <param name="nightFallback">The night before a date when a Budget day's plan has no Sleep part (the sleep settings' weeknight or weekend night); null = the whole day.</param>
+    public static IReadOnlyList<PlannedPart> PartsIn(DayPlan plan, LocalWindow range, DateTime now, Func<DateOnly, TimeSpan>? focusedOn = null, Func<DateOnly, SleepTimes?>? nightFallback = null)
     {
         DayPlan view = ViewOf(plan);
         List<PlannedPart> parts = [.. view.PartsIn(range)];
@@ -41,7 +43,7 @@ public static class DayWorkWindows
         {
             for (DateOnly date = DateOnly.FromDateTime(range.Start).AddDays(-1); date <= DateOnly.FromDateTime(range.End).AddDays(1); date = date.AddDays(1))
             {
-                foreach (LocalWindow window in BudgetWindows(plan, view, date, focusedOn, now))
+                foreach (LocalWindow window in BudgetWindows(plan, view, date, focusedOn, now, nightFallback))
                 {
                     if (DayTimeline.Clip(window, range) is LocalWindow shown)
                     {
@@ -56,9 +58,9 @@ public static class DayWorkWindows
     }
 
     /// <summary>The part at <paramref name="localTime"/> as the guards see it, or null when nothing is planned then.</summary>
-    public static PlannedPart? PartAt(DayPlan plan, DateTime localTime, Func<DateOnly, TimeSpan>? focusedOn = null)
+    public static PlannedPart? PartAt(DayPlan plan, DateTime localTime, Func<DateOnly, TimeSpan>? focusedOn = null, Func<DateOnly, SleepTimes?>? nightFallback = null)
     {
-        return PartsIn(plan, new LocalWindow(localTime, localTime.AddMinutes(1)), localTime, focusedOn)
+        return PartsIn(plan, new LocalWindow(localTime, localTime.AddMinutes(1)), localTime, focusedOn, nightFallback)
             .FirstOrDefault(part => part.Window.Contains(localTime));
     }
 
@@ -66,9 +68,9 @@ public static class DayWorkWindows
     /// The guarded work windows (work and Comms parts, a Budget day's windows) touching <paramref name="range"/>, cut to it,
     /// earliest first. This is what the former <c>DayTimeline.Planned</c> gave, now by mode.
     /// </summary>
-    public static IReadOnlyList<PlannedFocus> WorkWindows(DayPlan plan, LocalWindow range, DateTime now, Func<DateOnly, TimeSpan>? focusedOn = null)
+    public static IReadOnlyList<PlannedFocus> WorkWindows(DayPlan plan, LocalWindow range, DateTime now, Func<DateOnly, TimeSpan>? focusedOn = null, Func<DateOnly, SleepTimes?>? nightFallback = null)
     {
-        return PartsIn(plan, range, now, focusedOn)
+        return PartsIn(plan, range, now, focusedOn, nightFallback)
             .Where(part => part.Category.Behavior.IsWork())
             .Select(part => new PlannedFocus(part.Name, part.Category.Color, part.Window))
             .ToList();
@@ -78,10 +80,10 @@ public static class DayWorkWindows
     /// The guarded windows of one date (midnight to midnight; a Budget day's last window may run past midnight, which
     /// the next date's call shows cut), given that day's counted focus so far.
     /// </summary>
-    public static IReadOnlyList<PlannedFocus> WorkWindows(DayPlan plan, DateOnly date, TimeSpan focusedSoFar, DateTime now)
+    public static IReadOnlyList<PlannedFocus> WorkWindows(DayPlan plan, DateOnly date, TimeSpan focusedSoFar, DateTime now, Func<DateOnly, SleepTimes?>? nightFallback = null)
     {
         DateTime start = date.ToDateTime(TimeOnly.MinValue);
-        return WorkWindows(plan, new LocalWindow(start, start.AddDays(1)), now, day => day == date ? focusedSoFar : TimeSpan.Zero);
+        return WorkWindows(plan, new LocalWindow(start, start.AddDays(1)), now, day => day == date ? focusedSoFar : TimeSpan.Zero, nightFallback);
     }
 
     /// <summary>
@@ -89,7 +91,7 @@ public static class DayWorkWindows
     /// <paramref name="now"/>, with "behind" when the available time can no longer hold the budget. Null when the date
     /// isn't a Budget day.
     /// </summary>
-    public static BudgetPace? Pace(DayPlan plan, DateOnly date, TimeSpan focusedSoFar, DateTime now)
+    public static BudgetPace? Pace(DayPlan plan, DateOnly date, TimeSpan focusedSoFar, DateTime now, Func<DateOnly, SleepTimes?>? nightFallback = null)
     {
         DayTemplate template = plan.TemplateFor(date);
         if (template.Mode != DayMode.Budget || template.BudgetMinutes is not int minutes)
@@ -104,7 +106,7 @@ public static class DayWorkWindows
         }
 
         // Unmet windows, whatever was focused: the time still on offer is what lies ahead of now.
-        TimeSpan available = BudgetWindows(plan, ViewOf(plan), date, null, now)
+        TimeSpan available = BudgetWindows(plan, ViewOf(plan), date, null, now, nightFallback)
             .Select(window => DayTimeline.Clip(window, new LocalWindow(now, DateTime.MaxValue)))
             .OfType<LocalWindow>()
             .Aggregate(TimeSpan.Zero, (sum, window) => sum + (window.End - window.Start));
@@ -114,7 +116,7 @@ public static class DayWorkWindows
     // A Budget day's guarded windows: from the night's wake time (after the day's Pre-Work part) to the next night's
     // bedtime, minus every other part the guards see in that stretch. Once the counted focus meets the budget, only what
     // lies before now is left.
-    private static IReadOnlyList<LocalWindow> BudgetWindows(DayPlan plan, DayPlan view, DateOnly date, Func<DateOnly, TimeSpan>? focusedOn, DateTime now)
+    private static IReadOnlyList<LocalWindow> BudgetWindows(DayPlan plan, DayPlan view, DateOnly date, Func<DateOnly, TimeSpan>? focusedOn, DateTime now, Func<DateOnly, SleepTimes?>? nightFallback)
     {
         DayTemplate template = plan.TemplateFor(date);
         if (template.Mode != DayMode.Budget || template.BudgetMinutes is not > 0)
@@ -123,8 +125,8 @@ public static class DayWorkWindows
         }
 
         DateTime midnight = date.ToDateTime(TimeOnly.MinValue);
-        DateTime start = DayPlanSleep.SleepOf(template, plan) is SleepTimes night ? midnight + night.Wake.ToTimeSpan() : midnight;
-        DateTime end = BedtimeOf(plan, date);
+        DateTime start = (DayPlanSleep.SleepOf(template, plan) ?? nightFallback?.Invoke(date)) is SleepTimes night ? midnight + night.Wake.ToTimeSpan() : midnight;
+        DateTime end = BedtimeOf(plan, date, nightFallback);
         PlanPart? warmUp = view.TemplateFor(date).Parts
             .FirstOrDefault(part => plan.Category(part.CategoryId)?.Behavior == CategoryBehavior.PreWork && !part.CrossesMidnight);
         if (warmUp is not null)
@@ -149,11 +151,11 @@ public static class DayWorkWindows
     }
 
     // When the waking day ends: the next night's bedtime (the evening of the date, or past midnight for an early-hours
-    // bedtime); the end of the date when its next night isn't planned.
-    private static DateTime BedtimeOf(DayPlan plan, DateOnly date)
+    // bedtime), else the sleep settings' night; the end of the date when neither has it.
+    private static DateTime BedtimeOf(DayPlan plan, DateOnly date, Func<DateOnly, SleepTimes?>? nightFallback)
     {
         DateTime nextMidnight = date.AddDays(1).ToDateTime(TimeOnly.MinValue);
-        if (DayPlanSleep.NightBefore(plan, date.AddDays(1)) is not SleepTimes next)
+        if ((DayPlanSleep.NightBefore(plan, date.AddDays(1)) ?? nightFallback?.Invoke(date.AddDays(1))) is not SleepTimes next)
         {
             return nextMidnight;
         }

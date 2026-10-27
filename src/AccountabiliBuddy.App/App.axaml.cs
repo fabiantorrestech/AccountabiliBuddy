@@ -688,7 +688,7 @@ public partial class App : Application
             {
                 DateTime now = time.GetLocalNow().DateTime;
                 return DayWorkWindows.WorkWindows(
-                        _configuration.Current.DayPlan, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)), now, _workHours?.FocusedOn)
+                        _configuration.Current.DayPlan, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)), now, _workHours?.FocusedOn, _workHours?.NightFallback)
                     .Any(focus => focus.Window.Start <= now && now < focus.Window.End);
             },
         };
@@ -873,6 +873,13 @@ public partial class App : Application
         _shutdown.FocusedOn = countedFocus;
         _dayBar.FocusedOn = countedFocus;
         timelineDay.FocusedOn = countedFocus;
+        // A Budget day whose plan has no Sleep part takes its night from the sleep settings.
+        Func<DateOnly, SleepTimes?> nightFallback = date => sleepSettings.Current.FallbackNightBefore(date);
+        _workHours.NightFallback = nightFallback;
+        _startNudge.NightFallback = nightFallback;
+        _shutdown.NightFallback = nightFallback;
+        _dayBar.NightFallback = nightFallback;
+        timelineDay.NightFallback = nightFallback;
         _ = _deepWork.ReloadAsync();
         sessionViewModel.Review = _sessionReview!.Pending;
         _sessionReview.Changed += (_, _) =>
@@ -1010,6 +1017,7 @@ public partial class App : Application
             syncCoordinator, syncIdentity, syncSettings, receivedDevices, _configuration, documents, time);
         qrSync.LoadBlocking();
         qrSync.FocusedOn = _workHours!.FocusedOn;
+        qrSync.NightFallback = _workHours.NightFallback;
         _qrSync = qrSync;
         var syncImport = new AccountabiliBuddy.App.Services.Sync.SyncImportService(syncCoordinator, syncIdentity);
         void ShowSyncQr() => new SyncQrWindow { DataContext = new SyncQrViewModel(qrSync.LinksForNowAsync) }.Show();
@@ -1036,6 +1044,7 @@ public partial class App : Application
             documents, new DpapiDataProtector(), time);
         coldTurkeyKeys.LoadBlocking();
         coldTurkeyKeys.FocusedOn = _workHours!.FocusedOn;
+        coldTurkeyKeys.NightFallback = _workHours.NightFallback;
         _coldTurkeyKeys = coldTurkeyKeys;
         coldTurkeyKeys.Notice += (_, notice) => presenter.ShowNotice(notice.Title, notice.Text);
         // A new key comes from a timer, a check or a session ending, never straight from a click: shown without taking focus.

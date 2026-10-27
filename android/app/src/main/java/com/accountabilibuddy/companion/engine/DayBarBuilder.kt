@@ -44,7 +44,7 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
         val day = dayAt(now, settings, sleep, document.dayPlan)
         val span = DayTimeline.calendarSpan(day)
         val focusedOn = DayWorkWindows.focusedToday(focus, now, java.time.ZoneId.systemDefault())
-        val planned = DayWorkWindows.workWindows(document.dayPlan, span, now, focusedOn)
+        val planned = DayWorkWindows.workWindows(document.dayPlan, span, now, focusedOn, sleep::fallbackNightBefore)
 
         var content: List<LocalWindow> = planned.map { it.window }
         if (sleep.enabled) {
@@ -56,7 +56,7 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
 
         // Every part of the day plan (Rest and Sleep too) in its category's colour; the texts still follow the Watch parts.
         // A day either side, so a night running past the bar keeps its real times in the label.
-        val parts = DayWorkWindows.partsIn(document.dayPlan, LocalWindow(span.start.minusDays(1), span.end.plusDays(1)), now, focusedOn)
+        val parts = DayWorkWindows.partsIn(document.dayPlan, LocalWindow(span.start.minusDays(1), span.end.plusDays(1)), now, focusedOn, sleep::fallbackNightBefore)
         val nights = parts.filter { it.category.behavior == com.accountabilibuddy.companion.model.CategoryBehavior.Sleep }.map { it.window }
         val plannedSpans = parts.flatMap { part ->
             val shown = DayTimeline.clip(part.window, range) ?: return@flatMap emptyList()
@@ -121,8 +121,8 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
     }
 
     /** What comes next, for the widget and the notification: the current work's end or the next work's start. */
-    fun nextChange(now: LocalDateTime, document: ProfileDocument): LocalDateTime? {
-        val planned = DayWorkWindows.workWindows(document.dayPlan, LocalWindow(now.minusDays(1), now.plusDays(2)), now)
+    fun nextChange(now: LocalDateTime, document: ProfileDocument, sleep: SleepSettings? = null): LocalDateTime? {
+        val planned = DayWorkWindows.workWindows(document.dayPlan, LocalWindow(now.minusDays(1), now.plusDays(2)), now, nightFallback = sleep?.let { it::fallbackNightBefore })
         val current = planned.firstOrNull { it.window.contains(now) }
         return current?.window?.end ?: planned.firstOrNull { it.window.start.isAfter(now) }?.window?.start
     }

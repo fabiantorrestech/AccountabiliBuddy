@@ -34,7 +34,7 @@ object HeaderSource {
         val night = if (state.sleep.enabled) schedule.nightAround(now) else null
         val byAlarm = night != null && schedule.wakesByAlarm(night.end.toLocalDate().minusDays(1))
         val input = HeaderInput(
-            now, zone, DayWorkWindows.partsIn(plan, LocalWindow(start, start.plusDays(1)), now, DayWorkWindows.focusedToday(focus, now, zone)), state.events, night, state.sleep.goal,
+            now, zone, DayWorkWindows.partsIn(plan, LocalWindow(start, start.plusDays(1)), now, DayWorkWindows.focusedToday(focus, now, zone), state.sleep::fallbackNightBefore), state.events, night, state.sleep.goal,
             wakeSource = if (byAlarm) "alarm" else null, focus = focus, phoneMinutes = phoneMinutes,
             // The clock now, not [now]: Today's [now] may be up to 30 s old when a test starts.
             testEndsAt = app.testSession.running()?.second,
@@ -50,7 +50,7 @@ object HeaderSource {
         }
 
         val day = builder.dayAt(now, state.dayBar, state.sleep, state.document.dayPlan)
-        val focus = DayWorkWindows.workWindows(state.document.dayPlan, day, now).map { it.window }
+        val focus = DayWorkWindows.workWindows(state.document.dayPlan, day, now, nightFallback = state.sleep::fallbackNightBefore).map { it.window }
         return runCatching { reader.read(day, focus).total.toMinutes().toInt() }.getOrNull()
     }
 

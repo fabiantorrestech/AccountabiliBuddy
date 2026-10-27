@@ -81,9 +81,9 @@ fun TodayScreen(
     val tomorrow = LocalWindow(maxOf(day.end, tomorrowDate.atStartOfDay()), tomorrowDate.plusDays(1).atStartOfDay())
     // Whole blocks touching the day (not cut to it), so an early block shows its real start. Worked out again only
     // when the data or the day changes, not on every 30-second tick of the bar.
-    val todayBlocks = remember(state.document, day) { blocksTouching(state.document, day) }
+    val todayBlocks = remember(state.document, day) { blocksTouching(state.document, state.sleep, day) }
     val todayEvents = remember(state.events, day) { eventsIn(state.events, day) }
-    val nextBlocks = remember(state.document, tomorrow) { blocksTouching(state.document, tomorrow) }
+    val nextBlocks = remember(state.document, tomorrow) { blocksTouching(state.document, state.sleep, tomorrow) }
     val nextEvents = remember(state.events, tomorrow) { eventsIn(state.events, tomorrow) }
 
     LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -170,9 +170,9 @@ fun TodayScreen(
 
 private val TOMORROW_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE M/d")
 
-private fun blocksTouching(document: ProfileDocument, window: LocalWindow): List<PlannedFocus> {
+private fun blocksTouching(document: ProfileDocument, sleep: com.accountabilibuddy.companion.model.SleepSettings, window: LocalWindow): List<PlannedFocus> {
     val around = LocalWindow(window.start.minusDays(1), window.end.plusDays(1))
-    return DayWorkWindows.workWindows(document.dayPlan, around, LocalDateTime.now()).filter { DayTimeline.clip(it.window, window) != null }
+    return DayWorkWindows.workWindows(document.dayPlan, around, LocalDateTime.now(), nightFallback = sleep::fallbackNightBefore).filter { DayTimeline.clip(it.window, window) != null }
 }
 
 private fun eventsIn(events: List<CalendarEvent>, window: LocalWindow): List<CalendarEvent> =
