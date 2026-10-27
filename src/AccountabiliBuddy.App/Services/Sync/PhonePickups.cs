@@ -37,6 +37,12 @@ public sealed class PhonePickups
     public string? Describe(DateTimeOffset sessionStart)
     {
         string? others = DescribeOtherPcs(sessionStart);
+        string? placement = DescribePlacement(sessionStart);
+        if (placement is not null)
+        {
+            others = others is null ? placement : $"{placement} · {others}";
+        }
+
         if (For(sessionStart) is not SyncPickup pickup)
         {
             return others;
@@ -50,6 +56,14 @@ public sealed class PhonePickups
             ? $"Phone: not picked up · down {down}{emergency}"
             : $"Phone: picked up {pickup.Count}× · longest down {down}{emergency}";
         return others is null ? phone : $"{phone} · {others}";
+    }
+
+    /// <summary>E.g. "out 2× · pocket 14 min" from the phone's placement for the session; null when the phone sent none.</summary>
+    public string? DescribePlacement(DateTimeOffset sessionStart)
+    {
+        return PhonePlacementLookup.Newest(_received.Devices, sessionStart) is { Placement: SyncPlacement placement }
+            ? $"out {placement.OutCount}× · pocket {placement.PocketMinutes} min"
+            : null;
     }
 
     /// <summary>E.g. "DESK-PC: used 2×" for each other PC that went back to during the session (design K); null for none.</summary>

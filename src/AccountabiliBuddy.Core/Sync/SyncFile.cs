@@ -24,6 +24,7 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="ProfileOptions">A PC's profiles, always listed (ADR 42), for the phone's start picker; null from a phone or an older PC.</param>
 /// <param name="DefaultProfileId">A PC's "Quick Start with Default" profile; null when it isn't made yet.</param>
 /// <param name="Noise">A PC's noise player (ADR 42, 36); null when it has no sound files.</param>
+/// <param name="Placement">A phone's placement during a PC focus session (bag, desk, pocket, out); null from a PC, an older phone or when no session runs.</param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
@@ -50,7 +51,8 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncProfileOption>? ProfileOptions = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? DefaultProfileId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncBeeminderGoal>? Beeminder = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncNoise? Noise = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncNoise? Noise = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncPlacement? Placement = null)
 {
     public const int CurrentFormatVersion = 1;
 }
