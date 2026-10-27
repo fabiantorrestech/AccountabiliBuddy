@@ -1,0 +1,60 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.AwayCardWindow"
+        x:DataType="vm:AwayCardViewModel"
+        Title="Back on track?"
+        Width="460" SizeToContent="Height"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="True"
+        WindowStartupLocation="Manual">
+    <!-- No button takes keyboard focus: the card appears on a keystroke, and a typed Space or Enter must not answer it. -->
+    <Window.Styles>
+        <Style Selector="Button">
+            <Setter Property="Focusable" Value="False" />
+        </Style>
+    </Window.Styles>
+    <!-- The away card: a side task's length, "Back to the task?" after input while stepped away, and when a side task's time is up. -->
+    <Border Padding="24,20" Background="#FF15191E" BorderBrush="#AA2A9D8F" BorderThickness="2" CornerRadius="10">
+        <StackPanel Spacing="12">
+            <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Detail}" Opacity="0.9" TextWrapping="Wrap" FontWeight="SemiBold" Foreground="#FBBF24"
+                       IsVisible="{Binding IsSideTask}" />
+            <TextBlock Text="{Binding Detail}" Opacity="0.85" TextWrapping="Wrap" IsVisible="{Binding !IsSideTask}" />
+
+            <!-- Side task: how long. 5 minutes is the default. -->
+            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowsLengths}">
+                <Button Content="5 min" Command="{Binding StartSideTaskCommand}" CommandParameter="5" Classes="accent" />
+                <Button Content="10 min" Command="{Binding StartSideTaskCommand}" CommandParameter="10" />
+                <Button Content="15 min" Command="{Binding StartSideTaskCommand}" CommandParameter="15" />
+                <Button Content="Cancel" Command="{Binding CloseCommand}" />
+            </StackPanel>
+
+            <!-- Stepped away and input seen. -->
+            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowsBackButtons}">
+                <Button Content="Back on track" Command="{Binding BackOnTrackCommand}" Classes="accent" />
+                <Button Content="Still away" Command="{Binding StillAwayCommand}" />
+            </StackPanel>
+
+            <!-- A side task's time is up. -->
+            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowsOverButtons}">
+                <Button Content="Back on track" Command="{Binding BackOnTrackCommand}" Classes="accent" />
+                <Button Content="+5 min" Command="{Binding AskAddFiveCommand}" />
+                <Button Content="End session" Command="{Binding EndSessionCommand}" />
+            </StackPanel>
+
+            <!-- +5 min: a reason (and from the second one a wait). -->
+            <StackPanel Spacing="8" IsVisible="{Binding ShowsAddFive}">
+                <TextBox Text="{Binding Reason}" PlaceholderText="Why 5 more minutes?" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="64" />
+                <TextBlock Text="{Binding AddFiveStatus}" Opacity="0.85" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Add 5 min" Command="{Binding ConfirmAddFiveCommand}" />
+                    <Button Content="Back" Command="{Binding CancelAddFiveCommand}" />
+                </StackPanel>
+            </StackPanel>
+
+            <TextBlock FontSize="11" Opacity="0.6" TextWrapping="Wrap"
+                       Text="The focus clock is paused until you are back on track. The reason stays on this computer, sealed." />
+        </StackPanel>
+    </Border>
+</Window>

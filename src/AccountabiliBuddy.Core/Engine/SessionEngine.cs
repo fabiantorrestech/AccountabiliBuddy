@@ -144,6 +144,64 @@ public sealed class SessionEngine
     }
 
     /// <summary>
+    /// The user starts a side task of <paramref name="length"/>: the countdown pauses like a step away, but enforcement keeps
+    /// running (<see cref="SessionState.PausesEnforcement"/>). The length only says when the user is asked if they are back:
+    /// nothing ends and nothing is shortened when it is up.
+    /// </summary>
+    /// <returns>False with no session running or when already away.</returns>
+    public bool StartSideTask(TimeSpan length)
+    {
+        if (length <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(length), "Length must be positive.");
+        }
+
+        if (!State.IsActive || State.IsAway)
+        {
+            return false;
+        }
+
+        DateTimeOffset now = Now;
+        SetState(State with { Away = AwayKind.SideTask, AwaySince = now, AwayEndsAt = now + length });
+        return true;
+    }
+
+    /// <summary>
+    /// Gives the running side task <paramref name="extra"/> more, counted from its end, or from now once that has passed.
+    /// The caller applies the friction (reason, wait) first.
+    /// </summary>
+    /// <returns>False when no side task is running.</returns>
+    public bool ExtendSideTask(TimeSpan extra)
+    {
+        if (State.Away != AwayKind.SideTask || extra <= TimeSpan.Zero)
+        {
+            return false;
+        }
+
+        DateTimeOffset now = Now;
+        DateTimeOffset from = State.AwayEndsAt is DateTimeOffset end && end > now ? end : now;
+        SetState(State with { AwayEndsAt = from + extra, SideTaskExtensions = State.SideTaskExtensions + 1 });
+        return true;
+    }
+
+    /// <summary>
+    /// Input was seen during a break or interruption: the user is at the desk, so enforcement runs as in focus from now
+    /// (the countdown stays paused until <see cref="Return"/>). <paramref name="atDesk"/> false puts the hold back
+    /// (lunch holds the away again).
+    /// </summary>
+    /// <returns>False when not away on a break or interruption, or nothing changed.</returns>
+    public bool SetAwayAtDesk(bool atDesk)
+    {
+        if (!State.IsAway || State.Away == AwayKind.SideTask || State.AwayAtDesk == atDesk)
+        {
+            return false;
+        }
+
+        SetState(State with { AwayAtDesk = atDesk });
+        return true;
+    }
+
+    /// <summary>
     /// The user is back: the phase's start and end move later by the time away, so no focus time is lost and its
     /// countdown carries on where it paused.
     /// </summary>
@@ -165,6 +223,9 @@ public sealed class SessionEngine
         {
             Away = null,
             AwaySince = null,
+            AwayEndsAt = null,
+            AwayAtDesk = false,
+            SideTaskExtensions = 0,
             PhaseStartedAt = State.PhaseStartedAt + away,
             PhaseEndsAt = State.PhaseEndsAt + away,
         });

@@ -69,6 +69,9 @@ public static class SessionHistoryBuilder
                     awaySince = null;
                     continue;
 
+                case SessionEventKind.SideTaskExtended:
+                    continue; // Only its reason matters, and that stays encrypted; it neither opens nor closes a session.
+
                 case SessionEventKind.Interrupted:
                     interruptedAt = sessionEvent.At;
                     continue;

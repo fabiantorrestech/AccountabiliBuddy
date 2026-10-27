@@ -56,6 +56,7 @@ public sealed class ActivityRecorder : IDisposable
         _sessions.SessionCompleted += OnSessionCompleted;
         _sessions.SessionEnded += OnSessionEnded;
         _sessions.SessionResumed += OnSessionResumed;
+        _sessions.SideTaskExtended += OnSideTaskExtended;
         _privacy.Changed += OnPrivacyChanged;
 
         _pruneTimer = new DispatcherTimer { Interval = PruneInterval };
@@ -90,8 +91,9 @@ public sealed class ActivityRecorder : IDisposable
             return;
         }
 
-        // A test session logs its activity as outside any session, so it never reaches focus time or the review.
-        bool inFocus = state.IsEnforcing && !state.IsTest;
+        // A test session logs its activity as outside any session, so it never reaches focus time or the review. Neither
+        // does time away from the focus clock (a step away, a side task): enforcement still judges it, but it isn't focus.
+        bool inFocus = state.IsEnforcing && !state.IsAway && !state.IsTest;
         Guid? profileId = state.IsRealSession ? state.ProfileId : null;
         IEnumerable<ObservedActivity> observations = decisions.Select(decision => new ObservedActivity(
             decision.Snapshot,
@@ -148,6 +150,7 @@ public sealed class ActivityRecorder : IDisposable
         _sessions.SessionCompleted -= OnSessionCompleted;
         _sessions.SessionEnded -= OnSessionEnded;
         _sessions.SessionResumed -= OnSessionResumed;
+        _sessions.SideTaskExtended -= OnSideTaskExtended;
         _privacy.Changed -= OnPrivacyChanged;
 
         // Keep what was on screen up to now; give the disk a moment, but never hang the exit.
@@ -206,6 +209,17 @@ public sealed class ActivityRecorder : IDisposable
             var ended = new SessionEvent(
                 _timeProvider.GetUtcNow(), kind, end.Ended.Mode, end.Ended.ProfileId, Reason: end.EarlyEndReason);
             Enqueue(() => _log.RecordSessionEventAsync(ended));
+        }
+    }
+
+    // A test session leaves no events, so its side tasks leave none either.
+    private void OnSideTaskExtended(object? sender, SideTaskExtension extension)
+    {
+        if (IsEnabled && !extension.State.IsTest)
+        {
+            var extended = new SessionEvent(
+                _timeProvider.GetUtcNow(), SessionEventKind.SideTaskExtended, extension.State.Mode, extension.State.ProfileId, Reason: extension.Reason);
+            Enqueue(() => _log.RecordSessionEventAsync(extended));
         }
     }
 

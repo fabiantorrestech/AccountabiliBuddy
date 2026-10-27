@@ -210,10 +210,12 @@ public sealed class EnforcementCoordinator : IDisposable
     private void Reevaluate()
     {
         SessionState state = _sessions.State;
-        if (state.IsAway)
+        if (state.PausesEnforcement)
         {
             // Stepped away: everything stays as it was (what was blocked stays blocked, an open prompt stays open, the
             // escalation doesn't move or start over) until the user is back. Only the recorder hears the idle time.
+            // Not this: a side task, and a break from the first input on (the "Back to the task?" card is up): the focus
+            // clock stays paused but enforcement runs as in focus. Lunch's hold takes the break back to this.
             _recorder.Observe(_lastDecisions, state, _sessions.Now);
             return;
         }

@@ -158,9 +158,17 @@ public sealed partial class FocusViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsAway { get; set; }
 
-    /// <summary>"Away · 4:12" while away.</summary>
+    /// <summary>"Away · 4:12" while away, "Side task · 6:12" (in amber) during a side task.</summary>
     [ObservableProperty]
     public partial string AwayText { get; set; }
+
+    /// <summary>A side task is running: its time shows in amber next to the paused focus time.</summary>
+    [ObservableProperty]
+    public partial bool IsSideTask { get; set; }
+
+    /// <summary>Stepped away (not on a side task): the plain badge.</summary>
+    [ObservableProperty]
+    public partial bool IsPlainAway { get; set; }
 
     /// <summary>"Step away", or "I'm back" while away.</summary>
     [ObservableProperty]
@@ -185,6 +193,14 @@ public sealed partial class FocusViewModel : ObservableObject
         }
     }
 
+    /// <summary>A small errand at the desk: asks for 5, 10 or 15 minutes; the focus clock pauses, enforcement keeps running.</summary>
+    [RelayCommand]
+    private void SideTask()
+    {
+        _stepAway?.AskSideTaskLength();
+        Refresh();
+    }
+
     [RelayCommand(CanExecute = nameof(IsActive))]
     private Task EndSessionAsync()
     {
@@ -201,6 +217,7 @@ public sealed partial class FocusViewModel : ObservableObject
         {
             TimeLeftText = PhaseText = AwayText = string.Empty;
             IsAway = false;
+            IsSideTask = IsPlainAway = false;
             StepAwayText = "Step away";
             RefreshTasks();
             return;
@@ -224,6 +241,8 @@ public sealed partial class FocusViewModel : ObservableObject
         }
 
         IsAway = state.IsAway;
+        IsSideTask = state.Away == AwayKind.SideTask;
+        IsPlainAway = state.IsAway && !IsSideTask;
         AwayText = _stepAway?.AwayText ?? string.Empty;
         StepAwayText = state.IsAway ? "I'm back" : "Step away";
         FocusedTodayText = _day?.SummaryText ?? string.Empty;

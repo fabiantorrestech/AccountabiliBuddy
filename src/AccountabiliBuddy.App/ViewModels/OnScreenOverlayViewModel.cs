@@ -334,20 +334,47 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
         _stepAway = toggle;
     }
 
-    /// <param name="awayText">"Away · 4:12" while away, null when not.</param>
+    /// <summary>"Side task" next to Step away: asks for 5, 10 or 15 minutes on the away card (set by the service).</summary>
+    public void SetSideTask(Action ask)
+    {
+        _sideTask = ask;
+    }
+
+    /// <param name="awayText">"Away · 4:12" or "Side task · 6:12" while away, null when not.</param>
     /// <param name="sessionActive">The button shows only while a session runs.</param>
-    public void SetAway(string? awayText, bool sessionActive = true)
+    /// <param name="isSideTask">The away is a side task: its time shows in amber.</param>
+    public void SetAway(string? awayText, bool sessionActive = true, bool isSideTask = false)
     {
         AwayText = awayText ?? string.Empty;
         ShowsAway = awayText is not null;
+        AwayBrush = isSideTask ? SideTaskBrush : Brushes.White;
         StepAwayText = awayText is null ? "Step away" : "I'm back";
         ShowsStepAway = _stepAway is not null && sessionActive;
+        ShowsSideTask = _sideTask is not null && sessionActive && awayText is null;
     }
+
+    private static readonly IBrush SideTaskBrush = new SolidColorBrush(Color.Parse("#FBBF24"));
+
+    /// <summary>White for "Away · 4:12", amber for "Side task · 6:12".</summary>
+    [ObservableProperty]
+    public partial IBrush AwayBrush { get; set; } = Brushes.White;
+
+    /// <summary>While a session runs and no away is going: the Side task button next to Step away.</summary>
+    [ObservableProperty]
+    public partial bool ShowsSideTask { get; set; }
+
+    private Action? _sideTask;
 
     [RelayCommand]
     private void StepAway()
     {
         _stepAway?.Invoke();
+    }
+
+    [RelayCommand]
+    private void SideTask()
+    {
+        _sideTask?.Invoke();
     }
 
     /// <summary>This PC's timers and alarms, a line each under the timer and timeline (set by the service).</summary>
