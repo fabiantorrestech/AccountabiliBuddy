@@ -8,7 +8,8 @@ namespace AccountabiliBuddy.App.Views;
 /// One cell of a 3×3 grid laid over a monitor's work area. The on-screen window is anchored by the point of that cell:
 /// a corner for the four corner cells, the middle of an edge for the four edge cells, and its centre for the middle cell
 /// (so the window grows evenly both ways there). Column 0 is the left third, 2 the right; row 0 the top third, 2 the
-/// bottom. All maths is in physical pixels.
+/// bottom. The open window uses only the corner cells (column and row 0 or 2), so the bar stays put. All maths is in
+/// physical pixels.
 /// </summary>
 public readonly record struct OverlayAnchorZone(int Column, int Row)
 {

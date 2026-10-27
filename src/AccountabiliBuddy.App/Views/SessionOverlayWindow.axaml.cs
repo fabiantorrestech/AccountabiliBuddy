@@ -22,7 +22,8 @@ namespace AccountabiliBuddy.App.Views;
 /// made over a maximized app ends when that app is no longer maximized in front; any other lasts until ↺ or a restart.
 /// The window is anchored by a 3×3 zone of its monitor's work area (<see cref="OverlayAnchorZone"/>): a corner for the
 /// corner cells, the middle of an edge for the edge cells, the centre for the middle cell. The Ctrl+Alt details open
-/// away from that anchor, so in the corner and edge cells the bar never moves, and every spot is measured from the bar.
+/// from the bar's corner (turned around when they would run off the screen), so the bar never moves, and every spot is
+/// measured from the bar.
 /// </summary>
 public partial class SessionOverlayWindow : Window
 {
@@ -177,6 +178,7 @@ public partial class SessionOverlayWindow : Window
                 return;
             }
 
+            FitLayout();
             if (_inDefaultCorner && !_isTemporary)
             {
                 MoveToDefaultCorner();
@@ -193,6 +195,22 @@ public partial class SessionOverlayWindow : Window
                 _moveSettled.Stop();
                 _moveSettled.Start();
             }
+        };
+        ScalingChanged += (_, _) =>
+        {
+            // The pixel size of the window and of the folded bar follow the monitor's scaling, which a right or bottom
+            // anchor depends on. (Mid-drag the drop settles it with the new scaling.)
+            if (_movedByUser)
+            {
+                return;
+            }
+
+            if (_expanded)
+            {
+                SyncLayoutToBar();
+            }
+
+            ApplyAnchor();
         };
     }
 
@@ -670,9 +688,11 @@ public partial class SessionOverlayWindow : Window
         SetClickThrough(!held);
         if (held)
         {
-            // The details open away from the bar's zone, and the window grows from the same point.
-            _layoutZone = _zone;
-            _layoutPoint = _anchorPoint;
+            // The bar stays put: the details open from its corner, to the right of its left edge and below its top edge,
+            // or to the left of its right edge and above its bottom edge in the right column and the bottom row. (Middle
+            // column and row open right and down, like the left and top.) FitLayout turns them around if they would not fit.
+            _layoutZone = new OverlayAnchorZone(_zone.AnchorsRight ? 2 : 0, _zone.AnchorsBottom ? 2 : 0);
+            _layoutPoint = _layoutZone.PointOn(FoldedBar());
             viewModel?.SetDetailsDirection(_layoutZone.AnchorsBottom, _layoutZone.AnchorsRight);
         }
         else if (_movedByUser && !_dragging)
@@ -901,6 +921,7 @@ public partial class SessionOverlayWindow : Window
         _layoutPoint = _layoutZone.PointOn(new PixelRect(
             window.X + (inside.X - bar.X), window.Y + (inside.Y - bar.Y), window.Width, window.Height));
         StoreFromBar(inside, screen);
+        FitLayout();
 
         if (_avoidedApp is null && IsNearDefaultCorner(inside))
         {
@@ -922,8 +943,59 @@ public partial class SessionOverlayWindow : Window
     }
 
     /// <summary>
+    /// While the details are open: turns them around (right/left, below/above the bar) when they would run off the
+    /// monitor's work area and the other way fits, so the bar stays put and only the details move. If neither way fits,
+    /// <see cref="ApplyAnchor"/> keeps the window inside and the bar moves with it.
+    /// </summary>
+    private void FitLayout()
+    {
+        Screen? screen = _expanded ? ScreenOfBar() : null;
+        if (screen is null)
+        {
+            return;
+        }
+
+        PixelRect area = screen.WorkingArea;
+        PixelSize size = WindowSize(screen);
+        PixelRect bar = FoldedBar();
+        bool right = _layoutZone.AnchorsRight;
+        bool bottom = _layoutZone.AnchorsBottom;
+        if (!FitsHorizontally(right, bar, size, area) && FitsHorizontally(!right, bar, size, area))
+        {
+            right = !right;
+        }
+
+        if (!FitsVertically(bottom, bar, size, area) && FitsVertically(!bottom, bar, size, area))
+        {
+            bottom = !bottom;
+        }
+
+        if (right == _layoutZone.AnchorsRight && bottom == _layoutZone.AnchorsBottom)
+        {
+            return;
+        }
+
+        _layoutZone = new OverlayAnchorZone(right ? 2 : 0, bottom ? 2 : 0);
+        SyncLayoutToBar();
+        (DataContext as OnScreenOverlayViewModel)?.SetDetailsDirection(_layoutZone.AnchorsBottom, _layoutZone.AnchorsRight);
+    }
+
+    private static bool FitsHorizontally(bool right, PixelRect bar, PixelSize size, PixelRect area)
+    {
+        int left = right ? bar.Right - size.Width : bar.X;
+        return left >= area.X && left + size.Width <= area.Right;
+    }
+
+    private static bool FitsVertically(bool bottom, PixelRect bar, PixelSize size, PixelRect area)
+    {
+        int top = bottom ? bar.Bottom - size.Height : bar.Y;
+        return top >= area.Y && top + size.Height <= area.Bottom;
+    }
+
+    /// <summary>
     /// Puts the window where its anchor point stays put: the bar's while folded, the open window's while the details
-    /// are open. Kept inside the work area of the monitor the bar is on.
+    /// are open. The bar is first kept inside the work area of the monitor it is on (the stored spot moves with it, so
+    /// nothing off screen is ever saved), then the window.
     /// </summary>
     private void ApplyAnchor()
     {
@@ -933,8 +1005,20 @@ public partial class SessionOverlayWindow : Window
             return;
         }
 
+        PixelRect area = screen.WorkingArea;
+        PixelRect bar = _zone.RectAt(_anchorPoint, SizeOn(screen));
+        PixelRect insideBar = OverlayAnchorZone.Clamp(bar, area);
+        if (insideBar.X != bar.X || insideBar.Y != bar.Y)
+        {
+            _anchorPoint = new PixelPoint(_anchorPoint.X + (insideBar.X - bar.X), _anchorPoint.Y + (insideBar.Y - bar.Y));
+            if (_expanded)
+            {
+                SyncLayoutToBar();
+            }
+        }
+
         PixelSize size = WindowSize(screen);
         PixelRect window = _expanded ? _layoutZone.RectAt(_layoutPoint, size) : _zone.RectAt(_anchorPoint, size);
-        Position = OverlayAnchorZone.Clamp(window, screen.WorkingArea).Position;
+        Position = OverlayAnchorZone.Clamp(window, area).Position;
     }
 }
