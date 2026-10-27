@@ -62,6 +62,8 @@ data class SyncFile(
     val beeminder: List<SyncBeeminderGoal>? = null,
     /** A PC's noise player (ADR 42, 36): what it plays, for the watch's device switcher; null without sound files or from an older app. */
     val noise: SyncNoise? = null,
+    /** A phone's placement during a PC focus session (phase 11b): label, times and counts only; null from an older phone or when it has none. */
+    val placement: SyncPlacement? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1
@@ -308,4 +310,33 @@ data class SyncRunning(
     fun isLiveAt(now: java.time.Instant, grace: java.time.Duration): Boolean =
         if (planningEndsAt != null) now.isBefore(planningEndsAt.plus(com.accountabilibuddy.shared.PlanningBound.after(phaseStartedAt, phaseEndsAt)))
         else phaseEndsAt?.let { end -> now.isBefore(end.plus(grace)) } ?: true
+}
+
+/**
+ * Where a phone says it is during a PC focus session (phase 11b), from its own sensors. Only the label, times and
+ * counts travel: never sensor values, and never the reason for a work use (it stays on the phone).
+ *
+ * @property state One of [BAG], [DESK], [FACE_UP], [POCKET], [IN_USE], [UNKNOWN]; a reader treats any other text as unknown.
+ * @property since When the phone entered [state].
+ * @property workUseUntil While the user said they need the phone for work, until when; null for none.
+ * @property outCount Stretches of [IN_USE] or [FACE_UP] (no work use) in the session so far.
+ * @property pocketMinutes Minutes spent in [POCKET] in the session so far.
+ * @property sessionStart The start of the PC session this is about, as the phone saw it.
+ */
+data class SyncPlacement(
+    val state: String,
+    val since: Instant,
+    val workUseUntil: Instant?,
+    val outCount: Int,
+    val pocketMinutes: Int,
+    val sessionStart: Instant,
+) {
+    companion object {
+        const val BAG = "bag"
+        const val DESK = "desk"
+        const val FACE_UP = "faceUp"
+        const val POCKET = "pocket"
+        const val IN_USE = "inUse"
+        const val UNKNOWN = "unknown"
+    }
 }

@@ -17,6 +17,7 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.R
+import com.accountabilibuddy.companion.placement.PlacementDetector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,12 +31,16 @@ import kotlinx.coroutines.launch
  * post with the timeline's id stays its foreground one. It also redraws when the screen comes on and when the
  * theme changes, so the now line and colours are current when the shade is opened.
  *
+ * It also hosts the phone placement detector (phase 11b, [PlacementDetector]): it looks at the phone's sensors only
+ * while a PC focus session runs, so with this card off there is no placement.
+ *
  * Android lets a foreground service start only from the foreground or a few exempt moments (boot, an app update),
  * so [tryStart] can fail; the card is then posted unpinned until the next chance.
  */
 class PinnedTimelineService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var lastNight = false
+    private var placement: PlacementDetector? = null
 
     private val screenOn = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -60,6 +65,10 @@ class PinnedTimelineService : Service() {
         ContextCompat.registerReceiver(this, screenOn, filter, ContextCompat.RECEIVER_EXPORTED)
         // The sync folder at its chosen 1 or 5 minutes, which Android allows only while this service runs (ADR 22).
         scope.launch { (application as CompanionApp).folderSource.syncWhilePinned() }
+        placement = PlacementDetector(this).also {
+            detector = it
+            it.start()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -81,6 +90,9 @@ class PinnedTimelineService : Service() {
 
     override fun onDestroy() {
         isRunning = false
+        detector = null
+        placement?.stop()
+        placement = null
         unregisterReceiver(screenOn)
         ServiceCompat.stopForeground(this, if (removeOnStop) ServiceCompat.STOP_FOREGROUND_REMOVE else ServiceCompat.STOP_FOREGROUND_DETACH)
         removeOnStop = false
@@ -114,6 +126,14 @@ class PinnedTimelineService : Service() {
 
         @Volatile
         private var removeOnStop = false
+
+        @Volatile
+        private var detector: PlacementDetector? = null
+
+        /** The session may have changed (a file, the link, a break): the placement detector looks again. No-op while this service isn't running. */
+        fun checkPlacement() {
+            detector?.poke()
+        }
 
         /** False when Android refuses a foreground-service start from the background right now. */
         fun tryStart(context: Context): Boolean =

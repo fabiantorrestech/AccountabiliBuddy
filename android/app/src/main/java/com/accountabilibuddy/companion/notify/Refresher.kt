@@ -123,6 +123,8 @@ object Refresher {
             runCatching { com.accountabilibuddy.companion.curbox.CurboxHardMode.check(context) }
             val pickups = running?.let { app.sync.unlocksSince(it.startedAt)?.size }
             ParkedNotice.check(context, running, pickups, clock)
+            // Phase 11b: the placement detector follows the session (starts, breaks, ends).
+            PinnedTimelineService.checkPlacement()
             val preWork = PreWorkNotice.part(focus, java.time.Instant.now())
             PreWorkNotice.check(context, preWork, preWork?.let { app.sync.unlocksSince(it.start)?.size }, clock)
             if (running != null && pickups != null && pickups != lastPickups) {
@@ -149,8 +151,11 @@ object Refresher {
         // The test session's end: the hard mode reactions (Curbox) are checked again then.
         val testEnd = (context.applicationContext as CompanionApp).testSession.running()?.second
         val untilTestEnd = testEnd?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
+        // A work use ending: the parked notice reads "Done? Put it back" then.
+        val untilWorkUse = (context.applicationContext as CompanionApp).workUse.activeUntil()
+            ?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         val untilMinute = if (minutely) 60_000L - System.currentTimeMillis() % 60_000L + 500L else null
-        val delay = listOfNotNull(untilCountdownEnd, untilNudge, untilBedtime, untilTestEnd, untilMinute).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
+        val delay = listOfNotNull(untilCountdownEnd, untilNudge, untilBedtime, untilTestEnd, untilWorkUse, untilMinute).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
         alarms.set(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + delay, intent)
     }
 }

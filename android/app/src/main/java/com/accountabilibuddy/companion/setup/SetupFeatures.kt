@@ -21,6 +21,7 @@ data class SetupFeature(
 object SetupFeatures {
     const val CURBOX = "curbox.setup"
     const val BEDTIME = "bedtime.essentials"
+    const val PLACEMENT = "phone.placement"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
@@ -34,6 +35,12 @@ object SetupFeatures {
             BEDTIME, "0.1.59", "Bedtime essentials: the night's own apps and LockMyPhone-Extended lock",
             relevant = { true },
             setUp = { done(it, BEDTIME) },
+        ),
+        SetupFeature(
+            PLACEMENT, "0.1.61", "Phone placement: the PC knows if the phone is in a bag, face down or out (needs the timeline notification)",
+            relevant = { true },
+            // Set up once seen in the assistant, or the timeline notification is on (the detector runs in its service).
+            setUp = { done(it, PLACEMENT) || (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).store.state.value.timelineNotificationOn },
         ),
     )
 

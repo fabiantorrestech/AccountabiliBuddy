@@ -172,6 +172,13 @@
             android:excludeFromRecents="true"
             android:taskAffinity="com.accountabilibuddy.companion.nudge" />
 
+        <!-- "Need it for work" from the parked notice or Today: the work use chooser on its own (phone placement). -->
+        <activity
+            android:name=".placement.WorkUseActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.accountabilibuddy.companion.nudge" />
+
         <activity-alias
             android:name="ViewPermissionUsageActivity"
             android:exported="true"
