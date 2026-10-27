@@ -132,6 +132,7 @@ public partial class App : Application
     private SetupAssistantService? _setupAssistant;
     private Func<SetupAssistantViewModel>? _createAssistant;
     private SetupAssistantWindow? _assistantWindow;
+    private Action? _showDpAssistant;
     private TrayIcon? _trayIcon;
     private NativeMenuItem? _endSessionMenuItem;
     private NativeMenuItem? _stepAwayMenuItem;
@@ -761,6 +762,7 @@ public partial class App : Application
             Keys = _coldTurkeyKeys,
             ColdTurkey = _coldTurkey,
             OtherBlockers = new WindowsOtherBlockerDetector(),
+            OpenDpAssistant = () => _showDpAssistant?.Invoke(),
         };
         setupViewModel.OpenAssistant = () => ShowSetupAssistant(quick: false);
 
@@ -860,6 +862,8 @@ public partial class App : Application
         };
         startOfDay.LoadBlocking();
         _startNudge!.Assistant = startOfDay;
+        var dpAssistant = new DpAssistantService(documents);
+        dpAssistant.LoadBlocking();
         sessionViewModel.Goal = new GoalCardViewModel(_deepWork, goal)
         {
             LowerWaits = goalLowerWaits,
@@ -1120,7 +1124,7 @@ public partial class App : Application
 
         // The migration assistant: features added since the last version that aren't set up yet.
         var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
-            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!), BackupService.AppVersion);
+            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant), BackupService.AppVersion);
         setupFeatures.LoadBlocking();
         _setupFeatures = setupFeatures;
         coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();
@@ -1158,6 +1162,32 @@ public partial class App : Application
             new PlanDayWindow { DataContext = viewModel }.Show();
         }
 
+        // The Setup DP Assistant (Day plan tab): one window at a time; also opened from the migration assistant.
+        DpAssistantWindow? dpAssistantWindow = null;
+        void ShowDpAssistant()
+        {
+            if (dpAssistantWindow is not null)
+            {
+                dpAssistantWindow.Activate();
+                return;
+            }
+
+            var viewModel = new DpAssistantViewModel(_configuration!, sleepSettings, goal, _sessions!, dpAssistant, _lunch!)
+            {
+                Today = () => DateOnly.FromDateTime(time.GetLocalNow().DateTime),
+                GoalLowerWaits = goalLowerWaits,
+                WorkHoursGuardOn = () => _workHours?.Settings.On == true,
+                HasLinkedPhone = () => receivedDevices.Devices.Any(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone),
+                RefreshProgress = () => _deepWork?.CheckNow(),
+            };
+            dpAssistantWindow = new DpAssistantWindow { DataContext = viewModel };
+            dpAssistantWindow.Closed += (_, _) => dpAssistantWindow = null;
+            dpAssistantWindow.Show();
+            dpAssistantWindow.Activate();
+        }
+
+        _showDpAssistant = ShowDpAssistant;
+        mainViewModel.ShowDpAssistant = ShowDpAssistant;
         sessionViewModel.ShowPlanDay = ShowPlanDay;
         mainViewModel.DayPlan.ShowPlanDay = ShowPlanDay;
         devices.ShowSyncQr = ShowSyncQr;

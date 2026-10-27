@@ -82,6 +82,15 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     /// <summary>Set by the window: shows a folder dialog and returns the chosen path (the Work type's sync folder).</summary>
     public Func<Task<string?>>? PickFolder { get; set; }
 
+    /// <summary>Opens the Setup DP Assistant (the migration assistant's pointer page); set by the app.</summary>
+    public Action? OpenDpAssistant { get; init; }
+
+    [RelayCommand]
+    private void OpenSetupDpAssistant()
+    {
+        OpenDpAssistant?.Invoke();
+    }
+
     /// <summary>Computer types and applying one (ADR 22); null skips the type step.</summary>
     public ComputerTypeService? Types { get; init; }
 
@@ -319,7 +328,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsLinkFirst), nameof(IsComputerType), nameof(IsImport), nameof(IsUsage), nameof(IsReview), nameof(IsBrowsers),
-        nameof(IsBasics), nameof(IsWorkdays), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsStartOfDay), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
+        nameof(IsBasics), nameof(IsWorkdays), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsDpAssistant), nameof(IsStartOfDay), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(BackCommand))]
     public partial AssistantStep Step { get; set; }
 
@@ -425,6 +434,8 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     public bool IsOwnRelay => Step == AssistantStep.OwnRelay;
 
+    public bool IsDpAssistant => Step == AssistantStep.DpAssistant;
+
     public bool IsStartOfDay => Step == AssistantStep.StartOfDay;
 
     public bool IsGoal => Step == AssistantStep.Goal;
@@ -445,6 +456,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.ColdTurkeyKeys => "Cold Turkey: let AccountabiliBuddy hold the keys",
         AssistantStep.SpareKey => "Your spare key",
         AssistantStep.OwnRelay => "Own relay: sync through your own server",
+        AssistantStep.DpAssistant => "Setup DP Assistant: your day plan, step by step",
         AssistantStep.StartOfDay => "Start-of-day assistant",
         AssistantStep.Goal => "How much focus a day?",
         _ => "All set",
@@ -470,6 +482,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.ColdTurkeyKeys => "Finish",
         AssistantStep.SpareKey => "I wrote it down",
         AssistantStep.OwnRelay => "Finish",
+        AssistantStep.DpAssistant => "Finish",
         AssistantStep.StartOfDay => "Finish",
         AssistantStep.Goal => "Finish",
         AssistantStep.Done => "Close",
@@ -638,6 +651,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
                 break;
             case AssistantStep.OwnRelay:
+            case AssistantStep.DpAssistant:
             case AssistantStep.StartOfDay:
                 GoToNextQuickStep();
                 break;

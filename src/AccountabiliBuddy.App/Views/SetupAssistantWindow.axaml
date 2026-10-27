@@ -363,6 +363,15 @@
                                Text="To set it up, finish here, then open Devices → How this PC shares → Own relay. Type your relay's address and pin, press Test connection and tick Own relay. The Devices page has the short steps and the full guide." />
                 </StackPanel>
 
+                <!-- The Setup DP Assistant: a button on the Day plan tab -->
+                <StackPanel IsVisible="{Binding IsDpAssistant}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="The Day plan tab has a new button at its top right, next to the refresh button: Setup DP Assistant. It walks you through your workdays, work time, deep work goal, lunch, sleep and weeks in seven steps, each already filled in from your plan or with sensible defaults, and ends with a plain-language review of how the buddy will behave through each day before anything is saved." />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="You can run it again any time. It is locked while a focus session you started is running, and a change that frees today's work hours waits like any looser change." />
+                    <Button Content="Open it now" Command="{Binding OpenSetupDpAssistantCommand}" HorizontalAlignment="Left" Classes="accent" />
+                </StackPanel>
+
                 <!-- The start-of-day assistant: on the first arrival of a workday -->
                 <StackPanel IsVisible="{Binding IsStartOfDay}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
                     <TextBlock Classes="body" TextWrapping="Wrap"

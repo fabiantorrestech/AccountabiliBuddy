@@ -106,6 +106,14 @@
                         <!-- Today's sync QR codes for the phone (ADR 22), while the QR code method is on. -->
                         <Button Content="Sync phone" Command="{Binding ShowSyncQrCodesCommand}" IsVisible="{Binding ShowsQrButton}"
                                 ToolTip.Tip="Show today's QR codes for your phone to scan" VerticalAlignment="Center" />
+                        <!-- The guided day plan (Day plan tab only), next to the refresh button; locked like the editor. -->
+                        <Button Command="{Binding OpenDpAssistantCommand}" IsVisible="{Binding ShowsDpAssistantButton}" VerticalAlignment="Center"
+                                ToolTip.Tip="Set up your day plan step by step, with sensible defaults">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <mi:MaterialIcon Kind="AutoFix" Width="16" Height="16" />
+                                <TextBlock Text="Setup DP Assistant" />
+                            </StackPanel>
+                        </Button>
                         <!-- Sync now and reload everything, for a manual check that all is in step. -->
                         <Button Content="⟳" Command="{Binding RefreshNowCommand}" ToolTip.Tip="{Binding RefreshTip}" FontSize="16" Padding="10,2"
                                 VerticalAlignment="Center" AutomationProperties.Name="Refresh and sync now" Classes.busy="{Binding IsRefreshing}">

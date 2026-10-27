@@ -28,6 +28,9 @@ public enum AssistantStep
     /// <summary>ADR 46: the own relay, a pointer to Devices → Own relay (only in the migration assistant).</summary>
     OwnRelay,
 
+    /// <summary>The Setup DP Assistant, a button on the Day plan tab: a pointer page with an "Open it now" button (only in the migration assistant).</summary>
+    DpAssistant,
+
     /// <summary>The start-of-day assistant on the first arrival of a workday: on or off (only in the migration assistant).</summary>
     StartOfDay,
 
