@@ -196,9 +196,9 @@ public sealed class TimersService
             : alarm with { IsOn = on, ArmedFrom = LocalNow, SnoozedUntil = null });
     }
 
-    public Task SnoozeAlarmAsync(Guid id)
+    public Task SnoozeAlarmAsync(Guid id, int minutes = 9)
     {
-        return UpdateAlarm(id, alarm => alarm with { SnoozedUntil = LocalNow + Snooze });
+        return UpdateAlarm(id, alarm => alarm with { SnoozedUntil = LocalNow.AddMinutes(minutes) });
     }
 
     /// <summary>A ringing alarm stops; a snooze goes. Repeating ones ring again on their next day.</summary>

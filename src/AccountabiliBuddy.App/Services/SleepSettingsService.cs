@@ -128,7 +128,7 @@ public sealed class SleepSettingsService
     /// <summary>Takes the bedtimes and wake times from the plan's Sleep parts (Workdays = weeknights); saves only on a change.</summary>
     public async Task SaveFromPlanAsync(DayPlan plan)
     {
-        // The first workday (and the first other day) of week A, Monday first, by the week map; the stock templates when none.
+        // The first workday (and the first other day) of week 1, Monday first, by the cycle; the stock templates when none.
         SleepTimes weeknights = DayPlanSleep.TypicalNight(plan, workday: true) ?? DayPlanSleep.SleepOf(plan.Workday, plan) ?? Current.Weeknights;
         SleepTimes weekends = DayPlanSleep.TypicalNight(plan, workday: false) ?? DayPlanSleep.SleepOf(plan.OtherDay, plan) ?? Current.Weekends;
         SleepSettings updated = Current with { SameEveryNight = false, Weeknights = weeknights, Weekends = weekends };

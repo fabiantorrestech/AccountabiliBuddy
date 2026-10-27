@@ -3,16 +3,16 @@ using System.Text.Json.Serialization;
 namespace AccountabiliBuddy.Core.Domain;
 
 /// <summary>
-/// How the user's days are meant to go (schema v5, replacing the weekly schedule of profiles, ADR 18; named templates and
-/// a week map since schema v12, ADR 47): categories, named day templates, which template each weekday follows (week A,
-/// optionally alternating with week B), and one-off days that replace a single date's template.
+/// How the user's days are meant to go (schema v5, replacing the weekly schedule of profiles, ADR 18; named templates
+/// since schema v12 and a repeating cycle of weeks since v13, ADR 47): categories, named day templates, which template
+/// each weekday follows in a cycle of 1 to 8 weeks, and one-off days that replace a single date's template.
 /// </summary>
 /// <param name="Templates">The named templates; the first two migrated ones are <see cref="WorkdayTemplateId"/> and <see cref="OffDayTemplateId"/>.</param>
-/// <param name="Week">Which template each weekday follows.</param>
+/// <param name="Cycle">Which template each weekday follows, in a repeating cycle of 1 to 8 weeks.</param>
 public sealed record DayPlan(
     IReadOnlyList<DayCategory> Categories,
     IReadOnlyList<PlanTemplate> Templates,
-    PlanWeek Week,
+    PlanCycle Cycle,
     IReadOnlyList<OneOffDay> OneOffDays)
 {
     /// <summary>The migrated "Workday" template (schema v12): the same id everywhere it's created.</summary>
@@ -26,6 +26,12 @@ public sealed record DayPlan(
     {
         DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday,
     };
+
+    /// <summary>
+    /// The Monday week 1 starts on for a plan that never set one (a plan migrated from before the cycle, or a new one): the
+    /// same date everywhere, so the same plan hashes the same on every device. It makes no difference with one week.
+    /// </summary>
+    public static DateOnly DefaultCycleStart { get; } = new(2024, 1, 1);
 
     // Fixed ids, so the starting plan is the same everywhere it's created.
     private static readonly DayCategory WorkCategory = new(Guid.Parse("8b1f0c52-0001-4c6e-9a51-3f2d7c000001"), "Work", "#2563EB", CategoryBehavior.Watch);
@@ -69,7 +75,7 @@ public sealed record DayPlan(
 
     /// <summary>
     /// A plan of the two classic templates (schema v11's shape): <paramref name="workdays"/> follow "Workday", every other
-    /// weekday "Off day", week A only.
+    /// weekday "Off day", a one-week cycle.
     /// </summary>
     public static DayPlan FromWorkdayAndOffDay(
         IReadOnlyList<DayCategory> categories,
@@ -82,7 +88,7 @@ public sealed record DayPlan(
         return new DayPlan(
             categories,
             new[] { new PlanTemplate(WorkdayTemplateId, "Workday", workday), new PlanTemplate(OffDayTemplateId, "Off day", otherDay) },
-            new PlanWeek(MondayFirst.Select(day => new WeekdayTemplate(day, workdaySet.Contains(day) ? WorkdayTemplateId : OffDayTemplateId)).ToList()),
+            new PlanCycle(new List<IReadOnlyList<WeekdayTemplate>> { MondayFirst.Select(day => new WeekdayTemplate(day, workdaySet.Contains(day) ? WorkdayTemplateId : OffDayTemplateId)).ToList() }, DefaultCycleStart),
             oneOffDays);
     }
 
@@ -97,10 +103,10 @@ public sealed record DayPlan(
     [JsonIgnore]
     public DayTemplate OtherDay => TemplateById(OffDayTemplateId) ?? DayTemplate.Empty;
 
-    /// <summary>The weekdays of week A that follow the "Workday" template (the classic two-template view).</summary>
+    /// <summary>The weekdays of week 1 that follow the "Workday" template (the classic two-template view).</summary>
     [JsonIgnore]
     public IReadOnlyList<DayOfWeek> Workdays =>
-        MondayFirst.Where(day => Week.A.Any(entry => entry.Day == day && entry.TemplateId == WorkdayTemplateId)).ToList();
+        MondayFirst.Where(day => Cycle.Weeks[0].Any(entry => entry.Day == day && entry.TemplateId == WorkdayTemplateId)).ToList();
 
     /// <summary>The plan with the "Workday" template replaced (added when it was removed).</summary>
     public DayPlan WithWorkday(DayTemplate template)
@@ -115,7 +121,7 @@ public sealed record DayPlan(
     }
 
     /// <summary>
-    /// Week A with exactly <paramref name="workdays"/> following "Workday" (the classic two-template view): a weekday
+    /// Week 1 with exactly <paramref name="workdays"/> following "Workday" (the classic two-template view): a weekday
     /// that follows "Workday" and isn't listed goes to "Off day"; one following any other template stays as it is unless
     /// listed.
     /// </summary>
@@ -125,12 +131,12 @@ public sealed record DayPlan(
         var week = new List<WeekdayTemplate>();
         foreach (DayOfWeek day in MondayFirst)
         {
-            Guid current = Week.A.FirstOrDefault(entry => entry.Day == day)?.TemplateId ?? OffDayTemplateId;
+            Guid current = Cycle.Weeks[0].FirstOrDefault(entry => entry.Day == day)?.TemplateId ?? OffDayTemplateId;
             Guid next = workdaySet.Contains(day) ? WorkdayTemplateId : current == WorkdayTemplateId ? OffDayTemplateId : current;
             week.Add(new WeekdayTemplate(day, next));
         }
 
-        return this with { Week = Week with { A = week } };
+        return this with { Cycle = Cycle with { Weeks = [week, .. Cycle.Weeks.Skip(1)] } };
     }
 
     /// <summary>The template with <paramref name="id"/> as stored; null when there is none.</summary>
@@ -152,7 +158,7 @@ public sealed record DayPlan(
     }
 
     /// <summary>
-    /// The template a date follows, in order: its one-off day, that week's (A or B) template for the weekday, the Off day
+    /// The template a date follows, in order: its one-off day, that week of the cycle's template for the weekday, the Off day
     /// template (empty when there is none). A Schedule template with only a work window comes with that window as its
     /// work part, so everything that reads parts sees it.
     /// </summary>
@@ -170,7 +176,7 @@ public sealed record DayPlan(
 
     /// <summary>
     /// True on a workday, the one rule for every device and feature (the phone's DayPlan.isWorkday is the same): a
-    /// one-off day with work in it, else a date whose week maps its weekday to the "Workday" template, or to a template of
+    /// one-off day with work in it, else a date whose week of the cycle maps its weekday to the "Workday" template, or to a template of
     /// its own that has work (a Budget day, or work parts or a work window). A one-off day replaces a workday's template,
     /// so a one-off day off on a Monday isn't one. With <paramref name="withOneOffDays"/> off, the week map decides alone.
     /// </summary>
@@ -182,7 +188,7 @@ public sealed record DayPlan(
             return HasWork(oneOff.Template);
         }
 
-        if (Week.TemplateIdFor(date) is not Guid id)
+        if (Cycle.TemplateIdFor(date) is not Guid id)
         {
             return false;
         }
@@ -192,14 +198,14 @@ public sealed record DayPlan(
 
     /// <summary>
     /// The template a plan's workdays (or, with <paramref name="workday"/> off, its other days) usually follow: the one
-    /// the first such weekday of week A, Monday first, follows; null when there is none. Settings that keep one value
+    /// the first such weekday of week 1, Monday first, follows; null when there is none. Settings that keep one value
     /// for "workdays" and one for "other days" (sleep fallbacks, re-enable times) read it.
     /// </summary>
     public DayTemplate? TypicalTemplate(bool workday)
     {
         foreach (DayOfWeek day in MondayFirst)
         {
-            Guid id = Week.A.FirstOrDefault(entry => entry.Day == day)?.TemplateId ?? OffDayTemplateId;
+            Guid id = Cycle.Weeks[0].FirstOrDefault(entry => entry.Day == day)?.TemplateId ?? OffDayTemplateId;
             if (IsWorkdayTemplate(id) == workday && TemplateById(id) is DayTemplate template)
             {
                 return template;
@@ -224,7 +230,7 @@ public sealed record DayPlan(
 
     private DayTemplate WeekMapTemplate(DateOnly date)
     {
-        return (Week.TemplateIdFor(date) is Guid id ? TemplateById(id) : null)
+        return (Cycle.TemplateIdFor(date) is Guid id ? TemplateById(id) : null)
             ?? TemplateById(OffDayTemplateId)
             ?? DayTemplate.Empty;
     }

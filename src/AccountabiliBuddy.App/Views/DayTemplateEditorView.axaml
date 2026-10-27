@@ -44,7 +44,8 @@
 
         <TextBlock Text="{Binding Editor.Error}" IsVisible="{Binding Editor.HasError}" Foreground="#DC2626" TextWrapping="Wrap" />
 
-        <Expander Header="{Binding Editor.PartsTitle}" IsExpanded="{Binding Editor.ShowPartsEditor, Mode=OneWay}" HorizontalAlignment="Stretch">
+        <Expander Header="{Binding Editor.PartsTitle}" IsExpanded="{Binding Editor.ShowPartsEditor, Mode=OneWay}"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
             <views:DayPlanEditorView DataContext="{Binding Editor}" Margin="0,8,0,0" />
         </Expander>
     </StackPanel>

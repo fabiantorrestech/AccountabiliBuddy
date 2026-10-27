@@ -31,6 +31,7 @@
             <StackPanel IsVisible="{Binding IsTasksStep}" Spacing="8">
                 <TextBlock Opacity="0.75" TextWrapping="Wrap"
                            Text="Up to 3 tasks for this session. Tasks carried over from before are already here; more than 3 get picked down when you start." />
+                <views:PlanningTip />
                 <ScrollViewer MaxHeight="360">
                     <views:ChecklistView DataContext="{Binding Checklist}" />
                 </ScrollViewer>

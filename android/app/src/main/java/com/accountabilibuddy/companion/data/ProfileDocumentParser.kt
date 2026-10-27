@@ -16,7 +16,7 @@ import com.accountabilibuddy.companion.model.MatchTarget
 import com.accountabilibuddy.companion.model.OneOffDay
 import com.accountabilibuddy.companion.model.PlanPart
 import com.accountabilibuddy.companion.model.PlanTemplate
-import com.accountabilibuddy.companion.model.PlanWeek
+import com.accountabilibuddy.companion.model.PlanCycle
 import com.accountabilibuddy.companion.model.ProfileDocument
 import com.accountabilibuddy.companion.model.Rule
 import com.accountabilibuddy.companion.model.RuleVerdict
@@ -95,7 +95,7 @@ object ProfileDocumentParser {
     /**
      * A day plan on its own, in the document's shape (also a conflict answer's plan, ADR 19). A plan in the v11 shape
      * (a "workday" and an "otherDay" template and "workdays", no "templates") becomes the two named templates and week A
-     * of the week map, like the PC's DayModesMigration, so a plan saved by an earlier version of the app still reads.
+     * of the cycle, like the PC's DayModesMigration, so a plan saved by an earlier version of the app still reads.
      */
     fun dayPlan(json: JsonObject): DayPlan {
         val categories = (json["categories"] as? JsonArray).orEmpty().map {
@@ -122,20 +122,38 @@ object ProfileDocumentParser {
             return DayPlan.fromWorkdayAndOffDay(categories, workdays, template(json.obj("workday")), template(json.obj("otherDay")), oneOffDays)
         }
 
-        val week = json.obj("week")
         return DayPlan(
             categories = categories,
             templates = (json["templates"] as? JsonArray).orEmpty().map {
                 val t = it.jsonObject
                 PlanTemplate(JsonValues.uuid(t.requireString("id")), t.requireString("name"), template(t.obj("template")))
             },
-            week = PlanWeek(
-                a = weekdays(week?.get("a")),
-                b = (week?.get("b") as? JsonArray)?.let { weekdays(it) },
-                bStartsOn = week?.string("bStartsOn")?.let(JsonValues::date),
-            ),
+            cycle = cycle(json),
             oneOffDays = oneOffDays,
         )
+    }
+
+    /**
+     * The plan's repeating cycle (schema v13): "cycle" with its weeks and the Monday week 1 starts on. A plan in the v12
+     * shape (a "week" with A, an optional B and the Monday B starts on, no "cycle") becomes a cycle like the PC's
+     * DayCycleMigration: A only is a one-week cycle, A and B a two-week cycle that starts a week after B's start, so every
+     * date follows the week it did before.
+     */
+    private fun cycle(json: JsonObject): PlanCycle {
+        val cycle = json.obj("cycle")
+        if (cycle != null) {
+            return PlanCycle(
+                weeks = (cycle["weeks"] as? JsonArray).orEmpty().map { weekdays(it) },
+                startsOn = JsonValues.date(cycle.requireString("startsOn")),
+            )
+        }
+
+        val week = json.obj("week")
+        val a = weekdays(week?.get("a"))
+        val b = (week?.get("b") as? JsonArray)?.let { weekdays(it) }
+        val bStartsOn = week?.string("bStartsOn")?.let(JsonValues::date)
+        return if (b != null && bStartsOn != null) PlanCycle(listOf(a, b), bStartsOn.plusDays(7))
+        else PlanCycle(listOf(a), DayPlan.DEFAULT_CYCLE_START)
     }
 
     private fun weekdays(json: kotlinx.serialization.json.JsonElement?): List<WeekdayTemplate> = (json as? JsonArray).orEmpty().map {
@@ -155,6 +173,7 @@ object ProfileDocumentParser {
                 flexMinutes = p.int("flexMinutes"),
                 hintAt = p.string("hintAt")?.let(JsonValues::time),
                 wakeByAlarm = (p["wakeByAlarm"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true",
+                autoStart = (p["autoStart"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true",
             )
         },
         blocks = json?.get("blocks")?.let { it as? JsonObject }?.let(BlockRulesJson::read),

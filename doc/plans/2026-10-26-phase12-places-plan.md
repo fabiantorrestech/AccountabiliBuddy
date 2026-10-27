@@ -106,3 +106,5 @@ places. Nothing exists yet: there's no location or Wi-Fi code on either side. Th
   6. Phone: the same with the app closed (background permission on) and with it denied (updates when the app opens).
 - Privacy check: grep the DB "places" row → only ciphertext; the sync file has no places fields.
 
+## Added (user, 2026-10-27)
+- **Headphone auto-play by place:** the headphone auto-play schedule ("Only at certain times", per device, never synced) gets a third option, "At these places" (pick one or more Places). Auto-play happens when any checked option matches (day plan window, days and hours, or place). PC and phone.

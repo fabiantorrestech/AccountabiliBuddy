@@ -218,7 +218,7 @@ fun MainScreen(
                         { viewModel.planDayOpen.value = true }
                     },
                     onSetWeek = if (!canControlPc) null else {
-                        { weekB -> viewModel.setThisWeek(weekB)?.let { viewModel.message.value = it } }
+                        { week -> viewModel.setThisWeek(week)?.let { viewModel.message.value = it } }
                     },
                     runningTasks = runningTasks,
                     comebacks = comebacks,

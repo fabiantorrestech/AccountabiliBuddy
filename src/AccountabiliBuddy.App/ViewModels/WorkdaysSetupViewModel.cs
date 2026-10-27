@@ -9,7 +9,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>
 /// The setup assistant's "Your workdays" page (ADR 47, C 15): which weekdays are workdays and, for them, either just a
 /// work window ("9:00 AM to 5:00 PM", enough to make the guards work) or a budget of productive hours, or the timeline
-/// they already have. It edits the "Workday" day type and week A; everything else is the Day plan tab's. The save goes
+/// they already have. It edits the "Workday" day type and week 1 of the cycle; everything else is the Day plan tab's. The save goes
 /// through <see cref="ConfigurationService"/>, so a change that frees today's work waits there.
 /// </summary>
 public sealed partial class WorkdaysSetupViewModel : ObservableObject
@@ -25,7 +25,7 @@ public sealed partial class WorkdaysSetupViewModel : ObservableObject
         }
     }
 
-    /// <summary>Monday first; on = the day follows the Workday type in week A.</summary>
+    /// <summary>Monday first; on = the day follows the Workday type in week 1.</summary>
     public ObservableCollection<WorkdayChip> Days { get; } = new();
 
     /// <summary>0 = keep the timeline the Workday type has, 1 = just a work window, 2 = a budget of hours.</summary>

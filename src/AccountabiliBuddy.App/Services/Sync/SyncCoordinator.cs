@@ -139,9 +139,9 @@ public sealed class SyncCoordinator
             return;
         }
 
-        if (stored is not null && stored.Version == DayPlanVersionV11.Of(_configuration.Current.DayPlan))
+        if (stored is not null && DayPlanVersion.IsEarlierSchemaVersionOf(stored.Version, _configuration.Current.DayPlan))
         {
-            // First start after the v12 upgrade (ADR 47): the plan is the one the v11 version was stamped on, migrated
+            // First start after the v12 or v13 upgrade (ADR 47): the plan is the one an earlier schema's version was stamped on, migrated
             // unchanged, so it gets the new version with its edit time and shared/edited state as they were: no edit.
             _plan = stored with { Version = version, BasedOn = stored.BasedOn == stored.Version ? version : stored.BasedOn };
             SavePlanState();
@@ -832,9 +832,9 @@ public sealed class SyncCoordinator
 
     /// <summary>
     /// The profile document without its plan (the starting plan in its place): the plan travels on its own. Stamped schema
-    /// 11, the last one older phones read: v12 changed only the day plan, which travels in the file's own plan field with
-    /// its v11 fields, so an old reader accepts everything else; new readers upgrade by the plan's shape, not the stamp
-    /// (DayModesMigration only rewrites a plan with no templates), and read it back as v12.
+    /// 11, the last one older phones read: v12 and v13 changed only the day plan, which travels in the file's own plan field with
+    /// its v12 and v11 fields, so an old reader accepts everything else; new readers upgrade by the plan's shape, not the stamp
+    /// (DayModesMigration only rewrites a plan with no templates, DayCycleMigration one with no cycle), and read it back as v13.
     /// </summary>
     private static string WithoutDayPlan(ProfileDocument document)
     {

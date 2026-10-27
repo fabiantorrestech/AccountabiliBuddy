@@ -35,7 +35,7 @@ object DayPlanChanges {
     /**
      * The lines of a change that touch the template today follows (the reasons a change can lower today's guarded work, which
      * makes it wait on a guarded PC, ADR 28, 47): a one-off day added or removed for today, today re-mapped to another template
-     * (by the weekday's map, the A/B week or week B's start), or that template's own mode, budget, work window or parts
+     * (by the weekday's map, the week of the cycle or the cycle's start), or that template's own mode, budget, work window or parts
      * changed. Empty when today's template is untouched. The PC's `DayPlanChanges.DescribeToday` has the same wording.
      */
     fun describeToday(base: DayPlan, edited: DayPlan, today: java.time.LocalDate): List<String> {
@@ -53,11 +53,11 @@ object DayPlanChanges {
             return lines
         }
 
-        val wasId = base.week.templateIdFor(today) ?: DayPlan.OFF_DAY_TEMPLATE_ID
-        val nowId = edited.week.templateIdFor(today) ?: DayPlan.OFF_DAY_TEMPLATE_ID
+        val wasId = base.cycle.templateIdFor(today) ?: DayPlan.OFF_DAY_TEMPLATE_ID
+        val nowId = edited.cycle.templateIdFor(today) ?: DayPlan.OFF_DAY_TEMPLATE_ID
         if (wasId != nowId) {
-            if (base.week.isWeekB(today) != edited.week.isWeekB(today)) {
-                lines += if (edited.week.isWeekB(today)) "This week is now week B" else "This week is now week A"
+            if (base.cycle.weekNumberFor(today) != edited.cycle.weekNumberFor(today)) {
+                lines += "This is now week ${edited.cycle.weekNumberFor(today)} of ${edited.cycle.weeks.size}"
             }
 
             lines += "Today follows ${dayTypeName(edited, nowId)} now, not ${dayTypeName(base, wasId)}"
@@ -73,7 +73,7 @@ object DayPlanChanges {
 
     private fun todayTemplate(plan: DayPlan, today: java.time.LocalDate): DayTemplate =
         plan.oneOffDays.firstOrNull { it.date == today }?.template
-            ?: plan.templateById(plan.week.templateIdFor(today) ?: DayPlan.OFF_DAY_TEMPLATE_ID)
+            ?: plan.templateById(plan.cycle.templateIdFor(today) ?: DayPlan.OFF_DAY_TEMPLATE_ID)
             ?: DayTemplate()
 
     private fun modeChange(title: String, before: DayTemplate, after: DayTemplate, lines: MutableList<String>) {
@@ -100,27 +100,32 @@ object DayPlanChanges {
     }
 
     private fun week(base: DayPlan, edited: DayPlan, lines: MutableList<String>) {
-        val alternating = base.week.b != null || edited.week.b != null
-        weekdays("A", base, edited, base.week.a, edited.week.a, alternating, lines)
-        val before = base.week.b
-        val after = edited.week.b
-        if (before == null && after != null) {
-            lines += "Alternating weeks turned on: week B starts ${dateText(edited.week.bStartsOn)}"
-        } else if (before != null && after == null) {
-            lines += "Alternating weeks turned off"
-        } else if (before != null && after != null) {
-            if (base.week.bStartsOn != edited.week.bStartsOn) lines += "Week B now starts ${dateText(edited.week.bStartsOn)}"
-            weekdays("B", base, edited, before, after, alternating, lines)
+        val was = base.cycle.weeks.size
+        val now = edited.cycle.weeks.size
+        val repeating = was > 1 || now > 1
+        if (was != now) {
+            lines += when {
+                now == 1 -> "The same week every week now"
+                was == 1 -> "Repeating weeks turned on: $now weeks, week 1 starts ${dateText(edited.cycle.startsOn)}"
+                else -> "The cycle is now $now weeks, not $was"
+            }
+        } else if (repeating && base.cycle.startsOn != edited.cycle.startsOn) {
+            lines += "Week 1 now starts ${dateText(edited.cycle.startsOn)}"
+        }
+
+        // Weeks the cycle kept (a week added or removed is the line above); a week that moved to another position shows as changed days.
+        for (index in 0 until minOf(was, now)) {
+            weekdays(index + 1, base, edited, base.cycle.weeks[index], edited.cycle.weeks[index], repeating, lines)
         }
     }
 
     private fun weekdays(
-        weekName: String,
+        week: Int,
         base: DayPlan,
         edited: DayPlan,
         before: List<WeekdayTemplate>,
         after: List<WeekdayTemplate>,
-        alternating: Boolean,
+        repeating: Boolean,
         lines: MutableList<String>,
     ) {
         for (day in DayPlan.MONDAY_FIRST) {
@@ -130,10 +135,10 @@ object DayPlanChanges {
             val wasId = was ?: DayPlan.OFF_DAY_TEMPLATE_ID
             val nowId = now ?: DayPlan.OFF_DAY_TEMPLATE_ID
             when {
-                weekName == "A" && nowId == DayPlan.WORKDAY_TEMPLATE_ID && wasId != nowId -> lines += "${dayName(day)} is now a workday"
-                weekName == "A" && wasId == DayPlan.WORKDAY_TEMPLATE_ID && nowId == DayPlan.OFF_DAY_TEMPLATE_ID -> lines += "${dayName(day)} is no longer a workday"
+                week == 1 && nowId == DayPlan.WORKDAY_TEMPLATE_ID && wasId != nowId -> lines += "${dayName(day)} is now a workday"
+                week == 1 && wasId == DayPlan.WORKDAY_TEMPLATE_ID && nowId == DayPlan.OFF_DAY_TEMPLATE_ID -> lines += "${dayName(day)} is no longer a workday"
                 wasId != nowId -> {
-                    val label = if (alternating) "${dayName(day)} (week $weekName)" else dayName(day)
+                    val label = if (repeating) "${dayName(day)} (week $week)" else dayName(day)
                     lines += "$label: ${dayTypeName(base, wasId)} → ${dayTypeName(edited, nowId)}"
                 }
             }
@@ -185,6 +190,11 @@ object DayPlanChanges {
             // A renamed category shows once under categories, not again for every part using it.
             if (old.categoryId != part.categoryId) {
                 lines += "$title: ${name(part, edited)} is now ${edited.category(part.categoryId)?.name ?: "another category"}"
+            }
+
+            // A fixed lunch period (schema v13): the part starts by itself.
+            if (old.autoStart != part.autoStart) {
+                lines += if (part.autoStart) "$title: ${name(part, edited)} now starts by itself" else "$title: ${name(part, edited)} no longer starts by itself"
             }
         }
 

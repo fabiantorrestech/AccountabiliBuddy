@@ -1,0 +1,28 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        xmlns:views="using:AccountabiliBuddy.App.Views"
+        x:Class="AccountabiliBuddy.App.Views.AlarmRingWindow"
+        x:DataType="vm:AlarmRingViewModel"
+        Title="Alarm"
+        Width="420" SizeToContent="Height"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="True"
+        WindowStartupLocation="CenterScreen">
+    <!-- A ringing alarm: Stop, or "Snooze 9 min" (menu: 1, 5, 10, 15, 30, custom) with the time it rings again. -->
+    <Border Padding="24,20" Background="#FF15191E" BorderBrush="#AAF59E0B" BorderThickness="2" CornerRadius="10">
+        <StackPanel Spacing="14">
+            <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding Text}" Opacity="0.8" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <mi:MaterialIcon Kind="AlarmCheck" Width="16" Height="16" VerticalAlignment="Center" Opacity="0.7" />
+                <TextBlock Text="{Binding TimeLine}" VerticalAlignment="Center" Opacity="0.9" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+                <views:MinutesSplitButton />
+                <Button Content="{Binding StopText}" Command="{Binding StopCommand}" Classes="accent" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

@@ -349,7 +349,8 @@ class CompanionApp : Application() {
         // The relay (ADR 46): the same pace, plus a push stream open while a session runs or the timeline is pinned.
         appScope.launch { relaySource.loop { driveBusy() } }
         noise = com.accountabilibuddy.companion.noise.NoisePlayer(this, com.accountabilibuddy.companion.noise.NoiseSettingsStore(this), appScope)
-        com.accountabilibuddy.companion.noise.HeadphoneWatcher(this, headphones, noise).start()
+        com.accountabilibuddy.companion.noise.HeadphoneWatcher(this, headphones, noise, schedulePermits = ::headphoneScheduleAllowsNow).start()
+        com.accountabilibuddy.companion.noise.CallPauseWatcher(this, noise, appScope).start()
         noiseWatch = com.accountabilibuddy.companion.watch.NoiseWatchSync(this, noise, watchBridge.linkSettings, appScope, pcNoise).also { it.start() }
         reminderRelay = com.accountabilibuddy.companion.notify.ReminderRelay(this, watchBridge.linkSettings, appScope)
         sync.reminderActions = { reminderRelay.actions.value }
@@ -423,6 +424,18 @@ class CompanionApp : Application() {
 
     /** How long before a planned lunch window the phone starts listening for a lunch started elsewhere. */
     private val LUNCH_LEAD: java.time.Duration = java.time.Duration.ofHours(1)
+
+    // "Play when headphones connect" → "Only at certain times": true when the schedule allows auto-play right now.
+    private fun headphoneScheduleAllowsNow(): Boolean {
+        val state = store.state.value
+        val now = java.time.LocalDateTime.now()
+        val focus = com.accountabilibuddy.companion.notify.HeaderSource.focus(this, now)
+        return com.accountabilibuddy.companion.noise.HeadphoneSchedule.allowsNow(
+            headphones.settings.value, state.document.dayPlan, now,
+            com.accountabilibuddy.companion.engine.DayWorkWindows.focusedToday(focus, now, java.time.ZoneId.systemDefault()),
+            state.sleep::fallbackNightBefore,
+        )
+    }
 
     // Today's work parts, and lunch: running, or about to come from the plan's flexible break. Lunch is started on any
     // device, so the phone must hear of it (and be heard) within about 30 seconds, not 15 minutes, but only from an hour

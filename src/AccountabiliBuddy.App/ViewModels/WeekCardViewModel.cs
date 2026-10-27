@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -6,9 +7,9 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// The "This week is A / B" switch on Today (ADR 47), shown while alternating weeks are on. It moves the Monday week B
-/// starts on, so it is a plan change like any other: stricter applies at once, looser (it frees today's work) waits, and
-/// it is locked during a focus session the user started.
+/// The "This is week N of M" switch on Today (ADR 47), shown while the plan's weeks repeat in a cycle of more than one week.
+/// It moves the Monday week 1 starts on by whole weeks, so it is a plan change like any other: stricter applies at once,
+/// looser (it frees today's work) waits, and it is locked during a focus session the user started.
 /// </summary>
 public sealed partial class WeekCardViewModel : ObservableObject
 {
@@ -30,22 +31,29 @@ public sealed partial class WeekCardViewModel : ObservableObject
         timer.Start();
     }
 
-    /// <summary>Alternating weeks are on.</summary>
+    /// <summary>The weeks repeat in a cycle of more than one week.</summary>
     [ObservableProperty]
     public partial bool IsVisible { get; set; }
 
+    /// <summary>The week of the cycle this week is, from 1.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsWeekA), nameof(Text))]
-    public partial bool IsWeekB { get; set; }
+    [NotifyPropertyChangedFor(nameof(Text))]
+    public partial int WeekNumber { get; set; }
 
-    public bool IsWeekA => !IsWeekB;
+    /// <summary>How many weeks the cycle has.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Text))]
+    public partial int WeekCount { get; set; }
 
-    /// <summary>"This week is A" or "This week is B".</summary>
-    public string Text => IsWeekB ? "This week is B" : "This week is A";
+    /// <summary>"This is week 2 of 3".</summary>
+    public string Text => $"This is week {WeekNumber} of {WeekCount}";
+
+    /// <summary>One button per week of the cycle.</summary>
+    public ObservableCollection<WeekChoiceViewModel> Choices { get; } = new();
 
     /// <summary>The buttons can't change the plan: a focus session you started is running.</summary>
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SetWeekACommand), nameof(SetWeekBCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SetWeekCommand))]
     public partial bool IsLocked { get; set; }
 
     /// <summary>What happened to the last switch: a change that frees today's work waits; null when it applied.</summary>
@@ -55,20 +63,15 @@ public sealed partial class WeekCardViewModel : ObservableObject
     private bool CanSwitch => !IsLocked;
 
     [RelayCommand(CanExecute = nameof(CanSwitch))]
-    private Task SetWeekAAsync() => SetWeekAsync(weekB: false);
-
-    [RelayCommand(CanExecute = nameof(CanSwitch))]
-    private Task SetWeekBAsync() => SetWeekAsync(weekB: true);
-
-    private async Task SetWeekAsync(bool weekB)
+    private async Task SetWeekAsync(int week)
     {
-        if (IsWeekB == weekB)
+        if (WeekNumber == week)
         {
             return;
         }
 
         DateOnly today = _today();
-        await _configuration.UpdateAsync(document => document with { DayPlan = WeekSwitch.WithThisWeek(document.DayPlan, today, weekB) });
+        await _configuration.UpdateAsync(document => document with { DayPlan = WeekSwitch.WithThisWeek(document.DayPlan, today, week) });
         Message = _configuration.IsReadOnly ? "Not saved: settings are read-only (see banner)." : _configuration.DayPlanWaitText;
         Refresh();
     }
@@ -76,8 +79,25 @@ public sealed partial class WeekCardViewModel : ObservableObject
     private void Refresh()
     {
         DayPlan plan = _configuration.Current.DayPlan;
-        IsVisible = WeekSwitch.IsAlternating(plan);
-        IsWeekB = plan.Week.IsWeekB(_today());
+        IsVisible = WeekSwitch.IsRepeating(plan);
+        WeekCount = plan.Cycle.Weeks.Count;
+        WeekNumber = plan.Cycle.WeekNumberFor(_today());
         IsLocked = _sessions.IsEnforcing;
+
+        if (Choices.Count != WeekCount)
+        {
+            Choices.Clear();
+            for (int number = 1; number <= WeekCount; number++)
+            {
+                Choices.Add(new WeekChoiceViewModel(number, number == WeekNumber));
+            }
+        }
+        else
+        {
+            foreach (WeekChoiceViewModel choice in Choices)
+            {
+                choice.IsCurrent = choice.Number == WeekNumber;
+            }
+        }
     }
 }

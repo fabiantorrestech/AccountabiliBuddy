@@ -35,7 +35,7 @@ import com.accountabilibuddy.companion.model.DayPlanDraft
 
 /**
  * Edits the whole day plan on the phone (ADR 19, ADR 47): day types (each a Schedule, Budget or Free day), the week map
- * (Mon–Sun, week A and B), one-off days and categories. The draft lives in the view model (it survives rotation); Save checks it by the PC's rules and
+ * (Mon–Sun, one column per week of the cycle), one-off days and categories. The draft lives in the view model (it survives rotation); Save checks it by the PC's rules and
  * sends it to the PC (now, or when they next connect); leaving with changes asks first.
  */
 @Composable

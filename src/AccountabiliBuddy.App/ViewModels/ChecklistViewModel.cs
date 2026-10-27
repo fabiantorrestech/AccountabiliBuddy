@@ -340,6 +340,12 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
         {
             number++;
             row.Number = number;
+            int letter = 0;
+            foreach (SubtaskRowViewModel subtask in row.Subtasks.Where(subtask => !subtask.IsDone))
+            {
+                subtask.Letter = ++letter;
+            }
+
             if (checklist.Shown?.Task.Id == row.Id)
             {
                 CurrentTaskNumber = number;

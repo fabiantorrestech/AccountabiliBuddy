@@ -64,6 +64,9 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(EndEditable))]
     public partial bool WakeByAlarm { get; set; }
 
+    /// <summary>A fixed lunch period (schema v13): carried through editing so the part keeps it; the control to set it comes with the DP assistant.</summary>
+    public bool AutoStart { get; private set; }
+
     /// <summary>A Sleep part: it can wake by the alarm.</summary>
     public bool IsSleep => Category?.Behavior == CategoryBehavior.Sleep;
 
@@ -88,11 +91,16 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
             return null;
         }
 
-        return new PlanPart(Id, Category.Id, TimeOnly.FromTimeSpan(start), TimeOnly.FromTimeSpan(end),
+        var part = new PlanPart(Id, Category.Id, TimeOnly.FromTimeSpan(start), TimeOnly.FromTimeSpan(end),
             string.IsNullOrWhiteSpace(Label) ? null : Label.Trim(),
             IsFlexible ? (int)Math.Clamp(FlexMinutes ?? 60, 15, 240) : null,
             IsFlexible && HintAt is TimeSpan hint ? TimeOnly.FromTimeSpan(hint) : null,
             IsSleep && WakeByAlarm);
+
+        // A fixed lunch period (schema v13) is kept while the part still can be one; there is no control for it here yet.
+        return AutoStart && Category.Behavior == CategoryBehavior.Rest && !part.IsFlexible && !part.CrossesMidnight
+            ? part with { AutoStart = true }
+            : part;
     }
 
     internal void Show(PlanPart part)
@@ -106,6 +114,7 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
         FlexMinutes = part.FlexMinutes ?? 60;
         HintAt = part.HintAt?.ToTimeSpan() ?? (part.IsFlexible ? null : new TimeSpan(13, 0, 0));
         WakeByAlarm = part.WakeByAlarm;
+        AutoStart = part.AutoStart;
         _showing = false;
     }
 

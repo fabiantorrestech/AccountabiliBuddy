@@ -599,7 +599,7 @@ public sealed partial class ExceptionsViewModel : ObservableObject
     // stock templates, else the template's own name).
     private static string UsualDayName(DayPlan plan, DateOnly date)
     {
-        Guid? id = plan.Week.TemplateIdFor(date);
+        Guid? id = plan.Cycle.TemplateIdFor(date);
         if (id == DayPlan.WorkdayTemplateId)
         {
             return "Workdays";
