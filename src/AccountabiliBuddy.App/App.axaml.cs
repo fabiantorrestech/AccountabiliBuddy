@@ -1029,10 +1029,11 @@ public partial class App : Application
 
         // The migration assistant: features added since the last version that aren't set up yet.
         var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
-            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!), BackupService.AppVersion);
+            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings), BackupService.AppVersion);
         setupFeatures.LoadBlocking();
         _setupFeatures = setupFeatures;
         coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();
+        syncSettings.Changed += (_, _) => setupFeatures.Refresh();
         _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
         sessionViewModel.WhatsNew = new WhatsNewCardViewModel(setupFeatures, ShowWhatsNew);
         mainViewModel.Settings.Updates.OpenWhatsNew = ShowWhatsNew;

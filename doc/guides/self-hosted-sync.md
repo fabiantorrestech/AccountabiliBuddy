@@ -389,8 +389,9 @@ Any small Linux server works: 1 vCPU, 1 GB RAM and 10 GB of disk are plenty (the
 - Or enter the address and pin by hand in the phone's Own relay section.
 
 The PC writes its file about a second after a change, reads other devices' files as soon as the relay says they
-changed, and checks again every 10 seconds while a session runs (every 5 minutes otherwise) in case the push stream
-dropped. The stream reconnects by itself, waiting 1 second at first and up to 60 seconds after repeated failures.
+changed, and checks again every 5 minutes in case the push stream missed something (every 10 seconds during a session
+while the stream is down). It puts its file again every 5 minutes even when nothing changed, so the other devices see
+it as up to date. The stream reconnects by itself, waiting 1 second at first and up to 60 seconds after repeated failures.
 
 When this PC leaves the group (or joins another), it deletes its own file from the relay. Other devices' files stay
 until those devices leave or 30 days pass.
@@ -412,4 +413,4 @@ certificate (the data folder or volume) stay, so the pin stays. Keep the relay a
 | "This group already belongs to someone else on that relay (403)" | Your group's id and token come from the same link code, so this shouldn't happen for your own group. It means the relay already holds that group id under a different token (for example data left by another build). Delete that group's folder (named by the group id) in the relay's data folder, or wait 30 days, and let the devices write again. |
 | "The relay is limiting this PC (429)" | Too many requests, or too many new groups from one address in a day. It tries again by itself. |
 | "The relay's disk is full (507)" | Raise `--max-disk-mb` or free space. |
-| Changes arrive in minutes, not seconds | The push stream isn't open: some proxies and security software cut long-lived connections. Behind Caddy use the provided Caddyfile; the 10-second and 5-minute checks still work. |
+| Changes arrive in minutes, not seconds | The push stream isn't open: some proxies and security software cut long-lived connections. Behind Caddy use the provided Caddyfile; the fallback checks still work (every 10 seconds in a session, else every 5 minutes). |

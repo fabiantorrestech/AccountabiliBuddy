@@ -319,6 +319,14 @@
                 </StackPanel>
                 </Panel>
 
+                <!-- ADR 46: the own relay, set up in Devices -->
+                <StackPanel IsVisible="{Binding IsOwnRelay}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="Your devices can now sync through a small relay you run yourself, with changes arriving in about a second and no Google account. Everything stays sealed: the relay stores scrambled bytes and the key never leaves your devices." />
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="To set it up, finish here, then open Devices → How this PC shares → Own relay. Type your relay's address and pin, press Test connection and tick Own relay. The Devices page has the short steps and the full guide." />
+                </StackPanel>
+
                 <!-- ADR 39: Cold Turkey, let AccountabiliBuddy hold the keys -->
                 <StackPanel IsVisible="{Binding IsColdTurkeyKeys}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
                     <TextBlock Classes="body" TextWrapping="Wrap"

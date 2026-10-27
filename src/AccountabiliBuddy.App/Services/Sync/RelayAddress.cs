@@ -13,7 +13,7 @@ public static class RelayAddress
 
     /// <summary>
     /// An address like "192.168.1.20:8743" or "https://relay.example.com" as an https address ending in "/". An "http://"
-    /// address, one with a user name or password, a query or a fragment is refused.
+    /// address, one with a path (the relay serves from the root), a user name or password, a query or a fragment is refused.
     /// </summary>
     public static bool TryNormalize(string? text, [NotNullWhen(true)] out Uri? address)
     {
@@ -32,6 +32,7 @@ public static class RelayAddress
         if (!Uri.TryCreate(trimmed, UriKind.Absolute, out Uri? parsed)
             || parsed.Scheme != Uri.UriSchemeHttps
             || string.IsNullOrEmpty(parsed.Host)
+            || parsed.AbsolutePath != "/"
             || !string.IsNullOrEmpty(parsed.UserInfo)
             || !string.IsNullOrEmpty(parsed.Query)
             || !string.IsNullOrEmpty(parsed.Fragment))
@@ -39,8 +40,7 @@ public static class RelayAddress
             return false;
         }
 
-        string path = parsed.AbsolutePath.EndsWith('/') ? parsed.AbsolutePath : parsed.AbsolutePath + "/";
-        address = new UriBuilder(parsed) { Path = path }.Uri;
+        address = new Uri(parsed.GetLeftPart(UriPartial.Authority) + "/");
         return true;
     }
 
@@ -68,10 +68,9 @@ public static class RelayAddress
         return true;
     }
 
-    /// <summary>The address as shown and put in a join link: no trailing "/" when there is no path.</summary>
+    /// <summary>The address as shown and put in a join link: no trailing "/".</summary>
     public static string Format(Uri address)
     {
-        string text = address.GetLeftPart(UriPartial.Path);
-        return text.EndsWith('/') ? text[..^1] : text;
+        return address.GetLeftPart(UriPartial.Authority);
     }
 }

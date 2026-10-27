@@ -297,7 +297,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsLinkFirst), nameof(IsComputerType), nameof(IsImport), nameof(IsUsage), nameof(IsReview), nameof(IsBrowsers),
-        nameof(IsBasics), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
+        nameof(IsBasics), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(BackCommand))]
     public partial AssistantStep Step { get; set; }
 
@@ -394,6 +394,8 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     public bool IsSpareKey => Step == AssistantStep.SpareKey;
 
+    public bool IsOwnRelay => Step == AssistantStep.OwnRelay;
+
     public bool IsGoal => Step == AssistantStep.Goal;
 
     public bool IsDone => Step == AssistantStep.Done;
@@ -410,6 +412,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.Basics => "Basics",
         AssistantStep.ColdTurkeyKeys => "Cold Turkey: let AccountabiliBuddy hold the keys",
         AssistantStep.SpareKey => "Your spare key",
+        AssistantStep.OwnRelay => "Own relay: sync through your own server",
         AssistantStep.Goal => "How much focus a day?",
         _ => "All set",
     };
@@ -432,6 +435,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.ColdTurkeyKeys when Keys is { HasSpareKey: false } && ColdTurkeyRows.Any(row => row.IsUsed) => "Next",
         AssistantStep.ColdTurkeyKeys => "Finish",
         AssistantStep.SpareKey => "I wrote it down",
+        AssistantStep.OwnRelay => "Finish",
         AssistantStep.Goal => "Finish",
         AssistantStep.Done => "Close",
         _ => "Next",
@@ -572,6 +576,9 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
                     StatusMessage = "That doesn't match the key shown. Type it from your paper (dashes are optional).";
                 }
 
+                break;
+            case AssistantStep.OwnRelay:
+                GoToNextQuickStep();
                 break;
             default:
                 CloseRequested?.Invoke(this, EventArgs.Empty);

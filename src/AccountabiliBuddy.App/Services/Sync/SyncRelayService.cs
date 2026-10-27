@@ -14,9 +14,10 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// The own-relay method (ADR 46): this PC puts its sealed sync file on the user's relay under the same opaque name as in
 /// a sync folder (<see cref="SyncFolderService.FileNameFor"/>) and reads the other devices' files from it. The relay
 /// pushes a "changed" event over an open stream, so a file the other devices wrote is read within about a second; the
-/// stream reconnects with a wait of 1 to 60 seconds, and the same slow poll as Drive's (10 seconds while a session
-/// runs, the noise player plays or a phone controlled it, else 5 minutes) is the fallback that also writes this PC's
-/// file. A change on this PC goes up 1 second later, and never more than once in 3 seconds. A file is downloaded only
+/// stream reconnects with a wait of 1 to 60 seconds. A change on this PC goes up 1 second later, and never more than
+/// once in 3 seconds. A fallback tick reads again in case the stream missed something: every 5 minutes while the
+/// stream is open, and while it is down every 10 seconds during a session, a work part or busy noise, else 5 minutes.
+/// It writes only when this PC's data changed since the last upload or the file is 5 minutes old. A file is downloaded only
 /// when its etag changed, and the events of this PC's own file are ignored, so a write can't cause another write. When
 /// the PC leaves or changes group, its file is deleted from the relay. Nothing is sent while the switch is off, the PC
 /// isn't in a group or the address is invalid. The relay's calls all go through <see cref="CalendarNetwork"/>; the
@@ -28,6 +29,9 @@ public sealed class SyncRelayService : IDisposable
     private static readonly TimeSpan IdlePoll = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan OwnChangeDelay = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan MinWriteGap = TimeSpan.FromSeconds(3);
+
+    // Even with nothing new, the file is put again this often, so the other devices see this PC as up to date.
+    private static readonly TimeSpan Heartbeat = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan ReadAfterEventDelay = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan FirstRetry = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan LastRetry = TimeSpan.FromSeconds(60);
@@ -58,6 +62,9 @@ public sealed class SyncRelayService : IDisposable
 
     private string? _lastPutEtag;
     private long _lastWriteTick = -1_000_000;
+
+    // This PC's data changed since the last upload (or there was none yet): the next tick writes it.
+    private bool _ownDirty = true;
     private string? _writeProblem;
     private string? _readProblem;
     private string? _streamProblem;
@@ -90,9 +97,12 @@ public sealed class SyncRelayService : IDisposable
     /// <summary>True while the relay's push stream is open.</summary>
     public bool IsConnected { get; private set; }
 
-    /// <summary>How often it writes and reads as a fallback: 10 seconds while a session runs, in a work part or while noise is busy, else 5 minutes.</summary>
+    /// <summary>
+    /// The fallback tick: 5 minutes while the push stream is open (changes already travel by push), else, while it is down,
+    /// 10 seconds during a session, a work part or busy noise, and 5 minutes otherwise.
+    /// </summary>
     public TimeSpan PollInterval =>
-        _sessions.State.IsActive || InWorkHours?.Invoke() == true || NoiseBusy?.Invoke() == true ? BusyPoll : IdlePoll;
+        !IsConnected && (_sessions.State.IsActive || InWorkHours?.Invoke() == true || NoiseBusy?.Invoke() == true) ? BusyPoll : IdlePoll;
 
     /// <summary>True during the day plan's work parts (polled as often as in a session); set by the app.</summary>
     public Func<bool>? InWorkHours { get; set; }
@@ -145,6 +155,8 @@ public sealed class SyncRelayService : IDisposable
                 return;
             }
 
+            // Changes during the write set it again.
+            _ownDirty = false;
             SyncFile file;
             try
             {
@@ -152,6 +164,7 @@ public sealed class SyncRelayService : IDisposable
             }
             catch (SqliteException)
             {
+                _ownDirty = true;
                 return; // The history can't be read right now; the next write tries again.
             }
 
@@ -165,9 +178,11 @@ public sealed class SyncRelayService : IDisposable
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
                 // Restarted or stopped while writing.
+                _ownDirty = true;
             }
             catch (Exception ex) when (IsRelayFailure(ex))
             {
+                _ownDirty = true;
                 SetWriteProblem(Describe(ex, access));
             }
         }
@@ -352,6 +367,7 @@ public sealed class SyncRelayService : IDisposable
         _pendingRead?.Cancel();
         _seen.Clear();
         _lastPutEtag = null;
+        _ownDirty = true;
         IsConnected = false;
         _writeProblem = null;
         _readProblem = null;
@@ -380,7 +396,7 @@ public sealed class SyncRelayService : IDisposable
         {
             // Noise commands ran out of their 10 minutes, or the player stopped: back to the slow rate.
             UpdatePollInterval();
-            _ = WriteThenReadAsync();
+            _ = FallbackTickAsync();
         };
         _timer.Start();
         _ = RunAsync(access, _lifetime.Token);
@@ -396,6 +412,19 @@ public sealed class SyncRelayService : IDisposable
     private async Task WriteThenReadAsync()
     {
         await WriteNowAsync();
+        await ReadNowAsync();
+    }
+
+    // The fallback tick always reads (in case the push stream missed something). It writes only when this PC's data
+    // changed since the last upload or the heartbeat is due: changes already go up about a second after they happen.
+    private async Task FallbackTickAsync()
+    {
+        bool heartbeatDue = Environment.TickCount64 - _lastWriteTick >= Heartbeat.TotalMilliseconds;
+        if (_ownDirty || heartbeatDue)
+        {
+            await WriteNowAsync();
+        }
+
         await ReadNowAsync();
     }
 
@@ -435,6 +464,7 @@ public sealed class SyncRelayService : IDisposable
             }
 
             IsConnected = false;
+            UpdatePollInterval();
             PublishProblem();
             delay = connected ? FirstRetry : TimeSpan.FromTicks(Math.Min(delay.Ticks * 2, LastRetry.Ticks));
             try
@@ -451,6 +481,7 @@ public sealed class SyncRelayService : IDisposable
     private void OnConnected()
     {
         IsConnected = true;
+        UpdatePollInterval();
         SetStreamProblem(null);
 
         // Whatever changed before the stream opened.
@@ -508,8 +539,11 @@ public sealed class SyncRelayService : IDisposable
     }
 
     // Best effort: a relay that can't be reached keeps the file until its 30-day cleanup.
+    // It waits for the write that may be in flight (it was cancelled by the restart, and any write waiting behind it sees
+    // the cancelled token and does nothing), so the old file can't land on the relay after the delete.
     private async Task ForgetFileAsync(RelayAccess access, string ownName)
     {
+        await _busy.WaitAsync();
         try
         {
             await _network.DeleteRelayFileAsync(access, ownName, CancellationToken.None);
@@ -517,6 +551,10 @@ public sealed class SyncRelayService : IDisposable
         catch (Exception ex) when (IsRelayFailure(ex))
         {
             // Nothing more to do.
+        }
+        finally
+        {
+            _busy.Release();
         }
     }
 
@@ -585,6 +623,7 @@ public sealed class SyncRelayService : IDisposable
             return;
         }
 
+        _ownDirty = true;
         TimeSpan sinceLast = TimeSpan.FromMilliseconds(Environment.TickCount64 - _lastWriteTick);
         TimeSpan wait = MinWriteGap - sinceLast > OwnChangeDelay ? MinWriteGap - sinceLast : OwnChangeDelay;
         _pendingWrite = Schedule(_pendingWrite, wait, WriteNowAsync);

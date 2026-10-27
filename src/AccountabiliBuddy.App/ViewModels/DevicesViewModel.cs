@@ -604,15 +604,16 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     private string RelayJoinParameters()
     {
         SyncSettings settings = _settings.Current;
-        if (!settings.RelayOn || !RelayAddress.TryNormalize(settings.RelayUrl, out Uri? address))
+        // A malformed pin leaves the relay out of the link altogether: a link without its pin would be an unpinned relay.
+        if (!settings.RelayOn
+            || !RelayAddress.TryNormalize(settings.RelayUrl, out Uri? address)
+            || !RelayAddress.TryNormalizePin(settings.RelayPin, out string? pin))
         {
             return string.Empty;
         }
 
         string parameters = "&r=" + Uri.EscapeDataString(RelayAddress.Format(address));
-        return RelayAddress.TryNormalizePin(settings.RelayPin, out string? pin) && pin is not null
-            ? parameters + "&p=" + Uri.EscapeDataString(pin)
-            : parameters;
+        return pin is not null ? parameters + "&p=" + Uri.EscapeDataString(pin) : parameters;
     }
 
     private static List<string> OwnMethods(SyncSettings settings)

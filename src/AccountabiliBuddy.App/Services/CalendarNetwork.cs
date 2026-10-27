@@ -41,7 +41,7 @@ public sealed class CalendarNetwork : IDisposable
 
     // Relay clients, one per certificate pin ("" = no pin). Separate from _http: no 30-second client timeout (the event
     // stream stays open), and each pinned client carries its own certificate check.
-    private readonly Dictionary<string, HttpClient> _relayClients = [];
+    private readonly Dictionary<string, RelayClientEntry> _relayClients = [];
     private readonly object _relayLock = new();
 
     public CalendarNetwork()
@@ -222,42 +222,51 @@ public sealed class CalendarNetwork : IDisposable
     public async IAsyncEnumerable<RelayChange> ReadRelayEventsAsync(
         RelayAccess access, Action onConnected, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        using HttpResponseMessage response = await SendRelayAsync(
-            access, HttpMethod.Get, $"v1/groups/{access.GroupId}/events", null, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        ThrowIfRefused(response);
-        onConnected();
-        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var reader = new StreamReader(stream, Encoding.UTF8);
-        string? eventName = null;
-        string? data = null;
-        while (true)
+        // The client stays in use for as long as the stream is open, so it can't be evicted and disposed under it.
+        RelayClientEntry lease = AcquireRelayClient(access.Pin);
+        try
         {
-            string? line = await ReadStreamLineAsync(reader, cancellationToken);
-            if (line is null)
+            using HttpResponseMessage response = await SendRelayAsync(
+                access, HttpMethod.Get, $"v1/groups/{access.GroupId}/events", null, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            ThrowIfRefused(response);
+            onConnected();
+            await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            string? eventName = null;
+            string? data = null;
+            while (true)
             {
-                yield break;
-            }
-
-            if (line.Length == 0)
-            {
-                if (eventName == "changed" && TryParseRelayChange(data, out RelayChange? change))
+                string? line = await ReadStreamLineAsync(reader, cancellationToken);
+                if (line is null)
                 {
-                    yield return change;
+                    yield break;
                 }
 
-                eventName = null;
-                data = null;
-            }
-            else if (line.StartsWith("event:", StringComparison.Ordinal))
-            {
-                eventName = line[6..].Trim();
-            }
-            else if (line.StartsWith("data:", StringComparison.Ordinal))
-            {
-                data = line[5..].Trim();
-            }
+                if (line.Length == 0)
+                {
+                    if (eventName == "changed" && TryParseRelayChange(data, out RelayChange? change))
+                    {
+                        yield return change;
+                    }
 
-            // Anything else (":ok", ":ping") is a comment.
+                    eventName = null;
+                    data = null;
+                }
+                else if (line.StartsWith("event:", StringComparison.Ordinal))
+                {
+                    eventName = line[6..].Trim();
+                }
+                else if (line.StartsWith("data:", StringComparison.Ordinal))
+                {
+                    data = line[5..].Trim();
+                }
+
+                // Anything else (":ok", ":ping") is a comment.
+            }
+        }
+        finally
+        {
+            ReleaseRelayClient(lease);
         }
     }
 
@@ -266,9 +275,9 @@ public sealed class CalendarNetwork : IDisposable
         _http.Dispose();
         lock (_relayLock)
         {
-            foreach (HttpClient client in _relayClients.Values)
+            foreach (RelayClientEntry entry in _relayClients.Values)
             {
-                client.Dispose();
+                entry.Client.Dispose();
             }
 
             _relayClients.Clear();
@@ -301,7 +310,15 @@ public sealed class CalendarNetwork : IDisposable
         // this source is disposed and the stream has its own idle check.
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(RelayRequestTimeout);
-        return await RelayClientFor(access.Pin).SendAsync(request, completion, timeout.Token);
+        RelayClientEntry entry = AcquireRelayClient(access.Pin);
+        try
+        {
+            return await entry.Client.SendAsync(request, completion, timeout.Token);
+        }
+        finally
+        {
+            ReleaseRelayClient(entry);
+        }
     }
 
     private static void ThrowIfRefused(HttpResponseMessage response)
@@ -313,24 +330,34 @@ public sealed class CalendarNetwork : IDisposable
         }
     }
 
-    private HttpClient RelayClientFor(string? pin)
+    // The client for a pin, marked in use until ReleaseRelayClient. Past MaxRelayClients the least recently used clients
+    // that nothing is using (no call or open stream) are disposed; one in use is never touched.
+    private RelayClientEntry AcquireRelayClient(string? pin)
     {
         string key = pin ?? string.Empty;
         lock (_relayLock)
         {
-            if (_relayClients.TryGetValue(key, out HttpClient? existing))
+            if (_relayClients.TryGetValue(key, out RelayClientEntry? existing))
             {
+                existing.Active++;
+                existing.LastUsed = Environment.TickCount64;
                 return existing;
             }
 
-            if (_relayClients.Count >= MaxRelayClients)
+            while (_relayClients.Count >= MaxRelayClients)
             {
-                foreach (HttpClient old in _relayClients.Values)
+                KeyValuePair<string, RelayClientEntry>? oldest = _relayClients
+                    .Where(pair => pair.Value.Active == 0)
+                    .OrderBy(pair => pair.Value.LastUsed)
+                    .Select(pair => (KeyValuePair<string, RelayClientEntry>?)pair)
+                    .FirstOrDefault();
+                if (oldest is null)
                 {
-                    old.Dispose();
+                    break; // All in use: go over the limit for now.
                 }
 
-                _relayClients.Clear();
+                oldest.Value.Value.Client.Dispose();
+                _relayClients.Remove(oldest.Value.Key);
             }
 
             var handler = new SocketsHttpHandler
@@ -351,9 +378,27 @@ public sealed class CalendarNetwork : IDisposable
                 Timeout = Timeout.InfiniteTimeSpan,
                 MaxResponseContentBufferSize = MaxRelayResponseBytes,
             };
-            _relayClients[key] = client;
-            return client;
+            var entry = new RelayClientEntry(client) { Active = 1, LastUsed = Environment.TickCount64 };
+            _relayClients[key] = entry;
+            return entry;
         }
+    }
+
+    private void ReleaseRelayClient(RelayClientEntry entry)
+    {
+        lock (_relayLock)
+        {
+            entry.Active--;
+        }
+    }
+
+    private sealed class RelayClientEntry(HttpClient client)
+    {
+        public HttpClient Client { get; } = client;
+
+        public int Active { get; set; }
+
+        public long LastUsed { get; set; }
     }
 
     private static bool PinMatches(X509Certificate? certificate, string pin)

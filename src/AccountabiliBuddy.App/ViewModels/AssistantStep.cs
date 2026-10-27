@@ -22,6 +22,9 @@ public enum AssistantStep
     /// <summary>ADR 39: the spare key, shown once and typed back.</summary>
     SpareKey,
 
+    /// <summary>ADR 46: the own relay, a pointer to Devices → Own relay (only in the migration assistant).</summary>
+    OwnRelay,
+
     /// <summary>The first run's last question: how much focus a day (redesign phase 2).</summary>
     Goal,
     Done,
