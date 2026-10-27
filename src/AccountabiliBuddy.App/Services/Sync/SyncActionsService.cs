@@ -156,7 +156,18 @@ public sealed class SyncActionsService
 
             foreach (SentAction action in fresh)
             {
-                SyncActionResult result = await ApplyOneAsync(action.Action, action.From, now);
+                SyncActionResult result;
+                try
+                {
+                    result = await ApplyOneAsync(action.Action, action.From, now);
+                }
+                catch (Exception exception) when (exception is not SqliteException)
+                {
+                    // One malformed action (a hand-made or damaged file) must not stop the others or the loop: it is answered as
+                    // invalid, and never retried. The action's text is not logged or put in the answer.
+                    result = Invalid(action.Action, "The PC couldn't read this request.");
+                }
+
                 _applied.Add(new AppliedAction(action.Action.Id, now, result));
             }
 

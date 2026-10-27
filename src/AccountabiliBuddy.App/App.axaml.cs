@@ -372,7 +372,7 @@ public partial class App : Application
         _noise = new NoisePlayerService(
             () => new AccountabiliBuddy.Platform.Windows.Audio.WindowsNoisePlayer(), _noiseSettings, () => new Win32GlobalHotkey(), headphoneWatcher);
         _noise.Start();
-        _headphones = new HeadphoneAutoPlayService(documents, headphoneWatcher, _noise);
+        _headphones = new HeadphoneAutoPlayService(documents, headphoneWatcher, _noise, time);
         _headphones.PlanProvider = () => _configuration!.Current.DayPlan;
         _headphones.LoadBlocking();
         var noisePlayer = new NoisePlayerViewModel(_noise);
@@ -585,6 +585,8 @@ public partial class App : Application
         syncCoordinator.Parked = _comebacks.ForSync;
         syncCoordinator.MergeNextTasks = sessionTasks.MergeNextTasksAsync;
         syncCoordinator.MergeParked = _comebacks.MergeAsync;
+        // A fixed lunch doesn't start by itself while another PC runs a session (its file says so).
+        _lunch!.OtherPcSessionRunning = () => AccountabiliBuddy.App.Services.Sync.OtherPcSessions.IsRunning(receivedDevices.Devices, time.GetUtcNow());
         // Beeminder (ADR 43): only the derived summary goes in this PC's sync file; removing the token removes it.
         syncCoordinator.Beeminder = _beeminder.SyncSummary;
         IReadOnlyList<AccountabiliBuddy.Core.Sync.SyncBeeminderGoal>? lastBeeminder = _beeminder.SyncSummary();
@@ -1690,8 +1692,11 @@ public partial class App : Application
     private void ShowLunchRunIntoCard(IMonitorLocator monitors)
     {
         // It waits behind the cards that come first (Pick, Ready?, the away card, the start-of-day assistant), like Ready? waits for
-        // the away card, and shows when they close; the service keeps asking meanwhile.
-        bool otherCardUp = _pickTasksWindow is not null || _stepAway?.Card is not null || _planFirst?.Card is not null || _startNudge?.AssistantCard is not null;
+        // the away card, and shows when they close; the service keeps asking meanwhile. The away card's end-early dialog counts
+        // too (the away card's own window is closed while it is open): the card shows after the dialog closes, which raises
+        // the step-away service's CardChanged.
+        bool otherCardUp = _pickTasksWindow is not null || _stepAway?.Card is not null || _stepAway is { IsEndDialogOpen: true }
+            || _planFirst?.Card is not null || _startNudge?.AssistantCard is not null;
         LunchRunIntoCardViewModel? card = otherCardUp ? null : _lunchRunInto?.Card;
         if (card is null)
         {
