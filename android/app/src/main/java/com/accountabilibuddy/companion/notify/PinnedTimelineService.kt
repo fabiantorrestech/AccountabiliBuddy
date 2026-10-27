@@ -47,6 +47,8 @@ class PinnedTimelineService : Service() {
             if (intent.action == Intent.ACTION_USER_PRESENT) {
                 // During a session on another device or emergency time, unlocking lands on the essentials screen.
                 com.accountabilibuddy.companion.essentials.EssentialsLaunch.onUnlock(applicationContext)
+                // Unlocked: one sync (at most once a minute), so lunch or a session started elsewhere shows at once.
+                (application as CompanionApp).syncOnUnlock()
             }
             scope.launch { Refresher.refresh(applicationContext) }
         }

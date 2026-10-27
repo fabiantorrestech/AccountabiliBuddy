@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.companion.sync.PcFileControl
 import com.accountabilibuddy.companion.nudge.Takeover
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import java.time.Duration
@@ -158,16 +159,18 @@ object EssentialsLaunch {
     /** True when the PC's running session is on a break right now (the lock isn't re-asked for then). */
     internal fun sessionOnBreak(app: CompanionApp, now: Instant): Boolean =
         app.sync.received.value
-            .filter { it.file.device.kind == SyncDeviceCard.KIND_PC && Duration.between(it.file.device.writtenAt, now) <= Duration.ofHours(12) }
-            .mapNotNull { it.file.running }
+            .filter { it.file.device.kind == SyncDeviceCard.KIND_PC }
+            .mapNotNull { PcFileControl.liveRunning(it.file, now) }
             .filter { it.phaseEndsAt?.let { end -> now.isBefore(end) } ?: true }
             .maxByOrNull { it.phaseStartedAt }?.isBreak == true
 
-    // The newest PC file's running focus session (start, end), not a break, its phase not over.
+    // The newest PC file's running focus session (start, end), its phase not over. Counted by the same rule as the PC card
+    // and the header ([PcFileControl.liveRunning]): a session with no set end only while its file is under 30 minutes old,
+    // so a PC file that stopped arriving (a stalled sync) never holds the phone in the essentials screen.
     internal fun realSessionStart(app: CompanionApp, now: Instant): Pair<Instant, Instant?>? {
         return app.sync.received.value
-            .filter { it.file.device.kind == SyncDeviceCard.KIND_PC && Duration.between(it.file.device.writtenAt, now) <= Duration.ofHours(12) }
-            .mapNotNull { it.file.running }
+            .filter { it.file.device.kind == SyncDeviceCard.KIND_PC }
+            .mapNotNull { PcFileControl.liveRunning(it.file, now) }
             .filter { it.phaseEndsAt?.let { end -> now.isBefore(end) } ?: true }
             .maxByOrNull { it.phaseStartedAt }
             ?.let { it.phaseStartedAt to it.phaseEndsAt }

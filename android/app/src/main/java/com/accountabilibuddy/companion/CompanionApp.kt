@@ -39,6 +39,9 @@ import java.io.File
 // How often a waiting PC command is checked against its 10 minutes (PcFileRemote.GIVE_UP_AFTER) when no file arrives.
 private const val EXPIRE_TICK_MS = 60_000L
 
+// Unlocking the phone syncs at most this often ([CompanionApp.syncOnUnlock]).
+private val UNLOCK_SYNC_GAP: java.time.Duration = java.time.Duration.ofMinutes(1)
+
 // A burst of files from the relay (a busy PC writes every few seconds) is carried on to Drive once.
 private const val DRIVE_CARRY_DELAY_MS = 5_000L
 
@@ -267,6 +270,8 @@ class CompanionApp : Application() {
         lunch.onChanged = {
             relaySoon()
             appScope.launch {
+                // The sync folder too: a lunch started here reaches the PCs without waiting for the next folder sync.
+                runCatching { folderSource.syncNow() }
                 driveSource.syncNow()
                 Refresher.refresh(this@CompanionApp)
             }
@@ -389,10 +394,50 @@ class CompanionApp : Application() {
             return true
         }
 
+        if (inWorkPartOrLunchExpected(now)) {
+            return true
+        }
+
         return sync.received.value.any { device ->
             java.time.Duration.between(device.file.device.writtenAt, now) <= java.time.Duration.ofHours(12) &&
                 (device.file.running != null || device.file.sessions.any { it.end == null })
         }
+    }
+
+    // Today's work parts, and lunch: running, or still to come from the plan's flexible break. Lunch is started on any
+    // device, so the phone must hear of it (and be heard) within about 30 seconds, not 15 minutes.
+    private fun inWorkPartOrLunchExpected(now: java.time.Instant): Boolean {
+        val plan = store.state.value.document.dayPlan
+        val local = java.time.LocalDateTime.ofInstant(now, java.time.ZoneId.systemDefault())
+        if (lunch.isOnLunch(now)) {
+            return true
+        }
+
+        val flexibleBreak = plan.flexibleBreakOn(local.toLocalDate())
+        if (flexibleBreak != null && lunch.today(now) == null && local.isBefore(flexibleBreak.window.end)) {
+            return true
+        }
+
+        return plan.partAt(local)?.category?.behavior?.isWork == true
+    }
+
+    private var lastUnlockSyncAt = java.time.Instant.EPOCH
+
+    /**
+     * The phone was unlocked (USER_PRESENT): one sync of every network method, so what changed on the other devices while
+     * it was in a pocket shows at once. At most once a minute.
+     */
+    @Synchronized
+    fun syncOnUnlock() {
+        val now = java.time.Instant.now()
+        if (java.time.Duration.between(lastUnlockSyncAt, now) < UNLOCK_SYNC_GAP) {
+            return
+        }
+
+        lastUnlockSyncAt = now
+        appScope.launch { runCatching { folderSource.syncNow() } }
+        appScope.launch { runCatching { driveSource.syncNow() } }
+        relaySoon()
     }
 
     /** The alarms seen as next (for learning the wake-up alarm app). */
