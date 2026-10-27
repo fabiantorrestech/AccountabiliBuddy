@@ -1,5 +1,6 @@
 package com.accountabilibuddy.companion.sync
 
+import com.accountabilibuddy.shared.sync.RelayIdentity
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFolder
 import kotlinx.coroutines.CancellationException
@@ -336,6 +337,8 @@ class RelaySyncSource(
             else "Android doesn't trust the relay's certificate. If it is self-signed, add its pin (Devices)."
         RelayProblem.Unauthorized -> "The relay refused this phone's sign-in."
         RelayProblem.OtherGroup -> "This relay already holds a group made with a different link code."
+        RelayProblem.AdmissionRequired ->
+            "This relay needs its admission key to start a new group. Add it in Devices (Own relay), or join with the link from a device that has it."
         RelayProblem.Busy -> "The relay is busy; trying again later."
         RelayProblem.Refused -> "The relay refused a file (too big?)."
         RelayProblem.Server -> "The relay answered something unexpected."
@@ -352,7 +355,10 @@ class RelaySyncSource(
         val settings = sync.settings.value
         val key = sync.key.value ?: return null
         val url = settings.relayUrl ?: return null
-        return RelayEndpoint(url, settings.relayPin, key.relayGroupId, key.relayToken)
+
+        // The group's id and token are this relay's own (named by its pin, else its address), not the same on every relay.
+        val relay = RelayIdentity.of(url, settings.relayPin) ?: return null
+        return RelayEndpoint(url, settings.relayPin, key.relayGroupIdFor(relay), key.relayTokenFor(relay), settings.relayAdmission)
     }
 
     // Which relay and group a stream belongs to, to end it when either changes (the token follows the group).

@@ -3,6 +3,7 @@ package com.accountabilibuddy.companion.sync
 import com.accountabilibuddy.companion.data.JsonValues.bool
 import com.accountabilibuddy.companion.data.JsonValues.int
 import com.accountabilibuddy.companion.data.JsonValues.string
+import com.accountabilibuddy.shared.TokenVault
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,6 +38,11 @@ data class PhoneSyncSettings(
     val relayUrl: String? = null,
     /** The relay certificate's SHA-256 (base64url) when it is self-signed; null: a normal certificate authority check. */
     val relayPin: String? = null,
+    /**
+     * The relay's admission key (a secret that lets this phone start the group on the relay), or null. Kept in the file
+     * sealed by [TokenVault]; here it is the plain key.
+     */
+    val relayAdmission: String? = null,
 )
 
 /** [PhoneSyncSettings] in sync-settings.json in the app's private folder. */
@@ -59,6 +65,7 @@ class PhoneSyncSettingsStore(private val file: File) {
             put("relayOn", settings.relayOn)
             settings.relayUrl?.let { put("relayUrl", it) }
             settings.relayPin?.let { put("relayPin", it) }
+            settings.relayAdmission?.let { put("relayAdmissionSealed", TokenVault.seal(it)) }
         }
         file.parentFile?.mkdirs()
         val temporary = File(file.parentFile, "${file.name}.tmp")
@@ -77,6 +84,7 @@ class PhoneSyncSettingsStore(private val file: File) {
             json.bool("qrOn", true), json.bool("fileOn", true), json.bool("folderOn", false),
             json.string("folderUri"), json.int("folderMinutes") ?: 15, json.bool("alarmOn", true), json.string("alarmApp"),
             json.bool("driveOn", false), json.bool("relayOn", false), json.string("relayUrl"), json.string("relayPin"),
+            json.string("relayAdmissionSealed")?.let(TokenVault::open),
         )
     }
 }

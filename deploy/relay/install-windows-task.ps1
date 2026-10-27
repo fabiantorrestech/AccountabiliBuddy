@@ -6,10 +6,11 @@ Installs the sealed relay (ADR 46) as a Task Scheduler task that starts at boot 
 Run from an elevated PowerShell. Copies the relay exe (the win-x64 build from scripts/publish-relay.ps1) to the install
 folder, makes the data folder writable for the service account, registers the task "AccountabiliBuddy Relay" (at
 startup, restarts on failure, no time limit) and starts it. The address + pin lines the apps need are written to
-relay-address-and-pin.txt in the data folder on every start. The data folder is locked down to SYSTEM, Administrators
+relay-address-and-pin.txt in the data folder on every start (with the admission key: a device needs it to start a new group).
+The data folder is locked down to SYSTEM, Administrators
 and the service account. -OpenFirewall opens the port on the Private and Domain network profiles only; add
 -AllowPublicNetwork to open it on Public networks too. -Proxy runs plain HTTP on 127.0.0.1 for a reverse proxy
-(see Caddyfile).
+(see Caddyfile). -MaxGroups caps how many groups the relay holds (default 16, for a personal relay).
 
 .EXAMPLE
 pwsh deploy/relay/install-windows-task.ps1 -ExePath .\publish\relay\win-x64\AccountabiliBuddy.Relay.exe -OpenFirewall
@@ -24,6 +25,7 @@ param(
     [string]$RunAs = 'NT AUTHORITY\LOCAL SERVICE',
     [string]$TaskName = 'AccountabiliBuddy Relay',
     [int]$MaxDiskMb = 2048,
+    [int]$MaxGroups = 16,
     [switch]$OpenFirewall,
     [switch]$AllowPublicNetwork,
     [switch]$Remove
@@ -58,7 +60,7 @@ Copy-Item $ExePath $exe -Force
 icacls $InstallDir /grant "${RunAs}:(OI)(CI)RX" | Out-Null
 icacls $DataDir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' "${RunAs}:(OI)(CI)M" | Out-Null
 
-$arguments = "--data `"$DataDir`" --max-disk-mb $MaxDiskMb"
+$arguments = "--data `"$DataDir`" --max-disk-mb $MaxDiskMb --max-groups $MaxGroups"
 if ($Proxy) { $arguments += " --proxy --urls http://127.0.0.1:$Port" } else { $arguments += " --urls https://0.0.0.0:$Port" }
 
 $action = New-ScheduledTaskAction -Execute $exe -Argument $arguments -WorkingDirectory $InstallDir
@@ -78,5 +80,5 @@ if ($OpenFirewall -and -not $Proxy) {
 Start-ScheduledTask -TaskName $TaskName
 Write-Host "Installed and started '$TaskName' as $RunAs. Program: $exe  Data: $DataDir  Arguments: $arguments"
 if (-not $Proxy) {
-    Write-Host "The address + pin lines for the apps are written to $(Join-Path $DataDir 'relay-address-and-pin.txt') once the relay has started."
+    Write-Host "The address, pin and admission key lines for the apps are written to $(Join-Path $DataDir 'relay-address-and-pin.txt') once the relay has started."
 }

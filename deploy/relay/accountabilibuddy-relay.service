@@ -6,7 +6,12 @@
 #   cp AccountabiliBuddy.Relay /opt/accountabilibuddy-relay/ && chmod 755 /opt/accountabilibuddy-relay/AccountabiliBuddy.Relay
 #   cp accountabilibuddy-relay.service /etc/systemd/system/
 #   systemctl daemon-reload && systemctl enable --now accountabilibuddy-relay
-#   journalctl -u accountabilibuddy-relay      # the address + pin line is printed here on the first start
+#   journalctl -u accountabilibuddy-relay      # the address, pin and admission key lines are printed here on the first start
+#
+# Keeping it patched: this build carries its own .NET runtime, so "apt upgrade" does not update it. Replace the file with a
+# fresh build on every AccountabiliBuddy release and about once a month (.NET security fixes ship on the second Tuesday):
+#   cp AccountabiliBuddy.Relay /opt/accountabilibuddy-relay/ && systemctl restart accountabilibuddy-relay
+#   /opt/accountabilibuddy-relay/AccountabiliBuddy.Relay --version     # the build and the .NET runtime it runs on
 #
 # Behind a reverse proxy (Caddyfile): add --proxy to ExecStart.
 

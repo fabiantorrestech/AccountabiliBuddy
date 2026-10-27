@@ -3,6 +3,11 @@
 # ports 80 and 443 reach this machine (80 is only for the certificate check).
 #
 # The apps then use  https://relay.example.com  with no pin: the certificate is checked normally.
+#
+# The relay finds a client's address in the LAST X-Forwarded-For entry, which the proxy must set itself. Caddy does that
+# by default (it replaces the header with the real client). With another proxy, replace the header too, never append to
+# a client's: nginx  proxy_set_header X-Forwarded-For $remote_addr;   (not $proxy_add_x_forwarded_for). A proxy that
+# passes the client's own header through lets anyone dodge the per-address limits.
 
 relay.example.com {
 	# A sealed file is at most 4 MiB.

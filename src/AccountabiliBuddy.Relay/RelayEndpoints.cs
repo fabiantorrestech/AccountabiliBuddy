@@ -9,7 +9,8 @@ namespace AccountabiliBuddy.Relay;
 /// <summary>
 /// The relay's whole API under <c>/v1/groups/{gid}/</c> (ADR 46): put, list, get and delete the sealed files, and an
 /// event stream. Every call carries <c>Authorization: Bearer &lt;token&gt;</c>; the first PUT for a group stores the
-/// token's hash, later calls with another token get 403, an unknown group gets 404 (PUT creates it). Bodies are opaque.
+/// token's hash, later calls with another token get 403, an unknown group gets 404 (PUT creates it, but only with the
+/// relay's admission key in <c>X-Relay-Admission</c>; without it 428). Bodies are opaque.
 /// </summary>
 internal sealed class RelayEndpoints
 {
@@ -21,12 +22,14 @@ internal sealed class RelayEndpoints
     private readonly GroupStore _store;
     private readonly ChangeBroadcaster _broadcaster;
     private readonly ClientLimits _limits;
+    private readonly AdmissionKey _admission;
 
-    public RelayEndpoints(GroupStore store, ChangeBroadcaster broadcaster, ClientLimits limits)
+    public RelayEndpoints(GroupStore store, ChangeBroadcaster broadcaster, ClientLimits limits, AdmissionKey admission)
     {
         _store = store;
         _broadcaster = broadcaster;
         _limits = limits;
+        _admission = admission;
     }
 
     public void Map(WebApplication app)
@@ -54,60 +57,89 @@ internal sealed class RelayEndpoints
             return Results.StatusCode(StatusCodes.Status403Forbidden);
         }
 
+        // A new group needs the relay's admission key; an existing group needs only its token.
         bool newGroup = access == GroupAccess.NoGroup;
-        if (newGroup && !_limits.NewGroups.HasRoom(address, DateTimeOffset.UtcNow))
+        if (newGroup && !_admission.Matches(context.Request.Headers[RelayLimits.AdmissionHeader].ToString()))
         {
-            return Results.StatusCode(StatusCodes.Status429TooManyRequests);
+            return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
         }
 
-        byte[]? body = await ReadBodyAsync(context.Request, context.RequestAborted);
-        if (body is null)
+        // The slot for a new group is reserved now (check and record in one step) and given back unless the group is made.
+        bool reserved = false;
+        if (newGroup)
         {
-            return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+            if (!_limits.NewGroups.TryReserve(address, DateTimeOffset.UtcNow))
+            {
+                return Results.StatusCode(StatusCodes.Status429TooManyRequests);
+            }
+
+            reserved = true;
         }
 
-        if (body.Length == 0)
-        {
-            return Results.BadRequest();
-        }
-
-        PutResult result;
+        bool groupMade = false;
         try
         {
-            result = _store.Put(gid, tokenHash, name, body);
-        }
-        catch (IOException ex)
-        {
-            // Only the kind of failure is logged: a message would carry a path.
-            Console.WriteLine($"{DateTimeOffset.UtcNow:yyyy-MM-ddTHH:mm:ssZ} storage error {ex.GetType().Name}");
-            return Results.StatusCode(IsDiskFull(ex) ? StatusCodes.Status507InsufficientStorage : StatusCodes.Status500InternalServerError);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Console.WriteLine($"{DateTimeOffset.UtcNow:yyyy-MM-ddTHH:mm:ssZ} storage error {ex.GetType().Name}");
-            return Results.StatusCode(StatusCodes.Status500InternalServerError);
-        }
+            byte[]? body;
+            try
+            {
+                body = await ReadBodyAsync(context.Request, context.RequestAborted);
+            }
+            catch (OperationCanceledException) when (!context.RequestAborted.IsCancellationRequested)
+            {
+                return Results.StatusCode(StatusCodes.Status408RequestTimeout);
+            }
 
-        switch (result.Status)
-        {
-            case PutStatus.NotOwner:
-                return Results.StatusCode(StatusCodes.Status403Forbidden);
-            case PutStatus.TooManyFiles:
-            case PutStatus.TooManyGroups:
-                return Results.StatusCode(StatusCodes.Status429TooManyRequests);
-            case PutStatus.DiskFull:
-                return Results.StatusCode(StatusCodes.Status507InsufficientStorage);
-            case PutStatus.Stored:
-                if (newGroup)
-                {
-                    _limits.NewGroups.Record(address, DateTimeOffset.UtcNow);
-                }
+            if (body is null)
+            {
+                return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+            }
 
-                _broadcaster.Publish(gid, new ChangeEvent(name, result.ETag));
-                break;
+            if (body.Length == 0)
+            {
+                return Results.BadRequest();
+            }
+
+            PutResult result;
+            try
+            {
+                result = _store.Put(gid, tokenHash, name, body);
+            }
+            catch (IOException ex)
+            {
+                // Only the kind of failure is logged: a message would carry a path.
+                Console.WriteLine($"{DateTimeOffset.UtcNow:yyyy-MM-ddTHH:mm:ssZ} storage error {ex.GetType().Name}");
+                return Results.StatusCode(IsDiskFull(ex) ? StatusCodes.Status507InsufficientStorage : StatusCodes.Status500InternalServerError);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                Console.WriteLine($"{DateTimeOffset.UtcNow:yyyy-MM-ddTHH:mm:ssZ} storage error {ex.GetType().Name}");
+                return Results.StatusCode(StatusCodes.Status500InternalServerError);
+            }
+
+            switch (result.Status)
+            {
+                case PutStatus.NotOwner:
+                    return Results.StatusCode(StatusCodes.Status403Forbidden);
+                case PutStatus.TooManyFiles:
+                case PutStatus.TooManyGroups:
+                    return Results.StatusCode(StatusCodes.Status429TooManyRequests);
+                case PutStatus.DiskFull:
+                    return Results.StatusCode(StatusCodes.Status507InsufficientStorage);
+                case PutStatus.Stored:
+                    groupMade = newGroup;
+                    _broadcaster.Publish(gid, new ChangeEvent(name, result.ETag));
+                    break;
+            }
+
+            return Results.Json(new { etag = result.ETag, at = result.At.ToString("O") });
         }
-
-        return Results.Json(new { etag = result.ETag, at = result.At.ToString("O") });
+        finally
+        {
+            if (reserved && !groupMade)
+            {
+                _limits.NewGroups.Release(address);
+            }
+        }
     }
 
     /// <summary>Windows ERROR_HANDLE_DISK_FULL / ERROR_DISK_FULL, or Unix ENOSPC.</summary>
@@ -308,7 +340,10 @@ internal sealed class RelayEndpoints
         return token;
     }
 
-    /// <summary>The whole body, or null when it is longer than <see cref="RelayLimits.MaxFileBytes"/>.</summary>
+    /// <summary>
+    /// The whole body, or null when it is longer than <see cref="RelayLimits.MaxFileBytes"/>. It has
+    /// <see cref="RelayLimits.BodyDeadline"/> to arrive; a slower sender is cut off (the request is aborted).
+    /// </summary>
     private static async Task<byte[]?> ReadBodyAsync(HttpRequest request, CancellationToken cancellationToken)
     {
         if (request.ContentLength > RelayLimits.MaxFileBytes)
@@ -316,10 +351,32 @@ internal sealed class RelayEndpoints
             return null;
         }
 
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(RelayLimits.BodyDeadline);
+
+        // A known length is read straight into an array of that size (no growing buffer and no second copy).
+        if (request.ContentLength is long length)
+        {
+            byte[] exact = new byte[length];
+            int filled = 0;
+            while (filled < exact.Length)
+            {
+                int got = await request.Body.ReadAsync(exact.AsMemory(filled), deadline.Token);
+                if (got == 0)
+                {
+                    throw new BadHttpRequestException("The body ended early.");
+                }
+
+                filled += got;
+            }
+
+            return exact;
+        }
+
         using var buffer = new MemoryStream();
         byte[] chunk = new byte[81920];
         int read;
-        while ((read = await request.Body.ReadAsync(chunk, cancellationToken)) > 0)
+        while ((read = await request.Body.ReadAsync(chunk, deadline.Token)) > 0)
         {
             if (buffer.Length + read > RelayLimits.MaxFileBytes)
             {

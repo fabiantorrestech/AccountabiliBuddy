@@ -32,6 +32,9 @@ public sealed class CalendarNetwork : IDisposable
     // A sealed sync file is at most 4 MiB on the relay; its listing and answers are far smaller than this.
     private const long MaxRelayResponseBytes = 5 * 1024 * 1024;
     private const int MaxRelayClients = 4;
+
+    // A line of the relay's event stream is a short JSON event or a ping; the phone caps it at the same size.
+    private const int MaxRelayStreamLine = 4096;
     private static readonly TimeSpan RelayRequestTimeout = TimeSpan.FromSeconds(30);
 
     // The relay pings its event stream every 25 seconds; a stream silent for three pings is dead.
@@ -306,6 +309,12 @@ public sealed class CalendarNetwork : IDisposable
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", access.Token);
 
+        // The admission key goes only with a PUT (the call that can start the group on the relay), never with a read.
+        if (method == HttpMethod.Put && access.AdmissionKey is not null)
+        {
+            request.Headers.TryAddWithoutValidation("X-Relay-Admission", access.AdmissionKey);
+        }
+
         // The timeout covers the headers and, for a buffered answer, the body. Once an event stream's headers are in,
         // this source is disposed and the stream has its own idle check.
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -412,14 +421,41 @@ public sealed class CalendarNetwork : IDisposable
         return CryptographicOperations.FixedTimeEquals(actual, Encoding.ASCII.GetBytes(pin));
     }
 
-    // One line of the stream, or null when it ended. A stream with nothing (not even a ping) for the idle timeout is dead.
+    // One line of the stream, or null when it ended. A stream with no whole line (not even a ping) for the idle timeout is
+    // dead, and a line past MaxRelayStreamLine characters ends the stream: a relay that never sends a line break
+    // (a hostile one, or something in the way of a pinned connection) can't fill this PC's memory.
     private static async Task<string?> ReadStreamLineAsync(StreamReader reader, CancellationToken cancellationToken)
     {
         using var idle = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         idle.CancelAfter(RelayStreamIdleTimeout);
+        var line = new StringBuilder();
+        char[] one = new char[1];
         try
         {
-            return await reader.ReadLineAsync(idle.Token);
+            while (true)
+            {
+                if (await reader.ReadAsync(one.AsMemory(), idle.Token) == 0)
+                {
+                    return line.Length > 0 ? line.ToString() : null;
+                }
+
+                if (one[0] == '\n')
+                {
+                    return line.ToString();
+                }
+
+                if (one[0] == '\r')
+                {
+                    continue;
+                }
+
+                if (line.Length >= MaxRelayStreamLine)
+                {
+                    throw new HttpRequestException("A line in the relay's event stream is too long.");
+                }
+
+                line.Append(one[0]);
+            }
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {

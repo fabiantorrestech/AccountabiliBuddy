@@ -68,6 +68,28 @@ public static class RelayAddress
         return true;
     }
 
+    /// <summary>
+    /// The relay's admission key as it prints it (43 characters of base64url). Empty or blank is fine and means none (null).
+    /// </summary>
+    /// <returns>False when something is typed but isn't an admission key.</returns>
+    public static bool TryNormalizeAdmissionKey(string? text, out string? key)
+    {
+        key = null;
+        string trimmed = (text ?? string.Empty).Trim();
+        if (trimmed.Length == 0)
+        {
+            return true;
+        }
+
+        if (trimmed.Length != PinLength || !trimmed.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
+        {
+            return false;
+        }
+
+        key = trimmed;
+        return true;
+    }
+
     /// <summary>The address as shown and put in a join link: no trailing "/".</summary>
     public static string Format(Uri address)
     {

@@ -6,8 +6,9 @@ import java.net.URI
 /**
  * The PC's link code as a QR code (ADR 22): `accountabilibuddy://join?c=<40-character code>&n=<PC name>`. Scanning it
  * asks "Join <PC name>'s devices?" before the phone joins the group. A device using the user's own relay (ADR 46) adds
- * `&r=<https address>` and, for a self-signed certificate, `&p=<43-character SHA-256 pin>`, so the phone sets the relay
- * up too.
+ * `&r=<https address>`, for a self-signed certificate `&p=<43-character SHA-256 pin>` and, when the relay wants one for
+ * a new group, `&k=<43-character admission key>`, so the phone sets the relay up too. The link is not proof of who made it:
+ * the confirmation shows what it changes (the relay's host, leaving a group) and the name in it is only a label.
  */
 data class JoinLink(
     val code: String,
@@ -16,7 +17,13 @@ data class JoinLink(
     val relayUrl: String? = null,
     /** The relay certificate's pin; null with an address means a normal certificate authority check. */
     val relayPin: String? = null,
+    /** The relay's admission key (a secret that lets this phone start the group on the relay); null when the link has none. */
+    val relayAdmission: String? = null,
 ) {
+    /** The relay's host and port for the confirmation ("192.168.1.20:8743"), or null when the link has no relay. */
+    val relayHost: String?
+        get() = relayUrl?.removePrefix("https://")
+
     companion object {
         const val HOST = "join"
 
@@ -34,9 +41,10 @@ data class JoinLink(
             val name = query["n"]?.takeIf { it.isNotBlank() } ?: "your other device"
             val address = query["r"]
             val pin = query["p"]
+            val admission = query["k"]
             if (address == null) {
-                // A pin without an address means nothing; refuse the link rather than guess.
-                return if (pin == null) JoinLink(code, name) else null
+                // A pin or key without an address means nothing; refuse the link rather than guess.
+                return if (pin == null && admission == null) JoinLink(code, name) else null
             }
 
             // A relay that can't be used as given (not https, a malformed pin) refuses the whole link: dropping the pin
@@ -46,7 +54,11 @@ data class JoinLink(
                 return null
             }
 
-            return JoinLink(code, name, relayUrl, pin)
+            if (admission != null && !RelayAddress.isAdmissionKey(admission)) {
+                return null
+            }
+
+            return JoinLink(code, name, relayUrl, pin, admission)
         }
     }
 }

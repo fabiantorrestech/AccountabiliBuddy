@@ -1,24 +1,30 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using AccountabiliBuddy.Core.Ports;
 
 namespace AccountabiliBuddy.Platform.Windows.Network;
 
 /// <summary>
 /// The relay's inbound Windows Firewall rule, kept with netsh. Looking the rule up needs no rights; adding or removing
-/// it runs netsh once through cmd with "runas", which shows Windows' permission prompt. The rule is per program (any port,
-/// TCP), so changing the relay's port needs no new prompt.
+/// it runs netsh once through cmd with "runas", which shows Windows' permission prompt. The rule is per program AND per
+/// local port (TCP): a program that someone swapped for another could otherwise open every port, so changing the relay's
+/// port asks for a new permission. netsh and cmd are started from the system folder, never found through PATH.
 /// </summary>
 public sealed class WindowsRelayFirewall : IRelayFirewall
 {
     private const string RuleName = "AccountabiliBuddy relay";
     private const int ElevationDeclined = 1223;
 
-    public bool HasRule(string executablePath)
+    private static string Netsh => Path.Combine(Environment.SystemDirectory, "netsh.exe");
+
+    private static string Cmd => Path.Combine(Environment.SystemDirectory, "cmd.exe");
+
+    public bool HasRule(string executablePath, int port)
     {
         try
         {
-            using var process = Process.Start(new ProcessStartInfo("netsh", $"advfirewall firewall show rule name=\"{RuleName}\" verbose")
+            using var process = Process.Start(new ProcessStartInfo(Netsh, $"advfirewall firewall show rule name=\"{RuleName}\" verbose")
             {
                 UseShellExecute = false,
                 CreateNoWindow = true,
@@ -36,8 +42,11 @@ public sealed class WindowsRelayFirewall : IRelayFirewall
                 return false;
             }
 
-            // Exit code 1 = no such rule. The program's path is the one part of the output that isn't translated.
-            return process.ExitCode == 0 && output.Contains(executablePath, StringComparison.OrdinalIgnoreCase);
+            // Exit code 1 = no such rule. The program's path and the port number are the parts of the output that aren't
+            // translated: the port is the value at the end of a "label: value" line.
+            return process.ExitCode == 0
+                && output.Contains(executablePath, StringComparison.OrdinalIgnoreCase)
+                && Regex.IsMatch(output, $@"(?m):\s+{port}\s*$");
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or IOException)
         {
@@ -45,25 +54,30 @@ public sealed class WindowsRelayFirewall : IRelayFirewall
         }
     }
 
-    public async Task<FirewallResult> AllowAsync(string executablePath, bool includePublicNetworks)
+    public async Task<FirewallResult> AllowAsync(string executablePath, int port, bool includePublicNetworks)
     {
-        if (!IsSafeForCommandLine(executablePath))
+        if (!IsSafeForCommandLine(executablePath) || !IsSafeForCommandLine(Netsh))
         {
             return FirewallResult.Failed;
         }
 
         string profiles = includePublicNetworks ? "private,domain,public" : "private,domain";
-        string commands = $"netsh advfirewall firewall delete rule name=\"{RuleName}\" & "
-            + $"netsh advfirewall firewall add rule name=\"{RuleName}\" dir=in action=allow program=\"{executablePath}\" "
-            + $"enable=yes profile={profiles} protocol=TCP";
+        string commands = $"\"{Netsh}\" advfirewall firewall delete rule name=\"{RuleName}\" & "
+            + $"\"{Netsh}\" advfirewall firewall add rule name=\"{RuleName}\" dir=in action=allow program=\"{executablePath}\" "
+            + $"enable=yes profile={profiles} protocol=TCP localport={port}";
         FirewallResult result = await RunElevatedAsync(commands);
-        return result == FirewallResult.Done && !HasRule(executablePath) ? FirewallResult.Failed : result;
+        return result == FirewallResult.Done && !HasRule(executablePath, port) ? FirewallResult.Failed : result;
     }
 
-    public async Task<FirewallResult> RemoveAsync(string executablePath)
+    public async Task<FirewallResult> RemoveAsync(string executablePath, int port)
     {
-        FirewallResult result = await RunElevatedAsync($"netsh advfirewall firewall delete rule name=\"{RuleName}\"");
-        return result == FirewallResult.Done && HasRule(executablePath) ? FirewallResult.Failed : result;
+        if (!IsSafeForCommandLine(Netsh))
+        {
+            return FirewallResult.Failed;
+        }
+
+        FirewallResult result = await RunElevatedAsync($"\"{Netsh}\" advfirewall firewall delete rule name=\"{RuleName}\"");
+        return result == FirewallResult.Done && HasRule(executablePath, port) ? FirewallResult.Failed : result;
     }
 
     // The path goes into a cmd command line, where these characters would be read as cmd syntax even inside quotes.
@@ -76,7 +90,7 @@ public sealed class WindowsRelayFirewall : IRelayFirewall
     {
         try
         {
-            using var process = Process.Start(new ProcessStartInfo("cmd.exe", $"/c \"{commands}\"")
+            using var process = Process.Start(new ProcessStartInfo(Cmd, $"/c \"{commands}\"")
             {
                 Verb = "runas",
                 UseShellExecute = true,
