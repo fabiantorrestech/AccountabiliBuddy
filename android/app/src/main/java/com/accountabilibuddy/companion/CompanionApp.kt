@@ -39,6 +39,9 @@ import java.io.File
 // How often a waiting PC command is checked against its 10 minutes (PcFileRemote.GIVE_UP_AFTER) when no file arrives.
 private const val EXPIRE_TICK_MS = 60_000L
 
+// A burst of files from the relay (a busy PC writes every few seconds) is carried on to Drive once.
+private const val DRIVE_CARRY_DELAY_MS = 5_000L
+
 /**
  * The app's single store, the sync with the other devices (ADR 22, 26, 42), the link to the watch (ADR 21), and the
  * refresh loop for the notification, widget and bedtime reminder.
@@ -99,6 +102,21 @@ class CompanionApp : Application() {
     fun sendSyncFilesSoon() {
         appScope.launch { runCatching { driveSource.syncNow() } }
         relaySoon()
+    }
+
+    private var driveCarry: kotlinx.coroutines.Job? = null
+
+    /** Syncs Drive once, a few seconds from now, for a burst of files that came by the relay. */
+    @Synchronized
+    private fun driveCarrySoon() {
+        if (driveCarry?.isActive == true) {
+            return
+        }
+
+        driveCarry = appScope.launch {
+            kotlinx.coroutines.delay(DRIVE_CARRY_DELAY_MS)
+            runCatching { driveSource.syncNow() }
+        }
     }
 
     /** Sends the relay this phone's file now (a phone action, ADR 46); nothing happens while the relay is off. */
@@ -181,15 +199,17 @@ class CompanionApp : Application() {
             appVersion(),
             PhoneSyncSettingsStore(File(filesDir, "companion/sync-settings.json")),
         )
-        // A file that came by QR code, a folder or a share goes on to the PCs through Drive and the relay soon; one that
-        // came by Drive also goes to the relay, and one that came by the relay to Drive, never back where it came from.
+        // A new file that came by QR code, a folder or a share goes on to the PCs through Drive and the relay soon; one
+        // that came by Drive also goes to the relay, and one that came by the relay to Drive (after a pause, since a
+        // busy PC's file arrives every few seconds), never back where it came from.
         sync.onCarryChanged = { method ->
-            if (method != com.accountabilibuddy.shared.sync.SyncDeviceCard.METHOD_DRIVE) {
-                appScope.launch { runCatching { driveSource.syncNow() } }
-            }
-
-            if (method != com.accountabilibuddy.shared.sync.SyncDeviceCard.METHOD_RELAY) {
-                relaySource.syncSoon()
+            when (method) {
+                com.accountabilibuddy.shared.sync.SyncDeviceCard.METHOD_DRIVE -> relaySource.syncSoon()
+                com.accountabilibuddy.shared.sync.SyncDeviceCard.METHOD_RELAY -> driveCarrySoon()
+                else -> {
+                    appScope.launch { runCatching { driveSource.syncNow() } }
+                    relaySource.syncSoon()
+                }
             }
         }
         // ADR 42: starting and ending the PC's sessions and sending plan edits go through the sync files.

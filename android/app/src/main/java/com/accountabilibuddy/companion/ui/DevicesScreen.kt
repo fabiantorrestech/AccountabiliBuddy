@@ -327,7 +327,7 @@ private fun DriveSection(devices: DevicesState, actions: DevicesActions, now: In
 }
 
 /** The short steps for the phone's own relay; the full guide is on the PC (Devices -> Own relay). */
-private val RELAY_STEPS = """
+internal val RELAY_STEPS = """
     1. Run the relay on a PC, a home server or a rented server (the PC's Devices page has the steps and the full guide).
     2. Easiest: on a device that already uses the relay, show its link QR (Link a device) and scan it here: the address and pin come with it.
     3. Or type the relay's https address here, and its pin (43 characters) when the relay made its own certificate. No pin: the relay needs a normal certificate (a reverse proxy with Let's Encrypt).

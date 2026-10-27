@@ -65,8 +65,9 @@ class SyncCoordinator(
     }
 
     /**
-     * Called with the method a file came by after it was taken in, so it can go on through the other network methods
-     * (a file that didn't come by Drive goes on through Drive, one that didn't come by the relay through the relay).
+     * Called with the method a file came by after it was taken in and only when it brought something new (a device not
+     * held before, or a file newer than the copy held), so it can go on through the other network methods (a file
+     * that didn't come by Drive goes on through Drive, one that didn't come by the relay through the relay).
      */
     var onCarryChanged: ((String) -> Unit)? = null
 
@@ -155,13 +156,16 @@ class SyncCoordinator(
 
         val key = identity.key.value ?: return NOT_JOINED
         val file = SyncFileCodec.open(bytes, key) ?: return CANNOT_READ
+        val held = store.devices.value.firstOrNull { it.file.device.deviceId == file.device.deviceId }
         val outcome = SyncCarry.accept(store.devices.value, file, bytes, method, identity.deviceId, now())
         if (outcome.error != null) {
             return outcome.error
         }
 
         store.save(outcome.devices)
-        onCarryChanged?.invoke(method)
+        if (held == null || file.device.writtenAt > held.file.device.writtenAt) {
+            onCarryChanged?.invoke(method)
+        }
 
         return null
     }

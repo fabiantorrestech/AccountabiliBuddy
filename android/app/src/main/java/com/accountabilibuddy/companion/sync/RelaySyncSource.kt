@@ -293,20 +293,29 @@ class RelaySyncSource(
     private fun read(endpoint: RelayEndpoint, listed: List<RelayFileInfo>, ownName: String): Boolean {
         var unreadable = false
         for (file in listed) {
-            if (!SyncFolder.isOtherDevicesFile(file.name, ownName) || seen[file.name] == file.etag) {
+            // Only the strict name the PCs write is ever fetched; the relay's list is not trusted for paths.
+            if (!RelayNetwork.isFileName(file.name) || !SyncFolder.isOtherDevicesFile(file.name, ownName) || seen[file.name] == file.etag) {
                 continue
             }
 
             val downloaded = RelayNetwork.get(endpoint, file.name) ?: continue
-            seen[file.name] = downloaded.etag ?: file.etag
+            val etag = downloaded.etag ?: file.etag
             val card = sync.cardOf(downloaded.bytes)
             if (card == null) {
+                // Another group's or damaged: not read again until it changes.
+                seen[file.name] = etag
                 unreadable = true
                 continue
             }
 
             inRelay[card.deviceId] = maxOf(card.writtenAt, inRelay[card.deviceId] ?: Instant.MIN)
-            sync.acceptSealed(downloaded.bytes, SyncDeviceCard.METHOD_RELAY)
+            val error = sync.acceptSealed(downloaded.bytes, SyncDeviceCard.METHOD_RELAY)
+            // Remembered only once taken in, or when this phone holds a copy at least as new (nothing to gain by
+            // reading it again); a refusal for any other reason is retried at the next pass.
+            val held = sync.received.value.firstOrNull { it.file.device.deviceId == card.deviceId }
+            if (error == null || (held != null && held.file.device.writtenAt >= card.writtenAt)) {
+                seen[file.name] = etag
+            }
         }
 
         return unreadable

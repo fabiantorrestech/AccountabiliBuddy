@@ -22,6 +22,7 @@ object SetupFeatures {
     const val CURBOX = "curbox.setup"
     const val BEDTIME = "bedtime.essentials"
     const val PLACEMENT = "phone.placement"
+    const val RELAY = "sync.relay"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
@@ -41,6 +42,15 @@ object SetupFeatures {
             relevant = { true },
             // Set up once seen in the assistant, or the timeline notification is on (the detector runs in its service).
             setUp = { done(it, PLACEMENT) || (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).store.state.value.timelineNotificationOn },
+        ),
+        SetupFeature(
+            RELAY, "0.1.62", "Own relay: sync through a small relay you run yourself, in about a second",
+            relevant = { true },
+            // Set up once seen in the assistant, or the relay is on with an address (a join QR from a PC sets it).
+            setUp = {
+                val settings = (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).sync.settings.value
+                done(it, RELAY) || (settings.relayOn && settings.relayUrl != null)
+            },
         ),
     )
 

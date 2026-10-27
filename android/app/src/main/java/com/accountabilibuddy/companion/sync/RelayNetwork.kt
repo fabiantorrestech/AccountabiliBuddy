@@ -53,6 +53,17 @@ object RelayNetwork {
     // A pinned certificate is the identity, so its host name doesn't have to match (a LAN address, a VPN name).
     private val anyHost = HostnameVerifier { _, _ -> true }
 
+    private val fileName = Regex("[0-9a-f]{12}\\.absync")
+
+    /** A sync file's name as the relay and the PCs spell it: 12 lower-case hex characters and ".absync". */
+    fun isFileName(name: String): Boolean = fileName.matches(name)
+
+    private fun requireFileName(name: String) {
+        if (!isFileName(name)) {
+            throw RelayException(RelayProblem.Refused, "That isn't a sync file name.")
+        }
+    }
+
     /** The relay's files. A group nobody has written to yet is an empty list. */
     fun list(endpoint: RelayEndpoint): List<RelayFileInfo> {
         val connection = open(endpoint, "GET", "files")
@@ -80,6 +91,7 @@ object RelayNetwork {
 
     /** One file's bytes with its etag; null when the relay no longer has it. */
     fun get(endpoint: RelayEndpoint, name: String): RelayFile? {
+        requireFileName(name)
         val connection = open(endpoint, "GET", "files/$name")
         try {
             val code = send(connection)
@@ -98,6 +110,7 @@ object RelayNetwork {
 
     /** Stores this device's [bytes] under [name] (the first call for a group creates it). Returns the stored etag. */
     fun put(endpoint: RelayEndpoint, name: String, bytes: ByteArray): String {
+        requireFileName(name)
         val connection = open(endpoint, "PUT", "files/$name")
         try {
             connection.doOutput = true
@@ -121,6 +134,7 @@ object RelayNetwork {
 
     /** Removes [name] (this device leaving the group). A file that is already gone is fine. */
     fun delete(endpoint: RelayEndpoint, name: String) {
+        requireFileName(name)
         val connection = open(endpoint, "DELETE", "files/$name")
         try {
             val code = send(connection)
