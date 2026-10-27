@@ -162,6 +162,8 @@ fun PcFileCard(
     onStart: (profileId: String?, minutes: Int?, countUp: Boolean) -> Unit,
     onEndEarly: () -> Unit,
     onCancelWaiting: () -> Unit,
+    /** Today's Budget pace (ADR 47); null when today isn't a Budget day. */
+    pace: com.accountabilibuddy.companion.engine.BudgetPace? = null,
 ) {
     var choosingStart by remember { mutableStateOf(false) }
     val zone = ZoneId.systemDefault()
@@ -169,6 +171,14 @@ fun PcFileCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             IconTitle("PC · $pcName", style = MaterialTheme.typography.titleMedium)
             SessionLine(state, clock)
+            pace?.let {
+                Text(
+                    BudgetPaceLine.text(it),
+                    style = MaterialTheme.typography.bodyMedium,
+                    // Amber when behind, as on the PC.
+                    color = if (it.behind) androidx.compose.ui.graphics.Color(0xFFD97706) else MaterialTheme.colorScheme.onSurface,
+                )
+            }
             Text(
                 "Through the sync files · as of ${clock.time(java.time.LocalDateTime.ofInstant(writtenAt, zone))}",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -28,6 +28,65 @@ public static class DayPlanChanges
         return lines.Count > 0 ? lines : new[] { "No changes" };
     }
 
+    /// <summary>
+    /// The lines of a change that touch the template today follows (the reasons a change can lower today's guarded work,
+    /// ADR 28, 47): a one-off day added or removed for today, today re-mapped to another template (by the weekday's map, the
+    /// A/B week or week B's start), or that template's own mode, budget, work window or parts changed. Empty when today's
+    /// template is untouched. Same wording as the phone's.
+    /// </summary>
+    public static IReadOnlyList<string> DescribeToday(DayPlan basePlan, DayPlan edited, DateOnly today)
+    {
+        var lines = new List<string>();
+        OneOffDay? oneOffBefore = basePlan.OneOffDays.FirstOrDefault(day => day.Date == today);
+        OneOffDay? oneOffAfter = edited.OneOffDays.FirstOrDefault(day => day.Date == today);
+        if (oneOffBefore is null != oneOffAfter is null)
+        {
+            lines.Add(oneOffAfter is null ? "Today's one-off day is gone" : "Today now has a one-off day");
+            ModeChange("Today", TodayTemplate(basePlan, today), TodayTemplate(edited, today), lines);
+            return lines;
+        }
+
+        if (oneOffBefore is not null && oneOffAfter is not null)
+        {
+            Template("Today's one-off day", oneOffBefore.Template, oneOffAfter.Template, basePlan, edited, lines);
+            return lines;
+        }
+
+        Guid wasId = basePlan.Week.TemplateIdFor(today) ?? DayPlan.OffDayTemplateId;
+        Guid nowId = edited.Week.TemplateIdFor(today) ?? DayPlan.OffDayTemplateId;
+        if (wasId != nowId)
+        {
+            if (basePlan.Week.IsWeekB(today) != edited.Week.IsWeekB(today))
+            {
+                lines.Add(edited.Week.IsWeekB(today) ? "This week is now week B" : "This week is now week A");
+            }
+
+            lines.Add($"Today follows {DayTypeName(edited, nowId)} now, not {DayTypeName(basePlan, wasId)}");
+            ModeChange("Today", basePlan.TemplateById(wasId) ?? DayTemplate.Empty, edited.TemplateById(nowId) ?? DayTemplate.Empty, lines);
+        }
+        else if (basePlan.TemplateById(wasId) is DayTemplate before && edited.TemplateById(nowId) is DayTemplate after)
+        {
+            Template(DayTypeName(edited, nowId), before, after, basePlan, edited, lines);
+        }
+
+        return lines;
+    }
+
+    private static DayTemplate TodayTemplate(DayPlan plan, DateOnly today)
+    {
+        return plan.OneOffDays.FirstOrDefault(day => day.Date == today)?.Template
+            ?? plan.TemplateById(plan.Week.TemplateIdFor(today) ?? DayPlan.OffDayTemplateId)
+            ?? DayTemplate.Empty;
+    }
+
+    private static void ModeChange(string title, DayTemplate before, DayTemplate after, List<string> lines)
+    {
+        if (before.Mode != after.Mode)
+        {
+            lines.Add($"{title}: now a {after.Mode} day");
+        }
+    }
+
     // The two migrated templates keep the wording the plan always had.
     private static string Title(PlanTemplate template)
     {

@@ -193,7 +193,7 @@ private fun PartRow(part: PlanPart, categories: List<DayCategory>, clock: ClockF
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TimeDialog(title: String, initial: LocalTime, is24Hour: Boolean, isStart: Boolean, onPick: (LocalTime) -> Unit, onDismiss: () -> Unit) {
+internal fun TimeDialog(title: String, initial: LocalTime, is24Hour: Boolean, isStart: Boolean, onPick: (LocalTime) -> Unit, onDismiss: () -> Unit) {
     val state = rememberTimePickerState(initial.hour, initial.minute, is24Hour)
     AlertDialog(
         onDismissRequest = onDismiss,

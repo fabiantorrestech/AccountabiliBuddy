@@ -23,6 +23,7 @@ object SetupFeatures {
     const val BEDTIME = "bedtime.essentials"
     const val PLACEMENT = "phone.placement"
     const val RELAY = "sync.relay"
+    const val DAY_PLAN_MODES = "dayplan.modes"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
@@ -50,6 +51,16 @@ object SetupFeatures {
             setUp = {
                 val settings = (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).sync.settings.value
                 done(it, RELAY) || (settings.relayOn && settings.relayUrl != null)
+            },
+        ),
+        SetupFeature(
+            DAY_PLAN_MODES, "0.1.62", "Day plan modes: day types, a week map with A/B weeks, work window, Budget and Free days",
+            relevant = { true },
+            // Set up once seen in the assistant, or the plan already uses something new (a third day type, a mode, a window or week B).
+            setUp = {
+                val plan = (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).store.state.value.document.dayPlan
+                done(it, DAY_PLAN_MODES) || plan.templates.size > 2 || plan.week.b != null ||
+                    plan.templates.any { named -> named.template.mode != com.accountabilibuddy.companion.model.DayMode.Schedule || named.template.workWindow != null }
             },
         ),
     )
