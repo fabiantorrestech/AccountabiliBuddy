@@ -173,6 +173,17 @@ object SyncFileJson {
                 put("at", writeTime(noise.at))
             })
         }
+        // Optional (phase 11b): a phone's placement during a PC session; label, times and counts only.
+        file.placement?.let { placement ->
+            put("placement", buildJsonObject {
+                put("state", placement.state)
+                put("since", writeTime(placement.since))
+                placement.workUseUntil?.let { put("workUseUntil", writeTime(it)) }
+                put("outCount", placement.outCount)
+                put("pocketMinutes", placement.pocketMinutes)
+                put("sessionStart", writeTime(placement.sessionStart))
+            })
+        }
         file.lunch?.let { lunch ->
             put("lunch", buildJsonObject {
                 put("start", writeTime(lunch.start))
@@ -325,7 +336,23 @@ object SyncFileJson {
             optionalText(json, "defaultProfileId"),
             readBeeminder(json["beeminder"]),
             readNoise(json["noise"]),
+            readPlacement(json["placement"]),
         )
+    }
+
+    // Phase 11b: a placement that can't be read is left out rather than failing the file.
+    private fun readPlacement(value: JsonElement?): SyncPlacement? {
+        val placement = value as? JsonObject ?: return null
+        return runCatching {
+            SyncPlacement(
+                optionalText(placement, "state") ?: SyncPlacement.UNKNOWN,
+                placement.requiredTime("since"),
+                placement.optionalTime("workUseUntil"),
+                ((placement["outCount"] as? JsonPrimitive)?.takeIf { !it.isString }?.intOrNull ?: 0).coerceAtLeast(0),
+                ((placement["pocketMinutes"] as? JsonPrimitive)?.takeIf { !it.isString }?.intOrNull ?: 0).coerceAtLeast(0),
+                placement.requiredTime("sessionStart"),
+            )
+        }.getOrNull()
     }
 
     // ADR 42, 36: a noise player that can't be read is left out rather than failing the file.

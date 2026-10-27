@@ -102,6 +102,9 @@ class SyncCoordinator(
     /** Emergency phone time (start, end), counted apart from pickups; set by the app. */
     var emergencyWindows: () -> List<Pair<Instant, Instant>> = { emptyList() }
 
+    /** Where the phone is during a PC session (phase 11b): label, times and counts; null when there's none. */
+    var placement: () -> com.accountabilibuddy.shared.sync.SyncPlacement? = { null }
+
     /** The pickups during the other devices' counted sessions of the last 14 days; null without Usage access. */
     fun pickups(): List<SyncPickup>? {
         val now = now()
@@ -196,6 +199,7 @@ class SyncCoordinator(
         reminderActions = runCatching { reminderActions() }.getOrNull()?.takeIf { it.isNotEmpty() },
         blockers = runCatching { blockers() }.getOrNull(),
         wakeEstimate = runCatching { wakeEstimate() }.getOrNull(),
+        placement = runCatching { placement() }.getOrNull(),
     )
 
     /** Everything to hand over by [method] (Drive or a share): this phone's own file first, then what it carries. */

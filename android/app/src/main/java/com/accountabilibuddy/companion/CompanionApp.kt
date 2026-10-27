@@ -141,6 +141,12 @@ class CompanionApp : Application() {
     /** "I need my phone for a bit". */
     val emergency by lazy { com.accountabilibuddy.companion.nudge.EmergencyStore(this) }
 
+    /** Where the phone is during a PC session (phase 11b): the state and counts the sync file carries. */
+    val placementStore by lazy { com.accountabilibuddy.companion.placement.PlacementStore(this) }
+
+    /** "Need it for work" uses during a session (phase 11b); the reasons stay on the phone. */
+    val workUse by lazy { com.accountabilibuddy.companion.placement.WorkUseStore(this) }
+
     /** What the user did here for a PC (ADR 26), until that PC acknowledges it. */
     val actions by lazy { com.accountabilibuddy.companion.sync.ActionStore(this) }
 
@@ -289,6 +295,8 @@ class CompanionApp : Application() {
                 ?.filterNot { unlock -> uses.any { !unlock.isBefore(it.start) && unlock.isBefore(it.end) } }
                 ?.filterNot { unlock -> reader.appAfter(unlock)?.let { (app, screen) -> allowed.isAllowed(app, screen) } == true }
         }
+        // Phase 11b: where the phone is during a PC session (label, times and counts only).
+        sync.placement = { placementStore.forSyncFile(java.time.Instant.now(), workUse) }
         sync.emergencyWindows = { emergency.all().map { it.start to minOf(it.end, java.time.Instant.now()) } }
         watchBridge.onLinkChanged = { sendSyncFilesToPc() }
         folderSource = DriveFolderSource(this, sync)
@@ -436,6 +444,21 @@ class CompanionApp : Application() {
             estimates[com.accountabilibuddy.companion.engine.NightKind.Workday]?.let(WakeEstimate::format),
             estimates[com.accountabilibuddy.companion.engine.NightKind.OffDay]?.let(WakeEstimate::format),
         )
+    }
+
+    /** Hands the PC the phone's file now, over the link and Drive, from the app's own scope (the placement detector, on its way out). */
+    fun syncPlacementNow() {
+        sendSyncFilesToPc()
+        appScope.launch { runCatching { driveSource.syncNow() } }
+    }
+
+    /** A work use started or ended (phase 11b): the PC hears at once (link, Drive), and the notice and detector follow. */
+    fun workUseChanged() {
+        sendSyncFilesToPc()
+        appScope.launch {
+            runCatching { driveSource.syncNow() }
+            Refresher.refresh(this@CompanionApp)
+        }
     }
 
     /** Hands the PC this phone's file and what it carries now, when a PC is paired (and connected), after checking the watch link. */

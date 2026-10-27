@@ -193,6 +193,7 @@ fun SettingsScreen(
                             }
                         }
                         item { EmergencySection() }
+                        item { PlacementSection() }
                         item { CurboxSection(curbox, onConnectCurbox, onReenableTime) }
                     }
                     SettingsCategory.Notification -> {

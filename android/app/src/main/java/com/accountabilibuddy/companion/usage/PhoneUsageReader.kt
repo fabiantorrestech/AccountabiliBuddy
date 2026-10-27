@@ -67,7 +67,8 @@ class PhoneUsageReader(private val context: Context) {
 
     /** The phone's unlocks (pickups) between [from] and [to], oldest first; null without Usage access or before Android 9. */
     /** The app (and its screen) that came to the front last in the 30 seconds before [to]; null without Usage access or none. */
-    fun foregroundApp(to: Instant = Instant.now()): Pair<String, String?>? = firstResumedBetween(to.minusSeconds(30), to, last = true)
+    fun foregroundApp(to: Instant = Instant.now(), lookbackSeconds: Long = 30): Pair<String, String?>? =
+        firstResumedBetween(to.minusSeconds(lookbackSeconds), to, last = true)
 
     /** The first app (and its screen) opened within 20 seconds after [unlock]; null without Usage access or none. */
     fun appAfter(unlock: Instant): Pair<String, String?>? = firstResumedBetween(unlock, unlock.plusSeconds(20), last = false)

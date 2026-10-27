@@ -38,7 +38,8 @@ object EssentialsLaunch {
         val night = if (session) null else BedtimeNight.current(app)
         if (night != null) maybeStartBedtimeHardcore(context, now)
         val kind = when {
-            session && app.essentials.onUnlockInSession -> EssentialsKind.Focus
+            // A work use ("Need it for work") lets the phone be unlocked and used for its minutes.
+            session && app.essentials.onUnlockInSession && app.workUse.active(now) == null -> EssentialsKind.Focus
             night != null && app.bedtimeEssentials.onUnlockInSession -> EssentialsKind.Bedtime
             app.emergency.isActive(now) -> EssentialsKind.Focus
             else -> null

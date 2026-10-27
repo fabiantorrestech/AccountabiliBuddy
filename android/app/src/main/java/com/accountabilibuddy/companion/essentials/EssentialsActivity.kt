@@ -176,7 +176,8 @@ class EssentialsActivity : ComponentActivity() {
         }
         val inFront = PhoneUsageReader(this).foregroundApp(now)
         val allowedInFront = inFront != null && app.essentialsOf(EssentialsKind.Focus).isAllowed(inFront.first, inFront.second)
-        return running && interactive && !app.emergency.isActive(now) && !inCall && !allowedInFront && !app.essentialsOnScreen
+        // A work use ("Need it for work") lets other apps be used for its minutes.
+        return running && interactive && !app.emergency.isActive(now) && app.workUse.active(now) == null && !inCall && !allowedInFront && !app.essentialsOnScreen
     }
 
     override fun onDestroy() {

@@ -128,6 +128,7 @@ fun TodayScreen(
             item { pcCard() }
         }
         item { PcStepAwayRow(clock) }
+        item { WorkUseCard() }
         runningTasks?.let { tasks ->
             item { TasksCard(tasks) }
         }
