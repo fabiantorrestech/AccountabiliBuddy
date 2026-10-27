@@ -1,6 +1,7 @@
 using AccountabiliBuddy.App.Controls;
 using AccountabiliBuddy.App.Services.Search;
 using AccountabiliBuddy.App.ViewModels;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
@@ -31,6 +32,7 @@ public partial class MainWindow : Window
 
     private readonly DispatcherTimer _timelineHideTimer = new() { Interval = TimelineHideDelay };
     private bool _timelineCollapsed;
+    private bool _timelineFocusMode;
     private bool _timelineHovered;
     private double _timelineHeight;
     private int _timelineGeneration;
@@ -43,7 +45,20 @@ public partial class MainWindow : Window
         InitializeComponent();
         AddHandler(DragDrop.DropEvent, OnDrop);
         TimelineHost.PointerEntered += (_, _) => SetTimelineHovered(true);
-        TimelineHost.PointerExited += (_, _) => _timelineHideTimer.Start();
+        TimelineHost.PointerExited += (_, _) =>
+        {
+            if (_timelineCollapsed)
+            {
+                _timelineHideTimer.Start();
+            }
+        };
+        TimelineBody.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == BoundsProperty)
+            {
+                OnTimelineBodyBoundsChanged(TimelineBody.Bounds);
+            }
+        };
         _timelineHideTimer.Tick += (_, _) =>
         {
             _timelineHideTimer.Stop();
@@ -76,28 +91,30 @@ public partial class MainWindow : Window
     /// <summary>In a session the timeline slides up and gives its height back; outside one it is as before.</summary>
     private void SetTimelineCollapsed(bool collapsed)
     {
+        _timelineFocusMode = collapsed;
         if (collapsed == _timelineCollapsed)
         {
             return;
         }
 
-        _timelineCollapsed = collapsed;
         _timelineHovered = false;
         _timelineHideTimer.Stop();
         int generation = ++_timelineGeneration;
+        double height = MeasureTimeline();
         if (collapsed)
         {
-            _timelineHeight = TimelineBody.Bounds.Height;
-            if (_timelineHeight <= TimelineStripHeight)
+            if (height <= TimelineStripHeight)
             {
-                _timelineCollapsed = false;
-                return;
+                return; // Nothing showing yet; the Bounds handler tries again when it has a height.
             }
 
-            // Fix the heights where they are now, then let the next frame animate them down to the strip.
-            TimelineBody.Height = _timelineHeight;
-            TimelineClip.Height = _timelineHeight;
-            TimelineHost.Height = _timelineHeight;
+            _timelineCollapsed = true;
+            _timelineHeight = height;
+
+            // Fix the heights where they are now (no change on screen), then let the next frame animate them to the strip.
+            TimelineBody.Height = height;
+            TimelineClip.Height = height;
+            TimelineHost.Height = height;
             Dispatcher.UIThread.Post(() =>
             {
                 if (generation == _timelineGeneration)
@@ -109,7 +126,11 @@ public partial class MainWindow : Window
         }
         else
         {
-            TimelineHost.Height = _timelineHeight;
+            // Measured again now, so rows that appeared during the session fit and the page does not jump when the heights clear.
+            _timelineCollapsed = false;
+            _timelineHeight = height;
+            TimelineBody.Height = height;
+            TimelineHost.Height = height;
             ShowTimeline(true);
             DispatcherTimer.RunOnce(() =>
             {
@@ -120,6 +141,24 @@ public partial class MainWindow : Window
                     TimelineBody.ClearValue(HeightProperty);
                 }
             }, TimelineSlideTime + TimeSpan.FromMilliseconds(50));
+        }
+    }
+
+    /// <summary>The timeline's natural height: its fixed height is dropped and it is measured with all the room it wants.</summary>
+    private double MeasureTimeline()
+    {
+        TimelineBody.ClearValue(HeightProperty);
+        double width = TimelineHost.Bounds.Width > 0 ? TimelineHost.Bounds.Width : Bounds.Width;
+        TimelineBody.Measure(new Size(width, double.PositiveInfinity));
+        return TimelineBody.DesiredSize.Height;
+    }
+
+    /// <summary>The day bar got rows or appeared while a session runs: slide it away too.</summary>
+    private void OnTimelineBodyBoundsChanged(Rect bounds)
+    {
+        if (_timelineFocusMode && !_timelineCollapsed && bounds.Height > TimelineStripHeight)
+        {
+            Dispatcher.UIThread.Post(() => SetTimelineCollapsed(_timelineFocusMode), DispatcherPriority.Loaded);
         }
     }
 
@@ -137,6 +176,13 @@ public partial class MainWindow : Window
         }
 
         _timelineHovered = hovered;
+        if (hovered)
+        {
+            // Rows that appeared during the session are measured in before it slides down.
+            _timelineHeight = MeasureTimeline();
+            TimelineBody.Height = _timelineHeight;
+        }
+
         ShowTimeline(hovered);
     }
 
@@ -147,6 +193,11 @@ public partial class MainWindow : Window
         TimelineClip.Height = visible;
         double offset = visible - _timelineHeight;
         TimelineBody.RenderTransform = TransformOperations.Parse($"translateY({offset.ToString(System.Globalization.CultureInfo.InvariantCulture)}px)");
+
+        // Slid away: its buttons are not clickable and are skipped by Tab.
+        bool away = _timelineCollapsed && !shown;
+        TimelineBody.IsHitTestVisible = !away;
+        KeyboardNavigation.SetTabNavigation(TimelineBody, away ? KeyboardNavigationMode.None : KeyboardNavigationMode.Continue);
     }
 
     private void OnDrop(object? sender, DragEventArgs e)
