@@ -20,8 +20,9 @@ namespace AccountabiliBuddy.App.Views;
 /// into it and counts as the default spot. Any other drag (Ctrl+Alt) is only for now: the panel then offers Keep (for
 /// the maximized app in front: its own distances from the corner; otherwise a saved position) and ↺. A temporary spot
 /// made over a maximized app ends when that app is no longer maximized in front; any other lasts until ↺ or a restart.
-/// The Ctrl+Alt details open toward the middle of the screen, so the bar never moves and every spot is measured from the
-/// bar alone.
+/// The window is anchored by a 3×3 zone of its monitor's work area (<see cref="OverlayAnchorZone"/>): a corner for the
+/// corner cells, the middle of an edge for the edge cells, the centre for the middle cell. The Ctrl+Alt details open
+/// away from that anchor, so in the corner and edge cells the bar never moves, and every spot is measured from the bar.
 /// </summary>
 public partial class SessionOverlayWindow : Window
 {
@@ -76,13 +77,23 @@ public partial class SessionOverlayWindow : Window
     // The saved position it came from (null = the corner), to go back to on ↺.
     private PixelPoint? _savedPosition;
 
-    // Where the folded window (just the bar, no Ctrl+Alt details) sits: the one spot every placement, drag, distance and
-    // saved position is measured from. While the details are open the window grows away from it (toward the middle of
-    // the screen), so the bar itself never moves.
-    private PixelPoint _anchor;
+    // Where the folded window (just the bar, no Ctrl+Alt details) sits: a 3x3 zone of its monitor's work area and the
+    // zone's anchor point on the bar (physical pixels). Every placement, drag, distance and saved position is measured
+    // from these, and a change of the bar's size grows it away from the anchor point.
+    private OverlayAnchorZone _zone = new(2, 2);
+    private PixelPoint _anchorPoint;
     private bool _expanded;
-    private bool _opensUp;
-    private bool _opensLeft;
+
+    // While the Ctrl+Alt details are open the window grows away from its own anchor point, in the zone the bar was in
+    // when they opened (the layout of the details follows it). A drag moves that point with the window.
+    private OverlayAnchorZone _layoutZone = new(2, 2);
+    private PixelPoint _layoutPoint;
+
+    // True while Windows runs its move loop for a drag (the mouse button is still down).
+    private bool _dragging;
+
+    // A saved spot (top-left of the folded bar) waiting for the first layout, so its zone is worked out from the real size.
+    private PixelPoint? _pendingOrigin;
     private double _foldedWidthDips;
     private double _foldedHeightDips;
 
@@ -122,25 +133,13 @@ public partial class SessionOverlayWindow : Window
         _moveSettled = new DispatcherTimer { Interval = MoveSettleDelay };
         _moveSettled.Tick += (_, _) =>
         {
-            _moveSettled.Stop();
-            _movedByUser = false;
-            _anchor = AnchorOfWindow();
-            if (_avoidedApp is null && IsNearDefaultCorner(_anchor))
+            if (_dragging)
             {
-                // Dropped back at the corner: that's the default spot again, kept.
-                _isTemporary = false;
-                _inDefaultCorner = true;
-                _savedPosition = null;
-                MoveToDefaultCorner();
-                PositionChosen?.Invoke(this, null);
-                TemporaryChanged?.Invoke(this, EventArgs.Empty);
+                // The mouse is still down (it only paused): the drop is not here yet.
                 return;
             }
 
-            // Only for now, until Keep.
-            _temporaryForApp = _isTemporary ? _temporaryForApp : _avoidedApp;
-            _isTemporary = true;
-            TemporaryChanged?.Invoke(this, EventArgs.Empty);
+            FinishDrag();
         };
 
         Opened += (_, _) =>
@@ -161,18 +160,20 @@ public partial class SessionOverlayWindow : Window
         {
             if (!_expanded)
             {
+                bool firstLayout = _foldedWidthDips <= 0;
                 _foldedWidthDips = Bounds.Width;
                 _foldedHeightDips = Bounds.Height;
+                if (firstLayout && _pendingOrigin is PixelPoint origin)
+                {
+                    // A saved spot: its zone is worked out now that the bar's real size is known.
+                    _pendingOrigin = null;
+                    StoreFromOrigin(origin);
+                }
             }
 
             if (_movedByUser)
             {
-                // Mid-drag: only folding up (Ctrl+Alt let go) moves it, so the bar stays where it was dropped.
-                if (!_expanded)
-                {
-                    ApplyAnchor();
-                }
-
+                // Mid-drag, or just dropped and not settled yet: the window sits where the mouse put it.
                 return;
             }
 
@@ -258,8 +259,8 @@ public partial class SessionOverlayWindow : Window
         {
             _temporaryForApp = null;
             _inDefaultCorner = false;
-            _savedPosition = _anchor;
-            PositionChosen?.Invoke(this, _anchor);
+            _savedPosition = FoldedOrigin();
+            PositionChosen?.Invoke(this, _savedPosition);
         }
 
         TemporaryChanged?.Invoke(this, EventArgs.Empty);
@@ -277,7 +278,12 @@ public partial class SessionOverlayWindow : Window
         _temporaryForApp = null;
         if (_savedPosition is PixelPoint saved && !_inDefaultCorner)
         {
-            _anchor = saved;
+            StoreFromOrigin(saved);
+            if (_expanded)
+            {
+                SyncLayoutToBar();
+            }
+
             ApplyAnchor();
         }
         else
@@ -309,7 +315,7 @@ public partial class SessionOverlayWindow : Window
         _inV = _targetInV = _inH = _targetInH = 0;
         UpdateTaskbarLift();
         _lift = _targetLift;
-        if (_inDefaultCorner)
+        if (_inDefaultCorner && !_movedByUser)
         {
             MoveToDefaultCorner();
         }
@@ -322,11 +328,17 @@ public partial class SessionOverlayWindow : Window
         _temporaryForApp = null;
         if (x is int left && y is int top
             && Screens.All.Any(screen => screen.WorkingArea.Contains(new PixelPoint(left + 1, top + 1)))
-            && !IsNearDefaultCorner(new PixelPoint(left, top)))
+            && !IsNearDefaultCorner(new PixelRect(new PixelPoint(left, top), SizeOn(ScreenAtOrigin(new PixelPoint(left, top))!))))
         {
             _inDefaultCorner = false;
             _savedPosition = new PixelPoint(left, top);
-            _anchor = new PixelPoint(left, top);
+            _pendingOrigin = _foldedWidthDips <= 0 ? _savedPosition : null;
+            StoreFromOrigin(new PixelPoint(left, top));
+            if (_expanded)
+            {
+                SyncLayoutToBar();
+            }
+
             ApplyAnchor();
             return;
         }
@@ -460,7 +472,20 @@ public partial class SessionOverlayWindow : Window
             _pressToDrag = null;
             _doubleClick?.Reset();
             _movedByUser = true;
-            BeginMoveDrag(press);
+            _dragging = true;
+            try
+            {
+                // Windows runs its own move loop in here until the mouse button is let go.
+                BeginMoveDrag(press);
+            }
+            finally
+            {
+                _dragging = false;
+            }
+
+            // The drop settles a moment after the last move (or at once if Ctrl+Alt is let go first).
+            _moveSettled.Stop();
+            _moveSettled.Start();
         }
     }
 
@@ -555,6 +580,12 @@ public partial class SessionOverlayWindow : Window
 
     private void SlideTowardTarget()
     {
+        if (_movedByUser)
+        {
+            // Being dragged (or just dropped): moving it to the corner now would pull it out of the mouse's hand.
+            return;
+        }
+
         if (_isTemporary)
         {
             _slide.Stop();
@@ -637,11 +668,17 @@ public partial class SessionOverlayWindow : Window
 
         _dragKeysHeld = held;
         SetClickThrough(!held);
-        _anchor = AnchorOfWindow();
         if (held)
         {
-            ChooseOpenDirection();
-            viewModel?.SetDetailsDirection(_opensUp, _opensLeft);
+            // The details open away from the bar's zone, and the window grows from the same point.
+            _layoutZone = _zone;
+            _layoutPoint = _anchorPoint;
+            viewModel?.SetDetailsDirection(_layoutZone.AnchorsBottom, _layoutZone.AnchorsRight);
+        }
+        else if (_movedByUser && !_dragging)
+        {
+            // Let go of Ctrl+Alt before the drop was settled: settle it now, so folding up keeps the dropped spot.
+            FinishDrag();
         }
 
         _expanded = held;
@@ -686,7 +723,7 @@ public partial class SessionOverlayWindow : Window
             return false;
         }
 
-        (int inV, int inH) = DistancesFromCorner(screen, _anchor);
+        (int inV, int inH) = DistancesFromCorner(screen, FoldedBar());
         inV = Math.Max(0, inV);
         inH = Math.Max(0, inH);
         inVDips = Math.Round(inV / screen.Scaling);
@@ -698,8 +735,8 @@ public partial class SessionOverlayWindow : Window
         return true;
     }
 
-    /// <summary>True when a top-left position puts the window within a short distance of the default corner.</summary>
-    private bool IsNearDefaultCorner(PixelPoint position)
+    /// <summary>True when the folded bar's rectangle puts it within a short distance of the default corner spot.</summary>
+    private bool IsNearDefaultCorner(PixelRect bar)
     {
         Screen? screen = DefaultScreen();
         if (screen is null)
@@ -707,32 +744,107 @@ public partial class SessionOverlayWindow : Window
             return false;
         }
 
-        (int inV, int inH) = DistancesFromCorner(screen, position);
+        (int inV, int inH) = DistancesFromCorner(screen, bar);
         double snap = SnapDips * screen.Scaling;
         return Math.Abs(inV) <= snap && Math.Abs(inH) <= snap;
     }
 
-    /// <summary>How far a top-left position is in from the corner spot (vertically, sideways), in physical pixels.</summary>
-    private (int InV, int InH) DistancesFromCorner(Screen screen, PixelPoint position)
+    /// <summary>How far the folded bar's corner (the default corner's) is in from the corner spot (vertically, sideways), in physical pixels.</summary>
+    private (int InV, int InH) DistancesFromCorner(Screen screen, PixelRect bar)
     {
-        (int width, int height) = SizeOn(screen);
         PixelRect area = screen.WorkingArea;
-        int inH = IsRight ? area.Right - EdgeMarginPixels - width - position.X : position.X - area.X - EdgeMarginPixels;
-        int inV = IsTop ? position.Y - area.Y - EdgeMarginPixels : area.Bottom - EdgeMarginPixels - _lift - height - position.Y;
+        int inH = IsRight ? area.Right - EdgeMarginPixels - bar.Right : bar.X - area.X - EdgeMarginPixels;
+        int inV = IsTop ? bar.Y - area.Y - EdgeMarginPixels : area.Bottom - EdgeMarginPixels - _lift - bar.Bottom;
         return (inV, inH);
     }
 
     /// <summary>The folded size (without the Ctrl+Alt details) in physical pixels.</summary>
-    private (int Width, int Height) SizeOn(Screen screen)
+    private PixelSize SizeOn(Screen screen)
     {
         double width = _foldedWidthDips > 0 ? _foldedWidthDips : Bounds.Width > 0 ? Bounds.Width : TypicalWidthDips;
         double height = _foldedHeightDips > 0 ? _foldedHeightDips : Bounds.Height > 0 ? Bounds.Height : TypicalHeightDips;
-        return ((int)Math.Ceiling(width * screen.Scaling), (int)Math.Ceiling(height * screen.Scaling));
+        return new PixelSize((int)Math.Ceiling(width * screen.Scaling), (int)Math.Ceiling(height * screen.Scaling));
+    }
+
+    /// <summary>The window's size now in physical pixels; the folded size before it has been laid out.</summary>
+    private PixelSize WindowSize(Screen screen)
+    {
+        if (Bounds.Width <= 0 || Bounds.Height <= 0)
+        {
+            return SizeOn(screen);
+        }
+
+        return new PixelSize((int)Math.Ceiling(Bounds.Width * RenderScaling), (int)Math.Ceiling(Bounds.Height * RenderScaling));
     }
 
     private Screen? DefaultScreen()
     {
         return Screens.Primary ?? Screens.All.FirstOrDefault();
+    }
+
+    /// <summary>The monitor a saved top-left of the folded bar is on (just inside the corner, so an edge belongs to the monitor it borders).</summary>
+    private Screen? ScreenAtOrigin(PixelPoint origin)
+    {
+        return Screens.ScreenFromPoint(new PixelPoint(origin.X + 1, origin.Y + 1)) ?? DefaultScreen();
+    }
+
+    /// <summary>The monitor the folded bar is on now (by its centre).</summary>
+    private Screen? ScreenOfBar()
+    {
+        Screen? primary = DefaultScreen();
+        if (primary is null)
+        {
+            return null;
+        }
+
+        PixelRect rough = _zone.RectAt(_anchorPoint, SizeOn(primary));
+        return Screens.ScreenFromPoint(rough.Center) ?? primary;
+    }
+
+    /// <summary>The folded bar's rectangle (physical pixels) from its zone and anchor point.</summary>
+    private PixelRect FoldedBar()
+    {
+        Screen? screen = ScreenOfBar();
+        return screen is null ? new PixelRect(_anchorPoint, new PixelSize(0, 0)) : _zone.RectAt(_anchorPoint, SizeOn(screen));
+    }
+
+    /// <summary>The top-left of the folded bar: what is saved, and what <see cref="PositionChosen"/> reports.</summary>
+    private PixelPoint FoldedOrigin()
+    {
+        return FoldedBar().Position;
+    }
+
+    /// <summary>Works out the zone and anchor point from a folded bar's top-left (a saved spot).</summary>
+    private void StoreFromOrigin(PixelPoint origin)
+    {
+        Screen? screen = ScreenAtOrigin(origin);
+        if (screen is not null)
+        {
+            StoreFromBar(new PixelRect(origin, SizeOn(screen)), screen);
+        }
+    }
+
+    /// <summary>The bar is in the zone of its centre on that monitor; the anchor point is that zone's point on the bar.</summary>
+    private void StoreFromBar(PixelRect bar, Screen screen)
+    {
+        _zone = OverlayAnchorZone.Of(screen.WorkingArea, bar.Center);
+        _anchorPoint = _zone.PointOn(bar);
+    }
+
+    /// <summary>
+    /// Moves the open window's anchor point to where the bar is stored (after the spot changed while the details are
+    /// open: back to the corner, undo), so the window follows the bar.
+    /// </summary>
+    private void SyncLayoutToBar()
+    {
+        Screen? screen = ScreenOfBar();
+        if (screen is null)
+        {
+            return;
+        }
+
+        PixelRect window = _layoutZone.WindowFor(FoldedBar(), WindowSize(screen));
+        _layoutPoint = _layoutZone.PointOn(window);
     }
 
     private void MoveToDefaultCorner()
@@ -743,58 +855,86 @@ public partial class SessionOverlayWindow : Window
             return;
         }
 
-        (int width, int height) = SizeOn(screen);
         PixelRect area = screen.WorkingArea;
-        int x = IsRight ? area.Right - width - EdgeMarginPixels - _inH : area.X + EdgeMarginPixels + _inH;
-        int y = IsTop ? area.Y + EdgeMarginPixels + _inV : area.Bottom - height - EdgeMarginPixels - _lift - _inV;
-        _anchor = new PixelPoint(x, y);
+        _zone = OverlayAnchorZone.ForCorner(_corner);
+        _anchorPoint = new PixelPoint(
+            IsRight ? area.Right - EdgeMarginPixels - _inH : area.X + EdgeMarginPixels + _inH,
+            IsTop ? area.Y + EdgeMarginPixels + _inV : area.Bottom - EdgeMarginPixels - _lift - _inV);
+        _pendingOrigin = null;
+        if (_expanded)
+        {
+            SyncLayoutToBar();
+        }
+
         ApplyAnchor();
     }
 
     /// <summary>
-    /// The details open toward the middle of the screen the bar is on: above it in the lower half, below it in the
-    /// upper half (and leftward in the right half, if wider than the bar), so they never run off the edge.
+    /// The drop of a drag, settled. The bar is put in the 3×3 zone its centre is in on the monitor it is on (and kept
+    /// inside that monitor's work area), the open window keeps growing from where it was dropped, and a drop near the
+    /// default corner snaps back into it.
     /// </summary>
-    private void ChooseOpenDirection()
+    private void FinishDrag()
     {
-        Screen? screen = Screens.ScreenFromPoint(_anchor) ?? DefaultScreen();
-        if (screen is null)
+        _moveSettled.Stop();
+        if (!_movedByUser)
         {
-            _opensUp = _opensLeft = false;
             return;
         }
 
-        (int width, int height) = SizeOn(screen);
-        PixelRect area = screen.WorkingArea;
-        _opensUp = _anchor.Y + (height / 2) > area.Y + (area.Height / 2);
-        _opensLeft = _anchor.X + (width / 2) > area.X + (area.Width / 2);
-    }
-
-    /// <summary>How much bigger than folded the window is now (physical pixels); nothing while folded.</summary>
-    private (int Width, int Height) Growth()
-    {
-        if (!_expanded || _foldedWidthDips <= 0 || _foldedHeightDips <= 0)
+        _movedByUser = false;
+        _pendingOrigin = null;
+        Screen? windowScreen = DefaultScreen();
+        if (windowScreen is null)
         {
-            return (0, 0);
+            return;
         }
 
-        double scaling = RenderScaling;
-        int width = (int)Math.Ceiling(Bounds.Width * scaling) - (int)Math.Ceiling(_foldedWidthDips * scaling);
-        int height = (int)Math.Ceiling(Bounds.Height * scaling) - (int)Math.Ceiling(_foldedHeightDips * scaling);
-        return (Math.Max(0, width), Math.Max(0, height));
+        PixelRect window = new(Position, WindowSize(windowScreen));
+        windowScreen = Screens.ScreenFromPoint(window.Center) ?? windowScreen;
+        PixelRect bar = _layoutZone.BarIn(window, SizeOn(windowScreen));
+
+        // The bar's monitor decides the zone, the size in pixels (its scaling) and the work area it is kept in.
+        Screen screen = Screens.ScreenFromPoint(bar.Center) ?? windowScreen;
+        bar = _layoutZone.BarIn(window, SizeOn(screen));
+        PixelRect inside = OverlayAnchorZone.Clamp(bar, screen.WorkingArea);
+        _layoutPoint = _layoutZone.PointOn(new PixelRect(
+            window.X + (inside.X - bar.X), window.Y + (inside.Y - bar.Y), window.Width, window.Height));
+        StoreFromBar(inside, screen);
+
+        if (_avoidedApp is null && IsNearDefaultCorner(inside))
+        {
+            // Dropped back at the corner: that's the default spot again, kept.
+            _isTemporary = false;
+            _inDefaultCorner = true;
+            _savedPosition = null;
+            MoveToDefaultCorner();
+            PositionChosen?.Invoke(this, null);
+            TemporaryChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        // Only for now, until Keep.
+        _temporaryForApp = _isTemporary ? _temporaryForApp : _avoidedApp;
+        _isTemporary = true;
+        ApplyAnchor();
+        TemporaryChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Puts the window where the bar stays at <see cref="_anchor"/>.</summary>
+    /// <summary>
+    /// Puts the window where its anchor point stays put: the bar's while folded, the open window's while the details
+    /// are open. Kept inside the work area of the monitor the bar is on.
+    /// </summary>
     private void ApplyAnchor()
     {
-        (int width, int height) = Growth();
-        Position = new PixelPoint(_anchor.X - (_opensLeft ? width : 0), _anchor.Y - (_opensUp ? height : 0));
-    }
+        Screen? screen = ScreenOfBar();
+        if (screen is null)
+        {
+            return;
+        }
 
-    /// <summary>Where the bar is, from where the window is now (after the user dragged it).</summary>
-    private PixelPoint AnchorOfWindow()
-    {
-        (int width, int height) = Growth();
-        return new PixelPoint(Position.X + (_opensLeft ? width : 0), Position.Y + (_opensUp ? height : 0));
+        PixelSize size = WindowSize(screen);
+        PixelRect window = _expanded ? _layoutZone.RectAt(_layoutPoint, size) : _zone.RectAt(_anchorPoint, size);
+        Position = OverlayAnchorZone.Clamp(window, screen.WorkingArea).Position;
     }
 }

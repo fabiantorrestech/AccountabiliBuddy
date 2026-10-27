@@ -34,6 +34,11 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
 
     private readonly DispatcherTimer _pulseTimer;
 
+    // The bar's colour when not quiet (profile, break or wrap-up), and whether the overlay is quiet now. The colour shown
+    // is recomputed from both whenever either changes, so Ctrl+Alt (or quiet mode ending) shows at once, not at the next tick.
+    private Color _restColor = BreakColor;
+    private bool _isQuiet;
+
     // The phase the marks were last counted for, and how many marks it had passed.
     private DateTimeOffset? _countedPhaseStart;
     private int _marksPassed;
@@ -152,6 +157,30 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
         ShowsDetails = ready;
     }
 
+    /// <summary>
+    /// The overlay went quiet or loud (Ctrl+Alt held or let go, the settle time after it, a glow): the bar takes its
+    /// resting colour or the quiet one at once, without waiting for the next tick.
+    /// </summary>
+    public void SetQuiet(bool quiet)
+    {
+        if (_isQuiet == quiet)
+        {
+            return;
+        }
+
+        _isQuiet = quiet;
+        RefreshAccent();
+    }
+
+    private void RefreshAccent()
+    {
+        Color accent = _isQuiet ? QuietColor : _restColor;
+        if (AccentBrush is not SolidColorBrush current || current.Color != accent)
+        {
+            AccentBrush = new SolidColorBrush(accent);
+        }
+    }
+
     public void Update(SessionState state, DateTimeOffset now, TimeZoneInfo zone, string profileName, Color profileColor, OverlaySettings settings)
     {
         // Stepped away: everything reads the moment the countdown paused.
@@ -186,14 +215,10 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
         RingSweep = Math.Round(shown * 360);
 
         IsLoud = hasEnd && end!.Value > now && end.Value - now <= LoudTime && !state.IsAway;
-        Color accent = settings.Quiet && !ShowsDetails && !IsLoud ? QuietColor
-            : isBreak ? BreakColor
+        _restColor = isBreak ? BreakColor
             : settings.WrapUpColor && hasEnd && IsWrappingUp(start, end!.Value, now) ? WrapUpColor
             : profileColor;
-        if (AccentBrush is not SolidColorBrush current || current.Color != accent)
-        {
-            AccentBrush = new SolidColorBrush(accent);
-        }
+        RefreshAccent();
 
         IsRing = settings.Style == OverlayStyle.Ring;
         ShowsHeader = settings.Style == OverlayStyle.TimeLeftWithBar;

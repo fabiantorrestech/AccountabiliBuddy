@@ -375,6 +375,7 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     {
         bool loud = (_showsTimer && Timer.IsLoud) || GlowOpacity > 0 || ShowsDone;
         IsQuiet = _settings.Quiet && !ShowsDetails && !_settleTimer.IsEnabled && !loud;
+        Timer.SetQuiet(IsQuiet);
         RefreshTimers();
         RefreshTaskLine();
         QuietMarks = _settings.QuietMarks;
