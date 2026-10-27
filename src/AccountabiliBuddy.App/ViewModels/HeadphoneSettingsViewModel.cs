@@ -21,8 +21,9 @@ public sealed partial class HeadphoneSettingsViewModel : ObservableObject
         _loading = true;
         Wired = service.Current.Wired;
         Bluetooth = service.Current.Bluetooth;
-        _loading = false;
+        // Each choice reports a change as it's built, before it's in Devices; saving then would drop it.
         ShowChosen(service.Current.Devices);
+        _loading = false;
         if (Bluetooth)
         {
             _ = RefreshDevicesAsync();
