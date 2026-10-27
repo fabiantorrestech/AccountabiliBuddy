@@ -431,6 +431,10 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ShowsSubtaskLine { get; set; }
 
+    /// <summary>A current task exists (not all done): the pin before the line shows.</summary>
+    [ObservableProperty]
+    public partial bool ShowsTaskPin { get; set; }
+
     /// <summary>The colour of the task line's category (a dot before it).</summary>
     [ObservableProperty]
     public partial IBrush TaskCategoryBrush { get; set; } = Brushes.Transparent;
@@ -464,6 +468,7 @@ public sealed partial class OnScreenOverlayViewModel : ObservableObject
             ? $"{checklist.ProgressText} · {checklist.CurrentTaskNumber}. {checklist.CurrentTaskText}"
             : $"{checklist.ProgressText} · {checklist.CurrentTaskText}";
         SubtaskLine = checklist is { CurrentSubtaskText.Length: > 0 } ? $"↳ {checklist.CurrentSubtaskText}" : string.Empty;
+        ShowsTaskPin = checklist is { CurrentTaskNumber: > 0 };
         ShowsSubtaskLine = ShowsTasks && SubtaskLine.Length > 0;
         TaskCategoryBrush = checklist?.CurrentCategoryBrush ?? Brushes.Transparent;
         ShowsTaskCategory = checklist is { HasCurrentCategory: true };

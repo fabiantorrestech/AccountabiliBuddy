@@ -140,7 +140,9 @@
                                                     ToolTip.Tip="Show this on the on-screen bar (click it again: back to the first open task)">
                                                 <Grid ColumnDefinitions="Auto,*">
                                                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="0,0,6,0">
-                                                        <mi:MaterialIcon Kind="Pin" Width="14" Height="14" IsVisible="{Binding IsCurrent}" VerticalAlignment="Center" />
+                                                        <Panel Width="14" Height="14" VerticalAlignment="Center">
+                                                            <mi:MaterialIcon Kind="Pin" Width="14" Height="14" IsVisible="{Binding IsCurrent}" />
+                                                        </Panel>
                                                         <TextBlock Text="{Binding NumberText}" IsVisible="{Binding HasNumber}" Opacity="0.7" VerticalAlignment="Center"
                                                                    Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
                                                     </StackPanel>

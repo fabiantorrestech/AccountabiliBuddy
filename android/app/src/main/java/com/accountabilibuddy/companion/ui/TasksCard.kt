@@ -93,15 +93,15 @@ private fun TaskLine(task: SessionTaskItem, indent: Boolean, markedId: String?, 
             .clickable(enabled = canTick) { onTick?.invoke(task.id!!) }.padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (task.id != null && task.id == markedId) {
+            Icon(Icons.Filled.PushPin, contentDescription = "Current task", modifier = Modifier.padding(end = 4.dp).size(14.dp))
+        }
         Text(
             (if (done) "☑ " else "☐ ") + (if (number != null) "$number. " else "") + task.title,
             style = MaterialTheme.typography.bodyMedium,
             textDecoration = if (done) TextDecoration.LineThrough else null,
             color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
         )
-        if (task.id != null && task.id == markedId) {
-            Icon(Icons.Filled.PushPin, contentDescription = "Current task", modifier = Modifier.padding(start = 6.dp).size(14.dp))
-        }
     }
     task.subtasks.forEach { subtask -> TaskLine(subtask, indent = true, markedId = markedId, ticking, onTick) }
 }

@@ -62,7 +62,7 @@
                                 <!-- The task's category colour. -->
                                 <Ellipse Grid.Column="1" Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center"
                                          Fill="{Binding TaskCategoryBrush}" IsVisible="{Binding ShowsTaskCategory}" />
-                                <mi:MaterialIcon Grid.Column="2" Kind="Pin" Width="12" Height="12" Margin="0,0,4,0" VerticalAlignment="Center"
+                                <mi:MaterialIcon Grid.Column="2" Kind="Pin" Width="12" Height="12" Margin="0,0,4,0" VerticalAlignment="Center" IsVisible="{Binding ShowsTaskPin}"
                                                  Foreground="#E6FFFFFF" />
                                 <TextBlock Grid.Column="3" Text="{Binding TaskLine}" Foreground="#E6FFFFFF" FontSize="11"
                                            TextWrapping="Wrap" MaxLines="{Binding TaskMaxLines}" TextTrimming="CharacterEllipsis"
