@@ -101,10 +101,8 @@ class DayPlanFileSync(
             return
         }
 
+        // A PC too old to answer isn't asked; the edit keeps waiting (the card shows the update note) and goes once it updates.
         if (!PcFileControl.supportsControl(pc.file.device)) {
-            if (pending.status == PendingStatus.Waiting) {
-                store.setPendingStatus(pending.editedAt, PendingStatus.NeedsPcUpdate, "Update AccountabiliBuddy on ${pc.file.device.name} to change the plan from here.")
-            }
             return
         }
 
@@ -112,7 +110,9 @@ class DayPlanFileSync(
             PendingStatus.Waiting -> true
             // Locked while a focus session counts on the PC (its file's running session, breaks aside).
             PendingStatus.Locked -> PcFileControl.liveRunning(pc.file, Instant.now())?.isBreak ?: true
-            PendingStatus.Invalid, PendingStatus.NeedsPcUpdate -> false
+            // NeedsPcUpdate came from a real answer of an old PC; the PC's file now supports it, so it goes again.
+            PendingStatus.NeedsPcUpdate -> true
+            PendingStatus.Invalid -> false
         }
         if (ready) {
             actions.add(SyncAction.DAY_PLAN_EDIT, pc.file.device.deviceId, text = Sent.write(pending))
@@ -122,8 +122,14 @@ class DayPlanFileSync(
     // The PC's plan from its file (the result names only its version and edit time).
     private fun conflictFrom(sent: Sent, result: SyncActionResult, pc: ReceivedDevice) {
         val pending = store.state.value.pendingPlan?.takeIf { it.editedAt == sent.editedAt } ?: return
-        val filePlan = pc.file.dayPlan ?: return
-        val pcPlan = runCatching { ProfileDocumentParser.dayPlan(Json.parseToJsonElement(filePlan.planJson).jsonObject) }.getOrNull() ?: return
+        val filePlan = pc.file.dayPlan
+        val pcPlan = filePlan?.let { runCatching { ProfileDocumentParser.dayPlan(Json.parseToJsonElement(it.planJson).jsonObject) }.getOrNull() }
+        if (filePlan == null || pcPlan == null) {
+            // Nothing of the PC's plan to show, so there's nothing to pick between; sending it again would only repeat the conflict.
+            store.setPendingStatus(sent.editedAt, PendingStatus.Invalid, "${pc.file.device.name} reported a conflict but didn't share its plan. Try again after it syncs.")
+            return
+        }
+
         val pcVersion = result.planVersion ?: filePlan.version
         val pcEditedAt = result.planEditedAt ?: filePlan.editedAt
         store.updatePcPlan(pcPlan, pcVersion, pcEditedAt)

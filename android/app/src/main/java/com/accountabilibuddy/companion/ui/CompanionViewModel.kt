@@ -45,9 +45,12 @@ import com.accountabilibuddy.companion.engine.DayPlanValidator
 import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.companion.model.DayPlanConflict
 import com.accountabilibuddy.companion.model.DayPlanDraft
+import com.accountabilibuddy.companion.sync.PcFileControl
+import com.accountabilibuddy.companion.sync.ReceivedDevice
 import com.accountabilibuddy.shared.WatchLinkSettings
 import com.accountabilibuddy.shared.WatchNode
 import com.accountabilibuddy.shared.link.PcOffer
+import com.accountabilibuddy.shared.sync.SyncAction
 import java.time.Instant
 import java.time.LocalDateTime
 
@@ -96,21 +99,21 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     val endEarlyTerms = MutableStateFlow<EndEarlyTerms?>(null)
 
     /** The PC controlled through the sync files (ADR 42): the newest PC file's, or the one picked in Devices. */
-    val controlPc: StateFlow<com.accountabilibuddy.companion.sync.ReceivedDevice?> =
-        combine(sync.received, pcRemote.chosenPcId) { received, chosen -> com.accountabilibuddy.companion.sync.PcFileControl.target(received, chosen) }
+    val controlPc: StateFlow<ReceivedDevice?> =
+        combine(sync.received, pcRemote.chosenPcId) { received, chosen -> PcFileControl.target(received, chosen) }
             .stateIn(viewModelScope, SharingStarted.Eagerly, pcRemote.target())
 
     /** The PC choices for Devices (id to name, newest first) and the one picked. */
     val pcChoices: StateFlow<List<Pair<String, String>>> =
-        sync.received.map { received -> com.accountabilibuddy.companion.sync.PcFileControl.pcs(received).map { it.file.device.deviceId.toString() to it.file.device.name } }
+        sync.received.map { received -> PcFileControl.pcs(received).map { it.file.device.deviceId.toString() to it.file.device.name } }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val chosenPcId: StateFlow<String?> = pcRemote.chosenPcId
 
     fun choosePc(id: String?) = pcRemote.choose(id)
 
     /** The start or end-early request waiting for a PC's answer in its file; null for none. */
-    val pcWaiting: StateFlow<com.accountabilibuddy.shared.sync.SyncAction?> =
-        (application as CompanionApp).actions.pending.map { pending -> pending.lastOrNull { it.kind in com.accountabilibuddy.shared.sync.SyncAction.CONTROL_KINDS } }
+    val pcWaiting: StateFlow<SyncAction?> =
+        (application as CompanionApp).actions.pending.map { pending -> pending.lastOrNull { it.kind in SyncAction.CONTROL_KINDS } }
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     fun cancelPcWaiting() = pcRemote.cancelWaiting()

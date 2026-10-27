@@ -30,6 +30,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import androidx.glance.appwidget.updateAll
+import com.accountabilibuddy.companion.sync.DayPlanFileSync
+import com.accountabilibuddy.companion.sync.PcFileRemote
+import com.accountabilibuddy.shared.sync.SyncAction
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.debounce
@@ -57,11 +60,11 @@ class CompanionApp : Application() {
         private set
 
     /** Starts and ends the PC's sessions through the sync files when the link isn't connected (ADR 42). */
-    lateinit var pcRemote: com.accountabilibuddy.companion.sync.PcFileRemote
+    lateinit var pcRemote: PcFileRemote
         private set
 
     /** Sends day plan edits through the sync files when the link isn't connected (ADR 42). */
-    lateinit var planFileSync: com.accountabilibuddy.companion.sync.DayPlanFileSync
+    lateinit var planFileSync: DayPlanFileSync
         private set
 
     /** Sends the linked Pixel Watch its snapshot (ADR 21). */
@@ -185,8 +188,8 @@ class CompanionApp : Application() {
         sync.onCarryChanged = { sendSyncFilesToPc() }
         planSync = DayPlanSync(store, link, appScope).also { it.start() }
         // ADR 42: the same through the sync files whenever the link isn't connected.
-        pcRemote = com.accountabilibuddy.companion.sync.PcFileRemote(this, actions, sync.received)
-        planFileSync = com.accountabilibuddy.companion.sync.DayPlanFileSync(
+        pcRemote = PcFileRemote(this, actions, sync.received)
+        planFileSync = DayPlanFileSync(
             store, actions, pcRemote, sync.received, { link.status.value is com.accountabilibuddy.companion.link.LinkStatus.Connected }, appScope,
         ).also { it.start() }
         actions.onAnswered = { action, result, pc ->
@@ -325,11 +328,12 @@ class CompanionApp : Application() {
             return true
         }
 
-        if (actions.pending.value.any { it.kind in com.accountabilibuddy.shared.sync.SyncAction.CONTROL_KINDS || it.kind == com.accountabilibuddy.shared.sync.SyncAction.DAY_PLAN_EDIT }) {
+        // A request to a PC counts for the 10 minutes it is worth answering (PcFileRemote.expire); a plan edit may wait for days.
+        val now = java.time.Instant.now()
+        if (actions.pending.value.any { (it.kind in SyncAction.CONTROL_KINDS || it.kind == SyncAction.DAY_PLAN_EDIT) && java.time.Duration.between(it.at, now) <= PcFileRemote.GIVE_UP_AFTER }) {
             return true
         }
 
-        val now = java.time.Instant.now()
         return sync.received.value.any { device ->
             java.time.Duration.between(device.file.device.writtenAt, now) <= java.time.Duration.ofHours(12) &&
                 (device.file.running != null || device.file.sessions.any { it.end == null })

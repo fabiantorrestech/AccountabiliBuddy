@@ -28,6 +28,8 @@ import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accountabilibuddy.companion.R
 import com.accountabilibuddy.companion.link.LinkStatus
+import com.accountabilibuddy.companion.sync.PcFileControl
+import com.accountabilibuddy.shared.sync.SyncAction
 
 /** The app header, three tabs (Today, Profiles, Settings), the import password dialog, and messages as snackbars. */
 @Composable
@@ -205,9 +207,9 @@ fun MainScreen(
                         } else {
                             PcFileCard(
                                 pcName = pc.file.device.name,
-                                state = com.accountabilibuddy.companion.sync.PcFileControl.stateOf(pc.file, java.time.Instant.now()),
+                                state = PcFileControl.stateOf(pc.file, java.time.Instant.now()),
                                 writtenAt = pc.file.device.writtenAt,
-                                updateNeeded = com.accountabilibuddy.companion.sync.PcFileControl.updateNeeded(pc.file.device),
+                                updateNeeded = PcFileControl.updateNeeded(pc.file.device),
                                 waiting = pcWaiting?.takeIf { it.target == pc.file.device.deviceId },
                                 clock = viewModel.clock,
                                 onStart = viewModel::startOnPc,
@@ -236,7 +238,7 @@ fun MainScreen(
                     viewModel.clock,
                     pcName = pairedPc?.pcName ?: controlPc?.file?.device?.name,
                     pcState = (linkStatus as? LinkStatus.Connected)?.state
-                        ?: filePc?.let { com.accountabilibuddy.companion.sync.PcFileControl.stateOf(it.file, java.time.Instant.now()) },
+                        ?: filePc?.let { PcFileControl.stateOf(it.file, java.time.Instant.now()) },
                     deviceName = viewModel.deviceName,
                     curbox = curbox,
                 )
@@ -376,7 +378,7 @@ fun MainScreen(
     endEarlyTerms?.let { terms ->
         EndEarlyDialog(
             terms, onEnd = viewModel::finishEndEarly, onCancel = viewModel::cancelEndEarly,
-            sending = pcWaiting?.kind == com.accountabilibuddy.shared.sync.SyncAction.END_EARLY,
+            sending = pcWaiting?.kind == SyncAction.END_EARLY,
         )
     }
 

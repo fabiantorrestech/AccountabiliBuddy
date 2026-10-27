@@ -34,6 +34,7 @@ import com.accountabilibuddy.companion.link.EndEarlyTerms
 import com.accountabilibuddy.companion.link.LinkStatus
 import com.accountabilibuddy.companion.link.PairingLink
 import com.accountabilibuddy.companion.link.PcState
+import com.accountabilibuddy.shared.sync.SyncAction
 import kotlinx.coroutines.delay
 import java.time.Duration
 import java.time.OffsetDateTime
@@ -170,7 +171,7 @@ fun PcFileCard(
     state: PcState,
     writtenAt: java.time.Instant,
     updateNeeded: String?,
-    waiting: com.accountabilibuddy.shared.sync.SyncAction?,
+    waiting: SyncAction?,
     clock: ClockFormat,
     onStart: (profileId: String?, minutes: Int?, countUp: Boolean) -> Unit,
     onEndEarly: () -> Unit,
@@ -190,15 +191,15 @@ fun PcFileCard(
                 updateNeeded != null -> Text(updateNeeded, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                 waiting != null -> {
                     val what = when (waiting.kind) {
-                        com.accountabilibuddy.shared.sync.SyncAction.START -> "Starting on $pcName"
-                        com.accountabilibuddy.shared.sync.SyncAction.END_EARLY_BEGIN -> "Asking $pcName to end early"
+                        SyncAction.START -> "Starting on $pcName"
+                        SyncAction.END_EARLY_BEGIN -> "Asking $pcName to end early"
                         else -> "Ending the session on $pcName"
                     }
                     Text(
                         "$what… sent ${clock.time(java.time.LocalDateTime.ofInstant(waiting.at, zone))}; the PC answers when it next syncs.",
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    TextButton(onClick = onCancelWaiting) { Text("Cancel") }
+                    TextButton(onClick = onCancelWaiting) { Text("Stop waiting") }
                 }
                 state.isActive -> OutlinedButton(onClick = onEndEarly) { Text("End early…") }
                 else -> Button(onClick = { choosingStart = true }) { Text("Start on the PC…") }

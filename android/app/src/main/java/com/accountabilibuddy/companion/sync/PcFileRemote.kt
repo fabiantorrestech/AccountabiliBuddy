@@ -93,7 +93,7 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
         _offer.value = null
     }
 
-    /** Takes a waiting start or end-early action back out of this phone's file. */
+    /** Stops waiting for a start or end-early answer (it can't undo one the PC already applied) by taking it out of this phone's file. */
     fun cancelWaiting() {
         val pc = target() ?: return
         waitingFor(pc.file.device.deviceId)?.let { actions.remove(it.id) }
@@ -104,12 +104,12 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
      * much later; an open offer that ran out closes.
      */
     fun expire(now: Instant = Instant.now()) {
-        actions.pending.value
-            .filter { it.kind in SyncAction.CONTROL_KINDS && Duration.between(it.at, now) > GIVE_UP_AFTER }
-            .forEach { action ->
-                actions.remove(action.id)
-                _news.value = "${nameOf(action.target)} didn't answer in 10 minutes. Is it on and syncing?"
-            }
+        val gone = actions.pending.value.filter { it.kind in SyncAction.CONTROL_KINDS && Duration.between(it.at, now) > GIVE_UP_AFTER }
+        gone.forEach { actions.remove(it.id) }
+        if (gone.isNotEmpty()) {
+            val names = gone.map { nameOf(it.target) }.distinct()
+            _news.value = "${names.joinToString(" and ")} didn't answer in 10 minutes. Is it on and syncing?"
+        }
         _offer.value?.takeIf { it.offer.expired(now) }?.let { _offer.value = null }
     }
 
@@ -141,7 +141,10 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
                 }
             }
             SyncAction.END_EARLY -> {
-                _offer.value = null
+                // A refusal (say, the phone's clock ran ahead of the wait) keeps a still-valid offer open to try again.
+                if (result.ok || _offer.value?.offer?.expired(Instant.now()) != false) {
+                    _offer.value = null
+                }
                 _news.value = if (result.ok) "$name's session ended." else result.message ?: "$name didn't end it."
             }
         }
@@ -169,10 +172,11 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
         )
     }
 
-    private companion object {
-        const val KEY_CHOSEN = "chosen"
-        const val DEFAULT_MINUTES = 25
-        const val TOO_LATE = "Too late — ask to end it again."
+    companion object {
+        private const val KEY_CHOSEN = "chosen"
+        private const val DEFAULT_MINUTES = 25
+        private const val TOO_LATE = "Too late — ask to end it again."
+        /** How long a request to a PC is worth answering. */
         val GIVE_UP_AFTER: Duration = Duration.ofMinutes(10)
     }
 }
