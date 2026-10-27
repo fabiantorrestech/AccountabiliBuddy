@@ -1,16 +1,37 @@
 package com.accountabilibuddy.companion.sync
 
-import com.accountabilibuddy.shared.sync.SyncComeback
+import com.accountabilibuddy.shared.sync.SyncDeviceCard
+import com.accountabilibuddy.shared.sync.SyncParked
 import java.time.Instant
 
-/** The PC's open come-backs the phone knows (ADR 30), and which PC they're from; shown read-only on Today. */
-data class OpenComebacks(val source: String, val items: List<SyncComeback>) {
+/**
+ * The open come-backs on Today (ADR 30, 48): the user's parked thoughts from the list every device shares. Ticking one
+ * or parking a new one changes that list here and reaches the other devices with the next sync.
+ *
+ * Next to a PC that predates the shared list (its newest file has no "parked", ADR 48) the list is that PC's open
+ * come-backs as before (ADR 30): [legacySource] is its name, and ticking or parking goes to it as sync actions (ADR 26).
+ * The card then says to update the PC.
+ */
+data class OpenComebacks(val items: List<Row>, val legacySource: String? = null) {
+    /** One come-back: its id and text. */
+    data class Row(val id: String, val text: String)
+
     companion object {
-        /** The newest received file that carries a list, when it isn't empty. */
-        fun of(received: List<ReceivedDevice>, now: Instant): OpenComebacks? =
-            received
-                .filter { it.file.comebacks != null && !it.file.device.writtenAt.isAfter(now.plusSeconds(60)) }
+        private const val CLOCK_SLACK_SECONDS = 60L
+
+        /**
+         * The not yet ticked ones of [parked] (live items only), in list order; or, when the newest PC file in [received]
+         * has no shared come-back list, that file's open come-backs.
+         */
+        fun of(parked: List<SyncParked>, received: List<ReceivedDevice>, now: Instant): OpenComebacks {
+            val newestPc = received
+                .filter { it.file.device.kind == SyncDeviceCard.KIND_PC && !it.file.device.writtenAt.isAfter(now.plusSeconds(CLOCK_SLACK_SECONDS)) }
                 .maxByOrNull { it.file.device.writtenAt }
-                ?.let { device -> device.file.comebacks?.takeIf { it.isNotEmpty() }?.let { OpenComebacks(device.file.device.name, it) } }
+            if (newestPc != null && !newestPc.hasSharedLists) {
+                return OpenComebacks(newestPc.file.comebacks.orEmpty().map { Row(it.id, it.text) }, newestPc.file.device.name)
+            }
+
+            return OpenComebacks(parked.filter { it.deletedAt == null && it.doneAt == null }.map { Row(it.id, it.text) })
+        }
     }
 }

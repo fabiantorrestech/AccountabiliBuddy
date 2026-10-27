@@ -184,6 +184,9 @@ object SyncFileJson {
                 put("sessionStart", writeTime(placement.sessionStart))
             })
         }
+        // Optional (ADR 48): the shared lists with their tombstones; older apps ignore them.
+        file.nextTasks?.let { put("nextTasks", writeNextTasks(it)) }
+        file.parked?.let { put("parked", writeParked(it)) }
         file.lunch?.let { lunch ->
             put("lunch", buildJsonObject {
                 put("start", writeTime(lunch.start))
@@ -337,8 +340,86 @@ object SyncFileJson {
             readBeeminder(json["beeminder"]),
             readNoise(json["noise"]),
             readPlacement(json["placement"]),
+            readNextTasks(json["nextTasks"]),
+            readParked(json["parked"]),
         )
     }
+
+    /** The next session's tasks as the sync file carries them (ADR 48), in the PC's shape (camelCase, nulls left out, tombstones with no text). */
+    fun writeNextTasks(list: List<SyncNextTask>): JsonArray = JsonArray(list.map { task ->
+        buildJsonObject {
+            put("id", task.id)
+            put("title", task.title)
+            put("doneAt", task.doneAt?.let(::writeTime))
+            task.category?.let { put("category", it) }
+            task.categoryColor?.let { put("categoryColor", it) }
+            task.subtasks?.let { put("subtasks", SessionTaskItem.write(it, ::writeTime)) }
+            put("editedAt", writeTime(task.editedAt))
+            task.deletedAt?.let { put("deletedAt", writeTime(it)) }
+            put("position", task.position)
+        }
+    })
+
+    /** An optional list; an entry that can't be read is left out rather than failing the file. */
+    fun readNextTasks(value: JsonElement?): List<SyncNextTask>? {
+        val array = value as? JsonArray ?: return null
+        return array.mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            runCatching {
+                SyncNextTask(
+                    item.requiredId("id"),
+                    item.optionalString("title") ?: "",
+                    item.optionalTime("doneAt"),
+                    item.optionalString("category"),
+                    item.optionalString("categoryColor"),
+                    (item["subtasks"] as? JsonArray)?.let { steps -> SessionTaskItem.read(steps).filter { it.id != null } },
+                    item.requiredTime("editedAt"),
+                    item.optionalTime("deletedAt"),
+                    item.position(),
+                )
+            }.getOrNull()
+        }
+    }
+
+    /** The come-backs as the sync file carries them (ADR 48). */
+    fun writeParked(list: List<SyncParked>): JsonArray = JsonArray(list.map { parked ->
+        buildJsonObject {
+            put("id", parked.id)
+            put("text", parked.text)
+            put("createdAt", writeTime(parked.createdAt))
+            parked.doneAt?.let { put("doneAt", writeTime(it)) }
+            put("editedAt", writeTime(parked.editedAt))
+            parked.deletedAt?.let { put("deletedAt", writeTime(it)) }
+            put("position", parked.position)
+        }
+    })
+
+    /** An optional list; an entry that can't be read is left out rather than failing the file. */
+    fun readParked(value: JsonElement?): List<SyncParked>? {
+        val array = value as? JsonArray ?: return null
+        return array.mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            runCatching {
+                SyncParked(
+                    item.requiredId("id"),
+                    item.optionalString("text") ?: "",
+                    item.requiredTime("createdAt"),
+                    item.optionalTime("doneAt"),
+                    item.requiredTime("editedAt"),
+                    item.optionalTime("deletedAt"),
+                    item.position(),
+                )
+            }.getOrNull()
+        }
+    }
+
+    // A shared item's id: the 36-character form the PC reads a Guid in, kept as written.
+    private fun JsonObject.requiredId(name: String): String =
+        requiredString(name).also { if (!deviceIdForm.matches(it)) throw NotASyncFileException() }
+
+    // A position: a number; anything else (or not finite) is 0, so the order is the same on every device.
+    private fun JsonObject.position(): Double =
+        (this["position"] as? JsonPrimitive)?.takeIf { it !is JsonNull && !it.isString }?.doubleOrNull?.takeIf { it.isFinite() } ?: 0.0
 
     // Phase 11b: a placement that can't be read is left out rather than failing the file.
     private fun readPlacement(value: JsonElement?): SyncPlacement? {
