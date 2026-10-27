@@ -169,7 +169,10 @@ public sealed class QuickSessionService
             : null;
 
         var viewModel = new QuickSessionViewModel(
-            _configuration.Current.Profiles, Preferences, sessionCompleted, runningText, _sessions.TimeProvider);
+            _configuration.Current.Profiles, Preferences, sessionCompleted, runningText, _sessions.TimeProvider)
+        {
+            EndSessionText = state.IsTest ? "End test" : "End session…",
+        };
         viewModel.StartRequested += async (_, _) => await StartAsync(viewModel, fromPopup: true);
         viewModel.Checklist = Tasks is null ? null : new ChecklistViewModel(Tasks, ChecklistMode.Draft, _sessions.TimeProvider);
         HookQuickStart(viewModel);

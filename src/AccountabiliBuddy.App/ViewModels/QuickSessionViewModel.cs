@@ -86,6 +86,9 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
 
     public bool IsSessionRunning => RunningSessionText is not null;
 
+    /// <summary>The end button while a session runs: "End test" for a test session.</summary>
+    public string EndSessionText { get; init; } = "End session…";
+
     public bool CanChoose => !IsSessionRunning;
 
     public bool HasProfiles => ProfileOptions.Count > 0;

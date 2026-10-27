@@ -100,7 +100,7 @@ public sealed class PreWorkService
             _ = SaveAsync(_state with { EndedOn = today });
         }
 
-        bool asking = part is not null && !_sessions.State.IsActive && _state.WorkDayOn != today && !IsDayOff && Holds()
+        bool asking = part is not null && !_sessions.State.IsRealSession && _state.WorkDayOn != today && !IsDayOff && Holds()
             && (Prompt is not null || _idle.GetIdleTime() < ActiveWithin);
         if (asking && Prompt is null)
         {
