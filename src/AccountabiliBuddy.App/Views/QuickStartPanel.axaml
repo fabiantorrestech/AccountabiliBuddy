@@ -115,6 +115,18 @@
                 <Button Content="{Binding QuickStartLabel}" Command="{Binding QuickStartCommand}"
                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,8"
                         ToolTip.Tip="Starts the profile picked above with no set end. The on-screen bar fills each hour and glows every 30 minutes with how long you've been at it; hold Ctrl+Alt to see it any time." />
+
+                <!-- Test session: enforcement, prompts and the overlay as in a real one; never counted, logged or synced. -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Test session" Opacity="0.8" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <NumericUpDown Value="{Binding TestMinutesInput}" Minimum="1" Maximum="60" Increment="1" FormatString="0" Width="110" />
+                        <TextBlock Text="minutes" VerticalAlignment="Center" />
+                        <Button Content="Start test" Command="{Binding StartTestCommand}" />
+                    </StackPanel>
+                    <TextBlock Text="Uses the profile picked above and runs like a session, so you can try the rules and prompts. It is never counted, not in History, and not synced. End test stops it at once."
+                               Opacity="0.65" FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
             </StackPanel>
         </Expander>
     </StackPanel>

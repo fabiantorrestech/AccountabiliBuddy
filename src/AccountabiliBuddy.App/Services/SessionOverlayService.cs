@@ -272,7 +272,9 @@ public sealed class SessionOverlayService : IDisposable
         if (showsTimer)
         {
             Guid profileId = state.ProfileId!.Value;
-            string name = _configuration.Current.Profiles.FirstOrDefault(profile => profile.Id == profileId)?.Name ?? "Focus";
+            string name = state.IsTest
+                ? "Test session"
+                : _configuration.Current.Profiles.FirstOrDefault(profile => profile.Id == profileId)?.Name ?? "Focus";
             _timer.Update(state, _sessions.Now, _sessions.TimeProvider.LocalTimeZone, name, ColorOf(profileId, settings), settings);
         }
 

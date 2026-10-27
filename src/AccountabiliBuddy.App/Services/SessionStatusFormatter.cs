@@ -32,7 +32,7 @@ public static class SessionStatusFormatter
             return "Start a session below.";
         }
 
-        string mode = state.Mode switch
+        string mode = state.IsTest ? "Test session" : state.Mode switch
         {
             SessionMode.Pomodoro => $"Pomodoro · {state.CompletedFocusCycles} cycle(s) done",
             SessionMode.Scheduled => "Scheduled block",

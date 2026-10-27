@@ -220,6 +220,27 @@ public sealed class QuickSessionService
         await SavePreferencesAsync();
     }
 
+    /// <summary>"Test session": the profile picked in the start controls for the chosen minutes (1-60), never counted or logged.</summary>
+    private async Task StartTestAsync(QuickSessionViewModel viewModel)
+    {
+        if (viewModel.SelectedProfile is not { } profile)
+        {
+            return;
+        }
+
+        bool started = _sessions.StartTest(profile.Id, viewModel.TestMinutes);
+        CloseAll();
+        if (!started)
+        {
+            return;
+        }
+
+        // A test never offers "start another" when it ends.
+        _ownsRunningSession = false;
+        Preferences = Preferences with { TestMinutes = viewModel.TestMinutes };
+        await SavePreferencesAsync();
+    }
+
     /// <summary>Raised when the count-up profile was chosen (Settings) or made on first use.</summary>
     public event EventHandler? CountUpProfileChanged;
 
@@ -299,6 +320,7 @@ public sealed class QuickSessionService
         viewModel.DefaultProfileName = CountUpProfileName;
         viewModel.QuickStartDefaultRequested += async (_, _) => await StartCountUpAsync();
         viewModel.QuickStartRequested += (_, profileId) => StartCountUp(profileId);
+        viewModel.StartTestRequested += async (_, _) => await StartTestAsync(viewModel);
     }
 
     /// <summary>
@@ -331,7 +353,7 @@ public sealed class QuickSessionService
 
     private void OnSessionCompleted(object? sender, SessionState finished)
     {
-        if (_ownsRunningSession)
+        if (_ownsRunningSession && !finished.IsTest)
         {
             _ownsRunningSession = false;
             Show(sessionCompleted: true);

@@ -104,7 +104,7 @@ public sealed class DeepWorkService : IDisposable
         // Only the other devices' sessions near today (each device keeps up to 90 days).
         DateTimeOffset from = now.AddDays(-2);
         List<SyncSession> others = _others().Where(session => (session.End ?? now) > from).ToList();
-        DeepWorkDay day = DeepWork.Days(_records, others, _isOmitted, _sessions.State.IsActive, today, today, now, zone)[0];
+        DeepWorkDay day = DeepWork.Days(_records, others, _isOmitted, _sessions.State.IsRealSession, today, today, now, zone)[0];
         var progress = new GoalProgress(TimeSpan.FromMinutes(Math.Floor(day.Focused.TotalMinutes)), _goal.Current.DailyMinutes);
         DeepWorkDay earned = DeepWork.Days([], others.Where(session => !session.Added), _isOmitted, false, today, today, now, zone)[0];
         UnlockProgress = new GoalProgress(TimeSpan.FromMinutes(Math.Floor(earned.Focused.TotalMinutes)), _goal.Current.DailyMinutes);

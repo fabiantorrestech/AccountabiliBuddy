@@ -22,7 +22,7 @@
                                    AutomationProperties.Name="Time left" />
                         <TextBlock Text="{Binding PhaseText}" FontSize="15" Opacity="0.8" VerticalAlignment="Center" TextWrapping="Wrap" />
                     </StackPanel>
-                    <Button Grid.Column="1" Content="End session…" Command="{Binding EndSessionCommand}" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Content="{Binding EndSessionText}" Command="{Binding EndSessionCommand}" VerticalAlignment="Center" />
                 </Grid>
                 <!-- Plan first: the session's first minutes, for the plan; "I'm ready" ends them. -->
                 <Border IsVisible="{Binding IsPlanning}" Background="#33FFFFFF" CornerRadius="6" Padding="10,6">

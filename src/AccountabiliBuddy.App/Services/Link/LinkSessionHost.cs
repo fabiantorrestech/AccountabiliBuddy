@@ -220,14 +220,14 @@ public sealed class LinkSessionHost : ILinkSessionHost
 
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
         return FocusDayBuilder.Build(today, records, drift, _configuration.Current.DayPlan, _omitted.IsOmitted,
-            id => ProfileOptions.NameOf(profiles, id), _sessions.State.IsActive, now, zone) with { GoalMinutes = GoalMinutes?.Invoke() };
+            id => ProfileOptions.NameOf(profiles, id), _sessions.State.IsRealSession, now, zone) with { GoalMinutes = GoalMinutes?.Invoke() };
     }
 
     /// <summary>Every few minutes while a session runs, and when the date changes.</summary>
     private void OnFocusDayTick()
     {
         DateOnly today = Today();
-        if (_sessions.State.IsActive || today != _focusDayDate)
+        if (_sessions.State.IsRealSession || today != _focusDayDate)
         {
             _focusDayDate = today;
             FocusDayChanged?.Invoke(this, EventArgs.Empty);
@@ -368,7 +368,8 @@ public sealed class LinkSessionHost : ILinkSessionHost
 
     private LinkState BuildState()
     {
-        SessionState state = _sessions.State;
+        // A test session is never shown to linked devices: they see an idle PC (starting one is refused while it runs).
+        SessionState state = _sessions.State.IsTest ? SessionState.Idle : _sessions.State;
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
         string? mode = state.Mode switch
         {

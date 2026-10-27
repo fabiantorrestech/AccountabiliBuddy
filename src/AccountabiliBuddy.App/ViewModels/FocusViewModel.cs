@@ -118,6 +118,10 @@ public sealed partial class FocusViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(EndSessionCommand))]
     public partial bool IsActive { get; set; }
 
+    /// <summary>The end button: "End test" for a test session (it ends at once), else "End session…".</summary>
+    [ObservableProperty]
+    public partial string EndSessionText { get; set; } = "End session…";
+
     /// <summary>"41:12" left, or the time in for a session with no set end; frozen while away.</summary>
     [ObservableProperty]
     public partial string TimeLeftText { get; set; }
@@ -192,6 +196,7 @@ public sealed partial class FocusViewModel : ObservableObject
     {
         SessionState state = _sessions.State;
         IsActive = state.IsActive;
+        EndSessionText = state.IsTest ? "End test" : "End session…";
         if (!state.IsActive)
         {
             TimeLeftText = PhaseText = AwayText = string.Empty;
@@ -204,7 +209,7 @@ public sealed partial class FocusViewModel : ObservableObject
         DateTimeOffset now = _sessions.Now;
         DateTimeOffset clock = state.CountdownTime(now);
         string profile = ProfileOptions.NameOf(_configuration.Current.Profiles, state.ProfileId) ?? "Focus";
-        string who = state.IsEnforcing ? profile : "Break";
+        string who = state.IsTest ? "Test session" : state.IsEnforcing ? profile : "Break";
         TimeZoneInfo zone = _sessions.TimeProvider.LocalTimeZone;
         if (state.PhaseEndsAt is DateTimeOffset end)
         {

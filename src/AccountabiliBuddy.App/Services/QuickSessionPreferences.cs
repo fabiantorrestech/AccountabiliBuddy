@@ -19,4 +19,7 @@ public sealed record QuickSessionPreferences(
         new(null, FocusMinutes: 25, BreakEnabled: false, BreakMinutes: 5, HotkeyChord.Default.ToString());
 
     public Guid? CountUpProfileId { get; init; }
+
+    /// <summary>The test session's length in minutes (Today → More options); 1 by default.</summary>
+    public int TestMinutes { get; init; } = 1;
 }

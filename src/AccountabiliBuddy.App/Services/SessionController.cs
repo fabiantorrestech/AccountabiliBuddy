@@ -11,6 +11,9 @@ namespace AccountabiliBuddy.App.Services;
 /// </summary>
 public sealed class SessionController : IDisposable
 {
+    public const int MinTestMinutes = 1;
+    public const int MaxTestMinutes = 60;
+
     private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(1);
 
     private readonly SessionEngine _engine;
@@ -86,6 +89,21 @@ public sealed class SessionController : IDisposable
     public bool StartManual(Guid profileId, TimeSpan? duration)
     {
         return _engine.StartManual(profileId, duration);
+    }
+
+    /// <summary>
+    /// A test session of <paramref name="minutes"/> (1-60): enforcement, prompts, cues and the overlay run as in a real
+    /// session, but it is never counted, logged, synced, shown to linked devices or resumed, and "End test" ends it at once.
+    /// </summary>
+    /// <returns>False when a session is already running or the length is out of range.</returns>
+    public bool StartTest(Guid profileId, int minutes)
+    {
+        if (minutes is < MinTestMinutes or > MaxTestMinutes)
+        {
+            return false;
+        }
+
+        return _engine.StartTest(profileId, TimeSpan.FromMinutes(minutes));
     }
 
     public bool StartPomodoro(Guid profileId, int? totalCycles)
