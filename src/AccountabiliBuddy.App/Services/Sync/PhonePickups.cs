@@ -11,8 +11,6 @@ public sealed class PhonePickups
     // A session's start as the PC wrote it and as the phone echoes it back can differ by rounding.
     private static readonly TimeSpan StartTolerance = TimeSpan.FromSeconds(5);
 
-    private static readonly TimeSpan PlacementTolerance = TimeSpan.FromMinutes(2);
-
     private readonly ReceivedDevicesService _received;
     private readonly SyncIdentityService _identity;
     private readonly TimeProvider _time;
@@ -63,12 +61,9 @@ public sealed class PhonePickups
     /// <summary>E.g. "out 2× · pocket 14 min" from the phone's placement for the session; null when the phone sent none.</summary>
     public string? DescribePlacement(DateTimeOffset sessionStart)
     {
-        SyncPlacement? placement = _received.Devices
-            .Where(device => device.File.Device.Kind == SyncDeviceCard.KindPhone && device.File.Placement is not null)
-            .OrderByDescending(device => device.File.Device.WrittenAt)
-            .Select(device => device.File.Placement!)
-            .FirstOrDefault(entry => (entry.SessionStart - sessionStart).Duration() <= PlacementTolerance);
-        return placement is null ? null : $"out {placement.OutCount}× · pocket {placement.PocketMinutes} min";
+        return PhonePlacementLookup.Newest(_received.Devices, sessionStart) is { Placement: SyncPlacement placement }
+            ? $"out {placement.OutCount}× · pocket {placement.PocketMinutes} min"
+            : null;
     }
 
     /// <summary>E.g. "DESK-PC: used 2×" for each other PC that went back to during the session (design K); null for none.</summary>

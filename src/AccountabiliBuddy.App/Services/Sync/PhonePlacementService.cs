@@ -12,8 +12,7 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// </summary>
 public sealed class PhonePlacementService : IDisposable
 {
-    // The phone echoes the session's start back; a rounding difference is fine, a different session is not.
-    private static readonly TimeSpan StartTolerance = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan StaleAfter = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan PocketEvery = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan OutBeforeReminder = TimeSpan.FromMinutes(1);
 
@@ -58,24 +57,27 @@ public sealed class PhonePlacementService : IDisposable
     {
         SessionState state = _sessions.State;
         DateTimeOffset? start = _sessionStart();
-        // A real session in planning or focus; a break (away) and a test session get no nags.
-        if (!state.IsRealSession || !state.IsEnforcing || state.IsAway || start is not DateTimeOffset sessionStart)
+        // A real session in planning or focus; a break and a test session get no nags (a side task does: enforcement runs there).
+        if (!state.IsRealSession || !state.IsEnforcing || state.PausesEnforcement || start is not DateTimeOffset sessionStart)
         {
             Reset(null);
             return;
         }
 
-        if (_trackedStart is not DateTimeOffset tracked || (tracked - sessionStart).Duration() > StartTolerance)
+        if (_trackedStart is not DateTimeOffset tracked || (tracked - sessionStart).Duration() > PhonePlacementLookup.StartTolerance)
         {
             Reset(sessionStart);
         }
 
         DateTimeOffset now = _sessions.Now;
-        if (Current(sessionStart) is not SyncPlacement placement)
+        // A file older than 5 minutes reads as unknown (the phone re-sends at least every 2 minutes in a session).
+        if (PhonePlacementLookup.Newest(_received.Devices, sessionStart) is not { } found || now - found.WrittenAt > StaleAfter)
         {
             ClearOut();
             return;
         }
+
+        SyncPlacement placement = found.Placement;
 
         if (placement.WorkUseUntil is DateTimeOffset until && (_workUseEnd is null || until > _workUseEnd))
         {
@@ -87,11 +89,14 @@ public sealed class PhonePlacementService : IDisposable
         if (placement.State == SyncPlacement.Pocket)
         {
             ClearOut();
-            NoticePocket(now);
+            if (!onWorkUse)
+            {
+                NoticePocket(now);
+            }
         }
         else if (placement.IsOut)
         {
-            NagOut(onWorkUse, now);
+            NagOut(placement, onWorkUse, now);
         }
         else
         {
@@ -112,7 +117,7 @@ public sealed class PhonePlacementService : IDisposable
         _notify("Phone in your pocket", "A bag or face down on the desk is better.");
     }
 
-    private void NagOut(bool onWorkUse, DateTimeOffset now)
+    private void NagOut(SyncPlacement placement, bool onWorkUse, DateTimeOffset now)
     {
         if (onWorkUse)
         {
@@ -123,7 +128,10 @@ public sealed class PhonePlacementService : IDisposable
 
         if (_outSince is null)
         {
-            _outSince = now;
+            // Measured from when the phone came out (its own clock for the stretch), so the reminder lines up with the
+            // phone's 3-minute escalation; a future "since" counts as now, and work use that just ended starts it over.
+            DateTimeOffset since = placement.Since < now ? placement.Since : now;
+            _outSince = _workUseEnd is DateTimeOffset workEnd && workEnd > since ? workEnd : since;
             _reminded = false;
             // The "work use is over" notice already covers a stretch that is still out when its time is up.
             if (_workUseEnd is DateTimeOffset end && !_workUseEndTold && now >= end)
@@ -155,16 +163,6 @@ public sealed class PhonePlacementService : IDisposable
         {
             _notify("Work use is over", "Put the phone back.");
         }
-    }
-
-    // The newest placement from a phone whose session start is this session's.
-    private SyncPlacement? Current(DateTimeOffset start)
-    {
-        return _received.Devices
-            .Where(device => device.File.Device.Kind == SyncDeviceCard.KindPhone && device.File.Placement is not null)
-            .OrderByDescending(device => device.File.Device.WrittenAt)
-            .Select(device => device.File.Placement!)
-            .FirstOrDefault(placement => (placement.SessionStart - start).Duration() <= StartTolerance);
     }
 
     private void ClearOut()
