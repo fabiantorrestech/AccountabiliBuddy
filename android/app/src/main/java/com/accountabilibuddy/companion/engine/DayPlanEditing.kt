@@ -6,7 +6,7 @@ import com.accountabilibuddy.companion.model.DayMode
 import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.companion.model.DayTemplate
 import com.accountabilibuddy.companion.model.PlanTemplate
-import com.accountabilibuddy.companion.model.PlanWeek
+import com.accountabilibuddy.companion.model.PlanCycle
 import com.accountabilibuddy.companion.model.WeekdayTemplate
 import com.accountabilibuddy.companion.model.WorkWindow
 import java.time.DayOfWeek
@@ -16,8 +16,8 @@ import java.time.temporal.TemporalAdjusters
 import java.util.UUID
 
 /**
- * The day plan editor's changes to templates and the week map (schema v12, ADR 47): add, duplicate, delete, switch a
- * template's mode, pick a weekday's template, turn alternating weeks on or off, and flip this week between A and B.
+ * The day plan editor's changes to templates and the week cycle (schema v12 and v13, ADR 47): add, duplicate, delete, switch a
+ * template's mode, pick a weekday's template, add or remove a week of the cycle, and say which week this one is.
  * Pure functions on the plan; the PC checks and decides the result like any other plan edit (stricter now, looser waits).
  */
 object DayPlanEditing {
@@ -97,56 +97,55 @@ object DayPlanEditing {
     /** The plan without day type [id]; weekdays that followed it follow Off day. The Off day type can't be removed (returns the plan as it was). */
     fun removeTemplate(plan: DayPlan, id: UUID): DayPlan {
         if (id == DayPlan.OFF_DAY_TEMPLATE_ID) return plan
-        fun remap(week: List<WeekdayTemplate>?) = week?.map { if (it.templateId == id) it.copy(templateId = DayPlan.OFF_DAY_TEMPLATE_ID) else it }
+        fun remap(week: List<WeekdayTemplate>) = week.map { if (it.templateId == id) it.copy(templateId = DayPlan.OFF_DAY_TEMPLATE_ID) else it }
         return plan.copy(
             templates = plan.templates.filter { it.id != id },
-            week = plan.week.copy(a = remap(plan.week.a)!!, b = remap(plan.week.b)),
+            cycle = plan.cycle.copy(weeks = plan.cycle.weeks.map(::remap)),
         )
     }
 
-    /** Which weekdays (in week A or B) follow day type [id]. */
+    /** Which weekdays (in any week of the cycle) follow day type [id]. */
     fun weekdaysOf(plan: DayPlan, id: UUID): List<DayOfWeek> =
-        DayPlan.MONDAY_FIRST.filter { day -> templateIdOn(plan.week.a, day) == id || (plan.week.b?.let { templateIdOn(it, day) } == id) }
+        DayPlan.MONDAY_FIRST.filter { day -> plan.cycle.weeks.any { templateIdOn(it, day) == id } }
 
     /** The day type id [day] follows in [week]; Off day when the week doesn't list it. */
     fun templateIdOn(week: List<WeekdayTemplate>, day: DayOfWeek): UUID = week.firstOrNull { it.day == day }?.templateId ?: DayPlan.OFF_DAY_TEMPLATE_ID
 
-    /** The plan with [day] of week B (or A) following [templateId]. */
-    fun withWeekday(plan: DayPlan, weekB: Boolean, day: DayOfWeek, templateId: UUID): DayPlan {
+    /** The plan with [day] of week [weekIndex] (0-based) of the cycle following [templateId]. */
+    fun withWeekday(plan: DayPlan, weekIndex: Int, day: DayOfWeek, templateId: UUID): DayPlan {
         fun set(week: List<WeekdayTemplate>) = DayPlan.MONDAY_FIRST.map { WeekdayTemplate(it, if (it == day) templateId else templateIdOn(week, it)) }
-        val week = plan.week
-        return if (weekB) plan.copy(week = week.copy(b = set(week.b ?: week.a)))
-        else plan.copy(week = week.copy(a = set(week.a)))
+        return plan.copy(cycle = plan.cycle.copy(weeks = plan.cycle.weeks.mapIndexed { index, week -> if (index == weekIndex) set(week) else week }))
     }
 
     /**
-     * Alternating weeks on (week B starts as a copy of A, from the next Monday after [today]) or off (week B dropped).
-     * Turning it on leaves every date's template as it was until B is edited.
+     * A week added at the end of the cycle, a copy of the last one (up to [PlanCycle.MAX_WEEKS]). The first one added
+     * makes the week of [today] week 1, so every date keeps its template until the new week's turn.
      */
-    fun withAlternating(plan: DayPlan, on: Boolean, today: LocalDate): DayPlan = when {
-        on && plan.week.b == null -> plan.copy(week = PlanWeek(plan.week.a, plan.week.a, nextMonday(today)))
-        !on && plan.week.b != null -> plan.copy(week = PlanWeek(plan.week.a))
-        else -> plan
+    fun withWeekAdded(plan: DayPlan, today: LocalDate): DayPlan {
+        val weeks = plan.cycle.weeks
+        if (weeks.size >= PlanCycle.MAX_WEEKS) return plan
+        val last = weeks.lastOrNull().orEmpty().let { week -> DayPlan.MONDAY_FIRST.map { WeekdayTemplate(it, templateIdOn(week, it)) } }
+        val startsOn = if (weeks.size == 1) mondayOf(today) else plan.cycle.startsOn
+        return plan.copy(cycle = PlanCycle(weeks + listOf(last), startsOn))
     }
 
-    /** The plan with week B starting on [monday] (a Monday). */
-    fun withBStartsOn(plan: DayPlan, monday: LocalDate): DayPlan = plan.copy(week = plan.week.copy(bStartsOn = monday))
+    /** The plan without the last week of the cycle (the cycle keeps at least one week). */
+    fun withLastWeekRemoved(plan: DayPlan): DayPlan =
+        if (plan.cycle.weeks.size <= 1) plan else plan.copy(cycle = plan.cycle.copy(weeks = plan.cycle.weeks.dropLast(1)))
+
+    /** The plan with week 1 starting on [monday] (a Monday). */
+    fun withStartsOn(plan: DayPlan, monday: LocalDate): DayPlan = plan.copy(cycle = plan.cycle.copy(startsOn = monday))
 
     /** The Monday on or before [date]. */
     fun mondayOf(date: LocalDate): LocalDate = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
 
-    private fun nextMonday(date: LocalDate): LocalDate = date.with(TemporalAdjusters.next(DayOfWeek.MONDAY))
-
-    /** True when alternating weeks are on and [date]'s week is week B. */
-    fun isWeekB(plan: DayPlan, date: LocalDate): Boolean = plan.week.isWeekB(date)
-
     /**
-     * The plan with [date]'s week as week B (or A): week B's start moves to that Monday, or the Monday a week before it,
-     * so the weeks keep alternating around it. Unchanged when alternating weeks are off or the week already is that one.
+     * The plan with [date]'s week made week [week] (1-based) of the cycle: week 1's start moves to the Monday `week - 1`
+     * weeks before that week's Monday, so the weeks keep repeating around it. The PC's WeekSwitch.WithThisWeek. Unchanged
+     * when the cycle has one week, [week] isn't one of its weeks, or the week already is that one.
      */
-    fun withThisWeek(plan: DayPlan, weekB: Boolean, date: LocalDate): DayPlan {
-        if (plan.week.b == null || isWeekB(plan, date) == weekB) return plan
-        val monday = mondayOf(date)
-        return withBStartsOn(plan, if (weekB) monday else monday.minusWeeks(1))
+    fun withThisWeek(plan: DayPlan, week: Int, date: LocalDate): DayPlan {
+        if (plan.cycle.weeks.size < 2 || week !in 1..plan.cycle.weeks.size || plan.cycle.weekNumberFor(date) == week) return plan
+        return withStartsOn(plan, mondayOf(date).minusWeeks((week - 1).toLong()))
     }
 }

@@ -31,7 +31,7 @@ public static class SetupFeatures
             "Describes your workdays as just a work window or a number of productive hours instead of a full timeline, with free days and week A / week B.",
             IsRelevant: () => true,
             IsSetUp: () => configuration.Current.DayPlan is { } plan
-                && (plan.Week.B is not null || plan.Templates.Any(template => template.Template.Mode != Core.Domain.DayMode.Schedule || template.Template.WorkWindow is not null)),
+                && (plan.Cycle.Weeks.Count > 1 || plan.Templates.Any(template => template.Template.Mode != Core.Domain.DayMode.Schedule || template.Template.WorkWindow is not null)),
             Step: ViewModels.AssistantStep.Workdays),
         new SetupFeature(
             "startofday.assistant", "0.1.111",

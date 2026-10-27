@@ -166,16 +166,28 @@
                 </StackPanel>
             </Border>
 
-            <!-- Alternating weeks (ADR 47): which week this one is. A switch that frees today's work waits like any looser plan change. -->
+            <!-- Repeating weeks (ADR 47): which week of the cycle this one is. A switch that frees today's work waits like any looser plan change. -->
             <Border Padding="16,10" CornerRadius="10" Background="#146366F1" BorderBrush="#446366F1" BorderThickness="1"
                     DataContext="{Binding Week}" x:DataType="vm:WeekCardViewModel"
                     IsVisible="{Binding IsVisible, FallbackValue=False}">
                 <StackPanel Spacing="6">
-                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                         <mi:MaterialIcon Kind="CalendarWeek" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
                         <TextBlock Grid.Column="1" Text="{Binding Text}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <Button Grid.Column="2" Content="A" Classes.accent="{Binding IsWeekA}" Command="{Binding SetWeekACommand}" MinWidth="44" />
-                        <Button Grid.Column="3" Content="B" Classes.accent="{Binding IsWeekB}" Command="{Binding SetWeekBCommand}" MinWidth="44" />
+                        <ItemsControl Grid.Column="2" ItemsSource="{Binding Choices}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="4" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:WeekChoiceViewModel">
+                                    <Button Content="{Binding Number}" Classes.accent="{Binding IsCurrent}" MinWidth="40"
+                                            Command="{Binding $parent[ItemsControl].((vm:WeekCardViewModel)DataContext).SetWeekCommand}"
+                                            CommandParameter="{Binding Number}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </Grid>
                     <TextBlock Text="{Binding Message}" FontSize="12" Foreground="#F4A261" TextWrapping="Wrap"
                                IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />

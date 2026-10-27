@@ -19,6 +19,11 @@ namespace AccountabiliBuddy.Core.Domain;
 /// bedtime plus the sleep goal. Only its start (bed by) is the user's; its end is kept at bedtime plus the goal for
 /// drawing. False = the end is the wake time.
 /// </param>
+/// <param name="AutoStart">
+/// A fixed lunch period (schema v13): a Rest part with fixed hours (not a flexible break) that starts by itself at its
+/// start and lasts as long as the part does, as if the user had pressed "Start lunch". False = lunch is started by the user
+/// (a flexible break) or the part is just time in the plan.
+/// </param>
 public sealed record PlanPart(
     Guid Id,
     Guid CategoryId,
@@ -27,7 +32,8 @@ public sealed record PlanPart(
     string? Label = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? FlexMinutes = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] TimeOnly? HintAt = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool WakeByAlarm = false)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool WakeByAlarm = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool AutoStart = false)
 {
     /// <summary>A flexible break: its times are a window, it lasts <see cref="FlexMinutes"/> once started.</summary>
     [JsonIgnore]

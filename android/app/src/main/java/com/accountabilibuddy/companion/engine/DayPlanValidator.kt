@@ -1,9 +1,11 @@
 package com.accountabilibuddy.companion.engine
 
+import com.accountabilibuddy.companion.model.CategoryBehavior
 import com.accountabilibuddy.companion.model.DayCategory
 import com.accountabilibuddy.companion.model.DayMode
 import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.companion.model.DayTemplate
+import com.accountabilibuddy.companion.model.PlanCycle
 import com.accountabilibuddy.companion.model.PlanPart
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -48,6 +50,11 @@ object DayPlanValidator {
 
             if (length(part) < SHORTEST_PART_MINUTES) {
                 return "${describe(part, categories)} is shorter than 15 minutes."
+            }
+
+            // A fixed lunch period (schema v13): a Rest part with fixed hours that doesn't cross midnight.
+            if (part.autoStart && (categories.first { it.id == part.categoryId }.behavior != CategoryBehavior.Rest || part.isFlexible || part.crossesMidnight)) {
+                return "${describe(part, categories)} can't start by itself: only a rest part with fixed hours, within one day, can."
             }
         }
 
@@ -95,16 +102,13 @@ object DayPlanValidator {
     }
 
     private fun week(plan: DayPlan): String? {
-        for ((title, week) in listOf("Week A" to plan.week.a, "Week B" to plan.week.b)) {
-            if (week == null) continue
-            if (week.groupBy { it.day }.any { it.value.size > 1 }) return "$title lists a weekday twice."
-            if (week.any { entry -> plan.templates.none { it.id == entry.templateId } }) return "$title uses a day type that no longer exists."
+        if (plan.cycle.weeks.size !in 1..PlanCycle.MAX_WEEKS) return "The repeating weeks need between 1 and ${PlanCycle.MAX_WEEKS} weeks."
+        for ((index, week) in plan.cycle.weeks.withIndex()) {
+            if (week.groupBy { it.day }.any { it.value.size > 1 }) return "Week ${index + 1} lists a weekday twice."
+            if (week.any { entry -> plan.templates.none { it.id == entry.templateId } }) return "Week ${index + 1} uses a day type that no longer exists."
         }
 
-        if (plan.week.b != null && plan.week.bStartsOn?.dayOfWeek != java.time.DayOfWeek.MONDAY) {
-            return "Alternating weeks need a Monday for week B to start on."
-        }
-
+        if (plan.cycle.startsOn.dayOfWeek != java.time.DayOfWeek.MONDAY) return "The repeating weeks need a Monday for week 1 to start on."
         return null
     }
 

@@ -98,7 +98,7 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Today's deep work against the daily goal (redesign phase 4); null hides the card.</summary>
     public GoalCardViewModel? Goal { get; set; }
 
-    /// <summary>The "This week is A / B" switch (ADR 47); shows only while alternating weeks are on.</summary>
+    /// <summary>The "This is week N of M" switch (ADR 47); shows only while the weeks repeat in a cycle of more than one.</summary>
     public WeekCardViewModel? Week { get; set; }
 
     /// <summary>The user's Beeminder goals (ADR 43, read only); null hides the card, as does having no token.</summary>

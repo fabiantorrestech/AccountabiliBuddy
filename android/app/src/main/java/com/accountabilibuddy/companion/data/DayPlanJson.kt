@@ -43,10 +43,19 @@ object DayPlanJson {
                 })
             }
         }
+        put("cycle", buildJsonObject {
+            putJsonArray("weeks") { for (week in plan.cycle.weeks) add(weekdays(week)) }
+            put("startsOn", plan.cycle.startsOn.format(date))
+        })
+        // The v12 week map for an older app (the PC's LegacyDayPlan): week 1 as A, week 2 as B when the cycle has two weeks
+        // (B starting the Monday before week 1), a longer cycle shows week 1 only. A v13 reader ignores it when "cycle" is there.
+        val alternating = plan.cycle.weeks.size == 2
         put("week", buildJsonObject {
-            put("a", weekdays(plan.week.a))
-            plan.week.b?.let { put("b", weekdays(it)) }
-            plan.week.bStartsOn?.let { put("bStartsOn", it.format(date)) }
+            put("a", weekdays(plan.cycle.weeks.firstOrNull().orEmpty()))
+            if (alternating) {
+                put("b", weekdays(plan.cycle.weeks[1]))
+                put("bStartsOn", plan.cycle.startsOn.minusDays(7).format(date))
+            }
         })
         putJsonArray("oneOffDays") {
             for (day in plan.oneOffDays) {
@@ -59,18 +68,18 @@ object DayPlanJson {
             }
         }
 
-        // The v11 fields, for an older app that reads only those (the PC's LegacyDayPlan); a v12 reader ignores them.
+        // The v11 fields, for an older app that reads only those (the PC's LegacyDayPlan); a v13 reader ignores them.
         val workdayId = legacyWorkdayTemplate(plan)
         putJsonArray("workdays") {
-            plan.week.a.filter { it.templateId == workdayId }.map { it.day }.sorted().forEach { add(kotlinx.serialization.json.JsonPrimitive(camel(it.name))) }
+            plan.cycle.weeks.firstOrNull().orEmpty().filter { it.templateId == workdayId }.map { it.day }.sorted().forEach { add(kotlinx.serialization.json.JsonPrimitive(camel(it.name))) }
         }
         put("workday", template(projected(plan, workdayId)))
         put("otherDay", template(projected(plan, DayPlan.OFF_DAY_TEMPLATE_ID)))
     }
 
-    /** The template most weekdays of week A follow, other than the Off day template and Free ones (ties: "Workday", then the first listed). */
+    /** The template most weekdays of week 1 follow, other than the Off day template and Free ones (ties: "Workday", then the first listed). */
     private fun legacyWorkdayTemplate(plan: DayPlan): java.util.UUID {
-        val counts = plan.week.a
+        val counts = plan.cycle.weeks.firstOrNull().orEmpty()
             .filter { entry -> entry.templateId != DayPlan.OFF_DAY_TEMPLATE_ID && plan.templates.any { it.id == entry.templateId && it.template.mode != DayMode.Free } }
             .groupingBy { it.templateId }.eachCount()
         return plan.templates.filter { it.id in counts }
@@ -116,6 +125,7 @@ object DayPlanJson {
         part.flexMinutes?.let { put("flexMinutes", it) }
         part.hintAt?.let { put("hintAt", it.format(time)) }
         if (part.wakeByAlarm) put("wakeByAlarm", true)
+        if (part.autoStart) put("autoStart", true)
     }
 
     /** "MONDAY" → "monday", "Rest" → "rest", "PreWork" → "preWork": the PC's camelCase enum names. */

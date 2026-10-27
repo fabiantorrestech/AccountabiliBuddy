@@ -8,7 +8,7 @@ namespace AccountabiliBuddy.Core.Engine;
 /// <list type="bullet">
 /// <item>Time: the guarded windows that were guarded before the change and aren't after it. Work added elsewhere doesn't
 /// make up for it, so moving a part later frees the time it no longer covers; so do Free, a shorter Schedule, longer
-/// non-productive windows, re-mapping today's weekday and switching or moving week B.</item>
+/// non-productive windows, re-mapping today's weekday and switching or moving the week of the repeating cycle.</item>
 /// <item>Hours, when today is a Budget day before or after: the work left (the budget not yet focused, at most the
 /// guarded time ahead). A lower budget frees hours without freeing any window, because a Budget day is guarded until its
 /// budget is met.</item>

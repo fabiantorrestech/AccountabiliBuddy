@@ -31,7 +31,7 @@ public static class DayPlanChanges
     /// <summary>
     /// The lines of a change that touch the template today follows (the reasons a change can lower today's guarded work,
     /// ADR 28, 47): a one-off day added or removed for today, today re-mapped to another template (by the weekday's map, the
-    /// A/B week or week B's start), or that template's own mode, budget, work window or parts changed. Empty when today's
+    /// week of the cycle or the cycle's start), or that template's own mode, budget, work window or parts changed. Empty when today's
     /// template is untouched. Same wording as the phone's.
     /// </summary>
     public static IReadOnlyList<string> DescribeToday(DayPlan basePlan, DayPlan edited, DateOnly today)
@@ -52,13 +52,13 @@ public static class DayPlanChanges
             return lines;
         }
 
-        Guid wasId = basePlan.Week.TemplateIdFor(today) ?? DayPlan.OffDayTemplateId;
-        Guid nowId = edited.Week.TemplateIdFor(today) ?? DayPlan.OffDayTemplateId;
+        Guid wasId = basePlan.Cycle.TemplateIdFor(today) ?? DayPlan.OffDayTemplateId;
+        Guid nowId = edited.Cycle.TemplateIdFor(today) ?? DayPlan.OffDayTemplateId;
         if (wasId != nowId)
         {
-            if (basePlan.Week.IsWeekB(today) != edited.Week.IsWeekB(today))
+            if (basePlan.Cycle.WeekNumberFor(today) != edited.Cycle.WeekNumberFor(today))
             {
-                lines.Add(edited.Week.IsWeekB(today) ? "This week is now week B" : "This week is now week A");
+                lines.Add($"This is now week {edited.Cycle.WeekNumberFor(today)} of {edited.Cycle.Weeks.Count}");
             }
 
             lines.Add($"Today follows {DayTypeName(edited, nowId)} now, not {DayTypeName(basePlan, wasId)}");
@@ -75,7 +75,7 @@ public static class DayPlanChanges
     private static DayTemplate TodayTemplate(DayPlan plan, DateOnly today)
     {
         return plan.OneOffDays.FirstOrDefault(day => day.Date == today)?.Template
-            ?? plan.TemplateById(plan.Week.TemplateIdFor(today) ?? DayPlan.OffDayTemplateId)
+            ?? plan.TemplateById(plan.Cycle.TemplateIdFor(today) ?? DayPlan.OffDayTemplateId)
             ?? DayTemplate.Empty;
     }
 
@@ -115,28 +115,28 @@ public static class DayPlanChanges
 
     private static void Week(DayPlan basePlan, DayPlan edited, List<string> lines)
     {
-        bool alternating = basePlan.Week.B is not null || edited.Week.B is not null;
-        Weekdays("A", basePlan, edited, basePlan.Week.A, edited.Week.A, alternating, lines);
-        if (basePlan.Week.B is null && edited.Week.B is not null)
+        int was = basePlan.Cycle.Weeks.Count;
+        int now = edited.Cycle.Weeks.Count;
+        bool repeating = was > 1 || now > 1;
+        if (was != now)
         {
-            lines.Add($"Alternating weeks turned on: week B starts {DateText(edited.Week.BStartsOn)}");
+            lines.Add(now == 1 ? "The same week every week now"
+                : was == 1 ? $"Repeating weeks turned on: {now} weeks, week 1 starts {DateText(edited.Cycle.StartsOn)}"
+                : $"The cycle is now {now} weeks, not {was}");
         }
-        else if (basePlan.Week.B is not null && edited.Week.B is null)
+        else if (repeating && basePlan.Cycle.StartsOn != edited.Cycle.StartsOn)
         {
-            lines.Add("Alternating weeks turned off");
+            lines.Add($"Week 1 now starts {DateText(edited.Cycle.StartsOn)}");
         }
-        else if (edited.Week.B is not null)
-        {
-            if (basePlan.Week.BStartsOn != edited.Week.BStartsOn)
-            {
-                lines.Add($"Week B now starts {DateText(edited.Week.BStartsOn)}");
-            }
 
-            Weekdays("B", basePlan, edited, basePlan.Week.B!, edited.Week.B, alternating, lines);
+        // Weeks the cycle kept (a week added or removed is the line above); a week that moved to another position shows as changed days.
+        for (int index = 0; index < Math.Min(was, now); index++)
+        {
+            Weekdays(index + 1, basePlan, edited, basePlan.Cycle.Weeks[index], edited.Cycle.Weeks[index], repeating, lines);
         }
     }
 
-    private static void Weekdays(string weekName, DayPlan basePlan, DayPlan edited, IReadOnlyList<WeekdayTemplate> before, IReadOnlyList<WeekdayTemplate> after, bool alternating, List<string> lines)
+    private static void Weekdays(int week, DayPlan basePlan, DayPlan edited, IReadOnlyList<WeekdayTemplate> before, IReadOnlyList<WeekdayTemplate> after, bool repeating, List<string> lines)
     {
         foreach (DayOfWeek day in DayPlan.MondayFirst)
         {
@@ -149,17 +149,17 @@ public static class DayPlanChanges
 
             Guid wasId = was ?? DayPlan.OffDayTemplateId;
             Guid nowId = now ?? DayPlan.OffDayTemplateId;
-            if (weekName == "A" && nowId == DayPlan.WorkdayTemplateId && wasId != nowId)
+            if (week == 1 && nowId == DayPlan.WorkdayTemplateId && wasId != nowId)
             {
                 lines.Add($"{DayName(day)} is now a workday");
             }
-            else if (weekName == "A" && wasId == DayPlan.WorkdayTemplateId && nowId == DayPlan.OffDayTemplateId)
+            else if (week == 1 && wasId == DayPlan.WorkdayTemplateId && nowId == DayPlan.OffDayTemplateId)
             {
                 lines.Add($"{DayName(day)} is no longer a workday");
             }
             else if (wasId != nowId)
             {
-                string label = alternating ? $"{DayName(day)} (week {weekName})" : DayName(day);
+                string label = repeating ? $"{DayName(day)} (week {week})" : DayName(day);
                 lines.Add($"{label}: {DayTypeName(basePlan, wasId)} → {DayTypeName(edited, nowId)}");
             }
         }
@@ -244,6 +244,12 @@ public static class DayPlanChanges
             if (old.CategoryId != part.CategoryId)
             {
                 lines.Add($"{title}: {Name(part, edited)} is now {edited.Category(part.CategoryId)?.Name ?? "another category"}");
+            }
+
+            // A fixed lunch period (schema v13): the part starts by itself.
+            if (old.AutoStart != part.AutoStart)
+            {
+                lines.Add(part.AutoStart ? $"{title}: {Name(part, edited)} now starts by itself" : $"{title}: {Name(part, edited)} no longer starts by itself");
             }
         }
 

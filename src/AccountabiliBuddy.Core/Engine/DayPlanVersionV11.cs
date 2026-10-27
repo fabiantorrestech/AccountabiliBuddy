@@ -14,13 +14,13 @@ namespace AccountabiliBuddy.Core.Engine;
 public static class DayPlanVersionV11
 {
     /// <returns>
-    /// The v11 version of <paramref name="plan"/>'s two-template view (week A's workdays, the Workday and Off day
-    /// templates, the one-off days); null when the plan is no longer that shape (more templates or an alternating week),
+    /// The v11 version of <paramref name="plan"/>'s two-template view (week 1's workdays, the Workday and Off day
+    /// templates, the one-off days); null when the plan is no longer that shape (more templates or a cycle of more than one week),
     /// since the v11 app could not have stamped it.
     /// </returns>
     public static string? Of(DayPlan plan)
     {
-        if (plan.Templates.Count != 2 || plan.Week.B is not null || plan.TemplateById(DayPlan.WorkdayTemplateId) is null
+        if (plan.Templates.Count != 2 || plan.Cycle.Weeks.Count > 1 || plan.TemplateById(DayPlan.WorkdayTemplateId) is null
             || plan.TemplateById(DayPlan.OffDayTemplateId) is null)
         {
             return null;

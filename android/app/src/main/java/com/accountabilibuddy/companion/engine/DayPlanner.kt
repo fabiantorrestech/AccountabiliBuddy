@@ -36,12 +36,12 @@ data class DayPlanRequest(
 object DayPlanner {
     /**
      * The template an answer starts from for [date]: the Off day template for an off-day; for an adjusted workday the
-     * template the week map gives that date when it is a workday (week B and custom templates included), else the
+     * template the week map gives that date when it is a workday (later weeks of the cycle and custom templates included), else the
      * "Workday" template. As stored, ignoring one-off days.
      */
     fun baseFor(plan: DayPlan, offDay: Boolean, date: LocalDate): DayTemplate {
         if (offDay) return plan.templateById(DayPlan.OFF_DAY_TEMPLATE_ID) ?: DayTemplate()
-        val followed = if (plan.isWorkday(date, withOneOffDays = false)) plan.week.templateIdFor(date) else null
+        val followed = if (plan.isWorkday(date, withOneOffDays = false)) plan.cycle.templateIdFor(date) else null
         return plan.templateById(followed ?: DayPlan.WORKDAY_TEMPLATE_ID) ?: DayTemplate()
     }
 

@@ -16,6 +16,7 @@ public static class ProfileDocumentSerializer
     private const int CommsSchemaVersion = 6;
     private const int PreWorkSchemaVersion = 7;
     private const int DayModesSchemaVersion = 12;
+    private const int DayCycleSchemaVersion = 13;
 
     // v8: flexible breaks (a part's FlexMinutes and HintAt, optional): nothing to migrate, older plans have none.
     // v9: a Sleep part's WakeByAlarm (optional, ADR 33): nothing to migrate, older plans wake at the part's end.
@@ -23,6 +24,8 @@ public static class ProfileDocumentSerializer
     // v11: block rules' DeviceTimes and BlockTimes (optional, ADR 37): nothing to migrate, every device uses ReenableAt.
     // v12: day plan modes (ADR 47): Workday/OtherDay become two named templates and Workdays week A of a week map
     //      (DayModesMigration, on the JSON); templates' Mode, WorkWindow and BudgetMinutes are optional.
+    // v13: the week map becomes a repeating cycle of 1 to 8 weeks from a Monday (DayCycleMigration, on the JSON: A only a
+    //      1-week cycle, A and B a 2-week one, every date resolving as before); a part's AutoStart (optional, a fixed lunch).
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -65,6 +68,13 @@ public static class ProfileDocumentSerializer
             json = DayModesMigration.UpgradeDocument(json);
         }
 
+        if (version < DayCycleSchemaVersion)
+        {
+            // v13: the day plan's week map becomes a repeating cycle of weeks (by the plan's shape, so a plan already in
+            // the v13 shape inside an older-stamped sync file's profiles copy is left alone).
+            json = DayCycleMigration.UpgradeDocument(json);
+        }
+
         ProfileDocument document = JsonSerializer.Deserialize<ProfileDocument>(json, Options)
             ?? throw new JsonException("Profile document is empty.");
 
@@ -100,10 +110,16 @@ public static class ProfileDocumentSerializer
     }
 
     /// <summary>
-    /// The day plan with the v12 fields only (no <see cref="LegacyDayPlan"/> fields): what <see cref="Engine.DayPlanVersion"/>
+    /// The day plan with the v13 fields only (no <see cref="LegacyDayPlan"/> fields): what <see cref="Engine.DayPlanVersion"/>
     /// hashes, so the version doesn't depend on the compatibility projection.
     /// </summary>
-    internal static JsonElement SerializeDayPlanV12(DayPlan plan)
+    internal static JsonElement SerializeDayPlanV13(DayPlan plan)
+    {
+        return JsonSerializer.SerializeToElement(plan, Options);
+    }
+
+    /// <summary>A plan in the v12 shape, with the options v12 hashed it with (<see cref="Engine.DayPlanVersionV12"/>).</summary>
+    internal static JsonElement SerializeV12Shape(Engine.DayPlanVersionV12.V12Plan plan)
     {
         return JsonSerializer.SerializeToElement(plan, Options);
     }
@@ -132,7 +148,14 @@ public static class ProfileDocumentSerializer
                 json = JsonSerializer.SerializeToElement(planObject, Options);
             }
 
-            plan = json.Deserialize<DayPlan>(Options) ?? throw new JsonException("The day plan is empty.");
+            // A plan in the v12 shape (an older phone's edit: a "week" with A and B, no "cycle") becomes a cycle.
+            if (JsonNode.Parse(json.GetRawText()) is JsonObject v12Object && DayCycleMigration.IsV12(v12Object))
+            {
+                DayCycleMigration.Upgrade(v12Object);
+                json = JsonSerializer.SerializeToElement(v12Object, Options);
+            }
+
+            plan =json.Deserialize<DayPlan>(Options) ?? throw new JsonException("The day plan is empty.");
         }
         catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or ArgumentException)
         {
@@ -141,17 +164,18 @@ public static class ProfileDocumentSerializer
         }
 
         // Missing lists and null items come through as null from the records' constructors; a plan needs them all.
-        if (plan.Categories is null || plan.Templates is null || plan.Week?.A is null || plan.OneOffDays is null
+        if (plan.Categories is null || plan.Templates is null || plan.Cycle?.Weeks is null || plan.OneOffDays is null
             || plan.Categories.Any(category => category is null || category.Name is null || category.Color is null)
             || plan.Templates.Any(template => template?.Name is null || template.Template?.Parts is null || template.Template.Parts.Any(part => part is null))
-            || plan.Week.A.Any(entry => entry is null) || (plan.Week.B?.Any(entry => entry is null) ?? false)
+            || plan.Cycle.Weeks.Count is < 1 or > PlanCycle.MaxWeeks
+            || plan.Cycle.Weeks.Any(week => week is null || week.Any(entry => entry is null))
             || plan.OneOffDays.Any(day => day?.Template?.Parts is null || day.Template.Parts.Any(part => part is null)))
         {
             throw new JsonException("The day plan is incomplete.");
         }
 
         if (plan.Categories.Any(category => !Enum.IsDefined(category.Behavior))
-            || plan.Week.A.Concat(plan.Week.B ?? []).Any(entry => !Enum.IsDefined(entry.Day))
+            || plan.Cycle.Weeks.SelectMany(week => week).Any(entry => !Enum.IsDefined(entry.Day))
             || plan.Templates.Select(template => template.Template).Concat(plan.OneOffDays.Select(day => day.Template)).Any(template => !Enum.IsDefined(template.Mode)))
         {
             throw new JsonException("The day plan has a value this version doesn't know.");

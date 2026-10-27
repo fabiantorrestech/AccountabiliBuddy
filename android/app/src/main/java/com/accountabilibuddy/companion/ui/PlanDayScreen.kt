@@ -106,7 +106,7 @@ fun PlanDayScreen(
     var blockList by remember { mutableStateOf(blocks) }
     var refreshing by remember { mutableStateOf(false) }
 
-    // What the answers start from: the first chosen date's workday template (week B and custom templates included) or the Off day one.
+    // What the answers start from: the first chosen date's workday template (later weeks of the cycle and custom templates included) or the Off day one.
     fun template() = com.accountabilibuddy.companion.engine.DayPlanner.baseFor(plan, offDay, dates.firstOrNull() ?: today.plusDays(1))
     fun nightOf(off: Boolean): SleepTimes? {
         val t = com.accountabilibuddy.companion.engine.DayPlanner.baseFor(plan, off, dates.firstOrNull() ?: today.plusDays(1))
