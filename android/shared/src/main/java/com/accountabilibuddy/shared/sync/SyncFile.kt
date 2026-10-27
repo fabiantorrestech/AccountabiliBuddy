@@ -64,6 +64,16 @@ data class SyncFile(
     val noise: SyncNoise? = null,
     /** A phone's placement during a PC focus session (phase 11b): label, times and counts only; null from an older phone or when it has none. */
     val placement: SyncPlacement? = null,
+    /**
+     * The next session's task list with its tombstones (ADR 48), merged item by item ([SharedListMerge]); null from a QR
+     * file or an older app, which then take no part in it. Optional in the JSON, so older apps ignore it.
+     */
+    val nextTasks: List<SyncNextTask>? = null,
+    /**
+     * The come-backs (the user's parked thoughts), open and recently ticked, with their tombstones (ADR 48); null as
+     * [nextTasks]. [comebacks] stays for older phones: the open ones only.
+     */
+    val parked: List<SyncParked>? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1

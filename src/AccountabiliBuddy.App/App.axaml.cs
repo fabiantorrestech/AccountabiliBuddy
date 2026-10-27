@@ -567,6 +567,12 @@ public partial class App : Application
         };
         // Come-backs (ADR 30): the open ones go to other devices in this PC's sync file.
         syncCoordinator.Comebacks = () => _comebacks!.Open.Select(comeback => new AccountabiliBuddy.Core.Sync.SyncComeback(comeback.Id, comeback.Text, comeback.CreatedAt)).ToList();
+        // Shared lists (ADR 48): the next session's tasks and the come-backs go in this PC's sync file with their tombstones, and
+        // another device's lists merge in item by item (the stores' own change events write the file again when they changed).
+        syncCoordinator.NextTasks = sessionTasks.NextTasksForSync;
+        syncCoordinator.Parked = _comebacks.ForSync;
+        syncCoordinator.MergeNextTasks = sessionTasks.MergeNextTasksAsync;
+        syncCoordinator.MergeParked = _comebacks.MergeAsync;
         // Beeminder (ADR 43): only the derived summary goes in this PC's sync file; removing the token removes it.
         syncCoordinator.Beeminder = _beeminder.SyncSummary;
         IReadOnlyList<AccountabiliBuddy.Core.Sync.SyncBeeminderGoal>? lastBeeminder = _beeminder.SyncSummary();

@@ -103,7 +103,8 @@ public static class SyncFileBuilder
     {
         int maxBytes = maxCodes * SyncQr.BytesPerCode;
         // Calendar events stay out of QR codes (the phone reads its calendars from Drive instead).
-        file = file with { Events = null };
+        // The shared lists with their tombstones (ADR 48) stay out too: a QR file takes no part in them, and a file without them leaves them alone.
+        file = file with { Events = null, NextTasks = null, Parked = null };
         DateTimeOffset writtenAt = file.Device.WrittenAt;
         DateTimeOffset todayStart = StartOfDay(writtenAt, zone);
         List<SyncSession> sessions = file.Sessions

@@ -1,16 +1,15 @@
 package com.accountabilibuddy.companion.sync
 
-import com.accountabilibuddy.shared.sync.SyncComeback
-import java.time.Instant
+import com.accountabilibuddy.shared.sync.SyncParked
 
-/** The PC's open come-backs the phone knows (ADR 30), and which PC they're from; shown read-only on Today. */
-data class OpenComebacks(val source: String, val items: List<SyncComeback>) {
+/**
+ * The open come-backs on Today (ADR 30, 48): the user's parked thoughts from the list every device shares, newest
+ * merge of all of them. Ticking one or parking a new one changes that list here and reaches the other devices
+ * with the next sync (it is no longer a read-only copy of one PC's list).
+ */
+data class OpenComebacks(val items: List<SyncParked>) {
     companion object {
-        /** The newest received file that carries a list, when it isn't empty. */
-        fun of(received: List<ReceivedDevice>, now: Instant): OpenComebacks? =
-            received
-                .filter { it.file.comebacks != null && !it.file.device.writtenAt.isAfter(now.plusSeconds(60)) }
-                .maxByOrNull { it.file.device.writtenAt }
-                ?.let { device -> device.file.comebacks?.takeIf { it.isNotEmpty() }?.let { OpenComebacks(device.file.device.name, it) } }
+        /** The not yet ticked ones of [parked] (live items only), in list order. */
+        fun of(parked: List<SyncParked>): OpenComebacks = OpenComebacks(parked.filter { it.deletedAt == null && it.doneAt == null })
     }
 }

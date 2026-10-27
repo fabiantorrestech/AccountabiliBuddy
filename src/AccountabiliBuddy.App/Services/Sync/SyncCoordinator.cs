@@ -237,7 +237,9 @@ public sealed class SyncCoordinator
                 EndEarly = EndEarlyOffer?.Invoke(), GoalMinutes = GoalMinutes?.Invoke(),
                 // ADR 42: always, read-only, for the phone's start picker (the profiles document travels only once edited).
                 ProfileOptions = profiles.Select(profile => new SyncProfileOption(profile.Id, profile.Name)).ToList(),
-                DefaultProfileId = CountUpProfileId?.Invoke(), Noise = noise };
+                DefaultProfileId = CountUpProfileId?.Invoke(), Noise = noise,
+                // ADR 48: the shared lists, each with its tombstones; sealed like everything in the file.
+                NextTasks = NextTasks?.Invoke(), Parked = Parked?.Invoke() };
     }
 
     /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
@@ -258,8 +260,23 @@ public sealed class SyncCoordinator
 
     private IReadOnlyList<SessionRecord> WithGaps(IReadOnlyList<SessionRecord> records) => _gaps?.Apply(records) ?? records;
 
-    /// <summary>The PC's open come-backs for its sync file (ADR 30); set by the app.</summary>
+    /// <summary>The PC's open come-backs for its sync file (ADR 30), the form an older phone reads; set by the app.</summary>
     public Func<IReadOnlyList<SyncComeback>?>? Comebacks { get; set; }
+
+    /// <summary>The next session's task list with its tombstones for this PC's sync file (ADR 48); set by the app.</summary>
+    public Func<IReadOnlyList<SyncNextTask>?>? NextTasks { get; set; }
+
+    /// <summary>The come-backs with their tombstones for this PC's sync file (ADR 48); set by the app.</summary>
+    public Func<IReadOnlyList<SyncParked>?>? Parked { get; set; }
+
+    /// <summary>
+    /// Merges another device's next-session list into this PC's (ADR 48); true when it changed. A merge that changed it
+    /// raises the store's own change event, which writes this PC's file again; set by the app.
+    /// </summary>
+    public Func<IReadOnlyList<SyncNextTask>, Task<bool>>? MergeNextTasks { get; set; }
+
+    /// <summary>Merges another device's come-backs into this PC's (ADR 48); true when they changed; set by the app.</summary>
+    public Func<IReadOnlyList<SyncParked>, Task<bool>>? MergeParked { get; set; }
 
     // The running session for the phone's countdown (ADR 26); old scheduled blocks don't count.
     private SyncRunning? RunningNow(IReadOnlyList<FocusProfile> profiles)
@@ -346,14 +363,32 @@ public sealed class SyncCoordinator
             return $"This PC already has newer data from {sender.Name}.";
         }
 
-        await _received.AcceptAsync(file, method, sealedBytes);
+        // The shared lists (ADR 48) are merged into this PC's own, encrypted stores below; the copy kept of the sender's file
+        // doesn't hold them, so their text isn't kept a second time, in the clear (the sealed bytes it passes on are sealed).
+        await _received.AcceptAsync(file with { NextTasks = null, Parked = null }, method, sealedBytes);
         if (file.DayPlan is SyncDayPlan plan)
         {
             await ConsiderPlanAsync(plan, sender.DeviceId, sender.Name);
         }
 
         await ReceiveDocumentsAsync(file.Documents);
+        await ReceiveSharedListsAsync(file);
         return null;
+    }
+
+    // ADR 48: the next session's tasks and the come-backs merge item by item on every accepted file, whatever carried it.
+    // A file without them (a QR file, an older app) leaves this PC's lists alone.
+    private async Task ReceiveSharedListsAsync(SyncFile file)
+    {
+        if (file.NextTasks is { } nextTasks && MergeNextTasks is not null)
+        {
+            await MergeNextTasks(nextTasks);
+        }
+
+        if (file.Parked is { } parked && MergeParked is not null)
+        {
+            await MergeParked(parked);
+        }
     }
 
     private async Task ConsiderPlanAsync(SyncDayPlan incoming, Guid fromId, string fromName)

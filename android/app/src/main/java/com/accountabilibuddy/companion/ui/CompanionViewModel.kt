@@ -260,13 +260,12 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         sync.received.map { received -> com.accountabilibuddy.companion.sync.RunningTasks.of(received, java.time.Instant.now()) }
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    /** The PC's open come-backs (ADR 30), from the newest received file; shown read-only on Today. */
+    /** The open come-backs (ADR 30, 48): the list every device shares, merged from the received files; edited on Today. */
     val comebacks: StateFlow<com.accountabilibuddy.companion.sync.OpenComebacks?> =
-        sync.received.map { received ->
-            com.accountabilibuddy.companion.sync.OpenComebacks.of(received, java.time.Instant.now())
-                ?: received.filter { it.file.device.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC }.maxByOrNull { it.file.device.writtenAt }?.file?.device?.name
-                    ?.let { com.accountabilibuddy.companion.sync.OpenComebacks(it, emptyList()) }
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+        (application as CompanionApp).sharedLists.let { lists ->
+            lists.parked.map { parked -> com.accountabilibuddy.companion.sync.OpenComebacks.of(parked) }
+                .stateIn(viewModelScope, SharingStarted.Eagerly, com.accountabilibuddy.companion.sync.OpenComebacks.of(lists.parked.value))
+        }
 
     /** The user's Beeminder goals (ADR 43) from the newest PC sync file that carries them; read-only on Today. */
     val beeminder: StateFlow<com.accountabilibuddy.companion.sync.BeeminderGoals?> =
