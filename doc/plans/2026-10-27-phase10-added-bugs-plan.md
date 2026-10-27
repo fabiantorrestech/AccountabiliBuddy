@@ -44,6 +44,7 @@
   - Keep today's snap-to-default-corner and the "Moved for now / Keep" flow.
 - **PC 12:** the details panel and its children (Goal, profile, timer line, timers, task list, noise, footer) align to the anchored edge: Left for the left and centre columns, Right for the right column. The text stays left-aligned.
   - Cause: fixed-width (200) children in a wider stretched panel (the footer is wider), and the timer line's `HorizontalAlignment="Center"`.
+  - **Use the width (user, 2026-10-27):** the details items (Goal bar, profile, timers, task list, noise controls) fill the details panel's width instead of a fixed 200. Their minimum is the bar length (200) and the whole panel's maximum about 360 DIPs, so long task names wrap or trim and never stretch the popup across the screen. The folded bar keeps its length. Margins/padding stay even on both sides.
 - [ ] Commit `PC: overlay keeps its place (3x3 anchoring), details hug its edge, timer colour follows Ctrl+Alt at once`.
 
 ### Task 3: Sidebar and category picker (PC 17, 19, 20)
