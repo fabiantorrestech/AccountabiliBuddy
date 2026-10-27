@@ -65,8 +65,8 @@ fun TodayScreen(
     onDiscardPlanEdit: () -> Unit = {},
     /** Opens "Plan a day" (ADR 37); null hides the button. */
     onPlanDay: (() -> Unit)? = null,
-    /** "This week is A/B" (ADR 47): picks the week as a plan edit; null hides the card. */
-    onSetWeek: ((weekB: Boolean) -> Unit)? = null,
+    /** "This is week N of M" (ADR 47): picks the week of the cycle as a plan edit; null hides the card. */
+    onSetWeek: ((week: Int) -> Unit)? = null,
     /** The running session's checklist (ADR 24), from a sync file; null hides the card. */
     runningTasks: com.accountabilibuddy.companion.sync.RunningTasks? = null,
     /** The PC's open come-backs (ADR 30); null hides the card. */
@@ -114,8 +114,8 @@ fun TodayScreen(
             }
         }
 
-        if (onSetWeek != null && state.document.dayPlan.week.b != null) {
-            item { ThisWeekCard(state.document.dayPlan.week.isWeekB(now.toLocalDate()), onSetWeek) }
+        if (onSetWeek != null && state.document.dayPlan.cycle.weeks.size > 1) {
+            item { ThisWeekCard(state.document.dayPlan.cycle.weekNumberFor(now.toLocalDate()), state.document.dayPlan.cycle.weeks.size, onSetWeek) }
         }
 
         if (!state.hasImport) {

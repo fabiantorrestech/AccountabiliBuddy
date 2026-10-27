@@ -52,6 +52,13 @@ public static class DayPlanValidator
             {
                 return $"{Describe(part, categories)} is shorter than 15 minutes.";
             }
+
+            // A fixed lunch period (schema v13): a Rest part with fixed hours that doesn't cross midnight.
+            if (part.AutoStart
+                && (categories.First(category => category.Id == part.CategoryId).Behavior != CategoryBehavior.Rest || part.IsFlexible || part.CrossesMidnight))
+            {
+                return $"{Describe(part, categories)} can't start by itself: only a rest part with fixed hours, within one day, can.";
+            }
         }
 
         for (int i = 0; i < template.Parts.Count; i++)
@@ -145,27 +152,28 @@ public static class DayPlanValidator
 
     private static string? Week(DayPlan plan)
     {
-        foreach ((string title, IReadOnlyList<WeekdayTemplate>? week) in new[] { ("Week A", plan.Week.A), ("Week B", plan.Week.B) })
+        if (plan.Cycle.Weeks.Count is < 1 or > PlanCycle.MaxWeeks)
         {
-            if (week is null)
-            {
-                continue;
-            }
+            return $"The repeating weeks need between 1 and {PlanCycle.MaxWeeks} weeks.";
+        }
 
+        for (int index = 0; index < plan.Cycle.Weeks.Count; index++)
+        {
+            IReadOnlyList<WeekdayTemplate> week = plan.Cycle.Weeks[index];
             if (week.GroupBy(entry => entry.Day).Any(group => group.Count() > 1))
             {
-                return $"{title} lists a weekday twice.";
+                return $"Week {index + 1} lists a weekday twice.";
             }
 
             if (week.Any(entry => plan.Templates.All(template => template.Id != entry.TemplateId)))
             {
-                return $"{title} uses a day type that no longer exists.";
+                return $"Week {index + 1} uses a day type that no longer exists.";
             }
         }
 
-        if (plan.Week.B is not null && plan.Week.BStartsOn is not { DayOfWeek: DayOfWeek.Monday })
+        if (plan.Cycle.StartsOn.DayOfWeek != DayOfWeek.Monday)
         {
-            return "Alternating weeks need a Monday for week B to start on.";
+            return "The repeating weeks need a Monday for week 1 to start on.";
         }
 
         return null;

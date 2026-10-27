@@ -127,7 +127,7 @@ private fun PartRow(part: PlanPart, categories: List<DayCategory>, clock: ClockF
                 DropdownMenu(expanded = categoryMenu, onDismissRequest = { categoryMenu = false }) {
                     for (choice in categories) {
                         DropdownMenuItem(text = { Text(choice.name) }, onClick = {
-                            onChange(part.copy(categoryId = choice.id))
+                            onChange(part.copy(categoryId = choice.id, autoStart = part.autoStart && choice.behavior == CategoryBehavior.Rest))
                             categoryMenu = false
                         })
                     }
@@ -158,7 +158,7 @@ private fun PartRow(part: PlanPart, categories: List<DayCategory>, clock: ClockF
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             androidx.compose.material3.Checkbox(
                 checked = part.isFlexible,
-                onCheckedChange = { on -> onChange(part.copy(flexMinutes = if (on) 60 else null, hintAt = if (on) LocalTime.of(13, 0) else null)) },
+                onCheckedChange = { on -> onChange(part.copy(flexMinutes = if (on) 60 else null, hintAt = if (on) LocalTime.of(13, 0) else null, autoStart = part.autoStart && !on)) },
             )
             Text("Flexible, for", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
             listOf(30, 45, 60, 90).forEach { minutes ->

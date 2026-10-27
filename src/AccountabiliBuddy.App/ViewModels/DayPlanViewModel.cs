@@ -11,8 +11,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// Day plan tab (design part B, ADR 18, ADR 47): the categories, the named day types (each a Schedule, a Budget or a
-/// free day), and the week grid that says which type each weekday follows, in week A and optionally in an alternating
-/// week B. Saved through <see cref="ConfigurationService"/> (a change that frees today's work waits there), locked during
+/// free day), and the week grid that says which type each weekday follows, in each week of a repeating cycle of 1 to 8
+/// weeks. Saved through <see cref="ConfigurationService"/> (a change that frees today's work waits there), locked during
 /// a focus session the user started. One-off days are edited in the Exceptions tab.
 /// </summary>
 public sealed partial class DayPlanViewModel : ObservableObject
@@ -32,9 +32,7 @@ public sealed partial class DayPlanViewModel : ObservableObject
         _sessions = sessions;
         foreach (DayOfWeek day in DayPlan.MondayFirst)
         {
-            var row = new WeekdayRowViewModel(day);
-            row.PropertyChanged += (_, _) => RefreshUnsaved();
-            WeekRows.Add(row);
+            WeekRows.Add(new WeekdayRowViewModel(day));
         }
 
         Load(configuration.Current.DayPlan);
@@ -61,7 +59,7 @@ public sealed partial class DayPlanViewModel : ObservableObject
         IsLocked = _sessions.IsEnforcing;
     }
 
-    /// <summary>Today, for the day week B starts on when alternating weeks are switched on; set by the app (the trusted clock).</summary>
+    /// <summary>Today, for the Monday week 1 starts on when a second week is added; set by the app (the trusted clock).</summary>
     public Func<DateOnly> Today { get; init; } = () => DateOnly.FromDateTime(DateTime.Now);
 
     /// <summary>The sleep goal, for a Sleep part woken by the alarm (ADR 33); set by the app.</summary>
@@ -73,7 +71,7 @@ public sealed partial class DayPlanViewModel : ObservableObject
     /// <summary>The named day types, in the order they were saved.</summary>
     public ObservableCollection<PlanTemplateEditorViewModel> Templates { get; } = new();
 
-    /// <summary>Monday first: the day type each weekday follows, week A and week B.</summary>
+    /// <summary>Monday first: the day type each weekday follows, in each week of the cycle.</summary>
     public ObservableCollection<WeekdayRowViewModel> WeekRows { get; } = new();
 
     public ObservableCollection<CategoryRowViewModel> Categories { get; } = new();
@@ -98,17 +96,28 @@ public sealed partial class DayPlanViewModel : ObservableObject
         }
     }
 
-    /// <summary>Weeks alternate between A and B (week B has its own column).</summary>
+    /// <summary>How many weeks the cycle has (1 to <see cref="PlanCycle.MaxWeeks"/>); each has its own column in the grid.</summary>
     [ObservableProperty]
-    public partial bool AlternateWeeks { get; set; }
+    [NotifyPropertyChangedFor(nameof(HasSeveralWeeks), nameof(WeekCountText))]
+    [NotifyCanExecuteChangedFor(nameof(AddWeekCommand), nameof(RemoveWeekCommand))]
+    public partial int WeekCount { get; set; }
 
-    /// <summary>The Monday week B starts on (a date picked on another weekday moves to that week's Monday).</summary>
+    /// <summary>The weeks repeat in a cycle (so week 1 has a start).</summary>
+    public bool HasSeveralWeeks => WeekCount > 1;
+
+    /// <summary>"The same every week" or "Repeats every 3 weeks".</summary>
+    public string WeekCountText => WeekCount > 1 ? $"Repeats every {WeekCount} weeks" : "The same every week";
+
+    /// <summary>The grid's column headings: "Day type" with one week, else "Week 1", "Week 2"…</summary>
+    public ObservableCollection<string> WeekHeaders { get; } = new();
+
+    /// <summary>The Monday week 1 starts on (a date picked on another weekday moves to that week's Monday).</summary>
     [ObservableProperty]
-    public partial DateTime? BStartDate { get; set; }
+    public partial DateTime? CycleStartDate { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand), nameof(RevertCommand), nameof(AddCategoryCommand), nameof(AddTemplateCommand),
-        nameof(DuplicateTemplateCommand), nameof(DeleteTemplateCommand))]
+        nameof(DuplicateTemplateCommand), nameof(DeleteTemplateCommand), nameof(AddWeekCommand), nameof(RemoveWeekCommand))]
     public partial bool IsLocked { get; set; }
 
     [ObservableProperty]
@@ -128,24 +137,24 @@ public sealed partial class DayPlanViewModel : ObservableObject
 
     public DayPlan Build()
     {
-        PlanTemplateEditorViewModel? offDay = Templates.FirstOrDefault(template => template.Id == DayPlan.OffDayTemplateId);
-        List<WeekdayTemplate> weekA = WeekRows
-            .Where(row => row.TemplateA is not null)
-            .Select(row => new WeekdayTemplate(row.Day, row.TemplateA!.Id))
-            .ToList();
-        List<WeekdayTemplate>? weekB = AlternateWeeks
-            ? WeekRows.Where(row => (row.TemplateB ?? row.TemplateA ?? offDay) is not null)
-                .Select(row => new WeekdayTemplate(row.Day, (row.TemplateB ?? row.TemplateA ?? offDay)!.Id))
-                .ToList()
-            : null;
-        DateOnly? bStart = AlternateWeeks
-            ? WeekSwitch.MondayOf(BStartDate is DateTime date ? DateOnly.FromDateTime(date) : Today().AddDays(7))
-            : null;
+        var weeks = new List<IReadOnlyList<WeekdayTemplate>>();
+        for (int index = 0; index < WeekCount; index++)
+        {
+            weeks.Add(WeekRows
+                .Where(row => row.Cells[index].Template is not null)
+                .Select(row => new WeekdayTemplate(row.Day, row.Cells[index].Template!.Id))
+                .ToList());
+        }
+
+        // With one week the start makes no difference: keep the plan's, so adding and removing a week isn't an edit.
+        DateOnly startsOn = WeekCount > 1 && CycleStartDate is DateTime date
+            ? WeekSwitch.MondayOf(DateOnly.FromDateTime(date))
+            : _configuration.Current.DayPlan.Cycle.StartsOn;
         return _configuration.Current.DayPlan with
         {
             Categories = Categories.Select(row => row.ToCategory()).ToList(),
             Templates = Templates.Select(template => template.ToTemplate()).ToList(),
-            Week = new PlanWeek(weekA, weekB, bStart),
+            Cycle = new PlanCycle(weeks, startsOn),
         };
     }
 
@@ -223,16 +232,11 @@ public sealed partial class DayPlanViewModel : ObservableObject
         }
 
         PlanTemplateEditorViewModel? offDay = Templates.FirstOrDefault(template => template.Id == DayPlan.OffDayTemplateId);
-        foreach (WeekdayRowViewModel row in WeekRows)
+        foreach (WeekCellViewModel cell in WeekRows.SelectMany(row => row.Cells))
         {
-            if (row.TemplateA == removed)
+            if (cell.Template == removed)
             {
-                row.TemplateA = offDay;
-            }
-
-            if (row.TemplateB == removed)
-            {
-                row.TemplateB = offDay;
+                cell.Template = offDay;
             }
         }
 
@@ -243,30 +247,53 @@ public sealed partial class DayPlanViewModel : ObservableObject
         RefreshUnsaved();
     }
 
-    partial void OnAlternateWeeksChanged(bool value)
+    private bool CanAddWeek => !IsLocked && WeekCount < PlanCycle.MaxWeeks;
+
+    private bool CanRemoveWeek => !IsLocked && WeekCount > 1;
+
+    /// <summary>
+    /// Adds a week at the end of the cycle, a copy of the last one. The first one added makes this week week 1, so nothing
+    /// changes for the weeks to come until the new week's turn.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanAddWeek))]
+    private void AddWeek()
     {
-        if (_loading)
+        foreach (WeekdayRowViewModel row in WeekRows)
         {
-            return;
+            AddCell(row, row.Cells[^1].Template);
         }
 
-        if (value)
+        _loading = true;
+        if (WeekCount == 1)
         {
-            // Week B starts as a copy of week A, from next Monday so this week stays A.
-            _loading = true;
-            foreach (WeekdayRowViewModel row in WeekRows)
-            {
-                row.TemplateB = row.TemplateA;
-            }
-
-            BStartDate = WeekSwitch.MondayOf(Today().AddDays(7)).ToDateTime(TimeOnly.MinValue);
-            _loading = false;
+            CycleStartDate = WeekSwitch.MondayOf(Today()).ToDateTime(TimeOnly.MinValue);
         }
 
+        WeekCount++;
+        RefreshWeekHeaders();
+        _loading = false;
+        StatusMessage = $"Week {WeekCount} added, a copy of week {WeekCount - 1}. Use \"This is week N of {WeekCount}\" on Today to say which week this one is. Save to keep it.";
         RefreshUnsaved();
     }
 
-    partial void OnBStartDateChanged(DateTime? value)
+    /// <summary>Removes the last week of the cycle. Revert brings it back before saving.</summary>
+    [RelayCommand(CanExecute = nameof(CanRemoveWeek))]
+    private void RemoveWeek()
+    {
+        foreach (WeekdayRowViewModel row in WeekRows)
+        {
+            row.Cells.RemoveAt(row.Cells.Count - 1);
+        }
+
+        _loading = true;
+        WeekCount--;
+        RefreshWeekHeaders();
+        _loading = false;
+        StatusMessage = $"Week {WeekCount + 1} removed. Save to keep it.";
+        RefreshUnsaved();
+    }
+
+    partial void OnCycleStartDateChanged(DateTime? value)
     {
         if (_loading)
         {
@@ -276,12 +303,35 @@ public sealed partial class DayPlanViewModel : ObservableObject
         if (value is DateTime date && date.DayOfWeek != DayOfWeek.Monday)
         {
             _loading = true;
-            BStartDate = WeekSwitch.MondayOf(DateOnly.FromDateTime(date)).ToDateTime(TimeOnly.MinValue);
+            CycleStartDate = WeekSwitch.MondayOf(DateOnly.FromDateTime(date)).ToDateTime(TimeOnly.MinValue);
             _loading = false;
-            StatusMessage = "Week B starts on a Monday: moved to that week's Monday.";
+            StatusMessage = "Week 1 starts on a Monday: moved to that week's Monday.";
         }
 
         RefreshUnsaved();
+    }
+
+    // A new cell for one weekday and week of the grid; its day type changing is an edit.
+    private void AddCell(WeekdayRowViewModel row, PlanTemplateEditorViewModel? template)
+    {
+        var cell = new WeekCellViewModel { Template = template };
+        cell.PropertyChanged += (_, _) => RefreshUnsaved();
+        row.Cells.Add(cell);
+    }
+
+    private void RefreshWeekHeaders()
+    {
+        WeekHeaders.Clear();
+        if (WeekCount == 1)
+        {
+            WeekHeaders.Add("Day type");
+            return;
+        }
+
+        for (int number = 1; number <= WeekCount; number++)
+        {
+            WeekHeaders.Add($"Week {number}");
+        }
     }
 
     private void DeleteCategory(CategoryRowViewModel row)
@@ -331,14 +381,16 @@ public sealed partial class DayPlanViewModel : ObservableObject
         PlanTemplateEditorViewModel? Find(Guid? id) => Templates.FirstOrDefault(template => template.Id == id);
         foreach (WeekdayRowViewModel row in WeekRows)
         {
-            Guid? a = plan.Week.A.FirstOrDefault(entry => entry.Day == row.Day)?.TemplateId;
-            Guid? b = plan.Week.B?.FirstOrDefault(entry => entry.Day == row.Day)?.TemplateId ?? a;
-            row.TemplateA = Find(a);
-            row.TemplateB = Find(b);
+            row.Cells.Clear();
+            foreach (IReadOnlyList<WeekdayTemplate> week in plan.Cycle.Weeks)
+            {
+                AddCell(row, Find(week.FirstOrDefault(entry => entry.Day == row.Day)?.TemplateId));
+            }
         }
 
-        AlternateWeeks = plan.Week.B is not null && plan.Week.BStartsOn is not null;
-        BStartDate = plan.Week.BStartsOn?.ToDateTime(TimeOnly.MinValue) ?? WeekSwitch.MondayOf(Today().AddDays(7)).ToDateTime(TimeOnly.MinValue);
+        WeekCount = plan.Cycle.Weeks.Count;
+        RefreshWeekHeaders();
+        CycleStartDate = plan.Cycle.StartsOn.ToDateTime(TimeOnly.MinValue);
         SelectedTemplate = Find(selected) ?? Templates.FirstOrDefault();
         _loading = false;
         RefreshUnsaved();
@@ -419,10 +471,9 @@ public sealed partial class DayPlanViewModel : ObservableObject
             Templates = plan.Templates
                 .Select(template => template with { Template = template.Template with { Parts = template.Template.Parts.OrderBy(part => part.Id).ToList() } })
                 .ToList(),
-            Week = plan.Week with
+            Cycle = plan.Cycle with
             {
-                A = plan.Week.A.OrderBy(entry => entry.Day).ToList(),
-                B = plan.Week.B?.OrderBy(entry => entry.Day).ToList(),
+                Weeks = plan.Cycle.Weeks.Select(week => (IReadOnlyList<WeekdayTemplate>)week.OrderBy(entry => entry.Day).ToList()).ToList(),
             },
         };
     }

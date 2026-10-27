@@ -10,7 +10,7 @@ public static class DayPlanner
 {
     /// <summary>
     /// The template an answer starts from for <paramref name="date"/>: the Off day template for an off-day; for an adjusted
-    /// workday the template the week map gives that date when it is a workday (week B and custom templates included), else
+    /// workday the template the week map gives that date when it is a workday (later weeks of the cycle and custom templates included), else
     /// the "Workday" template. As stored, ignoring one-off days.
     /// </summary>
     public static DayTemplate BaseFor(DayPlan plan, bool offDay, DateOnly date)
@@ -20,7 +20,7 @@ public static class DayPlanner
             return plan.TemplateById(DayPlan.OffDayTemplateId) ?? DayTemplate.Empty;
         }
 
-        Guid? followed = plan.IsWorkday(date, withOneOffDays: false) ? plan.Week.TemplateIdFor(date) : null;
+        Guid? followed = plan.IsWorkday(date, withOneOffDays: false) ? plan.Cycle.TemplateIdFor(date) : null;
         return plan.TemplateById(followed ?? DayPlan.WorkdayTemplateId) ?? DayTemplate.Empty;
     }
 

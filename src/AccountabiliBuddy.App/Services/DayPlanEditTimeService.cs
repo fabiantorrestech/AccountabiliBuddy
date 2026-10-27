@@ -37,8 +37,8 @@ public sealed class DayPlanEditTimeService
             DayPlanEditTime? saved = Task.Run(() => _store.LoadAsync<DayPlanEditTime>(DocumentKey)).GetAwaiter().GetResult();
             string version = DayPlanVersion.Of(_configuration.Current.DayPlan);
             _version = version;
-            // The first start after the v12 upgrade (ADR 47): the saved version is the v11 one of this same, migrated plan.
-            bool upgraded = saved is not null && saved.Version != version && saved.Version == DayPlanVersionV11.Of(_configuration.Current.DayPlan);
+            // The first start after the v12 or v13 upgrade (ADR 47): the saved version is the earlier schema's one of this same, migrated plan.
+            bool upgraded = saved is not null && saved.Version != version && DayPlanVersion.IsEarlierSchemaVersionOf(saved.Version, _configuration.Current.DayPlan);
             // Changed while the app wasn't watching (e.g. a restore): when isn't known.
             Current = saved is not null && (saved.Version == version || upgraded) ? saved.EditedAt : null;
             if (upgraded)

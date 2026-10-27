@@ -10,6 +10,7 @@ namespace AccountabiliBuddy.Core.Storage;
 /// Version 4 replaced off days with time off and added one-off blocks.
 /// Version 5 replaced the weekly schedule (blocks, time off, one-off blocks) with <see cref="DayPlan"/> (ADR 18).
 /// Version 12 gave the day plan named templates, a week map (A/B weeks) and a mode per template (ADR 47).
+/// Version 13 turned the week map into a repeating cycle of up to 8 weeks and added a part's AutoStart, a fixed lunch (ADR 47).
 /// </summary>
 public sealed record ProfileDocument(
     int SchemaVersion,
@@ -18,7 +19,7 @@ public sealed record ProfileDocument(
     EscalationSettings Escalation,
     BypassSettings Bypass)
 {
-    public const int CurrentSchemaVersion = 12;
+    public const int CurrentSchemaVersion = 13;
 
     public LockSettings Locks { get; init; } = LockSettings.Default;
 

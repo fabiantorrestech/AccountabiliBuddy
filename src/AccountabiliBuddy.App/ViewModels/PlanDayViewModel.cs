@@ -46,7 +46,7 @@ public sealed partial class PlanDayViewModel : ObservableObject
     private void RefreshBlocks() => LoadBlocks();
 
     // The template the answers start from: for the first chosen date (tomorrow before one is picked), what that date follows
-    // as a workday (week B and custom templates included) or the Off day template.
+    // as a workday (later weeks of the cycle and custom templates included) or the Off day template.
     private DayTemplate BaseTemplate(DayPlan plan)
     {
         return DayPlanner.BaseFor(plan, IsOffDay, Dates.Count > 0 ? Dates[0] : Today.AddDays(1));

@@ -18,7 +18,7 @@ internal fun DayPlanModesSetupPage() {
         Text("• Budget: a number of focus hours; the buddy guards the day from wake to bedtime minus the rest windows you list, until the hours are counted.")
         Text("• Free: no guard that day.")
         Text("Edit plan → Week:", style = MaterialTheme.typography.titleSmall)
-        Text("• Pick a day type for each weekday, and turn on alternating weeks to give week B its own. Week B starts on the Monday you choose, and \"This week is A/B\" on Today switches it.")
+        Text("• Pick a day type for each weekday, and add weeks (up to 8) to repeat them in a cycle, each with its own. Week 1 starts on the Monday you choose, and \"This is week N of M\" on Today switches it.")
         Text(
             "Changes go to the PC like any plan edit: ones that add work apply at once, ones that free today's work wait there.",
             style = MaterialTheme.typography.bodySmall,

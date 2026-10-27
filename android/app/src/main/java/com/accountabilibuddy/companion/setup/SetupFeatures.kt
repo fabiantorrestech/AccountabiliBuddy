@@ -59,7 +59,7 @@ object SetupFeatures {
             // Set up once seen in the assistant, or the plan already uses something new (a third day type, a mode, a window or week B).
             setUp = {
                 val plan = (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).store.state.value.document.dayPlan
-                done(it, DAY_PLAN_MODES) || plan.templates.size > 2 || plan.week.b != null ||
+                done(it, DAY_PLAN_MODES) || plan.templates.size > 2 || plan.cycle.weeks.size > 1 ||
                     plan.templates.any { named -> named.template.mode != com.accountabilibuddy.companion.model.DayMode.Schedule || named.template.workWindow != null }
             },
         ),

@@ -1,11 +1,13 @@
 package com.accountabilibuddy.companion.ui
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
@@ -14,7 +16,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SelectableDates
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -28,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.engine.DayPlanEditing
 import com.accountabilibuddy.companion.model.DayPlan
+import com.accountabilibuddy.companion.model.PlanCycle
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -39,50 +41,60 @@ import java.util.UUID
 
 private val StartTitle = DateTimeFormatter.ofPattern("EEE, MMM d, yyyy")
 
+private val WeekColumnWidth = 140.dp
+
 /**
- * Which day type each weekday follows (schema v12, ADR 47): Monday to Sunday, week A in one column and, with "Alternate
- * weeks" on, week B in a second, plus the Monday week B starts on. A one-off day still replaces whatever its date follows.
+ * Which day type each weekday follows (schema v13, ADR 47): Monday to Sunday, one column per week of a repeating cycle of
+ * 1 to 8 weeks (scrolling sideways when they don't fit), buttons to add or remove a week, and the Monday week 1 starts on
+ * once there are several. A one-off day still replaces whatever its date follows.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WeekGridEditor(plan: DayPlan, onChange: (DayPlan) -> Unit) {
-    val alternating = plan.week.b != null
+    val weekCount = plan.cycle.weeks.size
     var pickingStart by remember { mutableStateOf(false) }
     val today = LocalDate.now()
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Alternate weeks (A / B)", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-            Switch(checked = alternating, onCheckedChange = { onChange(DayPlanEditing.withAlternating(plan, it, today)) })
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                if (weekCount > 1) "Repeats every $weekCount weeks" else "The same every week",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f),
+            )
+            OutlinedButton(onClick = { onChange(DayPlanEditing.withWeekAdded(plan, today)) }, enabled = weekCount < PlanCycle.MAX_WEEKS) { Text("Add week") }
+            OutlinedButton(onClick = { onChange(DayPlanEditing.withLastWeekRemoved(plan)) }, enabled = weekCount > 1) { Text("Remove last") }
         }
-        if (alternating) {
+        if (weekCount > 1) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Week B starts", style = MaterialTheme.typography.bodyMedium)
-                OutlinedButton(onClick = { pickingStart = true }) { Text(plan.week.bStartsOn?.format(StartTitle) ?: "Pick a Monday") }
+                Text("Week 1 starts", style = MaterialTheme.typography.bodyMedium)
+                OutlinedButton(onClick = { pickingStart = true }) { Text(plan.cycle.startsOn.format(StartTitle)) }
             }
             Text(
-                "Weeks alternate from that Monday: it is week B, the next is A, and so on. \"This week is A/B\" on Today moves this start.",
+                "The weeks repeat from that Monday: it is week 1, the next week 2, and so on. \"This is week N of M\" on Today moves this start.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("", Modifier.width(44.dp))
-            Text(if (alternating) "Week A" else "Every week", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-            if (alternating) Text("Week B", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-        }
-        for (day in DayPlan.MONDAY_FIRST) {
-            WeekRow(plan, day, onChange)
+        Column(Modifier.horizontalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("", Modifier.width(44.dp))
+                for (index in 0 until weekCount) {
+                    Text(if (weekCount > 1) "Week ${index + 1}" else "Every week", style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(WeekColumnWidth))
+                }
+            }
+            for (day in DayPlan.MONDAY_FIRST) {
+                WeekRow(plan, day, onChange)
+            }
         }
     }
 
     if (pickingStart) {
-        val start = plan.week.bStartsOn ?: today
         val state = rememberDatePickerState(
-            initialSelectedDateMillis = start.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli(),
+            initialSelectedDateMillis = plan.cycle.startsOn.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli(),
             selectableDates = object : SelectableDates {
-                // Week B starts on a Monday (the PC's rule).
+                // Week 1 starts on a Monday (the PC's rule).
                 override fun isSelectableDate(utcTimeMillis: Long): Boolean =
                     Instant.ofEpochMilli(utcTimeMillis).atZone(ZoneOffset.UTC).dayOfWeek == DayOfWeek.MONDAY
             },
@@ -92,8 +104,8 @@ fun WeekGridEditor(plan: DayPlan, onChange: (DayPlan) -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     pickingStart = false
-                    state.selectedDateMillis?.let { onChange(DayPlanEditing.withBStartsOn(plan, Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate())) }
-                }) { Text("Week B starts here") }
+                    state.selectedDateMillis?.let { onChange(DayPlanEditing.withStartsOn(plan, Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate())) }
+                }) { Text("Week 1 starts here") }
             },
             dismissButton = { TextButton(onClick = { pickingStart = false }) { Text("Cancel") } },
         ) {
@@ -104,11 +116,10 @@ fun WeekGridEditor(plan: DayPlan, onChange: (DayPlan) -> Unit) {
 
 @Composable
 private fun WeekRow(plan: DayPlan, day: DayOfWeek, onChange: (DayPlan) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(day.getDisplayName(TextStyle.SHORT, Locale.getDefault()), Modifier.width(44.dp), style = MaterialTheme.typography.bodyMedium)
-        TemplatePicker(plan, DayPlanEditing.templateIdOn(plan.week.a, day), Modifier.weight(1f)) { onChange(DayPlanEditing.withWeekday(plan, false, day, it)) }
-        plan.week.b?.let { b ->
-            TemplatePicker(plan, DayPlanEditing.templateIdOn(b, day), Modifier.weight(1f)) { onChange(DayPlanEditing.withWeekday(plan, true, day, it)) }
+        for ((index, week) in plan.cycle.weeks.withIndex()) {
+            TemplatePicker(plan, DayPlanEditing.templateIdOn(week, day), Modifier.width(WeekColumnWidth)) { onChange(DayPlanEditing.withWeekday(plan, index, day, it)) }
         }
     }
 }

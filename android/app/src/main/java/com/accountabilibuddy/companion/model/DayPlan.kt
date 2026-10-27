@@ -42,6 +42,11 @@ data class PlanPart(
     val hintAt: LocalTime? = null,
     /** A Sleep part woken by the wake-up alarm (schema v9, ADR 33): the alarm, else bedtime plus the goal; its end follows bedtime plus the goal. */
     val wakeByAlarm: Boolean = false,
+    /**
+     * A fixed lunch period (schema v13): a Rest part with fixed hours (not a flexible break) that starts by itself at its
+     * start and lasts as long as the part does, as if "Start lunch" had been pressed. False = the user starts it, or it is just time in the plan.
+     */
+    val autoStart: Boolean = false,
 ) {
     val endsAtMidnight: Boolean get() = end == LocalTime.MIDNIGHT
     val crossesMidnight: Boolean get() = !endsAtMidnight && !end.isAfter(start)
@@ -119,27 +124,36 @@ data class DayTemplate(
     }
 }
 
-/** A named day template (schema v12, ADR 47); the week map points at its [id]. */
+/** A named day template (schema v12, ADR 47); the cycle's weeks point at its [id]. */
 data class PlanTemplate(val id: UUID, val name: String, val template: DayTemplate)
 
-/** One weekday of a week map (schema v12): which template that weekday follows. */
+/** One weekday of a week of the cycle (schema v12): which template that weekday follows. */
 data class WeekdayTemplate(val day: DayOfWeek, val templateId: UUID)
 
 /**
- * Which template each weekday follows (schema v12, ADR 47). Week [a] is always there; with [b] set, weeks alternate from
- * [bStartsOn] (a Monday): that week is B, the next A, and so on, before it too. A weekday missing from the week in force
- * follows the Off day template. The PC's PlanWeek.
+ * Which template each weekday follows (schema v13, ADR 47): a repeating cycle of 1 to [MAX_WEEKS] weeks, each a
+ * weekday-to-template map. Week 1 starts on [startsOn] (a Monday) and the cycle repeats from there, before it too: the
+ * week of a date is the whole weeks since [startsOn], floored, modulo the number of weeks. A weekday missing from the
+ * week in force follows the Off day template. The PC's PlanCycle.
  */
-data class PlanWeek(val a: List<WeekdayTemplate>, val b: List<WeekdayTemplate>? = null, val bStartsOn: LocalDate? = null) {
-    /** The template id [date] follows, or null when its weekday is missing from the week in force. */
-    fun templateIdFor(date: LocalDate): UUID? = (if (isWeekB(date)) b!! else a).firstOrNull { it.day == date.dayOfWeek }?.templateId
+data class PlanCycle(val weeks: List<List<WeekdayTemplate>>, val startsOn: LocalDate) {
+    /** The week of the cycle [date] is in, 0-based (week 1 is 0). */
+    fun weekIndexFor(date: LocalDate): Int {
+        if (weeks.isEmpty()) return 0
+        // Floor division, so the weeks before startsOn repeat the cycle backwards (the week before week 1 is the last).
+        val weeksSince = Math.floorDiv(java.time.temporal.ChronoUnit.DAYS.between(startsOn, date), 7L)
+        return Math.floorMod(weeksSince, weeks.size.toLong()).toInt()
+    }
 
-    /** True when alternating weeks are on and [date]'s week is an even number of weeks from B's start. */
-    fun isWeekB(date: LocalDate): Boolean {
-        val start = bStartsOn ?: return false
-        if (b == null) return false
-        // Floor, so the weeks before B's start alternate too (-1 week = A, -2 = B).
-        return Math.floorDiv(java.time.temporal.ChronoUnit.DAYS.between(start, date), 7L) % 2L == 0L
+    /** The week of the cycle [date] is in, 1-based. */
+    fun weekNumberFor(date: LocalDate): Int = weekIndexFor(date) + 1
+
+    /** The template id [date] follows, or null when its weekday is missing from the week in force. */
+    fun templateIdFor(date: LocalDate): UUID? = weeks.getOrNull(weekIndexFor(date))?.firstOrNull { it.day == date.dayOfWeek }?.templateId
+
+    companion object {
+        /** The longest cycle the plan allows. */
+        const val MAX_WEEKS = 8
     }
 }
 
@@ -152,14 +166,14 @@ data class PlannedPart(val part: PlanPart, val category: DayCategory, val window
 }
 
 /**
- * The PC's day plan (schema v5, ADR 18; named templates and a week map since schema v12, ADR 47): categories, named
- * [templates], the [week] map saying which one each weekday follows (week A, optionally alternating with week B), and
+ * The PC's day plan (schema v5, ADR 18; named templates since schema v12 and a repeating cycle of weeks since v13, ADR
+ * 47): categories, named [templates], the [cycle] saying which one each weekday follows in each of 1 to 8 weeks, and
  * one-off days. A port of the Windows Core's DayPlan (same rules, kept in step by hand).
  */
 data class DayPlan(
     val categories: List<DayCategory>,
     val templates: List<PlanTemplate>,
-    val week: PlanWeek,
+    val cycle: PlanCycle,
     val oneOffDays: List<OneOffDay> = emptyList(),
 ) {
     /** The "Workday" template as stored (the classic two-template view, until the editors know named templates); empty when removed. */
@@ -168,8 +182,8 @@ data class DayPlan(
     /** The "Off day" template as stored; see [workday]. */
     val otherDay: DayTemplate get() = templateById(OFF_DAY_TEMPLATE_ID) ?: DayTemplate()
 
-    /** The weekdays of week A that follow the "Workday" template (the classic two-template view). */
-    val workdays: Set<DayOfWeek> get() = week.a.filter { it.templateId == WORKDAY_TEMPLATE_ID }.map { it.day }.toSet()
+    /** The weekdays of week 1 that follow the "Workday" template (the classic two-template view). */
+    val workdays: Set<DayOfWeek> get() = cycle.weeks.firstOrNull().orEmpty().filter { it.templateId == WORKDAY_TEMPLATE_ID }.map { it.day }.toSet()
 
     /** The template with [id] as stored; null when there is none. */
     fun templateById(id: UUID): DayTemplate? = templates.firstOrNull { it.id == id }?.template
@@ -181,16 +195,16 @@ data class DayPlan(
     fun withOtherDay(template: DayTemplate): DayPlan = withTemplate(OFF_DAY_TEMPLATE_ID, "Off day", template)
 
     /**
-     * Week A with exactly [days] following "Workday" (the classic two-template view): a weekday that follows "Workday"
+     * Week 1 with exactly [days] following "Workday" (the classic two-template view): a weekday that follows "Workday"
      * and isn't listed goes to "Off day"; one following any other template stays as it is unless listed.
      */
     fun withWorkdays(days: Set<DayOfWeek>): DayPlan {
         val a = MONDAY_FIRST.map { day ->
-            val current = week.a.firstOrNull { it.day == day }?.templateId ?: OFF_DAY_TEMPLATE_ID
+            val current = cycle.weeks.firstOrNull().orEmpty().firstOrNull { it.day == day }?.templateId ?: OFF_DAY_TEMPLATE_ID
             val next = if (day in days) WORKDAY_TEMPLATE_ID else if (current == WORKDAY_TEMPLATE_ID) OFF_DAY_TEMPLATE_ID else current
             WeekdayTemplate(day, next)
         }
-        return copy(week = week.copy(a = a))
+        return copy(cycle = cycle.copy(weeks = listOf(a) + cycle.weeks.drop(1)))
     }
 
     private fun withTemplate(id: UUID, name: String, template: DayTemplate): DayPlan =
@@ -210,14 +224,14 @@ data class DayPlan(
 
     /**
      * True on a workday, the one rule for every device and feature (the PC's DayPlan.IsWorkday is the same): a one-off day
-     * with work in it, else a date whose week maps its weekday to the "Workday" template, or to a template of its own that
+     * with work in it, else a date whose week of the cycle maps its weekday to the "Workday" template, or to a template of its own that
      * has work (a Budget day, or work parts or a work window). A one-off day replaces a workday's template, so a one-off
      * day off on a Monday isn't one. With [withOneOffDays] off, the week map decides alone.
      */
     fun isWorkday(date: LocalDate, withOneOffDays: Boolean = true): Boolean {
         val oneOff = if (withOneOffDays) oneOffDays.firstOrNull { it.date == date } else null
         if (oneOff != null) return hasWork(oneOff.template)
-        val id = week.templateIdFor(date) ?: return false
+        val id = cycle.templateIdFor(date) ?: return false
         return isWorkdayTemplate(id)
     }
 
@@ -230,11 +244,11 @@ data class DayPlan(
 
     /**
      * The template a plan's workdays (or, with [workday] off, its other days) usually follow: the one the first such
-     * weekday of week A, Monday first, follows; null when there is none. The PC's DayPlan.TypicalTemplate.
+     * weekday of week 1, Monday first, follows; null when there is none. The PC's DayPlan.TypicalTemplate.
      */
     fun typicalTemplate(workday: Boolean): DayTemplate? {
         for (day in MONDAY_FIRST) {
-            val id = week.a.firstOrNull { it.day == day }?.templateId ?: OFF_DAY_TEMPLATE_ID
+            val id = cycle.weeks.firstOrNull().orEmpty().firstOrNull { it.day == day }?.templateId ?: OFF_DAY_TEMPLATE_ID
             if (isWorkdayTemplate(id) == workday) templateById(id)?.let { return it }
         }
 
@@ -246,7 +260,7 @@ data class DayPlan(
             (template.mode == DayMode.Schedule && template.withWorkWindowPart(categories).parts.any { category(it.categoryId)?.behavior?.isWork == true })
 
     /**
-     * The template a date follows, in order: its one-off day, that week's (A or B) template for the weekday, the Off day
+     * The template a date follows, in order: its one-off day, that week of the cycle's template for the weekday, the Off day
      * template (empty when there is none). A Schedule template with only a work window comes with that window as its work
      * part, so everything that reads parts sees it.
      */
@@ -257,7 +271,7 @@ data class DayPlan(
     fun weekTemplateFor(date: LocalDate): DayTemplate = weekMapTemplate(date).withWorkWindowPart(categories)
 
     private fun weekMapTemplate(date: LocalDate): DayTemplate =
-        week.templateIdFor(date)?.let { templateById(it) } ?: templateById(OFF_DAY_TEMPLATE_ID) ?: DayTemplate()
+        cycle.templateIdFor(date)?.let { templateById(it) } ?: templateById(OFF_DAY_TEMPLATE_ID) ?: DayTemplate()
 
     /**
      * Every part touching [range], on real dates, clipped to the range, in order. Where parts of different dates
@@ -357,8 +371,14 @@ data class DayPlan(
         )
 
         /**
+         * The Monday week 1 starts on for a plan that never set one (migrated from before the cycle, or new), the PC's same
+         * date, so the same plan is the same everywhere. It makes no difference with one week.
+         */
+        val DEFAULT_CYCLE_START: LocalDate = LocalDate.of(2024, 1, 1)
+
+        /**
          * A plan of the two classic templates (schema v11's shape): [workdays] follow "Workday", every other weekday "Off day",
-         * week A only. The PC's DayPlan.FromWorkdayAndOffDay.
+         * a one-week cycle. The PC's DayPlan.FromWorkdayAndOffDay.
          */
         fun fromWorkdayAndOffDay(
             categories: List<DayCategory>,
@@ -369,7 +389,7 @@ data class DayPlan(
         ): DayPlan = DayPlan(
             categories = categories,
             templates = listOf(PlanTemplate(WORKDAY_TEMPLATE_ID, "Workday", workday), PlanTemplate(OFF_DAY_TEMPLATE_ID, "Off day", otherDay)),
-            week = PlanWeek(MONDAY_FIRST.map { WeekdayTemplate(it, if (it in workdays) WORKDAY_TEMPLATE_ID else OFF_DAY_TEMPLATE_ID) }),
+            cycle = PlanCycle(listOf(MONDAY_FIRST.map { WeekdayTemplate(it, if (it in workdays) WORKDAY_TEMPLATE_ID else OFF_DAY_TEMPLATE_ID) }), DEFAULT_CYCLE_START),
             oneOffDays = oneOffDays,
         )
 
