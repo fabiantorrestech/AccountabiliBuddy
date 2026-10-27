@@ -374,9 +374,13 @@
                             <mi:MaterialIcon Kind="WeatherNight" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
                             <TextBlock Text="Sleep" Classes="sectionTitle" />
                         </StackPanel>
-                        <TextBlock Text="Your bedtime and wake time. The day bar runs from wake time to bedtime and shades the night; staying up past bedtime shades the lost sleep red. From when going to bed would give your sleep goal, a line on screen counts down the sleep you'll get if you go now, with your wake time (green down to an hour under the goal, yellow down to three hours under, red below), and a reminder pops up two hours before bedtime. Hold Ctrl+Alt over the on-screen window to change tonight's wake time. The times are the Sleep parts of your day plan. Can be changed during focus too."
+                        <TextBlock Text="Your bedtime and wake time. The day bar runs from wake time to bedtime and shades the night; staying up past bedtime shades the lost sleep red. From when going to bed would give your sleep goal, a line on screen counts down the sleep you'll get if you go now, with your wake time (green down to an hour under the goal, yellow down to three hours under, red below), and a reminder pops up two hours before bedtime. Hold Ctrl+Alt over the on-screen window to change tonight's wake time. The times are the Sleep parts of your day plan. Can be changed during focus too, except turning sleep mode off: that waits like other looser changes and is refused during focus."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <CheckBox IsChecked="{Binding SleepEnabled}" Content="Use sleep mode" />
+                        <StackPanel Orientation="Horizontal" Spacing="12" Margin="28,0,0,0" IsVisible="{Binding HasSleepPendingOff}">
+                            <TextBlock Text="{Binding SleepPendingOffText}" VerticalAlignment="Center" Foreground="#F59E0B" />
+                            <Button Content="Cancel" Command="{Binding CancelSleepOffCommand}" />
+                        </StackPanel>
                         <!-- ADR 23: the phone's next alarm (from its sync file) as the wake time, over a one-night change. -->
                         <!-- ADR 35: where the wake time comes from, this PC's own choice. -->
                         <StackPanel Orientation="Horizontal" Spacing="12">

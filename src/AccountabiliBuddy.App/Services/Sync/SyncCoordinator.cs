@@ -784,6 +784,7 @@ public sealed class SyncCoordinator
         SleepSettings updated = current with
         {
             Enabled = received.Enabled,
+            OffWaited = !received.Enabled && received.OffWaited,
             GoalHours = received.GoalHours,
             WakeOnce = received.WakeOnce,
             SmartWorkdays = received.SmartWorkdays,
@@ -792,11 +793,19 @@ public sealed class SyncCoordinator
             MaxHours = received.MaxHours,
             BedtimeReminders = received.BedtimeReminders ?? current.BedtimeReminders,
         };
+        // Turning sleep mode off is a looser change: an off this PC didn't wait for yet (a phone's, or an older version's)
+        // waits here too (SaveAsync keeps sleep mode on until then); one the sender waited for applies at once. A received
+        // on cancels an off still waiting here.
+        if (received.Enabled)
+        {
+            await _sleep.CancelPendingOffAsync();
+        }
+
         if (updated != current)
         {
             using (_editTimes.SuppressStamping())
             {
-                await _sleep.SaveAsync(updated);
+                await _sleep.SaveAsync(updated, fromAnotherDevice: true);
             }
         }
 

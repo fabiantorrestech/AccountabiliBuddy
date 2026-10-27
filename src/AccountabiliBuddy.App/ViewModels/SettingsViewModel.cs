@@ -180,6 +180,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         _calendars.Changed += (_, _) => ShowTimelineCalendars();
         TimelineRows.CollectionChanged += (_, _) => RefreshUnsaved();
         _sleep.Changed += (_, _) => RefreshUnsaved();
+        _sleep.PendingOffChanged += (_, _) =>
+        {
+            SleepEnabled = SleepShownOn;
+            OnPropertyChanged(nameof(SleepPendingOffText));
+            OnPropertyChanged(nameof(HasSleepPendingOff));
+        };
         _sleep.PhoneAlarmChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(PhoneBedtimeText));
@@ -270,7 +276,19 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         if (sleepSettings is not null)
         {
-            await _sleep.SaveAsync(sleepSettings);
+            // Ticking the box again is turning sleep mode back on: a waiting off is cancelled.
+            if (sleepSettings.Enabled)
+            {
+                await _sleep.CancelPendingOffAsync();
+            }
+
+            // Turning it off waits (or is refused during focus); the note says which.
+            if (await _sleep.SaveAsync(sleepSettings) is string sleepNote)
+            {
+                notes.Add(sleepNote);
+            }
+
+            LoadSleepSettings();
         }
 
         if (sounds)
@@ -370,7 +388,10 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     private bool DayBarChanged => BuildDayBar(null) is not DayBarSettings built || built != _dayBar.Current;
 
-    private bool SleepChanged => BuildSleep() != _sleep.Current;
+    // While an off waits, the box shows the user's choice (off) over the saved "on".
+    private bool SleepShownOn => _sleep.Current.Enabled && _sleep.PendingOffAt is null;
+
+    private bool SleepChanged => BuildSleep() != _sleep.Current with { Enabled = SleepShownOn };
 
     private bool SoundsChanged => _sounds.Current != BuildSounds();
 
@@ -428,6 +449,18 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool SleepEnabled { get; set; }
+
+    /// <summary>"Sleep mode turns off at 4:05 PM.", while turning it off waits; otherwise null.</summary>
+    public string? SleepPendingOffText => _sleep.PendingOffText;
+
+    /// <summary>Turning sleep mode off waits: shows the time and Cancel.</summary>
+    public bool HasSleepPendingOff => _sleep.PendingOffAt is not null;
+
+    [RelayCommand]
+    private Task CancelSleepOffAsync()
+    {
+        return _sleep.CancelPendingOffAsync();
+    }
 
     /// <summary>The phone's next alarm sets the wake time (ADR 23); saved at once.</summary>
     public bool UsePhoneAlarm
@@ -587,7 +620,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     private void LoadSleepSettings()
     {
-        SleepEnabled = _sleep.Current.Enabled;
+        SleepEnabled = SleepShownOn;
         SelectedSleepGoal = SleepGoalChoices.FirstOrDefault(choice => choice.Hours == _sleep.Current.GoalHours)
             ?? SleepGoalChoices.First(choice => choice.Hours == 8);
         ShowSleepTimes();
