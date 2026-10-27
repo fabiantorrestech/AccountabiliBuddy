@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -50,10 +52,12 @@ import java.time.Instant
  * One that ends buzzes like a phase end (the Alerts page's choices) and shows "Time's up" here.
  */
 @Composable
-fun TimersPage(now: Instant, isCurrent: Boolean) {
+fun TimersPage(now: State<Instant>, isCurrent: Boolean) {
     val context = LocalContext.current
-    val timers by TimerStore.timers(context).collectAsState()
+    val timers by remember { TimerStore.timers(context) }.collectAsState()
     var choosing by remember { mutableStateOf(false) }
+    // The page is composed ahead while it is next to the current one; the custom length is only kept while it is shown.
+    LaunchedEffect(isCurrent) { if (!isCurrent) choosing = false }
 
     if (choosing) {
         CustomLength(
@@ -103,10 +107,11 @@ fun TimersPage(now: Instant, isCurrent: Boolean) {
     }
 }
 
-// One timer: a small ring with the time left in it, its name and length, and its buttons.
+// One timer: a small ring with the time left in it, its name and length, and its buttons. The clock is read only for a
+// timer that is counting: a paused one doesn't change, and this row recomposes when a counting one ends, not every second.
 @Composable
-private fun TimerRow(timer: WatchTimer, now: Instant, onPauseResume: () -> Unit, onPlusMinute: () -> Unit, onDismiss: () -> Unit) {
-    val done = timer.isDone(now)
+private fun TimerRow(timer: WatchTimer, now: State<Instant>, onPauseResume: () -> Unit, onPlusMinute: () -> Unit, onDismiss: () -> Unit) {
+    val done by remember(timer) { derivedStateOf { !timer.isPaused && timer.isDone(now.value) } }
     val color = when {
         done -> Color(DONE_COLOR)
         timer.isPaused -> Color(0x99FFFFFF)
@@ -122,9 +127,10 @@ private fun TimerRow(timer: WatchTimer, now: Instant, onPauseResume: () -> Unit,
                 val ring = 4.dp.toPx()
                 val radius = size.minDimension / 2 - ring / 2
                 ringTrack(radius, ring, Color(0x26FFFFFF))
-                progressArc(timer.fractionLeft(now), radius, ring, color)
+                // Read while drawing, so the ring is redrawn each second without recomposing the row.
+                progressArc(timer.fractionLeft(timer.clockAt(now)), radius, ring, color)
             }
-            Text(if (done) "0:00" else WatchText.timer(timer.left(now)), fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+            TimerLeft(timer, now, done)
         }
         Column(Modifier.weight(1f)) {
             Text(
@@ -142,6 +148,15 @@ private fun TimerRow(timer: WatchTimer, now: Instant, onPauseResume: () -> Unit,
     }
 }
 
+// The time left in a timer's ring: the only text that changes every second, so it is the only part that recomposes then.
+@Composable
+private fun TimerLeft(timer: WatchTimer, now: State<Instant>, done: Boolean) {
+    Text(if (done) "0:00" else WatchText.timer(timer.left(timer.clockAt(now))), fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+}
+
+// What a timer's time left is worked out from. A paused timer's doesn't depend on the clock, so it doesn't read it.
+private fun WatchTimer.clockAt(now: State<Instant>): Instant = if (isPaused) Instant.EPOCH else now.value
+
 // A custom length: the crown (a minute a step) or − / +, then Start.
 @Composable
 private fun CustomLength(isCurrent: Boolean, onStart: (Int) -> Unit, onCancel: () -> Unit) {
@@ -153,6 +168,10 @@ private fun CustomLength(isCurrent: Boolean, onStart: (Int) -> Unit, onCancel: (
     Column(
         Modifier.fillMaxSize()
             .onRotaryScrollEvent { event ->
+                if (!isCurrent) {
+                    return@onRotaryScrollEvent false
+                }
+
                 turned += event.verticalScrollPixels
                 val steps = (turned / STEP_PIXELS).toInt()
                 if (steps != 0) {

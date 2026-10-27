@@ -76,6 +76,11 @@ fun NoisePage(isCurrent: Boolean) {
     Box(
         Modifier.fillMaxSize()
             .onRotaryScrollEvent { event ->
+                // Composed ahead beside the current page, but the crown only turns the volume while this page is shown.
+                if (!isCurrent) {
+                    return@onRotaryScrollEvent false
+                }
+
                 val current = target ?: return@onRotaryScrollEvent false
                 turned += event.verticalScrollPixels
                 val steps = (turned / STEP_PIXELS).toInt()

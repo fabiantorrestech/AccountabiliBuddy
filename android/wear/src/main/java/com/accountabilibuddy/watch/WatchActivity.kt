@@ -9,12 +9,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
 import androidx.wear.compose.foundation.pager.HorizontalPager
@@ -43,8 +46,10 @@ import com.accountabilibuddy.watch.ui.TimersPage
 import com.accountabilibuddy.watch.ui.TodayPage
 import com.accountabilibuddy.watch.ui.WeekPage
 import com.accountabilibuddy.watch.ui.use24HourClock
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
 
@@ -67,19 +72,23 @@ class WatchActivity : ComponentActivity() {
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
         }
         openTimers = intent?.getStringExtra(PAGE) == PAGE_TIMERS
-        // The timers' alarms and complication follow the stored timers (e.g. after an app update).
-        TimerStore.refresh(this)
         val snapshots = SnapshotStore.snapshot(this)
         setContent {
             MaterialTheme {
                 val stored by snapshots.collectAsState()
                 val phoneReachable by PhoneLink.phoneReachable.collectAsState()
+                // The pairing file is read off the main thread, and again only when the snapshot or the phone link changes.
+                var pcPaired by remember { mutableStateOf(false) }
+                LaunchedEffect(stored, phoneReachable) { pcPaired = withContext(Dispatchers.IO) { PcLink.isPaired(applicationContext) } }
                 WatchApp(
-                    stored, phoneReachable, PcLink.isPaired(this), onAskAgain = { askForNews(force = true) }, onForget = { SnapshotStore.clear(this) },
+                    stored, phoneReachable, pcPaired, onAskAgain = { askForNews(force = true) }, onForget = { SnapshotStore.clear(this) },
                     openTimers = openTimers, onTimersOpened = { openTimers = false },
                 )
             }
         }
+        // The timers' alarms and complication follow the stored timers (e.g. after an app update). Off the main thread,
+        // so opening the app doesn't wait for them; they only need to be right within a second.
+        lifecycleScope.launch(Dispatchers.Default) { TimerStore.refresh(applicationContext) }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -107,7 +116,7 @@ class WatchActivity : ComponentActivity() {
             }
 
             val wifiAllowed = SnapshotStore.snapshot(this@WatchActivity).value?.wifiAllowed ?: true
-            if (!PhoneLink.heardSince(asked) && PhoneLink.quietFor(PHONE_QUIET_MS) && wifiAllowed && PcLink.isPaired(this@WatchActivity)) {
+            if (!PhoneLink.heardSince(asked) && PhoneLink.quietFor(PHONE_QUIET_MS) && wifiAllowed && withContext(Dispatchers.IO) { PcLink.isPaired(this@WatchActivity) }) {
                 PcLink.refresh(this@WatchActivity)
             }
         }
@@ -129,25 +138,41 @@ class WatchActivity : ComponentActivity() {
     }
 }
 
+/**
+ * A clock that ticks on the wall-clock second. It is a [State] that only the pages that need a second's resolution read
+ * (the session, a running lunch, counting timers), so the rest of the app is not recomposed every second. It waits for a
+ * frame first, which doesn't come while the app is stopped (the watch face is showing), so it doesn't wake the app then.
+ */
+@Composable
+private fun rememberSecondClock(): State<Instant> {
+    val now = remember { mutableStateOf(Instant.now()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            withFrameMillis { }
+            val current = Instant.now()
+            now.value = current
+            // Up to the start of the next second, so the countdown doesn't drift or skip.
+            delay(1_000 - current.nano / 1_000_000L)
+        }
+    }
+    return now
+}
+
 @Composable
 private fun WatchApp(
     stored: WatchSnapshot?, phoneReachable: Boolean?, pcPaired: Boolean, onAskAgain: () -> Unit, onForget: () -> Unit,
     openTimers: Boolean, onTimersOpened: () -> Unit,
 ) {
-    var now by remember { mutableStateOf(Instant.now()) }
+    // Not read here: the pieces below read it inside derivedStateOf, so this function recomposes only when what they
+    // work out changes (the page order, a timer ending, the time zone), not every second.
+    val now = rememberSecondClock()
     var sample by remember { mutableStateOf<WatchSnapshot?>(null) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(1_000)
-            now = Instant.now()
-        }
-    }
 
-    val zone = ZoneId.systemDefault()
+    val zone by remember { derivedStateOf { now.value.let { ZoneId.systemDefault() } } }
     val context = LocalContext.current
     // A timer that's just up brings the Timers page to the front (its buzz comes from the alarm).
-    val timers by TimerStore.timers(context).collectAsState()
-    val doneIds = timers.filter { it.isDone(now) }.map { it.id }.toSet()
+    val timers by remember { TimerStore.timers(context) }.collectAsState()
+    val doneIds by remember { derivedStateOf { timers.filter { it.isDone(now.value) }.map { it.id }.toSet() } }
     var seenDone by remember { mutableStateOf(doneIds) }
     var timersDue by remember { mutableStateOf(false) }
     LaunchedEffect(doneIds) {
@@ -159,21 +184,29 @@ private fun WatchApp(
 
     AppScaffold {
         val snapshot = stored ?: sample
-        val lunch = snapshot?.lunch?.takeIf { snapshot.date == now.atZone(zone).toLocalDate() && it.isShown(now) }
-        // Not linked yet: the "not linked" screen, and the watch's own timers beside it.
-        val pages = if (snapshot == null) {
-            listOf(Page.NotLinked, Page.Timers)
-        } else {
-            // While a focus or break timer runs, its page comes first; else while lunch runs, the Lunch page (the pager
-            // starts over when the pages change). The Lunch page shows on a workday or while lunch runs, from today's snapshot.
-            val running = snapshot.running?.isLiveAt(now) == true
-            val onLunch = lunch?.isRunning(now) == true
-            val order = when {
-                running -> listOfNotNull(Page.Session, Page.Today, Page.Lunch.takeIf { lunch != null })
-                onLunch -> listOf(Page.Lunch, Page.Today, Page.Session)
-                else -> listOfNotNull(Page.Today, Page.Session, Page.Lunch.takeIf { lunch != null })
+        val lunch by remember(snapshot, zone) {
+            derivedStateOf {
+                snapshot?.lunch?.takeIf { snapshot.date == now.value.atZone(zone).toLocalDate() && it.isShown(now.value) }
             }
-            order + listOf(Page.Timers, Page.Noise, Page.Week, Page.Alerts, Page.Link)
+        }
+        // Not linked yet: the "not linked" screen, and the watch's own timers beside it.
+        val pages by remember(snapshot) {
+            derivedStateOf {
+                if (snapshot == null) {
+                    listOf(Page.NotLinked, Page.Timers)
+                } else {
+                    // While a focus or break timer runs, its page comes first; else while lunch runs, the Lunch page (the pager
+                    // starts over when the pages change). The Lunch page shows on a workday or while lunch runs, from today's snapshot.
+                    val running = snapshot.running?.isLiveAt(now.value) == true
+                    val onLunch = lunch?.isRunning(now.value) == true
+                    val order = when {
+                        running -> listOfNotNull(Page.Session, Page.Today, Page.Lunch.takeIf { lunch != null })
+                        onLunch -> listOf(Page.Lunch, Page.Today, Page.Session)
+                        else -> listOfNotNull(Page.Today, Page.Session, Page.Lunch.takeIf { lunch != null })
+                    }
+                    order + listOf(Page.Timers, Page.Noise, Page.Week, Page.Alerts, Page.Link)
+                }
+            }
         }
         val pager = key(pages) { rememberPagerState(pageCount = { pages.size }) }
         LaunchedEffect(openTimers, timersDue, pager) {
@@ -184,30 +217,21 @@ private fun WatchApp(
             }
         }
         HorizontalPagerScaffold(pagerState = pager) {
-            HorizontalPager(state = pager) { page ->
+            // The next page on each side is composed ahead, so a swipe doesn't build it mid-gesture.
+            HorizontalPager(state = pager, beyondViewportPageCount = 1) { page ->
                 AnimatedPage(pageIndex = page, pagerState = pager) {
                     ScreenScaffold {
                         when (pages[page]) {
                             Page.NotLinked -> NotLinkedScreen(phoneReachable, onAskAgain, onSample = { sample = SampleData.snapshot(Instant.now(), zone) })
-                            Page.Today -> snapshot?.let { TodayPage(TodayView.from(it, now, zone, use24HourClock)) }
-                            Page.Session -> snapshot?.let {
-                                SessionPage(SessionView.from(it.running, now, zone, use24HourClock, dataAt = it.dataAt, goalFraction = it.goalFraction(now, zone)))
-                            }
+                            Page.Today -> snapshot?.let { TodayContent(it, now, zone) }
+                            Page.Session -> snapshot?.let { SessionContent(it, now, zone) }
                             Page.Lunch -> lunch?.let { com.accountabilibuddy.watch.ui.LunchPage(it, now, zone) }
                             Page.Timers -> TimersPage(now, isCurrent = pager.currentPage == page)
-                            Page.Week -> snapshot?.let { WeekPage(WeekView.from(it, now, zone)) }
+                            Page.Week -> snapshot?.let { WeekContent(it, now, zone) }
                             Page.Noise -> com.accountabilibuddy.watch.ui.NoisePage(isCurrent = pager.currentPage == page)
                             Page.Alerts -> AlertsPage(onChanged = { PhaseAlertScheduler.schedule(context, stored) })
                             Page.Link -> snapshot?.let {
-                                LinkPage(
-                                    pcName = it.pcName,
-                                    updated = WatchText.updatedAgo(it.dataAt, now),
-                                    // Each device whose focus is in the day (ADR 22), with its data's age.
-                                    sources = it.sources.map { source -> "${source.name} · ${WatchText.updatedAgo(source.dataAt, now) ?: "up to date"}" },
-                                    isSample = stored == null,
-                                    pcPaired = pcPaired,
-                                    onForget = { if (stored == null) sample = null else onForget() },
-                                )
+                                LinkContent(it, now, isSample = stored == null, pcPaired = pcPaired, onForget = { if (stored == null) sample = null else onForget() })
                             }
                         }
                     }
@@ -215,6 +239,48 @@ private fun WatchApp(
             }
         }
     }
+}
+
+// The pages below work their view out from the second clock, but only recompose when the view really changes (the views are
+// data classes, so an unchanged one counts as the same), e.g. the Today page about once a minute.
+
+@Composable
+private fun TodayContent(snapshot: WatchSnapshot, now: State<Instant>, zone: ZoneId) {
+    val view by remember(snapshot, zone) { derivedStateOf { TodayView.from(snapshot, now.value, zone, use24HourClock) } }
+    TodayPage(view)
+}
+
+@Composable
+private fun SessionContent(snapshot: WatchSnapshot, now: State<Instant>, zone: ZoneId) {
+    val view by remember(snapshot, zone) {
+        derivedStateOf {
+            SessionView.from(snapshot.running, now.value, zone, use24HourClock, dataAt = snapshot.dataAt, goalFraction = snapshot.goalFraction(now.value, zone))
+        }
+    }
+    SessionPage(view)
+}
+
+@Composable
+private fun WeekContent(snapshot: WatchSnapshot, now: State<Instant>, zone: ZoneId) {
+    val view by remember(snapshot, zone) { derivedStateOf { WeekView.from(snapshot, now.value, zone) } }
+    WeekPage(view)
+}
+
+/** What the Link page says that depends on the time: how old the data is. */
+private data class LinkAges(val updated: String?, val sources: List<String>)
+
+@Composable
+private fun LinkContent(snapshot: WatchSnapshot, now: State<Instant>, isSample: Boolean, pcPaired: Boolean, onForget: () -> Unit) {
+    val ages by remember(snapshot) {
+        derivedStateOf {
+            LinkAges(
+                updated = WatchText.updatedAgo(snapshot.dataAt, now.value),
+                // Each device whose focus is in the day (ADR 22), with its data's age.
+                sources = snapshot.sources.map { source -> "${source.name} · ${WatchText.updatedAgo(source.dataAt, now.value) ?: "up to date"}" },
+            )
+        }
+    }
+    LinkPage(pcName = snapshot.pcName, updated = ages.updated, sources = ages.sources, isSample = isSample, pcPaired = pcPaired, onForget = onForget)
 }
 
 private enum class Page { NotLinked, Today, Session, Lunch, Timers, Noise, Week, Alerts, Link }

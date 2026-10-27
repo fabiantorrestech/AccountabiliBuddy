@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -32,6 +33,13 @@ import kotlin.math.sin
 @Composable
 fun WeekPage(view: WeekView) {
     val measurer = rememberTextMeasurer()
+    // The day letters are measured once per week shown, not on every draw.
+    val letters = remember(view.days) {
+        view.days.map { day ->
+            val letter = day.date.dayOfWeek.getDisplayName(DateTextStyle.NARROW, Locale.getDefault())
+            measurer.measure(letter, TextStyle(color = Color.White, fontSize = 10.sp))
+        }
+    }
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
@@ -48,8 +56,7 @@ fun WeekPage(view: WeekView) {
                     drawCircle(Color.White, small + ring, at, style = Stroke(1.dp.toPx()))
                 }
 
-                val letter = day.date.dayOfWeek.getDisplayName(DateTextStyle.NARROW, Locale.getDefault())
-                val text = measurer.measure(letter, TextStyle(color = Color.White, fontSize = 10.sp))
+                val text = letters[index]
                 drawText(text, topLeft = Offset(at.x - text.size.width / 2f, at.y - text.size.height / 2f))
             }
         }

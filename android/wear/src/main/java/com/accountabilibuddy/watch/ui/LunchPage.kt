@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,21 +43,24 @@ import java.time.ZoneId
  * the phone, which tells the other devices.
  */
 @Composable
-fun LunchPage(lunch: WatchLunch, now: Instant, zone: ZoneId) {
+fun LunchPage(lunch: WatchLunch, now: State<Instant>, zone: ZoneId) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var unreachable by remember { mutableStateOf(false) }
     fun send(action: String) = scope.launch { unreachable = !LunchLink.send(context, action) }
     fun clock(at: Instant): String = WatchText.clock(LocalTime.ofInstant(at, zone), use24HourClock)
 
-    val running = lunch.isRunning(now)
+    // Only the running state is read here; the clock is read where the countdown shows, so an idle Lunch page isn't
+    // recomposed every second.
+    val running by remember(lunch) { derivedStateOf { lunch.isRunning(now.value) } }
+    val done by remember(lunch) { derivedStateOf { lunch.isDone(now.value) } }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val ring = 10.dp.toPx()
             val radius = size.minDimension / 2 - 8.dp.toPx() - ring / 2
             ringTrack(radius, ring, Color(0x26FFFFFF))
             if (running) {
-                progressArc(lunch.fractionLeft(now), radius, ring, Color(LUNCH_COLOR))
+                progressArc(lunch.fractionLeft(now.value), radius, ring, Color(LUNCH_COLOR))
             }
         }
 
@@ -63,18 +68,19 @@ fun LunchPage(lunch: WatchLunch, now: Instant, zone: ZoneId) {
             when {
                 running -> {
                     val end = lunch.end!!
+                    val at = now.value
                     Text("Lunch", color = Color(LUNCH_COLOR), fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                    Text(WatchText.timer(Duration.between(now, end)), color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+                    Text(WatchText.timer(Duration.between(at, end)), color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
                     Text("until ${clock(end)}", color = Color(0xB3FFFFFF), fontSize = 11.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { send(LunchRemote.MINUS) }, enabled = lunch.canShorten(now), modifier = Modifier.size(40.dp)) {
+                        IconButton(onClick = { send(LunchRemote.MINUS) }, enabled = lunch.canShorten(at), modifier = Modifier.size(40.dp)) {
                             Text("−5", fontSize = 14.sp)
                         }
                         IconButton(onClick = { send(LunchRemote.PLUS) }, modifier = Modifier.size(40.dp)) { Text("+5", fontSize = 14.sp) }
                     }
                     Button(onClick = { send(LunchRemote.BACK) }) { Text("I'm back", fontSize = 13.sp) }
                 }
-                lunch.isDone(now) -> {
+                done -> {
                     Text("Lunch done", color = Color(LUNCH_COLOR), fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     Text("${clock(lunch.start!!)} – ${clock(lunch.end!!)}", color = Color(0xB3FFFFFF), fontSize = 12.sp)
                 }
