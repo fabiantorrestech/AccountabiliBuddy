@@ -54,11 +54,14 @@ class LunchStore(private val context: Context) {
     /** Starts lunch now for the lunch length. */
     @Synchronized
     fun start(now: Instant = Instant.now()) {
-        save(SyncLunch(now, now.plus(Duration.ofMinutes(_lengthMinutes.value.toLong())), editedAt = now), overTold = false)
+        save(clamped(SyncLunch(now, now.plus(Duration.ofMinutes(_lengthMinutes.value.toLong())), editedAt = now)), overTold = false)
         onChanged?.invoke()
     }
 
-    /** +5 min ([longer]) or −5 min on the running lunch; it never ends sooner than a minute from now, and −5 never makes it longer. */
+    /**
+     * +5 min ([longer]) or −5 min on the running lunch; it never ends sooner than a minute from now, −5 never makes it
+     * longer, and +5 never takes the whole lunch past [MAX_LENGTH].
+     */
     @Synchronized
     fun adjust(longer: Boolean, now: Instant = Instant.now()) {
         val current = today(now)?.takeIf { now < it.end } ?: return
@@ -66,6 +69,11 @@ class LunchStore(private val context: Context) {
         val soonest = now.plus(WatchLunch.SHORTEST_LEFT)
         if (end < soonest) {
             end = if (soonest < current.end) soonest else current.end
+        }
+
+        val latestEnd = current.start.plus(MAX_LENGTH)
+        if (end > latestEnd) {
+            end = if (latestEnd > current.end) latestEnd else current.end
         }
 
         if (end != current.end) {
@@ -93,8 +101,9 @@ class LunchStore(private val context: Context) {
 
     /** A lunch from another device's file: taken when it's today's and its edit is newer than ours. */
     @Synchronized
-    fun receive(lunch: SyncLunch, now: Instant = Instant.now()) {
-        if (!isToday(lunch.start, now)) return
+    fun receive(received: SyncLunch, now: Instant = Instant.now()) {
+        if (!isToday(received.start, now)) return
+        val lunch = clamped(received)
         val ours = today(now)
         if (ours != null && (ours.lastEdit >= lunch.lastEdit || (ours.start == lunch.start && ours.end == lunch.end))) return
         save(lunch, overTold = now >= lunch.end)
@@ -110,6 +119,12 @@ class LunchStore(private val context: Context) {
             start = taken?.start,
             end = taken?.end,
         )
+    }
+
+    // A whole lunch (start to end) is never longer than MAX_LENGTH, as on the PC: lunch holds a session's step away there.
+    private fun clamped(lunch: SyncLunch): SyncLunch {
+        val latestEnd = lunch.start.plus(MAX_LENGTH)
+        return if (lunch.end.isAfter(latestEnd)) lunch.copy(end = latestEnd) else lunch
     }
 
     /** "Lunch over!" is due and not told yet. */
@@ -192,5 +207,8 @@ class LunchStore(private val context: Context) {
                 else -> "$hours h $rest m"
             }
         }
+
+        /** The longest a whole lunch can be (the PC's LunchService.MaxLength). */
+        val MAX_LENGTH: Duration = Duration.ofMinutes(120)
     }
 }

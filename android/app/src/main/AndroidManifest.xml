@@ -150,6 +150,18 @@
             android:taskAffinity="com.accountabilibuddy.companion.bedtime" />
 
         <receiver android:name=".notify.BedtimeReminderReceiver" android:exported="false" />
+
+        <!-- The phone's own timers and alarms: one that's up or rings, over the lock screen. -->
+        <activity
+            android:name=".timers.TimerRingActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:taskAffinity="com.accountabilibuddy.companion.timers" />
+        <!-- Their exact alarm, progress tick and notification buttons. -->
+        <receiver android:name=".timers.TimerReceiver" android:exported="false" />
         <!-- ADR 37: the block guard's exact alarm (heads-up, re-enable times). -->
         <receiver android:name=".blocks.BlockGuardReceiver" android:exported="false" />
 

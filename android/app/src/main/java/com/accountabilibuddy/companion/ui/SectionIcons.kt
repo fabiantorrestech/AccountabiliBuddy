@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.Computer
 import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.EventNote
 import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.EmojiNature
 import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Link
@@ -80,8 +81,11 @@ object SectionIcons {
         "Tomorrow" to Icons.Outlined.EventNote,
         "Phone today" to Icons.Outlined.Smartphone,
         "Come back to" to Icons.Outlined.Flag,
+        "Beeminder" to Icons.Outlined.EmojiNature,
         "Tasks" to Icons.Outlined.TaskAlt,
         "Lunch" to Icons.Outlined.Restaurant,
+        "Timers" to Icons.Outlined.Timer,
+        "Alarms" to Icons.Outlined.Alarm,
         "Not working today" to Icons.Outlined.BeachAccess,
         "More options" to Icons.Outlined.Tune,
         "Test session" to Icons.Outlined.Science,

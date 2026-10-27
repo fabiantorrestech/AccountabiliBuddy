@@ -9,7 +9,8 @@ namespace AccountabiliBuddy.App.Services;
 /// The flexible lunch (schema v8, design part B): on any workday "Start lunch" (on any of the user's devices) starts it
 /// for the lunch length (Settings → Your day, 1 hour by default); while it runs, +5 / −5 min change its end. A flexible
 /// break in today's plan is only a guideline: its window is drawn on the day bar and gives the hint time. A running
-/// session steps away as a Break for it. Not started by its hint time: one hint; never started: skipped (the window
+/// session steps away as a Break for it, held while lunch runs (input doesn't end it; "I'm back" or the lunch ending
+/// does, <see cref="StepAwayService.HoldsAway"/>). Not started by its hint time: one hint; never started: skipped (the window
 /// stays work). When it's over: one chime and "Lunch over!". A lunch started or changed on another device arrives in
 /// its sync file (<see cref="SyncFile.Lunch"/>) and is taken here when its edit is newer. Document "lunch". Use from
 /// the UI thread only.
@@ -22,6 +23,12 @@ public sealed class LunchService
     public const int MinLengthMinutes = 15;
     public const int MaxLengthMinutes = 120;
     public const int LengthStepMinutes = 5;
+
+    /// <summary>
+    /// The longest a whole lunch (start to end) can be, whatever +5 min or another device says: lunch holds a session's
+    /// step away, so it must never hold it for long.
+    /// </summary>
+    public static readonly TimeSpan MaxLength = TimeSpan.FromMinutes(MaxLengthMinutes);
 
     /// <summary>How much +5 / −5 min changes a running lunch by.</summary>
     public static readonly TimeSpan AdjustStep = TimeSpan.FromMinutes(5);
@@ -83,6 +90,12 @@ public sealed class LunchService
     /// <summary>True while lunch runs.</summary>
     public bool IsOnLunch => Taken is SyncLunch lunch && _sessions.Now < lunch.End;
 
+    /// <summary>
+    /// True while lunch holds a session's step away (input doesn't end it): during lunch, and never past
+    /// <see cref="MaxLength"/> after it started, even if its end says otherwise.
+    /// </summary>
+    public bool HoldsSessionAway => IsOnLunch && Taken is SyncLunch lunch && _sessions.Now < lunch.Start + MaxLength;
+
     /// <summary>"Start lunch" shows: today is a workday (or has a flexible break) and no lunch was taken yet.</summary>
     public bool CanStart => (IsWorkdayToday || Today is not null) && Taken is null;
 
@@ -115,13 +128,19 @@ public sealed class LunchService
     /// <summary>+5 min (positive) or −5 min (negative) on the running lunch; it never ends sooner than a minute from now.</summary>
     public async Task AdjustAsync(TimeSpan change)
     {
-        if (!IsOnLunch || _state.End is not DateTimeOffset end)
+        if (!IsOnLunch || _state.End is not DateTimeOffset end || _state.Start is not DateTimeOffset start)
         {
             return;
         }
 
         DateTimeOffset now = _sessions.Now;
         DateTimeOffset newEnd = end + change;
+        if (newEnd > start + MaxLength)
+        {
+            // The whole lunch never runs past its longest.
+            newEnd = start + MaxLength > end ? start + MaxLength : end;
+        }
+
         if (newEnd < now + ShortestLeft)
         {
             // Never sooner than a minute from now, and a −5 never makes it longer.
@@ -134,13 +153,17 @@ public sealed class LunchService
         }
     }
 
-    /// <summary>Back early: lunch ends now.</summary>
+    /// <summary>Back early ("I'm back"): lunch ends now, and a session stepped away for it is back.</summary>
     public async Task EndNowAsync()
     {
         if (IsOnLunch)
         {
             DateTimeOffset now = _sessions.Now;
             await SaveAsync(_state with { End = now, OverTold = true, EditedAt = now });
+            if (_sessions.State.IsActive && _sessions.State.IsAway)
+            {
+                _sessions.Return();
+            }
         }
     }
 
@@ -161,6 +184,12 @@ public sealed class LunchService
         if (!IsToday(lunch.Start))
         {
             return;
+        }
+
+        if (lunch.End > lunch.Start + MaxLength)
+        {
+            // Another device's lunch is never longer than this one's longest either.
+            lunch = lunch with { End = lunch.Start + MaxLength };
         }
 
         if (Taken is SyncLunch ours && (ours.LastEdit >= lunch.LastEdit || (ours.Start == lunch.Start && ours.End == lunch.End)))

@@ -58,6 +58,8 @@ data class SyncFile(
     val profileOptions: List<SyncProfileOption>? = null,
     /** A PC's "Quick Start with Default" profile id (ADR 42); null when it isn't made yet. */
     val defaultProfileId: String? = null,
+    /** A PC's derived summary of the user's Beeminder goals (ADR 43); null without a token there or from an older app. */
+    val beeminder: List<SyncBeeminderGoal>? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1
@@ -197,6 +199,16 @@ data class SyncCompanion(val name: String, val kind: String, val linked: Boolean
 }
 /** A phone's estimated wake time (ADR 40) for workday and Off-Day mornings, each "HH:mm"; null for a kind without enough data. */
 data class SyncWakeEstimate(val workdays: String?, val offDays: String?)
+
+/**
+ * One of the user's Beeminder goals (ADR 43), as a PC read it: derived only, never the token. The phone opens no
+ * connection for it.
+ *
+ * @property needed What's needed to stay on track, in Beeminder's words (e.g. "+2 within 1 day"); may be empty.
+ * @property safeDays Days of buffer when the PC last asked; 0 or less = due by the next deadline.
+ * @property dueAt When the goal derails without a data point.
+ */
+data class SyncBeeminderGoal(val title: String, val needed: String, val safeDays: Int, val dueAt: Instant)
 
 /** A phone's smart bedtime (ADR 34): per kind of night, null for a kind that's off. */
 data class SyncSmartBedtime(val workdays: SyncSmartLevel?, val offDays: SyncSmartLevel?)

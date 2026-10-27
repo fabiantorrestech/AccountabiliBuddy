@@ -60,6 +60,7 @@ public partial class App : Application
     private UnlockService? _unlocks;
     private SessionOverlayService? _sessionOverlay;
     private PcAlarmService? _pcAlarm;
+    private AccountabiliBuddy.App.Services.Timers.TimersService? _timers;
     private NoisePlayerService? _noise;
     private NoiseSettingsService? _noiseSettings;
     private HeadphoneAutoPlayService? _headphones;
@@ -104,6 +105,7 @@ public partial class App : Application
     private DeepWorkHistoryViewModel? _deepWorkHistory;
     private ShutdownService? _shutdown;
     private ComebackStore? _comebacks;
+    private AccountabiliBuddy.App.Services.Beeminder.BeeminderService? _beeminder;
     private SessionNotesStore? _sessionNotes;
     private CaptureService? _capture;
     private WorkGateService? _workGate;
@@ -341,6 +343,15 @@ public partial class App : Application
         _pcAlarm = new PcAlarmService(
             sleepSettings, _configuration, _sessionCues, new AccountabiliBuddy.Platform.Windows.Time.WindowsWakeTimer(), time, () => _sessionOverlay.Glow());
         _pcAlarm.Start();
+        // Timers and alarms (V1, this PC only): a line each on the on-screen window; rung like a phase end (glow + chime).
+        _timers = new AccountabiliBuddy.App.Services.Timers.TimersService(documents, _sessions);
+        _timers.LoadBlocking();
+        _sessionOverlay.SetTimers(_timers);
+        _ = new AccountabiliBuddy.App.Services.Timers.TimerRinger(
+            _timers,
+            // Never silent: with "Focus ends" set to Off they ring with the bell.
+            () => _sessionCues.Play(soundSettings.Current.FocusEndSound == SoundChoice.OffId ? SoundChoice.BellId : soundSettings.Current.FocusEndSound),
+            () => _sessionOverlay.Glow());
         _dayBar.Gaps = sessionGaps;
         _noiseSettings = new NoiseSettingsService(documents);
         _noiseSettings.LoadBlocking();
@@ -416,6 +427,8 @@ public partial class App : Application
             (title, message) => presenter.ShowReminder(title, message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#CA8A04"))),
             () => _sessionCues?.Play(soundSettings.Current.BreakEndSound));
         _lunch.LoadBlocking();
+        // Browsing at lunch isn't being back: lunch's step away ends with "I'm back" or the lunch ending, not input.
+        _stepAway!.HoldsAway = () => _lunch.HoldsSessionAway;
         // Animations at the chosen speed, or none (Settings → On screen & sound).
         _motion = new Motion(documents);
         _motion.LoadBlocking();
@@ -492,6 +505,9 @@ public partial class App : Application
             new GoogleCalendarClient(_calendarNetwork, GoogleEndpointsFromEnvironment(), time),
             dataProtector,
             time);
+        // Beeminder (ADR 43): read only, through CalendarNetwork, only once the user pastes a token.
+        _beeminder = new AccountabiliBuddy.App.Services.Beeminder.BeeminderService(_calendarNetwork, documents, dataProtector, time);
+        _beeminder.LoadBlocking();
         // A phone starting, ending early or editing the plan (ADR 14, 19, 42): the same rules over the link and the sync files.
         var planEditTime = new DayPlanEditTimeService(_configuration, documents, () => _sessions.Now);
         planEditTime.LoadBlocking();
@@ -548,6 +564,21 @@ public partial class App : Application
         // Come-backs (ADR 30): the open ones go to paired devices in the link's state and in this PC's sync file.
         linkHost.Comebacks = () => _comebacks!.Open.Select(comeback => new AccountabiliBuddy.Core.Link.LinkComeback(comeback.Id, comeback.Text, comeback.CreatedAt)).ToList();
         syncCoordinator.Comebacks = () => _comebacks!.Open.Select(comeback => new AccountabiliBuddy.Core.Sync.SyncComeback(comeback.Id, comeback.Text, comeback.CreatedAt)).ToList();
+        // Beeminder (ADR 43): only the derived summary goes in this PC's sync file; removing the token removes it.
+        syncCoordinator.Beeminder = _beeminder.SyncSummary;
+        IReadOnlyList<AccountabiliBuddy.Core.Sync.SyncBeeminderGoal>? lastBeeminder = _beeminder.SyncSummary();
+        _beeminder.Changed += (_, _) =>
+        {
+            // Only a changed summary rewrites the file, not every 30-minute read that found the same goals.
+            IReadOnlyList<AccountabiliBuddy.Core.Sync.SyncBeeminderGoal>? summary = _beeminder.SyncSummary();
+            if ((summary ?? []).SequenceEqual(lastBeeminder ?? []) && (summary is null) == (lastBeeminder is null))
+            {
+                return;
+            }
+
+            lastBeeminder = summary;
+            syncCoordinator.NotifyHistoryChanged();
+        };
         // Lunch is the user's, not this PC's: started here or on another device, every device takes the newest.
         syncCoordinator.Lunch = () => _lunch!.Taken;
         // What the user did on the phone for this PC (ADR 26): applied once each, acknowledged in this PC's file.
@@ -736,8 +767,11 @@ public partial class App : Application
         };
         // Focus mode: the Today page while a session runs (the main window's day bar is the one it reads).
         sessionViewModel.Comebacks = new ComebacksViewModel(_comebacks!, sessionTasks);
+        sessionViewModel.Timers = new TimersViewModel(_timers!, _sessions);
         sessionViewModel.Lunch = new LunchCardViewModel(_lunch!, _sessions);
         sessionViewModel.DayOff = new DayOffCardViewModel(_preWork!);
+        var beeminderViewModel = new BeeminderViewModel(_beeminder!, time);
+        sessionViewModel.Beeminder = beeminderViewModel;
         // Deep work against the daily goal (redesign phase 4): Today's card, the on-screen details, "Goal met" once a day.
         _deepWork = new DeepWorkService(
             _sessions,
@@ -837,7 +871,7 @@ public partial class App : Application
                 NotesBetween = _sessionNotes.Between,
             },
             setupViewModel,
-            new IntegrationsViewModel(new ColdTurkeyDetector(), new WindowsOtherBlockerDetector(), sightings, _configuration, _sessions),
+            new IntegrationsViewModel(new ColdTurkeyDetector(), new WindowsOtherBlockerDetector(), sightings, _configuration, _sessions) { Beeminder = beeminderViewModel },
             new SettingsViewModel(
                 _configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, dayBarSettings, overlaySettings, soundSettings, _sessionCues, sleepSettings, database.DatabasePath,
                 _noise)
@@ -871,6 +905,15 @@ public partial class App : Application
             Search = new SearchViewModel(SearchDataAsync),
             Devices = devices,
         };
+        // Beeminder (ADR 43): every 30 minutes, and again when Today opens with an answer a few minutes old.
+        mainViewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(MainWindowViewModel.SelectedTab) && mainViewModel.SelectedTab == (int)MainTab.Today)
+            {
+                _beeminder!.RefreshIfStale();
+            }
+        };
+        _beeminder!.Start();
         // The top-right refresh: every sync method that's on, calendars, then the day bar and History read again.
         mainViewModel.RefreshAll = async () =>
         {
@@ -944,7 +987,8 @@ public partial class App : Application
         coldTurkeyKeys.LoadBlocking();
         _coldTurkeyKeys = coldTurkeyKeys;
         coldTurkeyKeys.Notice += (_, notice) => presenter.ShowNotice(notice.Title, notice.Text);
-        coldTurkeyKeys.SpareKeyNeeded += (_, _) => ShowColdTurkeyKey(ColdTurkeyKeyMode.SpareKey);
+        // A new key comes from a timer, a check or a session ending, never straight from a click: shown without taking focus.
+        coldTurkeyKeys.SpareKeyNeeded += (_, _) => ShowColdTurkeyKey(ColdTurkeyKeyMode.SpareKey, quiet: true);
         _workHours!.Changed += (_, _) => coldTurkeyKeys.CheckSoon();
         _coldTurkey!.Changed += (_, _) => coldTurkeyKeys.CheckSoon();
         coldTurkeyKeys.Start();
@@ -1015,12 +1059,12 @@ public partial class App : Application
         mainViewModel.NoisePlayer = noisePlayer;
         mainViewModel.Settings.OpenDayPlan = () => mainViewModel.SelectedTab = MainWindowViewModel.DayPlanTab;
         _mainWindow = new MainWindow { DataContext = mainViewModel };
-        // The start nudge: Today, with the keyboard in "Add a task". After a session the user may be typing elsewhere,
-        // so the window stays where it is and only its taskbar button flashes.
+        // The start nudge: Today, with the keyboard in "Add a task". After a session (or a calendar event, lunch or the
+        // met goal) the user may be typing elsewhere, so the window stays where it is and only its taskbar button flashes.
         _startNudge!.Due += (_, reason) =>
         {
             mainViewModel.SelectedTab = (int)MainTab.Today;
-            if (reason is StartNudgeReason.SessionEnded)
+            if (reason is StartNudgeReason.SessionEnded or StartNudgeReason.Resumed)
             {
                 ShowMainWindowQuietly();
                 return;
@@ -1075,6 +1119,7 @@ public partial class App : Application
         // Ctrl+Alt + double-click on the on-screen window, or its Open button.
         _sessionOverlay.OpenAppRequested += (_, _) => ShowMainWindow();
         _sessionOverlay.Start();
+        _timers!.Start();
         _bedtimeReminder.ReminderDue += (_, reminder) =>
             presenter.ShowReminder(reminder.Title, reminder.Message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#6366F1")));
         // ADR 38: a reminder that rings opens the alarm window; this PC's sync id says which reminders are its own.
@@ -1294,8 +1339,12 @@ public partial class App : Application
         window.Show();
     }
 
-    /// <summary>The spare key window (write down a new key), Emergency release (ADR 39) or Get a new spare key (ADR 41); one at a time.</summary>
-    private void ShowColdTurkeyKey(ColdTurkeyKeyMode mode)
+    /// <summary>
+    /// The spare key window (write down a new key), Emergency release (ADR 39) or Get a new spare key (ADR 41); one at a
+    /// time. Quiet when nothing the user just did asked for it (a new key made by a timer or when a session ended): it
+    /// shows without taking focus and its taskbar button flashes.
+    /// </summary>
+    private void ShowColdTurkeyKey(ColdTurkeyKeyMode mode, bool quiet = false)
     {
         if (_coldTurkeyKeys is null)
         {
@@ -1304,15 +1353,39 @@ public partial class App : Application
 
         if (_coldTurkeyKeyWindow is not null)
         {
-            _coldTurkeyKeyWindow.Activate();
+            if (quiet)
+            {
+                FlashTaskbarButton(_coldTurkeyKeyWindow);
+            }
+            else
+            {
+                _coldTurkeyKeyWindow.Activate();
+            }
+
             return;
         }
 
         var window = new ColdTurkeyKeyWindow { DataContext = new ColdTurkeyKeyViewModel(_coldTurkeyKeys, mode) };
         window.Closed += (_, _) => _coldTurkeyKeyWindow = null;
         _coldTurkeyKeyWindow = window;
+        if (quiet)
+        {
+            window.ShowActivated = false;
+            window.Show();
+            FlashTaskbarButton(window);
+            return;
+        }
+
         window.Show();
         window.Activate();
+    }
+
+    private void FlashTaskbarButton(Window window)
+    {
+        if (window.TryGetPlatformHandle() is IPlatformHandle handle)
+        {
+            _windowAttention?.Flash(handle.Handle);
+        }
     }
 
     private void CreateTrayIcon()
@@ -1667,6 +1740,11 @@ public partial class App : Application
 
         _mainWindow.Activate();
 
+        if (_mainWindow.DataContext is MainWindowViewModel { SelectedTab: (int)MainTab.Today })
+        {
+            _beeminder?.RefreshIfStale();
+        }
+
         if (_calendarSync is not null && DateTimeOffset.UtcNow - _lastWindowRefresh >= WindowRefreshInterval)
         {
             _lastWindowRefresh = DateTimeOffset.UtcNow;
@@ -1802,6 +1880,7 @@ public partial class App : Application
         _clockAnchors?.Dispose();
         _unlocks?.Dispose();
         _calendarSync?.Dispose();
+        _beeminder?.Dispose();
         _calendarNetwork?.Dispose();
         _sessions?.Dispose();
         _trayIcon?.Dispose();

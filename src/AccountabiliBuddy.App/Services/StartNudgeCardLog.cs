@@ -16,6 +16,9 @@ public sealed class StartNudgeCardLog
     private readonly SqliteJsonDocumentStore _store;
     private readonly IDataProtector _protector;
 
+    // Adds and prunes run one after another (each reads, then writes the list).
+    private Task _turn = Task.CompletedTask;
+
     public StartNudgeCardLog(SqliteJsonDocumentStore store, IDataProtector protector)
     {
         _store = store;
@@ -23,23 +26,51 @@ public sealed class StartNudgeCardLog
     }
 
     /// <summary>Adds one reason and drops the ones older than <see cref="KeepFor"/>.</summary>
-    public async Task AddAsync(DateTimeOffset at, string reason)
+    public Task AddAsync(DateTimeOffset at, string reason)
     {
-        IReadOnlyList<StartNudgeCardSkip> kept = await LoadAsync();
         var skip = new StartNudgeCardSkip(at, Convert.ToBase64String(_protector.Protect(reason.Trim())));
-        List<StartNudgeCardSkip> next = [.. kept.Where(entry => at - entry.At < KeepFor), skip];
-        await _store.SaveAsync(DocumentKey, next);
+        return InTurnAsync(async () =>
+        {
+            IReadOnlyList<StartNudgeCardSkip> kept = await LoadAsync();
+            List<StartNudgeCardSkip> next = [.. kept.Where(entry => at - entry.At < KeepFor), skip];
+            await _store.SaveAsync(DocumentKey, next);
+        });
     }
 
     /// <summary>Drops the reasons older than <see cref="KeepFor"/>; writes only when something went.</summary>
-    public async Task PruneAsync(DateTimeOffset now)
+    public Task PruneAsync(DateTimeOffset now)
     {
-        IReadOnlyList<StartNudgeCardSkip> kept = await LoadAsync();
-        List<StartNudgeCardSkip> next = kept.Where(entry => now - entry.At < KeepFor).ToList();
-        if (next.Count < kept.Count)
+        return InTurnAsync(async () =>
         {
-            await _store.SaveAsync(DocumentKey, next);
-        }
+            IReadOnlyList<StartNudgeCardSkip> kept = await LoadAsync();
+            List<StartNudgeCardSkip> next = kept.Where(entry => now - entry.At < KeepFor).ToList();
+            if (next.Count < kept.Count)
+            {
+                await _store.SaveAsync(DocumentKey, next);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs one read-and-write after the ones asked for before it, so an add and a prune never write over each
+    /// other; a failed write is let go (best effort: the next add or prune writes again).
+    /// </summary>
+    private Task InTurnAsync(Func<Task> work)
+    {
+        _turn = _turn.ContinueWith(
+            async _ =>
+            {
+                try
+                {
+                    await work();
+                }
+                catch (SqliteException)
+                {
+                    // Best effort, like the reason it would have kept.
+                }
+            },
+            TaskScheduler.Default).Unwrap();
+        return _turn;
     }
 
     private async Task<IReadOnlyList<StartNudgeCardSkip>> LoadAsync()

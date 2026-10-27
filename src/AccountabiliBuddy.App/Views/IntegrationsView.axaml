@@ -71,6 +71,28 @@
                 </StackPanel>
             </Border>
 
+            <!-- Beeminder (ADR 43): read only, with the user's personal auth token. -->
+            <Border Classes="card" DataContext="{Binding Beeminder}" x:DataType="vm:BeeminderViewModel"
+                    IsVisible="{Binding $parent[UserControl].((vm:IntegrationsViewModel)DataContext).Beeminder, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Beeminder" Classes="title" />
+                    <TextBlock Classes="muted"
+                               Text="Shows your Beeminder goals on Today (and on your phone's Today through this PC's sync file): what each needs, safe days and the deadline. Read only: nothing is ever sent to Beeminder. Get your personal auth token at beeminder.com/api/v1/auth_token.json while signed in, and paste the token (the text after &quot;auth_token&quot;) here. It's kept encrypted on this PC." />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBox Text="{Binding TokenText}" PasswordChar="•" Width="320"
+                                 PlaceholderText="{Binding TokenPlaceholder}" />
+                        <Button Content="Save and test" Command="{Binding SaveCommand}" Classes="accent" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasToken}">
+                        <Button Content="Test" Command="{Binding TestCommand}" />
+                        <Button Content="Remove token" Command="{Binding RemoveCommand}" />
+                        <TextBlock Text="{Binding Status}" Classes="muted" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap"
+                               IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+            </Border>
+
             <!-- Other blockers: status only -->
             <Border Classes="card">
                 <StackPanel Spacing="8">

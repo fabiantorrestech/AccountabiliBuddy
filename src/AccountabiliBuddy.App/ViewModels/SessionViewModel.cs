@@ -88,12 +88,18 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>"Come back to": ideas parked with Ctrl+Alt+N or the work-hours gate (set by the app).</summary>
     public ComebacksViewModel? Comebacks { get; set; }
 
+    /// <summary>Timers and alarms on this PC (set by the app); they keep running during a session.</summary>
+    public TimersViewModel? Timers { get; set; }
+
     /// <summary>The shutdown card after the day's last work part (redesign phase 5); null hides it.</summary>
     [ObservableProperty]
     public partial ShutdownCardViewModel? Shutdown { get; set; }
 
     /// <summary>Today's deep work against the daily goal (redesign phase 4); null hides the card.</summary>
     public GoalCardViewModel? Goal { get; set; }
+
+    /// <summary>The user's Beeminder goals (ADR 43, read only); null hides the card, as does having no token.</summary>
+    public BeeminderViewModel? Beeminder { get; set; }
 
     /// <summary>The review card after a session (sites and apps with no rule); null when there's none.</summary>
     [ObservableProperty]

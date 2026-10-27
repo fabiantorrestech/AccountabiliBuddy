@@ -29,8 +29,15 @@ public sealed partial class ColdTurkeyKeyViewModel : ObservableObject
         }
         else if (mode == ColdTurkeyKeyMode.NewKey && _keys.NewKeyTimeLeft is null && _keys.PendingSpareKey is not null)
         {
-            // The new key already came and isn't written down yet.
-            ShowNewKeyIfMade();
+            // The new key already came and isn't written down yet; never shown during a focus session the user started.
+            if (_keys.InFocusSession)
+            {
+                Refusal = "Your new spare key is ready. It shows here after your focus session.";
+            }
+            else
+            {
+                ShowNewKeyIfMade();
+            }
         }
         else if (mode == ColdTurkeyKeyMode.NewKey)
         {
@@ -205,6 +212,12 @@ public sealed partial class ColdTurkeyKeyViewModel : ObservableObject
     private void ShowNewKeyIfMade()
     {
         IsWaiting = false;
+        if (_keys.PendingSpareKey is not null && _keys.InFocusSession)
+        {
+            Refusal = "Your new spare key is ready. It shows here after your focus session.";
+            return;
+        }
+
         if (_keys.PendingSpareKey is string key)
         {
             Mode = ColdTurkeyKeyMode.SpareKey;
@@ -219,6 +232,19 @@ public sealed partial class ColdTurkeyKeyViewModel : ObservableObject
 
     private async Task ShowKeyAsync()
     {
-        Key = _keys.PendingSpareKey ?? await _keys.NewSpareKeyAsync();
+        if (_keys.PendingSpareKey is string pending)
+        {
+            Key = pending;
+            return;
+        }
+
+        // A first key only: replacing a key in use goes through "Get a new spare key" and its wait (ADR 41).
+        if (_keys.HasSpareKey)
+        {
+            Message = "Your spare key is already in use. To replace it, use Get a new spare key (it waits 10 minutes).";
+            return;
+        }
+
+        Key = await _keys.NewSpareKeyAsync();
     }
 }
