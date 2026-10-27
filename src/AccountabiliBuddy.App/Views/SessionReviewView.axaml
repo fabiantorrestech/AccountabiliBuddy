@@ -10,6 +10,7 @@
             <DockPanel><mi:MaterialIcon DockPanel.Dock="Left" Kind="ClipboardCheckOutline" Width="20" Height="20" VerticalAlignment="Center" Opacity="0.85" Margin="0,0,8,0" /><TextBlock Text="{Binding Heading}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" /></DockPanel>
             <TextBlock Text="{Binding PhoneText}" Foreground="#22C55E" TextWrapping="Wrap"
                        IsVisible="{Binding PhoneText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            <TextBlock Text="{Binding OverLimitText}" IsVisible="{Binding HasOverLimit}" Opacity="0.85" />
             <!-- Notes kept during the session (redesign phase 5): shown once, here. -->
             <StackPanel Spacing="2" IsVisible="{Binding HasNotes}">
                 <TextBlock Text="Noted during the session" Opacity="0.8" />

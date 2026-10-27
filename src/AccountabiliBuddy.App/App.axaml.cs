@@ -112,6 +112,7 @@ public partial class App : Application
     private WorkGateWindow? _workGateWindow;
     private StartNudgeCardWindow? _startNudgeCardWindow;
     private AwayCardWindow? _awayCardWindow;
+    private PickTasksWindow? _pickTasksWindow;
     private ReadyCardWindow? _readyCardWindow;
     private PreWorkService? _preWork;
     private PreWorkWindow? _preWorkWindow;
@@ -479,9 +480,12 @@ public partial class App : Application
         _sessionReview = new SessionReviewService(activityLog, _configuration, documents, _sessions, () => exemptionDefaults.PreTicked)
         {
             NotesBetween = _sessionNotes.Between,
+            OverLimitCount = sessionTasks.OverLimitCount,
             PhoneCounting = () => _phonePickups?.IsCounting == true,
         };
         _sessionReview.LoadBlocking();
+        // More than 3 tasks when a real session starts: pick 3, the rest are parked (no way to skip).
+        sessionTasks.PickRequired += (_, _) => Dispatcher.UIThread.Post(() => ShowPickTasks(sessionTasks, monitorLocator));
         // ADR 25: every task ticked: offer to end the session now (when it may), else just say so.
         sessionTasks.AllDoneReached += (_, _) =>
         {
@@ -1469,6 +1473,45 @@ public partial class App : Application
         UpdateTray();
     }
 
+    /// <summary>
+    /// Shows the "Pick 3 for this session" window when a real session holds more tasks than it may (carried-over extras).
+    /// It can't be skipped; it closes when answered or when the session ends.
+    /// </summary>
+    private void ShowPickTasks(SessionTasksService tasks, IMonitorLocator monitors)
+    {
+        if (_pickTasksWindow is not null || !tasks.NeedsPick)
+        {
+            return;
+        }
+
+        var card = new PickTasksViewModel(tasks);
+        var window = new PickTasksWindow { DataContext = card };
+        EventHandler<SessionState> onState = (_, state) =>
+        {
+            if (!state.IsRealSession)
+            {
+                Dispatcher.UIThread.Post(card.Dismiss); // The session ended first: nothing is parked.
+            }
+        };
+        _sessions!.StateChanged += onState;
+        card.Finished += (_, _) =>
+        {
+            _sessions.StateChanged -= onState;
+            _pickTasksWindow = null;
+            window.Close();
+            ShowReadyCard(monitors); // Planning's "Ready?" card waited for this.
+        };
+        if (monitors.Find(monitors.FindMonitorUnderCursor()) is MonitorArea area)
+        {
+            MonitorPlacement.Center(window, area);
+        }
+
+        _pickTasksWindow = window;
+        ShowReadyCard(monitors); // Pick comes first: an already-open "Ready?" card closes until it is answered.
+        window.Show();
+        window.Activate();
+    }
+
     /// <summary>Shows or closes the Pre-Work window (ADR 31) as the service opens or closes it.</summary>
     private void ShowPreWork(IMonitorLocator monitors)
     {
@@ -1636,7 +1679,8 @@ public partial class App : Application
     /// </summary>
     private void ShowReadyCard(IMonitorLocator monitors)
     {
-        ReadyCardViewModel? card = _stepAway?.Card is not null ? null : _planFirst?.Card;
+        // Not while the "Pick 3" prompt is up: it comes first.
+        ReadyCardViewModel? card = _stepAway?.Card is not null || _pickTasksWindow is not null ? null : _planFirst?.Card;
         if (card is null)
         {
             ReadyCardWindow? open = _readyCardWindow;

@@ -258,6 +258,21 @@
             </Button>
         </Grid>
 
+        <!-- A 4th task: park it, or add it anyway with a reason (3 tasks per session). -->
+        <Border IsVisible="{Binding IsOverLimitPrompt}" BorderBrush="#40808080" BorderThickness="1" CornerRadius="6" Padding="8,6">
+            <StackPanel Spacing="6">
+                <TextBlock Text="{Binding OverLimitText}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                <TextBox Text="{Binding OverLimitReason}" PlaceholderText="Or add it anyway: why? (10+ characters, stays on this PC)" />
+                <TextBlock Text="{Binding OverLimitError}" Foreground="#E5484D" TextWrapping="Wrap"
+                           IsVisible="{Binding OverLimitError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Classes="small" Content="Park it" Command="{Binding ParkHeldTaskCommand}" />
+                    <Button Classes="small" Content="Add anyway" Command="{Binding AddHeldTaskAnywayCommand}" />
+                    <Button Classes="small" Content="Cancel" Command="{Binding CancelHeldTaskCommand}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
         <!-- The categories panel: add, rename (Enter or click away), recolour (8 colours) and delete. -->
         <Border IsVisible="{Binding IsManagingCategories}" BorderBrush="#40808080" BorderThickness="1" CornerRadius="6" Padding="8,6">
             <StackPanel Spacing="4">

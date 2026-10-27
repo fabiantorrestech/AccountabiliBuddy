@@ -46,6 +46,9 @@ public sealed class SessionReviewService : IDisposable
     /// <summary>The notes kept between two times (redesign phase 5), shown on the session's card; null: none.</summary>
     public Func<DateTimeOffset, DateTimeOffset, IReadOnlyList<string>>? NotesBetween { get; init; }
 
+    /// <summary>How many tasks past the 3-task limit the session that started at the time got; shown on its card as "Over 3 tasks: N".</summary>
+    public Func<DateTimeOffset, int>? OverLimitCount { get; init; }
+
     /// <summary>True when a phone counts pickups (ADR 26): then a card comes after every session, for the phone's line.</summary>
     public Func<bool>? PhoneCounting { get; init; }
 
@@ -136,13 +139,15 @@ public sealed class SessionReviewService : IDisposable
         List<PromoteRowViewModel> promotions = await PromotionsAsync(end);
         IReadOnlyList<string> notes = NotesBetween?.Invoke(start, end) ?? [];
         bool phone = PhoneCounting?.Invoke() == true;
+        int overLimit = OverLimitCount?.Invoke(start) ?? 0;
         string heading = rows.Count > 0 || promotions.Count > 0 ? "Last session: what had no rule"
             : notes.Count > 0 ? "Last session: your notes"
             : "Last session";
-        SetPending(rows.Count == 0 && promotions.Count == 0 && notes.Count == 0 && !phone ? null
+        SetPending(rows.Count == 0 && promotions.Count == 0 && notes.Count == 0 && !phone && overLimit == 0 ? null
             : new SessionReviewViewModel(heading, rows, profileId, null, card => ApplyAsync(card, closesPending: true), promotions, notes)
             {
                 SessionStart = start,
+                OverLimitCount = overLimit,
             });
     }
 

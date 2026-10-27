@@ -42,11 +42,53 @@ public sealed partial class ComebackRowViewModel : ObservableObject
         return _store.TickAsync(_comeback.Id);
     }
 
-    /// <summary>It becomes a task at the end of the checklist and leaves the come-backs (ticked).</summary>
+    /// <summary>Asking why the 4th task is added anyway (a come-back is already parked, so there is no park choice).</summary>
+    [ObservableProperty]
+    public partial bool IsAskingOverLimit { get; set; }
+
+    [ObservableProperty]
+    public partial string OverLimitReason { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string? OverLimitError { get; set; }
+
+    /// <summary>It becomes a task at the end of the checklist and leaves the come-backs (ticked); past 3 tasks it asks for a reason first.</summary>
     [RelayCommand]
-    private Task AddToTasksAsync()
+    private async Task AddToTasksAsync()
     {
-        return _tasks?.AddFromComebackAsync(_comeback.Id) ?? Task.CompletedTask;
+        if (_tasks is null)
+        {
+            return;
+        }
+
+        if (_tasks.IsAtTaskLimit)
+        {
+            OverLimitError = null;
+            IsAskingOverLimit = true;
+            return;
+        }
+
+        await _tasks.AddFromComebackAsync(_comeback.Id);
+    }
+
+    /// <summary>"Add anyway" past the limit: needs the reason.</summary>
+    [RelayCommand]
+    private async Task ConfirmOverLimitAsync()
+    {
+        if (_tasks is null || !await _tasks.AddFromComebackAsync(_comeback.Id, OverLimitReason))
+        {
+            OverLimitError = $"Write why, at least {SessionTasksService.MinOverLimitReasonLength} characters.";
+            return;
+        }
+
+        IsAskingOverLimit = false;
+    }
+
+    [RelayCommand]
+    private void CancelOverLimit()
+    {
+        IsAskingOverLimit = false;
+        OverLimitReason = string.Empty;
     }
 
     [RelayCommand]

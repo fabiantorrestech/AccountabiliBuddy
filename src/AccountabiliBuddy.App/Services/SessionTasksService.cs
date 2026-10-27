@@ -17,9 +17,16 @@ public sealed class SessionTasksService : IDisposable
 {
     public const string AllDoneReason = "All tasks done";
 
+    /// <summary>Tasks per session (done ones count, subtasks don't); a test session has no limit.</summary>
+    public const int MaxTasks = 3;
+
+    /// <summary>The shortest reason for adding a task over the limit.</summary>
+    public const int MinOverLimitReasonLength = 10;
+
     private const string DocumentKey = "session.tasks";
     private const string HistoryKey = "session.taskHistory";
     private const string CategoriesKey = "session.categories";
+    private const string OverLimitKey = "session.overLimit";
     private static readonly TimeSpan HistoryKept = TimeSpan.FromDays(90);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -30,6 +37,7 @@ public sealed class SessionTasksService : IDisposable
     private bool _wasActive;
     private List<SessionChecklist> _history = [];
     private IReadOnlyList<TaskCategory> _categories = [];
+    private List<OverLimitEntry> _overLimit = [];
 
     public SessionTasksService(SqliteJsonDocumentStore store, IDataProtector protector, SessionController sessions, TimeProvider time)
     {
@@ -67,6 +75,42 @@ public sealed class SessionTasksService : IDisposable
     /// <summary>The running session's last open task was ticked.</summary>
     public event EventHandler? AllDoneReached;
 
+    /// <summary>
+    /// Raised when a real session runs with more than <see cref="MaxTasks"/> tasks (carried over, or a session started
+    /// from the phone or watch): the PC shows "Pick 3 for this session".
+    /// </summary>
+    public event EventHandler? PickRequired;
+
+    /// <summary>
+    /// Tasks this session may hold: <see cref="MaxTasks"/> plus the "Add anyway" adds approved for it (those carry a
+    /// reason and stay; only carried-over extras are picked down).
+    /// </summary>
+    public int TaskAllowance => MaxTasks + (Current.SessionStart is DateTimeOffset start ? OverLimitCount(start) : 0);
+
+    /// <summary>A real session runs with more tasks (open and done) than <see cref="TaskAllowance"/>, and the user has not picked yet.</summary>
+    public bool NeedsPick => IsLive && _sessions.State.IsRealSession && Current.Tasks.Count > TaskAllowance;
+
+    /// <summary>The open tasks the pick prompt lists, in list order (done ones are never parked).</summary>
+    public IReadOnlyList<SessionTask> PickCandidates => Current.Tasks.Where(task => !task.IsDone).ToList();
+
+    /// <summary>How many of the <see cref="PickCandidates"/> may stay: the allowance less the done tasks.</summary>
+    public int PickKeepCount => Math.Max(0, TaskAllowance - Current.Tasks.Count(task => task.IsDone));
+
+    /// <summary>
+    /// Parks the tasks of <paramref name="shown"/> (the rows the prompt listed) that are not in <paramref name="keep"/>,
+    /// when they are still open. Done tasks and tasks added after the prompt opened are left alone.
+    /// </summary>
+    public async Task KeepOnlyAsync(IReadOnlySet<Guid> keep, IReadOnlyCollection<Guid> shown)
+    {
+        foreach (Guid id in shown.Where(id => !keep.Contains(id)))
+        {
+            if (Current.Tasks.Any(task => task.Id == id && !task.IsDone))
+            {
+                await ParkAsync(id);
+            }
+        }
+    }
+
     public void LoadBlocking()
     {
         try
@@ -78,6 +122,8 @@ public sealed class SessionTasksService : IDisposable
             _history = (history ?? []).Select(item => Open(item.Data)).OfType<SessionChecklist>().ToList();
             StoredCategories? categories = Task.Run(() => _store.LoadAsync<StoredCategories>(CategoriesKey)).GetAwaiter().GetResult();
             _categories = OpenCategories(categories?.Data) ?? [];
+            StoredCategories? overLimit = Task.Run(() => _store.LoadAsync<StoredCategories>(OverLimitKey)).GetAwaiter().GetResult();
+            _overLimit = OpenOverLimit(overLimit?.Data) ?? [];
         }
         catch (Exception ex) when (ex is SqliteException or JsonException)
         {
@@ -89,6 +135,11 @@ public sealed class SessionTasksService : IDisposable
     public Task AfterStartupAsync()
     {
         _wasActive = _sessions.State.IsActive;
+        if (NeedsPick)
+        {
+            PickRequired?.Invoke(this, EventArgs.Empty); // A restart before the pick: it asks again.
+        }
+
         return Current.SessionStart is not null && !_sessions.State.IsActive ? ArchiveAsync() : Task.CompletedTask;
     }
 
@@ -96,6 +147,54 @@ public sealed class SessionTasksService : IDisposable
     public Task AddAsync(string title, Guid? parentId, Guid? categoryId = null)
     {
         return SetAsync(Current.Add(title, parentId, categoryId));
+    }
+
+    /// <summary>True when the next task would be a 4th: the caller asks to park it or for a reason (never in a test session).</summary>
+    public bool IsAtTaskLimit => !_sessions.State.IsTest && Current.Tasks.Count >= MaxTasks;
+
+    /// <summary>Parks <paramref name="title"/> as a come-back instead of adding it.</summary>
+    public async Task ParkTitleAsync(string title)
+    {
+        if (Comebacks is not null && title.Trim().Length > 0)
+        {
+            await Comebacks.AddAsync(title.Trim());
+        }
+    }
+
+    /// <summary>
+    /// Adds a task over the limit. The reason (at least <see cref="MinOverLimitReasonLength"/> characters, false when
+    /// shorter) is kept sealed on this PC only, and the add is counted for the session review.
+    /// </summary>
+    public async Task<bool> AddOverLimitAsync(string title, Guid? categoryId, string reason)
+    {
+        if (!await RecordOverLimitAsync(reason))
+        {
+            return false;
+        }
+
+        await AddAsync(title, null, categoryId);
+        return true;
+    }
+
+    private async Task<bool> RecordOverLimitAsync(string reason)
+    {
+        string trimmed = reason.Trim();
+        if (trimmed.Length < MinOverLimitReasonLength)
+        {
+            return false;
+        }
+
+        DateTimeOffset now = _time.GetUtcNow();
+        DateTimeOffset cutoff = now - HistoryKept;
+        _overLimit = [.. _overLimit.Where(entry => entry.At >= cutoff), new OverLimitEntry(Current.SessionStart, now, trimmed)];
+        await SaveOverLimitAsync();
+        return true;
+    }
+
+    /// <summary>How many tasks past the limit the session that started at <paramref name="start"/> got (within a few seconds of the stamp).</summary>
+    public int OverLimitCount(DateTimeOffset start)
+    {
+        return _overLimit.Count(entry => entry.SessionStart is DateTimeOffset started && (started - start).Duration() <= TimeSpan.FromSeconds(5));
     }
 
     /// <summary>
@@ -198,16 +297,26 @@ public sealed class SessionTasksService : IDisposable
         await SetAsync(Current.Parked(taskId));
     }
 
-    /// <summary>A come-back becomes a task at the end of the checklist (no category) and is ticked off the come-backs.</summary>
-    public async Task AddFromComebackAsync(Guid comebackId)
+    /// <summary>
+    /// A come-back becomes a task at the end of the checklist (no category) and is ticked off the come-backs. Past the
+    /// limit it needs an <paramref name="overLimitReason"/> (<see cref="MinOverLimitReasonLength"/> characters, counted
+    /// like "Add anyway"); false when it was not added.
+    /// </summary>
+    public async Task<bool> AddFromComebackAsync(Guid comebackId, string? overLimitReason = null)
     {
         if (Comebacks?.Open.FirstOrDefault(comeback => comeback.Id == comebackId) is not Comeback comeback)
         {
-            return;
+            return false;
+        }
+
+        if (IsAtTaskLimit && !await RecordOverLimitAsync(overLimitReason ?? string.Empty))
+        {
+            return false;
         }
 
         await AddAsync(comeback.Text, null);
         await Comebacks.TickAsync(comebackId);
+        return true;
     }
 
     public async Task ToggleAsync(Guid id)
@@ -293,7 +402,31 @@ public sealed class SessionTasksService : IDisposable
             return;
         }
 
-        _ = active ? SetAsync(Current.Started(state.PhaseStartedAt ?? _time.GetUtcNow())) : ArchiveAsync();
+        if (active)
+        {
+            DateTimeOffset start = state.PhaseStartedAt ?? _time.GetUtcNow();
+            // Over-limit adds made on the draft belong to the session that now starts.
+            if (_overLimit.Any(entry => entry.SessionStart is null))
+            {
+                _overLimit = _overLimit.Select(entry => entry.SessionStart is null ? entry with { SessionStart = start } : entry).ToList();
+                _ = SaveOverLimitAsync();
+            }
+
+            _ = StartChecklistAsync(start);
+        }
+        else
+        {
+            _ = ArchiveAsync();
+        }
+    }
+
+    private async Task StartChecklistAsync(DateTimeOffset start)
+    {
+        await SetAsync(Current.Started(start));
+        if (NeedsPick)
+        {
+            PickRequired?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>
@@ -379,6 +512,30 @@ public sealed class SessionTasksService : IDisposable
         }
     }
 
+    private Task SaveOverLimitAsync()
+    {
+        string data = Convert.ToBase64String(_protector.Protect(JsonSerializer.Serialize(_overLimit, JsonOptions)));
+        return _store.SaveAsync(OverLimitKey, new StoredCategories(data));
+    }
+
+    private List<OverLimitEntry>? OpenOverLimit(string? data)
+    {
+        if (string.IsNullOrEmpty(data))
+        {
+            return null;
+        }
+
+        try
+        {
+            string? json = _protector.Unprotect(Convert.FromBase64String(data));
+            return json is null ? null : JsonSerializer.Deserialize<List<OverLimitEntry>>(json, JsonOptions);
+        }
+        catch (Exception ex) when (ex is FormatException or JsonException)
+        {
+            return null;
+        }
+    }
+
     private string Seal(SessionChecklist checklist)
     {
         return Convert.ToBase64String(_protector.Protect(JsonSerializer.Serialize(checklist, JsonOptions)));
@@ -407,4 +564,7 @@ public sealed class SessionTasksService : IDisposable
     private sealed record StoredHistory(string Data);
 
     private sealed record StoredCategories(string Data);
+
+    // A task added past the limit: the session it belongs to (null while still on the draft), when, and the typed reason.
+    private sealed record OverLimitEntry(DateTimeOffset? SessionStart, DateTimeOffset At, string Reason);
 }

@@ -1,0 +1,29 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.PickTasksWindow"
+        x:DataType="vm:PickTasksViewModel"
+        Title="Pick tasks for this session"
+        Width="460" SizeToContent="Height" MaxHeight="640"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="True"
+        WindowStartupLocation="Manual">
+    <!-- A session started with more than 3 tasks: keep 3, the rest become come-backs. No Cancel. -->
+    <Border Padding="24,20" Background="#FF15191E" BorderBrush="#AA2A9D8F" BorderThickness="2" CornerRadius="10">
+        <StackPanel Spacing="12">
+            <TextBlock Text="{Binding Heading}" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock Text="Keep it to the limit. Tick the ones for this session; the rest go to Come back to." Opacity="0.85" TextWrapping="Wrap" />
+            <ScrollViewer MaxHeight="320">
+                <ItemsControl ItemsSource="{Binding Rows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:PickTaskRowViewModel">
+                            <CheckBox IsChecked="{Binding IsPicked}" Content="{Binding Title}" Margin="0,2" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+            <TextBlock Text="{Binding Status}" Opacity="0.85" TextWrapping="Wrap" />
+            <Button Content="Keep these" Command="{Binding KeepCommand}" Classes="accent" HorizontalAlignment="Left" />
+        </StackPanel>
+    </Border>
+</Window>

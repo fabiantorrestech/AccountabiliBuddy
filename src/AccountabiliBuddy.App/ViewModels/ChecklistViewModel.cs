@@ -22,6 +22,10 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     private readonly TimeProvider _time;
     private IReadOnlyList<TaskCategory>? _shownCategories;
 
+    // The 4th task waiting on the "Keep it to 3" prompt.
+    private string _heldTitle = string.Empty;
+    private Guid? _heldCategoryId;
+
     // The category the "Add a task" box puts new tasks in (null: none); kept until changed or the category is deleted.
     private Guid? _newTaskCategoryId;
 
@@ -129,6 +133,25 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string NewTaskTitle { get; set; }
 
+    /// <summary>The "Keep it to 3: park this for later?" prompt is open.</summary>
+    [ObservableProperty]
+    public partial bool IsOverLimitPrompt { get; set; }
+
+    /// <summary>The prompt's title line: the held task.</summary>
+    public string OverLimitText => $"Keep it to {SessionTasksService.MaxTasks}: park \"{_heldTitle}\" for later?";
+
+    /// <summary>Why the 4th task is added anyway.</summary>
+    [ObservableProperty]
+    public partial string OverLimitReason { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string? OverLimitError { get; set; }
+
+    partial void OnIsOverLimitPromptChanged(bool value)
+    {
+        OnPropertyChanged(nameof(OverLimitText));
+    }
+
     public bool NotifyAllDone
     {
         get => _tasks.NotifyAllDone;
@@ -174,8 +197,62 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     private async Task AddTaskAsync()
     {
         string title = NewTaskTitle;
+        if (title.Trim().Length == 0 || IsOverLimitPrompt)
+        {
+            return;
+        }
+
+        if (_tasks.IsAtTaskLimit)
+        {
+            // A 4th task: hold it and ask (park it, or add it anyway with a reason).
+            _heldTitle = title;
+            _heldCategoryId = _newTaskCategoryId;
+            NewTaskTitle = string.Empty;
+            OverLimitReason = string.Empty;
+            OverLimitError = null;
+            IsOverLimitPrompt = true;
+            return;
+        }
+
         NewTaskTitle = string.Empty;
         await _tasks.AddAsync(title, null, _newTaskCategoryId);
+    }
+
+    /// <summary>"Keep it to 3": the held task goes to Come back to.</summary>
+    [RelayCommand]
+    private async Task ParkHeldTaskAsync()
+    {
+        string title = _heldTitle;
+        CloseOverLimitPrompt();
+        await _tasks.ParkTitleAsync(title);
+    }
+
+    /// <summary>"Add anyway": needs a reason of at least 10 characters; it stays on this PC and is counted for the review.</summary>
+    [RelayCommand]
+    private async Task AddHeldTaskAnywayAsync()
+    {
+        if (!await _tasks.AddOverLimitAsync(_heldTitle, _heldCategoryId, OverLimitReason))
+        {
+            OverLimitError = $"Write why, at least {SessionTasksService.MinOverLimitReasonLength} characters.";
+            return;
+        }
+
+        CloseOverLimitPrompt();
+    }
+
+    /// <summary>Drops the held task without adding or parking it.</summary>
+    [RelayCommand]
+    private void CancelHeldTask()
+    {
+        CloseOverLimitPrompt();
+    }
+
+    private void CloseOverLimitPrompt()
+    {
+        IsOverLimitPrompt = false;
+        OverLimitReason = string.Empty;
+        OverLimitError = null;
+        _heldTitle = string.Empty;
     }
 
     [RelayCommand]
