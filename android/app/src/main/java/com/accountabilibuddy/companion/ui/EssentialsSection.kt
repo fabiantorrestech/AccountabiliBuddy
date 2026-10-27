@@ -99,6 +99,12 @@ internal fun EssentialsSection(kind: EssentialsKind = EssentialsKind.Focus, star
         if (night) {
             TextButton(onClick = { store.update { app.essentials.essentials.value } }) { Text("Replace with a copy of my focus essentials") }
         }
+        if (!night && !reader.hasAccess()) {
+            Text(
+                "Grant Usage access so Essentials knows when you leave an essential app.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
+            )
+        }
         ToggleRow("App icons", "Icons next to the names on the essentials screen", icons) { store.showIcons = it; icons = it }
         // What a session will look like, for one minute: LockMyPhone-Extended's real lock with the chosen profile when
         // it's used (that's the lock a session gets), else this app's essentials screen (it closes by itself).

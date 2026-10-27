@@ -42,6 +42,8 @@ object Takeover {
         val store = NudgeStore(context)
         val state = store.load()
         val stretch = WorkStart.current(focus, now)
+        // No work stretch without a session (one started or the stretch ended): a card left behind is not owed any more.
+        if (stretch == null && state.unanswered) store.save(state.copy(unanswered = false))
         val app = context.applicationContext as CompanionApp
         // Emergency time, or unlocked into an always-allowed app (a call, a text, directions): no card.
         val inFront = com.accountabilibuddy.companion.usage.PhoneUsageReader(context).foregroundApp(now)
