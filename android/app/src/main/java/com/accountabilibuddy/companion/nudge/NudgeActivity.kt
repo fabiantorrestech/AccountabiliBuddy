@@ -41,6 +41,29 @@ import java.time.ZoneId
  * "Not working today" waits 10 minutes, then no more nudges today on the phone. Back does nothing: one of them it is.
  */
 class NudgeActivity : ComponentActivity() {
+    // Lunch (from any device) is a break: an open card closes, as the PC's does.
+    private val lunchCheck: Runnable = object : Runnable {
+        override fun run() {
+            if ((application as com.accountabilibuddy.companion.CompanionApp).lunch.isOnLunch(java.time.Instant.now())) {
+                finish()
+                return
+            }
+
+            window.decorView.removeCallbacks(this)
+            window.decorView.postDelayed(this, 5_000L)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        lunchCheck.run()
+    }
+
+    override fun onPause() {
+        window.decorView.removeCallbacks(lunchCheck)
+        super.onPause()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {

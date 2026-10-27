@@ -43,7 +43,9 @@ object WorkStartNudge {
             return
         }
 
-        if (focus.running != null) {
+        // A session runs, or lunch (from any device): no nudge, as on the PC.
+        val onLunch = (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.isOnLunch(now)
+        if (focus.running != null || onLunch) {
             NotificationManagerCompat.from(context).cancel(ID)
             return
         }

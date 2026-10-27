@@ -38,8 +38,10 @@ object EssentialsLaunch {
     /** The phone was just unlocked. */
     fun onUnlock(context: Context, now: Instant = Instant.now()) {
         val app = context.applicationContext as CompanionApp
-        val session = runningSessionStart(app, now) != null
-        val night = if (session) null else BedtimeNight.current(app)
+        // Lunch is a break from the session: no essentials screen (and no lock) until it ends.
+        val onLunch = app.lunch.isOnLunch(now)
+        val session = runningSessionStart(app, now) != null && !onLunch
+        val night = if (runningSessionStart(app, now) != null) null else BedtimeNight.current(app)
         if (night != null) maybeStartBedtimeHardcore(context, now)
         val kind = when {
             // A work use ("Need it for work") lets the phone be unlocked and used for its minutes.
