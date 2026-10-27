@@ -813,6 +813,11 @@ public sealed class SyncCoordinator
             methods.Add(SyncDeviceCard.MethodDrive);
         }
 
+        if (settings.RelayOn)
+        {
+            methods.Add(SyncDeviceCard.MethodRelay);
+        }
+
         return methods;
     }
 

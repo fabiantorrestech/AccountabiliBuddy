@@ -119,6 +119,34 @@
                         <Button Content="Sign in…" Command="{Binding SignInDriveCommand}" IsVisible="{Binding !DriveSignedIn}" />
                         <Button Content="Sign out" Command="{Binding SignOutDriveCommand}" IsVisible="{Binding DriveSignedIn}" />
                     </StackPanel>
+                    <CheckBox IsChecked="{Binding RelayOn}" Content="Own relay: sync through a small relay you run (changes arrive in about a second)" />
+                    <StackPanel Spacing="6" Margin="28,0,0,0">
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                            <TextBox Text="{Binding RelayUrlText}" PlaceholderText="Relay address, e.g. https://192.168.1.20:8743" />
+                            <TextBox Grid.Column="1" Text="{Binding RelayPinText}"
+                                     PlaceholderText="Pin (empty if the relay has a normal certificate)" />
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Save address" Command="{Binding SaveRelayCommand}" />
+                            <Button Content="Test connection" Command="{Binding TestRelayCommand}" />
+                            <TextBlock Text="{Binding RelayStatusText}" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="460"
+                                       IsVisible="{Binding RelayStatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding RelayTestText}" TextWrapping="Wrap" MaxWidth="560"
+                                   IsVisible="{Binding RelayTestText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        <!-- The short steps for running the relay; the full guide ships with the app. -->
+                        <Expander Header="Run your own relay" HorizontalAlignment="Stretch">
+                            <StackPanel Spacing="6">
+                                <TextBlock TextWrapping="Wrap" Text="1. Run the relay program (AccountabiliBuddy.Relay) on a computer that stays on: your home PC or server, a Raspberry Pi, a Docker container or a rented server. On its first start it prints a line like &quot;relay address: https://192.168.1.20:8743   pin: …&quot;." />
+                                <TextBlock TextWrapping="Wrap" Text="2. Type that address and pin above, tick Own relay, and press Test connection." />
+                                <TextBlock TextWrapping="Wrap" Text="3. Link the phone: Devices → Link a device shows a QR code that carries the address and pin, so scanning it sets the relay up there too." />
+                                <TextBlock TextWrapping="Wrap" Text="4. Away from home, reach the relay through a VPN such as Tailscale, or put it behind a reverse proxy with a real certificate (then leave the pin empty). Never forward the relay's port on a home router without that." />
+                                <TextBlock Classes="muted" TextWrapping="Wrap"
+                                           Text="The relay stores only sealed bytes. The key never leaves your devices, and the connection is HTTPS with the relay's certificate checked. The full guide has every setup, step by step." />
+                                <Button Content="Open the full guide" Click="OnOpenSelfHostedGuide" HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
                     <CheckBox IsChecked="{Binding FolderOn}" Content="Sync folder: write and read sync files in a folder (e.g. inside Google Drive)" />
                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,0,0,0">
                         <TextBlock Text="{Binding FolderPath, TargetNullValue=No folder chosen}" Classes="muted" VerticalAlignment="Center" MaxWidth="360" TextTrimming="CharacterEllipsis" />

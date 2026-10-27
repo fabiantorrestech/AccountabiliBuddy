@@ -81,8 +81,8 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
 
     private fun isOn(): Boolean = sync.settings.value.let { it.folderOn && it.folderUri != null } && sync.isJoined
 
-    // The background work also runs Drive's 15-minute sync (ADR 26).
-    private fun backgroundOn(): Boolean = (isOn() || sync.settings.value.driveOn) && sync.isJoined
+    // The background work also runs Drive's (ADR 26) and the relay's (ADR 46) 15-minute sync.
+    private fun backgroundOn(): Boolean = (isOn() || sync.settings.value.driveOn || sync.settings.value.relayOn) && sync.isJoined
 
     // True when a file couldn't be read (another group's, or damaged).
     private fun read(tree: Uri, ownName: String): Boolean {

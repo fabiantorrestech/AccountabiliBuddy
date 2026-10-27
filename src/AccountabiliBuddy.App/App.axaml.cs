@@ -86,6 +86,7 @@ public partial class App : Application
     private Window? _coldTurkeyKeyWindow;
     private AccountabiliBuddy.App.Services.Sync.SyncFolderService? _syncFolder;
     private AccountabiliBuddy.App.Services.Sync.SyncDriveService? _syncDrive;
+    private AccountabiliBuddy.App.Services.Sync.SyncRelayService? _syncRelay;
     private AccountabiliBuddy.App.Services.Sync.QrSyncService? _qrSync;
     private NamedPipeBrowserSource? _browserSource;
     private Win32GlobalHotkey? _hotkey;
@@ -591,8 +592,13 @@ public partial class App : Application
         {
             syncCoordinator.NotifyHistoryChanged();
             _syncDrive?.UpdatePollInterval();
+            _syncRelay?.UpdatePollInterval();
         };
-        syncActions.Changed += (_, _) => _syncDrive?.UpdatePollInterval();
+        syncActions.Changed += (_, _) =>
+        {
+            _syncDrive?.UpdatePollInterval();
+            _syncRelay?.UpdatePollInterval();
+        };
         syncCoordinator.Acks = () => syncActions.Acks;
         // ADR 42: the answers, the end-early offer and the running session's task and profiles, for the phone.
         syncCoordinator.ActionResults = () => syncActions.Results;
@@ -684,6 +690,13 @@ public partial class App : Application
             },
         };
         driveAccount.Changed += (_, _) => _syncDrive.Restart();
+        // The own relay (ADR 46): sealed files over the user's HTTPS relay, pushed in about a second, through CalendarNetwork.
+        _syncRelay = new AccountabiliBuddy.App.Services.Sync.SyncRelayService(
+            syncCoordinator, syncSettings, syncIdentity, receivedDevices, _sessions, _calendarNetwork)
+        {
+            NoiseBusy = _syncDrive.NoiseBusy,
+            InWorkHours = _syncDrive.InWorkHours,
+        };
 
         var setupViewModel = new SetupViewModel(
             startupRegistrar,
@@ -959,6 +972,7 @@ public partial class App : Application
 
             await Step("sync folder", _syncFolder is null ? null : async () => { await _syncFolder.WriteNowAsync(); await _syncFolder.ReadNowAsync(); });
             await Step("Google Drive", _syncDrive is null ? null : async () => { await _syncDrive.WriteNowAsync(); await _syncDrive.ReadNowAsync(); });
+            await Step("own relay", _syncRelay is null ? null : async () => { await _syncRelay.WriteNowAsync(); await _syncRelay.ReadNowAsync(); });
             await Step("calendars", _calendarSync is null ? null : _calendarSync.RefreshAllAsync);
             _dayBar?.ReloadHistory();
             await mainViewModel.History.RefreshCommand.ExecuteAsync(null);
@@ -1015,10 +1029,11 @@ public partial class App : Application
 
         // The migration assistant: features added since the last version that aren't set up yet.
         var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
-            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!), BackupService.AppVersion);
+            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings), BackupService.AppVersion);
         setupFeatures.LoadBlocking();
         _setupFeatures = setupFeatures;
         coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();
+        syncSettings.Changed += (_, _) => setupFeatures.Refresh();
         _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
         sessionViewModel.WhatsNew = new WhatsNewCardViewModel(setupFeatures, ShowWhatsNew);
         mainViewModel.Settings.Updates.OpenWhatsNew = ShowWhatsNew;
@@ -1057,11 +1072,13 @@ public partial class App : Application
         devices.ShowSyncQr = ShowSyncQr;
         devices.Import = syncImport;
         devices.DriveAccount = driveAccount;
+        devices.Relay = _syncRelay;
         devices.OpenBrowser = OpenInBrowser;
         devices.SyncNow = async () =>
         {
             await _syncFolder!.WriteNowAsync();
             await _syncDrive!.WriteNowAsync();
+            await _syncRelay!.WriteNowAsync();
             // Seals this PC's file again.
             syncCoordinator.NotifyHistoryChanged();
         };
@@ -1149,6 +1166,7 @@ public partial class App : Application
         syncCoordinator.ClashRaised += (_, request) => ShowDayPlanClash(syncCoordinator, request, presenter, time);
         _syncFolder.Start();
         _syncDrive.Start();
+        _syncRelay.Start();
         _qrSync?.Start();
         _activityWatcher.ActivityChanged += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(_sessionOverlay.OnActivityChanged);
         _dayBar.Start();
@@ -2000,6 +2018,7 @@ public partial class App : Application
         _coldTurkeyKeys?.Dispose();
         _syncFolder?.Dispose();
         _syncDrive?.Dispose();
+        _syncRelay?.Dispose();
         _qrSync?.Dispose();
         _clockAnchors?.Dispose();
         _unlocks?.Dispose();

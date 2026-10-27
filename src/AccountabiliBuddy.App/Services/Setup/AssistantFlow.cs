@@ -38,6 +38,7 @@ public static class AssistantFlow
 
         return Enum.GetValues<AssistantStep>()
             .Where(step => step != AssistantStep.Goal)
+            .Where(step => step != AssistantStep.OwnRelay)
             .Where(step => step != AssistantStep.Usage || hasUsage)
             .Where(step => step != AssistantStep.LinkFirst || hasIdentity)
             .Where(step => step != AssistantStep.ComputerType || hasTypes)

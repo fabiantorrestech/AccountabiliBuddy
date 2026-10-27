@@ -48,6 +48,7 @@ fun WhatsNewScreen(onConnectCurbox: () -> Unit, onReenableTime: (Boolean, java.t
                 SetupFeatures.CURBOX -> CurboxSetupPage(onConnectCurbox, onReenableTime)
                 SetupFeatures.BEDTIME -> BedtimeSetupPage()
                 SetupFeatures.PLACEMENT -> PlacementSetupPage()
+                SetupFeatures.RELAY -> RelaySetupPage()
             }
         }
         Button(onClick = {
