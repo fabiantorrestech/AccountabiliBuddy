@@ -3,7 +3,7 @@
         xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
         x:Class="AccountabiliBuddy.App.Views.PickTasksWindow"
         x:DataType="vm:PickTasksViewModel"
-        Title="Pick 3 for this session"
+        Title="Pick tasks for this session"
         Width="460" SizeToContent="Height" MaxHeight="640"
         WindowDecorations="None" CanResize="False"
         Topmost="True" ShowInTaskbar="True"
@@ -12,7 +12,7 @@
     <Border Padding="24,20" Background="#FF15191E" BorderBrush="#AA2A9D8F" BorderThickness="2" CornerRadius="10">
         <StackPanel Spacing="12">
             <TextBlock Text="{Binding Heading}" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" />
-            <TextBlock Text="Keep it to 3. Tick the ones for this session; the rest go to Come back to." Opacity="0.85" TextWrapping="Wrap" />
+            <TextBlock Text="Keep it to the limit. Tick the ones for this session; the rest go to Come back to." Opacity="0.85" TextWrapping="Wrap" />
             <ScrollViewer MaxHeight="320">
                 <ItemsControl ItemsSource="{Binding Rows}">
                     <ItemsControl.ItemTemplate>

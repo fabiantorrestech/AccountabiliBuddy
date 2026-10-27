@@ -1473,7 +1473,10 @@ public partial class App : Application
         UpdateTray();
     }
 
-    /// <summary>Shows or closes the Pre-Work window (ADR 31) as the service opens or closes it.</summary>
+    /// <summary>
+    /// Shows the "Pick 3 for this session" window when a real session holds more tasks than it may (carried-over extras).
+    /// It can't be skipped; it closes when answered or when the session ends.
+    /// </summary>
     private void ShowPickTasks(SessionTasksService tasks, IMonitorLocator monitors)
     {
         if (_pickTasksWindow is not null || !tasks.NeedsPick)
@@ -1504,10 +1507,12 @@ public partial class App : Application
         }
 
         _pickTasksWindow = window;
+        ShowReadyCard(monitors); // Pick comes first: an already-open "Ready?" card closes until it is answered.
         window.Show();
         window.Activate();
     }
 
+    /// <summary>Shows or closes the Pre-Work window (ADR 31) as the service opens or closes it.</summary>
     private void ShowPreWork(IMonitorLocator monitors)
     {
         PreWorkPromptViewModel? prompt = _preWork?.Prompt;

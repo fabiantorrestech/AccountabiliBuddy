@@ -81,18 +81,33 @@ public sealed class SessionTasksService : IDisposable
     /// </summary>
     public event EventHandler? PickRequired;
 
-    /// <summary>A real session runs with more than <see cref="MaxTasks"/> tasks and the user has not picked yet.</summary>
-    public bool NeedsPick => IsLive && _sessions.State.IsRealSession && Current.Tasks.Count > MaxTasks;
+    /// <summary>
+    /// Tasks this session may hold: <see cref="MaxTasks"/> plus the "Add anyway" adds approved for it (those carry a
+    /// reason and stay; only carried-over extras are picked down).
+    /// </summary>
+    public int TaskAllowance => MaxTasks + (Current.SessionStart is DateTimeOffset start ? OverLimitCount(start) : 0);
 
-    /// <summary>The tasks the pick prompt lists, in list order.</summary>
-    public IReadOnlyList<SessionTask> PickCandidates => Current.Tasks;
+    /// <summary>A real session runs with more tasks (open and done) than <see cref="TaskAllowance"/>, and the user has not picked yet.</summary>
+    public bool NeedsPick => IsLive && _sessions.State.IsRealSession && Current.Tasks.Count > TaskAllowance;
 
-    /// <summary>Keeps the tasks in <paramref name="keep"/>; every other task is parked as a come-back.</summary>
-    public async Task KeepOnlyAsync(IReadOnlySet<Guid> keep)
+    /// <summary>The open tasks the pick prompt lists, in list order (done ones are never parked).</summary>
+    public IReadOnlyList<SessionTask> PickCandidates => Current.Tasks.Where(task => !task.IsDone).ToList();
+
+    /// <summary>How many of the <see cref="PickCandidates"/> may stay: the allowance less the done tasks.</summary>
+    public int PickKeepCount => Math.Max(0, TaskAllowance - Current.Tasks.Count(task => task.IsDone));
+
+    /// <summary>
+    /// Parks the tasks of <paramref name="shown"/> (the rows the prompt listed) that are not in <paramref name="keep"/>,
+    /// when they are still open. Done tasks and tasks added after the prompt opened are left alone.
+    /// </summary>
+    public async Task KeepOnlyAsync(IReadOnlySet<Guid> keep, IReadOnlyCollection<Guid> shown)
     {
-        foreach (SessionTask task in Current.Tasks.Where(task => !keep.Contains(task.Id)).ToList())
+        foreach (Guid id in shown.Where(id => !keep.Contains(id)))
         {
-            await ParkAsync(task.Id);
+            if (Current.Tasks.Any(task => task.Id == id && !task.IsDone))
+            {
+                await ParkAsync(id);
+            }
         }
     }
 
