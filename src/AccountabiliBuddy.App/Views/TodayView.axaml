@@ -52,26 +52,51 @@
                     IsVisible="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).Shutdown, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
                 <StackPanel Spacing="8">
                     <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="WeatherSunset" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" /><TextBlock Text="Wrap up the day" FontWeight="SemiBold" FontSize="16" /></StackPanel>
-                    <StackPanel Spacing="2" IsVisible="{Binding HasComebacks}">
-                        <TextBlock Text="Come-backs: tick the ones that are done" Opacity="0.8" />
-                        <ItemsControl ItemsSource="{Binding Comebacks}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:ShutdownComebackRow">
-                                    <CheckBox IsChecked="{Binding IsDone}" Content="{Binding Text}" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                    <StackPanel Spacing="2" IsVisible="{Binding HasUnfinished}">
-                        <TextBlock Text="Left open today: ticked ones carry into tomorrow's checklist" Opacity="0.8" />
-                        <ItemsControl ItemsSource="{Binding Unfinished}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:ShutdownTaskRow">
-                                    <CheckBox IsChecked="{Binding Carry}" Content="{Binding Title}" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
+                    <TextBlock Text="Tick what's done. The rest carries over." Opacity="0.8" />
+                    <Border Padding="12,8" CornerRadius="8" Background="#1A2A9D8F" IsVisible="{Binding HasComebacks}">
+                        <StackPanel Spacing="2">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <mi:MaterialIcon Kind="FlagOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                                <TextBlock Text="Come back to" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding ComebackCount}" Opacity="0.7" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding Comebacks}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ShutdownComebackRow">
+                                        <CheckBox IsChecked="{Binding IsDone}" Content="{Binding Text}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                    <Border Padding="12,8" CornerRadius="8" Background="#1AF4A261" IsVisible="{Binding HasUnfinished}">
+                        <StackPanel Spacing="2">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <mi:MaterialIcon Kind="PlaylistPlus" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                                <TextBlock Text="Left open" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding UnfinishedCount}" Opacity="0.7" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding UnfinishedGroups}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ShutdownTaskGroup">
+                                        <StackPanel Spacing="2" Margin="0,4,0,0">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" IsVisible="{Binding HasCategory}" />
+                                                <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" Opacity="0.75" />
+                                            </StackPanel>
+                                            <ItemsControl ItemsSource="{Binding Rows}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:ShutdownTaskRow">
+                                                        <CheckBox IsChecked="{Binding IsDone}" Content="{Binding Title}" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
                     <TextBox Text="{Binding TomorrowTask}" PlaceholderText="Tomorrow's first task (it waits at the top of Today's checklist)" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Content="Done for today" Command="{Binding DoneCommand}" Classes="accent" />
