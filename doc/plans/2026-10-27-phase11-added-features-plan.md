@@ -83,7 +83,7 @@
 ### Task 5: Planning stage with its own bar; timers count down (C 12, C 13)
 **Files:**
 - PC: `Services/PlanFirstService.cs`, `ViewModels/FocusViewModel.cs:62-106,210-222`, `ViewModels/SessionOverlayViewModel.cs:96-161`, `ViewModels/OnScreenOverlayViewModel.cs:301-320`, `Services/SessionOverlayService.cs:284-289`, `Services/SessionCueService.cs`, the checkpoint.
-- Sync and phone: the sync file's `running` block (`SyncCoordinator.RunningNow`) and the link state, `link/PcState.kt`, `ui/PcCard.kt:109-129`.
+- Sync and phone: the sync file's `running` block (`SyncCoordinator.RunningNow`, Kotlin `SyncRunning`), `ui/PcCard.kt:109-129`. Not the link (deleted in phase 4b).
 - Watch: `shared/WatchSnapshot.kt`, `shared/WatchViews.kt`, `shared/PhaseAlerts.kt` and `wear/.../alerts/PhaseAlertScheduler.kt`.
 
 **Planning:**
@@ -103,7 +103,7 @@
 - A session with no set end still counts up; there's nothing to count down to.
 
 **Phone and watch:**
-- The PC's planning stage (planning ends-at) goes to the phone in the sync file's `running` block (and the link while it exists).
+- The PC's planning stage (planning ends-at) goes to the phone in the sync file's `running` block only. The link is deleted in phase 4b, so leave it out.
 - The phone's PC card shows "Planning · 3 min left" with its own bar.
 - The watch shows the planning countdown, and buzzes plus plays a sound at its end (a new `PhaseAlert.Kind.PlanningEnd`).
 - The "Ready?" answer happens on the PC *(choice; phone and watch display only)*.
