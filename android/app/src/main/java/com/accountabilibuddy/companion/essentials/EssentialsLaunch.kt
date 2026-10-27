@@ -44,6 +44,8 @@ object EssentialsLaunch {
             else -> null
         }
         Log.d(TAG, "unlock: ${kind ?: "no"} essentials (emergency ${app.emergency.isActive(now)}, session $session, night $night)")
+        // In a session with LockMyPhone-Extended set up, that app's lock is the screen, not this one.
+        if (kind == EssentialsKind.Focus && session && !app.emergency.isActive(now) && startLockMyPhoneForSession(context, now)) return
         kind?.let { Takeover.startFromBackground(context, EssentialsActivity.intent(context, it)) }
     }
 
@@ -88,6 +90,23 @@ object EssentialsLaunch {
         endsAt?.let { end -> ceilMinutes(Duration.between(now, end)).takeIf { it > 0 }?.let { intent.putExtra("duration_min", it.toInt()) } }
         runCatching { context.sendBroadcast(intent) }.onFailure { Log.w(TAG, "LockMyPhone-Extended not reached", it) }
         Log.i(TAG, "hardcore: asked LockMyPhone-Extended for '$profile' until $endsAt")
+    }
+
+    /**
+     * Unlocked during a session with "use LockMyPhone-Extended" on: asks it to start the hardcore profile for what is left
+     * of the session (no once-per-session guard: it is asked again at each unlock). False when it can't be used (switch
+     * off, no profile chosen, not installed), so the caller shows the in-app screen.
+     */
+    private fun startLockMyPhoneForSession(context: Context, now: Instant): Boolean {
+        val app = context.applicationContext as CompanionApp
+        if (!app.essentials.useLockMyPhone || !lockMyPhoneInstalled(context)) return false
+        val profile = app.essentials.hardcoreProfile ?: return false
+        val (_, endsAt) = runningSessionStart(app, now) ?: return false
+        val intent = Intent(LMP_START).setPackage(LMP_PACKAGE).putExtra("profile", profile)
+        endsAt?.let { end -> ceilMinutes(Duration.between(now, end)).takeIf { it > 0 }?.let { intent.putExtra("duration_min", it.toInt()) } }
+        if (runCatching { context.sendBroadcast(intent) }.isFailure) return false
+        Log.i(TAG, "unlock in a session: asked LockMyPhone-Extended for '$profile' until $endsAt")
+        return true
     }
 
     /** Starts a LockMyPhone-Extended lock with [profile] for [minutes] (Settings → Essentials → try it for 1 minute). */

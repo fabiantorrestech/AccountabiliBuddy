@@ -4,7 +4,14 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import android.app.KeyguardManager
+import android.media.AudioManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.PowerManager
+import com.accountabilibuddy.companion.nudge.Takeover
+import com.accountabilibuddy.companion.usage.PhoneUsageReader
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -75,7 +82,8 @@ import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.ui.CompanionTheme
 import java.time.Duration
 import java.time.Instant
-import java.time.LocalTime
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -115,25 +123,80 @@ class EssentialsActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         (application as CompanionApp).essentialsOnScreen = true
+        reopenHandler.removeCallbacksAndMessages(null)
+        openedFromScreen = false
     }
 
     override fun onStop() {
         super.onStop()
         (application as CompanionApp).essentialsOnScreen = false
         resetKey++
+        scheduleReopen()
+    }
+
+    private val reopenHandler = Handler(Looper.getMainLooper())
+    // An essential app (or the dialer) was opened from this screen: leaving for it is not leaving, until that app is left too.
+    private var openedFromScreen = false
+
+    /**
+     * Home (or anything else that hides the screen) during a focus session: brings it back after about 3 s. After an
+     * essential app was opened from it: with Usage access, the foreground app is checked every ~3 s and the screen comes
+     * back once the app in front isn't an essential (the launcher counts as not); without it, 5 minutes after leaving.
+     * Not for the arrange view, the 1-minute test, the bedtime screen, or a screen that is closing.
+     */
+    private fun scheduleReopen() {
+        val kind = intent.getStringExtra(EXTRA_KIND)?.let { name -> EssentialsKind.entries.firstOrNull { it.name == name } } ?: EssentialsKind.Focus
+        if (kind != EssentialsKind.Focus || isFinishing || intent.getBooleanExtra(EXTRA_ARRANGE, false) || intent.getLongExtra(EXTRA_TEST_UNTIL, 0L) > 0) return
+        val reopenIntent = EssentialsActivity.intent(this, kind)
+        reopenHandler.removeCallbacksAndMessages(null)
+        if (PhoneUsageReader(this).hasAccess()) {
+            reopenHandler.postDelayed(object : Runnable {
+                override fun run() {
+                    val app = application as CompanionApp
+                    // The session ended, or the screen is back: stop.
+                    if (EssentialsLaunch.runningSessionStart(app, Instant.now()) == null || app.essentialsOnScreen) return
+                    if (shouldReopen()) Takeover.startFromBackground(this@EssentialsActivity, reopenIntent)
+                    else reopenHandler.postDelayed(this, REOPEN_DELAY_MS)
+                }
+            }, REOPEN_DELAY_MS)
+        } else {
+            val delay = if (openedFromScreen) NO_USAGE_REOPEN_DELAY_MS else REOPEN_DELAY_MS
+            reopenHandler.postDelayed({ if (shouldReopen()) Takeover.startFromBackground(this, reopenIntent) }, delay)
+        }
+    }
+
+    private fun shouldReopen(): Boolean {
+        val app = application as CompanionApp
+        val now = Instant.now()
+        val running = EssentialsLaunch.runningSessionStart(app, now) != null
+        // Phone locked or screen off, an emergency, a call (ringing too), or an allowed app in front: leave it alone.
+        val interactive = getSystemService(PowerManager::class.java).isInteractive && !getSystemService(KeyguardManager::class.java).isKeyguardLocked
+        val inCall = getSystemService(AudioManager::class.java).mode.let {
+            it == AudioManager.MODE_IN_CALL || it == AudioManager.MODE_IN_COMMUNICATION || it == AudioManager.MODE_RINGTONE
+        }
+        val inFront = PhoneUsageReader(this).foregroundApp(now)
+        val allowedInFront = inFront != null && app.essentialsOf(EssentialsKind.Focus).isAllowed(inFront.first, inFront.second)
+        return running && interactive && !app.emergency.isActive(now) && !inCall && !allowedInFront && !app.essentialsOnScreen
+    }
+
+    override fun onDestroy() {
+        reopenHandler.removeCallbacksAndMessages(null)
+        super.onDestroy()
     }
 
     private fun openApp(packageName: String) {
         packageManager.getLaunchIntentForPackage(packageName)?.let { intent ->
-            runCatching { startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            if (runCatching { startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess) openedFromScreen = true
         }
     }
 
     private fun dial() {
-        runCatching { startActivity(Intent(Intent.ACTION_DIAL).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        if (runCatching { startActivity(Intent(Intent.ACTION_DIAL).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess) openedFromScreen = true
     }
 
     companion object {
+        private const val REOPEN_DELAY_MS = 3_000L
+        private const val NO_USAGE_REOPEN_DELAY_MS = 5 * 60_000L
         const val EXTRA_ARRANGE = "arrange"
         const val EXTRA_TEST_UNTIL = "testUntil"
         /** Which list: an [EssentialsKind] name (Focus when missing). */
@@ -178,6 +241,8 @@ private fun EssentialsScreen(app: CompanionApp, kind: EssentialsKind, arranging:
         }
     }
     var searching by remember { mutableStateOf(false) }
+    // Back does nothing here (the way out is ending the session); the arrange view and the 1-minute test still close.
+    if (!arranging && testUntil == null && kind == EssentialsKind.Focus) BackHandler {}
     val open = remember { mutableStateOf(setOf<String>()) }
     val keys = essentials.homeKeys { byPackage[it]?.name ?: it }
     val moves = if (arranging) Moves(store, keys) else null
@@ -201,7 +266,12 @@ private fun EssentialsScreen(app: CompanionApp, kind: EssentialsKind, arranging:
                 }
             }
             Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-                Text(LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm", Locale.US)), color = Color.White, fontSize = 56.sp, modifier = Modifier.weight(1f))
+                Column(Modifier.weight(1f)) {
+                    // 12-hour with AM/PM and the date under it, whatever the system's 24-hour setting.
+                    val time = LocalDateTime.ofInstant(now, ZoneId.systemDefault())
+                    Text(time.format(DateTimeFormatter.ofPattern("h:mm a", Locale.US)), color = Color.White, fontSize = 56.sp)
+                    Text(time.format(DateTimeFormatter.ofPattern("EEEE, MMMM d", Locale.US)), color = Color(0xCCFFFFFF), fontSize = 16.sp)
+                }
                 (testUntil?.let { "Test · ${Duration.between(now, it).seconds.coerceAtLeast(0)} s left" } ?: timeLeft(app, kind, now))?.let { Text(it, color = Color(0xCCFFFFFF), fontSize = 16.sp, modifier = Modifier.padding(top = 18.dp)) }
             }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {

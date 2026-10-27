@@ -12,6 +12,7 @@ import java.time.LocalDate
  * @property startingUntil "I'm starting on my PC": not before this (enough to sit down and start a session).
  * @property snoozeDay The day [snoozes] counts; @property snoozes how many snoozes that day.
  * @property dayOffAskedAt "Not working today" was chosen: its wait counts from here.
+ * @property unanswered The card took over the screen and was left without an answer (Home, a call): it comes back.
  * @property dayOff A day with no nudges on the phone, once that wait was over.
  */
 data class NudgeState(
@@ -23,6 +24,7 @@ data class NudgeState(
     val snoozes: Int = 0,
     val dayOffAskedAt: Instant? = null,
     val dayOff: LocalDate? = null,
+    val unanswered: Boolean = false,
 )
 
 /** The card's rules, plain Kotlin so the checks run them. */
@@ -36,7 +38,7 @@ object NudgeRules {
     /**
      * The card may take over now: it's on, [inWork] (a work stretch, no session, not paused), not a day off, not
      * snoozed or "starting", and at least [repeatMinutes] since it last showed (5 by default; 0: once a stretch, from
-     * [stretchStart]).
+     * [stretchStart]; a card left [NudgeState.unanswered] still returns after 5).
      */
     fun due(state: NudgeState, inWork: Boolean, stretchStart: Instant?, now: Instant, today: LocalDate, repeatMinutes: Int): Boolean {
         if (!state.takeoverOn || !inWork || state.dayOff == today) return false
@@ -44,6 +46,8 @@ object NudgeRules {
         if (state.startingUntil != null && now < state.startingUntil) return false
         val last = state.lastShown ?: return true
         if (stretchStart != null && last < stretchStart) return true
+        // A card left without an answer comes back at the next repeat, or after 5 minutes when it only shows once.
+        if (state.unanswered && repeatMinutes <= 0) return Duration.between(last, now) >= SNOOZE
         return repeatMinutes > 0 && Duration.between(last, now) >= Duration.ofMinutes(repeatMinutes.toLong())
     }
 

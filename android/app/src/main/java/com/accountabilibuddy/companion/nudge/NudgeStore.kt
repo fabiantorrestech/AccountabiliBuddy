@@ -18,6 +18,7 @@ class NudgeStore(context: Context) {
         snoozes = prefs.getInt("snoozes", 0),
         dayOffAskedAt = instant("dayOffAskedAt"),
         dayOff = prefs.getString("dayOff", null)?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
+        unanswered = prefs.getBoolean("unanswered", false),
     )
 
     @Synchronized
@@ -31,6 +32,7 @@ class NudgeStore(context: Context) {
             .putInt("snoozes", state.snoozes)
             .putString("dayOffAskedAt", state.dayOffAskedAt?.toString())
             .putString("dayOff", state.dayOff?.toString())
+            .putBoolean("unanswered", state.unanswered)
             .apply()
     }
 
