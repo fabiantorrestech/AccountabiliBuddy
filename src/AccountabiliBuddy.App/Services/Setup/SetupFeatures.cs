@@ -8,7 +8,7 @@ namespace AccountabiliBuddy.App.Services.Setup;
 /// </summary>
 public static class SetupFeatures
 {
-    public static IReadOnlyList<SetupFeature> All(ColdTurkeyKeysService keys, ColdTurkeyService coldTurkey) => new[]
+    public static IReadOnlyList<SetupFeature> All(ColdTurkeyKeysService keys, ColdTurkeyService coldTurkey, Sync.SyncSettingsService sync) => new[]
     {
         new SetupFeature(
             "coldturkey.keys", "0.1.106",
@@ -17,5 +17,12 @@ public static class SetupFeatures
             IsRelevant: () => coldTurkey.Blocks is not null,
             IsSetUp: () => keys.Held.Count > 0 && keys.HasSpareKey,
             Step: ViewModels.AssistantStep.ColdTurkeyKeys),
+        new SetupFeature(
+            "sync.relay", "0.1.111",
+            "Own relay: sync through your own server",
+            "Syncs your devices through a small relay you run, with changes arriving in about a second and no Google account.",
+            IsRelevant: () => true,
+            IsSetUp: () => sync.Current.RelayOn && !string.IsNullOrWhiteSpace(sync.Current.RelayUrl),
+            Step: ViewModels.AssistantStep.OwnRelay),
     };
 }

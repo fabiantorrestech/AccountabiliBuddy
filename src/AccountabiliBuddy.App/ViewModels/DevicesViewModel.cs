@@ -33,6 +33,11 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     // True while the switches are set from the saved settings (not by the user).
     private bool _loading;
     private DriveAccountService? _driveAccount;
+    private SyncRelayService? _relay;
+
+    // The relay settings the address and pin boxes were last filled from, so a refresh doesn't overwrite what is being typed.
+    private string? _loadedRelayUrl;
+    private string? _loadedRelayPin;
 
     public DevicesViewModel(
         SyncIdentityService identity,
@@ -50,6 +55,9 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         _time = time;
         CombinedTodayText = string.Empty;
         DriveStatusText = string.Empty;
+        RelayUrlText = string.Empty;
+        RelayPinText = string.Empty;
+        RelayStatusText = string.Empty;
         JoinCode = string.Empty;
         IsLocked = sessions.IsEnforcing;
         sessions.StateChanged += (_, _) => IsLocked = sessions.IsEnforcing;
@@ -81,6 +89,22 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
             if (value is not null)
             {
                 value.Changed += (_, _) => Refresh();
+            }
+
+            Refresh();
+        }
+    }
+
+    /// <summary>The own-relay method (ADR 46): its status and the connection test; set by the app.</summary>
+    public SyncRelayService? Relay
+    {
+        get => _relay;
+        set
+        {
+            _relay = value;
+            if (value is not null)
+            {
+                value.StatusChanged += (_, _) => Dispatcher.UIThread.Post(Refresh);
             }
 
             Refresh();
@@ -139,6 +163,26 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool DriveSignedIn { get; set; }
 
+    /// <summary>The own-relay method (ADR 46).</summary>
+    [ObservableProperty]
+    public partial bool RelayOn { get; set; }
+
+    /// <summary>The relay's address as typed; saved with <see cref="SaveRelayCommand"/>.</summary>
+    [ObservableProperty]
+    public partial string RelayUrlText { get; set; }
+
+    /// <summary>The relay certificate's pin as typed; empty for a relay with a normal certificate.</summary>
+    [ObservableProperty]
+    public partial string RelayPinText { get; set; }
+
+    /// <summary>"Connected: changes arrive in about a second", or what is wrong; empty while the method is off.</summary>
+    [ObservableProperty]
+    public partial string RelayStatusText { get; set; }
+
+    /// <summary>The result of "Test connection"; null until one ran.</summary>
+    [ObservableProperty]
+    public partial string? RelayTestText { get; set; }
+
     /// <summary>The sync interval as the list's index: Instant, 1 min, 5 min, 15 min.</summary>
     [ObservableProperty]
     public partial int IntervalIndex { get; set; }
@@ -167,6 +211,17 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         QrOn = settings.QrOn;
         FileShareOn = settings.FileShareOn;
         DriveOn = settings.DriveOn;
+        RelayOn = settings.RelayOn;
+        if (settings.RelayUrl != _loadedRelayUrl || settings.RelayPin != _loadedRelayPin)
+        {
+            _loadedRelayUrl = settings.RelayUrl;
+            _loadedRelayPin = settings.RelayPin;
+            RelayUrlText = settings.RelayUrl ?? string.Empty;
+            RelayPinText = settings.RelayPin ?? string.Empty;
+        }
+
+        RelayStatusText = !settings.RelayOn ? string.Empty
+            : _relay?.Problem ?? (_relay?.IsConnected == true ? "Connected: changes arrive in about a second." : "Connecting…");
         DriveSignedIn = _driveAccount?.IsSignedIn == true;
         DriveStatusText = _driveAccount is null || !_driveAccount.HasClient && !DriveSignedIn
             ? "Set up your Google client first: Settings → Calendars → Google setup guide (turn on the Drive API there too)."
@@ -294,7 +349,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         string? code = _identity.CodeForDisplay();
         LinkCodeText = code;
         OnPropertyChanged(nameof(HasLinkCode));
-        LinkQrImage = code is null ? null : Render($"accountabilibuddy://join?c={code}&n={Uri.EscapeDataString(_identity.DeviceName)}");
+        LinkQrImage = code is null ? null : Render($"accountabilibuddy://join?c={code}&n={Uri.EscapeDataString(_identity.DeviceName)}{RelayJoinParameters()}");
     }
 
     [RelayCommand]
@@ -411,6 +466,73 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         Message = "Signed out of Google Drive. The files already there stay until you delete them in Drive.";
     }
 
+    partial void OnRelayOnChanged(bool value)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        if (!value)
+        {
+            _ = ApplyAsync(settings => settings with { RelayOn = false });
+            return;
+        }
+
+        // Switching on takes the address and pin as typed.
+        _ = SaveRelaySettingsAsync(turnOn: true);
+    }
+
+    [RelayCommand]
+    private Task SaveRelayAsync()
+    {
+        return SaveRelaySettingsAsync(turnOn: false);
+    }
+
+    private async Task SaveRelaySettingsAsync(bool turnOn)
+    {
+        if (IsLocked)
+        {
+            Message = LockedMessage;
+            Refresh();
+            return;
+        }
+
+        if (!RelayAddress.TryNormalize(RelayUrlText, out Uri? address))
+        {
+            Message = "The relay address must be an https address, e.g. https://192.168.1.20:8743";
+            Refresh();
+            return;
+        }
+
+        if (!RelayAddress.TryNormalizePin(RelayPinText, out string? pin))
+        {
+            Message = "The pin is the 43-character fingerprint the relay prints.";
+            Refresh();
+            return;
+        }
+
+        await _settings.SaveAsync(_settings.Current with
+        {
+            RelayOn = turnOn || _settings.Current.RelayOn,
+            RelayUrl = RelayAddress.Format(address),
+            RelayPin = pin,
+        });
+        Message = "Saved the relay address.";
+    }
+
+    [RelayCommand]
+    private async Task TestRelayAsync()
+    {
+        if (_relay is null)
+        {
+            return;
+        }
+
+        RelayTestText = "Testing…";
+        RelayTestText = await _relay.TestAsync(RelayUrlText, RelayPinText);
+    }
+
     partial void OnIntervalIndexChanged(int value) => _ = ApplyAsync(settings => settings with { Interval = (SyncInterval)Math.Clamp(value, 0, 3) });
 
     partial void OnReminderAtWorkEndChanged(bool value) => _ = ApplyAsync(settings => settings with
@@ -478,6 +600,22 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         CombinedTodayText = count > 1 ? $"Today: {Duration(total)} focused across {count} devices" : $"Today: {Duration(total)} focused";
     }
 
+    // "&r=<address>&p=<pin>" when the own relay is on, so a device that scans the QR joins the relay too (the pin is not secret).
+    private string RelayJoinParameters()
+    {
+        SyncSettings settings = _settings.Current;
+        // A malformed pin leaves the relay out of the link altogether: a link without its pin would be an unpinned relay.
+        if (!settings.RelayOn
+            || !RelayAddress.TryNormalize(settings.RelayUrl, out Uri? address)
+            || !RelayAddress.TryNormalizePin(settings.RelayPin, out string? pin))
+        {
+            return string.Empty;
+        }
+
+        string parameters = "&r=" + Uri.EscapeDataString(RelayAddress.Format(address));
+        return pin is not null ? parameters + "&p=" + Uri.EscapeDataString(pin) : parameters;
+    }
+
     private static List<string> OwnMethods(SyncSettings settings)
     {
         var methods = new List<string>();
@@ -501,6 +639,11 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
             methods.Add(SyncDeviceCard.MethodDrive);
         }
 
+        if (settings.RelayOn)
+        {
+            methods.Add(SyncDeviceCard.MethodRelay);
+        }
+
         return methods;
     }
 
@@ -517,6 +660,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
             SyncDeviceCard.MethodFolder => "sync folder",
             SyncDeviceCard.MethodQr => "QR codes",
             SyncDeviceCard.MethodDrive => "Google Drive",
+            SyncDeviceCard.MethodRelay => "Own relay",
             _ => "sync file",
         };
     }

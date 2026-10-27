@@ -5,6 +5,10 @@ folder, and any tool that keeps a folder the same on every device carries it. Th
 **Syncthing** or **Nextcloud** on Windows, macOS, Linux and Android, how to use a computer you already own as an
 always-on server, how to reach it safely from outside your home, and how to rent a small server (a VPS) instead.
 
+There is a second way, the **own relay** (section 10): a small program of ours that you run on a computer or server. Devices
+put their sealed files on it and it tells the others at once, so a change arrives in about a second instead of after a
+sync tool's next round. Sections 1-9 are the folder method; section 10 is the relay.
+
 Tool menus and download pages change. Where a step may have changed since this was written, check the tool's own docs.
 
 ## Contents
@@ -18,6 +22,7 @@ Tool menus and download pages change. Where a step may have changed since this w
 7. [Reaching it from outside your home, safely](#7-reaching-it-from-outside-your-home-safely)
 8. [A small rented server (VPS)](#8-a-small-rented-server-vps)
 9. [When files don't arrive](#9-when-files-dont-arrive)
+10. [Own relay: push in about a second](#10-own-relay-push-in-about-a-second)
 
 ## 1. How the folder method works
 
@@ -26,7 +31,9 @@ Tool menus and download pages change. Where a step may have changed since this w
 - The files are **sealed** (AES-256-GCM). The key comes from your 40-character link code, which stays on your devices and
   never goes in the files. Whatever carries the folder, including a server you rent, sees only scrambled bytes and
   file names that mean nothing.
-- AccountabiliBuddy opens **no connection** for this. It only reads and writes the folder; Syncthing or Nextcloud moves the files.
+- With the folder method AccountabiliBuddy opens **no connection**. It only reads and writes the folder; Syncthing or
+  Nextcloud moves the files. (The own relay in section 10 is different: the app itself connects, over HTTPS, to the one
+  address you give it, and only while that method is switched on.)
 - What a sync file holds is limited (see ADR 22): focus times, profile names, sites, the day plan and a few settings. Never
   window titles, full addresses, screen text, reasons or notes.
 
@@ -44,7 +51,8 @@ code or QR on the phone). The folder only carries files; it doesn't link devices
 | Android | Syncthing-Fork app, syncs a normal folder | A sync app such as Autosync for Nextcloud or FolderSync |
 | Pick it if | You only want your devices in step | You already run Nextcloud or want its other features |
 
-For most people **Syncthing is the simpler and safer choice**.
+For most people **Syncthing is the simpler and safer choice** for the folder method. If you want changes to arrive in
+about a second, or you have no tool like these on the phone, the **own relay** (section 10) is built for that.
 
 ## 3. Syncthing
 
@@ -254,3 +262,155 @@ Keep backups of your real data with AccountabiliBuddy's own backup (`.abbackup`)
    (for example "can't write to the folder").
 9. **Conflict copies?** Syncthing names them `*.sync-conflict-*`; they can be deleted. They're rare, since each device
    writes only its own file.
+
+## 10. Own relay: push in about a second
+
+The **relay** is a small program (`AccountabiliBuddy.Relay`) you run on a computer or a rented server. Each device puts
+its own sealed sync file on it (the same file the folder method writes) and the relay tells the other devices the moment
+a file changes, so a phone action reaches the PC in about a second. No Google account and no sync tool are needed. It
+can run next to the other methods; the files are the same, so Drive, a folder and the relay can carry each other's.
+
+### 10.1 What the relay can and can't see
+
+| The relay can see | The relay can't see |
+|---|---|
+| That a group exists, under an id that means nothing (it comes from your link code but can't be turned back into it) | The contents of any file: focus times, profiles, sites, the day plan |
+| The names of the files (opaque ids), their sizes and when they changed | Your link code, or the key that opens the files |
+| The address each device connects from, and when | Which devices you own, or what they are called |
+| A hash of the group's token (to tell whether a device belongs to the group) | |
+
+How it is protected:
+
+- **Sealed end to end.** Each device seals its file with AES-256-GCM before it leaves the device. The key is derived from
+  your 40-character link code with HKDF-SHA256 and never leaves your devices. The relay, your network and a host that
+  rents you the server only ever carry scrambled bytes.
+- **HTTPS only**, as a second layer that also hides the file names and the token from the network. Either the relay
+  makes its own certificate and the apps **pin** it (they check the certificate's fingerprint, and refuse to talk
+  to anything else), or a normal certificate from Let's Encrypt is checked the usual way.
+- **A bearer token** (another value derived from the link code) proves a device belongs to the group. The first device to
+  write a group owns it on that relay; any other token gets "403 Forbidden". Rejoining with the same code gives the
+  same token. A new group (a new code) is a new, separate group.
+- **Limits** keep a public relay from being used up: files up to 4 MiB, 64 files per group, files untouched for 30
+  days are deleted, 120 requests a minute per address, and a few new groups per address per day.
+
+What it does not do:
+
+- There is no key rotation: someone who gets your link code can read everything sealed with it, including old files
+  still on the relay. If a code leaks, make a new group on every device (Devices → Leave group, then Link a device).
+- A lost or stolen device is removed only by making a new group.
+- The relay can delete or hold back files (then devices just don't see each other's changes), but it can't change
+  them: a changed file doesn't open.
+
+### 10.2 Get the relay program
+
+The relay is built from AccountabiliBuddy's source (you need the .NET 10 SDK), or you can use Docker.
+
+- Self-contained builds (nothing to install on the machine that runs them): `pwsh scripts/publish-relay.ps1` makes
+  `publish\relay\win-x64`, `linux-x64` and `linux-arm64`.
+- Docker: from the source folder `deploy/relay`, run `docker compose up -d --build`.
+
+Options: `--urls <https address>` (default `https://0.0.0.0:8743`), `--data <folder>` (where it keeps the files and its
+certificate), `--proxy` (plain HTTP on 127.0.0.1 for a reverse proxy, section 10.4) and `--max-disk-mb <n>` (default 2048).
+
+On its first start without `--proxy` it makes a self-signed certificate (`relay.pfx` in the data folder, valid 10 years)
+and prints, and keeps in `relay-address-and-pin.txt` in the data folder, lines like:
+
+```
+relay address: https://192.168.1.20:8743   pin: ZAgybCIdjRsEetCcRP0UHQ9oJRvHalRvDK-ih1-by1I
+```
+
+The pin is the same for every address of that relay. Deleting `relay.pfx` makes a new certificate and a new pin, and
+every device must then be given the new pin.
+
+### 10.3 At home, and away from home through a VPN (pinned certificate)
+
+This is the simplest and safest setup: the relay is never on the public internet.
+
+1. Run the relay on a computer that stays on at home (section 6 has the sleep settings).
+   - **Windows:** in an administrator PowerShell, from the source folder:
+     `pwsh deploy/relay/install-windows-task.ps1 -ExePath .\publish\relay\win-x64\AccountabiliBuddy.Relay.exe -OpenFirewall`.
+     It runs the relay at startup under a service account and opens the port on Private and Domain networks only.
+     The address and pin are in `C:\ProgramData\AccountabiliBuddyRelay\relay-address-and-pin.txt`.
+   - **Linux:** copy the linux build to `/opt/accountabilibuddy-relay/`, copy `deploy/relay/accountabilibuddy-relay.service`
+     to `/etc/systemd/system/` and run `sudo systemctl enable --now accountabilibuddy-relay` (the unit's comments have the
+     user and folder to make first). Read the pin with `journalctl -u accountabilibuddy-relay`.
+   - **Docker:** `docker compose up -d --build` in `deploy/relay`, then `docker compose logs relay`. In Docker the printed
+     names are the container's own: use your host's address with port 8743 and the printed pin.
+2. At home, devices on the same network use the relay's LAN address (`https://192.168.1.20:8743`). Give that computer a
+   fixed address in your router so it doesn't change.
+3. Away from home, put the relay's computer and your phone on a **mesh VPN** such as Tailscale (or your own WireGuard,
+   section 7) and use the relay's VPN address or name instead. Open nothing on your router.
+4. In the apps, type the address and the **pin** exactly as printed. The pin is what proves it is your relay; the
+   certificate's name doesn't have to match the address.
+
+If the pin ever doesn't match, the apps stop and say so. They never fall back to an unchecked connection.
+
+### 10.4 On the public internet: Caddy and Let's Encrypt
+
+Use this when you want to reach the relay from anywhere without a VPN. It needs a DNS name pointing at your server.
+
+1. Get a DNS name (for example `relay.example.com`) with an A record to the server's public address.
+2. Run the relay behind a reverse proxy: start it with `--proxy`, so it listens on plain HTTP at `127.0.0.1:8743` only.
+   (Docker: use the "proxy" lines in `docker-compose.yml`. systemd: add `--proxy` to `ExecStart`.)
+3. Install **Caddy** and use `deploy/relay/Caddyfile` with your name. Caddy gets and renews the Let's Encrypt
+   certificate by itself and forwards to the relay. Ports **80** (only for the certificate check) and **443** must reach
+   the server. The Caddyfile already sends the push stream through without buffering and limits bodies to 5 MB.
+4. In the apps type `https://relay.example.com` and **leave the pin empty**: the certificate is checked normally.
+
+Keep the server patched. A public relay is a target for scanners; the token check and the limits stop most abuse, but
+it is not hardened like a hosted service. If you can, prefer section 10.3.
+
+### 10.5 On a rented server (VPS)
+
+Any small Linux server works: 1 vCPU, 1 GB RAM and 10 GB of disk are plenty (the files are a few KB each).
+
+1. Set it up as in section 8 (SSH key only, no root login, `ufw`, automatic updates).
+2. Firewall: allow **only** SSH, 80 and 443 (`sudo ufw allow OpenSSH`, `sudo ufw allow 80/tcp`, `sudo ufw allow 443/tcp`).
+   The relay's own port (8743) stays closed, because Caddy reaches it on 127.0.0.1.
+3. Install Docker (or copy the `linux-x64` or `linux-arm64` build and the systemd unit) and run the relay with `--proxy`,
+   then set up Caddy as in section 10.4.
+4. Or skip Caddy and a DNS name: run it pinned (section 10.2) and open only its port (`sudo ufw allow 8743/tcp`), then use
+   `https://<server address>:8743` with the pin. The pinned certificate still protects the connection; a name and
+   Let's Encrypt only make the address nicer.
+
+### 10.6 Turn it on in AccountabiliBuddy
+
+**PC**
+
+1. Devices → How this PC shares → **Own relay**. Type the address and the pin (empty for a Caddy relay), then
+   **Save address**.
+2. Press **Test connection**. It says whether the relay answered and whether the certificate was accepted.
+3. Tick **Own relay**. The line under it says "Connected" once the push stream is open.
+
+**Phone and other PCs**
+
+- Devices → **Link a device** on the PC shows a QR code that carries the relay's address and pin next to the link
+  code. Scanning it on the phone joins the group and sets up the relay in one step. (The pin is not secret.)
+- Or enter the address and pin by hand in the phone's Own relay section.
+
+The PC writes its file about a second after a change, reads other devices' files as soon as the relay says they
+changed, and checks again every 5 minutes in case the push stream missed something (every 10 seconds during a session
+while the stream is down). It puts its file again every 5 minutes even when nothing changed, so the other devices see
+it as up to date. The stream reconnects by itself, waiting 1 second at first and up to 60 seconds after repeated failures.
+
+When this PC leaves the group (or joins another), it deletes its own file from the relay. Other devices' files stay
+until those devices leave or 30 days pass.
+
+### 10.7 Updating the relay
+
+Build the new version the same way and replace the program: Windows, run `install-windows-task.ps1` again with the new
+`-ExePath` (it keeps the data); Linux, copy the new file over `/opt/accountabilibuddy-relay/` and
+`sudo systemctl restart accountabilibuddy-relay`; Docker, `docker compose up -d --build`. The stored files and the
+certificate (the data folder or volume) stay, so the pin stays. Keep the relay at least as new as your apps.
+
+### 10.8 When the relay doesn't work
+
+| What the app says | What to do |
+|---|---|
+| "Can't reach the relay right now" | Is the relay running, the address right, the firewall open, the VPN on? Open the address in a browser: a certificate warning is normal for a pinned relay, a "refused" or timeout is not. |
+| "The relay's certificate doesn't match the pin" | Nothing was sent. If you deleted `relay.pfx` or moved to a new relay, enter the new pin. If you did not, something may be sitting between the device and the relay: don't go on until you know what. |
+| "The relay's certificate isn't trusted" | A relay with its own certificate needs its pin typed in. For a Caddy relay, check the DNS name and that Caddy got its certificate. |
+| "This group already belongs to someone else on that relay (403)" | Your group's id and token come from the same link code, so this shouldn't happen for your own group. It means the relay already holds that group id under a different token (for example data left by another build). Delete that group's folder (named by the group id) in the relay's data folder, or wait 30 days, and let the devices write again. |
+| "The relay is limiting this PC (429)" | Too many requests, or too many new groups from one address in a day. It tries again by itself. |
+| "The relay's disk is full (507)" | Raise `--max-disk-mb` or free space. |
+| Changes arrive in minutes, not seconds | The push stream isn't open: some proxies and security software cut long-lived connections. Behind Caddy use the provided Caddyfile; the fallback checks still work (every 10 seconds in a session, else every 5 minutes). |
