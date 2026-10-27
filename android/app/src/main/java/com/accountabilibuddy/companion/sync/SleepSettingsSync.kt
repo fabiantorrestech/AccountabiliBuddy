@@ -12,7 +12,7 @@ import java.time.Instant
 
 /**
  * The sleep settings both ways (ADR 35): the phone's goes out in its sync file with the time the user last changed it
- * here, and a PC's "sleep" document that's newer is taken here (from any sync file, not only the link). The newest
+ * here, and a PC's "sleep" document that's newer is taken here (from any sync file). The newest
  * edit wins on every device. The edit time is kept in prefs "sleepSync".
  */
 class SleepSettingsSync(context: Context, private val store: CompanionStore) {

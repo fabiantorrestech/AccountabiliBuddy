@@ -2,12 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- A Wear OS app; its data comes from the phone over the Wearable Data Layer (ADR 21), or from the PC over Wi-Fi
-         when the phone can't be reached (asking for Wi-Fi needs CHANGE_NETWORK_STATE). -->
+    <!-- A Wear OS app; its data comes from the phone over the Wearable Data Layer (ADR 21, 45), never from the network. -->
     <uses-feature android:name="android.hardware.type.watch" />
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <!-- The buzz when a focus or break timer ends, at the exact time even in Doze (a timer is what exact alarms are for). -->
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Bedtime reminders from the phone (ADR 38). -->
@@ -39,7 +35,7 @@
             android:name="com.google.android.wearable.standalone"
             android:value="false" />
 
-        <!-- The phone's messages: a snapshot to show, "not linked", or the PC's pairing code for Wi-Fi. -->
+        <!-- The phone's messages: a snapshot to show, "not linked", the noise player and reminders. -->
         <service
             android:name=".link.WatchListenerService"
             android:exported="true">
@@ -47,7 +43,6 @@
                 <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/snapshot" />
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/unlink" />
-                <data android:scheme="wear" android:host="*" android:pathPrefix="/pc-offer" />
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/noise" />
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/reminder" />
             </intent-filter>

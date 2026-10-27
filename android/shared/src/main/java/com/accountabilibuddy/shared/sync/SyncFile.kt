@@ -38,7 +38,7 @@ data class SyncFile(
     val acks: List<String>? = null,
     /** A PC's running session (ADR 26), so the countdown works with Drive and no link; null when none runs. */
     val running: SyncRunning? = null,
-    /** A PC's calendar events (ADR 26), in the link's settings shape; null when not sent. */
+    /** A PC's calendar events (ADR 26), in the backup's calendar shape; null when not sent. */
     val events: kotlinx.serialization.json.JsonArray? = null,
     /** A phone's smart bedtime (ADR 34): derived numbers per kind of night; null when it's off. */
     val smartBedtime: SyncSmartBedtime? = null,
@@ -100,7 +100,7 @@ data class SyncDeviceCard(
         const val KIND_PHONE = "phone"
         const val KIND_WATCH = "watch"
 
-        /** The network link to a paired PC (ADR 14). */
+        /** The network link to a paired PC (ADR 14, deleted by ADR 45); old sync files still name it. */
         const val METHOD_LINK = "link"
 
         /** A sync folder the user picks, e.g. inside Google Drive for desktop. */

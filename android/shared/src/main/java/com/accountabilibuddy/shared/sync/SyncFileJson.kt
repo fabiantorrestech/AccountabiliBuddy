@@ -21,7 +21,7 @@ import java.util.Locale
 import java.util.UUID
 
 /**
- * A [SyncFile] as JSON, in the PC's shape (System.Text.Json with LinkFraming.JsonOptions): the same camelCase names in
+ * A [SyncFile] as JSON, in the PC's shape (System.Text.Json with SyncJson.Options): the same camelCase names in
  * the same order, nulls written (except "coversFrom", written last and only when set), "seen" as an object keyed by
  * device id, and times as .NET writes a DateTimeOffset ("2026-10-21T20:30:00.25+00:00": seconds always, a fraction of up
  * to 7 digits only when there is one, UTC as "+00:00"). Reading takes any ISO time with an offset, "Z" too.

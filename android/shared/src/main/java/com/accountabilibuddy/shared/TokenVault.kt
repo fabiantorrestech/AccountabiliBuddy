@@ -1,4 +1,4 @@
-package com.accountabilibuddy.shared.link
+package com.accountabilibuddy.shared
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -9,7 +9,10 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-/** Seals the PC's device token with an AES key that lives in the Android Keystore and never leaves it. */
+/**
+ * Seals a secret (the device group's sync code, ADR 22) with an AES key that lives in the Android Keystore and never
+ * leaves it. The key's alias is from the Wi-Fi link's token (ADR 14) and stays, since the sealed code depends on it.
+ */
 object TokenVault {
     private const val KEY_ALIAS = "accountabilibuddy-link-token"
     private const val TRANSFORMATION = "AES/GCM/NoPadding"

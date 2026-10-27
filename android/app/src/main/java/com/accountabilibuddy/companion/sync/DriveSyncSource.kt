@@ -23,6 +23,8 @@ class DriveSyncSource(
     private val sync: SyncCoordinator,
     private val signIn: DriveSignIn,
     private val files: DriveFiles = DriveFiles(DriveNetwork),
+    /** Runs before each sync, so this phone's file says what's true now (e.g. its linked watch is still valid, Task 18). */
+    private val beforeSync: suspend () -> Unit = {},
 ) {
     private val running = Mutex()
     private val _status = MutableStateFlow(FolderStatus())
@@ -57,6 +59,7 @@ class DriveSyncSource(
 
         val ownName = sync.ownFolderFileName() ?: return
         running.withLock {
+            runCatching { beforeSync() }
             val token = signIn.accessToken()
             if (token == null) {
                 _status.value = FolderStatus(_status.value.lastSyncAt, SIGN_IN_AGAIN)

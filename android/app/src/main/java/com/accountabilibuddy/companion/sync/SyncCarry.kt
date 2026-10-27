@@ -7,8 +7,8 @@ import java.util.UUID
 
 /**
  * The phone as a carrier (ADR 22), with no Android in it: taking a received file into its copies, what the phone has
- * seen from each device, and which files go where. Files that came by QR code or the Drive folder go to the PC over
- * the link; the PC's files go to Drive or out as a share; a file never goes back the way it came.
+ * seen from each device, and which files go where. Files that came by QR code or a share go to the PCs through
+ * Drive; the PC's files go to Drive or out as a share; a file never goes back the way it came.
  */
 object SyncCarry {
     /** The copies after a file was taken in, or the copies unchanged and why not. */

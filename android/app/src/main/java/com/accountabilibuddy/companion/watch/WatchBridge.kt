@@ -5,8 +5,7 @@ import com.accountabilibuddy.shared.sync.SyncCompanion
 import android.content.Context
 import android.os.SystemClock
 import com.accountabilibuddy.companion.data.CompanionStore
-import com.accountabilibuddy.companion.link.LinkClient
-import com.accountabilibuddy.companion.link.LinkStatus
+import com.accountabilibuddy.companion.sync.PcFileControl
 import com.accountabilibuddy.companion.sync.ReceivedDevice
 import com.accountabilibuddy.shared.SnapshotBuilder
 import com.accountabilibuddy.shared.WatchLinkSettings
@@ -15,7 +14,6 @@ import com.accountabilibuddy.shared.WatchPaths
 import com.accountabilibuddy.shared.WatchRoute
 import com.accountabilibuddy.shared.WatchSnapshot
 import com.accountabilibuddy.shared.WatchSnapshotJson
-import com.accountabilibuddy.shared.link.PcOffer
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.CoroutineScope
@@ -25,7 +23,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -43,24 +40,20 @@ import java.time.ZoneId
 class WatchBridge(
     context: Context,
     private val store: CompanionStore,
-    private val link: LinkClient,
     private val links: WatchLinkStore,
     private val scope: CoroutineScope,
-    /** True while the phone app is on screen (its link to the PC is then the screen's, not the watch's). */
-    private val appOnScreen: () -> Boolean,
     /** The other devices' parts on the phone (ADR 22): their focus joins the watch's day, tagged with the device. */
     private val received: StateFlow<List<ReceivedDevice>> = MutableStateFlow(emptyList()),
     /** Today's lunch for the watch's Lunch page, and what changes it (lunch started or changed, the length setting). */
     private val lunch: () -> com.accountabilibuddy.shared.WatchLunch? = { null },
     private val lunchChanges: kotlinx.coroutines.flow.Flow<Any?> = kotlinx.coroutines.flow.flowOf(Unit),
-    /** Reads the other devices' files from Drive now (ADR 42): what "/hello" does when the link can't answer. */
+    /** Reads the other devices' files from Drive now (ADR 42): what "/hello" does before it answers. */
     private val syncNow: suspend () -> Unit = {},
 ) {
     private val messages = Wearable.getMessageClient(context)
     private val capabilities = Wearable.getCapabilityClient(context)
     private val sending = Mutex()
     private val _detected = MutableStateFlow<List<WatchNode>>(emptyList())
-    private val _news = MutableStateFlow<String?>(null)
 
     // The last snapshot sent (to skip sending the same again) and when, on the uptime clock.
     private var lastSent: WatchSnapshot? = null
@@ -88,20 +81,17 @@ class WatchBridge(
     /** Watches paired with this phone that have the watch app, found by [findWatches]. */
     val detected: StateFlow<List<WatchNode>> = _detected.asStateFlow()
 
-    /** What the watch said back (e.g. how pairing with the PC went), shown once by the app. */
-    val news: StateFlow<String?> = _news.asStateFlow()
-
     /** Sends when what the watch shows changes, while the app runs. */
     fun start() {
         scope.launch {
-            // The ticker resends now and then while the PC is connected, so the watch's "updated … ago" stays true.
+            // The ticker resends now and then, so the watch's "updated … ago" stays true.
             val ticker = flow {
                 while (true) {
                     emit(Unit)
                     delay(RESEND_MS)
                 }
             }
-            combine(store.state, link.status, links.settings, link.lastState, ticker, received, lunchChanges) { _ -> Unit }.collectLatest {
+            combine(store.state, links.settings, ticker, received, lunchChanges) { _, _, _, _, _ -> Unit }.collectLatest {
                 val snapshot = build() ?: return@collectLatest
                 val previous = lastSent
                 if (previous != null && sameContent(previous, snapshot)) {
@@ -161,17 +151,14 @@ class WatchBridge(
 
     fun setRelay(on: Boolean) = links.update { it.copy(relayOn = on) }
 
-    fun setWifiFallback(on: Boolean) = links.update { it.copy(wifiFallbackOn = on) }
-
-    /**
-     * The watch app opened and asked for news. When the PC is paired but the phone isn't connected (its app isn't on
-     * screen), the phone connects for a moment to get the PC's current session and focus day, then answers. A watch
-     * that isn't the linked one is told it isn't linked. Nothing at all happens when no answer may go to that watch
-     * (Data Layer off, or the relay off and the watch away), so the PC isn't woken for nothing.
-     */
     /** The watch link's settings (for the noise player on the watch, ADR 36). */
     val linkSettings: StateFlow<WatchLinkSettings> get() = links.settings
 
+    /**
+     * The watch app opened and asked for news: the phone reads the PCs' newest files from Drive (ADR 42), then answers. A
+     * watch that isn't the linked one is told it isn't linked. Nothing at all happens when no answer may go to that
+     * watch (Data Layer off, or the relay off and the watch away), so Drive isn't read for nothing.
+     */
     suspend fun answerHello(nodeId: String) {
         val settings = links.settings.value
         if (nodeId == settings.linkedNodeId) {
@@ -188,52 +175,8 @@ class WatchBridge(
             return
         }
 
-        val paired = link.pairedPc.value != null
-        val connectedHere = paired && link.status.value !is LinkStatus.Connected
-        if (connectedHere) {
-            val asked = Instant.now()
-            link.connect()
-            withTimeoutOrNull(PC_WAIT_MS) {
-                link.status.first { it is LinkStatus.Connected && it.state != null }
-                // The focus day follows the state and settings.
-                withTimeoutOrNull(FOCUS_DAY_WAIT_MS) { store.state.first { state -> state.focusDayAt?.isAfter(asked) == true } }
-            }
-        }
-
-        // ADR 42: no link (none paired, or it didn't connect): the PCs' newest files from Drive instead.
-        if (!paired || (connectedHere && link.status.value !is LinkStatus.Connected)) {
-            withTimeoutOrNull(PC_WAIT_MS) { runCatching { syncNow() } }
-        }
-
+        withTimeoutOrNull(PC_WAIT_MS) { runCatching { syncNow() } }
         build()?.let { send(it) }
-        if (connectedHere && !appOnScreen()) {
-            link.disconnect()
-        }
-    }
-
-    /**
-     * Passes the PC's pairing QR code to the linked watch, so it can reach the PC over Wi-Fi when the phone can't be
-     * reached. The code is a one-time secret, so it goes only to a watch near the phone, never through the relay.
-     */
-    suspend fun sendPcOffer(offer: PcOffer): String {
-        val settings = links.settings.value
-        if (!settings.wifiFallbackOn) {
-            return "Turn on \"Wi-Fi straight to the PC\" under Pixel Watch first."
-        }
-
-        val watch = WatchRoute.choose(settings.copy(relayOn = false), reachableWatches()).firstOrNull()
-            ?: return "The linked watch isn't near the phone. Bring it close and scan the PC's code again."
-        return runCatching { messages.sendMessage(watch.id, WatchPaths.PC_OFFER, PcOffer.write(offer).toString().toByteArray()).await() }
-            .fold({ "Sent to ${watch.name}: it pairs with ${offer.pcName} over Wi-Fi now…" }, { "Couldn't reach the watch (${it.message})." })
-    }
-
-    /** The watch's answer to [sendPcOffer]. */
-    fun notePcPaired(ok: Boolean, message: String) {
-        _news.value = if (ok) "Your watch is paired with the PC." else "The watch couldn't pair with the PC: $message"
-    }
-
-    fun clearNews() {
-        _news.value = null
     }
 
     /** The snapshot for the linked watch, or null when none is linked. */
@@ -242,14 +185,12 @@ class WatchBridge(
             return null
         }
 
-        val pcName = link.pairedPc.value?.pcName
         val settings = links.settings.value
-        val last = link.lastState.value
+        val pcFiles = received.value.map { it.file.device.name to it.file }
         return SnapshotBuilder.build(
             PhoneSnapshot.input(
-                store.state.value, link.status.value, linked = true, pcName, Instant.now(), ZoneId.systemDefault(),
-                wifiAllowed = settings.wifiFallbackOn, lastState = last?.state, lastStateAt = last?.at, relayAllowed = settings.relayOn,
-                received = received.value.map { it.file.device.name to it.file },
+                store.state.value, linked = true, PcFileControl.target(received.value, null)?.file?.device?.name, Instant.now(),
+                ZoneId.systemDefault(), relayAllowed = settings.relayOn, received = pcFiles,
             ).copy(lunch = lunch()),
         )
     }
@@ -285,6 +226,5 @@ class WatchBridge(
         const val MIN_GAP_MS = 10_000L
         const val RESEND_MS = 5 * 60_000L
         const val PC_WAIT_MS = 8_000L
-        const val FOCUS_DAY_WAIT_MS = 3_000L
     }
 }

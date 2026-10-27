@@ -25,19 +25,16 @@ import java.time.Instant
 import java.time.OffsetDateTime
 
 /**
- * The sync files' twin of the link's DayPlanSync (ADR 42, the transport for ADR 19): while the Wi-Fi link isn't
- * connected, a day plan edited on the phone goes to the controlled PC as a "dayPlanEdit" action (one at a time), and the
- * PC's answer in its file is acted on as over the link: applied clears the edit, locked keeps it and sends it again
- * (with a new id) once the PC's file shows no focus session, invalid keeps it with a note, a conflict waits for the
- * user's pick, and a late or unanswered one goes again.
+ * Sends a day plan edited on the phone (ADR 42, the transport for ADR 19): it goes to the controlled PC as a
+ * "dayPlanEdit" action (one at a time), and the PC's answer in its file is acted on: applied clears the edit, locked
+ * keeps it and sends it again (with a new id) once the PC's file shows no focus session, invalid keeps it with a note, a
+ * conflict waits for the user's pick, and a late or unanswered one goes again.
  */
 class DayPlanFileSync(
     private val store: CompanionStore,
     private val actions: ActionStore,
     private val remote: PcFileRemote,
     private val received: StateFlow<List<ReceivedDevice>>,
-    /** True while the link is connected: then the link sends the edit, as before. */
-    private val linkConnected: () -> Boolean,
     private val scope: CoroutineScope,
 ) {
     private val _conflict = MutableStateFlow<DayPlanConflict?>(null)
@@ -91,7 +88,7 @@ class DayPlanFileSync(
     }
 
     private fun trySend() {
-        if (linkConnected() || _conflict.value != null) {
+        if (_conflict.value != null) {
             return
         }
 

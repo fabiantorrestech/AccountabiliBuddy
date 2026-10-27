@@ -105,6 +105,8 @@ object SnapshotStore {
             return@synchronized
         }
 
+        // ADR 45: the watch's own PC link is gone; its stored pairing is deleted once.
+        PcLeftovers.deleteOnce(context)
         val file = File(context.filesDir, FILE)
         _snapshot.value = if (file.exists()) {
             runCatching { Json.parseToJsonElement(file.readText()) as? JsonObject }.getOrNull()?.let(WatchSnapshotJson::read)

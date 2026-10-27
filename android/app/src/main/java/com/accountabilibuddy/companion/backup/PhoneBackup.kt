@@ -20,7 +20,7 @@ import java.time.Instant
 
 /**
  * The phone's settings as one JSON file (Settings → Backup: export, import, auto-backup): the app's own preferences and
- * the phone's settings files. Secrets never go in it (the device group's link code, the PC pairing token, the Drive
+ * the phone's settings files. Secrets never go in it (the device group's link code, the Drive
  * sign-in, which Google Play services keeps), nor what comes back by itself (the PC's data, received sync files,
  * today's state such as a lunch, pending actions or snoozes). Folder permissions (the noise and sync folders) need
  * choosing again on another phone.

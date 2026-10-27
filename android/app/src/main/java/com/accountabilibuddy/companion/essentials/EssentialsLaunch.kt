@@ -133,21 +133,13 @@ object EssentialsLaunch {
     internal fun runningSessionStart(app: CompanionApp, now: Instant): Pair<Instant, Instant?>? =
         realSessionStart(app, now) ?: app.testSession.running(now)
 
-    // The newest PC file's running focus session (start, end), not a break, its phase not over; else the linked PC's.
+    // The newest PC file's running focus session (start, end), not a break, its phase not over.
     internal fun realSessionStart(app: CompanionApp, now: Instant): Pair<Instant, Instant?>? {
-        val fromFile = app.sync.received.value
+        return app.sync.received.value
             .filter { it.file.device.kind == SyncDeviceCard.KIND_PC && Duration.between(it.file.device.writtenAt, now) <= Duration.ofHours(12) }
             .mapNotNull { it.file.running }
             .filter { it.phaseEndsAt?.let { end -> now.isBefore(end) } ?: true }
             .maxByOrNull { it.phaseStartedAt }
             ?.let { it.phaseStartedAt to it.phaseEndsAt }
-        if (fromFile != null) {
-            return fromFile
-        }
-
-        val state = app.link.lastState.value?.state ?: return null
-        if (!state.isActive || state.isScheduledBlock) return null
-        val started = state.phaseStartedAt?.toInstant() ?: return null
-        return started to state.phaseEndsAt?.toInstant()
     }
 }

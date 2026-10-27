@@ -4,14 +4,13 @@ package com.accountabilibuddy.shared
  * How the phone may reach the watch (ADR 21), set on the phone before linking and later. Nothing is sent until a watch
  * is linked ([linkedNodeId]). [dataLayerOn]: through the phone over Google's Wearable Data Layer. [relayOn]: let
  * Google's servers pass it along, end-to-end encrypted, when the watch isn't in Bluetooth range; off, it goes only to
- * a watch that's nearby. [wifiFallbackOn]: the watch may ask the PC itself over Wi-Fi when the phone can't be reached.
+ * a watch that's nearby. The watch reaches a PC only through the phone (ADR 45).
  */
 data class WatchLinkSettings(
     val linkedNodeId: String? = null,
     val linkedName: String? = null,
     val dataLayerOn: Boolean = true,
     val relayOn: Boolean = true,
-    val wifiFallbackOn: Boolean = true,
 )
 
 /** A watch the Data Layer knows: its node id, its name, and whether it's in Bluetooth range of the phone. */

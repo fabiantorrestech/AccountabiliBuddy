@@ -6,10 +6,6 @@ import android.provider.Settings
 import com.accountabilibuddy.companion.data.CompanionStore
 import com.accountabilibuddy.companion.data.ImportException
 import com.accountabilibuddy.companion.data.Importer
-import com.accountabilibuddy.companion.link.DayPlanSync
-import com.accountabilibuddy.companion.link.LinkClient
-import com.accountabilibuddy.companion.link.LinkDiscovery
-import com.accountabilibuddy.companion.link.LinkStore
 import com.accountabilibuddy.companion.notify.Refresher
 import com.accountabilibuddy.companion.sync.DriveFolderSource
 import com.accountabilibuddy.companion.sync.AlarmHistoryStore
@@ -22,9 +18,7 @@ import com.accountabilibuddy.companion.sync.ReceivedDevicesStore
 import com.accountabilibuddy.companion.sync.SyncCoordinator
 import com.accountabilibuddy.companion.sync.SyncIdentityStore
 import com.accountabilibuddy.companion.watch.WatchBridge
-import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.companion.watch.WatchLinkStore
-import com.accountabilibuddy.shared.FocusDayJson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -39,7 +33,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.merge
 import kotlinx.serialization.json.JsonObject
 import java.io.File
 
@@ -47,29 +40,22 @@ import java.io.File
 private const val EXPIRE_TICK_MS = 60_000L
 
 /**
- * The app's single store, the link to the PC (ADR 14), the link to the watch (ADR 21), and the refresh loop for the
- * notification, widget and bedtime reminder.
+ * The app's single store, the sync with the other devices (ADR 22, 26, 42), the link to the watch (ADR 21), and the
+ * refresh loop for the notification, widget and bedtime reminder.
  */
 class CompanionApp : Application() {
     lateinit var store: CompanionStore
-        private set
-
-    lateinit var link: LinkClient
         private set
 
     /** This phone's name as the PC shows it (e.g. "Pixel 7"). */
     lateinit var deviceName: String
         private set
 
-    /** Sends day plan edits made on the phone to the PC (ADR 19). */
-    lateinit var planSync: DayPlanSync
-        private set
-
-    /** Starts and ends the PC's sessions through the sync files when the link isn't connected (ADR 42). */
+    /** Starts and ends the PC's sessions through the sync files (ADR 42). */
     lateinit var pcRemote: PcFileRemote
         private set
 
-    /** Sends day plan edits through the sync files when the link isn't connected (ADR 42). */
+    /** Sends day plan edits through the sync files (ADR 42). */
     lateinit var planFileSync: DayPlanFileSync
         private set
 
@@ -105,9 +91,9 @@ class CompanionApp : Application() {
     /** Bedtime reminders between devices (ADR 38). */
     lateinit var reminderRelay: com.accountabilibuddy.companion.notify.ReminderRelay
 
-    /** Hands the PC this phone's file soon (a reminder dismissed here). */
+    /** Syncs with Google Drive in the background, so the PCs get this phone's file and what it carries soon (a reminder dismissed here). */
     fun sendSyncFilesSoon() {
-        appScope.launch { sendSyncFilesToPc() }
+        appScope.launch { runCatching { driveSource.syncNow() } }
     }
 
     /** The noise player on the linked watch (ADR 36). */
@@ -161,7 +147,7 @@ class CompanionApp : Application() {
     @Volatile
     var essentialsOnScreen: Boolean = false
 
-    // Lives as long as the app; the link reads from the PC here.
+    // Lives as long as the app; the sync work runs here.
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
@@ -174,36 +160,20 @@ class CompanionApp : Application() {
         store.onSettingsSaved = { autoBackup.soon() }
         autoBackup.start()
         deviceName = readDeviceName()
-        val linkStore = LinkStore(File(filesDir, "companion/link.json"))
+        // ADR 45: the Wi-Fi link's stored pairing and focus day are deleted once.
+        com.accountabilibuddy.companion.sync.LinkLeftovers.deleteOnce(this)
         sync = SyncCoordinator(
             SyncIdentityStore(File(filesDir, "companion/sync.json")),
             ReceivedDevicesStore(File(filesDir, "companion/sync-received.json")),
             deviceName,
             appVersion(),
             PhoneSyncSettingsStore(File(filesDir, "companion/sync-settings.json")),
-            pcPaired = { linkStore.pc.value != null },
         )
-        link = LinkClient(
-            linkStore, deviceName, deviceKind(), appScope, LinkDiscovery(this), ::applyPcSettings,
-            // Without the PC's plan version (a phone-only update, a cleared import) ask for everything again.
-            needsFullSettings = { store.state.value.hasImport && store.state.value.pcPlanVersion == null },
-            applyFocusDay = { content -> FocusDayJson.read(content)?.let(store::saveFocusDay) },
-            onForget = store::clearFocusDay,
-            onSyncFile = { sealed -> sync.acceptSealed(sealed, SyncDeviceCard.METHOD_LINK) },
-            // Before each sync file the phone writes for the PC, it checks its watch link is still valid (Task 18).
-            syncFilesForPc = { pcName ->
-                watchBridge.refreshKnownWatches()
-                sync.filesForPc(pcName)
-            },
-        )
-        // A file that came by QR code, Drive or a share goes on to the PC at once when connected.
-        sync.onCarryChanged = { sendSyncFilesToPc() }
-        planSync = DayPlanSync(store, link, appScope).also { it.start() }
-        // ADR 42: the same through the sync files whenever the link isn't connected.
+        // A file that came by QR code, a folder or a share goes on to the PCs through Drive soon.
+        sync.onCarryChanged = { sendSyncFilesSoon() }
+        // ADR 42: starting and ending the PC's sessions and sending plan edits go through the sync files.
         pcRemote = PcFileRemote(this, actions, sync.received)
-        planFileSync = DayPlanFileSync(
-            store, actions, pcRemote, sync.received, { link.status.value is com.accountabilibuddy.companion.link.LinkStatus.Connected }, appScope,
-        ).also { it.start() }
+        planFileSync = DayPlanFileSync(store, actions, pcRemote, sync.received, appScope).also { it.start() }
         // ADR 42, 36: the watch's Noise page controls a PC's noise player through the same files.
         val pcNoise = PcNoiseRemote(actions, sync.received, appScope)
         actions.onAnswered = { action, result, pc ->
@@ -211,15 +181,14 @@ class CompanionApp : Application() {
             planFileSync.answered(action, result, pc)
             pcNoise.answered(action, result, pc)
         }
-        // ADR 40: the PC's settings (profiles, day plan, sleep, day bar, events) from its sync file when the Wi-Fi link
-        // isn't bringing them.
+        // ADR 40: the PC's settings (profiles, day plan, sleep, day bar, events) from its sync file.
         appScope.launch { sync.received.collect { devices -> applyPcFileSettings(devices.map { it.file }) } }
         watchBridge = WatchBridge(
-            this, store, link, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope, { appOnScreen }, sync.received,
+            this, store, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope, sync.received,
             // The watch's Lunch page: today's lunch and the length setting.
             lunch = { lunch.forWatch(store.state.value.document.dayPlan) },
             lunchChanges = kotlinx.coroutines.flow.combine(lunch.lunch, lunch.lengthMinutes) { taken, length -> taken to length },
-            // ADR 42: without the link, the watch's "/hello" reads the PCs' files from Drive instead.
+            // ADR 42: the watch's "/hello" reads the PCs' files from Drive before it answers.
             syncNow = { driveSource.syncNow() },
         )
             .also { it.start() }
@@ -242,16 +211,14 @@ class CompanionApp : Application() {
         // Lunch is the user's: this phone's goes out in its file; one from another device is taken here.
         sync.lunch = { lunch.today() }
         sync.actions = { actions.pending.value }
-        // A tick or a parked thought goes to the PC at once (link, Drive), and shows ticked here meanwhile.
+        // A tick or a parked thought goes to the PC at once (Drive), and shows ticked here meanwhile.
         actions.onChanged = {
-            sendSyncFilesToPc()
             appScope.launch {
                 driveSource.syncNow()
                 Refresher.refresh(this@CompanionApp)
             }
         }
         lunch.onChanged = {
-            sendSyncFilesToPc()
             appScope.launch {
                 driveSource.syncNow()
                 Refresher.refresh(this@CompanionApp)
@@ -298,10 +265,11 @@ class CompanionApp : Application() {
         // Phase 11b: where the phone is during a PC session (label, times and counts only).
         sync.placement = { placementStore.forSyncFile(java.time.Instant.now(), workUse) }
         sync.emergencyWindows = { emergency.all().map { it.start to minOf(it.end, java.time.Instant.now()) } }
-        watchBridge.onLinkChanged = { sendSyncFilesToPc() }
+        // Linking or unlinking the watch tells the PCs through Drive at once (Task 18).
+        watchBridge.onLinkChanged = { sendSyncFilesSoon() }
         folderSource = DriveFolderSource(this, sync)
         com.accountabilibuddy.companion.ui.UiPrefs.load(this)
-        driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn)
+        driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn, beforeSync = { watchBridge.refreshKnownWatches() })
         // Drive (ADR 26): every 30 s while a session runs or the timeline is pinned, else 15 min.
         appScope.launch { driveSource.loop { driveBusy() } }
         noise = com.accountabilibuddy.companion.noise.NoisePlayer(this, com.accountabilibuddy.companion.noise.NoiseSettingsStore(this), appScope)
@@ -330,9 +298,9 @@ class CompanionApp : Application() {
                 if (it.driveOn) driveSource.syncNow() else driveSource.forget()
             }
         }
-        // The header follows the PC's session and the devices' focus: redraw (at most every 2 s) when they change.
+        // The header follows the devices' sessions and focus: redraw (at most every 2 s) when they change.
         appScope.launch {
-            merge(link.status, link.lastState, sync.received, store.state.map { it.focusDay }.distinctUntilChanged())
+            sync.received
                 .debounce(2_000)
                 .collect { Refresher.refresh(this@CompanionApp) }
         }
@@ -344,7 +312,6 @@ class CompanionApp : Application() {
     /** Android's next alarm changed (ADR 23): the wake time, the header, and this phone's file for the PCs follow. */
     fun onNextAlarmChanged() {
         refreshWakeAlarm()
-        sendSyncFilesToPc()
         appScope.launch {
             folderSource.syncNow()
             driveSource.syncNow()
@@ -352,10 +319,10 @@ class CompanionApp : Application() {
         }
     }
 
-    // A session runs somewhere (the linked PC, or a device's file from the last 12 hours), the timeline is pinned, or a
-    // PC's answer to a start, end early or plan edit is awaited (ADR 42).
+    // A session runs somewhere (a device's file from the last 12 hours), the timeline is pinned, or a PC's answer to a
+    // start, end early or plan edit is awaited (ADR 42).
     private fun driveBusy(): Boolean {
-        if (com.accountabilibuddy.companion.notify.PinnedTimelineService.isRunning || link.lastState.value?.state?.isActive == true) {
+        if (com.accountabilibuddy.companion.notify.PinnedTimelineService.isRunning) {
             return true
         }
 
@@ -446,35 +413,30 @@ class CompanionApp : Application() {
         )
     }
 
-    /** Hands the PC the phone's file now, over the link and Drive, from the app's own scope (the placement detector, on its way out). */
+    /** Hands the PC the phone's file now, through Drive, from the app's own scope (the placement detector, on its way out). */
     fun syncPlacementNow() {
-        sendSyncFilesToPc()
-        appScope.launch { runCatching { driveSource.syncNow() } }
+        sendSyncFilesSoon()
     }
 
-    /** A work use started or ended (phase 11b): the PC hears at once (link, Drive), and the notice and detector follow. */
+    /** A work use started or ended (phase 11b): the PC hears at once (Drive), and the notice and detector follow. */
     fun workUseChanged() {
-        sendSyncFilesToPc()
         appScope.launch {
             runCatching { driveSource.syncNow() }
             Refresher.refresh(this@CompanionApp)
         }
     }
 
-    /** Hands the PC this phone's file and what it carries now, when a PC is paired (and connected), after checking the watch link. */
     /** Redraws the notification, widget and nudges soon (after the full-screen card closes, a setting changes). */
     fun refreshSoon() {
         appScope.launch { Refresher.refresh(this@CompanionApp) }
     }
 
     /**
-     * The header's refresh: connects to the PC (which sends its state and settings), swaps sync files with it, reads
-     * the sync folder and Drive, then redraws. [onDone] gets what to say.
+     * The header's refresh: reads the sync folder and Drive (which also hand over this phone's file), then redraws.
+     * [onDone] gets what to say.
      */
     fun refreshNow(onDone: (String) -> Unit) {
         appScope.launch {
-            link.connect()
-            sendSyncFilesToPc()
             val problems = listOfNotNull(
                 runCatching { folderSource.syncNow() }.exceptionOrNull()?.let { "sync folder: ${it.message}" },
                 runCatching { driveSource.syncNow() }.exceptionOrNull()?.let { "Drive: ${it.message}" },
@@ -486,19 +448,10 @@ class CompanionApp : Application() {
         }
     }
 
-    fun sendSyncFilesToPc() {
-        val pc = link.pairedPc.value ?: return
-        appScope.launch {
-            watchBridge.refreshKnownWatches()
-            link.sendSyncFiles(sync.filesForPc(pc.pcName))
-        }
-    }
-
-    /** The linked PC's profiles, sleep, day bar and events (L2): kept like an import, then the card and widget redraw. */
+    /** The PC's profiles, sleep, day bar and events (L2): kept like an import, then the card and widget redraw. */
     private fun applyPcFileSettings(files: List<com.accountabilibuddy.shared.sync.SyncFile>) {
-        if (link.status.value is com.accountabilibuddy.companion.link.LinkStatus.Connected) return
         val prefs = getSharedPreferences("pcFiles", MODE_PRIVATE)
-        val name = link.pairedPc.value?.pcName ?: prefs.getString("pcName", null)
+        val name = prefs.getString("pcName", null)
         val file = com.accountabilibuddy.companion.sync.PcFileSettings.choose(files, name) ?: return
         val content = com.accountabilibuddy.companion.sync.PcFileSettings.content(file) ?: return
         val fingerprint = com.accountabilibuddy.companion.sync.PcFileSettings.fingerprint(content)
@@ -510,7 +463,7 @@ class CompanionApp : Application() {
 
     private fun applyPcSettings(content: JsonObject, pcName: String): Boolean {
         val data = try {
-            Importer.fromLink(content, pcName)
+            Importer.fromPcFile(content, pcName)
         } catch (e: ImportException) {
             return false
         }
@@ -527,5 +480,4 @@ class CompanionApp : Application() {
     internal fun appVersion(): String =
         runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "?"
 
-    private fun deviceKind(): String = if (resources.configuration.smallestScreenWidthDp >= 600) "tablet" else "phone"
 }

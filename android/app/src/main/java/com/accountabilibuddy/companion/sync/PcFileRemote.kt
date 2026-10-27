@@ -2,7 +2,6 @@ package com.accountabilibuddy.companion.sync
 
 import android.content.Context
 import android.os.SystemClock
-import com.accountabilibuddy.companion.link.EndEarlyTerms
 import com.accountabilibuddy.shared.sync.SyncAction
 import com.accountabilibuddy.shared.sync.SyncActionResult
 import com.accountabilibuddy.shared.sync.SyncEndEarlyOffer
@@ -16,7 +15,7 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * Starts and ends a PC's sessions through the sync files when the Wi-Fi link isn't connected (ADR 42): the actions go
+ * Starts and ends a PC's sessions through the sync files (ADR 42, 45): the actions go
  * in this phone's file ([ActionStore]) and the PC answers in its own. Ending early is two steps: "end early" asks, the
  * PC's file brings its offer (its own wait, on its own clock), the phone counts down to the offer's allowed-from time
  * plus 3 seconds and sends the reason's length only; the reason never leaves the phone. The PC is the newest PC file's

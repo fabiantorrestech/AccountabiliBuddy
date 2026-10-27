@@ -70,8 +70,8 @@ data class DataSource(val name: String, val dataAt: Instant)
 /**
  * What the watch shows (ADR 21), as the phone sends it: [date]'s plan parts, the focus sessions that count (cut to the
  * day; one with no end runs until now), drift marks, planned minutes, the week, and the session running on the PC.
- * [linked] false tells the watch it's no longer linked; [wifiAllowed] and [relayAllowed] are the phone's "Wi-Fi straight
- * to the PC" and relay switches. [dataAt] is how old the PC's data is (the phone may build the snapshot later). Never
+ * [linked] false tells the watch it's no longer linked; [relayAllowed] is the phone's relay switch. [dataAt] is how old
+ * the PC's data is (the phone may build the snapshot later). Never
  * titles, addresses, reasons or notes.
  */
 data class WatchSnapshot(
@@ -85,14 +85,13 @@ data class WatchSnapshot(
     val plannedMinutes: Int,
     val week: List<DayTotal>,
     val running: RunningSession?,
-    val wifiAllowed: Boolean = true,
     val dataAt: Instant = createdAt,
     val relayAllowed: Boolean = true,
     /** The devices whose focus is in it, with their data's age (the linked PC first); empty in snapshots from before. */
     val sources: List<DataSource> = emptyList(),
     /** The daily deep-work goal in minutes (ADR 29): the outer ring and a buzz when reached; null when the PC sent none. */
     val goalMinutes: Int? = null,
-    /** Today's flexible lunch for the Lunch page (from the phone only); null from an older phone or the PC over Wi-Fi. */
+    /** Today's flexible lunch for the Lunch page (from the phone only); null from an older phone. */
     val lunch: WatchLunch? = null,
 ) {
     /** Today's focus as a share of the goal (ADR 29), 0 to 1; null without a goal. */
@@ -127,17 +126,6 @@ data class WatchSnapshot(
     }
 
     companion object {
-        /**
-         * The snapshot to keep when [incoming] arrives: [stored] when its data is newer (e.g. from the PC over Wi-Fi while
-         * the phone sends older data), with the phone's switches and lunch from [incoming]; otherwise [incoming].
-         */
-        fun newerOf(stored: WatchSnapshot?, incoming: WatchSnapshot): WatchSnapshot =
-            if (stored != null && stored.dataAt.isAfter(incoming.dataAt)) {
-                stored.copy(wifiAllowed = incoming.wifiAllowed, relayAllowed = incoming.relayAllowed, lunch = incoming.lunch)
-            } else {
-                incoming
-            }
-
         /** Whole minutes of [windows], overlaps counted once (rounded to the nearest minute). */
         fun minutes(windows: List<TimeWindow>): Int {
             var seconds = 0L

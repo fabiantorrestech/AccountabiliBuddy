@@ -130,7 +130,7 @@ class PinnedTimelineService : Service() {
         @Volatile
         private var detector: PlacementDetector? = null
 
-        /** The session may have changed (a file, the link, a break): the placement detector looks again. No-op while this service isn't running. */
+        /** The session may have changed (a file, a break): the placement detector looks again. No-op while this service isn't running. */
         fun checkPlacement() {
             detector?.poke()
         }

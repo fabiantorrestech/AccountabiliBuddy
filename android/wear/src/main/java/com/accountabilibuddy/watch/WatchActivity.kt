@@ -3,7 +3,6 @@ package com.accountabilibuddy.watch
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.os.SystemClock
 import android.text.format.DateFormat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -33,7 +32,6 @@ import com.accountabilibuddy.shared.WatchSnapshot
 import com.accountabilibuddy.shared.WatchText
 import com.accountabilibuddy.shared.WeekView
 import com.accountabilibuddy.watch.alerts.PhaseAlertScheduler
-import com.accountabilibuddy.watch.link.PcLink
 import com.accountabilibuddy.watch.link.PhoneLink
 import com.accountabilibuddy.watch.link.SnapshotStore
 import com.accountabilibuddy.watch.model.SampleData
@@ -49,15 +47,14 @@ import com.accountabilibuddy.watch.ui.use24HourClock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
 
 /**
  * The watch app (ADR 21): swipe between today's rings, the running session, lunch (on a workday), the watch's own
  * timers, the noise player, the last 7 days and where the data comes from (the Timers page works before the phone is
- * linked too). Shows the last snapshot; asks the phone for news each time it comes up, and when the phone doesn't answer
- * (and hasn't for 2 minutes), asks the PC itself over Wi-Fi if the watch is paired with it and the phone allows it.
+ * linked too). Shows the last snapshot; asks the phone for news each time it comes up. The watch reaches a PC only through
+ * the phone (ADR 45).
  */
 class WatchActivity : ComponentActivity() {
     // Opened from the Timers complication or a timer's "Time's up": go to the Timers page once.
@@ -77,11 +74,8 @@ class WatchActivity : ComponentActivity() {
             MaterialTheme {
                 val stored by snapshots.collectAsState()
                 val phoneReachable by PhoneLink.phoneReachable.collectAsState()
-                // The pairing file is read off the main thread, and again only when the snapshot or the phone link changes.
-                var pcPaired by remember { mutableStateOf(false) }
-                LaunchedEffect(stored, phoneReachable) { pcPaired = withContext(Dispatchers.IO) { PcLink.isPaired(applicationContext) } }
                 WatchApp(
-                    stored, phoneReachable, pcPaired, onAskAgain = { askForNews(force = true) }, onForget = { SnapshotStore.clear(this) },
+                    stored, phoneReachable, onAskAgain = { askForNews(force = true) }, onForget = { SnapshotStore.clear(this) },
                     openTimers = openTimers, onTimersOpened = { openTimers = false },
                 )
             }
@@ -105,20 +99,9 @@ class WatchActivity : ComponentActivity() {
 
     private fun askForNews(force: Boolean) {
         lifecycleScope.launch {
-            val asked = SystemClock.elapsedRealtime()
             val relayAllowed = SnapshotStore.snapshot(this@WatchActivity).value?.relayAllowed ?: true
-            if (!PhoneLink.askForNews(this@WatchActivity, relayAllowed, force)) {
-                // Asked a moment ago; what came then is still on screen.
-                return@launch
-            }
-            if (PhoneLink.phoneReachable.value == true) {
-                delay(PHONE_ANSWER_WAIT_MS)
-            }
-
-            val wifiAllowed = SnapshotStore.snapshot(this@WatchActivity).value?.wifiAllowed ?: true
-            if (!PhoneLink.heardSince(asked) && PhoneLink.quietFor(PHONE_QUIET_MS) && wifiAllowed && withContext(Dispatchers.IO) { PcLink.isPaired(this@WatchActivity) }) {
-                PcLink.refresh(this@WatchActivity)
-            }
+            // False: asked a moment ago, and what came then is still on screen.
+            PhoneLink.askForNews(this@WatchActivity, relayAllowed, force)
         }
     }
 
@@ -131,10 +114,6 @@ class WatchActivity : ComponentActivity() {
             Intent(context, WatchActivity::class.java)
                 .putExtra(PAGE, PAGE_TIMERS)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-
-        // The phone answers within seconds (it may first ask the PC); after that the watch tries the PC itself.
-        private const val PHONE_ANSWER_WAIT_MS = 12_000L
-        private const val PHONE_QUIET_MS = 2 * 60_000L
     }
 }
 
@@ -160,7 +139,7 @@ private fun rememberSecondClock(): State<Instant> {
 
 @Composable
 private fun WatchApp(
-    stored: WatchSnapshot?, phoneReachable: Boolean?, pcPaired: Boolean, onAskAgain: () -> Unit, onForget: () -> Unit,
+    stored: WatchSnapshot?, phoneReachable: Boolean?, onAskAgain: () -> Unit, onForget: () -> Unit,
     openTimers: Boolean, onTimersOpened: () -> Unit,
 ) {
     // Not read here: the pieces below read it inside derivedStateOf, so this function recomposes only when what they
@@ -231,7 +210,7 @@ private fun WatchApp(
                             Page.Noise -> com.accountabilibuddy.watch.ui.NoisePage(isCurrent = pager.currentPage == page)
                             Page.Alerts -> AlertsPage(onChanged = { PhaseAlertScheduler.schedule(context, stored) })
                             Page.Link -> snapshot?.let {
-                                LinkContent(it, now, isSample = stored == null, pcPaired = pcPaired, onForget = { if (stored == null) sample = null else onForget() })
+                                LinkContent(it, now, isSample = stored == null, onForget = { if (stored == null) sample = null else onForget() })
                             }
                         }
                     }
@@ -270,7 +249,7 @@ private fun WeekContent(snapshot: WatchSnapshot, now: State<Instant>, zone: Zone
 private data class LinkAges(val updated: String?, val sources: List<String>)
 
 @Composable
-private fun LinkContent(snapshot: WatchSnapshot, now: State<Instant>, isSample: Boolean, pcPaired: Boolean, onForget: () -> Unit) {
+private fun LinkContent(snapshot: WatchSnapshot, now: State<Instant>, isSample: Boolean, onForget: () -> Unit) {
     val ages by remember(snapshot) {
         derivedStateOf {
             LinkAges(
@@ -280,7 +259,7 @@ private fun LinkContent(snapshot: WatchSnapshot, now: State<Instant>, isSample: 
             )
         }
     }
-    LinkPage(pcName = snapshot.pcName, updated = ages.updated, sources = ages.sources, isSample = isSample, pcPaired = pcPaired, onForget = onForget)
+    LinkPage(pcName = snapshot.pcName, updated = ages.updated, sources = ages.sources, isSample = isSample, onForget = onForget)
 }
 
 private enum class Page { NotLinked, Today, Session, Lunch, Timers, Noise, Week, Alerts, Link }

@@ -1,10 +1,10 @@
-package com.accountabilibuddy.companion.link
+package com.accountabilibuddy.companion.sync
 
 import com.accountabilibuddy.companion.model.DayPlan
 import java.time.Instant
 
 /**
- * How the PC took the phone's day plan edit (ADR 19; the PC's LinkDayPlanAnswer). [status] is one of [APPLIED],
+ * How the PC took the phone's day plan edit (ADR 19; the PC's DayPlanAnswer). [status] is one of [APPLIED],
  * [LOCKED], [CONFLICT], [INVALID], or [UNSUPPORTED] when the PC's app doesn't know the request yet.
  */
 data class DayPlanAnswer(

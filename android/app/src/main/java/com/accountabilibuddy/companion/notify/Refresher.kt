@@ -43,10 +43,6 @@ object Refresher {
     // Tonight's bedtime, when a LockMyPhone-Extended profile is set for the night: the refresher runs then to start it.
     private var bedtimeAt: java.time.Instant? = null
 
-    // The pickups last sent to the PC for the running session (sent again only when they change).
-    @Volatile
-    private var lastPickups: Int? = null
-
     fun start(context: Context) {
         Channels.create(context)
         schedule(context)
@@ -127,10 +123,6 @@ object Refresher {
             PinnedTimelineService.checkPlacement()
             val preWork = PreWorkNotice.part(focus, java.time.Instant.now())
             PreWorkNotice.check(context, preWork, preWork?.let { app.sync.unlocksSince(it.start)?.size }, clock)
-            if (running != null && pickups != null && pickups != lastPickups) {
-                lastPickups = pickups
-                app.sendSyncFilesToPc()
-            }
             schedule(context)
         }
     }

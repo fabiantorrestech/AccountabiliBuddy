@@ -48,7 +48,7 @@ data class HeaderText(
 
 /**
  * The context-aware header of the notification, the Today screen and the widget: a running session first (from the PC
- * over the link, or an open session in another device's sync file), then the night, the part of the plan now, what
+ * from a device's sync file), then the night, the part of the plan now, what
  * starts within the hour, the evening and a day off. The summary adds focus against the plan, drifts, phone screen
  * time, the wake time and the sleep ahead in the evening, and how old the focus data is.
  */

@@ -64,7 +64,7 @@ fun TodayScreen(
     onDiscardPlanEdit: () -> Unit = {},
     /** Opens "Plan a day" (ADR 37); null hides the button. */
     onPlanDay: (() -> Unit)? = null,
-    /** The running session's checklist (ADR 24), from the linked PC or a sync file; null hides the card. */
+    /** The running session's checklist (ADR 24), from a sync file; null hides the card. */
     runningTasks: com.accountabilibuddy.companion.sync.RunningTasks? = null,
     /** The PC's open come-backs (ADR 30); null hides the card. */
     comebacks: com.accountabilibuddy.companion.sync.OpenComebacks? = null,
@@ -116,7 +116,7 @@ fun TodayScreen(
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         IconTitle("Bring your PC's profiles", style = MaterialTheme.typography.titleMedium)
-                        Text("Link the PC in Devices, or import a backup.", style = MaterialTheme.typography.bodyMedium)
+                        Text("Sign in to Google Drive in Devices, or import a backup.", style = MaterialTheme.typography.bodyMedium)
                         Button(onClick = onImport) { Text("Import backup file") }
                         Hint("On the PC: Settings → Backup → Export (without secrets, or with a password). Put the .abbackup file on the phone, then import it here.", label = "How to export")
                     }

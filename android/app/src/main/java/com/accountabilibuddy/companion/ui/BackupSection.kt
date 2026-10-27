@@ -60,7 +60,7 @@ internal fun BackupSection() {
     }
 
     Section("Backup", summary = if (folder != null) "Auto-backup on" else "Export or import this phone's settings") {
-        Text("This phone's settings in one file: essentials, emergency time, headphones, noise, pause, work card, startup, sync switches and sleep. Never the device group's code, the PC pairing or the Drive sign-in.",
+        Text("This phone's settings in one file: essentials, emergency time, headphones, noise, pause, work card, startup, sync switches and sleep. Never the device group's code or the Drive sign-in.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { export.launch("AccountabiliBuddy-phone-settings.json") }) { Text("Export…") }

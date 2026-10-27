@@ -97,7 +97,7 @@ fun AboutScreen(pcName: String?, onOpenWhatsNew: () -> Unit = {}) {
         Spacer(Modifier.height(10.dp))
         Spacer(Modifier.height(22.dp))
         Text(
-            if (pcName == null) "Not linked to a PC. Link one from Settings." else "Linked to $pcName. Updates for the PC app are in its About tab.",
+            if (pcName == null) "No PC yet. Sign in to Google Drive (Devices) to bring one in." else "Syncing with $pcName. Updates for the PC app are in its About tab.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

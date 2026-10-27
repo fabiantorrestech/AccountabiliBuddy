@@ -31,10 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.engine.DayBarBuilder
-import com.accountabilibuddy.companion.link.EndEarlyTerms
-import com.accountabilibuddy.companion.link.LinkStatus
-import com.accountabilibuddy.companion.link.PairingLink
-import com.accountabilibuddy.companion.link.PcState
+import com.accountabilibuddy.companion.sync.EndEarlyTerms
+import com.accountabilibuddy.companion.sync.PcState
 import com.accountabilibuddy.shared.sync.SyncAction
 import kotlinx.coroutines.delay
 import java.time.Duration
@@ -43,66 +41,19 @@ import java.time.ZoneId
 
 private val LENGTHS = listOf(25, 50, 90)
 
-// The phone's and the PC's clocks may differ by a little: through the sync files the phone sends a little after the wait.
+// The phone's and the PC's clocks may differ by a little: the phone sends a little after the wait.
 private const val SKEW_SECONDS = 3L
 
-/** Today: the linked PC's session, with Start (idle) or End early (running). Hidden while no PC is linked. */
+/**
+ * Today, when no PC file has reached this phone yet (ADR 45): the way to get one. Every PC-phone exchange goes through
+ * Google Drive (or the sync folder, a share or QR codes), so there is no "Not linked" state.
+ */
 @Composable
-fun PcCard(
-    status: LinkStatus,
-    clock: ClockFormat,
-    busy: Boolean,
-    onStart: (profileId: String?, minutes: Int?, countUp: Boolean) -> Unit,
-    onEndEarly: () -> Unit,
-    onRetry: () -> Unit,
-) {
-    if (status is LinkStatus.Unlinked) {
-        return
-    }
-
-    var choosingStart by remember { mutableStateOf(false) }
+fun PcMissingCard() {
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            when (status) {
-                is LinkStatus.Connected -> {
-                    IconTitle("PC · ${status.pcName}", style = MaterialTheme.typography.titleMedium)
-                    val state = status.state
-                    if (state == null) {
-                        Text("Connected…", style = MaterialTheme.typography.bodyMedium)
-                    } else {
-                        SessionLine(state, clock)
-                        if (state.isActive) {
-                            OutlinedButton(onClick = onEndEarly, enabled = !busy) { Text("End early…") }
-                        } else {
-                            Button(onClick = { choosingStart = true }, enabled = !busy && state.profiles.isNotEmpty()) { Text("Start on the PC…") }
-                        }
-                    }
-
-                    if (choosingStart && state != null) {
-                        StartOnPcDialog(
-                            state = state,
-                            onStart = { profileId, minutes, countUp ->
-                                choosingStart = false
-                                onStart(profileId, minutes, countUp)
-                            },
-                            onCancel = { choosingStart = false },
-                        )
-                    }
-                }
-
-                is LinkStatus.Offline -> {
-                    IconTitle("PC", style = MaterialTheme.typography.titleMedium)
-                    // The first sentence ("Can't reach DESK-PC"); the technical reason behind ⓘ.
-                    Text(status.message.substringBefore(" (").substringBefore("."), style = MaterialTheme.typography.bodyMedium)
-                    OutlinedButton(onClick = onRetry) { Text("Try again") }
-                    Hint(status.message, label = "Details")
-                }
-
-                else -> {
-                    IconTitle("PC", style = MaterialTheme.typography.titleMedium)
-                    Text("Connecting…", style = MaterialTheme.typography.bodyMedium)
-                }
-            }
+            IconTitle("PC", style = MaterialTheme.typography.titleMedium)
+            Text("Sign in to Google Drive (Devices) to see and control your PC.", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -197,9 +148,8 @@ private fun StartOnPcDialog(state: PcState, onStart: (String?, Int?, Boolean) ->
 }
 
 /**
- * Today, while the Wi-Fi link isn't connected (ADR 42): the controlled PC's session as its sync file says, with Start
- * or End early sent through the files, the request still waiting for the PC's answer, and "Update AccountabiliBuddy on
- * <PC>" for a PC too old to answer.
+ * Today (ADR 42): the controlled PC's session as its sync file says, with Start or End early sent through the files,
+ * the request still waiting for the PC's answer, and "Update AccountabiliBuddy on <PC>" for a PC too old to answer.
  */
 @Composable
 fun PcFileCard(
@@ -296,27 +246,5 @@ fun EndEarlyDialog(terms: EndEarlyTerms, onEnd: (String) -> Unit, onCancel: () -
             }
         },
         dismissButton = { TextButton(onClick = onCancel) { Text("Keep going") } },
-    )
-}
-
-/** Opened from the PC's QR code: compare the code with the PC's screen, then link. */
-@Composable
-fun PairingDialog(offer: PairingLink, busy: Boolean, onPair: () -> Unit, onCancel: () -> Unit, onPairWatch: (() -> Unit)? = null) {
-    AlertDialog(
-        onDismissRequest = { if (!busy) onCancel() },
-        title = { Text("Link with ${offer.pcName}?") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Check that the PC shows this code:")
-                Text(offer.displayCode, style = MaterialTheme.typography.headlineSmall)
-                Text("Then this phone shows the PC's session. Your network only, encrypted.", style = MaterialTheme.typography.bodySmall)
-                if (onPairWatch != null) {
-                    // The watch reaches the PC over Wi-Fi when the phone isn't around; the code goes to it instead.
-                    TextButton(onClick = onPairWatch, enabled = !busy) { Text("Pair my watch instead") }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onPair, enabled = !busy) { Text(if (busy) "Linking…" else "Link") } },
-        dismissButton = { TextButton(onClick = onCancel, enabled = !busy) { Text("Cancel") } },
     )
 }

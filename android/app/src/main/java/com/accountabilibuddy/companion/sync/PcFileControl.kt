@@ -1,7 +1,5 @@
 package com.accountabilibuddy.companion.sync
 
-import com.accountabilibuddy.companion.link.PcProfile
-import com.accountabilibuddy.companion.link.PcState
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFile
 import java.time.Duration
@@ -11,8 +9,8 @@ import java.time.ZoneId
 
 /**
  * The PC this phone controls through the sync files (ADR 42) and what its file says: the newest PC file's PC unless the
- * user picked one in Devices; whether that PC answers control actions (0.1.107 on); and its session as a [PcState], so
- * the PC card and the start picker read the same whether the state came by the link or by a file.
+ * user picked one in Devices; whether that PC answers control actions (0.1.107 on); and its session as a [PcState] for
+ * the PC card and the start picker.
  */
 object PcFileControl {
     /** The first PC version that answers start, end early and plan edits in its file. */
@@ -55,7 +53,7 @@ object PcFileControl {
         return running.takeIf { it.isLiveAt(now, OVER_FOR) }
     }
 
-    /** The PC's session as its file says, in the link's shape (a running session in a file always counts as focus). */
+    /** The PC's session as its file says, as a [PcState] (a running session in a file always counts as focus). */
     fun stateOf(file: SyncFile, now: Instant): PcState {
         val running = liveRunning(file, now)
         val zone = ZoneId.systemDefault()

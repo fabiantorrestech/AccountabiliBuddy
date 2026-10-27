@@ -151,7 +151,7 @@ class PlacementDetector(context: Context) {
         scope.cancel()
     }
 
-    /** Something about the session may have changed (a sync file, the link, a break, the test session): look once, without a burst storm. */
+    /** Something about the session may have changed (a sync file, a break, the test session): look once, without a burst storm. */
     fun poke() {
         handler.post { look(force = false) }
     }
@@ -367,13 +367,12 @@ class PlacementDetector(context: Context) {
         }
     }
 
-    // The phone's file with the placement goes to the linked PC and to Drive (the same path a pickup uses).
+    // The phone's file with the placement goes to the PCs through Drive.
     private fun syncNow(done: (() -> Unit)? = null) {
         lastSyncAt = Instant.now()
         scope.launch {
             try {
                 runCatching {
-                    app.sendSyncFilesToPc()
                     app.driveSource.syncNow()
                 }.onFailure { Log.w(TAG, "placement not synced", it) }
             } finally {

@@ -5,7 +5,6 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.put
@@ -14,36 +13,10 @@ import java.time.LocalDate
 import java.time.OffsetDateTime
 
 /**
- * The PC's "focusDay" JSON (camelCase; dates "yyyy-MM-dd", times ISO with their offset), read and written the same way
- * so the phone can keep it as a file. Entries that can't be read are skipped; a day without a date isn't read at all.
- * The pieces are shared with [WatchSnapshotJson].
+ * The pieces of a focus day's JSON (camelCase; dates "yyyy-MM-dd", times ISO with their offset) that [WatchSnapshotJson]
+ * reads and writes. Entries that can't be read are skipped.
  */
 object FocusDayJson {
-    fun read(json: JsonObject): FocusDay? {
-        val date = json.date("date") ?: return null
-        return FocusDay(
-            date = date,
-            parts = json.objects("parts").mapNotNull(::readPart),
-            sessions = json.objects("sessions").mapNotNull(::readSession),
-            drift = json.objects("drift").mapNotNull(::readWindow),
-            focusedMinutes = json.int("focusedMinutes") ?: 0,
-            plannedMinutes = json.int("plannedMinutes") ?: 0,
-            week = json.objects("week").mapNotNull(::readTotal),
-            goalMinutes = json.int("goalMinutes")?.takeIf { it > 0 },
-        )
-    }
-
-    fun write(day: FocusDay): JsonObject = buildJsonObject {
-        put("date", day.date.toString())
-        put("parts", buildJsonArray { day.parts.forEach { add(writePart(it)) } })
-        put("sessions", buildJsonArray { day.sessions.forEach { add(writeSession(it)) } })
-        put("drift", buildJsonArray { day.drift.forEach { add(writeWindow(it)) } })
-        put("focusedMinutes", day.focusedMinutes)
-        put("plannedMinutes", day.plannedMinutes)
-        put("week", buildJsonArray { day.week.forEach { add(writeTotal(it)) } })
-        day.goalMinutes?.let { put("goalMinutes", it) }
-    }
-
     internal fun writePart(part: FocusPart): JsonObject = buildJsonObject {
         put("name", part.name)
         put("category", part.category)

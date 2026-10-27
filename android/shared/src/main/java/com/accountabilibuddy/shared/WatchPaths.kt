@@ -11,12 +11,6 @@ object WatchPaths {
     /** The phone tells the watch it's not linked (any more): the watch forgets what it has. */
     const val UNLINK = "/unlink"
 
-    /** The phone passes the PC's pairing QR code to the watch ([com.accountabilibuddy.shared.link.PcOffer] as JSON). */
-    const val PC_OFFER = "/pc-offer"
-
-    /** The watch tells the phone how pairing with the PC went: `{ok, message}`. */
-    const val PC_PAIRED = "/pc-paired"
-
     /** The phone tells the watch what its noise player is doing ([NoiseRemote.State], ADR 36). */
     const val NOISE = "/noise"
 

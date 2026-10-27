@@ -8,8 +8,8 @@ import java.time.Instant
  * merged into one.
  *
  * @property receivedAt When the newest file from it arrived.
- * @property method How the newest file came ([com.accountabilibuddy.shared.sync.SyncDeviceCard.METHOD_LINK], QR, folder
- * or file); the phone never carries a file back the way it came ([SyncCarry.filesFor]).
+ * @property method How the newest file came (QR, folder, Drive or file; "link" in a copy kept from before ADR 45); the
+ * phone never carries a file back the way it came ([SyncCarry.filesFor]).
  * @property sealed The newest file's sealed bytes exactly as they arrived: what the phone carries on. A merged copy is
  * never sealed again and relayed, since it has gaps where its files didn't meet.
  */

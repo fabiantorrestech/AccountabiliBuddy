@@ -21,7 +21,7 @@ data class ImportedData(
     val events: List<CalendarEvent>,
     val eventsJson: JsonArray?,
     val sourceDescription: String,
-    /** From a linked PC (ADR 19): its day plan's version and when it last changed; null from backups and older PCs. */
+    /** From a PC's sync file (ADR 19): its day plan's version and when it last changed; null from backups and older PCs. */
     val dayPlanVersion: String? = null,
     val dayPlanEditedAt: java.time.Instant? = null,
 )

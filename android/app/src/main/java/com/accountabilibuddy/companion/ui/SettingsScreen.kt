@@ -20,7 +20,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,8 +43,6 @@ import com.accountabilibuddy.companion.data.CompanionState
 import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.engine.DayBarBuilder
 import com.accountabilibuddy.companion.engine.SleepSchedule
-import com.accountabilibuddy.companion.link.LinkStatus
-import com.accountabilibuddy.companion.link.LinkedPc
 import com.accountabilibuddy.companion.model.SleepSettings
 import com.accountabilibuddy.companion.model.SleepTimes
 import com.accountabilibuddy.shared.WatchLinkSettings
@@ -129,8 +126,8 @@ fun SettingsScreen(
                 }
                 item {
                     Hint(
-                        "Local only: the app talks only to your linked PC, on your own network and encrypted, to your linked watch " +
-                            "(through Google's encrypted relay only if you allow it in Devices) and, with Google Drive on, to the app's own Drive folder. Nothing else goes to the internet.",
+                        "Local only: the app talks only to your linked watch (through Google's encrypted relay only if you allow it in Devices) " +
+                            "and, with Google Drive on, to the app's own Drive folder, where your devices' sealed sync files go. Nothing else goes to the internet.",
                         label = "Privacy: what leaves this phone",
                     )
                 }
@@ -336,56 +333,6 @@ private fun CurboxSection(curbox: CurboxStatus, onConnect: () -> Unit, onReenabl
     }
 }
 
-@Composable
-internal fun PcSection(status: LinkStatus, pc: LinkedPc?, onPaste: (String) -> Boolean, onUnpair: () -> Unit) {
-    val summary = when {
-        pc == null -> "Not linked"
-        status is LinkStatus.Connected -> "${pc.pcName} · connected"
-        else -> "${pc.pcName} · not connected"
-    }
-    Section("PC", summary = summary) {
-        // The Wi-Fi link is being replaced by Google Drive sync (ADR 26); it stays until Drive has worked for a week.
-        Text("The Wi-Fi link is being replaced by Google Drive sync (Devices → Google Drive): sign in there on the phone and the PC.",
-            style = MaterialTheme.typography.bodySmall, color = Color(0xFFF4A261))
-        if (pc == null) {
-            Text("Not linked.", style = MaterialTheme.typography.bodyMedium)
-            Hint(
-                "On the PC: Setup → Linked devices → Turn on → Pair a phone or tablet, then scan the QR code " +
-                    "with this phone's camera. If the camera only shows the link as text, copy it and paste it here.",
-                label = "How to link",
-            )
-            var pasted by remember { mutableStateOf("") }
-            var wrong by remember { mutableStateOf(false) }
-            OutlinedTextField(
-                value = pasted,
-                onValueChange = {
-                    pasted = it
-                    wrong = false
-                },
-                label = { Text("Pairing link (accountabilibuddy://pair…)") },
-                singleLine = true,
-                isError = wrong,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedButton(onClick = { wrong = !onPaste(pasted) }, enabled = pasted.isNotBlank()) { Text("Use this link") }
-            if (wrong) {
-                Text("That isn't a pairing link from the PC.", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFCA5A5))
-            }
-            return@Section
-        }
-
-        val state = when (status) {
-            is LinkStatus.Connected -> "connected"
-            is LinkStatus.Offline -> "can't be reached right now"
-            LinkStatus.Connecting -> "connecting…"
-            else -> "connects while this app is open"
-        }
-        Text("Linked to ${pc.pcName} (${pc.host}) · $state", style = MaterialTheme.typography.bodyMedium)
-        Hint("The PC's session shows on Today, where you can start one or end it early with the PC's own wait and reason.")
-        OutlinedButton(onClick = onUnpair) { Text("Unpair") }
-    }
-}
-
 /** The Pixel Watch link (ADR 21) as the Devices tab shows it. */
 data class WatchSectionState(val settings: WatchLinkSettings = WatchLinkSettings(), val detected: List<WatchNode> = emptyList())
 
@@ -395,7 +342,6 @@ data class WatchSectionActions(
     val onUnlink: () -> Unit = {},
     val onDataLayer: (Boolean) -> Unit = {},
     val onRelay: (Boolean) -> Unit = {},
-    val onWifi: (Boolean) -> Unit = {},
 )
 
 @Composable
@@ -433,12 +379,6 @@ internal fun WatchSection(watch: WatchSectionState, actions: WatchSectionActions
             "When the watch is away from the phone's Bluetooth, Google's servers pass it along, end-to-end encrypted so Google can't " +
                 "read it. Off: only while the watch is near the phone.",
             settings.relayOn && settings.dataLayerOn, enabled = settings.dataLayerOn, onChange = actions.onRelay,
-        )
-        ToggleRow(
-            "Wi-Fi straight to the PC",
-            "When the phone can't be reached, the watch asks the PC itself on your Wi-Fi (pair it from the PC's QR code with " +
-                "\"Pair my watch\").",
-            settings.wifiFallbackOn, onChange = actions.onWifi,
         )
         Hint(
             "Nothing goes to a watch until you link it. The watch gets plan parts, focus session times and profile names, drift times, " +
@@ -564,7 +504,7 @@ private fun SleepSection(saved: SleepSettings, clock: ClockFormat, onSave: (Slee
 
     val summary = if (!saved.enabled) "Off" else "Bed ${clock.time(LocalDate.now().atTime(saved.weeknights.bedtime))} · up ${clock.time(LocalDate.now().atTime(saved.weeknights.wake))}"
     Section("Sleep times", summary = summary) {
-        Hint("The bar runs from wake time to bedtime and shades the night; from two hours before bedtime it says how much sleep you'll get if you go now. Comes from the PC: over the link when it's paired, or from a backup.")
+        Hint("The bar runs from wake time to bedtime and shades the night; from two hours before bedtime it says how much sleep you'll get if you go now. Comes from the PC's sync file (Google Drive), or from a backup.")
         ToggleRow("Sleep mode", "Bedtime and wake time on the timeline", saved.enabled) { onSave(saved.copy(enabled = it)) }
         ToggleRow("Same every night", "Off: Friday and Saturday nights use the weekend times", saved.sameEveryNight) { onSave(saved.copy(sameEveryNight = it)) }
         NightRow(if (saved.sameEveryNight) "Every night" else "Weeknights (Sun–Thu)", saved.weeknights, clock,
