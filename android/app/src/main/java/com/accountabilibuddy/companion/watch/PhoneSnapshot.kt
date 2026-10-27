@@ -47,7 +47,10 @@ object PhoneSnapshot {
             pcName = pcName,
             parts = todayParts(state.document.dayPlan, today, zone),
             // The linked PC's live day wins over its own sync file; the other devices' sessions join it.
-            focusDay = if (received.isEmpty()) state.focusDay else FocusDayCombine.combine(state.focusDay, pcName, received, today, zone, now),
+            // Without the link today, the parts and planned minutes come from the imported plan (ADR 42).
+            focusDay = if (received.isEmpty()) state.focusDay else FocusDayCombine.combine(
+                state.focusDay, pcName, received, today, zone, now, planParts = { date -> todayParts(state.document.dayPlan, date, zone) },
+            ),
             focusDayAt = state.focusDayAt,
             sources = listOfNotNull(pcName?.let { name -> state.focusDayAt?.let { DataSource(name, it) } }) +
                 others.map { (name, file) -> DataSource(name, file.device.writtenAt) },
@@ -91,7 +94,7 @@ object PhoneSnapshot {
             ?.let { file ->
                 val running = file.running!!
                 val tasks = file.sessions.lastOrNull { it.end == null }?.tasks.orEmpty()
-                RunningSession(running.profile, running.phaseStartedAt, running.phaseEndsAt, running.isBreak).withTasks(tasks)
+                RunningSession(running.profile, running.phaseStartedAt, running.phaseEndsAt, running.isBreak).withTasks(tasks, running.currentTask)
             }
 
     /** The PC's session when it's one that counts as focus (a scheduled block isn't); breaks belong to it. */

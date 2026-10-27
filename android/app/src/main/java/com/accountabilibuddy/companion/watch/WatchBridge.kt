@@ -53,6 +53,8 @@ class WatchBridge(
     /** Today's lunch for the watch's Lunch page, and what changes it (lunch started or changed, the length setting). */
     private val lunch: () -> com.accountabilibuddy.shared.WatchLunch? = { null },
     private val lunchChanges: kotlinx.coroutines.flow.Flow<Any?> = kotlinx.coroutines.flow.flowOf(Unit),
+    /** Reads the other devices' files from Drive now (ADR 42): what "/hello" does when the link can't answer. */
+    private val syncNow: suspend () -> Unit = {},
 ) {
     private val messages = Wearable.getMessageClient(context)
     private val capabilities = Wearable.getCapabilityClient(context)
@@ -186,7 +188,8 @@ class WatchBridge(
             return
         }
 
-        val connectedHere = link.pairedPc.value != null && link.status.value !is LinkStatus.Connected
+        val paired = link.pairedPc.value != null
+        val connectedHere = paired && link.status.value !is LinkStatus.Connected
         if (connectedHere) {
             val asked = Instant.now()
             link.connect()
@@ -195,6 +198,11 @@ class WatchBridge(
                 // The focus day follows the state and settings.
                 withTimeoutOrNull(FOCUS_DAY_WAIT_MS) { store.state.first { state -> state.focusDayAt?.isAfter(asked) == true } }
             }
+        }
+
+        // ADR 42: no link (none paired, or it didn't connect): the PCs' newest files from Drive instead.
+        if (!paired || (connectedHere && link.status.value !is LinkStatus.Connected)) {
+            withTimeoutOrNull(PC_WAIT_MS) { runCatching { syncNow() } }
         }
 
         build()?.let { send(it) }

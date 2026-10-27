@@ -121,8 +121,44 @@ object SyncFileJson {
                 running.phaseEndsAt?.let { put("phaseEndsAt", writeTime(it)) }
                 put("isBreak", running.isBreak)
                 running.awaySince?.let { put("awaySince", writeTime(it)) }
+                // Optional (ADR 42).
+                running.currentTask?.let { put("currentTask", it) }
+                running.profileId?.let { put("profileId", it) }
+                running.countUpProfileId?.let { put("countUpProfileId", it) }
             })
         }
+        // Optional (ADR 42): a PC's answers, its end-early offer, its goal and its profiles for the start picker.
+        file.actionResults?.let { list ->
+            put("actionResults", JsonArray(list.map { result ->
+                buildJsonObject {
+                    put("id", result.id)
+                    put("ok", result.ok)
+                    put("status", result.status)
+                    result.message?.let { put("message", it) }
+                    result.planVersion?.let { put("planVersion", it) }
+                    result.planEditedAt?.let { put("planEditedAt", writeTime(it)) }
+                }
+            }))
+        }
+        file.endEarly?.let { offer ->
+            put("endEarly", buildJsonObject {
+                put("requestId", offer.requestId)
+                put("phaseStartedAt", writeTime(offer.phaseStartedAt))
+                put("allowedFrom", writeTime(offer.allowedFrom))
+                put("minReasonLength", offer.minReasonLength)
+                offer.note?.let { put("note", it) }
+            })
+        }
+        file.goalMinutes?.let { put("goalMinutes", it) }
+        file.profileOptions?.let { list ->
+            put("profileOptions", JsonArray(list.map { option ->
+                buildJsonObject {
+                    put("id", option.id)
+                    put("name", option.name)
+                }
+            }))
+        }
+        file.defaultProfileId?.let { put("defaultProfileId", it) }
         file.lunch?.let { lunch ->
             put("lunch", buildJsonObject {
                 put("start", writeTime(lunch.start))
@@ -236,6 +272,9 @@ object SyncFileJson {
                         running.optionalTime("phaseEndsAt"),
                         (running["isBreak"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true",
                         running.optionalTime("awaySince"),
+                        optionalText(running, "currentTask"),
+                        optionalText(running, "profileId"),
+                        optionalText(running, "countUpProfileId"),
                     )
                 }.getOrNull()
             },
@@ -259,9 +298,55 @@ object SyncFileJson {
                 fun time(key: String) = (estimate[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
                 SyncWakeEstimate(time("workdays"), time("offDays"))
             },
+            readActionResults(json["actionResults"]),
+            readEndEarly(json["endEarly"]),
+            (json["goalMinutes"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.intOrNull,
+            (json["profileOptions"] as? JsonArray)?.mapNotNull { element ->
+                val option = element as? JsonObject ?: return@mapNotNull null
+                val id = optionalText(option, "id") ?: return@mapNotNull null
+                SyncProfileOption(id, optionalText(option, "name") ?: "")
+            },
+            optionalText(json, "defaultProfileId"),
             readBeeminder(json["beeminder"]),
         )
     }
+
+    // ADR 42: an optional list; an entry that can't be read is left out rather than failing the file.
+    private fun readActionResults(value: JsonElement?): List<SyncActionResult>? {
+        val array = value as? JsonArray ?: return null
+        return array.mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            runCatching {
+                SyncActionResult(
+                    item.requiredString("id"),
+                    (item["ok"] as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull ?: false,
+                    // A result without a status (shouldn't happen) reads by its ok flag.
+                    optionalText(item, "status") ?: if ((item["ok"] as? JsonPrimitive)?.booleanOrNull == true) SyncActionResult.STATUS_APPLIED else SyncActionResult.STATUS_REFUSED,
+                    optionalText(item, "message"),
+                    optionalText(item, "planVersion"),
+                    item.optionalTime("planEditedAt"),
+                )
+            }.getOrNull()
+        }
+    }
+
+    // ADR 42: an offer that can't be read is left out rather than failing the file.
+    private fun readEndEarly(value: JsonElement?): SyncEndEarlyOffer? {
+        val offer = value as? JsonObject ?: return null
+        return runCatching {
+            SyncEndEarlyOffer(
+                offer.requiredString("requestId"),
+                offer.requiredTime("phaseStartedAt"),
+                offer.requiredTime("allowedFrom"),
+                (offer["minReasonLength"] as? JsonPrimitive)?.intOrNull ?: 0,
+                optionalText(offer, "note"),
+            )
+        }.getOrNull()
+    }
+
+    /** An optional string field; anything that isn't a string reads as null. */
+    private fun optionalText(json: JsonObject, name: String): String? =
+        (json[name] as? JsonPrimitive)?.takeIf { it !is JsonNull && it.isString }?.content
 
     // ADR 43: an optional list; an entry that can't be read is left out rather than failing the file.
     private fun readBeeminder(value: kotlinx.serialization.json.JsonElement?): List<SyncBeeminderGoal>? {

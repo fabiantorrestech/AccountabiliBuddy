@@ -39,7 +39,13 @@ class DriveSyncSource(
     suspend fun loop(busy: () -> Boolean) {
         while (true) {
             syncNow()
-            delay(DrivePoll.interval(busy()).toMillis())
+            // Checked again at every busy step, so a request to a PC (ADR 42) or a session starting shortens a long wait.
+            val step = DrivePoll.interval(true).toMillis()
+            var waited = 0L
+            while (waited < DrivePoll.interval(busy()).toMillis()) {
+                delay(step)
+                waited += step
+            }
         }
     }
 

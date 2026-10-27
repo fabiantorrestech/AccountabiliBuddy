@@ -30,6 +30,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import androidx.glance.appwidget.updateAll
+import com.accountabilibuddy.companion.sync.DayPlanFileSync
+import com.accountabilibuddy.companion.sync.PcFileRemote
+import com.accountabilibuddy.shared.sync.SyncAction
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.debounce
@@ -54,6 +57,14 @@ class CompanionApp : Application() {
 
     /** Sends day plan edits made on the phone to the PC (ADR 19). */
     lateinit var planSync: DayPlanSync
+        private set
+
+    /** Starts and ends the PC's sessions through the sync files when the link isn't connected (ADR 42). */
+    lateinit var pcRemote: PcFileRemote
+        private set
+
+    /** Sends day plan edits through the sync files when the link isn't connected (ADR 42). */
+    lateinit var planFileSync: DayPlanFileSync
         private set
 
     /** Sends the linked Pixel Watch its snapshot (ADR 21). */
@@ -176,6 +187,15 @@ class CompanionApp : Application() {
         // A file that came by QR code, Drive or a share goes on to the PC at once when connected.
         sync.onCarryChanged = { sendSyncFilesToPc() }
         planSync = DayPlanSync(store, link, appScope).also { it.start() }
+        // ADR 42: the same through the sync files whenever the link isn't connected.
+        pcRemote = PcFileRemote(this, actions, sync.received)
+        planFileSync = DayPlanFileSync(
+            store, actions, pcRemote, sync.received, { link.status.value is com.accountabilibuddy.companion.link.LinkStatus.Connected }, appScope,
+        ).also { it.start() }
+        actions.onAnswered = { action, result, pc ->
+            pcRemote.answered(action, result, pc)
+            planFileSync.answered(action, result, pc)
+        }
         // ADR 40: the PC's settings (profiles, day plan, sleep, day bar, events) from its sync file when the Wi-Fi link
         // isn't bringing them.
         appScope.launch { sync.received.collect { devices -> applyPcFileSettings(devices.map { it.file }) } }
@@ -184,6 +204,8 @@ class CompanionApp : Application() {
             // The watch's Lunch page: today's lunch and the length setting.
             lunch = { lunch.forWatch(store.state.value.document.dayPlan) },
             lunchChanges = kotlinx.coroutines.flow.combine(lunch.lunch, lunch.lengthMinutes) { taken, length -> taken to length },
+            // ADR 42: without the link, the watch's "/hello" reads the PCs' files from Drive instead.
+            syncNow = { driveSource.syncNow() },
         )
             .also { it.start() }
         // The phone's card names its linked watch (Task 18); linking or unlinking it tells the PC at once.
@@ -224,6 +246,7 @@ class CompanionApp : Application() {
             sync.received.collect { devices ->
                 devices.mapNotNull { it.file.lunch }.forEach { lunch.receive(it) }
                 actions.prune(devices)
+                pcRemote.expire()
                 // The newest PC file's calendar events, when newer than what the phone has (ADR 26).
                 devices.filter { it.file.device.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC && it.file.events != null }
                     .maxByOrNull { it.file.device.writtenAt }
@@ -298,16 +321,22 @@ class CompanionApp : Application() {
         }
     }
 
-    // A session runs somewhere (the linked PC, or a device's file from the last 12 hours) or the timeline is pinned.
+    // A session runs somewhere (the linked PC, or a device's file from the last 12 hours), the timeline is pinned, or a
+    // PC's answer to a start, end early or plan edit is awaited (ADR 42).
     private fun driveBusy(): Boolean {
         if (com.accountabilibuddy.companion.notify.PinnedTimelineService.isRunning || link.lastState.value?.state?.isActive == true) {
             return true
         }
 
+        // A request to a PC counts for the 10 minutes it is worth answering (PcFileRemote.expire); a plan edit may wait for days.
         val now = java.time.Instant.now()
+        if (actions.pending.value.any { (it.kind in SyncAction.CONTROL_KINDS || it.kind == SyncAction.DAY_PLAN_EDIT) && java.time.Duration.between(it.at, now) <= PcFileRemote.GIVE_UP_AFTER }) {
+            return true
+        }
+
         return sync.received.value.any { device ->
             java.time.Duration.between(device.file.device.writtenAt, now) <= java.time.Duration.ofHours(12) &&
-                device.file.sessions.any { it.end == null }
+                (device.file.running != null || device.file.sessions.any { it.end == null })
         }
     }
 

@@ -112,6 +112,11 @@ fun DevicesScreen(
     onUnpairPc: () -> Unit,
     watch: WatchSectionState,
     watchActions: WatchSectionActions,
+    /** The PCs whose files are here (sync device id to name, newest first), for picking the one to control (ADR 42). */
+    pcChoices: List<Pair<String, String>> = emptyList(),
+    /** The PC picked; null: the newest PC file's. */
+    chosenPcId: String? = null,
+    onChoosePc: (String?) -> Unit = {},
 ) {
     var dialog by remember { mutableStateOf<DevicesDialog?>(null) }
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri -> uri?.let(actions.onFolderChosen) }
@@ -129,6 +134,24 @@ fun DevicesScreen(
                 if (devices.joined && devices.received.isEmpty()) {
                     Text("No other device yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Hint("Scan the PC's codes, open a sync file, or connect to the linked PC.", label = "How to bring them in")
+                }
+            }
+        }
+
+        // ADR 42: with several PCs, which one Today's PC card starts, ends early and sends plan edits to.
+        if (pcChoices.size > 1) {
+            item {
+                val chosenName = pcChoices.firstOrNull { it.first == chosenPcId }?.second
+                Section("PC this phone controls", summary = chosenName ?: "The newest: ${pcChoices.first().second}") {
+                    Text(
+                        "Start, end early and plan edits from Today go to this PC through the sync files.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FlowChoices(
+                        listOf(null to "The newest PC file's") + pcChoices.map { (id, name) -> id to name },
+                        selected = chosenPcId?.takeIf { id -> pcChoices.any { it.first == id } },
+                        onSelect = onChoosePc,
+                    )
                 }
             }
         }
@@ -503,5 +526,15 @@ object DevicesModel {
         SyncDeviceCard.METHOD_FOLDER -> "sync folder"
         SyncDeviceCard.METHOD_QR -> "QR codes"
         else -> "sync file"
+    }
+}
+
+/** One chip per choice ([choices]: key to label), one under the other; [selected] is ticked. */
+@Composable
+private fun FlowChoices(choices: List<Pair<String?, String>>, selected: String?, onSelect: (String?) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        choices.forEach { (key, label) ->
+            FilterChip(selected = key == selected, onClick = { onSelect(key) }, label = { Text(label) })
+        }
     }
 }

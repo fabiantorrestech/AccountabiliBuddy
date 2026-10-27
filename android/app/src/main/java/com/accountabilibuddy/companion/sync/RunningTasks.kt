@@ -28,8 +28,9 @@ data class RunningTasks(val source: String, val tasks: List<SessionTaskItem>, va
             return received
                 .filter { Duration.between(it.file.device.writtenAt, now) <= FRESH }
                 .mapNotNull { device ->
+                    // The task picked on the PC comes with its running session (ADR 42).
                     device.file.sessions.lastOrNull { it.end == null && it.tasks.isNotEmpty() }
-                        ?.let { device.file.device.writtenAt to RunningTasks(device.file.device.name, it.tasks) }
+                        ?.let { device.file.device.writtenAt to RunningTasks(device.file.device.name, it.tasks, device.file.running?.currentTask) }
                 }
                 .maxByOrNull { it.first }
                 ?.second

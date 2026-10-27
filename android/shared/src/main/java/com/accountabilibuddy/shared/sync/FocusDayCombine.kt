@@ -20,6 +20,8 @@ object FocusDayCombine {
     /**
      * @param received Each other device's name and its merged sync file.
      * @param now Where a session the linked PC is still running stops counting.
+     * @param planParts The imported day plan's parts on a date (ADR 42): the parts and planned minutes when the linked
+     * PC's live day doesn't bring them (no link today).
      * @return Null when there's nothing to combine.
      */
     fun combine(
@@ -29,15 +31,18 @@ object FocusDayCombine {
         today: LocalDate,
         zone: ZoneId,
         now: Instant = Instant.now(),
+        planParts: (LocalDate) -> List<com.accountabilibuddy.shared.FocusPart> = { emptyList() },
     ): FocusDay? {
-        val others = received.filter { (name, file) -> !(linkedPc != null && file.device.kind == SyncDeviceCard.KIND_PC && name == linkedPcName) }
-        if (linkedPc == null && others.isEmpty()) {
+        if (linkedPc == null && received.isEmpty()) {
             return null
         }
 
         val dayStart = today.atStartOfDay(zone).toInstant()
         val dayEnd = today.plusDays(1).atStartOfDay(zone).toInstant()
         val live = linkedPc?.takeIf { it.date == today }
+        // Only today's live day stands for the linked PC's file; an older one (no link today) leaves the file's sessions in.
+        val others = received.filter { (name, file) -> !(live != null && file.device.kind == SyncDeviceCard.KIND_PC && name == linkedPcName) }
+        val todayParts = live?.parts ?: planParts(today)
         val sessions = live?.sessions.orEmpty().map { it.copy(device = linkedPcName) } +
             others.flatMap { (name, file) -> sessionsOn(file, name, dayStart, dayEnd) }
         val drift = live?.drift.orEmpty() + others.flatMap { (_, file) ->
@@ -45,16 +50,25 @@ object FocusDayCombine {
         }
 
         val focused = WatchSnapshot.minutes(sessions.mapNotNull { clip(it.start, it.end ?: now, dayStart, dayEnd) })
+        val todayPlanned = live?.plannedMinutes ?: plannedMinutes(todayParts)
         return FocusDay(
             date = today,
-            parts = live?.parts.orEmpty(),
+            parts = todayParts,
             sessions = sessions.sortedBy { it.start },
             drift = drift.sortedBy { it.start },
             focusedMinutes = focused,
-            plannedMinutes = live?.plannedMinutes ?: 0,
-            week = week(live, others, today, zone, focused),
+            plannedMinutes = todayPlanned,
+            week = week(live, others, today, zone, focused, todayPlanned, planParts),
+            // ADR 29: the live day's goal, else the newest PC file's (ADR 42).
+            goalMinutes = live?.goalMinutes ?: received.map { it.second }
+                .filter { it.device.kind == SyncDeviceCard.KIND_PC && it.goalMinutes != null }
+                .maxByOrNull { it.device.writtenAt }?.goalMinutes?.takeIf { it > 0 },
         )
     }
+
+    /** The planned work in [parts] (Watch and Comms parts, kind "watch"), in minutes, overlaps once. */
+    private fun plannedMinutes(parts: List<com.accountabilibuddy.shared.FocusPart>): Int =
+        WatchSnapshot.minutes(parts.filter { it.kind == "watch" }.map { TimeWindow(it.start, it.end) })
 
     // A device's sessions touching the day, cut to it; one running when its file was written ends at that time.
     private fun sessionsOn(file: SyncFile, name: String, dayStart: Instant, dayEnd: Instant): List<FocusSession> =
@@ -67,7 +81,15 @@ object FocusDayCombine {
      * The last 7 days: today from the union above; earlier days the linked PC's own total plus the other devices'
      * time that day (their days aren't in the PC's total, and the PC's earlier windows aren't known here).
      */
-    private fun week(live: FocusDay?, others: List<Pair<String, SyncFile>>, today: LocalDate, zone: ZoneId, todayFocused: Int): List<DayTotal> {
+    private fun week(
+        live: FocusDay?,
+        others: List<Pair<String, SyncFile>>,
+        today: LocalDate,
+        zone: ZoneId,
+        todayFocused: Int,
+        todayPlanned: Int,
+        planParts: (LocalDate) -> List<com.accountabilibuddy.shared.FocusPart>,
+    ): List<DayTotal> {
         val pcDays = live?.week.orEmpty().associateBy { it.date }
         return (WEEK_DAYS - 1 downTo 1).map { back ->
             val date = today.minusDays(back)
@@ -75,8 +97,9 @@ object FocusDayCombine {
             val end = date.plusDays(1).atStartOfDay(zone).toInstant()
             val othersMinutes = WatchSnapshot.minutes(others.flatMap { (name, file) -> sessionsOn(file, name, start, end) }.map { TimeWindow(it.start, it.end!!) })
             val pc = pcDays[date]
-            DayTotal(date, (pc?.focusedMinutes ?: 0) + othersMinutes, pc?.plannedMinutes ?: 0)
-        } + DayTotal(today, todayFocused, live?.plannedMinutes ?: 0)
+            // Without the live day, the plan's planned work that day (from the imported plan).
+            DayTotal(date, (pc?.focusedMinutes ?: 0) + othersMinutes, pc?.plannedMinutes ?: if (live == null) plannedMinutes(planParts(date)) else 0)
+        } + DayTotal(today, todayFocused, todayPlanned)
     }
 
     private fun clip(start: Instant, end: Instant, from: Instant, to: Instant): TimeWindow? {
