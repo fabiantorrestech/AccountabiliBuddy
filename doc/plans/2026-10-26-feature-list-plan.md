@@ -86,3 +86,12 @@ Opus 5.5 high, implementers Opus 5.5 medium), one item or one group of items tha
 12. **Places.** ADR 44, Core, PC network sensor + cards + Settings → Places, PC location fallback, then the phone. After phase 11, before phase 9.
 
 Each phase: a detailed plan (files, steps, acceptance checks) agreed with the user, then implementation.
+
+## Ideas to plan later (user, 2026-10-27)
+- **E-ink / e-reader theme (Android):** a high-contrast, no-animation, black-on-white theme for e-ink screens (no grey gradients, no fades, larger touch targets, partial-refresh friendly).
+- **Device type in the Android setup assistant:** e-reader, phone or tablet, each with sensible defaults.
+  - An e-reader is rarely distracting and makes a good break device between sessions: loose rules, breaks allowed on it.
+  - A phone has many distractions but some useful cases: strict in sessions, essentials and phone placement on.
+  - A tablet is for notes and productivity but also a browser and media: note apps allowed, browser and media apps guarded.
+  - Like the PC's computer-type presets.
+- **Recommend an app blocker first:** when the setup assistant detects no app blocker on the device, it recommends setting one up with AccountabiliBuddy first (CurBox) before the rest.
