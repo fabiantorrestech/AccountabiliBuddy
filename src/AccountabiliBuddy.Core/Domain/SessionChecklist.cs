@@ -146,9 +146,11 @@ public sealed record SessionChecklist(
                 continue;
             }
 
-            SessionSubtask? held = step.Id is Guid stepId && taken.Add(stepId) ? task.Subtasks.FirstOrDefault(subtask => subtask.Id == stepId) : null;
+            // A step id this task already has keeps its tick (once; a repeat of the id is a new step).
+            SessionSubtask? held = step.Id is Guid stepId && !taken.Contains(stepId) ? task.Subtasks.FirstOrDefault(subtask => subtask.Id == stepId) : null;
             if (held is not null)
             {
+                taken.Add(held.Id);
                 subtasks.Add(held with { Title = stepTitle });
                 continue;
             }

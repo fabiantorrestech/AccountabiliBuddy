@@ -358,7 +358,9 @@ public sealed class SessionTasksService : IDisposable
 
     private static bool StepsInvalid(IReadOnlyList<SyncTaskStep>? steps)
     {
-        return steps is not null && (steps.Count > MaxRemoteSteps || steps.Any(step => step.Title.Trim().Length > MaxRemoteText));
+        // A step sent with no title at all ("title": null) is malformed: refuse it rather than throw in the apply loop.
+        return steps is not null
+            && (steps.Count > MaxRemoteSteps || steps.Any(step => step.Title is null || step.Title.Trim().Length > MaxRemoteText));
     }
 
     private async Task<Guid?> ResolveRemoteCategoryAsync(SyncTaskRequest request)
