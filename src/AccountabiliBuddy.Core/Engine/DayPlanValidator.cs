@@ -34,6 +34,11 @@ public static class DayPlanValidator
             return "The work window must end after it starts.";
         }
 
+        if (template.WorkWindow is not null && categories.All(category => category.Behavior != CategoryBehavior.Watch))
+        {
+            return "A work window needs a Work category.";
+        }
+
         // A work window counts as the day's work part (when it has none of its own), so it is checked like one.
         template = template.WithWorkWindowPart(categories);
         foreach (PlanPart part in template.Parts)

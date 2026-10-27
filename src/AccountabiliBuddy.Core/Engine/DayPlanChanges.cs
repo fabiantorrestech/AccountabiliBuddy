@@ -6,7 +6,7 @@ namespace AccountabiliBuddy.Core.Engine;
 /// <summary>
 /// What changed between two day plans, as short lines for a clash prompt (ADR 19, 22), e.g.
 /// "Workdays: Work 9:00 AM–12:00 PM → 8:30 AM–12:00 PM" or "Friday is no longer a workday". The PC's counterpart of the
-/// phone's DayPlanChanges, with the same wording; times, dates and day names in the current culture.
+/// phone's DayPlanChanges, with the same wording; times as 12-hour "h:mm tt" in any culture, dates and day names in the current culture.
 /// </summary>
 public static class DayPlanChanges
 {
@@ -224,12 +224,12 @@ public static class DayPlanChanges
 
     private static string Times(PlanPart part)
     {
-        return $"{part.Start.ToString("t", CultureInfo.CurrentCulture)}–{part.End.ToString("t", CultureInfo.CurrentCulture)}";
+        return $"{part.Start.ToString("h:mm tt", CultureInfo.InvariantCulture)}–{part.End.ToString("h:mm tt", CultureInfo.InvariantCulture)}";
     }
 
     private static string Times(WorkWindow window)
     {
-        return $"{window.Start.ToString("t", CultureInfo.CurrentCulture)}–{window.End.ToString("t", CultureInfo.CurrentCulture)}";
+        return $"{window.Start.ToString("h:mm tt", CultureInfo.InvariantCulture)}–{window.End.ToString("h:mm tt", CultureInfo.InvariantCulture)}";
     }
 
     /// <summary>Minutes as "6h", "6h 30m" or "45m"; "none" when not set.</summary>

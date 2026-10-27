@@ -139,6 +139,15 @@ public sealed class SyncCoordinator
             return;
         }
 
+        if (stored is not null && stored.Version == DayPlanVersionV11.Of(_configuration.Current.DayPlan))
+        {
+            // First start after the v12 upgrade (ADR 47): the plan is the one the v11 version was stamped on, migrated
+            // unchanged, so it gets the new version with its edit time and shared/edited state as they were: no edit.
+            _plan = stored with { Version = version, BasedOn = stored.BasedOn == stored.Version ? version : stored.BasedOn };
+            SavePlanState();
+            return;
+        }
+
         if (stored is null && version == DayPlanVersion.Of(DayPlan.Default))
         {
             // Nobody edited it (a new device): it gives way to any edited plan.

@@ -37,8 +37,14 @@ public sealed class DayPlanEditTimeService
             DayPlanEditTime? saved = Task.Run(() => _store.LoadAsync<DayPlanEditTime>(DocumentKey)).GetAwaiter().GetResult();
             string version = DayPlanVersion.Of(_configuration.Current.DayPlan);
             _version = version;
+            // The first start after the v12 upgrade (ADR 47): the saved version is the v11 one of this same, migrated plan.
+            bool upgraded = saved is not null && saved.Version != version && saved.Version == DayPlanVersionV11.Of(_configuration.Current.DayPlan);
             // Changed while the app wasn't watching (e.g. a restore): when isn't known.
-            Current = saved is not null && saved.Version == version ? saved.EditedAt : null;
+            Current = saved is not null && (saved.Version == version || upgraded) ? saved.EditedAt : null;
+            if (upgraded)
+            {
+                Task.Run(() => _store.SaveAsync(DocumentKey, new DayPlanEditTime(version, Current))).GetAwaiter().GetResult();
+            }
         }
         catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
         {

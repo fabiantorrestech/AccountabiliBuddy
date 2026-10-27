@@ -108,6 +108,12 @@ public static class ProfileDocumentSerializer
         return JsonSerializer.SerializeToElement(plan, Options);
     }
 
+    /// <summary>A plan in the v11 shape, with the options v11 hashed it with (<see cref="Engine.DayPlanVersionV11"/>).</summary>
+    internal static JsonElement SerializeV11Shape(Engine.DayPlanVersionV11.V11Plan plan)
+    {
+        return JsonSerializer.SerializeToElement(plan, Options);
+    }
+
     /// <summary>
     /// A day plan from another device (ADR 19), checked for shape: every list present, no null items, and only known
     /// enum values (an unknown number would be saved and then break every device that reads the document).

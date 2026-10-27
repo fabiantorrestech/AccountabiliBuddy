@@ -33,6 +33,7 @@ object DayPlanValidator {
 
         template.workWindow?.let { window ->
             if (window.end != LocalTime.MIDNIGHT && !window.end.isAfter(window.start)) return "The work window must end after it starts."
+            if (categories.none { it.behavior == com.accountabilibuddy.companion.model.CategoryBehavior.Watch }) return "A work window needs a Work category."
         }
 
         return validateParts(template.withWorkWindowPart(categories), categories)
