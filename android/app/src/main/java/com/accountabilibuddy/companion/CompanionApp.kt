@@ -128,6 +128,8 @@ class CompanionApp : Application() {
     val emergency by lazy { com.accountabilibuddy.companion.nudge.EmergencyStore(this) }
 
     /** Where the phone is during a PC session (phase 11b): the state and counts the sync file carries. */
+    /** The on/off switch for the placement guard (Settings; off waits 10 minutes, never in a session). */
+    val placementGuard by lazy { com.accountabilibuddy.companion.placement.PlacementGuard(this) }
     val placementStore by lazy { com.accountabilibuddy.companion.placement.PlacementStore(this) }
 
     /** "Need it for work" uses during a session (phase 11b); the reasons stay on the phone. */
@@ -264,7 +266,10 @@ class CompanionApp : Application() {
                 ?.filterNot { unlock -> reader.appAfter(unlock)?.let { (app, screen) -> allowed.isAllowed(app, screen) } == true }
         }
         // Phase 11b: where the phone is during a PC session (label, times and counts only).
-        sync.placement = { placementStore.forSyncFile(java.time.Instant.now(), workUse) }
+        sync.placement = {
+            // Guard off: no placement in the file, so the PC sees unknown and never nags.
+            if (placementGuard.isOn(java.time.Instant.now())) placementStore.forSyncFile(java.time.Instant.now(), workUse) else null
+        }
         sync.emergencyWindows = { emergency.all().map { it.start to minOf(it.end, java.time.Instant.now()) } }
         // Linking or unlinking the watch tells the PCs through Drive at once (Task 18).
         watchBridge.onLinkChanged = { sendSyncFilesSoon() }
