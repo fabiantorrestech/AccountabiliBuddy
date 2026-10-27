@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -32,6 +33,14 @@ public sealed partial class SessionReviewViewModel : ObservableObject
 
     /// <summary>When the reviewed session started (null for the week's card).</summary>
     public DateTimeOffset? SessionStart { get; init; }
+
+    /// <summary>Tasks added past the 3-task limit during the session.</summary>
+    public int OverLimitCount { get; init; }
+
+    public bool HasOverLimit => OverLimitCount > 0;
+
+    /// <summary>E.g. "Over 3 tasks: 2".</summary>
+    public string OverLimitText => $"Over {SessionTasksService.MaxTasks} tasks: {OverLimitCount}";
 
     /// <summary>"Phone: picked up 2× · longest down 18m" (ADR 26); empty until the phone's file comes.</summary>
     [ObservableProperty]

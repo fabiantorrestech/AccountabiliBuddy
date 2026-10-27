@@ -476,6 +476,7 @@ public partial class App : Application
         _sessionReview = new SessionReviewService(activityLog, _configuration, documents, _sessions, () => exemptionDefaults.PreTicked)
         {
             NotesBetween = _sessionNotes.Between,
+            OverLimitCount = sessionTasks.OverLimitCount,
             PhoneCounting = () => _phonePickups?.IsCounting == true,
         };
         _sessionReview.LoadBlocking();
