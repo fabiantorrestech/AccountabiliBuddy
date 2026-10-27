@@ -7,6 +7,16 @@
     <!-- Focus mode: the countdown, End session, the focus so far, the current task in front and the checklist, and
          Step away / Interrupted. Nothing else while a session runs. -->
     <UserControl.Styles>
+        <!-- The planning stage (before the focus countdown) reads in its own colour: the timer, the bar and the line. -->
+        <Style Selector="TextBlock.planning">
+            <Setter Property="Foreground" Value="#7C9EF2" />
+        </Style>
+        <Style Selector="ProgressBar.planning">
+            <Setter Property="Foreground" Value="#7C9EF2" />
+            <Setter Property="Background" Value="#33FFFFFF" />
+            <Setter Property="Height" Value="6" />
+            <Setter Property="MinHeight" Value="6" />
+        </Style>
         <Style Selector="Button.away">
             <Setter Property="Background" Value="#4D0F766E" />
             <Setter Property="Padding" Value="14,6" />
@@ -19,17 +29,22 @@
                 <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Orientation="Horizontal" Spacing="12">
                         <TextBlock Text="{Binding TimeLeftText}" FontSize="44" FontWeight="SemiBold" VerticalAlignment="Center"
-                                   AutomationProperties.Name="Time left" />
+                                   Classes.planning="{Binding InPlanningStage}" AutomationProperties.Name="Time left" />
                         <TextBlock Text="{Binding PhaseText}" FontSize="15" Opacity="0.8" VerticalAlignment="Center" TextWrapping="Wrap" />
                     </StackPanel>
                     <Button Grid.Column="1" Content="{Binding EndSessionText}" Command="{Binding EndSessionCommand}" VerticalAlignment="Center" />
                 </Grid>
                 <!-- Plan first: the session's first minutes, for the plan; "I'm ready" ends them. -->
                 <Border IsVisible="{Binding IsPlanning}" Background="#33FFFFFF" CornerRadius="6" Padding="10,6">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                        <TextBlock Text="{Binding PlanningText}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        <Button Grid.Column="1" Content="I'm ready" Command="{Binding ReadyCommand}" Classes="accent" IsVisible="{Binding CanReady}" />
-                    </Grid>
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                            <TextBlock Text="{Binding PlanningText}" VerticalAlignment="Center" TextWrapping="Wrap"
+                                       Classes.planning="{Binding InPlanningStage}" />
+                            <Button Grid.Column="1" Content="I'm ready" Command="{Binding ReadyCommand}" Classes="accent" IsVisible="{Binding CanReady}" />
+                        </Grid>
+                        <!-- The stage's own bar: empties as planning time passes, in the planning colour. -->
+                        <ProgressBar Classes="planning" Minimum="0" Maximum="100" Value="{Binding PlanningLeftPercent}" IsVisible="{Binding InPlanningStage}" />
+                    </StackPanel>
                 </Border>
                 <!-- Stepped away or on a side task: the countdown is paused until "I'm back" or "Back on track". -->
                 <Border IsVisible="{Binding IsPlainAway}" Background="#33FFFFFF" CornerRadius="6" Padding="10,4" HorizontalAlignment="Left">

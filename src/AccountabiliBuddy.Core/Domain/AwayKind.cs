@@ -21,4 +21,10 @@ public enum AwayKind
     /// the checkpoint stores the kind as a number.
     /// </summary>
     SideTask,
+
+    /// <summary>
+    /// The session's planning stage (<see cref="SessionPhase.Planning"/>): enforcement ran but it is not focus. Never an engine
+    /// away; only folded into a record by <see cref="Engine.SessionHistoryBuilder"/> from the planning events. Appended last.
+    /// </summary>
+    Planning,
 }

@@ -380,7 +380,8 @@ public sealed class LinkSessionHost : ILinkSessionHost
         };
         string phase = state.Phase switch
         {
-            SessionPhase.Focus => "focus",
+            // The link is being deleted (ADR 42): planning reads as focus there and carries nothing new.
+            SessionPhase.Focus or SessionPhase.Planning => "focus",
             SessionPhase.ShortBreak => "shortBreak",
             SessionPhase.LongBreak => "longBreak",
             _ => "idle",
@@ -389,7 +390,7 @@ public sealed class LinkSessionHost : ILinkSessionHost
         return new LinkState(
             mode,
             phase,
-            CountsAsFocus: state.IsEnforcing && state.Mode != SessionMode.Scheduled,
+            CountsAsFocus: state.IsEnforcing && !state.IsPlanning && state.Mode != SessionMode.Scheduled,
             state.ProfileId,
             ProfileOptions.NameOf(profiles, state.ProfileId),
             state.PhaseStartedAt,

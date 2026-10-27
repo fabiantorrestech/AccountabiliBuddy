@@ -262,8 +262,21 @@ public sealed class SyncCoordinator
             return null;
         }
 
-        return new SyncRunning(ProfileOptions.NameOf(profiles, state.ProfileId), started, state.PhaseEndsAt, state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak, state.AwaySince,
-            CurrentTask?.Invoke(), state.ProfileId, CountUpProfileId?.Invoke());
+        // Planning (not focus time): its own start and end go in the optional planning fields; the phase fields hold the focus
+        // phase it leads to (planning's end, and the focus length after it), which is all a build that doesn't know planning reads.
+        DateTimeOffset? planningStartedAt = null;
+        DateTimeOffset? planningEndsAt = null;
+        DateTimeOffset? phaseEndsAt = state.PhaseEndsAt;
+        if (state.IsPlanning && state.PhaseEndsAt is DateTimeOffset planningEnd)
+        {
+            planningStartedAt = started;
+            planningEndsAt = planningEnd;
+            started = planningEnd;
+            phaseEndsAt = state.FocusLengthAfterPlanning is TimeSpan focusLength ? planningEnd + focusLength : null;
+        }
+
+        return new SyncRunning(ProfileOptions.NameOf(profiles, state.ProfileId), started, phaseEndsAt, state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak, state.AwaySince,
+            CurrentTask?.Invoke(), state.ProfileId, CountUpProfileId?.Invoke(), planningStartedAt, planningEndsAt);
     }
 
     /// <summary>ADR 42: the task or subtask picked to show on the bar while a session runs (null: none); set by the app.</summary>

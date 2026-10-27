@@ -19,6 +19,9 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
     public const double BarLength = 200;
 
     private static readonly Color BreakColor = Color.FromRgb(107, 158, 138);
+
+    /// <summary>The planning stage's own colour (the bar and the timer), the same on Today.</summary>
+    private static readonly Color PlanningColor = Color.FromRgb(124, 158, 242);
     private static readonly Color WrapUpColor = Color.FromRgb(217, 119, 6);
     private static readonly TimeSpan WrapUpTime = TimeSpan.FromMinutes(5);
 
@@ -186,6 +189,9 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
         // Stepped away: everything reads the moment the countdown paused.
         now = state.CountdownTime(now);
         bool isBreak = !state.IsEnforcing;
+
+        // The planning stage before the focus countdown: its own bar, in its own colour, with its own time (it isn't focus).
+        bool planning = state.IsPlanning;
         DateTimeOffset start = state.PhaseStartedAt ?? now;
         DateTimeOffset? end = state.PhaseEndsAt;
 
@@ -199,23 +205,24 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
         double shown = countsUp ? elapsed.TotalMinutes % 60 / 60
             : hasEnd && settings.FillUp ? 1 - remaining : remaining;
         string time = SessionStatusFormatter.FormatDuration(end is DateTimeOffset until ? until - now : now - start);
-        string timeText = end is null ? $"{time} in" : $"{time} left";
-        string label = isBreak ? "Break" : profileName;
+        string timeText = end is null ? $"{time} in" : planning && now >= end!.Value ? "Ready?" : $"{time} left";
+        string label = isBreak ? "Break" : planning ? "Planning" : profileName;
 
         HeaderLabel = label;
         HeaderTime = $"· {timeText}";
-        BigTimeText = isBreak ? $"Break · {timeText}" : timeText;
+        BigTimeText = isBreak ? $"Break · {timeText}" : planning ? $"Planning · {timeText}" : timeText;
         RingText = time;
         EndText = end is DateTimeOffset ends
-            ? $"{(isBreak ? "break ends" : "ends")} {TimeZoneInfo.ConvertTime(ends, zone):t}"
+            ? $"{(isBreak ? "break ends" : planning ? "planning ends" : "ends")} {TimeZoneInfo.ConvertTime(ends, zone):t}"
             : $"since {TimeZoneInfo.ConvertTime(start, zone):t}";
 
         // Rounded so the bar only redraws when it visibly moves.
         BarWidth = Math.Round(shown * BarLength * 2) / 2;
         RingSweep = Math.Round(shown * 360);
 
-        IsLoud = hasEnd && end!.Value > now && end.Value - now <= LoudTime && !state.IsAway;
+        IsLoud = hasEnd && !planning && end!.Value > now && end.Value - now <= LoudTime && !state.IsAway;
         _restColor = isBreak ? BreakColor
+            : planning ? PlanningColor
             : settings.WrapUpColor && hasEnd && IsWrappingUp(start, end!.Value, now) ? WrapUpColor
             : profileColor;
         RefreshAccent();
@@ -225,14 +232,14 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
         ShowsBigTime = settings.Style == OverlayStyle.TimeLeftOnly;
         ShowsBar = settings.Style is OverlayStyle.BarWithEndTime or OverlayStyle.TimeLeftWithBar;
         ShowsEndText = settings.Style == OverlayStyle.BarWithEndTime;
-        Divisions = settings.Divisions;
-        CountMarks(start, hasEnd ? 1 - remaining : null, settings);
+        Divisions = planning ? 0 : settings.Divisions;
+        CountMarks(start, hasEnd && !planning ? 1 - remaining : null, settings);
         if (countsUp)
         {
             MarkHalfHours(start, elapsed);
         }
 
-        DetailTitle = isBreak ? $"Break · {profileName}" : profileName;
+        DetailTitle = isBreak ? $"Break · {profileName}" : planning ? $"Planning · {profileName}" : profileName;
         DetailTimes = end is DateTimeOffset finish
             ? $"{TimeZoneInfo.ConvertTime(start, zone):t} – {TimeZoneInfo.ConvertTime(finish, zone):t}"
             : $"since {TimeZoneInfo.ConvertTime(start, zone):t}";
@@ -240,6 +247,7 @@ public sealed partial class SessionOverlayViewModel : ObservableObject
         string left = hasEnd ? $" · {Elapsed(TimeSpan.FromMinutes(Math.Ceiling(Math.Max(0, (end!.Value - now).TotalMinutes))))} left" : string.Empty;
         DetailProgress = countsUp ? $"{Elapsed(elapsed)} so far"
             : !hasEnd ? string.Empty
+            : planning ? $"{(1 - remaining):0%} of planning done{left}"
             : settings.Divisions >= 2 ? $"{_marksPassed} of {settings.Divisions} parts done · {(1 - remaining):0%}{left}"
             : $"{(1 - remaining):0%} done{left}";
     }

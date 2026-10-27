@@ -92,8 +92,9 @@ public sealed class ActivityRecorder : IDisposable
         }
 
         // A test session logs its activity as outside any session, so it never reaches focus time or the review. Neither
-        // does time away from the focus clock (a step away, a side task): enforcement still judges it, but it isn't focus.
-        bool inFocus = state.IsEnforcing && !state.IsAway && !state.IsTest;
+        // does time away from the focus clock (a step away, a side task) or the planning stage before it: enforcement still
+        // judges it, but it isn't focus.
+        bool inFocus = state.IsEnforcing && !state.IsPlanning && !state.IsAway && !state.IsTest;
         Guid? profileId = state.IsRealSession ? state.ProfileId : null;
         IEnumerable<ObservedActivity> observations = decisions.Select(decision => new ObservedActivity(
             decision.Snapshot,
@@ -176,9 +177,21 @@ public sealed class ActivityRecorder : IDisposable
         // A resumed session was logged as started before the app stopped.
         if (!previous.IsActive && state.IsActive && IsEnabled && !_sessions.IsResuming)
         {
+            // While planning, PhaseEndsAt is the planning's end; the session's own end is the focus length after it.
+            DateTimeOffset? plannedEnd = state.IsPlanning
+                ? state.FocusLengthAfterPlanning is TimeSpan focusLength && state.PhaseEndsAt is DateTimeOffset planningEnd ? planningEnd + focusLength : null
+                : state.PhaseEndsAt;
             var started = new SessionEvent(
-                _timeProvider.GetUtcNow(), SessionEventKind.Started, state.Mode, state.ProfileId, state.PhaseEndsAt);
+                _timeProvider.GetUtcNow(), SessionEventKind.Started, state.Mode, state.ProfileId, plannedEnd);
             Enqueue(() => _log.RecordSessionEventAsync(started));
+        }
+
+        // The planning stage is its own stretch in History (never focus): a resumed one was logged before the app stopped.
+        if (!_sessions.IsResuming && IsEnabled && state.IsActive && previous.IsPlanning != state.IsPlanning && (state.IsPlanning || previous.IsActive))
+        {
+            var planning = new SessionEvent(
+                _timeProvider.GetUtcNow(), state.IsPlanning ? SessionEventKind.PlanningStarted : SessionEventKind.PlanningEnded, state.Mode, state.ProfileId);
+            Enqueue(() => _log.RecordSessionEventAsync(planning));
         }
 
         // Step away: a resumed session that was away is already logged as away.

@@ -17,6 +17,7 @@ public static class SessionStatusFormatter
             // A scheduled block blocks, but only sessions you start count as focus.
             SessionPhase.Focus when state.Mode == SessionMode.Scheduled => "Blocks on",
             SessionPhase.Focus => "Focus",
+            SessionPhase.Planning => "Planning",
             SessionPhase.ShortBreak => "Short break",
             SessionPhase.LongBreak => "Long break",
             _ => "Idle",
@@ -47,6 +48,12 @@ public static class SessionStatusFormatter
             null => string.Empty,
         };
         DateTimeOffset clock = state.CountdownTime(now);
+        if (state.IsPlanning && state.PhaseEndsAt is DateTimeOffset planningEnd)
+        {
+            // Planning is time to get ready, not focus: its own time left (0:00 once up, until the user answers).
+            return $"{away}{FormatDuration(planningEnd - clock)} of planning left · {mode}";
+        }
+
         if (state.PhaseEndsAt is DateTimeOffset end)
         {
             return $"{away}{FormatDuration(end - clock)} left · {mode}";

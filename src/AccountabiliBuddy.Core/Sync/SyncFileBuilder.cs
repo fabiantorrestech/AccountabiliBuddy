@@ -57,15 +57,17 @@ public static class SyncFileBuilder
                 bool added = counted.Record.Mode == SessionMode.Added;
                 string? profile = added ? null : profileName(counted.Record.ProfileId);
                 IReadOnlyList<SessionTask>? tasks = tasksOf?.Invoke(counted.Record.StartedAt);
-                if (counted.Running || counted.Record.Away is not { Count: > 0 } away)
+                if (counted.Record.Away is not { Count: > 0 } away)
                 {
                     return [new SyncSession(counted.Record.StartedAt, counted.Running ? null : counted.End, profile, added, tasks)];
                 }
 
-                // An ended session goes in the pieces the user was there for: time stepped away or marked
-                // distracted in History comes out on the other devices too. Its checklist goes with the first piece.
+                // A session goes in the pieces the user was there for: time stepped away, the planning stage or time marked
+                // distracted in History comes out on the other devices too. Its checklist goes with the first piece. The running
+                // session's last piece stays open (no end), and none is left while it is planning or away.
                 return SessionGaps.Pieces(counted.Record.StartedAt, counted.End, away)
-                    .Select((piece, index) => new SyncSession(piece.Start, piece.End, profile, added, index == 0 ? tasks : null));
+                    .Select((piece, index) => new SyncSession(
+                        piece.Start, counted.Running && piece.End == counted.End ? null : piece.End, profile, added, index == 0 ? tasks : null));
             })
             .Where(session => session.End is not DateTimeOffset end || end > from)
             .ToList();
