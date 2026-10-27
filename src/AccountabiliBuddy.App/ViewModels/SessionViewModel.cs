@@ -132,6 +132,10 @@ public sealed partial class SessionViewModel : ObservableObject
     [ObservableProperty]
     public partial string StatusDetail { get; set; }
 
+    /// <summary>The end button: "End test" for a test session, else "End session…".</summary>
+    [ObservableProperty]
+    public partial string EndSessionText { get; set; } = "End session…";
+
     [ObservableProperty]
     public partial string PomodoroSummary { get; set; }
 
@@ -232,6 +236,7 @@ public sealed partial class SessionViewModel : ObservableObject
         string? profileName = ProfileOptions.NameOf(_configuration.Current.Profiles, state.ProfileId);
 
         IsSessionActive = state.IsActive;
+        EndSessionText = state.IsTest ? "End test" : "End session…";
         StatusTitle = SessionStatusFormatter.Title(state, profileName);
         StatusDetail = SessionStatusFormatter.Detail(state, _sessions.Now);
     }

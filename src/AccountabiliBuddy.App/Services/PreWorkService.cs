@@ -94,12 +94,13 @@ public sealed class PreWorkService
     {
         DateOnly today = Today();
         LocalWindow? part = CurrentPart();
-        if (part is not null && _sessions.State.IsActive && _state.EndedOn != today)
+        // A test session never ends Pre-Work.
+        if (part is not null && _sessions.State.IsRealSession && _state.EndedOn != today)
         {
             _ = SaveAsync(_state with { EndedOn = today });
         }
 
-        bool asking = part is not null && !_sessions.State.IsActive && _state.WorkDayOn != today && !IsDayOff && Holds()
+        bool asking = part is not null && !_sessions.State.IsRealSession && _state.WorkDayOn != today && !IsDayOff && Holds()
             && (Prompt is not null || _idle.GetIdleTime() < ActiveWithin);
         if (asking && Prompt is null)
         {

@@ -677,6 +677,8 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     {
         var sessions = new List<(LocalWindow Window, string Tip, Guid? ProfileId, bool Added, IReadOnlyList<LocalWindow> Away, IReadOnlyList<LocalWindow> Distracted)>();
         SessionState state = _sessions.State;
+        // A test session is never drawn: it has no record and isn't the "running" one.
+        bool sessionRunning = state.IsRealSession;
         bool runningShown = false;
         // The session running now is the newest one the app recorded (an added one never runs).
         int newestRecorded = -1;
@@ -691,14 +693,14 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             if (_omitted.IsOmitted(record.StartedAt))
             {
                 // Omitted (e.g. a test): it doesn't count (the running one is also left out).
-                runningShown |= i == newestRecorded && state.IsActive && record.EndedAt is null;
+                runningShown |= i == newestRecorded && sessionRunning && record.EndedAt is null;
                 continue;
             }
 
             if (record.Mode == SessionMode.Scheduled)
             {
                 // A scheduled block blocks, but only sessions you start count as focus.
-                runningShown |= i == newestRecorded && state.IsActive && record.EndedAt is null;
+                runningShown |= i == newestRecorded && sessionRunning && record.EndedAt is null;
                 continue;
             }
 
@@ -717,7 +719,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
                 var window = new LocalWindow(start, ToLocal(ended));
                 sessions.Add((window, $"{profile} · ran {Times(window)}", record.ProfileId, false, AwayIn(record, window), AwayIn(record, window, distracted: true)));
             }
-            else if (i == newestRecorded && state.IsActive)
+            else if (i == newestRecorded && sessionRunning)
             {
                 // The newest session without an end is the one running now.
                 var running = new LocalWindow(start, now);
@@ -728,7 +730,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             // Older sessions without an end stopped when the app did; when isn't known, so they're left out.
         }
 
-        if (state.IsActive && !runningShown && state.Mode != SessionMode.Scheduled)
+        if (sessionRunning && !runningShown && state.Mode != SessionMode.Scheduled)
         {
             // Not in the history (history off, or not written yet): show the current phase.
             DateTime start = state.PhaseStartedAt is DateTimeOffset phaseStart ? ToLocal(phaseStart) : now;
@@ -774,6 +776,11 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             if (state.Mode == SessionMode.Scheduled)
             {
                 return until is null ? $"Blocks on · {profile}" : $"Blocks on · {profile} until {until}";
+            }
+
+            if (state.IsTest)
+            {
+                return until is null ? "Test session" : $"Test session until {until}";
             }
 
             return state.IsEnforcing

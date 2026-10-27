@@ -839,7 +839,7 @@ public partial class App : Application
             omittedSessions.IsOmitted,
             goal,
             time,
-            () => _sessions!.State.IsActive);
+            () => _sessions!.State.IsRealSession);
         _sessions.StateChanged += (_, state) =>
         {
             if (!state.IsActive)
@@ -876,7 +876,7 @@ public partial class App : Application
             WithSleepGoal(new DayPlanViewModel(_configuration, _sessions), sleepSettings),
             new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
             new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time,
-                _programPaths, desktopShell, isSessionRunning: () => _sessions!.State.IsActive)
+                _programPaths, desktopShell, isSessionRunning: () => _sessions!.State.IsRealSession)
             {
                 ReviewService = _sessionReview,
                 Gaps = sessionGaps,

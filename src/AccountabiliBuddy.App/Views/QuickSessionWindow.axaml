@@ -29,7 +29,7 @@
             <StackPanel Spacing="12" IsVisible="{Binding IsSessionRunning}">
                 <TextBlock Text="{Binding RunningSessionText}" FontSize="15" Opacity="0.85" TextWrapping="Wrap" />
                 <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                    <Button Content="End session…" Command="{Binding EndSessionCommand}" />
+                    <Button Content="{Binding EndSessionText}" Command="{Binding EndSessionCommand}" />
                     <Button Content="Close" Command="{Binding CloseCommand}" Classes="accent" />
                 </StackPanel>
             </StackPanel>

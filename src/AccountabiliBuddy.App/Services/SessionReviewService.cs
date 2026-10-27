@@ -108,6 +108,12 @@ public sealed class SessionReviewService : IDisposable
 
     private void OnStateChanged(object? sender, SessionState state)
     {
+        // A test session has no review card.
+        if (state.IsTest)
+        {
+            return;
+        }
+
         if (state.IsActive && _sessionStart is null)
         {
             _sessionStart = _sessions.Now;

@@ -24,11 +24,12 @@ public sealed class BypassPolicy
 
     /// <summary>
     /// True for a scheduled block (blockers like Cold Turkey are the guardrails; AccountabiliBuddy doesn't hold the user
-    /// in it) and for a session with no set end (count-up Quick Start, "No set end"): nothing there ends "early".
+    /// in it), for a session with no set end (count-up Quick Start, "No set end") and for a test session: nothing there
+    /// ends "early".
     /// </summary>
     public static bool EndsOnCommand(SessionState state)
     {
-        return state.Mode == SessionMode.Scheduled || (state.Mode == SessionMode.Manual && state.PhaseEndsAt is null);
+        return state.IsTest || state.Mode == SessionMode.Scheduled || (state.Mode == SessionMode.Manual && state.PhaseEndsAt is null);
     }
 
     public TimeSpan RemainingWait(DateTimeOffset requestedAt, DateTimeOffset now)

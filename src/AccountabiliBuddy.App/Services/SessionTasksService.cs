@@ -279,7 +279,8 @@ public sealed class SessionTasksService : IDisposable
 
     private void OnStateChanged(object? sender, SessionState state)
     {
-        bool active = state.IsActive;
+        // A test session neither stamps the draft checklist nor archives it.
+        bool active = state.IsRealSession;
         if (active == _wasActive)
         {
             return;

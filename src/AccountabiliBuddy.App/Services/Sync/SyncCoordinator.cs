@@ -101,7 +101,7 @@ public sealed class SyncCoordinator
         _identity = identity;
         _received = received;
         _editTimes = editTimes;
-        _sessionActive = sessions.State.IsActive;
+        _sessionActive = sessions.State.IsRealSession;
 
         configuration.Changed += (_, _) => OnConfigurationChanged();
         configuration.PendingCancelled += (_, _) => RaiseOwnDataChanged();
@@ -220,7 +220,7 @@ public sealed class SyncCoordinator
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
         SyncNoise? noise = Noise is null ? null : await Noise();
         return SyncFileBuilder.Build(card, records, drift, _omitted.IsOmitted, id => ProfileOptions.NameOf(profiles, id),
-            _sessions.State.IsActive, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles), Events = Events?.Invoke(),
+            _sessions.State.IsRealSession, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles), Events = Events?.Invoke(),
                 Pickups = PcPickups?.PickupsForOtherPcs(), InputRuns = PcPickups?.InputRunsToday(),
                 ReminderActions = ReminderActions?.Invoke() is { Count: > 0 } actions ? actions : null,
                 Blockers = Blockers?.Invoke(), Beeminder = Beeminder?.Invoke(),
@@ -256,7 +256,8 @@ public sealed class SyncCoordinator
     private SyncRunning? RunningNow(IReadOnlyList<FocusProfile> profiles)
     {
         SessionState state = _sessions.State;
-        if (!state.IsActive || state.Mode == SessionMode.Scheduled || state.PhaseStartedAt is not DateTimeOffset started)
+        // A test session is never sent.
+        if (!state.IsRealSession || state.Mode == SessionMode.Scheduled || state.PhaseStartedAt is not DateTimeOffset started)
         {
             return null;
         }
@@ -462,9 +463,9 @@ public sealed class SyncCoordinator
     {
         // A session starting or ending, a new phase or stepping away/back: the file's running session changes (ADR 26).
         var phase = (state.Phase, state.PhaseEndsAt, state.AwaySince);
-        if (state.IsActive != _sessionActive || phase != _lastPhase)
+        if (state.IsRealSession != _sessionActive || (state.IsRealSession && phase != _lastPhase))
         {
-            _sessionActive = state.IsActive;
+            _sessionActive = state.IsRealSession;
             _lastPhase = phase;
             RaiseOwnDataChanged();
         }

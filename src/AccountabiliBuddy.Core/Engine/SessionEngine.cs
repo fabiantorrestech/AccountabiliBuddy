@@ -59,6 +59,35 @@ public sealed class SessionEngine
         return true;
     }
 
+    /// <summary>
+    /// A test session: one timed focus phase that enforces like a real one but is never counted, logged, synced or saved
+    /// for a restart, and ends on command (see <see cref="SessionState.IsTest"/>).
+    /// </summary>
+    /// <returns>False if a session is already running.</returns>
+    public bool StartTest(Guid profileId, TimeSpan duration)
+    {
+        if (State.IsActive)
+        {
+            return false;
+        }
+
+        if (duration <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(duration), "Duration must be positive.");
+        }
+
+        DateTimeOffset now = Now;
+        SetState(new SessionState(
+            SessionMode.Manual,
+            SessionPhase.Focus,
+            profileId,
+            PhaseStartedAt: now,
+            PhaseEndsAt: now + duration,
+            CompletedFocusCycles: 0,
+            IsTest: true));
+        return true;
+    }
+
     /// <param name="breakAfterLastCycle">With a cycle limit: also run the break after the last focus cycle
     /// before ending (e.g. "one focus, one break").</param>
     /// <returns>False if a session is already running.</returns>
@@ -142,9 +171,17 @@ public sealed class SessionEngine
         return away;
     }
 
-    /// <summary>Everything needed to carry on with the current session after the app restarts.</summary>
+    /// <summary>
+    /// Everything needed to carry on with the current session after the app restarts. A test session is saved as no
+    /// session: it never comes back after a restart.
+    /// </summary>
     public SessionCheckpoint CreateCheckpoint()
     {
+        if (State.IsTest)
+        {
+            return new SessionCheckpoint(SessionState.Idle, null, false);
+        }
+
         return new SessionCheckpoint(State, _pomodoroSettings, _breakAfterLastCycle);
     }
 
@@ -153,7 +190,7 @@ public sealed class SessionEngine
     /// Call <see cref="Tick"/> afterwards to catch up on phases that ran out while the app was closed.
     /// </summary>
     /// <returns>True if a session is running again; false if the checkpoint had none, was invalid, was a scheduled
-    /// block (from before schema v5; never resumed), or a session is already running.</returns>
+    /// block (from before schema v5; never resumed) or a test session, or a session is already running.</returns>
     public bool Restore(SessionCheckpoint checkpoint)
     {
         if (State.IsActive)
@@ -162,7 +199,7 @@ public sealed class SessionEngine
         }
 
         SessionState saved = checkpoint.State;
-        if (!saved.IsActive || saved.PhaseStartedAt is null || saved.Mode == SessionMode.Scheduled)
+        if (!saved.IsActive || saved.PhaseStartedAt is null || saved.Mode == SessionMode.Scheduled || saved.IsTest)
         {
             return false;
         }

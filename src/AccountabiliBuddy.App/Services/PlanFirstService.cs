@@ -132,6 +132,12 @@ public sealed class PlanFirstService : IDisposable
 
     private void OnStateChanged(object? sender, SessionState state)
     {
+        // A test session has no planning minutes (they would cover a short test) and doesn't use up the first session's learning.
+        if (state.IsTest)
+        {
+            return;
+        }
+
         if (!state.IsActive)
         {
             End();

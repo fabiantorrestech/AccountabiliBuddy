@@ -169,7 +169,10 @@ public sealed class QuickSessionService
             : null;
 
         var viewModel = new QuickSessionViewModel(
-            _configuration.Current.Profiles, Preferences, sessionCompleted, runningText, _sessions.TimeProvider);
+            _configuration.Current.Profiles, Preferences, sessionCompleted, runningText, _sessions.TimeProvider)
+        {
+            EndSessionText = state.IsTest ? "End test" : "End session…",
+        };
         viewModel.StartRequested += async (_, _) => await StartAsync(viewModel, fromPopup: true);
         viewModel.Checklist = Tasks is null ? null : new ChecklistViewModel(Tasks, ChecklistMode.Draft, _sessions.TimeProvider);
         HookQuickStart(viewModel);
@@ -217,6 +220,27 @@ public sealed class QuickSessionService
 
         _ownsRunningSession = fromPopup;
         Preferences = viewModel.ToPreferences(Preferences.Hotkey) with { CountUpProfileId = Preferences.CountUpProfileId };
+        await SavePreferencesAsync();
+    }
+
+    /// <summary>"Test session": the profile picked in the start controls for the chosen minutes (1-60), never counted or logged.</summary>
+    private async Task StartTestAsync(QuickSessionViewModel viewModel)
+    {
+        if (viewModel.SelectedProfile is not { } profile)
+        {
+            return;
+        }
+
+        bool started = _sessions.StartTest(profile.Id, viewModel.TestMinutes);
+        CloseAll();
+        if (!started)
+        {
+            return;
+        }
+
+        // A test never offers "start another" when it ends.
+        _ownsRunningSession = false;
+        Preferences = Preferences with { TestMinutes = viewModel.TestMinutes };
         await SavePreferencesAsync();
     }
 
@@ -299,6 +323,7 @@ public sealed class QuickSessionService
         viewModel.DefaultProfileName = CountUpProfileName;
         viewModel.QuickStartDefaultRequested += async (_, _) => await StartCountUpAsync();
         viewModel.QuickStartRequested += (_, profileId) => StartCountUp(profileId);
+        viewModel.StartTestRequested += async (_, _) => await StartTestAsync(viewModel);
     }
 
     /// <summary>
@@ -331,7 +356,7 @@ public sealed class QuickSessionService
 
     private void OnSessionCompleted(object? sender, SessionState finished)
     {
-        if (_ownsRunningSession)
+        if (_ownsRunningSession && !finished.IsTest)
         {
             _ownsRunningSession = false;
             Show(sessionCompleted: true);

@@ -90,13 +90,15 @@ public sealed class ActivityRecorder : IDisposable
             return;
         }
 
-        Guid? profileId = state.IsActive ? state.ProfileId : null;
+        // A test session logs its activity as outside any session, so it never reaches focus time or the review.
+        bool inFocus = state.IsEnforcing && !state.IsTest;
+        Guid? profileId = state.IsRealSession ? state.ProfileId : null;
         IEnumerable<ObservedActivity> observations = decisions.Select(decision => new ObservedActivity(
             decision.Snapshot,
             // Classification is only meaningful against a profile during focus.
-            state.IsEnforcing ? decision.Classification : Classification.Unknown,
+            inFocus ? decision.Classification : Classification.Unknown,
             profileId,
-            state.IsEnforcing));
+            inFocus));
 
         WriteSegments(_tracker.Observe(observations, now));
     }
@@ -162,6 +164,12 @@ public sealed class ActivityRecorder : IDisposable
         SessionState previous = _lastState;
         _lastState = state;
 
+        // A test session leaves no events: not its start, its steps away, or its end.
+        if (previous.IsTest || state.IsTest)
+        {
+            return;
+        }
+
         // A resumed session was logged as started before the app stopped.
         if (!previous.IsActive && state.IsActive && IsEnabled && !_sessions.IsResuming)
         {
@@ -182,7 +190,7 @@ public sealed class ActivityRecorder : IDisposable
 
     private void OnSessionCompleted(object? sender, SessionState finished)
     {
-        if (IsEnabled)
+        if (IsEnabled && !finished.IsTest)
         {
             var completed = new SessionEvent(
                 _timeProvider.GetUtcNow(), SessionEventKind.Completed, finished.Mode, finished.ProfileId);
@@ -192,7 +200,7 @@ public sealed class ActivityRecorder : IDisposable
 
     private void OnSessionEnded(object? sender, SessionEnd end)
     {
-        if (IsEnabled)
+        if (IsEnabled && !end.Ended.IsTest)
         {
             SessionEventKind kind = end.EarlyEndReason is not null ? SessionEventKind.EndedEarly : SessionEventKind.Ended;
             var ended = new SessionEvent(

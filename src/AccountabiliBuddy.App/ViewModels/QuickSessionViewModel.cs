@@ -66,6 +66,7 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
         SetDuration(preferences.FocusMinutes);
         BreakEnabled = preferences.BreakEnabled;
         BreakMinutes = Math.Clamp(preferences.BreakMinutes, MinBreakMinutes, MaxBreakMinutes);
+        TestMinutesInput = Math.Clamp(preferences.TestMinutes, SessionController.MinTestMinutes, SessionController.MaxTestMinutes);
 
         RunningSessionText = runningSessionText;
         Heading = runningSessionText is not null ? "A session is running"
@@ -85,6 +86,9 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
 
     public bool IsSessionRunning => RunningSessionText is not null;
 
+    /// <summary>The end button while a session runs: "End test" for a test session.</summary>
+    public string EndSessionText { get; init; } = "End session…";
+
     public bool CanChoose => !IsSessionRunning;
 
     public bool HasProfiles => ProfileOptions.Count > 0;
@@ -98,6 +102,7 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(StartCommand))]
     [NotifyCanExecuteChangedFor(nameof(QuickStartCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StartTestCommand))]
     [NotifyPropertyChangedFor(nameof(QuickStartLabel))]
     public partial ProfileOption? SelectedProfile { get; set; }
 
@@ -134,6 +139,13 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BreakLabel), nameof(StartLabel), nameof(EndTimeText))]
     public partial double BreakMinutes { get; set; }
+
+    /// <summary>The test session's length box (1-60 minutes); empty while the box is being retyped.</summary>
+    [ObservableProperty]
+    public partial decimal? TestMinutesInput { get; set; }
+
+    /// <summary>The test session's length in whole minutes, kept within 1-60.</summary>
+    public int TestMinutes => Math.Clamp((int)Math.Round(TestMinutesInput ?? SessionController.MinTestMinutes), SessionController.MinTestMinutes, SessionController.MaxTestMinutes);
 
     public bool IsUntilMode => _untilTime is not null;
 
@@ -210,6 +222,9 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
     /// <summary>"Quick Start": the profile picked here with no set end.</summary>
     public event EventHandler<Guid>? QuickStartRequested;
 
+    /// <summary>"Start test": a test session with the profile picked here (never counted, logged or synced).</summary>
+    public event EventHandler? StartTestRequested;
+
     /// <summary>The default profile's name under "Quick Start with Default", e.g. "QS - Default".</summary>
     [ObservableProperty]
     public partial string DefaultProfileName { get; set; }
@@ -234,7 +249,7 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
     public QuickSessionPreferences ToPreferences(string hotkey)
     {
         // A chosen end time is a one-off; the remembered default stays a plain length.
-        return new QuickSessionPreferences(SelectedProfile?.Id, _durationMinutes, BreakEnabled, WholeBreakMinutes, hotkey);
+        return new QuickSessionPreferences(SelectedProfile?.Id, _durationMinutes, BreakEnabled, WholeBreakMinutes, hotkey) { TestMinutes = TestMinutes };
     }
 
     /// <summary>Picks preset number <paramref name="shortcutNumber"/> (1-based), as pressing that number key does.</summary>
@@ -302,6 +317,12 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
         {
             QuickStartRequested?.Invoke(this, profile.Id);
         }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanQuickStart))]
+    private void StartTest()
+    {
+        StartTestRequested?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]
