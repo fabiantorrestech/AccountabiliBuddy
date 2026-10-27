@@ -45,7 +45,7 @@ fun TodayPage(view: TodayView) {
 
             // Clock ticks inside the rings: each hour, longer and brighter at 12, 3, 6 and 9 (AM and PM).
             val tickFrom = inner - ring / 2 - 2.dp.toPx()
-            TileRing.ticks().forEach { tick ->
+            CLOCK_TICKS.forEach { tick ->
                 val length = (if (tick.major) 6 else 3).dp.toPx()
                 drawLine(
                     if (tick.major) Color(0xCCFFFFFF) else Color(0x66FFFFFF), pointAt(tick.minute, tickFrom), pointAt(tick.minute, tickFrom - length),
@@ -74,3 +74,6 @@ fun TodayPage(view: TodayView) {
         }
     }
 }
+
+/** The hour ticks never change, so they are made once, not on every draw. */
+private val CLOCK_TICKS = TileRing.ticks()
