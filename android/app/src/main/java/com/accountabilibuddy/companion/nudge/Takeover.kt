@@ -47,8 +47,9 @@ object Takeover {
         val app = context.applicationContext as CompanionApp
         // Emergency time, or unlocked into an always-allowed app (a call, a text, directions): no card.
         val inFront = com.accountabilibuddy.companion.usage.PhoneUsageReader(context).foregroundApp(now)
-        if (app.emergency.isActive(now) || app.essentialsOnScreen || (inFront != null && app.essentials.isAllowed(inFront.first, inFront.second))) {
-            Log.d(TAG, "not shown: emergency or allowed app ($inFront)")
+        // Lunch (from any device) is a break: no card, as on the PC.
+        if (app.emergency.isActive(now) || app.essentialsOnScreen || app.lunch.isOnLunch(now) || (inFront != null && app.essentials.isAllowed(inFront.first, inFront.second))) {
+            Log.d(TAG, "not shown: emergency, lunch or allowed app ($inFront)")
             return
         }
 

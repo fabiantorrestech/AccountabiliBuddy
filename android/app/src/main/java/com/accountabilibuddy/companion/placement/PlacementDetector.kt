@@ -295,7 +295,7 @@ class PlacementDetector(context: Context) {
 
     // Opens the essentials screen silently, with the skip rules of the essentials screen: locked, a call, an emergency.
     private fun escalate(now: Instant): Boolean {
-        if (!power.isInteractive || keyguard.isKeyguardLocked || inCall() || app.emergency.isActive(now) || app.essentialsOnScreen) {
+        if (!power.isInteractive || keyguard.isKeyguardLocked || inCall() || app.emergency.isActive(now) || app.essentialsOnScreen || app.lunch.isOnLunch(now)) {
             return false
         }
 

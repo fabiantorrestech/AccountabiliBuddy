@@ -125,10 +125,27 @@ class EssentialsActivity : ComponentActivity() {
         (application as CompanionApp).essentialsOnScreen = true
         reopenHandler.removeCallbacksAndMessages(null)
         openedFromScreen = false
+        lunchCheck.run()
+    }
+
+    // The focus screen closes when a lunch starts (from any device): lunch is a break from the session.
+    private val lunchCheck: Runnable = object : Runnable {
+        override fun run() {
+            val kind = intent.getStringExtra(EXTRA_KIND)?.let { name -> EssentialsKind.entries.firstOrNull { it.name == name } } ?: EssentialsKind.Focus
+            val ownChoice = intent.getBooleanExtra(EXTRA_ARRANGE, false) || intent.getLongExtra(EXTRA_TEST_UNTIL, 0L) > 0
+            if (kind == EssentialsKind.Focus && !ownChoice && (application as CompanionApp).lunch.isOnLunch(Instant.now())) {
+                finish()
+                return
+            }
+
+            window.decorView.removeCallbacks(this)
+            window.decorView.postDelayed(this, LUNCH_CHECK_MS)
+        }
     }
 
     override fun onStop() {
         super.onStop()
+        window.decorView.removeCallbacks(lunchCheck)
         (application as CompanionApp).essentialsOnScreen = false
         resetKey++
         scheduleReopen()
@@ -168,7 +185,8 @@ class EssentialsActivity : ComponentActivity() {
     private fun shouldReopen(): Boolean {
         val app = application as CompanionApp
         val now = Instant.now()
-        val running = EssentialsLaunch.runningSessionStart(app, now) != null
+        // Lunch is a break from the session: the screen doesn't come back during it.
+        val running = EssentialsLaunch.runningSessionStart(app, now) != null && !app.lunch.isOnLunch(now)
         // Phone locked or screen off, an emergency, a call (ringing too), or an allowed app in front: leave it alone.
         val interactive = getSystemService(PowerManager::class.java).isInteractive && !getSystemService(KeyguardManager::class.java).isKeyguardLocked
         val inCall = getSystemService(AudioManager::class.java).mode.let {
@@ -197,6 +215,7 @@ class EssentialsActivity : ComponentActivity() {
 
     companion object {
         private const val REOPEN_DELAY_MS = 3_000L
+        private const val LUNCH_CHECK_MS = 5_000L
         private const val NO_USAGE_REOPEN_DELAY_MS = 5 * 60_000L
         const val EXTRA_ARRANGE = "arrange"
         const val EXTRA_TEST_UNTIL = "testUntil"
