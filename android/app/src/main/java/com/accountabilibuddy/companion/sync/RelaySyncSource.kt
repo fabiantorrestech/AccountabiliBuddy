@@ -293,13 +293,19 @@ class RelaySyncSource(
     // True when a file couldn't be read (another group's, or damaged).
     private fun read(endpoint: RelayEndpoint, listed: List<RelayFileInfo>, ownName: String): Boolean {
         var unreadable = false
+        var passBytes = 0L
         for (file in listed) {
+            if (passBytes >= MAX_PASS_BYTES) {
+                break // Enough for one pass; the rest waits for the next.
+            }
+
             // Only the strict name the PCs write is ever fetched; the relay's list is not trusted for paths.
             if (!RelayNetwork.isFileName(file.name) || !SyncFolder.isOtherDevicesFile(file.name, ownName) || seen[file.name] == file.etag) {
                 continue
             }
 
             val downloaded = RelayNetwork.get(endpoint, file.name) ?: continue
+            passBytes += downloaded.bytes.size
             val etag = downloaded.etag ?: file.etag
             val card = sync.cardOf(downloaded.bytes)
             if (card == null) {
@@ -370,5 +376,8 @@ class RelaySyncSource(
         const val BACKOFF_START_MS = 1_000L
         const val BACKOFF_MAX_MS = 60_000L
         const val MAX_LINE = 4_096
+
+        /** What one read pass downloads at most: a hostile relay can't keep this phone downloading junk over mobile data. */
+        const val MAX_PASS_BYTES = 32L * 1024 * 1024
     }
 }

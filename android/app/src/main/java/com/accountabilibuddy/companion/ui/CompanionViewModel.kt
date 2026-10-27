@@ -184,14 +184,15 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
      * Works out what joining would change and asks; a link that would leave the current group asks twice.
      */
     fun offerJoin(link: JoinLink) {
-        val currentGroup = sync.key.value?.groupId
-        val linkGroup = SyncKeyCode.parse(link.code)?.groupId
+        val currentKey = sync.key.value
+        val linkKey = SyncKeyCode.parse(link.code)
         val settings = sync.settings.value
         joinOffer.value = JoinPrompt(
             link = link,
-            leavesCurrentGroup = currentGroup != null && currentGroup != linkGroup,
+            leavesCurrentGroup = currentKey != null && !currentKey.sameGroupAs(linkKey),
             newRelay = link.relayUrl != null && !(settings.relayOn && settings.relayUrl == link.relayUrl),
-            relayOnInternet = link.relayUrl != null && !RelayAddress.isLocalNetwork(link.relayUrl),
+            relayOnInternet = link.relayUrl != null && !RelayAddress.isLocalNetwork(link.relayUrl) &&
+                !(settings.relayOn && settings.relayUrl == link.relayUrl),
         )
     }
 
@@ -398,8 +399,8 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         val target = SyncKeyCode.parse(typed) ?: return false
 
         // A different group than the one this phone is in: the same question and second confirmation as a join link.
-        val currentGroup = sync.key.value?.groupId
-        if (currentGroup != null && currentGroup != target.groupId) {
+        val currentKey = sync.key.value
+        if (currentKey != null && !currentKey.sameGroupAs(target)) {
             joinOffer.value = JoinPrompt(
                 link = JoinLink(typed, "your other device"),
                 leavesCurrentGroup = true,

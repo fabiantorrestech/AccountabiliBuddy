@@ -389,7 +389,18 @@ The relay tells clients apart by the **last** `X-Forwarded-For` entry, which the
 by default. With another proxy, replace the header with the real client address, never append to the one the client
 sent (nginx: `proxy_set_header X-Forwarded-For $remote_addr;`); otherwise anyone can dodge the per-address limits.
 
-**Keep the server patched, and the relay too** (section 10.7: the operating system's updates do not update the relay).
+**Keep the server patched, and the relay and Caddy too** (section 10.7: the operating system's updates do not update the relay, and Caddy is the part that faces the internet: update it with `apt upgrade` or `caddy upgrade`).
+Use Caddy 2.5 or newer: its default replaces the `X-Forwarded-For` the client sent, which the per-address limits rely on.
+Caddy's access log (`log`) records request headers. The apps send the admission key only on the one request that starts a
+group, not on every sync, but keep the log off or filtered if you can, and treat it as private.
+
+**On a work or managed PC, avoid this setup.** Without a pin the PC trusts the Windows certificate store, so a TLS-inspecting
+proxy or antivirus "HTTPS scanning" there can read the relay's token and admission key (it still cannot read or forge your
+sync files). Use the pinned or Tailscale setup (section 10.3) on such a PC. Phones use only the system's built-in authorities.
+
+**The per-address limits need the real client address.** Behind Docker Desktop (Windows, macOS), Docker's userland proxy
+(IPv6) or a proxy that doesn't set `X-Forwarded-For`, every client looks like one address and shares one set of limits, so
+one stranger can slow everyone down. For a public relay run on Linux with the proxy-mode (host network) lines and Caddy.
 A public relay is a target for scanners; the admission key, the token check and the limits stop most abuse, but it is
 not hardened like a hosted service. If you can, prefer section 10.3.
 
@@ -437,6 +448,8 @@ until those devices leave or 30 days pass.
 
 ### 10.7 Keeping the relay patched
 
+(For a relay behind Caddy, update Caddy as well: `sudo apt update && sudo apt upgrade`, or `sudo caddy upgrade`.)
+
 The relay is the one part of AccountabiliBuddy that listens for connections, and the program that does that is .NET's
 web server (Kestrel), which gets security fixes (usually on the second Tuesday of a month). **Updating the server's
 operating system does not update it**: a self-contained build and a Docker image carry their own copy of .NET, frozen
@@ -444,7 +457,7 @@ at the day they were built. So a relay you built once and left running keeps its
 
 | How the relay runs | When to rebuild | How |
 |---|---|---|
-| On this PC (Devices → Run a relay on this PC) | Nothing to do | It ships inside the app and updates with it (Updates in About). |
+| On this PC (Devices → Run a relay on this PC) | With every app update | It ships inside the app, so its .NET is only as new as the app you installed: keep the app updated (Updates in About), and update it at once when a .NET security fix for Kestrel is announced. |
 | Windows task (`install-windows-task.ps1`) | On every AccountabiliBuddy release, and after each monthly .NET security update | `pwsh scripts/publish-relay.ps1 -Rids win-x64` from an up-to-date source folder, then `pwsh deploy/relay/install-windows-task.ps1 -ExePath .\publish\relay\win-x64\AccountabiliBuddy.Relay.exe -OpenFirewall` (it keeps the data). Install the current .NET 10 SDK first (Windows Update does not update it; `dotnet --version`). |
 | Linux (systemd) | Same | `pwsh scripts/publish-relay.ps1 -Rids linux-x64` (or `linux-arm64`), copy the file over `/opt/accountabilibuddy-relay/`, then `sudo systemctl restart accountabilibuddy-relay`. |
 | Docker | Same, and at least once a month | In `deploy/relay`: `docker compose build --pull && docker compose up -d`. (`--pull` fetches the newest .NET images; without it Docker may reuse an old one. `restart: unless-stopped` never rebuilds anything.) |
@@ -461,8 +474,6 @@ much less exposed, but patch it too. Keep the relay at least as new as your apps
 After updating the apps from a version before the relay used one group id and token per relay, the devices start a new
 group on the relay (the old one is cleaned up after 30 days), and starting a group needs the admission key: enter it on
 each device that doesn't get it from a join link.
-
-### 10.8 When the relay doesn't work
 
 ### 10.8 When the relay doesn't work
 

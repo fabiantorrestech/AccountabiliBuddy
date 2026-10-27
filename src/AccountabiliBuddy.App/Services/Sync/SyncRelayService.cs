@@ -42,6 +42,9 @@ public sealed class SyncRelayService : IDisposable
     // The relay itself refuses a bigger file.
     private const long MaxFileBytes = 4 * 1024 * 1024;
 
+    // What one read pass downloads at most: a hostile relay can't keep this PC downloading junk without end.
+    private const long MaxPassBytes = 32 * 1024 * 1024;
+
     private readonly SyncCoordinator _coordinator;
     private readonly SyncSettingsService _settings;
     private readonly SyncIdentityService _identity;
@@ -228,8 +231,14 @@ public sealed class SyncRelayService : IDisposable
 
             bool unreadable = false;
             string? downloadProblem = null;
+            long passBytes = 0;
             foreach (RelayFileInfo info in files.Where(info => IsSyncFileName(info.Name)))
             {
+                if (passBytes >= MaxPassBytes)
+                {
+                    break; // Enough for one pass; the rest waits for the next.
+                }
+
                 if (info.Name == ownName || (_seen.TryGetValue(info.Name, out string? seenTag) && seenTag == info.ETag))
                 {
                     continue;
@@ -250,6 +259,7 @@ public sealed class SyncRelayService : IDisposable
                         continue; // Gone since the listing.
                     }
 
+                    passBytes += download.Bytes.Length;
                     string? reason = await _coordinator.AcceptSealedAsync(download.Bytes, SyncDeviceCard.MethodRelay);
                     unreadable |= reason == SyncCoordinator.CannotReadReason;
                     if (reason is null || reason == SyncCoordinator.CannotReadReason || reason == SyncCoordinator.OwnFileReason)
@@ -355,7 +365,7 @@ public sealed class SyncRelayService : IDisposable
         }
 
         SyncSettings settings = _settings.Current;
-        string applied = $"{settings.RelayOn}|{settings.RelayUrl}|{settings.RelayPin}|{settings.RelayAdmissionProtected}|{_identity.Key?.GroupId}";
+        string applied = $"{settings.RelayOn}|{settings.RelayUrl}|{settings.RelayPin}|{settings.RelayAdmissionProtected}|{_identity.Key?.Fingerprint()}";
         if (applied == _appliedKey)
         {
             return;
@@ -380,7 +390,7 @@ public sealed class SyncRelayService : IDisposable
         _streamProblem = null;
 
         // Left the group, or joined or made another: the old group's file leaves the relay.
-        if (previous is not null && previousKey?.GroupId != _identity.Key?.GroupId)
+        if (previous is not null && !(previousKey?.SameGroupAs(_identity.Key) ?? _identity.Key is null))
         {
             _ = ForgetFileAsync(previous, previousName);
         }

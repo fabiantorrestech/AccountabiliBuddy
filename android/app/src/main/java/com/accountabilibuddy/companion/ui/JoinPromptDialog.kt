@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 /**
  * The question a join link asks (ADR 22, 46). It says what would change, in this order: whether the phone leaves the
  * group it is in, which relay it would send its files to (the host, and a warning when that is a relay on the internet
- * or one this phone doesn't use now), and that the name in the link is only a label. A link that leaves the current
+ * or one this phone doesn't use now), and last that the name in the link is only a label (shortened, never first). A link that leaves the current
  * group asks a second time before it does anything.
  */
 @Composable
@@ -58,13 +58,6 @@ internal fun JoinPromptDialog(prompt: JoinPrompt, onContinue: () -> Unit, onCanc
                     )
                 }
 
-                if (!prompt.typedCode) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "The link calls itself \"${link.pcName}\". That name is only a label in the link, not proof of whose it is.",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
                 link.relayHost?.let { host ->
                     Spacer(Modifier.height(8.dp))
                     Text("It also sends this phone's sync files to the relay at $host" + (if (link.relayPin != null) " (certificate pinned)." else "."))
@@ -82,6 +75,14 @@ internal fun JoinPromptDialog(prompt: JoinPrompt, onContinue: () -> Unit, onCanc
                             color = Color(0xFFFCA5A5),
                         )
                     }
+                }
+
+                if (!prompt.typedCode) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "The link calls itself \"${link.pcName}\". That name is only a label in the link, not proof of whose it is.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
 
                 Spacer(Modifier.height(8.dp))

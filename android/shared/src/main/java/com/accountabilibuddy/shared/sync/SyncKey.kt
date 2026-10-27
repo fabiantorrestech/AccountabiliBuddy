@@ -38,6 +38,12 @@ class SyncKey(val key: ByteArray, val groupId: String, private val relayRoot: By
         return token
     }
 
+    /**
+     * Whether [other] is the same group: compares the full 256-bit key in constant time. The 4-byte group id is published in
+     * every sealed file, so a crafted code can share it; never decide "same group" on it.
+     */
+    fun sameGroupAs(other: SyncKey?): Boolean = other != null && java.security.MessageDigest.isEqual(key, other.key)
+
     /** The group id's 4 bytes, as they follow "ABS1" in a sealed file. */
     internal val groupIdBytes: ByteArray
         get() = ByteArray(GROUP_ID_BYTES) { groupId.substring(it * 2, it * 2 + 2).toInt(16).toByte() }

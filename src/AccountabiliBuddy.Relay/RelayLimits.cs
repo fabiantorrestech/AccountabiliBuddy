@@ -19,7 +19,7 @@ internal static class RelayLimits
     public static readonly TimeSpan BodyDeadline = TimeSpan.FromSeconds(30);
 
     public const int MaxStreamsPerIp = 8;
-    public const int MaxConnectionsPerIp = 32;
+    public const int MaxConnectionsPerIp = 16;
     public const int MaxNewGroupsPerIpPerDay = 5;
     public const int DefaultMaxDiskMegabytes = 2048;
     public const int MaxStreamsPerGroup = 16;

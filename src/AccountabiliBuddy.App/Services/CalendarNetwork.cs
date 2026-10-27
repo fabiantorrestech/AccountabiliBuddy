@@ -33,6 +33,10 @@ public sealed class CalendarNetwork : IDisposable
     private const long MaxRelayResponseBytes = 5 * 1024 * 1024;
     private const int MaxRelayClients = 4;
 
+    // The relay's own limits (4 MiB a file, 64 files a group): a relay that says more is not believed, so it can't make this PC download without end.
+    private const long MaxRelayFileBytes = 4 * 1024 * 1024;
+    private const int MaxRelayListed = 64;
+
     // A line of the relay's event stream is a short JSON event or a ping; the phone caps it at the same size.
     private const int MaxRelayStreamLine = 4096;
     private static readonly TimeSpan RelayRequestTimeout = TimeSpan.FromSeconds(30);
@@ -152,13 +156,28 @@ public sealed class CalendarNetwork : IDisposable
     /// <exception cref="HttpRequestException">Network or TLS error (a pin mismatch has an AuthenticationException inside), or a status code that isn't a success (in the exception).</exception>
     public async Task<string> PutRelayFileAsync(RelayAccess access, string name, byte[] sealedBytes, CancellationToken cancellationToken)
     {
-        using var body = new ByteArrayContent(sealedBytes);
-        body.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-        using HttpResponseMessage response = await SendRelayAsync(
-            access, HttpMethod.Put, RelayFilePath(access, name), body, HttpCompletionOption.ResponseContentRead, cancellationToken);
+        // The admission key is sent only when the relay asks for it (428: the group doesn't exist there yet), so it isn't in
+        // a proxy's request log on every heartbeat.
+        HttpResponseMessage response = await PutOnceAsync(access, name, sealedBytes, withAdmission: false, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.PreconditionRequired && access.AdmissionKey is not null)
+        {
+            response.Dispose();
+            response = await PutOnceAsync(access, name, sealedBytes, withAdmission: true, cancellationToken);
+        }
+
+        using HttpResponseMessage answered = response;
         ThrowIfRefused(response);
         using JsonDocument json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
         return json.RootElement.GetProperty("etag").GetString() ?? string.Empty;
+    }
+
+    private async Task<HttpResponseMessage> PutOnceAsync(
+        RelayAccess access, string name, byte[] sealedBytes, bool withAdmission, CancellationToken cancellationToken)
+    {
+        using var body = new ByteArrayContent(sealedBytes);
+        body.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        return await SendRelayAsync(
+            access, HttpMethod.Put, RelayFilePath(access, name), body, HttpCompletionOption.ResponseContentRead, withAdmission, cancellationToken);
     }
 
     /// <summary>The group's files on the relay. A group nobody has written to yet (404) has none.</summary>
@@ -166,7 +185,7 @@ public sealed class CalendarNetwork : IDisposable
     public async Task<IReadOnlyList<RelayFileInfo>> ListRelayFilesAsync(RelayAccess access, CancellationToken cancellationToken)
     {
         using HttpResponseMessage response = await SendRelayAsync(
-            access, HttpMethod.Get, $"v1/groups/{access.GroupId}/files", null, HttpCompletionOption.ResponseContentRead, cancellationToken);
+            access, HttpMethod.Get, $"v1/groups/{access.GroupId}/files", null, HttpCompletionOption.ResponseContentRead, false, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             return [];
@@ -177,6 +196,11 @@ public sealed class CalendarNetwork : IDisposable
         var files = new List<RelayFileInfo>();
         foreach (JsonElement file in json.RootElement.EnumerateArray())
         {
+            if (files.Count >= MaxRelayListed)
+            {
+                break; // More than a group can hold: the rest is not believed.
+            }
+
             files.Add(new RelayFileInfo(
                 file.GetProperty("name").GetString() ?? string.Empty,
                 file.GetProperty("etag").GetString() ?? string.Empty,
@@ -192,16 +216,27 @@ public sealed class CalendarNetwork : IDisposable
     public async Task<RelayDownload?> GetRelayFileAsync(RelayAccess access, string name, CancellationToken cancellationToken)
     {
         using HttpResponseMessage response = await SendRelayAsync(
-            access, HttpMethod.Get, RelayFilePath(access, name), null, HttpCompletionOption.ResponseContentRead, cancellationToken);
+            access, HttpMethod.Get, RelayFilePath(access, name), null, HttpCompletionOption.ResponseContentRead, false, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             return null;
         }
 
         ThrowIfRefused(response);
+        if (response.Content.Headers.ContentLength > MaxRelayFileBytes)
+        {
+            throw new HttpRequestException("The relay's file is larger than any sealed file.");
+        }
+
         // The ETag header is quoted; the listing and the events give it unquoted.
         string? etag = response.Headers.ETag?.Tag.Trim('"');
-        return new RelayDownload(await response.Content.ReadAsByteArrayAsync(cancellationToken), etag);
+        byte[] bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        if (bytes.Length > MaxRelayFileBytes)
+        {
+            throw new HttpRequestException("The relay's file is larger than any sealed file.");
+        }
+
+        return new RelayDownload(bytes, etag);
     }
 
     /// <summary>Removes this device's file from the relay (when it leaves the group). A file that is already gone is fine.</summary>
@@ -209,7 +244,7 @@ public sealed class CalendarNetwork : IDisposable
     public async Task DeleteRelayFileAsync(RelayAccess access, string name, CancellationToken cancellationToken)
     {
         using HttpResponseMessage response = await SendRelayAsync(
-            access, HttpMethod.Delete, RelayFilePath(access, name), null, HttpCompletionOption.ResponseContentRead, cancellationToken);
+            access, HttpMethod.Delete, RelayFilePath(access, name), null, HttpCompletionOption.ResponseContentRead, false, cancellationToken);
         if (response.StatusCode != HttpStatusCode.NotFound)
         {
             ThrowIfRefused(response);
@@ -230,7 +265,7 @@ public sealed class CalendarNetwork : IDisposable
         try
         {
             using HttpResponseMessage response = await SendRelayAsync(
-                access, HttpMethod.Get, $"v1/groups/{access.GroupId}/events", null, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                access, HttpMethod.Get, $"v1/groups/{access.GroupId}/events", null, HttpCompletionOption.ResponseHeadersRead, false, cancellationToken);
             ThrowIfRefused(response);
             onConnected();
             await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -293,7 +328,7 @@ public sealed class CalendarNetwork : IDisposable
     }
 
     private async Task<HttpResponseMessage> SendRelayAsync(
-        RelayAccess access, HttpMethod method, string path, HttpContent? content, HttpCompletionOption completion, CancellationToken cancellationToken)
+        RelayAccess access, HttpMethod method, string path, HttpContent? content, HttpCompletionOption completion, bool withAdmission, CancellationToken cancellationToken)
     {
         // HTTPS only: a plain address would send the token in the clear.
         if (access.BaseAddress.Scheme != Uri.UriSchemeHttps)
@@ -309,8 +344,8 @@ public sealed class CalendarNetwork : IDisposable
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", access.Token);
 
-        // The admission key goes only with a PUT (the call that can start the group on the relay), never with a read.
-        if (method == HttpMethod.Put && access.AdmissionKey is not null)
+        // The admission key goes only with the PUT that starts the group, after the relay asked for it (428), never with a read.
+        if (withAdmission && method == HttpMethod.Put && access.AdmissionKey is not null)
         {
             request.Headers.TryAddWithoutValidation("X-Relay-Admission", access.AdmissionKey);
         }
