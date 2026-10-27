@@ -57,7 +57,9 @@ Copy-Item $ExePath $exe -Force
 
 # The service account reads the program and writes the data (the stored files and the certificate's private key).
 # The data folder is closed to everyone else: no inherited rights, only SYSTEM, Administrators and the account.
-icacls $InstallDir /grant "${RunAs}:(OI)(CI)RX" | Out-Null
+# The program folder too, wherever it is: a custom -InstallDir would inherit the parent's rights (often Authenticated Users:
+# Modify), and anyone who can replace the exe runs code as the service account.
+icacls $InstallDir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' "${RunAs}:(OI)(CI)RX" | Out-Null
 icacls $DataDir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' "${RunAs}:(OI)(CI)M" | Out-Null
 
 $arguments = "--data `"$DataDir`" --max-disk-mb $MaxDiskMb --max-groups $MaxGroups"

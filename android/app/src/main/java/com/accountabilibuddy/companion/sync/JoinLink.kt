@@ -27,6 +27,20 @@ data class JoinLink(
     companion object {
         const val HOST = "join"
 
+        private const val MAX_NAME_LENGTH = 40
+
+        /**
+         * The name as a short, plain label: control, format (bidi) and line-break characters dropped, cut to [MAX_NAME_LENGTH].
+         * It comes from a link anyone can craft, so it never gets room to push the warnings out of view.
+         */
+        private fun cleanName(raw: String?): String? {
+            val plain = raw.orEmpty().filter { c ->
+                !c.isISOControl() && Character.getType(c) != Character.FORMAT.toInt() &&
+                    Character.getType(c) != Character.LINE_SEPARATOR.toInt() && Character.getType(c) != Character.PARAGRAPH_SEPARATOR.toInt()
+            }.trim().take(MAX_NAME_LENGTH).trim()
+            return plain.ifBlank { null }
+        }
+
         /** Null when [text] isn't a join link with a valid code (and, if it names a relay, a valid address and pin). */
         fun parse(text: String): JoinLink? {
             val uri = runCatching { URI(text.trim()) }.getOrNull() ?: return null
@@ -38,7 +52,7 @@ data class JoinLink(
                 .mapNotNull { pair -> pair.split('=', limit = 2).takeIf { it.size == 2 } }
                 .associate { (name, value) -> name to java.net.URLDecoder.decode(value, Charsets.UTF_8) }
             val code = query["c"]?.takeIf { SyncKeyCode.parse(it) != null } ?: return null
-            val name = query["n"]?.takeIf { it.isNotBlank() } ?: "your other device"
+            val name = cleanName(query["n"]) ?: "your other device"
             val address = query["r"]
             val pin = query["p"]
             val admission = query["k"]

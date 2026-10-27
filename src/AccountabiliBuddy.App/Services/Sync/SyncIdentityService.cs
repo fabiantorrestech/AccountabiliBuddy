@@ -96,11 +96,11 @@ public sealed class SyncIdentityService
 
     private async Task ChangeCodeAsync(string? code)
     {
-        string? groupBefore = Key?.GroupId;
+        SyncKey? keyBefore = Key;
         SetCode(code);
         await SaveAsync();
         // Another group's devices (or none) are no longer this PC's to show.
-        if (Key?.GroupId != groupBefore)
+        if (!(Key?.SameGroupAs(keyBefore) ?? keyBefore is null))
         {
             await _received.ForgetAllAsync();
         }

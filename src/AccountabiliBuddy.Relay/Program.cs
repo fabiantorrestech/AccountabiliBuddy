@@ -60,7 +60,7 @@ builder.WebHost.ConfigureKestrel(kestrel =>
 {
     kestrel.AddServerHeader = false;
     kestrel.Limits.MaxRequestBodySize = RelayLimits.MaxFileBytes;
-    kestrel.Limits.MaxConcurrentConnections = 512;
+    kestrel.Limits.MaxConcurrentConnections = 1024;
 
     // A slow trickle of bytes must not hold a connection slot for hours: the body needs 4 KiB/s after a 5 s grace and
     // the headers 10 s. (The event stream turns its own response minimum off; it sends no request body.)
@@ -132,7 +132,26 @@ static void PrintPinLines(RelayOptions options, X509Certificate2 certificate, Ad
     }
 
     // A service has no console to read, so the same lines are kept next to the certificate.
-    File.WriteAllLines(Path.Combine(options.DataDirectory, "relay-address-and-pin.txt"), lines);
+    WriteAddressFile(options, lines);
+}
+
+// The text file holds the admission key, so it is private to its owner like the key file itself (Unix mode 0600 from the
+// first byte, rewritten on each start); on Windows the data folder's ACL does that.
+static void WriteAddressFile(RelayOptions options, List<string> lines)
+{
+    string path = Path.Combine(options.DataDirectory, "relay-address-and-pin.txt");
+    File.Delete(path);
+    var fileOptions = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write };
+    if (!OperatingSystem.IsWindows())
+    {
+        fileOptions.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+    }
+
+    using var writer = new StreamWriter(path, fileOptions);
+    foreach (string line in lines)
+    {
+        writer.WriteLine(line);
+    }
 }
 
 // Behind a reverse proxy the proxy has the certificate: the address is the proxy's, and there is no pin.
@@ -144,5 +163,5 @@ static void PrintProxyLines(RelayOptions options, AdmissionKey admission)
         $"  admission key: {admission.Value}   (a device needs it to start a new group here; the app's join link carries it)",
     };
     lines.ForEach(Console.WriteLine);
-    File.WriteAllLines(Path.Combine(options.DataDirectory, "relay-address-and-pin.txt"), lines);
+    WriteAddressFile(options, lines);
 }

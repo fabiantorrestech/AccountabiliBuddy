@@ -42,12 +42,13 @@ object RelayAddress {
 
     /**
      * Whether the relay is somewhere a person might run their own: a local-network address (10.x, 192.168.x, 172.16-31.x,
-     * 169.254.x, 127.x), a CGNAT/Tailscale one (100.64-127.x), a name ending in ".local" or ".lan" or without a dot, or an
-     * IPv6 link-local or unique-local address. Anything else is a relay on the internet.
+     * 169.254.x, 127.x), a CGNAT/Tailscale one (100.64-127.x), a name ending in ".local" or ".lan" or without a dot (none of those
+     * resolve on the public internet), or an IPv6 link-local or unique-local address. Every other DNS name counts as the internet,
+     * "*.ts.net" included: a Tailscale Funnel name is public.
      */
     fun isLocalNetwork(url: String): Boolean {
         val host = runCatching { URI(url).host }.getOrNull()?.lowercase()?.removePrefix("[")?.removeSuffix("]") ?: return false
-        if (host == "localhost" || host.endsWith(".local") || host.endsWith(".lan") || host.endsWith(".internal") || host.endsWith(".ts.net")) {
+        if (host == "localhost" || host.endsWith(".local") || host.endsWith(".lan")) {
             return true
         }
 

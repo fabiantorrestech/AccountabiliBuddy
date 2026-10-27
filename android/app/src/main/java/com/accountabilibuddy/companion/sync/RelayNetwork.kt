@@ -57,6 +57,9 @@ object RelayNetwork {
     private const val MAX_FILE_BYTES = 4 * 1024 * 1024
     private const val MAX_LIST_BYTES = 1024 * 1024
 
+    /** The relay's own limit of files in a group; a longer list is not believed past this. */
+    private const val MAX_LISTED_FILES = 64
+
     // A pinned certificate is the identity, so its host name doesn't have to match (a LAN address, a VPN name).
     private val anyHost = HostnameVerifier { _, _ -> true }
 
@@ -87,7 +90,7 @@ object RelayNetwork {
             } catch (e: Exception) {
                 null
             } ?: throw RelayException(RelayProblem.Server, "The relay's file list isn't readable.")
-            return array.map {
+            return array.take(MAX_LISTED_FILES).map {
                 val item = it.jsonObject
                 RelayFileInfo(item.getValue("name").jsonPrimitive.content, item.getValue("etag").jsonPrimitive.content)
             }
@@ -115,14 +118,33 @@ object RelayNetwork {
         }
     }
 
-    /** Stores this device's [bytes] under [name] (the first call for a group creates it). Returns the stored etag. */
+    /**
+     * Stores this device's [bytes] under [name] (the first call for a group creates it). Returns the stored etag. The
+     * admission key goes only when the relay asked for it (428: the group isn't there yet), so it isn't in a proxy's request
+     * log on every heartbeat.
+     */
     fun put(endpoint: RelayEndpoint, name: String, bytes: ByteArray): String {
+        return try {
+            putOnce(endpoint, name, bytes, withAdmission = false)
+        } catch (e: RelayException) {
+            if (e.problem == RelayProblem.AdmissionRequired && endpoint.admission != null) {
+                putOnce(endpoint, name, bytes, withAdmission = true)
+            } else {
+                throw e
+            }
+        }
+    }
+
+    private fun putOnce(endpoint: RelayEndpoint, name: String, bytes: ByteArray, withAdmission: Boolean): String {
         requireFileName(name)
         val connection = open(endpoint, "PUT", "files/$name")
         try {
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/octet-stream")
-            endpoint.admission?.let { connection.setRequestProperty("X-Relay-Admission", it) }
+            if (withAdmission) {
+                endpoint.admission?.let { connection.setRequestProperty("X-Relay-Admission", it) }
+            }
+
             connection.setFixedLengthStreamingMode(bytes.size)
             val code = send(connection) { connection.outputStream.use { it.write(bytes) } }
             ensureOk(code)

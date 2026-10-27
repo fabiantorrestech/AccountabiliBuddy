@@ -20,8 +20,11 @@ services:
     # Proxy mode instead (delete "ports" above, then uncomment these two lines):
     # network_mode: host
     # command: ["--proxy"]
-    # Optional: a personal relay holds a handful of groups (default 16); lower it to stop strangers filling it.
-    # command: ["--max-groups", "4"]
+    # Optional: a personal relay holds a handful of groups (default 16); lower it to stop strangers filling it. There is only
+    # ONE "command:" line: to use both, replace the line above with the combined form (a second "command:" key would silently
+    # replace the first, and the relay would start in pinned mode on 0.0.0.0 instead of behind the proxy):
+    # command: ["--proxy", "--max-groups", "4"]
+    # Pinned mode with a lower cap instead:  command: ["--max-groups", "4"]
 
 volumes:
   relay-data:

@@ -68,6 +68,21 @@ public sealed class SyncKey
         return Base64Url(bytes);
     }
 
+    /// <summary>
+    /// Whether <paramref name="other"/> is the same group: compares the full 256-bit key in constant time. The 4-byte group id is
+    /// published in every sealed file, so a crafted code can share it; never decide "same group" on it.
+    /// </summary>
+    public bool SameGroupAs(SyncKey? other)
+    {
+        return other is not null && CryptographicOperations.FixedTimeEquals(Key, other.Key);
+    }
+
+    /// <summary>The same group's key, as a hex SHA-256 of the key: tells groups apart in memory without holding the key's text.</summary>
+    public string Fingerprint()
+    {
+        return Convert.ToHexStringLower(SHA256.HashData(Key));
+    }
+
     /// <exception cref="ArgumentException">The secret isn't <see cref="SecretBytes"/> bytes.</exception>
     public static SyncKey FromSecret(ReadOnlySpan<byte> secret25)
     {

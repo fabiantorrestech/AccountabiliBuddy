@@ -378,7 +378,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
 
         // Joining another group while in one leaves the current group: ask once more, naming what changes.
         string typed = JoinCode.Trim();
-        if (_identity.Key is { } current && SyncKeyCode.TryParse(typed, out SyncKey? target) && target.GroupId != current.GroupId
+        if (_identity.Key is { } current && SyncKeyCode.TryParse(typed, out SyncKey? target) && !target.SameGroupAs(current)
             && _joinConfirmedFor != typed)
         {
             _joinConfirmedFor = typed;
