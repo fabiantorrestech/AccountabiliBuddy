@@ -1,0 +1,23 @@
+# The sealed relay (ADR 46). From this folder:  docker compose up -d --build
+# Pinned mode (default): the relay makes a self-signed certificate on the first run. Read the address + pin line with
+#   docker compose logs relay
+# Behind a reverse proxy on the same machine (Caddy, see Caddyfile): swap in the "proxy" settings below. The relay only
+# listens on 127.0.0.1 in that mode, so the container shares the host's network.
+
+services:
+  relay:
+    build:
+      context: ../..
+      dockerfile: deploy/relay/Dockerfile
+    image: accountabilibuddy-relay
+    restart: unless-stopped
+    volumes:
+      - relay-data:/data
+    ports:
+      - "8743:8743"
+    # Proxy mode instead (delete "ports" above, then uncomment these two lines):
+    # network_mode: host
+    # command: ["--proxy"]
+
+volumes:
+  relay-data:

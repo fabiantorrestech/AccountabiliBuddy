@@ -1,0 +1,17 @@
+# Example for a public relay (ADR 46): Caddy gets and renews the Let's Encrypt certificate and forwards to the relay,
+# which runs with --proxy (plain HTTP on 127.0.0.1:8743). Replace the name with your own DNS name, and make sure
+# ports 80 and 443 reach this machine (80 is only for the certificate check).
+#
+# The apps then use  https://relay.example.com  with no pin: the certificate is checked normally.
+
+relay.example.com {
+	# A sealed file is at most 4 MiB.
+	request_body {
+		max_size 5MB
+	}
+
+	reverse_proxy 127.0.0.1:8743 {
+		# Send the push stream (server-sent events) through at once instead of buffering it.
+		flush_interval -1
+	}
+}
