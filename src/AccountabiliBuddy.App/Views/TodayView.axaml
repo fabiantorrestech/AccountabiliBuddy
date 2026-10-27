@@ -197,6 +197,7 @@
                         <ItemsControl.ItemTemplate>
                             <!-- ✎ edits it in place (Enter or click away saves, Esc cancels); the list icon makes it a task at the end of the checklist. -->
                             <DataTemplate x:DataType="vm:ComebackRowViewModel">
+                                <StackPanel Spacing="4">
                                 <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8" Margin="0,2">
                                     <CheckBox Command="{Binding TickCommand}" ToolTip.Tip="Done: tick it off" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" IsVisible="{Binding !IsEditing}" />
@@ -214,6 +215,18 @@
                                         <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
                                     </Button>
                                 </Grid>
+                                <!-- A 4th task: a reason first (3 tasks per session). -->
+                                <StackPanel Spacing="4" IsVisible="{Binding IsAskingOverLimit}">
+                                    <TextBlock Text="Keep it to 3. Add it anyway? Why (10+ characters, stays on this PC)" TextWrapping="Wrap" />
+                                    <TextBox Text="{Binding OverLimitReason}" />
+                                    <TextBlock Text="{Binding OverLimitError}" Foreground="#E5484D" TextWrapping="Wrap"
+                                               IsVisible="{Binding OverLimitError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Button Classes="small" Content="Add anyway" Command="{Binding ConfirmOverLimitCommand}" />
+                                        <Button Classes="small" Content="Cancel" Command="{Binding CancelOverLimitCommand}" />
+                                    </StackPanel>
+                                </StackPanel>
+                                </StackPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

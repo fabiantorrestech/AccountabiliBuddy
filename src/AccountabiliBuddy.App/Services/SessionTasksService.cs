@@ -75,6 +75,27 @@ public sealed class SessionTasksService : IDisposable
     /// <summary>The running session's last open task was ticked.</summary>
     public event EventHandler? AllDoneReached;
 
+    /// <summary>
+    /// Raised when a real session runs with more than <see cref="MaxTasks"/> tasks (carried over, or a session started
+    /// from the phone or watch): the PC shows "Pick 3 for this session".
+    /// </summary>
+    public event EventHandler? PickRequired;
+
+    /// <summary>A real session runs with more than <see cref="MaxTasks"/> tasks and the user has not picked yet.</summary>
+    public bool NeedsPick => IsLive && _sessions.State.IsRealSession && Current.Tasks.Count > MaxTasks;
+
+    /// <summary>The tasks the pick prompt lists, in list order.</summary>
+    public IReadOnlyList<SessionTask> PickCandidates => Current.Tasks;
+
+    /// <summary>Keeps the tasks in <paramref name="keep"/>; every other task is parked as a come-back.</summary>
+    public async Task KeepOnlyAsync(IReadOnlySet<Guid> keep)
+    {
+        foreach (SessionTask task in Current.Tasks.Where(task => !keep.Contains(task.Id)).ToList())
+        {
+            await ParkAsync(task.Id);
+        }
+    }
+
     public void LoadBlocking()
     {
         try
@@ -99,6 +120,11 @@ public sealed class SessionTasksService : IDisposable
     public Task AfterStartupAsync()
     {
         _wasActive = _sessions.State.IsActive;
+        if (NeedsPick)
+        {
+            PickRequired?.Invoke(this, EventArgs.Empty); // A restart before the pick: it asks again.
+        }
+
         return Current.SessionStart is not null && !_sessions.State.IsActive ? ArchiveAsync() : Task.CompletedTask;
     }
 
@@ -126,6 +152,17 @@ public sealed class SessionTasksService : IDisposable
     /// </summary>
     public async Task<bool> AddOverLimitAsync(string title, Guid? categoryId, string reason)
     {
+        if (!await RecordOverLimitAsync(reason))
+        {
+            return false;
+        }
+
+        await AddAsync(title, null, categoryId);
+        return true;
+    }
+
+    private async Task<bool> RecordOverLimitAsync(string reason)
+    {
         string trimmed = reason.Trim();
         if (trimmed.Length < MinOverLimitReasonLength)
         {
@@ -136,7 +173,6 @@ public sealed class SessionTasksService : IDisposable
         DateTimeOffset cutoff = now - HistoryKept;
         _overLimit = [.. _overLimit.Where(entry => entry.At >= cutoff), new OverLimitEntry(Current.SessionStart, now, trimmed)];
         await SaveOverLimitAsync();
-        await AddAsync(title, null, categoryId);
         return true;
     }
 
@@ -246,16 +282,26 @@ public sealed class SessionTasksService : IDisposable
         await SetAsync(Current.Parked(taskId));
     }
 
-    /// <summary>A come-back becomes a task at the end of the checklist (no category) and is ticked off the come-backs.</summary>
-    public async Task AddFromComebackAsync(Guid comebackId)
+    /// <summary>
+    /// A come-back becomes a task at the end of the checklist (no category) and is ticked off the come-backs. Past the
+    /// limit it needs an <paramref name="overLimitReason"/> (<see cref="MinOverLimitReasonLength"/> characters, counted
+    /// like "Add anyway"); false when it was not added.
+    /// </summary>
+    public async Task<bool> AddFromComebackAsync(Guid comebackId, string? overLimitReason = null)
     {
         if (Comebacks?.Open.FirstOrDefault(comeback => comeback.Id == comebackId) is not Comeback comeback)
         {
-            return;
+            return false;
+        }
+
+        if (IsAtTaskLimit && !await RecordOverLimitAsync(overLimitReason ?? string.Empty))
+        {
+            return false;
         }
 
         await AddAsync(comeback.Text, null);
         await Comebacks.TickAsync(comebackId);
+        return true;
     }
 
     public async Task ToggleAsync(Guid id)
@@ -351,11 +397,20 @@ public sealed class SessionTasksService : IDisposable
                 _ = SaveOverLimitAsync();
             }
 
-            _ = SetAsync(Current.Started(start));
+            _ = StartChecklistAsync(start);
         }
         else
         {
             _ = ArchiveAsync();
+        }
+    }
+
+    private async Task StartChecklistAsync(DateTimeOffset start)
+    {
+        await SetAsync(Current.Started(start));
+        if (NeedsPick)
+        {
+            PickRequired?.Invoke(this, EventArgs.Empty);
         }
     }
 

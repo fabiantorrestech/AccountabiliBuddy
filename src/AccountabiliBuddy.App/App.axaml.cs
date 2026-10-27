@@ -112,6 +112,7 @@ public partial class App : Application
     private WorkGateWindow? _workGateWindow;
     private StartNudgeCardWindow? _startNudgeCardWindow;
     private AwayCardWindow? _awayCardWindow;
+    private PickTasksWindow? _pickTasksWindow;
     private PreWorkService? _preWork;
     private PreWorkWindow? _preWorkWindow;
     private Win32GlobalHotkey? _stepAwayHotkey;
@@ -480,6 +481,8 @@ public partial class App : Application
             PhoneCounting = () => _phonePickups?.IsCounting == true,
         };
         _sessionReview.LoadBlocking();
+        // More than 3 tasks when a real session starts: pick 3, the rest are parked (no way to skip).
+        sessionTasks.PickRequired += (_, _) => Dispatcher.UIThread.Post(() => ShowPickTasks(sessionTasks, monitorLocator));
         // ADR 25: every task ticked: offer to end the session now (when it may), else just say so.
         sessionTasks.AllDoneReached += (_, _) =>
         {
@@ -1461,6 +1464,30 @@ public partial class App : Application
     }
 
     /// <summary>Shows or closes the Pre-Work window (ADR 31) as the service opens or closes it.</summary>
+    private void ShowPickTasks(SessionTasksService tasks, IMonitorLocator monitors)
+    {
+        if (_pickTasksWindow is not null || !tasks.NeedsPick)
+        {
+            return;
+        }
+
+        var card = new PickTasksViewModel(tasks);
+        var window = new PickTasksWindow { DataContext = card };
+        card.Finished += (_, _) =>
+        {
+            _pickTasksWindow = null;
+            window.Close();
+        };
+        if (monitors.Find(monitors.FindMonitorUnderCursor()) is MonitorArea area)
+        {
+            MonitorPlacement.Center(window, area);
+        }
+
+        _pickTasksWindow = window;
+        window.Show();
+        window.Activate();
+    }
+
     private void ShowPreWork(IMonitorLocator monitors)
     {
         PreWorkPromptViewModel? prompt = _preWork?.Prompt;
