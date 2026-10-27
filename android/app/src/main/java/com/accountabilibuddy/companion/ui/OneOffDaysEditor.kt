@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.model.DayPlan
+import com.accountabilibuddy.companion.model.DayTemplate
 import com.accountabilibuddy.companion.model.OneOffDay
 import java.time.Instant
 import java.time.LocalDate
@@ -60,7 +61,7 @@ fun OneOffDaysEditor(plan: DayPlan, clock: ClockFormat, onChange: (DayPlan) -> U
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            DayTemplateEditor(open.template, plan.categories, clock, onChange = { replace(open.copy(template = it)) }, onMessage = onMessage)
+            TemplateModeEditor(open.template, plan.categories, clock, onChange = { replace(open.copy(template = it)) }, onMessage = onMessage)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = { editingText = null }) { Text("Done") }
                 TextButton(onClick = {
@@ -104,8 +105,10 @@ fun OneOffDaysEditor(plan: DayPlan, clock: ClockFormat, onChange: (DayPlan) -> U
                     val millis = state.selectedDateMillis ?: return@TextButton
                     val date = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
                     if (plan.oneOffDays.none { it.date == date }) {
-                        // Starts from that day's usual plan.
-                        onChange(plan.copy(oneOffDays = plan.oneOffDays + OneOffDay(UUID.randomUUID(), date, plan.templateFor(date))))
+                        // Starts from that day's usual plan (a work window comes as the window, not also as its stand-in part).
+                        val usual = plan.templateFor(date)
+                        val start = if (usual.workWindow == null) usual else usual.copy(parts = usual.parts.filter { it.id != DayTemplate.WORK_WINDOW_PART_ID })
+                        onChange(plan.copy(oneOffDays = plan.oneOffDays + OneOffDay(UUID.randomUUID(), date, start)))
                     }
                     editingText = date.toString()
                 }) { Text("Plan this day") }

@@ -12,7 +12,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -33,13 +32,10 @@ import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.engine.DayPlanValidator
 import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.companion.model.DayPlanDraft
-import java.time.DayOfWeek
-import java.time.format.TextStyle
-import java.util.Locale
 
 /**
- * Edits the whole day plan on the phone (ADR 19): Workdays (with which days are workdays), Off-Days, one-off days
- * and categories. The draft lives in the view model (it survives rotation); Save checks it by the PC's rules and
+ * Edits the whole day plan on the phone (ADR 19, ADR 47): day types (each a Schedule, Budget or Free day), the week map
+ * (Mon–Sun, week A and B), one-off days and categories. The draft lives in the view model (it survives rotation); Save checks it by the PC's rules and
  * sends it to the PC (now, or when they next connect); leaving with changes asks first.
  */
 @Composable
@@ -83,7 +79,7 @@ fun DayPlanEditorScreen(
             modifier = Modifier.padding(horizontal = 16.dp),
         )
         TabRow(selectedTabIndex = tab, modifier = Modifier.padding(top = 8.dp)) {
-            listOf("Workdays", "Off-Days", "One-off", "Categories").forEachIndexed { index, title ->
+            listOf("Day types", "Week", "One-off", "Categories").forEachIndexed { index, title ->
                 Tab(selected = tab == index, onClick = { tab = index }, text = { Text(title) })
             }
         }
@@ -93,37 +89,14 @@ fun DayPlanEditorScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             when (tab) {
-                0 -> {
-                    WorkdayChips(plan, onChange)
-                    DayTemplateEditor(plan.workday, plan.categories, clock, onChange = { onChange(plan.withWorkday(it)) }, onMessage = onMessage,
-                        smartNote = smartNote(com.accountabilibuddy.companion.engine.NightKind.Workday, clock))
-                }
-                1 -> DayTemplateEditor(plan.otherDay, plan.categories, clock, onChange = { onChange(plan.withOtherDay(it)) }, onMessage = onMessage,
-                    smartNote = smartNote(com.accountabilibuddy.companion.engine.NightKind.OffDay, clock))
+                0 -> DayTypesEditor(plan, clock, smartNote = { smartNote(it, clock) }, onChange = onChange, onMessage = onMessage)
+                1 -> WeekGridEditor(plan, onChange)
                 2 -> OneOffDaysEditor(plan, clock, onChange = onChange, onMessage = onMessage)
                 else -> CategoriesEditor(plan, onChange = onChange, onMessage = onMessage)
             }
 
             DayPlanValidator.validate(plan)?.let {
                 Text("Can't save yet: $it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-    }
-}
-
-/** Which days use the Workdays plan (the rest use Off-Days). */
-@Composable
-private fun WorkdayChips(plan: DayPlan, onChange: (DayPlan) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Workdays", style = MaterialTheme.typography.labelLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            for (day in DayOfWeek.entries) {
-                val on = day in plan.workdays
-                FilterChip(
-                    selected = on,
-                    onClick = { onChange(plan.withWorkdays(if (on) plan.workdays - day else plan.workdays + day)) },
-                    label = { Text(day.getDisplayName(TextStyle.NARROW, Locale.getDefault())) },
-                )
             }
         }
     }
