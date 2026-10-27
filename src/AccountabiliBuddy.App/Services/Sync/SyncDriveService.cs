@@ -56,7 +56,7 @@ public sealed class SyncDriveService : IDisposable
     /// <summary>False while no Drive account is signed in (set by the app); then nothing is written or read.</summary>
     public Func<bool> IsSignedIn { get; set; } = () => true;
 
-    /// <summary>How often it writes and reads now: 20 seconds while a session runs, else 5 minutes.</summary>
+    /// <summary>How often it writes and reads now: 10 seconds while a session runs, in a work part or while noise is busy, else 5 minutes.</summary>
     public TimeSpan PollInterval =>
         _sessions.State.IsActive || InWorkHours?.Invoke() == true || NoiseBusy?.Invoke() == true ? BusyPoll : IdlePoll;
 

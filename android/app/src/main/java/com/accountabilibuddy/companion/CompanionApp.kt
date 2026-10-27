@@ -28,18 +28,23 @@ import com.accountabilibuddy.shared.FocusDayJson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.glance.appwidget.updateAll
 import com.accountabilibuddy.companion.sync.DayPlanFileSync
 import com.accountabilibuddy.companion.sync.PcFileRemote
 import com.accountabilibuddy.companion.sync.PcNoiseRemote
 import com.accountabilibuddy.shared.sync.SyncAction
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.merge
 import kotlinx.serialization.json.JsonObject
 import java.io.File
+
+// How often a waiting PC command is checked against its 10 minutes (PcFileRemote.GIVE_UP_AFTER) when no file arrives.
+private const val EXPIRE_TICK_MS = 60_000L
 
 /**
  * The app's single store, the link to the PC (ADR 14), the link to the watch (ADR 21), and the refresh loop for the
@@ -257,6 +262,19 @@ class CompanionApp : Application() {
                     .maxByOrNull { it.file.device.writtenAt }
                     ?.let { store.eventsFromFile(it.file.events!!, it.file.device.writtenAt) }
             }
+        }
+        // A PC that's off sends no file, so a waiting start, end early or noise command is also given up on a minute tick.
+        appScope.launch {
+            actions.pending
+                .map { pending -> pending.any { it.kind in SyncAction.CONTROL_KINDS || it.kind == SyncAction.NOISE } }
+                .distinctUntilChanged()
+                .collectLatest { waiting ->
+                    while (waiting) {
+                        delay(EXPIRE_TICK_MS)
+                        pcRemote.expire()
+                        pcNoise.expire()
+                    }
+                }
         }
         // Pickups during the other devices' sessions (ADR 26): unlock times from Usage access, when allowed.
         // Unlocks while the phone was paused or in the car aren't pickups.
