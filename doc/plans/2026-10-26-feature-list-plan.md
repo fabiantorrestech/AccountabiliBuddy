@@ -38,7 +38,7 @@ Opus 5.5 high, implementers Opus 5.5 medium), one item or one group of items tha
 | C 7 other blockers | Detect installed (Freedom, PluckEye; AppBlock, StayFocused, Freedom on Android): status only in Integrations and the setup assistant. |
 | C 11 Beeminder | Read goals only (Today on PC, phone, watch); token encrypted at rest; new ADR (a new connection). "Send focus minutes" goes to the Future list. |
 | C 4 UI | Mobile, desktop and tablet (One UI-style two panels) redesigns: Claude Design batch, at the end. |
-| Day plan rework | Per-weekday plans and alternating weeks: added; waits on the user's description of their week. |
+| Day plan rework | **Modes (user, 2026-10-27):** Schedule (today's timed parts), **Budget** (set N productive hours for the day, then plan the non-productive windows; outside those windows the work-hours guard acts as in work hours until the budget is met, with a pace line "2h left, 5h of day left"; it eases off once met), per weekday + alternating (A/B) weeks, and Free day (no guard, optional goal tracking). Includes C 15. Plan now, build after phase 6. |
 | Future list | Untouched until the rest is done. |
 
 ### Added items (user, 2026-10-26 evening)
