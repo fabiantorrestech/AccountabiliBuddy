@@ -107,7 +107,7 @@ fun OneOffDaysEditor(plan: DayPlan, clock: ClockFormat, onChange: (DayPlan) -> U
                     if (plan.oneOffDays.none { it.date == date }) {
                         // Starts from that day's usual plan (a work window comes as the window, not also as its stand-in part).
                         val usual = plan.templateFor(date)
-                        val start = if (usual.workWindow == null) usual else usual.copy(parts = usual.parts.filter { it.id != DayTemplate.WORK_WINDOW_PART_ID })
+                        val start = if (usual.workWindow == null) usual else usual.copy(parts = usual.parts.filter { !DayTemplate.isWorkWindowPartId(it.id) })
                         onChange(plan.copy(oneOffDays = plan.oneOffDays + OneOffDay(UUID.randomUUID(), date, start)))
                     }
                     editingText = date.toString()

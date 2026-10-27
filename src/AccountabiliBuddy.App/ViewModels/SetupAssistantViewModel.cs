@@ -58,6 +58,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         _time = time;
         Setup = setup;
         Backup = backup;
+        Workdays = new WorkdaysSetupViewModel(configuration);
         PasteText = string.Empty;
         PasteName = "Pasted list";
         WeekPreview = string.Empty;
@@ -71,6 +72,9 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     /// <summary>Restoring a backup made on another PC (import only).</summary>
     public BackupViewModel Backup { get; }
+
+    /// <summary>The "Your workdays" page (ADR 47): workdays and a work window or a budget for them.</summary>
+    public WorkdaysSetupViewModel Workdays { get; }
 
     /// <summary>Set by the window: shows an open-file dialog and returns the chosen path.</summary>
     public Func<Task<string?>>? PickFile { get; set; }
@@ -297,7 +301,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsLinkFirst), nameof(IsComputerType), nameof(IsImport), nameof(IsUsage), nameof(IsReview), nameof(IsBrowsers),
-        nameof(IsBasics), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
+        nameof(IsBasics), nameof(IsWorkdays), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(BackCommand))]
     public partial AssistantStep Step { get; set; }
 
@@ -307,6 +311,11 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         if (value == AssistantStep.SpareKey && SpareKey is null && Keys is not null)
         {
             _ = LoadSpareKeyAsync(Keys);
+        }
+
+        if (value == AssistantStep.Workdays)
+        {
+            Workdays.Load();
         }
     }
 
@@ -375,6 +384,8 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     public bool IsBasics => Step == AssistantStep.Basics;
 
+    public bool IsWorkdays => Step == AssistantStep.Workdays;
+
     public bool IsColdTurkeyKeys => Step == AssistantStep.ColdTurkeyKeys;
 
     // The migration assistant: only these pages (then Done), for features added since the last version.
@@ -410,6 +421,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.Review => "Review",
         AssistantStep.Browsers => "Browsers",
         AssistantStep.Basics => "Basics",
+        AssistantStep.Workdays => "Your workdays",
         AssistantStep.ColdTurkeyKeys => "Cold Turkey: let AccountabiliBuddy hold the keys",
         AssistantStep.SpareKey => "Your spare key",
         AssistantStep.OwnRelay => "Own relay: sync through your own server",
@@ -430,8 +442,9 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     {
         AssistantStep.Welcome => "Get started",
         AssistantStep.Review => PlannedProfiles.Any(row => row.IsIncluded) ? "Import" : "Skip import",
-        AssistantStep.Basics when HasColdTurkey => "Next",
-        AssistantStep.Basics => "Finish",
+        AssistantStep.Basics => "Next",
+        AssistantStep.Workdays when HasColdTurkey && _whatsNew is null => "Next",
+        AssistantStep.Workdays => "Finish",
         AssistantStep.ColdTurkeyKeys when Keys is { HasSpareKey: false } && ColdTurkeyRows.Any(row => row.IsUsed) => "Next",
         AssistantStep.ColdTurkeyKeys => "Finish",
         AssistantStep.SpareKey => "I wrote it down",
@@ -546,12 +559,37 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
             case AssistantStep.Browsers:
                 Step = AssistantStep.Basics;
                 break;
-            case AssistantStep.Basics when HasColdTurkey:
-                LoadColdTurkeyRows();
-                Step = AssistantStep.ColdTurkeyKeys;
-                break;
             case AssistantStep.Basics:
-                Step = AssistantStep.Done;
+                Step = AssistantStep.Workdays;
+                break;
+            case AssistantStep.Workdays:
+                if (IsLocked)
+                {
+                    StatusMessage = "Your workdays are locked while a focus session you started is running.";
+                    break;
+                }
+
+                if (!await Workdays.SaveAsync())
+                {
+                    StatusMessage = Workdays.Message;
+                    break;
+                }
+
+                if (_whatsNew is not null)
+                {
+                    GoToNextQuickStep();
+                }
+                else if (HasColdTurkey)
+                {
+                    LoadColdTurkeyRows();
+                    Step = AssistantStep.ColdTurkeyKeys;
+                }
+                else
+                {
+                    Step = AssistantStep.Done;
+                }
+
+                StatusMessage = Workdays.Message;
                 break;
             case AssistantStep.ColdTurkeyKeys:
                 await SaveColdTurkeyAsync();

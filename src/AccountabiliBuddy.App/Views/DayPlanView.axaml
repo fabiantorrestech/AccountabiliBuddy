@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:views="using:AccountabiliBuddy.App.Views"
              xmlns:domain="using:AccountabiliBuddy.Core.Domain"
@@ -21,32 +22,86 @@
         <ScrollViewer>
             <StackPanel Spacing="18" MaxWidth="1000" HorizontalAlignment="Left" IsEnabled="{Binding !IsLocked}">
                 <TextBlock TextWrapping="Wrap" Opacity="0.75"
-                           Text="How your days are meant to go. Watch parts are when the buddy asks about new sites and counts drift, Comms parts are work time for mail and chat, Rest parts are breaks, and Sleep sets bedtime and wake time. A part that crosses midnight is the night before the day it ends on. Single dates are changed in Exceptions." />
+                           Text="How your days are meant to go: day types (a timeline or just a work window, a budget of productive hours, or a free day) and which type each weekday follows. Watch parts are when the buddy asks about new sites and counts drift, Comms parts are work time for mail and chat, Rest parts are breaks, and Sleep sets bedtime and wake time. A part that crosses midnight is the night before the day it ends on. Single dates are changed in Exceptions." />
 
+                <!-- Which day type each weekday follows; alternating weeks add a column for week B (ADR 47). -->
                 <StackPanel Spacing="6">
-                    <TextBlock Text="Workdays" FontSize="16" FontWeight="SemiBold" />
-                    <ItemsControl ItemsSource="{Binding Days}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" Spacing="4" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <mi:MaterialIcon Kind="CalendarWeek" Width="20" Height="20" VerticalAlignment="Center" />
+                        <TextBlock Text="Week" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <ToggleSwitch IsChecked="{Binding AlternateWeeks}" OnContent="Alternate weeks" OffContent="Alternate weeks"
+                                      ToolTip.Tip="Week A and week B take turns. Today has a switch to say which one this week is." />
+                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding AlternateWeeks}">
+                            <TextBlock Text="Week B starts on the Monday" VerticalAlignment="Center" />
+                            <CalendarDatePicker SelectedDate="{Binding BStartDate}" />
+                        </StackPanel>
+                    </StackPanel>
+                    <Grid ColumnDefinitions="110,220,220" ColumnSpacing="8" HorizontalAlignment="Left">
+                        <TextBlock Grid.Column="1" Text="Day type" FontWeight="SemiBold" IsVisible="{Binding !AlternateWeeks}" />
+                        <TextBlock Grid.Column="1" Text="Week A" FontWeight="SemiBold" IsVisible="{Binding AlternateWeeks}" />
+                        <TextBlock Grid.Column="2" Text="Week B" FontWeight="SemiBold" IsVisible="{Binding AlternateWeeks}" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding WeekRows}">
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:WorkdayChip">
-                                <ToggleButton Content="{Binding Label}" IsChecked="{Binding IsOn}" MinWidth="48" />
+                            <DataTemplate x:DataType="vm:WeekdayRowViewModel">
+                                <Grid ColumnDefinitions="110,220,220" ColumnSpacing="8" Margin="0,2" HorizontalAlignment="Left">
+                                    <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding $parent[UserControl].((vm:DayPlanViewModel)DataContext).Templates}"
+                                              SelectedItem="{Binding TemplateA}" HorizontalAlignment="Stretch">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:PlanTemplateEditorViewModel">
+                                                <TextBlock Text="{Binding Name}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <ComboBox Grid.Column="2" ItemsSource="{Binding $parent[UserControl].((vm:DayPlanViewModel)DataContext).Templates}"
+                                              SelectedItem="{Binding TemplateB}" HorizontalAlignment="Stretch"
+                                              IsVisible="{Binding $parent[UserControl].((vm:DayPlanViewModel)DataContext).AlternateWeeks}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:PlanTemplateEditorViewModel">
+                                                <TextBlock Text="{Binding Name}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </StackPanel>
 
-                <TabControl SelectedIndex="{Binding SelectedTemplateIndex}">
-                    <TabItem Header="Workdays">
-                        <views:DayPlanEditorView DataContext="{Binding Workday}" Margin="0,8,0,0" />
-                    </TabItem>
-                    <TabItem Header="Off-Days">
-                        <views:DayPlanEditorView DataContext="{Binding OtherDay}" Margin="0,8,0,0" />
-                    </TabItem>
-                </TabControl>
+                <!-- The day types (ADR 47): each a Schedule, a Budget or a free day; Workday and Off day stay. -->
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Day types" FontSize="16" FontWeight="SemiBold" />
+                    <Grid ColumnDefinitions="260,*" ColumnSpacing="12">
+                        <StackPanel Spacing="6">
+                            <ListBox ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate}" MaxHeight="260">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:PlanTemplateEditorViewModel">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Summary}" FontSize="11" Opacity="0.7" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <WrapPanel>
+                                <Button Command="{Binding AddTemplateCommand}" ToolTip.Tip="Add a day type" Margin="0,0,6,6">
+                                    <StackPanel Orientation="Horizontal" Spacing="4"><mi:MaterialIcon Kind="Plus" Width="16" Height="16" /><TextBlock Text="Add" /></StackPanel>
+                                </Button>
+                                <Button Command="{Binding DuplicateTemplateCommand}" ToolTip.Tip="Copy the selected day type" Margin="0,0,6,6">
+                                    <StackPanel Orientation="Horizontal" Spacing="4"><mi:MaterialIcon Kind="ContentCopy" Width="16" Height="16" /><TextBlock Text="Duplicate" /></StackPanel>
+                                </Button>
+                                <Button Command="{Binding DeleteTemplateCommand}" ToolTip.Tip="Delete the selected day type (Workday and Off day stay)" Margin="0,0,6,6">
+                                    <StackPanel Orientation="Horizontal" Spacing="4"><mi:MaterialIcon Kind="DeleteOutline" Width="16" Height="16" /><TextBlock Text="Delete" /></StackPanel>
+                                </Button>
+                            </WrapPanel>
+                        </StackPanel>
+                        <views:DayTemplateEditorView Grid.Column="1" DataContext="{Binding SelectedTemplate}"
+                                                     IsVisible="{Binding $parent[UserControl].((vm:DayPlanViewModel)DataContext).HasSelectedTemplate}" />
+                    </Grid>
+                </StackPanel>
 
                 <StackPanel Spacing="6">
                     <TextBlock Text="Categories" FontSize="16" FontWeight="SemiBold" />

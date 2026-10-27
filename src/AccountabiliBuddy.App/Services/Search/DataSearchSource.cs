@@ -62,8 +62,12 @@ public static class DataSearchSource
             entries.Add(new SearchEntry($"{category.Name} ({category.Behavior})", "Day plan › Categories", SearchKinds.Plan, planTab));
         }
 
-        AddTemplate(entries, plan, plan.Workday, "Day plan › Workdays", planTab with { PlanTemplate = 0 });
-        AddTemplate(entries, plan, plan.OtherDay, "Day plan › Off-Days", planTab with { PlanTemplate = 1 });
+        for (int index = 0; index < plan.Templates.Count; index++)
+        {
+            PlanTemplate template = plan.Templates[index];
+            entries.Add(new SearchEntry(template.Name, "Day plan › Day types", SearchKinds.Plan, planTab with { PlanTemplate = index }));
+            AddTemplate(entries, plan, template.Template, $"Day plan › {template.Name}", planTab with { PlanTemplate = index });
+        }
 
         foreach (OneOffDay day in plan.OneOffDays)
         {
