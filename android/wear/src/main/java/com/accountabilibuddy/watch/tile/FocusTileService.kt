@@ -23,6 +23,7 @@ import androidx.wear.tiles.TileBuilders.Tile
 import androidx.wear.tiles.tile
 import androidx.wear.tiles.timeline
 import androidx.wear.tiles.timelineEntry
+import com.accountabilibuddy.shared.DRIFT_COLOR
 import com.accountabilibuddy.shared.TileArc
 import com.accountabilibuddy.shared.TileRing
 import com.accountabilibuddy.shared.TodayView
@@ -65,7 +66,7 @@ class FocusTileService : Material3TileService() {
         val glance = WatchGlance.from(snapshot, now, zone)
         val numeric = glance.headline.first().isDigit()
         val view = snapshot?.let { TodayView.from(it, now, zone, use24Hour = false) }
-        val arcs = view?.let { TileRing.arcs(it) }.orEmpty()
+        val arcs = view?.let { lighten(TileRing.arcs(it)) }.orEmpty()
         val nowDegrees = view?.let { TileRing.nowDegrees(it.nowMinute) }
         return primaryLayout(
             titleSlot = { text(glance.title.layoutString) },
@@ -84,6 +85,25 @@ class FocusTileService : Material3TileService() {
             },
             onClick = clickable(launchAction(ComponentName(context, WatchActivity::class.java))),
         )
+    }
+
+    /**
+     * Keeps the payload small: drift ticks closer than [DRIFT_MERGE_DEGREES] become one arc and only [MAX_DRIFT_ARCS]
+     * are kept (the plan's parts and focus sessions are untouched, so the cap never drops them).
+     */
+    private fun lighten(arcs: List<TileArc>): List<TileArc> {
+        val drift = arcs.filter { it.color == DRIFT_COLOR }.sortedBy { it.startDegrees }
+        val merged = mutableListOf<TileArc>()
+        drift.forEach { tick ->
+            val last = merged.lastOrNull()
+            if (last != null && tick.startDegrees - (last.startDegrees + last.sweepDegrees) < DRIFT_MERGE_DEGREES) {
+                val end = maxOf(last.startDegrees + last.sweepDegrees, tick.startDegrees + tick.sweepDegrees)
+                merged[merged.lastIndex] = last.copy(sweepDegrees = end - last.startDegrees)
+            } else {
+                merged.add(tick)
+            }
+        }
+        return arcs.filter { it.color != DRIFT_COLOR } + merged.take(MAX_DRIFT_ARCS)
     }
 
     /** One ring: a faint track, its arcs, and the now tick; [inset] moves it inward from the main slot's edge. */
@@ -147,7 +167,9 @@ class FocusTileService : Material3TileService() {
         const val RING_GAP = 2f
         const val FULL_TURN = 359.9f
         const val NOW_TICK_DEGREES = 2.5f
-        const val MAX_ARCS_PER_RING = 48
+        const val MAX_ARCS_PER_RING = 32
+        const val MAX_DRIFT_ARCS = 16
+        const val DRIFT_MERGE_DEGREES = 2f
         const val TRACK_COLOR = 0x33FFFFFF
         const val NOW_COLOR = 0xFFFFFFFF.toInt()
         const val MAJOR_TICK_DEGREES = 1.4f

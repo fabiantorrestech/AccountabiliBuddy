@@ -1,0 +1,6 @@
+# Hand-written baseline profile: compile the watch app's and the shared module's own code ahead of time (Wear OS).
+# Libraries ship their own profiles; profileinstaller (already pulled in transitively) installs this one.
+HSPLcom/accountabilibuddy/watch/**;->**(**)**
+HSPLcom/accountabilibuddy/shared/**;->**(**)**
+Lcom/accountabilibuddy/watch/**;
+Lcom/accountabilibuddy/shared/**;

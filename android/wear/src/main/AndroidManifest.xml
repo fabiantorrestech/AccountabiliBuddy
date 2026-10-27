@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- A Wear OS app; its data comes from the phone over the Wearable Data Layer (ADR 21), or from the PC over Wi-Fi
          when the phone can't be reached (asking for Wi-Fi needs CHANGE_NETWORK_STATE). -->
@@ -20,6 +21,18 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@android:style/Theme.DeviceDefault">
+
+        <!-- No emoji font download in every process start (the listener, Tile and complications cold-start it): the app
+             draws its symbols (play, pause, close...) with the system font. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+                tools:node="remove" />
+        </provider>
 
         <!-- Not standalone: it shows what the phone (and through it, the PC) knows. -->
         <meta-data
