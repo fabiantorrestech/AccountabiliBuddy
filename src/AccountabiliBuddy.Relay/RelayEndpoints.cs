@@ -14,15 +14,19 @@ namespace AccountabiliBuddy.Relay;
 internal sealed class RelayEndpoints
 {
     private const string BearerPrefix = "Bearer ";
-    private const int MaxTokenLength = 200;
+
+    /// <summary>The token is HKDF output of 32 bytes in base64url without padding, so exactly 43 characters.</summary>
+    private const int TokenLength = 43;
 
     private readonly GroupStore _store;
     private readonly ChangeBroadcaster _broadcaster;
+    private readonly ClientLimits _limits;
 
-    public RelayEndpoints(GroupStore store, ChangeBroadcaster broadcaster)
+    public RelayEndpoints(GroupStore store, ChangeBroadcaster broadcaster, ClientLimits limits)
     {
         _store = store;
         _broadcaster = broadcaster;
+        _limits = limits;
     }
 
     public void Map(WebApplication app)
@@ -42,6 +46,20 @@ internal sealed class RelayEndpoints
             return rejected;
         }
 
+        // Refuse before reading the body when the answer doesn't depend on it.
+        string address = ClientAddress.Of(context, _limits.BehindProxy);
+        GroupAccess access = _store.GetAccess(gid, tokenHash);
+        if (access == GroupAccess.NotOwner)
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        bool newGroup = access == GroupAccess.NoGroup;
+        if (newGroup && !_limits.NewGroups.HasRoom(address, DateTimeOffset.UtcNow))
+        {
+            return Results.StatusCode(StatusCodes.Status429TooManyRequests);
+        }
+
         byte[]? body = await ReadBodyAsync(context.Request, context.RequestAborted);
         if (body is null)
         {
@@ -53,7 +71,23 @@ internal sealed class RelayEndpoints
             return Results.BadRequest();
         }
 
-        PutResult result = _store.Put(gid, tokenHash, name, body);
+        PutResult result;
+        try
+        {
+            result = _store.Put(gid, tokenHash, name, body);
+        }
+        catch (IOException ex)
+        {
+            // Only the kind of failure is logged: a message would carry a path.
+            Console.WriteLine($"{DateTimeOffset.UtcNow:yyyy-MM-ddTHH:mm:ssZ} storage error {ex.GetType().Name}");
+            return Results.StatusCode(IsDiskFull(ex) ? StatusCodes.Status507InsufficientStorage : StatusCodes.Status500InternalServerError);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Console.WriteLine($"{DateTimeOffset.UtcNow:yyyy-MM-ddTHH:mm:ssZ} storage error {ex.GetType().Name}");
+            return Results.StatusCode(StatusCodes.Status500InternalServerError);
+        }
+
         switch (result.Status)
         {
             case PutStatus.NotOwner:
@@ -61,12 +95,26 @@ internal sealed class RelayEndpoints
             case PutStatus.TooManyFiles:
             case PutStatus.TooManyGroups:
                 return Results.StatusCode(StatusCodes.Status429TooManyRequests);
+            case PutStatus.DiskFull:
+                return Results.StatusCode(StatusCodes.Status507InsufficientStorage);
             case PutStatus.Stored:
+                if (newGroup)
+                {
+                    _limits.NewGroups.Record(address, DateTimeOffset.UtcNow);
+                }
+
                 _broadcaster.Publish(gid, new ChangeEvent(name, result.ETag));
                 break;
         }
 
         return Results.Json(new { etag = result.ETag, at = result.At.ToString("O") });
+    }
+
+    /// <summary>Windows ERROR_HANDLE_DISK_FULL / ERROR_DISK_FULL, or Unix ENOSPC.</summary>
+    private static bool IsDiskFull(IOException ex)
+    {
+        int code = ex.HResult & 0xFFFF;
+        return code is 0x27 or 0x70 || ex.HResult == 28;
     }
 
     private IResult ListFiles(HttpContext context, string gid)
@@ -130,6 +178,12 @@ internal sealed class RelayEndpoints
             return rejected;
         }
 
+        using IDisposable? streamLease = _limits.Streams.TryEnter(ClientAddress.Of(context, _limits.BehindProxy));
+        if (streamLease is null)
+        {
+            return Results.StatusCode(StatusCodes.Status429TooManyRequests);
+        }
+
         using ChangeSubscription? subscription = _broadcaster.Subscribe(gid);
         if (subscription is null)
         {
@@ -140,7 +194,14 @@ internal sealed class RelayEndpoints
         context.Response.Headers.CacheControl = "no-cache";
         context.Response.Headers["X-Accel-Buffering"] = "no";
         context.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
-        context.Features.Get<IHttpMinResponseDataRateFeature>()!.MinDataRate = null;
+
+        // Without this Kestrel would close a stream whose pings are slower than its minimum data rate. The feature
+        // is missing on HTTP/2 (the relay serves HTTP/1.1 only, but a stream must never crash on it).
+        IHttpMinResponseDataRateFeature? dataRate = context.Features.Get<IHttpMinResponseDataRateFeature>();
+        if (dataRate is not null)
+        {
+            dataRate.MinDataRate = null;
+        }
 
         CancellationToken closed = context.RequestAborted;
         try
@@ -220,7 +281,7 @@ internal sealed class RelayEndpoints
         };
     }
 
-    /// <summary>The token from the Authorization header only (never the URL), in the base64url alphabet and at most 200 characters.</summary>
+    /// <summary>The token from the Authorization header only (never the URL): exactly 43 characters of the base64url alphabet.</summary>
     private static string? ReadBearerToken(HttpRequest request)
     {
         string header = request.Headers.Authorization.ToString();
@@ -230,7 +291,7 @@ internal sealed class RelayEndpoints
         }
 
         string token = header[BearerPrefix.Length..].Trim();
-        if (token.Length == 0 || token.Length > MaxTokenLength)
+        if (token.Length != TokenLength)
         {
             return null;
         }

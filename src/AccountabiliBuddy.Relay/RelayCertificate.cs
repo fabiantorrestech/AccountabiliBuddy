@@ -22,8 +22,7 @@ internal static class RelayCertificate
         if (created)
         {
             Directory.CreateDirectory(dataDirectory);
-            File.WriteAllBytes(path, CreatePfx());
-            RestrictToOwner(path);
+            WritePrivateFile(path, CreatePfx());
         }
 
         return X509CertificateLoader.LoadPkcs12FromFile(path, password: null, X509KeyStorageFlags.UserKeySet);
@@ -86,11 +85,16 @@ internal static class RelayCertificate
             .Distinct();
     }
 
-    private static void RestrictToOwner(string path)
+    /// <summary>Creates the file readable by its owner only from the first byte on (Unix mode 0600); on Windows the data folder's ACL does that.</summary>
+    private static void WritePrivateFile(string path, byte[] bytes)
     {
+        var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write };
         if (!OperatingSystem.IsWindows())
         {
-            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
         }
+
+        using var stream = new FileStream(path, options);
+        stream.Write(bytes);
     }
 }

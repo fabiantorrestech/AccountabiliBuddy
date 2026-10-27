@@ -19,10 +19,17 @@ internal sealed class GroupStore
     private readonly object _gate = new();
     private readonly Dictionary<string, CachedETag> _etags = new(StringComparer.Ordinal);
 
-    public GroupStore(string root)
+    private readonly long _maxDiskBytes;
+    private long _usedBytes;
+
+    /// <param name="root">The data folder.</param>
+    /// <param name="maxDiskBytes">Writes that would grow the stored files past this are refused (disk full, 507).</param>
+    public GroupStore(string root, long maxDiskBytes)
     {
         _root = Path.GetFullPath(root);
+        _maxDiskBytes = maxDiskBytes;
         Directory.CreateDirectory(_root);
+        _usedBytes = MeasureStoredBytes();
     }
 
     /// <summary>The SHA-256 of the bytes as base64url without padding, the format of the pinned certificate fingerprint.</summary>
@@ -57,6 +64,22 @@ internal sealed class GroupStore
         {
             string directory = GroupDirectory(gid);
             string? owner = ReadOwner(directory);
+            if (owner is not null && !OwnerMatches(owner, tokenHash))
+            {
+                return new PutResult(PutStatus.NotOwner, string.Empty, default);
+            }
+
+            string path = FilePath(directory, name);
+            string etag = ComputeETag(bytes);
+            var existing = new FileInfo(path);
+            long oldLength = existing.Exists ? existing.Length : 0;
+            long growth = bytes.Length - oldLength;
+            bool sameBytes = existing.Exists && existing.Length == bytes.Length && ETagOf(existing) == etag;
+            if (!sameBytes && growth > 0 && _usedBytes + growth > _maxDiskBytes)
+            {
+                return new PutResult(PutStatus.DiskFull, string.Empty, default);
+            }
+
             if (owner is null)
             {
                 if (CountGroups() >= RelayLimits.MaxGroups)
@@ -67,15 +90,8 @@ internal sealed class GroupStore
                 Directory.CreateDirectory(directory);
                 WriteAtomically(Path.Combine(directory, OwnerFileName), Encoding.ASCII.GetBytes(tokenHash));
             }
-            else if (!OwnerMatches(owner, tokenHash))
-            {
-                return new PutResult(PutStatus.NotOwner, string.Empty, default);
-            }
 
-            string path = FilePath(directory, name);
-            string etag = ComputeETag(bytes);
-            var existing = new FileInfo(path);
-            if (existing.Exists && existing.Length == bytes.Length && ETagOf(existing) == etag)
+            if (sameBytes)
             {
                 // The same bytes again (a retry, or an echo of a push): keep the file alive but don't announce a change.
                 existing.LastWriteTimeUtc = DateTime.UtcNow;
@@ -90,6 +106,7 @@ internal sealed class GroupStore
             }
 
             WriteAtomically(path, bytes);
+            _usedBytes += growth;
             var written = new FileInfo(path);
             _etags[path] = new CachedETag(written.Length, written.LastWriteTimeUtc.Ticks, etag);
             return new PutResult(PutStatus.Stored, etag, new DateTimeOffset(written.LastWriteTimeUtc, TimeSpan.Zero));
@@ -151,6 +168,7 @@ internal sealed class GroupStore
                 return false;
             }
 
+            _usedBytes -= new FileInfo(path).Length;
             File.Delete(path);
             _etags.Remove(path);
             return true;
@@ -191,6 +209,7 @@ internal sealed class GroupStore
             DateTime written = File.GetLastWriteTimeUtc(path);
             if (RelayNames.IsFileName(name) && written < cutoff)
             {
+                _usedBytes -= new FileInfo(path).Length;
                 File.Delete(path);
                 _etags.Remove(path);
                 removed++;
@@ -243,6 +262,16 @@ internal sealed class GroupStore
     private static bool OwnerMatches(string ownerHash, string tokenHash)
     {
         return CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(ownerHash), Encoding.ASCII.GetBytes(tokenHash));
+    }
+
+    /// <summary>The bytes of all stored sync files, counted once at start; Put, Delete and the cleanup keep the total.</summary>
+    private long MeasureStoredBytes()
+    {
+        return Directory.EnumerateDirectories(_root)
+            .Where(d => RelayNames.IsGroupId(Path.GetFileName(d)))
+            .SelectMany(Directory.EnumerateFiles)
+            .Where(p => RelayNames.IsFileName(Path.GetFileName(p)))
+            .Sum(p => new FileInfo(p).Length);
     }
 
     private int CountGroups()

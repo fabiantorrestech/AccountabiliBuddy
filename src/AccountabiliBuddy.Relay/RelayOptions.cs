@@ -2,18 +2,19 @@ namespace AccountabiliBuddy.Relay;
 
 /// <summary>
 /// The command line: <c>--urls</c> (default https://0.0.0.0:8743), <c>--proxy</c> (plain HTTP on 127.0.0.1 for a reverse
-/// proxy that does the TLS), <c>--data &lt;dir&gt;</c> (default ./relay-data).
+/// proxy that does the TLS), <c>--data &lt;dir&gt;</c> (default ./relay-data), <c>--max-disk-mb</c> (default 2048).
 /// </summary>
 internal sealed class RelayOptions
 {
     private const string DefaultHttpsUrl = "https://0.0.0.0:8743";
     private const string DefaultProxyUrl = "http://127.0.0.1:8743";
 
-    private RelayOptions(string urls, bool behindProxy, string dataDirectory)
+    private RelayOptions(string urls, bool behindProxy, string dataDirectory, long maxDiskBytes)
     {
         Urls = urls;
         BehindProxy = behindProxy;
         DataDirectory = dataDirectory;
+        MaxDiskBytes = maxDiskBytes;
     }
 
     public string Urls { get; }
@@ -23,11 +24,15 @@ internal sealed class RelayOptions
 
     public string DataDirectory { get; }
 
+    /// <summary>The disk budget for stored files (<c>--max-disk-mb</c>, default 2048); new writes past it get 507.</summary>
+    public long MaxDiskBytes { get; }
+
     /// <exception cref="ArgumentException">An unknown or incomplete option, or an address that doesn't fit the mode.</exception>
     public static RelayOptions Parse(string[] args)
     {
         string? urls = null;
         string? data = null;
+        int maxDiskMegabytes = RelayLimits.DefaultMaxDiskMegabytes;
         bool proxy = false;
 
         for (int i = 0; i < args.Length; i++)
@@ -40,17 +45,24 @@ internal sealed class RelayOptions
                 case "--urls":
                     urls = ReadValue(args, ref i);
                     break;
+                case "--max-disk-mb":
+                    if (!int.TryParse(ReadValue(args, ref i), out maxDiskMegabytes) || maxDiskMegabytes < 1)
+                    {
+                        throw new ArgumentException("--max-disk-mb needs a whole number of megabytes, 1 or more.");
+                    }
+
+                    break;
                 case "--data":
                     data = ReadValue(args, ref i);
                     break;
                 default:
-                    throw new ArgumentException($"Unknown option '{args[i]}'. Options: --urls <url>, --proxy, --data <dir>.");
+                    throw new ArgumentException($"Unknown option '{args[i]}'. Options: --urls <url>, --proxy, --data <dir>, --max-disk-mb <n>.");
             }
         }
 
         urls ??= proxy ? DefaultProxyUrl : DefaultHttpsUrl;
         RequireModeFits(urls, proxy);
-        return new RelayOptions(urls, proxy, Path.GetFullPath(data ?? "relay-data"));
+        return new RelayOptions(urls, proxy, Path.GetFullPath(data ?? "relay-data"), maxDiskMegabytes * 1024L * 1024L);
     }
 
     private static string ReadValue(string[] args, ref int index)

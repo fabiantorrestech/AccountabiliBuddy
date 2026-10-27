@@ -1,7 +1,10 @@
+using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using AccountabiliBuddy.Relay;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -30,31 +33,59 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder();
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.SetMinimumLevel(LogLevel.Warning);
+var limits = new ClientLimits(options.BehindProxy);
 builder.WebHost.UseUrls(options.Urls);
 builder.WebHost.ConfigureKestrel(kestrel =>
 {
     kestrel.AddServerHeader = false;
     kestrel.Limits.MaxRequestBodySize = RelayLimits.MaxFileBytes;
     kestrel.Limits.MaxConcurrentConnections = 512;
+    kestrel.ConfigureEndpointDefaults(endpoint =>
+    {
+        // HTTP/1.1 only: the event stream needs nothing more, and the apps' clients speak it.
+        endpoint.Protocols = HttpProtocols.Http1;
+        if (!options.BehindProxy)
+        {
+            endpoint.Use(LimitConnectionsPerAddress(limits));
+        }
+    });
     if (certificate is not null)
     {
         kestrel.ConfigureHttpsDefaults(https => https.ServerCertificate = certificate);
     }
 });
 
-var store = new GroupStore(options.DataDirectory);
+var store = new GroupStore(options.DataDirectory, options.MaxDiskBytes);
 var broadcaster = new ChangeBroadcaster();
 builder.Services.AddSingleton(store);
 builder.Services.AddHostedService<ExpiryCleanupService>();
 
 WebApplication app = builder.Build();
 app.UseRequestLog();
-app.UseRateLimit(new RequestRateLimiter(), options.BehindProxy);
-new RelayEndpoints(store, broadcaster).Map(app);
+app.UseRateLimit(new RequestRateLimiter(), limits);
+app.UseInFlightLimit(limits);
+new RelayEndpoints(store, broadcaster, limits).Map(app);
 
 Console.WriteLine($"{DateTimeOffset.UtcNow:yyyy-MM-ddTHH:mm:ssZ} relay starting on {options.Urls}, data in {options.DataDirectory}");
 app.Run();
 return 0;
+
+/// <summary>Closes a new connection at once when its address already has the maximum open (before any TLS work).</summary>
+static Func<ConnectionDelegate, ConnectionDelegate> LimitConnectionsPerAddress(ClientLimits limits)
+{
+    return next => async connection =>
+    {
+        string address = ClientAddress.Of((connection.RemoteEndPoint as IPEndPoint)?.Address);
+        using IDisposable? lease = limits.Connections.TryEnter(address);
+        if (lease is null)
+        {
+            connection.Abort();
+            return;
+        }
+
+        await next(connection);
+    };
+}
 
 static void PrintPinLines(RelayOptions options, X509Certificate2 certificate, bool created)
 {
@@ -68,6 +99,10 @@ static void PrintPinLines(RelayOptions options, X509Certificate2 certificate, bo
 
     Console.WriteLine(created ? "Made a new self-signed certificate (relay.pfx)." : "Using the certificate in relay.pfx.");
     lines.ForEach(Console.WriteLine);
+    if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true")
+    {
+        Console.WriteLine("Note: in Docker these names are the container's own. Use the host machine's IP address (or name) with this port and this pin.");
+    }
 
     // A service has no console to read, so the same lines are kept next to the certificate.
     File.WriteAllLines(Path.Combine(options.DataDirectory, "relay-address-and-pin.txt"), lines);

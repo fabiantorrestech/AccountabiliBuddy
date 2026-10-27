@@ -11,7 +11,10 @@ RUN dotnet publish src/AccountabiliBuddy.Relay/AccountabiliBuddy.Relay.csproj -c
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 COPY --from=build /app .
-# The official image runs as a non-root user (app); the volume must be writable by it.
+# Run as the image's non-root "app" user ($APP_UID is set by the official image); give it the data folder before the
+# volume is declared so a new volume starts out owned by it.
+RUN mkdir /data && chown $APP_UID /data
 VOLUME /data
+USER $APP_UID
 EXPOSE 8743
 ENTRYPOINT ["dotnet", "AccountabiliBuddy.Relay.dll", "--data", "/data"]

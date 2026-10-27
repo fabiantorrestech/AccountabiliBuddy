@@ -10,4 +10,7 @@ internal enum PutStatus
     NotOwner,
     TooManyFiles,
     TooManyGroups,
+
+    /// <summary>Storing it would take the stored files past the relay's disk budget (<c>--max-disk-mb</c>).</summary>
+    DiskFull,
 }

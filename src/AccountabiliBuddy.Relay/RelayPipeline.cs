@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace AccountabiliBuddy.Relay;
 
-/// <summary>The two middlewares in front of every endpoint: the per-address rate limit and the request log.</summary>
+/// <summary>The middlewares in front of every endpoint: the request log, the per-address rate limit and the per-address cap on requests in flight.</summary>
 internal static class RelayPipeline
 {
     private const string GroupsPrefix = "/v1/groups/";
@@ -12,16 +12,34 @@ internal static class RelayPipeline
     /// Answers 429 once an address is over its minute budget. Behind a proxy every connection comes from loopback, so
     /// the address is the last entry of X-Forwarded-For, the one the (trusted, loopback-only) proxy added itself.
     /// </summary>
-    public static void UseRateLimit(this WebApplication app, RequestRateLimiter limiter, bool behindProxy)
+    public static void UseRateLimit(this WebApplication app, RequestRateLimiter limiter, ClientLimits limits)
     {
         app.Use(async (context, next) =>
         {
-            string address = ClientAddress(context, behindProxy);
+            string address = ClientAddress.Of(context, limits.BehindProxy);
             if (!limiter.Allow(address, DateTimeOffset.UtcNow))
             {
                 context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
                 context.Response.Headers.RetryAfter = "60";
-                Log(context, StatusCodes.Status429TooManyRequests);
+                return;
+            }
+
+            await next();
+        });
+    }
+
+    /// <summary>
+    /// Answers 429 when one address already has too many requests in flight (event streams count while they are open).
+    /// Behind a proxy this is what limits an address's open connections.
+    /// </summary>
+    public static void UseInFlightLimit(this WebApplication app, ClientLimits limits)
+    {
+        app.Use(async (context, next) =>
+        {
+            using IDisposable? lease = limits.Requests.TryEnter(ClientAddress.Of(context, limits.BehindProxy));
+            if (lease is null)
+            {
+                context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
                 return;
             }
 
@@ -46,20 +64,6 @@ internal static class RelayPipeline
                 Log(context, context.Response.StatusCode);
             }
         });
-    }
-
-    private static string ClientAddress(HttpContext context, bool behindProxy)
-    {
-        if (behindProxy && context.Request.Headers.TryGetValue("X-Forwarded-For", out var forwarded))
-        {
-            string? last = forwarded.ToString().Split(',').LastOrDefault()?.Trim();
-            if (!string.IsNullOrEmpty(last))
-            {
-                return last;
-            }
-        }
-
-        return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     }
 
     private static void Log(HttpContext context, int status)

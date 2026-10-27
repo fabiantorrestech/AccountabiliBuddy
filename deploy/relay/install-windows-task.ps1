@@ -6,7 +6,9 @@ Installs the sealed relay (ADR 46) as a Task Scheduler task that starts at boot 
 Run from an elevated PowerShell. Copies the relay exe (the win-x64 build from scripts/publish-relay.ps1) to the install
 folder, makes the data folder writable for the service account, registers the task "AccountabiliBuddy Relay" (at
 startup, restarts on failure, no time limit) and starts it. The address + pin lines the apps need are written to
-relay-address-and-pin.txt in the data folder on every start. -Proxy runs plain HTTP on 127.0.0.1 for a reverse proxy
+relay-address-and-pin.txt in the data folder on every start. The data folder is locked down to SYSTEM, Administrators
+and the service account. -OpenFirewall opens the port on the Private and Domain network profiles only; add
+-AllowPublicNetwork to open it on Public networks too. -Proxy runs plain HTTP on 127.0.0.1 for a reverse proxy
 (see Caddyfile).
 
 .EXAMPLE
@@ -21,7 +23,9 @@ param(
     [switch]$Proxy,
     [string]$RunAs = 'NT AUTHORITY\LOCAL SERVICE',
     [string]$TaskName = 'AccountabiliBuddy Relay',
+    [int]$MaxDiskMb = 2048,
     [switch]$OpenFirewall,
+    [switch]$AllowPublicNetwork,
     [switch]$Remove
 )
 
@@ -49,11 +53,12 @@ $exe = Join-Path $InstallDir 'AccountabiliBuddy.Relay.exe'
 Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 Copy-Item $ExePath $exe -Force
 
-# The service account reads the program and writes the data (the stored files and the certificate).
+# The service account reads the program and writes the data (the stored files and the certificate's private key).
+# The data folder is closed to everyone else: no inherited rights, only SYSTEM, Administrators and the account.
 icacls $InstallDir /grant "${RunAs}:(OI)(CI)RX" | Out-Null
-icacls $DataDir /grant "${RunAs}:(OI)(CI)M" | Out-Null
+icacls $DataDir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' "${RunAs}:(OI)(CI)M" | Out-Null
 
-$arguments = "--data `"$DataDir`""
+$arguments = "--data `"$DataDir`" --max-disk-mb $MaxDiskMb"
 if ($Proxy) { $arguments += " --proxy --urls http://127.0.0.1:$Port" } else { $arguments += " --urls https://0.0.0.0:$Port" }
 
 $action = New-ScheduledTaskAction -Execute $exe -Argument $arguments -WorkingDirectory $InstallDir
@@ -65,8 +70,9 @@ Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Pr
 
 if ($OpenFirewall -and -not $Proxy) {
     Remove-NetFirewallRule -DisplayName $TaskName -ErrorAction SilentlyContinue
-    New-NetFirewallRule -DisplayName $TaskName -Direction Inbound -Protocol TCP -LocalPort $Port -Action Allow -Program $exe | Out-Null
-    Write-Host "Opened TCP $Port in the Windows firewall for the relay."
+    $profiles = if ($AllowPublicNetwork) { 'Private,Domain,Public' } else { 'Private,Domain' }
+    New-NetFirewallRule -DisplayName $TaskName -Direction Inbound -Protocol TCP -LocalPort $Port -Action Allow -Program $exe -Profile $profiles | Out-Null
+    Write-Host "Opened TCP $Port in the Windows firewall for the relay on the $profiles network profiles."
 }
 
 Start-ScheduledTask -TaskName $TaskName
