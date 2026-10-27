@@ -133,7 +133,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
             // Posted, not set here: resetting inside the change callback left the TabControl on "More", so the next click
             // on it raised no change and "More" only worked every other time.
             int back = oldValue == MoreTab ? (int)MainTab.Today : oldValue;
-            Dispatcher.UIThread.Post(() => SelectedTab = back);
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (SelectedTab == MoreTab)
+                {
+                    SelectedTab = back;
+                }
+            });
             return;
         }
 

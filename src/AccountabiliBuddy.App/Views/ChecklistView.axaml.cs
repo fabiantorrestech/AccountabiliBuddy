@@ -48,7 +48,6 @@ public partial class ChecklistView : UserControl
     {
         if (sender is MenuFlyout flyout && DataContext is ChecklistViewModel viewModel)
         {
-            flyout.ItemsSource = null;
             flyout.ItemsSource = viewModel.NewTaskCategoryChoices.ToList();
         }
     }
