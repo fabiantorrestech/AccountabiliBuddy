@@ -41,6 +41,22 @@ Opus 5.5 high, implementers Opus 5.5 medium), one item or one group of items tha
 | Day plan rework | Per-weekday plans and alternating weeks: added; waits on the user's description of their week. |
 | Future list | Untouched until the rest is done. |
 
+### Added items (user, 2026-10-26 evening)
+
+| Item | Decision |
+|---|---|
+| PC 12 + PC 13 overlay | Fix now (the redesign keeps the behaviour). Left-align Goal, Profile, session time, task list and noise controls. Anchoring: a 3×3 grid of screen zones picked from the overlay's centre on drop; corners anchor at the corner, edge-middles at the edge's middle, the centre zone grows evenly; always clamped on-screen. Debug the snap-back first (likely collapsed and expanded sizes saving different positions). |
+| PC 14, PC 17, PC 19, PC 20 | Bugs, fix as written (timer colour delay on Ctrl+Alt; 5th category missing in the new-task picker; sidebar "More" toggle; sidebar scrolls when the window is short). |
+| PC 15 step away + side task | Step away never resumes by itself: focus time stays paused until "Back on track". On the first input after a step away, a "Back to <task>?" card shows; unanswered, it repeats every 2 min. New "Side task" at the desk: asks for a length (5/10/15, default 5); at the end a chime + card "Back to <task>?" with Back on track / +5 min / End session. Each +5 needs a short reason; from the 2nd extension on, a short wait (like end early). The overlay shows side time growing in amber next to focus time; History logs it as "Side task", never focus. Enforcement keeps running throughout (no escape hatch). Record in doc/hard-rules.md. |
+| PC 16 | A distinct pinned-task marker (Material icon) instead of ">" on the PC app and overlay. |
+| PC 18.1 Wrap up the day | Come-backs and Left open stand out more; tasks show under their category headers in both sections; one rule in both: checked = done, unchecked = carried over. |
+| PC 21 | In a session the timeline slides up out of the way; hovering at the top shows it; Today's session UI takes the freed space. |
+| A 2 Essentials | Hard to dismiss (Home / Back); use LockMyPhone-Extended when it's set up instead of the in-app screen; date under the time, time with AM/PM. Investigate first. |
+| A 3 | The start-session prompt must not be dismissible by Home / Back (any warning, not only the last). Investigate first. |
+| C 12 + C 13 planning | Planning has its own countdown bar. When it ends: a sound + "Ready?" with Start / +2 / +5 / +15. Then a fresh countdown bar for the full session length. The session timer counts down by default. Planning isn't focus time. PC, phone, watch. Record in doc/hard-rules.md. |
+| C 14 | Number the tasks (1. 2. 3.) in Today on PC, phone, watch and in the Ctrl+Alt overlay. |
+| C 15 work window | Folded into the day plan rework (phase 8). |
+
 ## Phases
 
 1. **Bugs.** PC 3.1, PC 4, PC 5.1 (+ C 5 bug part), PC 7, PC 9, PC 6.1.1, PC 6.1.2, PC 11.1 (needs the ADR amendment).
@@ -50,7 +66,9 @@ Opus 5.5 high, implementers Opus 5.5 medium), one item or one group of items tha
 5. **Timers & alarms V1.** C 6.2, C 6.3, W 2.
 6. **Sync server.** C 3.2 guide, then C 3.1 relay (ADR, likely new dependencies: ask first), then C 6.1 synced timers.
 7. **Integrations.** C 7, C 11 (ADR).
-8. **Day plan rework** once the week is described.
+8. **Day plan rework** once the week is described (now includes C 15).
 9. **Claude Design.** PC 6.1 overlay redesign, C 4.1-4.3.
+10. **Added bugs.** PC 12, PC 13, PC 14, PC 17, PC 19, PC 20, A 2, A 3. After phase 4a and the goal-sync bug.
+11. **Added features.** PC 16, PC 18.1, PC 21, C 14, then PC 15 (step away + side task), then C 12 + C 13 (planning bar). Before phase 9.
 
 Each phase: a detailed plan (files, steps, acceptance checks) agreed with the user, then implementation.
