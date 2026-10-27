@@ -545,10 +545,12 @@ public partial class App : Application
         _phonePickups = new AccountabiliBuddy.App.Services.Sync.PhonePickups(receivedDevices, syncIdentity, time);
         syncIdentity.LoadBlocking();
         _bedtimeReminder!.DeviceId = () => syncIdentity.DeviceId == Guid.Empty ? null : syncIdentity.DeviceId;
-        var syncEditTimes = new AccountabiliBuddy.App.Services.Sync.SyncEditTimesService(_configuration, sleepSettings, dayBarSettings, documents, time);
+        var goal = new GoalService(documents);
+        goal.LoadBlocking();
+        var syncEditTimes = new AccountabiliBuddy.App.Services.Sync.SyncEditTimesService(_configuration, sleepSettings, dayBarSettings, goal, documents, time);
         syncEditTimes.LoadBlocking();
         var syncCoordinator = new AccountabiliBuddy.App.Services.Sync.SyncCoordinator(
-            _sessions, _configuration, activityLog, omittedSessions, deletedUsage, privacy, sleepSettings, dayBarSettings, documents, syncSettings,
+            _sessions, _configuration, activityLog, omittedSessions, deletedUsage, privacy, sleepSettings, dayBarSettings, goal, documents, syncSettings,
             syncIdentity, receivedDevices, syncEditTimes);
         syncCoordinator.Gaps = sessionGaps;
         // Guided sessions (ADR 24): the checklist goes to paired devices in the link's state and in this PC's sync file,
@@ -696,8 +698,6 @@ public partial class App : Application
         _setupAssistant = new SetupAssistantService(documents, time);
         _setupAssistant.LoadBlocking();
         _ = learnMode.BeginIfFirstRunAsync(_setupAssistant.HasBeenShown);
-        var goal = new GoalService(documents);
-        goal.LoadBlocking();
         // ADR 29: the daily goal goes to paired devices with today's focus.
         linkHost.GoalMinutes = () => goal.Current.DailyMinutes;
         syncCoordinator.GoalMinutes = () => goal.Current.DailyMinutes;
@@ -803,9 +803,11 @@ public partial class App : Application
             presenter.ShowReminder(progress.Text, "Today's deep-work goal is reached. Anything more is a bonus.",
                 new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A9D8F")));
         _deepWork.Changed += (_, _) => _sessionOverlay?.SetGoalText($"Goal · {_deepWork.Progress.Text}");
+        Func<bool> goalLowerWaits = () => _workHours?.HasWorkLeftToday == true;
+        syncCoordinator.GoalLowerWaits = goalLowerWaits;
         sessionViewModel.Goal = new GoalCardViewModel(_deepWork, goal)
         {
-            LowerWaits = () => _workHours?.HasWorkLeftToday == true,
+            LowerWaits = goalLowerWaits,
             PhoneLine = _phonePickups!.SummaryText,
         };
         sessionViewModel.Goal.RefreshPhone();

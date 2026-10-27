@@ -47,6 +47,7 @@ public sealed class SyncCoordinator
     private readonly PrivacySettingsService _privacy;
     private readonly SleepSettingsService _sleep;
     private readonly DayBarSettingsService _dayBar;
+    private readonly GoalService _goal;
     private readonly SqliteJsonDocumentStore _documents;
     private readonly SyncSettingsService _settings;
     private readonly SyncIdentityService _identity;
@@ -79,6 +80,7 @@ public sealed class SyncCoordinator
         PrivacySettingsService privacy,
         SleepSettingsService sleep,
         DayBarSettingsService dayBar,
+        GoalService goal,
         SqliteJsonDocumentStore documents,
         SyncSettingsService settings,
         SyncIdentityService identity,
@@ -93,6 +95,7 @@ public sealed class SyncCoordinator
         _privacy = privacy;
         _sleep = sleep;
         _dayBar = dayBar;
+        _goal = goal;
         _documents = documents;
         _settings = settings;
         _identity = identity;
@@ -279,6 +282,9 @@ public sealed class SyncCoordinator
 
     /// <summary>ADR 29, 42: the daily focus goal in minutes; set by the app.</summary>
     public Func<int?>? GoalMinutes { get; set; }
+
+    /// <summary>True while a lower received goal has to wait (the goal card's lowering guard); set by the app.</summary>
+    public Func<bool>? GoalLowerWaits { get; set; }
 
     /// <summary>This PC's pickups during the other PCs' sessions and today's input stretches (design K); set by the app.</summary>
     public PcPickupsService? PcPickups { get; set; }
@@ -554,6 +560,28 @@ public sealed class SyncCoordinator
         }
     }
 
+    /// <summary>
+    /// Tries the newest received goal again, on every Drive poll pass: a lower goal that had to wait is otherwise only
+    /// seen again when the sender writes a new file. Not during a focus session (settings are locked then); the next
+    /// pass after it tries again. The usual filter skips it when it isn't newer than this PC's own edit.
+    /// </summary>
+    public async Task RetryGoalAsync()
+    {
+        if (_sessions.IsEnforcing)
+        {
+            return;
+        }
+
+        SyncDocument? newest = _received.Devices
+            .SelectMany(device => device.File.Documents)
+            .Where(document => document.Key == SyncDocument.GoalKey)
+            .MaxBy(document => document.EditedAt);
+        if (newest is not null)
+        {
+            await ApplyDocumentsAsync([newest]);
+        }
+    }
+
     /// <summary>Applies each received setting edited later than this PC's own, by this PC's rules.</summary>
     private async Task ApplyDocumentsAsync(IReadOnlyList<SyncDocument> documents)
     {
@@ -572,6 +600,7 @@ public sealed class SyncCoordinator
                     SyncDocument.ProfilesKey => await ApplyProfilesAsync(document),
                     SyncDocument.SleepKey => await ApplySleepAsync(document.Json) ? document.EditedAt : null,
                     SyncDocument.DayBarKey => await ApplyDayBarAsync(document.Json) ? document.EditedAt : null,
+                    SyncDocument.GoalKey => await ApplyGoalAsync(document.Json) ? document.EditedAt : null,
                     _ => null,
                 };
                 if (editedAt is DateTimeOffset adopted)
@@ -695,6 +724,37 @@ public sealed class SyncCoordinator
     }
 
     /// <summary>
+    /// The daily goal: a raise applies at once, a lower one only once <see cref="GoalLowerWaits"/> stops saying wait.
+    /// Until then it returns false, so the edit time isn't adopted and the same document is tried on every later sync.
+    /// </summary>
+    private async Task<bool> ApplyGoalAsync(string json)
+    {
+        if (JsonSerializer.Deserialize<GoalSettings>(json, LinkFraming.JsonOptions) is not GoalSettings received || received.DailyMinutes <= 0)
+        {
+            return false;
+        }
+
+        // The same 30-480 range as the goal card.
+        int minutes = Math.Clamp(received.DailyMinutes, 30, 480);
+        if (minutes == _goal.Current.DailyMinutes)
+        {
+            return true;
+        }
+
+        if (minutes < _goal.Current.DailyMinutes && GoalLowerWaits?.Invoke() == true)
+        {
+            return false;
+        }
+
+        using (_editTimes.SuppressStamping())
+        {
+            await _goal.SetAsync(minutes);
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// The shared settings with an edit time: the profiles as the editors show them (a looser edit still waiting here
     /// travels, and waits its delay on each receiver too), sleep and the day bar. A setting never edited since this PC
     /// started keeping track has no edit time and stays here, so a new device's defaults never replace edited settings.
@@ -705,6 +765,7 @@ public sealed class SyncCoordinator
         Add(SyncDocument.ProfilesKey, WithoutDayPlan(_configuration.Editing));
         Add(SyncDocument.SleepKey, JsonSerializer.Serialize(_sleep.Current, LinkFraming.JsonOptions));
         Add(SyncDocument.DayBarKey, JsonSerializer.Serialize(_dayBar.Current, LinkFraming.JsonOptions));
+        Add(SyncDocument.GoalKey, JsonSerializer.Serialize(_goal.Current, LinkFraming.JsonOptions));
         return documents;
 
         void Add(string key, string json)

@@ -190,6 +190,9 @@ public sealed class SyncDriveService : IDisposable
             }
 
             SetProblem(unreadable ? "Can't read a file in Google Drive" : null);
+
+            // A lower goal that waited for work hours to end (also when no file changed).
+            await _coordinator.RetryGoalAsync();
         }
         finally
         {

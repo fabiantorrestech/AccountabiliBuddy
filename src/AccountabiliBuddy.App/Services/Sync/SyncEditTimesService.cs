@@ -7,7 +7,7 @@ namespace AccountabiliBuddy.App.Services.Sync;
 
 /// <summary>
 /// When each shared setting (<see cref="SyncDocument.ProfilesKey"/>, <see cref="SyncDocument.SleepKey"/>,
-/// <see cref="SyncDocument.DayBarKey"/>) was last edited on this PC, so the newest edit wins across devices (ADR 22).
+/// <see cref="SyncDocument.DayBarKey"/>, <see cref="SyncDocument.GoalKey"/>) was last edited on this PC, so the newest edit wins across devices (ADR 22).
 /// Stamps the app's trusted time when the setting changes, except while a received change is applied
 /// (<see cref="SuppressStamping"/>). Profiles are stamped when what the editors show
 /// (<see cref="ConfigurationService.Editing"/>) changes: a looser edit when it's made, not when it takes effect after
@@ -32,7 +32,8 @@ public sealed class SyncEditTimesService
     private Task _saving = Task.CompletedTask;
 
     public SyncEditTimesService(
-        ConfigurationService configuration, SleepSettingsService sleep, DayBarSettingsService dayBar, SqliteJsonDocumentStore store, TimeProvider time)
+        ConfigurationService configuration, SleepSettingsService sleep, DayBarSettingsService dayBar, GoalService goal,
+        SqliteJsonDocumentStore store, TimeProvider time)
     {
         _configuration = configuration;
         _store = store;
@@ -46,6 +47,7 @@ public sealed class SyncEditTimesService
         configuration.PendingCancelled += (_, _) => OnProfilesChanged();
         sleep.Changed += (_, settings) => OnSleepChanged(settings);
         dayBar.Changed += (_, _) => Stamp(SyncDocument.DayBarKey);
+        goal.Changed += (_, _) => Stamp(SyncDocument.GoalKey);
     }
 
     public void LoadBlocking()
