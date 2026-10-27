@@ -62,9 +62,15 @@ public sealed partial class LunchCardViewModel : ObservableObject
         {
             Text = $"Lunch done · {TimeZoneInfo.ConvertTime(taken.Start, zone):t} – {TimeZoneInfo.ConvertTime(taken.End, zone):t}";
         }
+        else if (_lunch.AutoStartPending is FixedLunch waiting && _sessions.State.IsActive
+                 && TimeZoneInfo.ConvertTime(_sessions.Now, zone).DateTime >= waiting.Window.Start)
+        {
+            // Lunch's time came during a session: it starts by itself once the session has ended, and ends with its window.
+            Text = $"Lunch starts when your session ends · until {waiting.Window.End:t}";
+        }
         else if (_lunch.AutoStartPending is FixedLunch pending)
         {
-            Text = $"Lunch starts at {pending.Window.Start:t} by itself · {LunchService.FormatLength(pending.Length)}";
+            Text =$"Lunch starts at {pending.Window.Start:t} by itself · {LunchService.FormatLength(pending.Length)}";
         }
         else if (_lunch.IsFlexibleToday && _lunch.FixedToday is FixedLunch skipped)
         {

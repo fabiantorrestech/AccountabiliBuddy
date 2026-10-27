@@ -11,9 +11,11 @@ namespace AccountabiliBuddy.App.Services;
 /// break in today's plan is only a guideline: its window is drawn on the day bar and gives the hint time. A running
 /// session steps away as a Break for it, held while lunch runs (input doesn't end it; "I'm back" or the lunch ending
 /// does, <see cref="StepAwayService.HoldsAway"/>). Not started by its hint time: one hint; never started: skipped (the window
-/// stays work). A fixed lunch period (schema v13, a Rest part marked to start by itself) starts by itself at its start on a
-/// workday, as if Start lunch was pressed and for the part's length, unless the user is away or in a test session just then or
-/// chose "Flexible this time" (<see cref="LunchRunIntoService"/>). When it's over: one chime and "Lunch over!". A lunch started or changed on another device arrives in
+/// stays work). A fixed lunch period (schema v13, a Rest part marked to start by itself) starts by itself on a
+/// workday at the first moment within its window (part start to part end) when no session runs (so the user isn't away or in a
+/// test, and a session that was kept has ended; also when the app starts inside the window), as if Start lunch was pressed. It
+/// always ends where the part does, so a late start is the rest of the window. Not when lunch was taken or the user chose
+/// "Flexible this time" (<see cref="LunchRunIntoService"/>). When it's over: one chime and "Lunch over!". A lunch started or changed on another device arrives in
 /// its sync file (<see cref="SyncFile.Lunch"/>) and is taken here when its edit is newer. Document "lunch". Use from
 /// the UI thread only.
 /// </summary>
@@ -37,12 +39,6 @@ public sealed class LunchService
 
     /// <summary>A shortened lunch ends no sooner than this after now.</summary>
     private static readonly TimeSpan ShortestLeft = TimeSpan.FromMinutes(1);
-
-    /// <summary>
-    /// A fixed lunch starts by itself only just after its start time (a minute or two for a busy moment or a restart): never
-    /// later, so a break, a test or a closed app at that time means it doesn't start, and it never begins in the middle of the hour.
-    /// </summary>
-    private static readonly TimeSpan AutoStartGrace = TimeSpan.FromMinutes(2);
 
     private readonly SessionController _sessions;
     private readonly ConfigurationService _configuration;
@@ -237,11 +233,13 @@ public sealed class LunchService
 
         DateTime local = LocalNow();
         DateOnly today = DateOnly.FromDateTime(local);
-        if (AutoStartPending is FixedLunch fixedLunch && local >= fixedLunch.Window.Start && local < fixedLunch.Window.Start + AutoStartGrace
-            && local < fixedLunch.Window.End && !_sessions.State.IsAway && !_sessions.State.IsTest)
+        if (AutoStartPending is FixedLunch fixedLunch && local >= fixedLunch.Window.Start && local + ShortestLeft <= fixedLunch.Window.End
+            && !_sessions.State.IsActive)
         {
-            // Lunch's start has come: it starts as if Start lunch was pressed, for the part's length (never longer than the longest lunch).
-            _ = StartForAsync(fixedLunch.Length < MaxLength ? fixedLunch.Length : MaxLength);
+            // The first chance within the part's window (no session running, so the user is at the PC and a session that was kept
+            // has ended, or the app just started): it starts as if Start lunch was pressed and ends where the part does.
+            TimeSpan remaining = fixedLunch.Window.End - local;
+            _ = StartForAsync(remaining < MaxLength ? remaining : MaxLength);
             return;
         }
 

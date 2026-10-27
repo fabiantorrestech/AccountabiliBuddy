@@ -21,7 +21,7 @@
             <TextBlock Text="{Binding Detail}" Opacity="0.9" TextWrapping="Wrap" />
             <WrapPanel>
                 <Button Content="Keep" Command="{Binding KeepCommand}" Classes="accent" Margin="0,0,8,8"
-                        ToolTip.Tip="Leave the session as it is: lunch starts by itself and holds it until you are back" />
+                        ToolTip.Tip="Leave the session as it is: lunch starts by itself once it has ended, for the rest of lunch's time" />
                 <Button Content="{Binding AdjustText}" Command="{Binding AdjustCommand}" IsVisible="{Binding CanAdjust}" Margin="0,0,8,8"
                         ToolTip.Tip="Shorten the session so it ends when lunch starts" />
                 <Button Content="Flexible this time" Command="{Binding FlexibleCommand}" Margin="0,0,8,8"

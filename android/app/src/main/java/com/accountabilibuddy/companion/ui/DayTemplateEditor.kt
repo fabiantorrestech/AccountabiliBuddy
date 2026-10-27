@@ -172,7 +172,7 @@ private fun PartRow(part: PlanPart, categories: List<DayCategory>, clock: ClockF
         if (category?.behavior == CategoryBehavior.Rest && !part.isFlexible && !part.crossesMidnight) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 androidx.compose.material3.Checkbox(checked = part.autoStart, onCheckedChange = { on -> onChange(part.copy(autoStart = on)) })
-                Text("Starts by itself (lunch starts at its start, for as long as this part lasts)", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+                Text("Starts by itself (lunch starts at its start, or at the first chance after, and ends when this part does)", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
             }
         }
     }

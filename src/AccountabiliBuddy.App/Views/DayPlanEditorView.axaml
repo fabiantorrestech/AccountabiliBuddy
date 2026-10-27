@@ -58,7 +58,7 @@
                     </WrapPanel>
                     <!-- A fixed lunch period (schema v13): a Rest part with fixed hours starts lunch by itself at its start. -->
                     <CheckBox Margin="24,0,0,0" IsVisible="{Binding CanAutoStart}" IsChecked="{Binding AutoStart}"
-                              Content="Starts by itself (lunch starts at its start, for as long as this part lasts)"
+                              Content="Starts by itself (lunch starts at its start, or at the first chance after, and ends when this part does)"
                               ToolTip.Tip="On workdays lunch starts by itself at this part's start. A session that would run into it asks you first" />
                     </StackPanel>
                 </DataTemplate>

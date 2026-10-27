@@ -7,8 +7,8 @@ namespace AccountabiliBuddy.App.Services;
 /// The run-into-lunch prompt (a fixed lunch period, schema v13): when a real session would overlap today's fixed lunch, or end
 /// within a minute of its start, a front card asks Keep, Adjust or Flexible this time. It asks when the session starts (for the
 /// length chosen, whichever way it was started: Quick Start, Start, a phone, the start-of-day assistant) and once more 5 minutes
-/// before lunch if the session still runs into it. Keep leaves the session as it is: lunch starts by itself and holds it
-/// (<see cref="LunchService.HoldsSessionAway"/>). Adjust, for a timed session only, moves its end to when lunch starts.
+/// before lunch if the session still runs into it. Keep leaves the session as it is: lunch waits and starts by itself once the session
+/// has ended, for the rest of its window (<see cref="LunchService"/>). Adjust, for a timed session only, moves its end to when lunch starts.
 /// Flexible this time leaves today's lunch to the user's Start lunch (<see cref="LunchService.MakeFlexibleTodayAsync"/>). Never
 /// in a test session, while away, after lunch started or once it was made flexible. Use from the UI thread only.
 /// </summary>
@@ -75,7 +75,7 @@ public sealed class LunchRunIntoService
     {
         if (Card is not null)
         {
-            // Lunch's time came with the card still up: it is answered by lunch itself (it starts, and holds the session).
+            // Lunch's time came with the card still up: it is answered as Keep (lunch waits for the session to end).
             if (LocalNow() >= _cardLunchStart)
             {
                 Close();
@@ -160,7 +160,7 @@ public sealed class LunchRunIntoService
             ? end > lunchStart ? $"This session would end at {end:t}, after it." : $"This session would end at {end:t}, right before it."
             : "This session is still running then.";
         return $"Lunch starts by itself at {lunchStart:t}. {session} "
-               + "Keep it (lunch holds it and it carries on after), shorten it, or start lunch yourself today.";
+               + "Keep it (lunch starts when it ends, and ends when its time does), shorten it, or start lunch yourself today.";
     }
 
     // Adjust only for a timed session that can end when lunch starts: strictly shorter, with at least a minute of focus.
