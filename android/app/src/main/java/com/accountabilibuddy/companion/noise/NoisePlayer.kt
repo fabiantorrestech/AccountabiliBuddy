@@ -42,6 +42,7 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
     private var session: MediaSession? = null
     private var focus: AudioFocusRequest? = null
     private var pausedForFocus = false
+    private var pausedForCall = false
     private val handler = Handler(Looper.getMainLooper())
     private var noisyRegistered = false
 
@@ -114,6 +115,12 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
     fun toggle() = if (_state.value.playing) pause() else play()
 
     fun play() {
+        // The user (or a headphone connect) wants it now: a pending resume after a call is moot.
+        pausedForCall = false
+        resume()
+    }
+
+    private fun resume() {
         lastPlayRefused = false
         if (files.isEmpty()) {
             reload()
@@ -143,6 +150,32 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
     }
 
     fun pause() {
+        // Paused by the user (or the lock): it must not come back by itself after a call.
+        pausedForCall = false
+        stopPlayback()
+    }
+
+    /** A call rings or is active: pauses a playing sound (also one paused for another app's sound) and remembers to resume it. */
+    fun callStarted() {
+        if (pausedForCall || !store.settings.value.pauseDuringCalls) {
+            return
+        }
+
+        if (_state.value.playing || pausedForFocus) {
+            pausedForCall = true
+            stopPlayback()
+        }
+    }
+
+    /** The call is over: resumes only what [callStarted] paused, and only if nobody pressed pause or play since. */
+    fun callEnded() {
+        if (pausedForCall) {
+            pausedForCall = false
+            resume()
+        }
+    }
+
+    private fun stopPlayback() {
         player?.takeIf { runCatching { it.isPlaying }.getOrDefault(false) }?.pause()
         pausedForFocus = false
         abandonFocus()
@@ -196,6 +229,14 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
             pause()
         } else {
             onChanged?.invoke()
+        }
+    }
+
+    fun setPauseDuringCalls(on: Boolean) {
+        store.save(store.settings.value.copy(pauseDuringCalls = on))
+        if (!on) {
+            // Turned off during a call: nothing is waiting to resume.
+            pausedForCall = false
         }
     }
 

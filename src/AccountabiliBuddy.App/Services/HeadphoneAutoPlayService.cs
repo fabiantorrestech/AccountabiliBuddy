@@ -29,6 +29,18 @@ public sealed class HeadphoneAutoPlayService : IDisposable
         _watcher.Changed += (_, change) => Dispatcher.UIThread.Post(() => _ = HandleAsync(change));
     }
 
+    /// <summary>Today's day plan, for the "during a day plan window" option. Set by the app.</summary>
+    public Func<DayPlan>? PlanProvider { get; set; }
+
+    /// <summary>Counted focus on a date (Budget days). Set by the app.</summary>
+    public Func<DateOnly, TimeSpan>? FocusedOn { get; set; }
+
+    /// <summary>The night before a date from the sleep settings. Set by the app.</summary>
+    public Func<DateOnly, SleepTimes?>? NightFallback { get; set; }
+
+    /// <summary>The plan's categories, for the settings picker.</summary>
+    public IReadOnlyList<DayCategory> PlanCategories => (PlanProvider?.Invoke() ?? DayPlan.Default).Categories;
+
     public HeadphoneSettings Current { get; private set; } = HeadphoneSettings.Default;
 
     public void LoadBlocking()
@@ -85,12 +97,24 @@ public sealed class HeadphoneAutoPlayService : IDisposable
 
         if (change.Connected)
         {
+            if (!SchedulePermitsNow())
+            {
+                return;
+            }
+
             await Task.Delay(SettleDelay);
+            // The noise player's headphone lock still applies inside PlayNow.
             _noise.PlayNow();
         }
         else
         {
             _noise.PauseNow();
         }
+    }
+
+    private bool SchedulePermitsNow()
+    {
+        DayPlan plan = PlanProvider?.Invoke() ?? DayPlan.Default;
+        return HeadphoneSchedule.AllowsNow(Current, plan, DateTime.Now, FocusedOn, NightFallback);
     }
 }

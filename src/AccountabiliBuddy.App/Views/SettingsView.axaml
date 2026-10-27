@@ -636,6 +636,42 @@
                                        IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                             <Button Content="Look again" Command="{Binding RefreshDevicesCommand}" HorizontalAlignment="Left" />
                         </StackPanel>
+                        <CheckBox IsChecked="{Binding OnlyAtTimes}" Content="Only at certain times" Margin="0,6,0,0" />
+                        <StackPanel Margin="28,0,0,0" Spacing="6" IsVisible="{Binding OnlyAtTimes}">
+                            <TextBlock Text="It starts by itself only when any ticked option matches the time the headphones connect. The player's lock still applies."
+                                       Opacity="0.75" TextWrapping="Wrap" />
+                            <CheckBox IsChecked="{Binding DuringPlanWindow}" Content="During a day plan window of these categories:" />
+                            <ItemsControl ItemsSource="{Binding Categories}" Margin="28,0,0,0" IsVisible="{Binding DuringPlanWindow}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:HeadphoneOptionViewModel">
+                                        <CheckBox IsChecked="{Binding IsChosen}" Content="{Binding Label}" Margin="0,0,12,0" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <CheckBox IsChecked="{Binding OnDaysAndHours}" Content="On these days and hours:" />
+                            <StackPanel Margin="28,0,0,0" Spacing="6" IsVisible="{Binding OnDaysAndHours}">
+                                <ItemsControl ItemsSource="{Binding Days}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:HeadphoneOptionViewModel">
+                                            <ToggleButton IsChecked="{Binding IsChosen}" Content="{Binding Label}" Margin="0,0,4,4" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TimePicker SelectedTime="{Binding StartTime}" MinuteIncrement="15" ClockIdentifier="12HourClock" />
+                                    <TextBlock Text="to" VerticalAlignment="Center" />
+                                    <TimePicker SelectedTime="{Binding EndTime}" MinuteIncrement="15" ClockIdentifier="12HourClock" />
+                                </StackPanel>
+                            </StackPanel>
+                            <TextBlock Text="{Binding ScheduleHint}" Foreground="#F59E0B" TextWrapping="Wrap"
+                                       IsVisible="{Binding ScheduleHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
                     </StackPanel>
                     </Border>
                 </StackPanel>

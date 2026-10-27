@@ -18,7 +18,13 @@ import com.accountabilibuddy.companion.pause.CarReceiver
  * them; outputs already there when it starts aren't counted. Runs while the app's process lives (the pinned timeline
  * keeps it alive).
  */
-class HeadphoneWatcher(private val context: Context, private val store: HeadphoneStore, private val player: NoisePlayer) {
+class HeadphoneWatcher(
+    private val context: Context,
+    private val store: HeadphoneStore,
+    private val player: NoisePlayer,
+    /** False when "Only at certain times" rules out playing now. The player's headphone lock still applies in [NoisePlayer.play]. */
+    private val schedulePermits: () -> Boolean = { true },
+) {
     private val audio = context.getSystemService(AudioManager::class.java)
     private val handler = Handler(Looper.getMainLooper())
     private val known = mutableSetOf<Int>()
@@ -27,9 +33,12 @@ class HeadphoneWatcher(private val context: Context, private val store: Headphon
     private val callback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
             addedDevices.filter { it.isSink && known.add(it.id) && chosen(it) }.forEach { device ->
+                // Counted as started even outside the schedule: going pauses it, which does nothing when it wasn't playing.
                 started += device.id
-                // Android moves sound to new headphones a moment after they appear.
-                handler.postDelayed({ player.play() }, SETTLE_MILLIS)
+                if (schedulePermits()) {
+                    // Android moves sound to new headphones a moment after they appear.
+                    handler.postDelayed({ player.play() }, SETTLE_MILLIS)
+                }
             }
         }
 

@@ -21,6 +21,7 @@ public sealed partial class HeadphoneSettingsViewModel : ObservableObject
         _loading = true;
         Wired = service.Current.Wired;
         Bluetooth = service.Current.Bluetooth;
+        LoadSchedule(service.Current);
         // Each choice reports a change as it's built, before it's in Devices; saving then would drop it.
         ShowChosen(service.Current.Devices);
         _loading = false;
@@ -41,6 +42,42 @@ public sealed partial class HeadphoneSettingsViewModel : ObservableObject
     /// <summary>E.g. "Pick at least one device" or "No paired Bluetooth audio devices".</summary>
     [ObservableProperty]
     public partial string Status { get; set; } = string.Empty;
+
+    /// <summary>"Only at certain times": auto-play only when a ticked option below matches.</summary>
+    [ObservableProperty]
+    public partial bool OnlyAtTimes { get; set; }
+
+    [ObservableProperty]
+    public partial bool DuringPlanWindow { get; set; }
+
+    [ObservableProperty]
+    public partial bool OnDaysAndHours { get; set; }
+
+    [ObservableProperty]
+    public partial TimeSpan? StartTime { get; set; }
+
+    [ObservableProperty]
+    public partial TimeSpan? EndTime { get; set; }
+
+    public ObservableCollection<HeadphoneOptionViewModel> Categories { get; } = new();
+
+    public ObservableCollection<HeadphoneOptionViewModel> Days { get; } = new();
+
+    /// <summary>Shown when the switch is on but nothing is ticked, so it would never play.</summary>
+    public string ScheduleHint =>
+        OnlyAtTimes && !(DuringPlanWindow || OnDaysAndHours)
+            ? "Nothing is ticked, so the noise will never start by itself. Tick at least one option."
+            : string.Empty;
+
+    partial void OnOnlyAtTimesChanged(bool value) => ScheduleChanged();
+
+    partial void OnDuringPlanWindowChanged(bool value) => ScheduleChanged();
+
+    partial void OnOnDaysAndHoursChanged(bool value) => ScheduleChanged();
+
+    partial void OnStartTimeChanged(TimeSpan? value) => ScheduleChanged();
+
+    partial void OnEndTimeChanged(TimeSpan? value) => ScheduleChanged();
 
     partial void OnWiredChanged(bool value) => _ = SaveAsync();
 
@@ -89,6 +126,32 @@ public sealed partial class HeadphoneSettingsViewModel : ObservableObject
             : "Tick the headphones that should start the noise.";
     }
 
+    private void LoadSchedule(HeadphoneSettings settings)
+    {
+        OnlyAtTimes = settings.OnlyAtTimes;
+        DuringPlanWindow = settings.DuringPlanWindow;
+        OnDaysAndHours = settings.OnDaysAndHours;
+        StartTime = settings.EffectiveStart.ToTimeSpan();
+        EndTime = settings.EffectiveEnd.ToTimeSpan();
+        DayPlan plan = _service.PlanProvider?.Invoke() ?? DayPlan.Default;
+        IReadOnlyList<Guid> chosen = HeadphoneSchedule.ChosenCategoryIds(settings, plan);
+        foreach (DayCategory category in plan.Categories.Where(category => category.Behavior != CategoryBehavior.Sleep))
+        {
+            Categories.Add(new HeadphoneOptionViewModel(category.Name, category.Id, chosen.Contains(category.Id), ScheduleChanged));
+        }
+
+        foreach (DayOfWeek day in DayPlan.MondayFirst)
+        {
+            Days.Add(new HeadphoneOptionViewModel(day.ToString()[..3], day, settings.EffectiveDays.Contains(day), ScheduleChanged));
+        }
+    }
+
+    private void ScheduleChanged()
+    {
+        OnPropertyChanged(nameof(ScheduleHint));
+        _ = SaveAsync();
+    }
+
     private async Task SaveAsync()
     {
         if (_loading)
@@ -98,6 +161,15 @@ public sealed partial class HeadphoneSettingsViewModel : ObservableObject
 
         ShowStatus();
         List<BluetoothAudioDevice> chosen = Devices.Where(device => device.IsChosen).Select(device => device.Device).ToList();
-        await _service.SaveAsync(new HeadphoneSettings(Wired, Bluetooth, chosen));
+        await _service.SaveAsync(new HeadphoneSettings(Wired, Bluetooth, chosen)
+        {
+            OnlyAtTimes = OnlyAtTimes,
+            DuringPlanWindow = DuringPlanWindow,
+            PlanCategoryIds = Categories.Where(option => option.IsChosen).Select(option => (Guid)option.Value).ToList(),
+            OnDaysAndHours = OnDaysAndHours,
+            Days = Days.Where(option => option.IsChosen).Select(option => (DayOfWeek)option.Value).ToList(),
+            Start = TimeOnly.FromTimeSpan(StartTime ?? HeadphoneSettings.DefaultStart.ToTimeSpan()),
+            End = TimeOnly.FromTimeSpan(EndTime ?? HeadphoneSettings.DefaultEnd.ToTimeSpan()),
+        });
     }
 }
