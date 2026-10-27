@@ -227,8 +227,9 @@ public sealed class WorkHoursGuard : IDisposable
     }
 
     /// <summary>
-    /// For <see cref="ConfigurationService.DayPlanHold"/>: a day plan change that frees some of today's remaining work while
-    /// guarding is on and not stopped for today waits (ADR 28). The line describing it, or null.
+    /// For <see cref="ConfigurationService.DayPlanHold"/>: a day plan change that frees some of today's remaining guarded
+    /// work (windows or Budget hours, <see cref="DayPlanCut"/>) while guarding is on, not stopped for today and the goal not
+    /// met waits (ADR 28, 47). The line describing it, or null.
     /// </summary>
     public string? DescribeCut(DayPlan before, DayPlan after)
     {
@@ -244,7 +245,10 @@ public sealed class WorkHoursGuard : IDisposable
         }
 
         string length = $"{(int)freed.TotalHours}h {freed.Minutes:00}m";
-        return $"Day plan: frees {length} of today's work hours (work hours on this computer)";
+        string reasons = string.Join("; ", DayPlanChanges.DescribeToday(before, after, Today()));
+        return reasons.Length == 0
+            ? $"Day plan: frees {length} of today's work hours (work hours on this computer)"
+            : $"Day plan: frees {length} of today's work hours: {reasons} (work hours on this computer)";
     }
 
     public void Dispose()
