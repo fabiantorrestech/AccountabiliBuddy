@@ -51,7 +51,8 @@ class PlacementDetector(context: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val sensors = this.context.getSystemService(SensorManager::class.java)
-    private val proximity: Sensor? = sensors.getDefaultSensor(Sensor.TYPE_PROXIMITY, true)
+    // The wake-up variant when the phone has one (a covered sensor must wake the CPU), else the ordinary one.
+    private val proximity: Sensor? = sensors.getDefaultSensor(Sensor.TYPE_PROXIMITY, true) ?: sensors.getDefaultSensor(Sensor.TYPE_PROXIMITY)
     private val significantMotion: Sensor? = sensors.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION)
     private val sampler = PlacementSampler(this.context, handler)
     private val power = this.context.getSystemService(PowerManager::class.java)
@@ -89,10 +90,17 @@ class PlacementDetector(context: Context) {
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
+            var pending: PendingResult? = null
             if (intent.action == Intent.ACTION_SCREEN_OFF) {
                 front = null
                 frontCheckedAt = null
+                // The screen went off while "in use" was stored: the PC must not keep believing it for minutes. The
+                // broadcast is held open (goAsync) so the CPU stays awake until the file is sent.
+                if (storedState() == PlacementState.InUse) {
+                    pending = goAsync()
+                }
             }
+            pending?.let { pushUnknown(Instant.now()) { it.finish() } }
             // Screen off: the sensors need a moment to settle before the burst.
             request(if (intent.action == Intent.ACTION_SCREEN_OFF) SETTLE_MS else 0L)
         }
@@ -101,7 +109,10 @@ class PlacementDetector(context: Context) {
     private val proximityListener = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
             val sensor = proximity ?: return
-            proximityNear = event.values[0] < minOf(NEAR_CM, sensor.maximumRange)
+            val near = event.values[0] < minOf(NEAR_CM, sensor.maximumRange)
+            proximityNear = near
+            // Covered while "face up" was stored: it isn't face up any more.
+            if (near && storedState() == PlacementState.FaceUp) pushUnknown(Instant.now())
             request(SETTLE_MS)
         }
 
@@ -112,6 +123,8 @@ class PlacementDetector(context: Context) {
         override fun onTrigger(event: TriggerEvent) {
             // One-shot: armed again at the next look.
             motionArmed = false
+            // Moved while "face up" was stored: it isn't lying still any more.
+            if (storedState() == PlacementState.FaceUp) pushUnknown(Instant.now())
             request(SETTLE_MS)
         }
     }
@@ -133,12 +146,24 @@ class PlacementDetector(context: Context) {
         stopSensing()
         handler.removeCallbacksAndMessages(null)
         app.placementStore.pause(Instant.now())
+        // The service is going away: tell the PC "unknown" now (these calls run in the app's own scope, so cancelling ours is fine).
+        app.syncPlacementNow()
         scope.cancel()
     }
 
     /** Something about the session may have changed (a sync file, the link, a break, the test session): look once, without a burst storm. */
     fun poke() {
         handler.post { look(force = false) }
+    }
+
+    // The stored state while the detector is active; null otherwise.
+    private fun storedState(): PlacementState? = app.placementStore.load()?.takeIf { it.active }?.state
+
+    // The phone's stored state can no longer be believed: unknown now, and to the PC at once (no 20 s wait).
+    private fun pushUnknown(now: Instant, done: (() -> Unit)? = null) {
+        app.placementStore.reading(PlacementState.Unknown, now)
+        resetStretch()
+        syncNow(done)
     }
 
     private fun request(delayMs: Long) {
@@ -343,13 +368,17 @@ class PlacementDetector(context: Context) {
     }
 
     // The phone's file with the placement goes to the linked PC and to Drive (the same path a pickup uses).
-    private fun syncNow() {
+    private fun syncNow(done: (() -> Unit)? = null) {
         lastSyncAt = Instant.now()
         scope.launch {
-            runCatching {
-                app.sendSyncFilesToPc()
-                app.driveSource.syncNow()
-            }.onFailure { Log.w(TAG, "placement not synced", it) }
+            try {
+                runCatching {
+                    app.sendSyncFilesToPc()
+                    app.driveSource.syncNow()
+                }.onFailure { Log.w(TAG, "placement not synced", it) }
+            } finally {
+                done?.invoke()
+            }
         }
     }
 

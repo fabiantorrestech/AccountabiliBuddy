@@ -446,6 +446,12 @@ class CompanionApp : Application() {
         )
     }
 
+    /** Hands the PC the phone's file now, over the link and Drive, from the app's own scope (the placement detector, on its way out). */
+    fun syncPlacementNow() {
+        sendSyncFilesToPc()
+        appScope.launch { runCatching { driveSource.syncNow() } }
+    }
+
     /** A work use started or ended (phase 11b): the PC hears at once (link, Drive), and the notice and detector follow. */
     fun workUseChanged() {
         sendSyncFilesToPc()

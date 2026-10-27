@@ -33,13 +33,15 @@ import java.time.Instant
 @Composable
 fun WorkUseChooser(app: CompanionApp, onStarted: () -> Unit, onBack: () -> Unit, light: Boolean = true) {
     val store = app.workUse
-    val sessionStart = remember { PlacementSession.current(app, Instant.now())?.start }
+    val session = remember { PlacementSession.current(app, Instant.now()) }
+    // Not during a break: nothing is parked then.
+    val sessionStart = session?.takeUnless { it.onBreak }?.start
     val textColor = if (light) Color.White else MaterialTheme.colorScheme.onSurface
     val dim = if (light) Color(0xCCFFFFFF) else MaterialTheme.colorScheme.onSurfaceVariant
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
         Text("I need it for work", color = textColor, style = MaterialTheme.typography.titleLarge)
         if (sessionStart == null) {
-            Text("No session is running.", color = dim, style = MaterialTheme.typography.bodyMedium)
+            Text(if (session?.onBreak == true) "Not during a break." else "No session is running.", color = dim, style = MaterialTheme.typography.bodyMedium)
             TextButton(onClick = onBack) { Text("Back", color = dim) }
             return@Column
         }
