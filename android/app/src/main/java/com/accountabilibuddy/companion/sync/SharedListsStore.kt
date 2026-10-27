@@ -121,10 +121,11 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     }
 
     /**
-     * Changes a task's title and category; a blank title changes nothing. A task put in another category goes to the end
-     * of that category's tasks.
+     * Changes a task's title and category, and its steps when [steps] is given (null leaves them; a step with no id is a
+     * new one, a blank step is dropped); a blank title changes nothing. A task put in another category goes to the end of
+     * that category's tasks.
      */
-    fun editNextTask(id: String, title: String, category: String?, categoryColor: String?) {
+    fun editNextTask(id: String, title: String, category: String?, categoryColor: String?, steps: List<SessionTaskItem>? = null) {
         val trimmed = title.trim()
         if (trimmed.isEmpty()) {
             return
@@ -137,8 +138,10 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
             } else {
                 SharedListMerge.positionBetween(lists.nextTasks.filter { it.deletedAt == null && it.category == category }.maxOfOrNull { it.position }, null)
             }
+            val newSteps = steps?.filter { it.title.isNotBlank() }?.map { step -> step.copy(id = step.id ?: newId(), title = step.title.trim()) }
             lists.replace(task, task.copy(
                 title = trimmed, category = category, categoryColor = categoryColor, position = position,
+                subtasks = if (newSteps == null) task.subtasks else newSteps.ifEmpty { null },
                 editedAt = SharedListMerge.nextStamp(time, task),
             ))
         }

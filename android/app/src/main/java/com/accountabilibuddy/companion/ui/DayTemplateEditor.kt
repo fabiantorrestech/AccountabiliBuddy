@@ -168,6 +168,13 @@ private fun PartRow(part: PlanPart, categories: List<DayCategory>, clock: ClockF
                 )
             }
         }
+        // A fixed lunch period (schema v13): a Rest part with fixed hours starts lunch by itself at its start, for as long as it lasts.
+        if (category?.behavior == CategoryBehavior.Rest && !part.isFlexible && !part.crossesMidnight) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                androidx.compose.material3.Checkbox(checked = part.autoStart, onCheckedChange = { on -> onChange(part.copy(autoStart = on)) })
+                Text("Starts by itself (lunch starts at its start, or at the first chance after, and ends when this part does)", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+            }
+        }
     }
 
     picking?.let { which ->
@@ -177,13 +184,13 @@ private fun PartRow(part: PlanPart, categories: List<DayCategory>, clock: ClockF
             is24Hour = clock.is24Hour,
             isStart = which == "start",
             onPick = { time ->
-                onChange(
-                    when {
-                        which != "start" -> part.copy(end = time)
-                        isSleep && part.wakeByAlarm -> part.copy(start = time, end = time.plus(sleepGoal))
-                        else -> part.copy(start = time)
-                    },
-                )
+                val edited = when {
+                    which != "start" -> part.copy(end = time)
+                    isSleep && part.wakeByAlarm -> part.copy(start = time, end = time.plus(sleepGoal))
+                    else -> part.copy(start = time)
+                }
+                // A fixed lunch can't cross midnight: the times that make it do turn "Starts by itself" off.
+                onChange(if (edited.crossesMidnight) edited.copy(autoStart = false) else edited)
                 picking = null
             },
             onDismiss = { picking = null },

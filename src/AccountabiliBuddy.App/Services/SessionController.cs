@@ -16,6 +16,12 @@ public sealed class SessionController : IDisposable
 
     private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(1);
 
+    // A session's focus counts as not run yet for this long after it began (the run-into-lunch card's Adjust).
+    private static readonly TimeSpan FreshFocus = TimeSpan.FromMinutes(1);
+
+    // The shortest a timed session may be made (the run-into-lunch card's "Adjust"), as short as one may be started.
+    private static readonly TimeSpan ShortestSession = TimeSpan.FromMinutes(1);
+
     private readonly SessionEngine _engine;
     private readonly ConfigurationService _configuration;
     private readonly TimeProvider _timeProvider;
@@ -112,6 +118,24 @@ public sealed class SessionController : IDisposable
     public bool StartManual(Guid profileId, TimeSpan? duration)
     {
         return _engine.StartManual(profileId, duration, PlanningLength());
+    }
+
+    /// <summary>
+    /// True while a session hasn't run any focus to speak of: it is planning, or its focus began less than a minute ago. Only
+    /// then is choosing a shorter length free (<see cref="ShortenFocusEnd"/>); after that, ending sooner is the end-early flow.
+    /// </summary>
+    public bool HasNotRunFocus =>
+        State.IsActive && !State.IsAway && (State.IsPlanning || State.PhaseStartedAt is DateTimeOffset started && Now - started <= FreshFocus);
+
+    /// <summary>
+    /// "Adjust" on the run-into-lunch card: the timed session ends at <paramref name="newEnd"/> instead (see
+    /// <see cref="SessionEngine.ShortenFocusEnd"/>), as if that length had been chosen at the start. Never lengthens a session,
+    /// and never once focus has run (<see cref="HasNotRunFocus"/>): cutting that is ending early, with its wait and reason.
+    /// </summary>
+    /// <returns>False when it can't be shortened that way.</returns>
+    public bool ShortenFocusEnd(DateTimeOffset newEnd)
+    {
+        return HasNotRunFocus && _engine.ShortenFocusEnd(newEnd, ShortestSession);
     }
 
     /// <summary>

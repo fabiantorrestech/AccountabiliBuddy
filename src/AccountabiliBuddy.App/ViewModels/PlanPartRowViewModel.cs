@@ -28,7 +28,7 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
     public IReadOnlyList<DayCategory> Categories => _owner.PickableCategories;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Name), nameof(ColorBrush), nameof(Color), nameof(IsSleep), nameof(EndEditable))]
+    [NotifyPropertyChangedFor(nameof(Name), nameof(ColorBrush), nameof(Color), nameof(IsSleep), nameof(EndEditable), nameof(CanAutoStart))]
     public partial DayCategory? Category { get; set; }
 
     /// <summary>Shown instead of the category's name (e.g. "After-office work"); empty = the category's name.</summary>
@@ -37,9 +37,11 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
     public partial string Label { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanAutoStart))]
     public partial TimeSpan? Start { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanAutoStart))]
     public partial TimeSpan? End { get; set; }
 
     [ObservableProperty]
@@ -47,6 +49,7 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
 
     /// <summary>A flexible break (schema v8): the times are its window; it lasts <see cref="FlexMinutes"/> once started.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanAutoStart))]
     public partial bool IsFlexible { get; set; }
 
     [ObservableProperty]
@@ -64,8 +67,13 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(EndEditable))]
     public partial bool WakeByAlarm { get; set; }
 
-    /// <summary>A fixed lunch period (schema v13): carried through editing so the part keeps it; the control to set it comes with the DP assistant.</summary>
-    public bool AutoStart { get; private set; }
+    /// <summary>A fixed lunch period (schema v13): lunch starts by itself at the part's start and lasts as long as the part does.</summary>
+    [ObservableProperty]
+    public partial bool AutoStart { get; set; }
+
+    /// <summary>"Starts by itself" can be ticked: a Rest part with fixed hours (not a flexible break) that doesn't cross midnight.</summary>
+    public bool CanAutoStart => Category?.Behavior == CategoryBehavior.Rest && !IsFlexible
+        && Start is TimeSpan start && End is TimeSpan end && (end > start || end == TimeSpan.Zero);
 
     /// <summary>A Sleep part: it can wake by the alarm.</summary>
     public bool IsSleep => Category?.Behavior == CategoryBehavior.Sleep;
@@ -97,7 +105,7 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
             IsFlexible && HintAt is TimeSpan hint ? TimeOnly.FromTimeSpan(hint) : null,
             IsSleep && WakeByAlarm);
 
-        // A fixed lunch period (schema v13) is kept while the part still can be one; there is no control for it here yet.
+        // A fixed lunch period (schema v13) is kept while the part still can be one.
         return AutoStart && Category.Behavior == CategoryBehavior.Rest && !part.IsFlexible && !part.CrossesMidnight
             ? part with { AutoStart = true }
             : part;
@@ -160,6 +168,11 @@ public sealed partial class PlanPartRowViewModel : ObservableObject
     }
 
     partial void OnHintAtChanged(TimeSpan? value)
+    {
+        Edited();
+    }
+
+    partial void OnAutoStartChanged(bool value)
     {
         Edited();
     }

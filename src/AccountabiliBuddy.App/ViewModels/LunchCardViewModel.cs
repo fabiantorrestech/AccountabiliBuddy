@@ -36,7 +36,10 @@ public sealed partial class LunchCardViewModel : ObservableObject
     [ObservableProperty]
     public partial bool CanShorten { get; set; }
 
-    /// <summary>"Lunch · usually 11:00 AM – 3:00 PM · 1 h", "Lunch · 42:10 left · until 1:05 PM" or "Lunch done · 12:05 PM – 1:05 PM".</summary>
+    /// <summary>
+    /// "Lunch · usually 11:00 AM – 3:00 PM · 1 h", "Lunch starts at 12:00 PM by itself · until 1:00 PM" (a fixed lunch, only until its window ends),
+    /// "Lunch · 42:10 left · until 1:05 PM" or "Lunch done · 12:05 PM – 1:05 PM".
+    /// </summary>
     [ObservableProperty]
     public partial string Text { get; set; }
 
@@ -58,6 +61,20 @@ public sealed partial class LunchCardViewModel : ObservableObject
         else if (taken is not null)
         {
             Text = $"Lunch done · {TimeZoneInfo.ConvertTime(taken.Start, zone):t} – {TimeZoneInfo.ConvertTime(taken.End, zone):t}";
+        }
+        else if (_lunch.AutoStartPending is FixedLunch waiting && _sessions.State.IsActive
+                 && TimeZoneInfo.ConvertTime(_sessions.Now, zone).DateTime >= waiting.Window.Start)
+        {
+            // Lunch's time came during a session: it starts by itself once the session has ended, and ends with its window.
+            Text = $"Lunch starts when your session ends · until {waiting.Window.End:t}";
+        }
+        else if (_lunch.AutoStartPending is FixedLunch pending)
+        {
+            Text = $"Lunch starts at {pending.Window.Start:t} by itself · until {pending.Window.End:t}";
+        }
+        else if (_lunch.IsFlexibleToday && _lunch.FixedToday is FixedLunch skipped)
+        {
+            Text = $"Lunch at {skipped.Window.Start:t} won't start by itself today · press Start lunch before you go";
         }
         else if (today is not null)
         {

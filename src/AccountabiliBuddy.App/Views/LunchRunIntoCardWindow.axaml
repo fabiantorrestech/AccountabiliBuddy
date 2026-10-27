@@ -1,0 +1,36 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.LunchRunIntoCardWindow"
+        x:DataType="vm:LunchRunIntoCardViewModel"
+        Title="Your session runs into lunch"
+        Width="500" SizeToContent="Height"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="True"
+        WindowStartupLocation="Manual">
+    <!-- No button takes keyboard focus: the card appears while the user types, and a typed Space or Enter must not answer it. -->
+    <Window.Styles>
+        <Style Selector="Button">
+            <Setter Property="Focusable" Value="False" />
+        </Style>
+    </Window.Styles>
+    <!-- The run-into-lunch card: a session would overlap a fixed lunch. Keep, Adjust, or Flexible this time. -->
+    <Border Padding="24,20" Background="#FF15191E" BorderBrush="#AACA8A04" BorderThickness="2" CornerRadius="10">
+        <StackPanel Spacing="12">
+            <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Detail}" Opacity="0.9" TextWrapping="Wrap" />
+            <WrapPanel>
+                <Button Content="Keep" Command="{Binding KeepCommand}" Classes="accent" Margin="0,0,8,8"
+                        ToolTip.Tip="Leave the session as it is: lunch starts by itself once it has ended, for the rest of lunch's time" />
+                <Button Content="{Binding AdjustText}" Command="{Binding AdjustCommand}" IsVisible="{Binding CanAdjust}" Margin="0,0,8,8"
+                        ToolTip.Tip="Shorten the session so it ends when lunch starts" />
+                <Button Content="End early at lunch" Command="{Binding EndEarlyCommand}" IsVisible="{Binding CanEndEarly}" Margin="0,0,8,8"
+                        ToolTip.Tip="End the session now, with the usual wait and reason, so you can take lunch" />
+                <Button Content="Flexible this time" Command="{Binding FlexibleCommand}" Margin="0,0,8,8"
+                        ToolTip.Tip="Lunch won't start by itself today: press Start lunch before you go" />
+            </WrapPanel>
+            <TextBlock FontSize="11" Opacity="0.6" TextWrapping="Wrap"
+                       Text="Flexible this time: you must press Start lunch in the app before you go." />
+        </StackPanel>
+    </Border>
+</Window>

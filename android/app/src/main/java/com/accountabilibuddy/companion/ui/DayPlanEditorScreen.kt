@@ -90,7 +90,7 @@ fun DayPlanEditorScreen(
         ) {
             when (tab) {
                 0 -> DayTypesEditor(plan, clock, smartNote = { smartNote(it, clock) }, onChange = onChange, onMessage = onMessage)
-                1 -> WeekGridEditor(plan, onChange)
+                1 -> WeekGridEditor(plan, draft.initial, onChange)
                 2 -> OneOffDaysEditor(plan, clock, onChange = onChange, onMessage = onMessage)
                 else -> CategoriesEditor(plan, onChange = onChange, onMessage = onMessage)
             }
