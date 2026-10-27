@@ -32,6 +32,54 @@ object DayPlanChanges {
         return lines.ifEmpty { listOf("No changes") }
     }
 
+    /**
+     * The lines of a change that touch the template today follows (the reasons a change can lower today's guarded work, which
+     * makes it wait on a guarded PC, ADR 28, 47): a one-off day added or removed for today, today re-mapped to another template
+     * (by the weekday's map, the A/B week or week B's start), or that template's own mode, budget, work window or parts
+     * changed. Empty when today's template is untouched. The PC's `DayPlanChanges.DescribeToday` has the same wording.
+     */
+    fun describeToday(base: DayPlan, edited: DayPlan, today: java.time.LocalDate): List<String> {
+        val lines = mutableListOf<String>()
+        val oneOffBefore = base.oneOffDays.firstOrNull { it.date == today }
+        val oneOffAfter = edited.oneOffDays.firstOrNull { it.date == today }
+        if ((oneOffBefore == null) != (oneOffAfter == null)) {
+            lines += if (oneOffAfter == null) "Today's one-off day is gone" else "Today now has a one-off day"
+            modeChange("Today", todayTemplate(base, today), todayTemplate(edited, today), lines)
+            return lines
+        }
+
+        if (oneOffBefore != null && oneOffAfter != null) {
+            template("Today's one-off day", oneOffBefore.template, oneOffAfter.template, base, edited, lines)
+            return lines
+        }
+
+        val wasId = base.week.templateIdFor(today) ?: DayPlan.OFF_DAY_TEMPLATE_ID
+        val nowId = edited.week.templateIdFor(today) ?: DayPlan.OFF_DAY_TEMPLATE_ID
+        if (wasId != nowId) {
+            if (base.week.isWeekB(today) != edited.week.isWeekB(today)) {
+                lines += if (edited.week.isWeekB(today)) "This week is now week B" else "This week is now week A"
+            }
+
+            lines += "Today follows ${dayTypeName(edited, nowId)} now, not ${dayTypeName(base, wasId)}"
+            modeChange("Today", base.templateById(wasId) ?: DayTemplate(), edited.templateById(nowId) ?: DayTemplate(), lines)
+        } else {
+            val before = base.templateById(wasId)
+            val after = edited.templateById(nowId)
+            if (before != null && after != null) template(dayTypeName(edited, nowId), before, after, base, edited, lines)
+        }
+
+        return lines
+    }
+
+    private fun todayTemplate(plan: DayPlan, today: java.time.LocalDate): DayTemplate =
+        plan.oneOffDays.firstOrNull { it.date == today }?.template
+            ?: plan.templateById(plan.week.templateIdFor(today) ?: DayPlan.OFF_DAY_TEMPLATE_ID)
+            ?: DayTemplate()
+
+    private fun modeChange(title: String, before: DayTemplate, after: DayTemplate, lines: MutableList<String>) {
+        if (before.mode != after.mode) lines += "$title: now a ${after.mode.name} day"
+    }
+
     // The two migrated templates keep the wording the plan always had.
     private fun title(template: PlanTemplate): String = when (template.id) {
         DayPlan.WORKDAY_TEMPLATE_ID -> "Workdays"
