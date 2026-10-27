@@ -27,6 +27,11 @@ public sealed class SessionTasksService : IDisposable
     /// <summary>The shortest reason for adding a task over the limit.</summary>
     public const int MinOverLimitReasonLength = 10;
 
+    // What another device may send for the running session (ADR 48): bounded, so one request can't bloat the checklist.
+    private const int MaxRemoteText = 500;
+    private const int MaxRemoteSteps = 30;
+    private static readonly TimeSpan LastMinute = TimeSpan.FromMinutes(1);
+
     private const string DocumentKey = "session.tasks";
     private const string HistoryKey = "session.taskHistory";
     private const string CategoriesKey = "session.categories";
@@ -236,6 +241,154 @@ public sealed class SessionTasksService : IDisposable
     public int OverLimitCount(DateTimeOffset start)
     {
         return _overLimit.Count(entry => entry.SessionStart is DateTimeOffset started && (started - start).Duration() <= TimeSpan.FromSeconds(5));
+    }
+
+    /// <summary>
+    /// Adds a task another device asked for to the running session's checklist (ADR 48), by the same rules as the PC's own
+    /// add: a 4th task (past <see cref="TaskAllowance"/>, which counts done ones) is parked to Come back to instead, and
+    /// the answer says so. Refused when no real session runs here and in the last minute of a phase. A category named in
+    /// the request is matched by id, else by name, else made (with the colour sent when it is a valid "#RRGGBB").
+    /// </summary>
+    /// <param name="id">The id the other device chose for the task; a task already here with it counts as done.</param>
+    public async Task<RemoteTaskResult> AddRemoteAsync(Guid id, SyncTaskRequest request)
+    {
+        if (RemoteRefusal() is string refusal)
+        {
+            return RemoteTaskResult.Refused(refusal);
+        }
+
+        string title = (request.Title ?? string.Empty).Trim();
+        if (title.Length == 0 || title.Length > MaxRemoteText || StepsInvalid(request.Steps))
+        {
+            return RemoteTaskResult.NotValid("The task needs a title and each step a text of up to 500 characters (30 steps at most).");
+        }
+
+        if (id != Guid.Empty && Current.Tasks.Any(task => task.Id == id))
+        {
+            return RemoteTaskResult.Applied();
+        }
+
+        List<string> steps = (request.Steps ?? []).Select(step => step.Title.Trim()).Where(step => step.Length > 0).ToList();
+        if (Current.Tasks.Count >= TaskAllowance)
+        {
+            // Past the limit a task is parked, never added: only the PC's own "Add anyway" (with a reason) goes over.
+            if (Comebacks is null)
+            {
+                return RemoteTaskResult.Refused($"This session already has {TaskAllowance} tasks.");
+            }
+
+            await Comebacks.AddAsync(steps.Count > 0 ? $"{title} (+{steps.Count} {(steps.Count == 1 ? "step" : "steps")})" : title);
+            return RemoteTaskResult.Applied($"Parked: {TaskAllowance} tasks this session");
+        }
+
+        Guid? categoryId = await ResolveRemoteCategoryAsync(request);
+        await SetAsync(Current.AddWithId(id, title, categoryId, steps));
+        return RemoteTaskResult.Applied();
+    }
+
+    /// <summary>
+    /// Renames a task of the running session or replaces its steps, as another device asked (ADR 48). Ticks stay as they
+    /// are (ticking has its own action) and a done task is changed like any other. Refused when no real session runs here,
+    /// in the last minute of a phase, and for a task that is no longer on the checklist.
+    /// </summary>
+    public async Task<RemoteTaskResult> EditRemoteAsync(Guid id, SyncTaskRequest request)
+    {
+        if (RemoteRefusal() is string refusal)
+        {
+            return RemoteTaskResult.Refused(refusal);
+        }
+
+        bool badTitle = request.Title is not null && (request.Title.Trim().Length == 0 || request.Title.Trim().Length > MaxRemoteText);
+        if (badTitle || StepsInvalid(request.Steps))
+        {
+            return RemoteTaskResult.NotValid("A title and each step need a text of up to 500 characters (30 steps at most).");
+        }
+
+        if (Current.Tasks.All(task => task.Id != id))
+        {
+            return RemoteTaskResult.Refused("That task is no longer on this session's list.");
+        }
+
+        IReadOnlyList<SessionStepEdit>? steps = request.Steps?.Select(step => new SessionStepEdit(step.Id, step.Title)).ToList();
+        await SetAsync(Current.Edit(id, request.Title, steps));
+        return RemoteTaskResult.Applied();
+    }
+
+    /// <summary>
+    /// Puts the running session's tasks in the order another device sent (ADR 48). The checklist stays grouped by category,
+    /// so the order counts within each category. Refused when no real session runs here and in the last minute of a phase.
+    /// </summary>
+    public async Task<RemoteTaskResult> ReorderRemoteAsync(IReadOnlyList<Guid>? order)
+    {
+        if (RemoteRefusal() is string refusal)
+        {
+            return RemoteTaskResult.Refused(refusal);
+        }
+
+        if (order is not { Count: > 0 })
+        {
+            return RemoteTaskResult.NotValid("The new order was empty.");
+        }
+
+        await SetAsync(Current.InOrder(order));
+        return RemoteTaskResult.Applied();
+    }
+
+    // Another device changes only a real session that runs on this PC, and not in the last minute of a phase (the PC's own
+    // end-of-phase moment). A countdown that is over (planning waits for "Ready?") is not "the last minute".
+    private string? RemoteRefusal()
+    {
+        SessionState state = _sessions.State;
+        if (!IsLive || !state.IsRealSession)
+        {
+            return "No session is running on this PC. Add it to the next session instead.";
+        }
+
+        if (state.PhaseEndsAt is DateTimeOffset endsAt)
+        {
+            TimeSpan left = endsAt - state.CountdownTime(_time.GetUtcNow());
+            if (left >= TimeSpan.Zero && left < LastMinute)
+            {
+                return "The phase ends in under a minute. Try again after it.";
+            }
+        }
+
+        return null;
+    }
+
+    private static bool StepsInvalid(IReadOnlyList<SyncTaskStep>? steps)
+    {
+        // A step sent with no title at all ("title": null) is malformed: refuse it rather than throw in the apply loop.
+        return steps is not null
+            && (steps.Count > MaxRemoteSteps || steps.Any(step => step.Title is null || step.Title.Trim().Length > MaxRemoteText));
+    }
+
+    private async Task<Guid?> ResolveRemoteCategoryAsync(SyncTaskRequest request)
+    {
+        if (request.CategoryId is Guid known && _categories.Any(category => category.Id == known))
+        {
+            return known;
+        }
+
+        string name = (request.Category ?? string.Empty).Trim();
+        if (name.Length == 0 || name.Length > MaxRemoteText)
+        {
+            return null;
+        }
+
+        TaskCategory? existing = _categories.FirstOrDefault(category => string.Equals(category.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            return existing.Id;
+        }
+
+        string? sent = request.CategoryColor is { Length: 7 } color && color[0] == '#' && color[1..].All(char.IsAsciiHexDigit) ? color : null;
+        var used = _categories.Select(category => category.Color).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        string fallback = TaskCategory.Palette.FirstOrDefault(hex => !used.Contains(hex)) ?? TaskCategory.Palette[_categories.Count % TaskCategory.Palette.Count];
+        var created = new TaskCategory(Guid.NewGuid(), name, sent ?? fallback);
+        _categories = [.. _categories, created];
+        await SaveCategoriesAsync();
+        return created.Id;
     }
 
     /// <summary>

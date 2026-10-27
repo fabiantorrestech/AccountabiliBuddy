@@ -23,7 +23,7 @@
         </Style>
     </UserControl.Styles>
     <!-- Tasks first (what the session is for), then Quick Start with Default on top, Start with the remembered length,
-         and "More options" folded away: profile, length (presets, slider or an end time), optional break, Quick Start
+         No set end, and "More options" folded away: profile, length (presets, slider or an end time), optional break, Quick Start
          with the profile picked. Used by the quick-session popup and the Today tab. -->
     <StackPanel Spacing="16">
         <!-- Guided sessions: what this session is for, as tasks with subtasks (optional). -->
@@ -32,7 +32,7 @@
         </Panel>
 
         <Button Classes="quickDefault" Command="{Binding QuickStartDefaultCommand}" AutomationProperties.Name="Quick Start with Default"
-                ToolTip.Tip="Starts your default profile (Settings) for the length below; the on-screen bar counts down. Choose No set end under More options to count up instead.">
+                ToolTip.Tip="Starts your default profile (Settings) for the length below; the on-screen bar counts down. Choose No set end below to count up instead.">
             <StackPanel Spacing="2" HorizontalAlignment="Center">
                 <TextBlock Text="Quick Start with Default" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
                 <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" Opacity="0.85">
@@ -45,6 +45,11 @@
 
         <Button Content="{Binding StartLabel}" Command="{Binding StartCommand}" Classes="accent"
                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,12" FontSize="16" />
+
+        <!-- No set length with the profile picked under More options; the on-screen bar counts up. Its own button so it's one click. -->
+        <Button Content="{Binding OpenEndedLabel}" Command="{Binding StartOpenEndedCommand}"
+                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,10"
+                ToolTip.Tip="Starts the profile picked under More options with no set end and no countdown. The on-screen bar fills each hour and glows every 30 minutes with how long you've been at it; hold Ctrl+Alt to see it any time." />
 
         <Expander Header="More options: profile, length, break" HorizontalAlignment="Stretch" IsExpanded="{Binding ShowsOptions}">
             <StackPanel Spacing="16" Margin="0,8,0,0">
@@ -113,11 +118,6 @@
                     <TextBlock Grid.Column="2" Text="{Binding BreakLabel}" FontSize="16" VerticalAlignment="Center"
                                HorizontalAlignment="Right" Opacity="{Binding BreakLabelOpacity}" />
                 </Grid>
-
-                <!-- No set length with the profile picked above; the on-screen bar counts up. -->
-                <Button Content="{Binding OpenEndedLabel}" Command="{Binding StartOpenEndedCommand}"
-                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,8"
-                        ToolTip.Tip="Starts the profile picked above with no set end and no countdown. The on-screen bar fills each hour and glows every 30 minutes with how long you've been at it; hold Ctrl+Alt to see it any time." />
 
                 <!-- Test session: enforcement, prompts and the overlay as in a real one; never counted, logged or synced. -->
                 <StackPanel Spacing="6">

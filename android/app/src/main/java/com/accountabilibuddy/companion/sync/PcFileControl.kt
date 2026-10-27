@@ -20,6 +20,9 @@ object PcFileControl {
     /** The first PC version that answers noise commands and writes its noise player in its file (ADR 42, 36). */
     const val NOISE_VERSION = "0.1.109"
 
+    /** The first PC version that applies task adds, edits and reorders for its running session (ADR 48). */
+    const val TASK_EDIT_VERSION = "0.1.112"
+
     // A file older than this doesn't say the session still runs; a phase over for longer than this has ended (the PC went off).
     private val FRESH: Duration = Duration.ofHours(12)
     private val OVER_FOR: Duration = Duration.ofMinutes(10)
@@ -39,6 +42,9 @@ object PcFileControl {
 
     /** True when the PC's app answers noise commands (by the version on its card). */
     fun supportsNoise(card: SyncDeviceCard): Boolean = compareVersions(card.appVersion, NOISE_VERSION) >= 0
+
+    /** True when the PC's app applies task changes for its running session (by the version on its card). */
+    fun supportsTaskEdits(card: SyncDeviceCard): Boolean = compareVersions(card.appVersion, TASK_EDIT_VERSION) >= 0
 
     /** What to show instead of the controls for a PC too old to answer them; null when it's new enough. */
     fun updateNeeded(card: SyncDeviceCard): String? =
