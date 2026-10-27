@@ -111,6 +111,10 @@ public sealed class NoisePlayerService : IDisposable
         }
     }
 
+    /// <summary>True when the lock is on and Windows' default sound output isn't headphones, so Play would do nothing.</summary>
+    public async Task<bool> IsPlayBlockedByLockAsync() =>
+        _settings.Current.LockedToHeadphones && !await _headphones.IsDefaultOutputHeadphonesAsync();
+
     /// <summary>Plays the current file if it isn't playing (focus headphones connected).</summary>
     public void PlayNow()
     {

@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.put
 import java.time.Instant
@@ -159,6 +160,16 @@ object SyncFileJson {
             }))
         }
         file.defaultProfileId?.let { put("defaultProfileId", it) }
+        // Optional (ADR 42, 36): a PC's noise player.
+        file.noise?.let { noise ->
+            put("noise", buildJsonObject {
+                put("playing", noise.playing)
+                noise.name?.let { put("name", it) }
+                put("volume", noise.volume)
+                put("locked", noise.locked)
+                put("at", writeTime(noise.at))
+            })
+        }
         file.lunch?.let { lunch ->
             put("lunch", buildJsonObject {
                 put("start", writeTime(lunch.start))
@@ -308,7 +319,22 @@ object SyncFileJson {
             },
             optionalText(json, "defaultProfileId"),
             readBeeminder(json["beeminder"]),
+            readNoise(json["noise"]),
         )
+    }
+
+    // ADR 42, 36: a noise player that can't be read is left out rather than failing the file.
+    private fun readNoise(value: JsonElement?): SyncNoise? {
+        val noise = value as? JsonObject ?: return null
+        return runCatching {
+            SyncNoise(
+                (noise["playing"] as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull ?: false,
+                optionalText(noise, "name"),
+                ((noise["volume"] as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull ?: 0.0).coerceIn(0.0, 1.0),
+                (noise["locked"] as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull ?: false,
+                noise.requiredTime("at"),
+            )
+        }.getOrNull()
     }
 
     // ADR 42: an optional list; an entry that can't be read is left out rather than failing the file.

@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import com.accountabilibuddy.companion.noise.NoisePlayer
+import com.accountabilibuddy.companion.sync.PcNoiseRemote
 import com.accountabilibuddy.shared.NoiseRemote
 import com.accountabilibuddy.shared.WatchLinkSettings
 import com.accountabilibuddy.shared.WatchNode
@@ -25,20 +26,22 @@ import kotlin.coroutines.resumeWithException
 /**
  * The noise player on the linked watch (ADR 36): what's playing goes to the watch when it changes (and when the watch
  * says hello), by the same route as the snapshot; the watch's play/pause, skip and volume come back here. Only the
- * linked watch is heard.
+ * linked watch is heard. Since ADR 42 the PCs with a noise player are listed too, and a command naming one goes to it
+ * through the sync files ([PcNoiseRemote]).
  */
 class NoiseWatchSync(
     private val context: Context,
     private val noise: NoisePlayer,
     private val links: StateFlow<WatchLinkSettings>,
     private val scope: CoroutineScope,
+    private val pcNoise: PcNoiseRemote,
 ) {
     private val messages = Wearable.getMessageClient(context)
     private val main = Handler(Looper.getMainLooper())
 
     fun start() {
         scope.launch {
-            combine(noise.state, noise.settings, links) { state, settings, _ -> state(state, settings) }
+            combine(noise.state, noise.settings, links, pcNoise.players) { state, settings, _, pcs -> state(state, settings, pcs) }
                 .collectLatest { state ->
                     // Volume turned on the crown sends many changes: the last one after a short pause.
                     delay(250)
@@ -49,12 +52,18 @@ class NoiseWatchSync(
 
     /** Sends what's playing now (after the watch said hello). */
     fun sendNow() {
-        scope.launch { send(state(noise.state.value, noise.settings.value)) }
+        scope.launch { send(state(noise.state.value, noise.settings.value, pcNoise.players.value)) }
     }
 
-    /** A command from [nodeId]: applied when it's the linked watch. */
+    /** A command from [nodeId]: applied when it's the linked watch; for a PC ([NoiseRemote.Command.device]) it goes on to that PC. */
     fun apply(nodeId: String, command: NoiseRemote.Command) {
         if (nodeId != links.value.linkedNodeId) return
+        val pcId = command.device
+        if (pcId != null) {
+            main.post { pcNoise.send(pcId, command) }
+            return
+        }
+
         // The player belongs to the main thread.
         main.post {
             when (command.action) {
@@ -67,8 +76,11 @@ class NoiseWatchSync(
     }
 
     // Locked = the lock is on and no headphones are connected (the watch shows a small lock).
-    private fun state(state: com.accountabilibuddy.companion.noise.NoiseState, settings: com.accountabilibuddy.companion.noise.NoiseSettings) =
-        NoiseRemote.State(state.playing, state.title, settings.volume, state.hasFolder, settings.headphoneLock && !state.headphonesConnected)
+    private fun state(
+        state: com.accountabilibuddy.companion.noise.NoiseState,
+        settings: com.accountabilibuddy.companion.noise.NoiseSettings,
+        pcs: List<NoiseRemote.PcPlayer>,
+    ) = NoiseRemote.State(state.playing, state.title, settings.volume, state.hasFolder, settings.headphoneLock && !state.headphonesConnected, pcs)
 
     private suspend fun send(state: NoiseRemote.State) {
         val settings = links.value
