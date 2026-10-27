@@ -161,6 +161,9 @@ class CompanionApp : Application() {
     /** The on/off switch for the placement guard (Settings; off waits 10 minutes, never in a session). */
     val placementGuard by lazy { com.accountabilibuddy.companion.placement.PlacementGuard(this) }
 
+    /** The "Phone down" screen's pocket penalty switches and its log (phase 11b; never synced). */
+    val phoneDown by lazy { com.accountabilibuddy.companion.placement.PhoneDownStore(this) }
+
     /** Where the phone is during a PC session (phase 11b): the state and counts the sync file carries. */
     val placementStore by lazy { com.accountabilibuddy.companion.placement.PlacementStore(this) }
 
@@ -192,6 +195,10 @@ class CompanionApp : Application() {
     /** True while the essentials screen is showing (no work card over it). */
     @Volatile
     var essentialsOnScreen: Boolean = false
+
+    /** True while the "Phone down" screen is in front (it is not an app in use, and no other full-screen card opens over it). */
+    @Volatile
+    var phoneDownOnScreen: Boolean = false
 
     // Lives as long as the app; the sync work runs here.
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -337,13 +344,16 @@ class CompanionApp : Application() {
                 ?.filterNot { com.accountabilibuddy.companion.pause.PauseRules.inQuiet(state, it) }
                 // Emergency time and unlocks into an always-allowed app (a call, a text) are shown apart, not as pickups.
                 ?.filterNot { unlock -> uses.any { !unlock.isBefore(it.start) && unlock.isBefore(it.end) } }
-                ?.filterNot { unlock -> reader.appAfter(unlock)?.let { (app, screen) -> allowed.isAllowed(app, screen) } == true }
+                // An unlock that showed the "Phone down" screen is a pickup whatever came next (Essentials / quick reply).
+                ?.filterNot { unlock -> !phoneDown.shownFor(unlock) && reader.appAfter(unlock)?.let { (app, screen) -> allowed.isAllowed(app, screen) } == true }
         }
         // Phase 11b: where the phone is during a PC session (label, times and counts only).
         sync.inFocusSession = { placementStore.load()?.active == true }
         sync.placement = {
             // Guard off: no placement in the file, so the PC sees unknown and never nags.
-            if (placementGuard.isOn(java.time.Instant.now())) placementStore.forSyncFile(java.time.Instant.now(), workUse) else null
+            val now = java.time.Instant.now()
+            // "No phone-free credit" off: the pocket minutes aren't sent, so the PC counts none.
+            if (placementGuard.isOn(now)) placementStore.forSyncFile(now, workUse, phoneDown.isOn(com.accountabilibuddy.companion.placement.PocketPenalty.NoPhoneFreeCredit, now)) else null
         }
         sync.emergencyWindows = { emergency.all().map { it.start to minOf(it.end, java.time.Instant.now()) } }
         // Linking or unlinking the watch tells the PCs through Drive at once (Task 18).

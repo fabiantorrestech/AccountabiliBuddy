@@ -11,6 +11,9 @@ public sealed class PhonePickups
     // A session's start as the PC wrote it and as the phone echoes it back can differ by rounding.
     private static readonly TimeSpan StartTolerance = TimeSpan.FromSeconds(5);
 
+    /// <summary>More than this many minutes in a pocket and a session isn't phone-free (the phone's "No phone-free credit" penalty).</summary>
+    public const int PocketLimitMinutes = 5;
+
     private readonly ReceivedDevicesService _received;
     private readonly SyncIdentityService _identity;
     private readonly TimeProvider _time;
@@ -62,7 +65,7 @@ public sealed class PhonePickups
     public string? DescribePlacement(DateTimeOffset sessionStart)
     {
         return PhonePlacementLookup.Newest(_received.Devices, sessionStart) is { Placement: SyncPlacement placement }
-            ? $"out {placement.OutCount}× · pocket {placement.PocketMinutes} min"
+            ? $"out {placement.OutCount}× · pocket {placement.PocketMinutes} min{(placement.PocketMinutes > PocketLimitMinutes ? " (no phone-free credit)" : string.Empty)}"
             : null;
     }
 
@@ -81,8 +84,16 @@ public sealed class PhonePickups
         return parts.Count == 0 ? null : string.Join(" · ", parts);
     }
 
-    /// <summary>True when the session that started at <paramref name="sessionStart"/> was phone-free (so far).</summary>
-    public bool IsPhoneFree(DateTimeOffset sessionStart) => For(sessionStart) is { Count: 0 };
+    /// <summary>
+    /// True when the session that started at <paramref name="sessionStart"/> was phone-free (so far): no pickups and no more
+    /// than <see cref="PocketLimitMinutes"/> minutes in a pocket. The phone sends 0 pocket minutes when its penalty is off.
+    /// </summary>
+    public bool IsPhoneFree(DateTimeOffset sessionStart) => For(sessionStart) is { Count: 0 } && !TooLongInPocket(sessionStart);
+
+    private bool TooLongInPocket(DateTimeOffset sessionStart)
+    {
+        return PhonePlacementLookup.Newest(_received.Devices, sessionStart) is { Placement.PocketMinutes: > PocketLimitMinutes };
+    }
 
     /// <summary>The starts of this PC's sessions the phone saw no pickup in (a running one counts so far).</summary>
     public IReadOnlyList<DateTimeOffset> PhoneFreeSessions()
@@ -90,7 +101,7 @@ public sealed class PhonePickups
         return Entries()
             .GroupBy(entry => entry.SessionStart)
             .Select(group => group.MaxBy(entry => entry.CountedUntil)!)
-            .Where(entry => entry.Count == 0)
+            .Where(entry => entry.Count == 0 && !TooLongInPocket(entry.SessionStart))
             .Select(entry => entry.SessionStart)
             .ToList();
     }
