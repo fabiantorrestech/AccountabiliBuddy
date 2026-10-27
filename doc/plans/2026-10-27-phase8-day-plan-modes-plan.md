@@ -84,7 +84,7 @@
 ## Execution
 After phase 6. Tasks 1 → 2 → 3 run one after the other (each builds on the last); 4 and 5 run in parallel after 3. Implementers: Sonnet high; reviewers: Opus medium (schema, guard).
 
-## Open questions for the user (ask before building)
-- Budget's "waking time": from the night's wake time to bedtime (sleep plan), or a fixed day window (e.g. 8 AM–10 PM)?
-- Does a Budget day keep a lunch (flexible break) like a Schedule day?
-- A/B weeks: is a custom start week enough, or do you also need "this week is B" quick-switch on Today?
+## User answers (2026-10-27)
+- **Budget day's available time:** from the night's wake time to bedtime (the sleep plan), minus the non-productive windows.
+- **Lunch:** a Budget day keeps the same flexible lunch (card, length, hint); lunch counts as non-productive.
+- **A/B weeks:** pick the Monday week B starts on, plus a "This week is A/B" switch on Today. A switch that frees today's work waits like any looser plan change (Task 3); it is added to Task 4 (PC) and Task 5 (phone).
