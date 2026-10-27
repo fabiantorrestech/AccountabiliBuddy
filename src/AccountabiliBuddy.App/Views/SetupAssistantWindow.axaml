@@ -105,7 +105,7 @@
                         <TextBlock TextWrapping="Wrap" Text="Work computer: keeps only sites (no titles or addresses), notices and overlays but never minimizes work windows, shares through a sync folder and QR codes." />
                     </RadioButton>
                     <RadioButton GroupName="type" IsChecked="{Binding IsPersonalType}">
-                        <TextBlock TextWrapping="Wrap" Text="Personal computer: everything available, the network link to your phone included." />
+                        <TextBlock TextWrapping="Wrap" Text="Personal computer: everything available, Google Drive and Calendar included." />
                     </RadioButton>
                     <Button Content="Choose the sync folder…" Command="{Binding ChooseSyncFolderCommand}" IsVisible="{Binding IsWorkType}"
                             ToolTip.Tip="E.g. a folder inside Google Drive for desktop" />

@@ -1,7 +1,7 @@
-namespace AccountabiliBuddy.Core.Link;
+namespace AccountabiliBuddy.Core.Sync;
 
-/// <summary>The outcomes of a day plan edit from a paired device (ADR 19).</summary>
-public static class LinkDayPlanStatus
+/// <summary>The outcomes of a day plan edit from a device (ADR 19).</summary>
+public static class DayPlanStatus
 {
     /// <summary>Saved (or already the PC's plan); the settings push brings it back to the device.</summary>
     public const string Applied = "applied";

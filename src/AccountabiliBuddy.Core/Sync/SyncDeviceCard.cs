@@ -4,7 +4,7 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="Name">The device's own name, e.g. the PC's machine name. Never part of a file name (ADR 22).</param>
 /// <param name="Kind"><see cref="KindPc"/>, <see cref="KindPhone"/> or <see cref="KindWatch"/>.</param>
 /// <param name="WrittenAt">When the device wrote the file; a running session's end is taken as this time.</param>
-/// <param name="Methods">The methods this device uses: <see cref="MethodLink"/>, <see cref="MethodFolder"/>, <see cref="MethodQr"/>, <see cref="MethodFile"/>.</param>
+/// <param name="Methods">The methods this device uses: <see cref="MethodLink"/> (old files only), <see cref="MethodFolder"/>, <see cref="MethodQr"/>, <see cref="MethodFile"/>.</param>
 /// <param name="HistoryOff">
 /// Activity history is off on the device: the file carries no sessions or drift, and receivers delete the ones they
 /// have from it (ADR 15).
@@ -36,7 +36,7 @@ public sealed record SyncDeviceCard(
     public const string KindPhone = "phone";
     public const string KindWatch = "watch";
 
-    /// <summary>The network link to a paired PC (ADR 14).</summary>
+    /// <summary>The network link (ADR 14), deleted in ADR 45; old files still name it and are read.</summary>
     public const string MethodLink = "link";
 
     /// <summary>A sync folder the user picks, e.g. inside Google Drive for desktop.</summary>
