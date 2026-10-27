@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using AccountabiliBuddy.App.Services;
+using AccountabiliBuddy.App.Services.Sync;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Storage;
+using AccountabiliBuddy.Core.Sync;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -20,7 +22,7 @@ public sealed partial class ProfilesViewModel : ObservableObject
     private readonly OverlaySettingsService _overlays;
     private readonly ColdTurkeyService _coldTurkey;
     private readonly ExemptionDefaultsService? _exemptionDefaults;
-    private readonly AccountabiliBuddy.App.Services.Link.LinkService? _link;
+    private readonly ReceivedDevicesService? _received;
 
     // Every rule id this tab already has an editor for, so rules added elsewhere can be told apart.
     private readonly HashSet<Guid> _knownRuleIds = new();
@@ -34,10 +36,10 @@ public sealed partial class ProfilesViewModel : ObservableObject
         PendingChangesViewModel pendingChanges,
         OverlaySettingsService overlays,
         ColdTurkeyService coldTurkey,
-        AccountabiliBuddy.App.Services.Link.LinkService? link = null,
+        ReceivedDevicesService? received = null,
         ExemptionDefaultsService? exemptionDefaults = null)
     {
-        _link = link;
+        _received = received;
         _exemptionDefaults = exemptionDefaults;
         _configuration = configuration;
         _sessions = sessions;
@@ -51,10 +53,10 @@ public sealed partial class ProfilesViewModel : ObservableObject
         _overlays.Changed += OnOverlayChanged;
         _coldTurkey.Changed += (_, _) => ShowColdTurkeyBlocks();
 
-        // Grouped by device once a phone or tablet is linked.
-        if (_link is not null)
+        // Grouped by device once a phone has sent its sync file.
+        if (_received is not null)
         {
-            _link.Changed += (_, _) => RefreshDevices();
+            _received.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(RefreshDevices);
         }
 
         _sessions.StateChanged += (_, _) => RefreshDevices();
@@ -73,10 +75,10 @@ public sealed partial class ProfilesViewModel : ObservableObject
 
     public ObservableCollection<ProfileEditorViewModel> Profiles { get; } = new();
 
-    /// <summary>Linked phones and tablets, each with the profiles it has.</summary>
+    /// <summary>Phones that sent a sync file, each with the profiles it has.</summary>
     public ObservableCollection<DeviceProfilesRowViewModel> LinkedDevices { get; } = new();
 
-    /// <summary>True once a phone or tablet is linked: the list is then grouped by device, this PC first.</summary>
+    /// <summary>True once a phone has sent a sync file: the list is then grouped by device, this PC first.</summary>
     [ObservableProperty]
     public partial bool HasLinkedDevices { get; set; }
 
@@ -372,12 +374,12 @@ public sealed partial class ProfilesViewModel : ObservableObject
         SelectedProfile = Profiles.FirstOrDefault(editor => editor.Id == selectedId) ?? Profiles.FirstOrDefault();
     }
 
-    /// <summary>The device rows: this PC's profile count and running profile, and each linked device (using this PC's profiles for now).</summary>
+    /// <summary>The device rows: this PC's profile count and running profile, and each phone that sent a file (using this PC's profiles for now).</summary>
     private void RefreshDevices()
     {
-        // A watch only shows the session and today's focus (ADR 21); it has no profiles to list.
-        IReadOnlyList<AccountabiliBuddy.Core.Link.PairedDevice> devices =
-            (_link?.Devices ?? Array.Empty<AccountabiliBuddy.Core.Link.PairedDevice>()).Where(device => device.Kind != "watch").ToList();
+        // A watch only shows the session and today's focus (ADR 21) and another PC has its own tab; neither lists profiles here.
+        IReadOnlyList<ReceivedDevice> devices =
+            (_received?.Devices ?? Array.Empty<ReceivedDevice>()).Where(device => device.File.Device.Kind == SyncDeviceCard.KindPhone).ToList();
         HasLinkedDevices = devices.Count > 0;
 
         // A scheduled block isn't a focus session you started, so it reads "blocks on", not "running".
@@ -387,24 +389,17 @@ public sealed partial class ProfilesViewModel : ObservableObject
             : $"running: {running}";
         ThisDeviceDetail = $"{Profiles.Count} profile{(Profiles.Count == 1 ? "" : "s")} · {now}";
 
-        IReadOnlyCollection<Guid> connected = _link?.ConnectedDeviceIds ?? Array.Empty<Guid>();
         var expanded = LinkedDevices.Where(row => row.IsExpanded).Select(row => row.Id).ToHashSet();
         List<string> names = Profiles.Select(editor => editor.Name).ToList();
         LinkedDevices.Clear();
-        foreach (AccountabiliBuddy.Core.Link.PairedDevice device in devices.OrderBy(device => device.PairedAt))
+        foreach (ReceivedDevice device in devices.OrderBy(device => device.File.Device.Name, StringComparer.CurrentCultureIgnoreCase))
         {
-            string seen = connected.Contains(device.Id) ? "connected now"
-                : device.LastSeenAt is DateTimeOffset at ? $"last seen {at.ToLocalTime():ddd d MMM, h:mm tt}"
-                : "not seen yet";
-            LinkedDevices.Add(new DeviceProfilesRowViewModel(device.Id, device.Name, $"{names.Count} profiles (this PC's, synced) · {seen}", names)
+            SyncDeviceCard card = device.File.Device;
+            string seen = $"last synced {device.ReceivedAt.ToLocalTime():ddd d MMM, h:mm tt}";
+            LinkedDevices.Add(new DeviceProfilesRowViewModel(card.DeviceId, card.Name, $"{names.Count} profiles (this PC's, synced) · {seen}", names)
             {
-                IsExpanded = expanded.Contains(device.Id),
-                Icon = device.Kind switch
-                {
-                    "watch" => Material.Icons.MaterialIconKind.WatchVariant,
-                    "tablet" => Material.Icons.MaterialIconKind.Tablet,
-                    _ => Material.Icons.MaterialIconKind.Cellphone,
-                },
+                IsExpanded = expanded.Contains(card.DeviceId),
+                Icon = Material.Icons.MaterialIconKind.Cellphone,
             });
         }
     }

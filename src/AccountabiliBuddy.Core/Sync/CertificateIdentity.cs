@@ -1,14 +1,15 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
-namespace AccountabiliBuddy.Core.Link;
+namespace AccountabiliBuddy.Core.Sync;
 
 /// <summary>
-/// The PC's own TLS certificate for the link (ADR 14): self-signed ECDSA P-256, made once and kept encrypted.
-/// Devices pin its SHA-256 fingerprint from the QR code instead of trusting any authority.
+/// A self-signed TLS certificate and its SHA-256 fingerprint, for pinning instead of trusting an authority. Kept from
+/// the deleted Wi-Fi link (ADR 45) as the reference for the relay's pinned TLS (phase 6, ADR 46); nothing uses it yet.
 /// </summary>
-public static class LinkIdentity
+public static class CertificateIdentity
 {
+    /// <summary>Self-signed ECDSA P-256, valid for 20 years.</summary>
     public static byte[] CreatePfx(string pcName)
     {
         using ECDsa key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
@@ -23,9 +24,9 @@ public static class LinkIdentity
         return X509CertificateLoader.LoadPkcs12(pfx, password: null, X509KeyStorageFlags.UserKeySet);
     }
 
-    /// <summary>The SHA-256 of the certificate, base64url, as the QR code carries it.</summary>
+    /// <summary>The SHA-256 of the certificate, base64url.</summary>
     public static string Fingerprint(X509Certificate2 certificate)
     {
-        return LinkSecrets.ToBase64Url(certificate.GetCertHash(HashAlgorithmName.SHA256));
+        return Convert.ToBase64String(certificate.GetCertHash(HashAlgorithmName.SHA256)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 }

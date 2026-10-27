@@ -67,8 +67,6 @@
             <!-- Browser extensions (the list has its own heading and one-line explanation) -->
             <views:BrowserSetupList Margin="0,8,0,0" />
 
-            <!-- Linked devices (ADR 14) moved to the Devices tab (ADR 22). -->
-
             <!-- Data permissions -->
             <TextBlock Text="Your data" Classes="title" Margin="0,8,0,0" />
             <TextBlock Classes="muted" Text="Everything stays on this computer." />

@@ -15,15 +15,15 @@ public static class ComputerTypePreset
         {
             ComputerType.Work => new PresetValues(
                 ScreenReading: false, KeepTitlesAndAddresses: false, MaxLevel: EscalationLevel.Overlay,
-                LinkOn: false, FolderOn: true, QrOn: true, FileShareOn: false,
+                FolderOn: true, QrOn: true, FileShareOn: false,
                 GoogleCalendarOn: false, CheckForUpdates: true, ColdTurkeyOn: false),
             ComputerType.LocalOnly => new PresetValues(
                 ScreenReading: false, KeepTitlesAndAddresses: true, MaxLevel: EscalationLevel.Enforce,
-                LinkOn: false, FolderOn: false, QrOn: false, FileShareOn: false,
+                FolderOn: false, QrOn: false, FileShareOn: false,
                 GoogleCalendarOn: false, CheckForUpdates: false, ColdTurkeyOn: true),
             _ => new PresetValues(
                 ScreenReading: false, KeepTitlesAndAddresses: true, MaxLevel: EscalationLevel.Enforce,
-                LinkOn: true, FolderOn: false, QrOn: false, FileShareOn: false,
+                FolderOn: false, QrOn: false, FileShareOn: false,
                 GoogleCalendarOn: true, CheckForUpdates: true, ColdTurkeyOn: true),
         };
     }
@@ -49,7 +49,6 @@ public static class ComputerTypePreset
         SyncSettings current = sync.Current;
         await sync.SaveAsync(current with
         {
-            LinkOn = values.LinkOn,
             FolderOn = values.FolderOn && current.FolderPath is not null,
             QrOn = values.QrOn,
             FileShareOn = values.FileShareOn,

@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.App.Services.Sync;
 using AccountabiliBuddy.Core.Domain;
-using AccountabiliBuddy.Core.Link;
 using AccountabiliBuddy.Core.Sync;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
@@ -15,9 +14,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// The Devices tab (ADR 22): this PC and every device in its group with how fresh each is, today's focus across them,
-/// the sharing methods safest first (with the folder, interval and QR reminder), linking and leaving the group, and the
-/// phones paired over the network link (moved from Setup). The switches and Leave are locked during a focus session
-/// the user started, like other Revokes. Use from the UI thread only.
+/// the sharing methods safest first (with the folder, interval and QR reminder), and linking and leaving the group.
+/// The switches and Leave are locked during a focus session the user started, like other Revokes. Use from the UI thread only.
 /// </summary>
 public sealed partial class DevicesViewModel : ObservableObject, IDisposable
 {
@@ -64,9 +62,6 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         Refresh();
     }
 
-    /// <summary>Phones and tablets paired over the network link (ADR 14), moved here from Setup.</summary>
-    public LinkedDevicesViewModel? LinkedDevices { get; init; }
-
     /// <summary>Opens today's sync QR codes; set by the app.</summary>
     public Action? ShowSyncQr { get; set; }
 
@@ -95,12 +90,6 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     /// <summary>Opens Google's sign-in page in the browser; set by the app.</summary>
     public Func<Uri, bool>? OpenBrowser { get; set; }
 
-    /// <summary>The devices paired over the network link (a watch there merges into its phone's watch row); set by the app.</summary>
-    public Func<IReadOnlyList<PairedDevice>>? PairedDevices { get; set; }
-
-    /// <summary>Unpairs a device paired over the network link (null when done, else why not); set by the app.</summary>
-    public Func<Guid, Task<string?>>? UnpairDevice { get; set; }
-
     public ObservableCollection<DeviceRowViewModel> Rows { get; } = new();
 
     /// <summary>E.g. "Today: 5h 10m focused across 3 devices".</summary>
@@ -126,9 +115,6 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     public partial string? Message { get; set; }
-
-    [ObservableProperty]
-    public partial bool LinkOn { get; set; }
 
     [ObservableProperty]
     public partial bool FolderOn { get; set; }
@@ -176,7 +162,6 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         SyncSettings settings = _settings.Current;
         InGroup = _identity.Key is not null;
         _loading = true;
-        LinkOn = settings.LinkOn;
         FolderOn = settings.FolderOn;
         FolderPath = settings.FolderPath;
         QrOn = settings.QrOn;
@@ -227,20 +212,15 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// A phone's linked watch under it (Task 18), display only: paired and unpaired on the phone. A watch also paired
-    /// with this PC over Wi-Fi (the same name) shows once, here, with that pairing's Unpair.
+    /// A phone's linked watch under it (Task 18), display only: paired and unpaired on the phone.
     /// </summary>
     private DeviceRowViewModel CompanionRow(SyncCompanion companion, string phoneName, DateTimeOffset now)
     {
-        PairedDevice? wifi = PairedDevices?.Invoke()
-            .FirstOrDefault(device => device.Kind == SyncDeviceCard.KindWatch && device.Name == companion.Name);
-        string methods = wifi is null
-            ? $"Linked to {phoneName} · pair or unpair on the phone"
-            : $"Linked to {phoneName} · pair or unpair on the phone · also paired with this PC";
+        string methods = $"Linked to {phoneName} · pair or unpair on the phone";
         if (!companion.Linked)
         {
             return new DeviceRowViewModel(companion.Name, "Watch", methods,
-                "Not found on the phone: open AccountabiliBuddy on the watch", DeviceSyncState.Unlinked, "Not found", Indented: true, UnpairId: wifi?.Id);
+                "Not found on the phone: open AccountabiliBuddy on the watch", DeviceSyncState.Unlinked, "Not found", Indented: true);
         }
 
         string last = companion.LastHeard is DateTimeOffset heard ? $"last update {Ago(now - heard)}" : "not heard from yet";
@@ -253,26 +233,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
             DeviceSyncState.Waiting => "Waiting",
             _ => "Linked",
         };
-        return new DeviceRowViewModel(companion.Name, "Watch", methods, last, state, stateText, Indented: true, UnpairId: wifi?.Id);
-    }
-
-    /// <summary>Unpairs the Wi-Fi pairing of a phone's watch that's also paired with this PC.</summary>
-    [RelayCommand]
-    private async Task UnpairCompanionAsync(DeviceRowViewModel? row)
-    {
-        if (row?.UnpairId is not Guid id || UnpairDevice is null)
-        {
-            return;
-        }
-
-        if (IsLocked)
-        {
-            Message = LockedMessage;
-            return;
-        }
-
-        Message = await UnpairDevice(id) ?? $"Unpaired {row.Name.TrimStart('⌚', ' ')} from this PC (it stays linked to the phone).";
-        Refresh();
+        return new DeviceRowViewModel(companion.Name, "Watch", methods, last, state, stateText, Indented: true);
     }
 
     [RelayCommand]
@@ -377,8 +338,6 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     {
         _timer.Stop();
     }
-
-    partial void OnLinkOnChanged(bool value) => _ = ApplyAsync(settings => settings with { LinkOn = value });
 
     partial void OnFolderOnChanged(bool value)
     {
@@ -522,11 +481,6 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     private static List<string> OwnMethods(SyncSettings settings)
     {
         var methods = new List<string>();
-        if (settings.LinkOn)
-        {
-            methods.Add(SyncDeviceCard.MethodLink);
-        }
-
         if (settings.FolderOn)
         {
             methods.Add(SyncDeviceCard.MethodFolder);
@@ -554,7 +508,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     {
         return method switch
         {
-            SyncDeviceCard.MethodLink => "network link",
+            SyncDeviceCard.MethodLink => "network link (deleted)", // old files may still name it
             SyncDeviceCard.MethodFolder => "sync folder",
             SyncDeviceCard.MethodQr => "QR codes",
             _ => "sync file",

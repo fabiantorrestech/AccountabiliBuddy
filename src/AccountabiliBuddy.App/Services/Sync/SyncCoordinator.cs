@@ -3,7 +3,6 @@ using AccountabiliBuddy.App.Services.Backup;
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
-using AccountabiliBuddy.Core.Link;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using AccountabiliBuddy.Core.Sync;
@@ -253,7 +252,7 @@ public sealed class SyncCoordinator
     /// <summary>The PC's open come-backs for its sync file (ADR 30); set by the app.</summary>
     public Func<IReadOnlyList<SyncComeback>?>? Comebacks { get; set; }
 
-    // The running session for the phone's countdown without the link (ADR 26); old scheduled blocks don't count.
+    // The running session for the phone's countdown (ADR 26); old scheduled blocks don't count.
     private SyncRunning? RunningNow(IReadOnlyList<FocusProfile> profiles)
     {
         SessionState state = _sessions.State;
@@ -296,7 +295,7 @@ public sealed class SyncCoordinator
     /// <summary>This PC's pickups during the other PCs' sessions and today's input stretches (design K); set by the app.</summary>
     public PcPickupsService? PcPickups { get; set; }
 
-    /// <summary>The visible calendars' events for the other devices (ADR 26, the link's shape); set by the app.</summary>
+    /// <summary>The visible calendars' events for the other devices (ADR 26); set by the app.</summary>
     public Func<JsonElement?>? Events { get; set; }
 
     /// <summary>The phone's actions this PC applied (ADR 26), acknowledged in its file; set by the app.</summary>
@@ -683,7 +682,7 @@ public sealed class SyncCoordinator
     /// <summary>On/off, the goal and tonight's one-off wake time; the times follow this PC's day plan.</summary>
     private async Task<bool> ApplySleepAsync(string json)
     {
-        if (JsonSerializer.Deserialize<SleepSettings>(json, LinkFraming.JsonOptions) is not SleepSettings received)
+        if (JsonSerializer.Deserialize<SleepSettings>(json, SyncJson.Options) is not SleepSettings received)
         {
             return false;
         }
@@ -714,12 +713,12 @@ public sealed class SyncCoordinator
 
     private async Task<bool> ApplyDayBarAsync(string json)
     {
-        if (JsonSerializer.Deserialize<DayBarSettings>(json, LinkFraming.JsonOptions) is not DayBarSettings received)
+        if (JsonSerializer.Deserialize<DayBarSettings>(json, SyncJson.Options) is not DayBarSettings received)
         {
             return false;
         }
 
-        if (JsonSerializer.Serialize(received, LinkFraming.JsonOptions) != JsonSerializer.Serialize(_dayBar.Current, LinkFraming.JsonOptions))
+        if (JsonSerializer.Serialize(received, SyncJson.Options) != JsonSerializer.Serialize(_dayBar.Current, SyncJson.Options))
         {
             using (_editTimes.SuppressStamping())
             {
@@ -736,7 +735,7 @@ public sealed class SyncCoordinator
     /// </summary>
     private async Task<bool> ApplyGoalAsync(string json)
     {
-        if (JsonSerializer.Deserialize<GoalSettings>(json, LinkFraming.JsonOptions) is not GoalSettings received || received.DailyMinutes <= 0)
+        if (JsonSerializer.Deserialize<GoalSettings>(json, SyncJson.Options) is not GoalSettings received || received.DailyMinutes <= 0)
         {
             return false;
         }
@@ -770,9 +769,9 @@ public sealed class SyncCoordinator
     {
         var documents = new List<SyncDocument>();
         Add(SyncDocument.ProfilesKey, WithoutDayPlan(_configuration.Editing));
-        Add(SyncDocument.SleepKey, JsonSerializer.Serialize(_sleep.Current, LinkFraming.JsonOptions));
-        Add(SyncDocument.DayBarKey, JsonSerializer.Serialize(_dayBar.Current, LinkFraming.JsonOptions));
-        Add(SyncDocument.GoalKey, JsonSerializer.Serialize(_goal.Current, LinkFraming.JsonOptions));
+        Add(SyncDocument.SleepKey, JsonSerializer.Serialize(_sleep.Current, SyncJson.Options));
+        Add(SyncDocument.DayBarKey, JsonSerializer.Serialize(_dayBar.Current, SyncJson.Options));
+        Add(SyncDocument.GoalKey, JsonSerializer.Serialize(_goal.Current, SyncJson.Options));
         return documents;
 
         void Add(string key, string json)
@@ -794,11 +793,6 @@ public sealed class SyncCoordinator
     {
         SyncSettings settings = _settings.Current;
         var methods = new List<string>();
-        if (settings.LinkOn)
-        {
-            methods.Add(SyncDeviceCard.MethodLink);
-        }
-
         if (settings.FolderOn)
         {
             methods.Add(SyncDeviceCard.MethodFolder);

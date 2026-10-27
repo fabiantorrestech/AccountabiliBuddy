@@ -8,7 +8,7 @@ namespace AccountabiliBuddy.Platform.Windows.Network;
 /// <summary>
 /// Asks Windows' network list which category each connected network has (Public, Private, Domain), counting only
 /// networks on real Wi-Fi or Ethernet adapters, so a virtual switch's "Unidentified network" (Hyper-V, WSL) doesn't
-/// keep linking off.
+/// count as a public network. Kept for Places (phase 12); unused since the Wi-Fi link was deleted (ADR 45).
 /// </summary>
 public sealed class WindowsNetworkTrust : INetworkTrust
 {
@@ -50,7 +50,7 @@ public sealed class WindowsNetworkTrust : INetworkTrust
         }
         catch (COMException)
         {
-            // Can't tell: treat as not private, so the link stays off rather than open on an unknown network.
+            // Can't tell: treat as not private, so a caller stays cautious on an unknown network.
             return false;
         }
     }
