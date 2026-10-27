@@ -339,7 +339,6 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         _timer.Stop();
     }
 
-
     partial void OnFolderOnChanged(bool value)
     {
         if (!_loading && value && FolderPath is null)

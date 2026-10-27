@@ -40,6 +40,7 @@ public static class ComputerTypeSummary
         if (values.GoogleCalendarOn)
         {
             lines.Add("Reads Google Calendar if you sign in");
+            lines.Add("Shares with your phone through Google Drive once you sign in (Devices).");
         }
 
         // The app's own connections: update checks and Google sign-in go out (a sync folder is the folder's own app's
