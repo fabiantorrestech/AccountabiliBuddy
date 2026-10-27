@@ -1,0 +1,62 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.TimerUpWindow"
+        x:DataType="vm:TimerUpViewModel"
+        Title="Timer"
+        Width="420" SizeToContent="Height"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="True"
+        WindowStartupLocation="CenterScreen">
+    <!-- A timer is up: Dismiss, or "+5 min" (menu: +1, +5, +10, +15, custom) with the time it would go off again. -->
+    <Border Padding="24,20" Background="#FF15191E" BorderBrush="#AAF59E0B" BorderThickness="2" CornerRadius="10">
+        <StackPanel Spacing="14">
+            <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding Text}" Opacity="0.8" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <mi:MaterialIcon Kind="AlarmCheck" Width="16" Height="16" VerticalAlignment="Center" Opacity="0.7" />
+                <TextBlock Text="{Binding GoesOffAt}" VerticalAlignment="Center" Opacity="0.9" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+                <SplitButton x:Name="SplitMenu" Command="{Binding ExtendCommand}"
+                             PointerEntered="OnChoiceEntered" PointerExited="OnChoiceExited" Tag="5">
+                    <SplitButton.Content>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <mi:MaterialIcon Kind="TimerPlusOutline" Width="16" Height="16" />
+                            <TextBlock Text="{Binding DefaultText}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </SplitButton.Content>
+                    <SplitButton.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedRight">
+                            <StackPanel Spacing="2" MinWidth="130">
+                                <Button Content="+1 min" Tag="1" Command="{Binding ExtendCommand}" CommandParameter="1"
+                                        HorizontalAlignment="Stretch" Click="OnChoicePicked"
+                                        PointerEntered="OnChoiceEntered" PointerExited="OnChoiceExited" />
+                                <Button Content="+5 min" Tag="5" Command="{Binding ExtendCommand}" CommandParameter="5"
+                                        HorizontalAlignment="Stretch" Click="OnChoicePicked"
+                                        PointerEntered="OnChoiceEntered" PointerExited="OnChoiceExited" />
+                                <Button Content="+10 min" Tag="10" Command="{Binding ExtendCommand}" CommandParameter="10"
+                                        HorizontalAlignment="Stretch" Click="OnChoicePicked"
+                                        PointerEntered="OnChoiceEntered" PointerExited="OnChoiceExited" />
+                                <Button Content="+15 min" Tag="15" Command="{Binding ExtendCommand}" CommandParameter="15"
+                                        HorizontalAlignment="Stretch" Click="OnChoicePicked"
+                                        PointerEntered="OnChoiceEntered" PointerExited="OnChoiceExited" />
+                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,6,0,0">
+                                    <mi:MaterialIcon Kind="PencilOutline" Width="16" Height="16" VerticalAlignment="Center" />
+                                    <TextBox Text="{Binding CustomMinutesText}" PlaceholderText="Custom (1-180)" Width="120"
+                                             MaxLength="3" KeyDown="OnCustomKeyDown" />
+                                </StackPanel>
+                                <TextBlock Text="Minutes 1 to 180, then Enter." FontSize="11" Opacity="0.65"
+                                           IsVisible="{Binding !IsCustomInvalid}" />
+                                <TextBlock Text="Use a whole number from 1 to 180." FontSize="11" Foreground="#FFF59E0B"
+                                           IsVisible="{Binding IsCustomInvalid}" />
+                            </StackPanel>
+                        </Flyout>
+                    </SplitButton.Flyout>
+                </SplitButton>
+                <Button Content="Dismiss" Command="{Binding DismissCommand}" Classes="accent" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

@@ -10,7 +10,7 @@
 
 **Spec:** feature-list plan, "Day plan rework" row and the user's answers of 2026-10-27; the user's note C 15.
 
-**ADR:** a new ADR "Day plan modes", written before Task 1. It amends ADR 18 (the plan only says when the buddy watches), 27/28 (the work-hours guard follows the day's mode; budget holds), 31 (Pre-Work on a budget or free day) and 33 (sleep per weekday).
+**ADR:** [47. Day plan modes](../adr/0047-day-plan-modes.md). It amends ADR 18 (the plan only says when the buddy watches), 27/28 (the work-hours guard follows the day's mode; budget holds), 31 (Pre-Work on a budget or free day) and 33 (sleep per weekday).
 
 ## Global Constraints
 - Profiles/plan schema **v12** (ADR 7), with a migration in `ProfileDocumentSerializer`.

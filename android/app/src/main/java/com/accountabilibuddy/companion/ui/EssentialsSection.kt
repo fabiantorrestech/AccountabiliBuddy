@@ -38,6 +38,7 @@ import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.essentials.AppFolder
 import com.accountabilibuddy.companion.essentials.EssentialsKind
 import com.accountabilibuddy.companion.essentials.EssentialsLaunch
+import com.accountabilibuddy.companion.essentials.LunchLockLift
 import com.accountabilibuddy.companion.usage.PhoneUsageReader
 import java.util.UUID
 
@@ -165,6 +166,8 @@ internal fun EssentialsSection(kind: EssentialsKind = EssentialsKind.Focus, star
                 Text("Use \"$syncedName\" (kept in sync with these essentials)")
             }
         }
+
+        if (!night) LunchLiftSetting(enabled = useLmp && hardcore.isNotBlank())
 
         // Folders.
         Text("Folders", style = MaterialTheme.typography.labelLarge)
@@ -330,4 +333,46 @@ private fun LockMyPhoneProfilePicker(selected: String?, enabled: Boolean, noneLa
         else -> null
     }
     note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+}
+
+/** "Lift the lock for lunch": lunch stops the session's LockMyPhone-Extended lock (needs its Intent API token). */
+@Composable
+private fun LunchLiftSetting(enabled: Boolean) {
+    val context = LocalContext.current
+    var on by remember { mutableStateOf(LunchLockLift.enabled(context)) }
+    var hasToken by remember { mutableStateOf(LunchLockLift.hasToken(context)) }
+    var token by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf(LunchLockLift.note(context)) }
+    ToggleRow(
+        "Lift the lock for lunch",
+        "When lunch starts (on any device) the session's LockMyPhone-Extended lock is stopped; it comes back when lunch ends. Only a lock started for the session, never one you started there or the night's.",
+        on,
+    ) { LunchLockLift.setEnabled(context, it); on = it }
+    if (on) {
+        OutlinedTextField(
+            value = token, onValueChange = { token = it }, singleLine = true,
+            label = { Text(if (hasToken) "Token saved (paste to replace)" else "Intent API token") },
+            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            "Paste the token from LockMyPhone-Extended \u2192 Settings \u2192 Intent API; turn on \"Allow stopping a lock by intent\" there.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(enabled = token.isNotBlank(), onClick = {
+                LunchLockLift.saveToken(context, token); token = ""; hasToken = LunchLockLift.hasToken(context); note = null
+            }) { Text("Save token") }
+            TextButton(enabled = hasToken, onClick = {
+                LunchLockLift.saveToken(context, ""); hasToken = false; note = null
+            }) { Text("Remove") }
+            TextButton(enabled = hasToken, onClick = { note = LunchLockLift.testStop(context) }) { Text("Test stop") }
+        }
+        if (!enabled) {
+            Text("Choose a LockMyPhone-Extended profile for sessions above first.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        (note ?: LunchLockLift.note(context))?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+    }
 }
