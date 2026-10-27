@@ -304,6 +304,25 @@ public sealed record DayPlan(
         return null;
     }
 
+    /// <summary>
+    /// The fixed lunch period on <paramref name="date"/> (schema v13): a Rest part with fixed hours marked
+    /// <see cref="PlanPart.AutoStart"/>, placed on its date; null when that day has none (the first one, when there are several).
+    /// </summary>
+    public FixedLunch? FixedLunchOn(DateOnly date)
+    {
+        DateTime day = date.ToDateTime(TimeOnly.MinValue);
+        foreach (PlanPart part in TemplateFor(date).Parts.Where(part => part.AutoStart && !part.IsFlexible && !part.CrossesMidnight))
+        {
+            if (Category(part.CategoryId) is DayCategory category)
+            {
+                var window = new LocalWindow(day + part.Start.ToTimeSpan(), day + TimeSpan.FromMinutes(part.EndMinutes));
+                return new FixedLunch(part.Label ?? category.Name, category.Color, window);
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>The part at <paramref name="localTime"/>, or null when nothing is planned then.</summary>
     public PlannedPart? PartAt(DateTime localTime)
     {

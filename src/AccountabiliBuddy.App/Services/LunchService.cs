@@ -11,7 +11,9 @@ namespace AccountabiliBuddy.App.Services;
 /// break in today's plan is only a guideline: its window is drawn on the day bar and gives the hint time. A running
 /// session steps away as a Break for it, held while lunch runs (input doesn't end it; "I'm back" or the lunch ending
 /// does, <see cref="StepAwayService.HoldsAway"/>). Not started by its hint time: one hint; never started: skipped (the window
-/// stays work). When it's over: one chime and "Lunch over!". A lunch started or changed on another device arrives in
+/// stays work). A fixed lunch period (schema v13, a Rest part marked to start by itself) starts by itself at its start on a
+/// workday, as if Start lunch was pressed and for the part's length, unless the user is away or in a test session just then or
+/// chose "Flexible this time" (<see cref="LunchRunIntoService"/>). When it's over: one chime and "Lunch over!". A lunch started or changed on another device arrives in
 /// its sync file (<see cref="SyncFile.Lunch"/>) and is taken here when its edit is newer. Document "lunch". Use from
 /// the UI thread only.
 /// </summary>
@@ -35,6 +37,12 @@ public sealed class LunchService
 
     /// <summary>A shortened lunch ends no sooner than this after now.</summary>
     private static readonly TimeSpan ShortestLeft = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// A fixed lunch starts by itself only just after its start time (a minute or two for a busy moment or a restart): never
+    /// later, so a break, a test or a closed app at that time means it doesn't start, and it never begins in the middle of the hour.
+    /// </summary>
+    private static readonly TimeSpan AutoStartGrace = TimeSpan.FromMinutes(2);
 
     private readonly SessionController _sessions;
     private readonly ConfigurationService _configuration;
@@ -83,6 +91,17 @@ public sealed class LunchService
     /// </summary>
     public bool HoldsSessionAway => IsOnLunch && Taken is SyncLunch lunch && _sessions.Now < lunch.Start + MaxLength;
 
+    /// <summary>Today's fixed lunch period from the plan (schema v13); null on a day without one.</summary>
+    public FixedLunch? FixedToday => _configuration.Current.DayPlan.FixedLunchOn(DateOnly.FromDateTime(LocalNow()));
+
+    /// <summary>True when "Flexible this time" was chosen today: the fixed lunch is left to the user's Start lunch.</summary>
+    public bool IsFlexibleToday => _state.NoAutoStartOn == DateOnly.FromDateTime(LocalNow());
+
+    /// <summary>
+    /// Today's fixed lunch is still to start by itself: a workday with one, no lunch taken yet and "Flexible this time" not chosen.
+    /// </summary>
+    public FixedLunch? AutoStartPending => IsWorkdayToday && Taken is null && !IsFlexibleToday ? FixedToday : null;
+
     /// <summary>"Start lunch" shows: today is a workday (or has a flexible break) and no lunch was taken yet.</summary>
     public bool CanStart => (IsWorkdayToday || Today is not null) && Taken is null;
 
@@ -102,14 +121,31 @@ public sealed class LunchService
     }
 
     /// <summary>Starts lunch now for the lunch length; a running session steps away.</summary>
-    public async Task StartAsync()
+    public Task StartAsync() => StartForAsync(Length);
+
+    private async Task StartForAsync(TimeSpan length)
     {
         DateTimeOffset now = _sessions.Now;
-        await SaveAsync(_state with { Start = now, End = now + Length, OverTold = false, EditedAt = now });
+        await SaveAsync(_state with { Start = now, End = now + length, OverTold = false, EditedAt = now });
         if (_sessions.State.IsActive && !_sessions.State.IsAway)
         {
             _sessions.StepAway(AwayKind.Break);
         }
+    }
+
+    /// <summary>
+    /// "Flexible this time" on the run-into-lunch card: today's fixed lunch doesn't start by itself, so the user presses
+    /// Start lunch before going. Reminded at once, and the Today card says so.
+    /// </summary>
+    public async Task MakeFlexibleTodayAsync()
+    {
+        DateOnly today = DateOnly.FromDateTime(LocalNow());
+        if (_state.NoAutoStartOn != today)
+        {
+            await SaveAsync(_state with { NoAutoStartOn = today });
+        }
+
+        _remind("Lunch won't start by itself today", "Press Start lunch before you go.");
     }
 
     /// <summary>+5 min (positive) or −5 min (negative) on the running lunch; it never ends sooner than a minute from now.</summary>
@@ -201,6 +237,14 @@ public sealed class LunchService
 
         DateTime local = LocalNow();
         DateOnly today = DateOnly.FromDateTime(local);
+        if (AutoStartPending is FixedLunch fixedLunch && local >= fixedLunch.Window.Start && local < fixedLunch.Window.Start + AutoStartGrace
+            && local < fixedLunch.Window.End && !_sessions.State.IsAway && !_sessions.State.IsTest)
+        {
+            // Lunch's start has come: it starts as if Start lunch was pressed, for the part's length (never longer than the longest lunch).
+            _ = StartForAsync(fixedLunch.Length < MaxLength ? fixedLunch.Length : MaxLength);
+            return;
+        }
+
         if (Today is FlexibleBreak flex && Taken is null && flex.HintAt is DateTime hint && local >= hint && local < flex.Window.End
             && _state.HintedOn != today)
         {
@@ -238,7 +282,8 @@ public sealed class LunchService
 
 /// <summary>
 /// Today's lunch on this computer (document "lunch"): when it started and ends, when it was last edited (on any
-/// device), whether "Lunch over!" came, the last hint's day, and the lunch length setting in minutes.
+/// device), whether "Lunch over!" came, the last hint's day, the lunch length setting in minutes, and the day "Flexible this time"
+/// was chosen for (that day's fixed lunch doesn't start by itself; this computer only).
 /// </summary>
 public sealed record LunchState(
     DateTimeOffset? Start = null,
@@ -246,4 +291,5 @@ public sealed record LunchState(
     bool OverTold = false,
     DateOnly? HintedOn = null,
     DateTimeOffset? EditedAt = null,
-    int LengthMinutes = 60);
+    int LengthMinutes = 60,
+    DateOnly? NoAutoStartOn = null);

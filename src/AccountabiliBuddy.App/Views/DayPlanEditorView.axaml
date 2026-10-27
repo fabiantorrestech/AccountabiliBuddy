@@ -56,6 +56,10 @@
                             <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding HintAt}" MinuteIncrement="15" MinWidth="0" Width="196" />
                         </StackPanel>
                     </WrapPanel>
+                    <!-- A fixed lunch period (schema v13): a Rest part with fixed hours starts lunch by itself at its start. -->
+                    <CheckBox Margin="24,0,0,0" IsVisible="{Binding CanAutoStart}" IsChecked="{Binding AutoStart}"
+                              Content="Starts by itself (lunch starts at its start, for as long as this part lasts)"
+                              ToolTip.Tip="On workdays lunch starts by itself at this part's start. A session that would run into it asks you first" />
                     </StackPanel>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>

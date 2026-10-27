@@ -101,6 +101,8 @@ public partial class App : Application
     private StartNudgeService? _startNudge;
     private IWindowAttention? _windowAttention;
     private LunchService? _lunch;
+    private LunchRunIntoService? _lunchRunInto;
+    private LunchRunIntoCardWindow? _lunchRunIntoWindow;
     private Motion? _motion;
     private AccountabiliBuddy.App.Services.Sync.PhonePickups? _phonePickups;
     private AccountabiliBuddy.App.Services.Sync.PhonePlacementService? _phonePlacement;
@@ -439,6 +441,9 @@ public partial class App : Application
             (title, message) => presenter.ShowReminder(title, message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#CA8A04"))),
             () => _sessionCues?.Play(soundSettings.Current.BreakEndSound));
         _lunch.LoadBlocking();
+        // A fixed lunch period starts by itself; a session that would run into it asks first (Keep, Adjust, Flexible this time).
+        _lunchRunInto = new LunchRunIntoService(_sessions!, _lunch);
+        _lunchRunInto.CardChanged += (_, _) => Dispatcher.UIThread.Post(() => ShowLunchRunIntoCard(monitorLocator));
         // Browsing at lunch isn't being back: lunch's step away ends with "I'm back" or the lunch ending, not input.
         _stepAway!.HoldsAway = () => _lunch.HoldsSessionAway;
         // Animations at the chosen speed, or none (Settings → On screen & sound).
@@ -1631,6 +1636,42 @@ public partial class App : Application
 
         _workGateWindow = window;
         _frontCards.Show(window);
+    }
+
+    /// <summary>Shows or closes the run-into-lunch card (a session that would overlap a fixed lunch) as the service opens or closes it.</summary>
+    private void ShowLunchRunIntoCard(IMonitorLocator monitors)
+    {
+        LunchRunIntoCardViewModel? card = _lunchRunInto?.Card;
+        if (card is null)
+        {
+            LunchRunIntoCardWindow? open = _lunchRunIntoWindow;
+            _lunchRunIntoWindow = null;
+            open?.Close();
+            return;
+        }
+
+        if (_lunchRunIntoWindow is not null)
+        {
+            return;
+        }
+
+        var window = new LunchRunIntoCardWindow { DataContext = card };
+        window.Closed += (_, _) =>
+        {
+            if (_lunchRunIntoWindow == window)
+            {
+                // Closed some other way: it is asked again at the 5-minute mark if still due.
+                _lunchRunIntoWindow = null;
+                _lunchRunInto?.CardWindowClosed();
+            }
+        };
+        if (monitors.Find(monitors.FindMonitorUnderCursor()) is MonitorArea area)
+        {
+            MonitorPlacement.Center(window, area);
+        }
+
+        _lunchRunIntoWindow = window;
+        _frontCards.Show(window); // Dimmed behind, kept in front, follows the virtual desktop.
     }
 
     /// <summary>Shows or closes the start nudge's card, like the work-hours gate, as the service opens or closes it.</summary>

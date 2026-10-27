@@ -16,6 +16,9 @@ public sealed class SessionController : IDisposable
 
     private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(1);
 
+    // The shortest a timed session may be made (the run-into-lunch card's "Adjust"), as short as one may be started.
+    private static readonly TimeSpan ShortestSession = TimeSpan.FromMinutes(1);
+
     private readonly SessionEngine _engine;
     private readonly ConfigurationService _configuration;
     private readonly TimeProvider _timeProvider;
@@ -112,6 +115,16 @@ public sealed class SessionController : IDisposable
     public bool StartManual(Guid profileId, TimeSpan? duration)
     {
         return _engine.StartManual(profileId, duration, PlanningLength());
+    }
+
+    /// <summary>
+    /// "Adjust" on the run-into-lunch card: the timed session ends at <paramref name="newEnd"/> instead (see
+    /// <see cref="SessionEngine.ShortenFocusEnd"/>). Never lengthens a session.
+    /// </summary>
+    /// <returns>False when it can't be shortened that way.</returns>
+    public bool ShortenFocusEnd(DateTimeOffset newEnd)
+    {
+        return _engine.ShortenFocusEnd(newEnd, ShortestSession);
     }
 
     /// <summary>

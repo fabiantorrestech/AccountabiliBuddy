@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.lunch.LunchStore
+import com.accountabilibuddy.companion.model.FixedLunch
 import com.accountabilibuddy.companion.model.FlexibleBreak
 import com.accountabilibuddy.shared.WatchLunch
 import com.accountabilibuddy.shared.sync.SyncLunch
@@ -39,6 +40,7 @@ import java.time.ZoneId
 fun LunchCard(
     workday: Boolean,
     flex: FlexibleBreak?,
+    fixed: FixedLunch?,
     taken: SyncLunch?,
     lengthMinutes: Int,
     clock: ClockFormat,
@@ -71,6 +73,8 @@ fun LunchCard(
                             "Lunch · %d:%02d left · until %s".format(left / 60, left % 60, time(taken.end))
                         }
                         taken != null -> "Lunch done · ${time(taken.start)} – ${time(taken.end)}"
+                        // A fixed lunch period: the PC starts it by itself (this phone doesn't ask about it).
+                        fixed != null -> "Lunch starts at ${clock.time(fixed.window.start)} by itself · ${LunchStore.formatLength(Duration.between(fixed.window.start, fixed.window.end).toMinutes().toInt())}"
                         flex != null -> "${flex.name} · $length · usually ${clock.time(flex.window.start)} – ${clock.time(flex.window.end)}"
                         else -> "Lunch · $length, any time"
                     }
