@@ -792,10 +792,18 @@ public sealed class SyncCoordinator
         }
     }
 
-    /// <summary>The profile document without its plan (the starting plan in its place): the plan travels on its own.</summary>
+    // The newest profile schema a phone before the day plan modes (0.1.61) reads: it refuses a profiles document stamped higher.
+    private const int OldPhoneProfileSchemaVersion = 11;
+
+    /// <summary>
+    /// The profile document without its plan (the starting plan in its place): the plan travels on its own. Stamped schema
+    /// 11, the last one older phones read: v12 changed only the day plan, which travels in the file's own plan field with
+    /// its v11 fields, so an old reader accepts everything else; new readers upgrade by the plan's shape, not the stamp
+    /// (DayModesMigration only rewrites a plan with no templates), and read it back as v12.
+    /// </summary>
     private static string WithoutDayPlan(ProfileDocument document)
     {
-        return ProfileDocumentSerializer.Serialize(document with { DayPlan = DayPlan.Default });
+        return ProfileDocumentSerializer.Serialize(document with { DayPlan = DayPlan.Default, SchemaVersion = OldPhoneProfileSchemaVersion });
     }
 
     private List<string> Methods()

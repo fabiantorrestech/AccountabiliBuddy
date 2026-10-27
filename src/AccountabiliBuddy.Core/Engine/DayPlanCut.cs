@@ -20,7 +20,8 @@ public static class DayPlanCut
 {
     /// <param name="focusedOn">Counted focus on a date, for Budget days (once met, their guarded windows are over); null = nothing counted.</param>
     /// <param name="nightFallback">The night before a date for a Budget day with no Sleep part (the sleep settings' night); null = the whole day.</param>
-    public static TimeSpan FreedToday(DayPlan before, DayPlan after, DateTime localNow, Func<DateOnly, TimeSpan>? focusedOn = null, Func<DateOnly, SleepTimes?>? nightFallback = null)
+    /// <param name="nightFallbackAfter">The same for the changed plan, when its own sleep would move the fallback (saving a plan re-derives the sleep settings' nights from it); null = <paramref name="nightFallback"/>.</param>
+    public static TimeSpan FreedToday(DayPlan before, DayPlan after, DateTime localNow, Func<DateOnly, TimeSpan>? focusedOn = null, Func<DateOnly, SleepTimes?>? nightFallback = null, Func<DateOnly, SleepTimes?>? nightFallbackAfter = null)
     {
         var rest = new LocalWindow(localNow, localNow.Date.AddDays(1));
         if (rest.End <= rest.Start)
@@ -29,7 +30,7 @@ public static class DayPlanCut
         }
 
         IReadOnlyList<LocalWindow> was = Work(before, rest, localNow, focusedOn, nightFallback);
-        IReadOnlyList<LocalWindow> stays = Work(after, rest, localNow, focusedOn, nightFallback);
+        IReadOnlyList<LocalWindow> stays = Work(after, rest, localNow, focusedOn, nightFallbackAfter ?? nightFallback);
         TimeSpan freed = Total(DayTimeline.Subtract(was, stays));
 
         DateOnly today = DateOnly.FromDateTime(localNow);

@@ -70,6 +70,9 @@ public sealed class WorkHoursGuard : IDisposable
     /// <summary>The night before a date from the sleep settings, for a Budget day whose plan has no Sleep part. Set by the app.</summary>
     public Func<DateOnly, SleepTimes?>? NightFallback { get; set; }
 
+    /// <summary>The night fallback once a given plan is saved (saving re-derives the sleep settings' nights from the plan); for the hold's "after" side. Set by the app.</summary>
+    public Func<DayPlan, Func<DateOnly, SleepTimes?>>? NightFallbackFor { get; set; }
+
     /// <summary>Today's goal is met (earned time): the guard has lifted, and stopping for today costs nothing.</summary>
     public bool IsGoalMet => Goal?.Invoke() is { Met: true };
 
@@ -238,7 +241,7 @@ public sealed class WorkHoursGuard : IDisposable
             return null;
         }
 
-        TimeSpan freed = DayPlanCut.FreedToday(before, after, LocalNow(), FocusedOn, NightFallback);
+        TimeSpan freed = DayPlanCut.FreedToday(before, after, LocalNow(), FocusedOn, NightFallback, NightFallbackFor?.Invoke(after));
         if (freed <= TimeSpan.Zero)
         {
             return null;
