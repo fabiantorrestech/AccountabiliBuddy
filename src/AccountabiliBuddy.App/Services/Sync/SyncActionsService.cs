@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Text.Json;
 using AccountabiliBuddy.App.Services.Remote;
 using AccountabiliBuddy.Core.Domain;
-using AccountabiliBuddy.Core.Link;
 using AccountabiliBuddy.Core.Storage;
 using AccountabiliBuddy.Core.Sync;
 using Microsoft.Data.Sqlite;
@@ -15,7 +14,7 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// tick a come-back, step away or come back (only within 10 minutes of doing it, so an old one never replays); start a
 /// session or ask to end one early (only within 2 minutes), end early after the offer's wait (until its allowed-from
 /// time plus 10 minutes), edit the day plan (within a day), and control the noise player (within 2 minutes, by its own
-/// buttons' rules: <see cref="RemoteNoiseControl"/>), all by the same rules as the link where it has them
+/// buttons' rules: <see cref="RemoteNoiseControl"/>), all by the same rules as the PC's own buttons
 /// (<see cref="RemoteSessionControl"/>, <see cref="RemotePlanEdits"/>). An action past its freshness is refused, never
 /// applied late; freshness counts from when this PC first saw the action (its file's arrival, on this PC's clock), and
 /// an action the phone made more than a day ago is refused too, so neither clock's skew decides alone. The ids applied
@@ -261,7 +260,7 @@ public sealed class SyncActionsService
         }
     }
 
-    // Like the link's start: refused while a session runs, the profile must exist, the length 1 minute to 12 hours.
+    // Refused while a session runs, the profile must exist, the length 1 minute to 12 hours.
     private async Task<SyncActionResult> StartAsync(SyncAction action, DateTimeOffset now)
     {
         if (IsLate(action, ControlFresh, now))
@@ -307,7 +306,7 @@ public sealed class SyncActionsService
         }
 
         SessionState state = _sessions.State;
-        if (_control.EndEarlyTerms() is not LinkEndEarlyTerms terms)
+        if (_control.EndEarlyTerms() is not EndEarlyTerms terms)
         {
             return Refused(action, "No session is running.");
         }
@@ -375,7 +374,7 @@ public sealed class SyncActionsService
         return Ok(action, "Session ended.");
     }
 
-    // ADR 19 by ADR 42's transport: the same decision as over the link.
+    // ADR 19 by ADR 42's transport.
     private async Task<SyncActionResult> EditPlanAsync(SyncAction action, DateTimeOffset now)
     {
         if (IsLate(action, PlanEditFresh, now))
@@ -389,13 +388,13 @@ public sealed class SyncActionsService
             return Invalid(action, "The PC couldn't read this day plan.");
         }
 
-        LinkDayPlanAnswer answer = await _planEdits.ApplyAsync(new LinkDayPlanEdit(request.BasedOn, request.Plan, request.EditedAt));
+        DayPlanAnswer answer = await _planEdits.ApplyAsync(new DayPlanEdit(request.BasedOn, request.Plan, request.EditedAt));
         return answer.Status switch
         {
-            LinkDayPlanStatus.Applied => new SyncActionResult(action.Id, true, SyncActionStatus.Applied, answer.Message, answer.CurrentVersion),
-            LinkDayPlanStatus.Conflict => new SyncActionResult(
+            DayPlanStatus.Applied => new SyncActionResult(action.Id, true, SyncActionStatus.Applied, answer.Message, answer.CurrentVersion),
+            DayPlanStatus.Conflict => new SyncActionResult(
                 action.Id, false, SyncActionStatus.Conflict, answer.Message, answer.CurrentVersion, answer.CurrentEditedAt),
-            LinkDayPlanStatus.Locked => new SyncActionResult(action.Id, false, SyncActionStatus.Locked, answer.Message),
+            DayPlanStatus.Locked => new SyncActionResult(action.Id, false, SyncActionStatus.Locked, answer.Message),
             _ => Invalid(action, answer.Message),
         };
     }
@@ -445,7 +444,7 @@ public sealed class SyncActionsService
 
         try
         {
-            return JsonSerializer.Deserialize<T>(text, LinkFraming.JsonOptions);
+            return JsonSerializer.Deserialize<T>(text, SyncJson.Options);
         }
         catch (JsonException)
         {

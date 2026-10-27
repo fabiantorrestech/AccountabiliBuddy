@@ -32,11 +32,6 @@ public static class ComputerTypeSummary
         }
 
         lines.Add("Starts with Windows");
-        if (values.LinkOn)
-        {
-            lines.Add("Lets your paired phone connect over your own network");
-        }
-
         if (values.CheckForUpdates)
         {
             lines.Add("Checks GitHub for updates");
@@ -45,11 +40,12 @@ public static class ComputerTypeSummary
         if (values.GoogleCalendarOn)
         {
             lines.Add("Reads Google Calendar if you sign in");
+            lines.Add("Shares with your phone through Google Drive once you sign in (Devices).");
         }
 
-        // The app's own connections: the link listens, update checks and Google sign-in go out (a sync folder is the
-        // folder's own app's business, e.g. Google Drive for desktop).
-        if (!values.LinkOn && !values.CheckForUpdates && !values.GoogleCalendarOn)
+        // The app's own connections: update checks and Google sign-in go out (a sync folder is the folder's own app's
+        // business, e.g. Google Drive for desktop).
+        if (!values.CheckForUpdates && !values.GoogleCalendarOn)
         {
             lines.Add("Makes no network connections of its own");
         }
@@ -59,10 +55,7 @@ public static class ComputerTypeSummary
             lines.Add("Doesn't read your screen.");
         }
 
-        if (!values.LinkOn)
-        {
-            lines.Add("Doesn't listen for connections.");
-        }
+        lines.Add("Doesn't listen for connections.");
 
         if (!values.CheckForUpdates && !values.GoogleCalendarOn)
         {

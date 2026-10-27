@@ -74,6 +74,15 @@
 - The watch shows nothing new; Budget windows arrive as plan parts.
 - [ ] Commit `Phone: day plan templates, week grid and modes`.
 
+### Task 6: Start-of-day assistant (user, 2026-10-27)
+- On the first arrival of a workday (the work nudge's "arrival": the first input after 10+ minutes away, in or before the day's first guarded window), a short assistant in front of everything (dimmed, blocking behind, following virtual desktops like the No session yet card) asks in order:
+  1. "How many hours of work do you hope to get done today?" (stepper, prefilled with today's budget or goal). It sets today's goal and, on a Budget day, today's budget. Lowering it below the plan's waits like any looser change; raising it applies at once.
+  2. "What's first?": up to 3 tasks (the three-tasks rule), prefilled with carried-over tasks.
+  3. Start the session (the remembered length, counting down, with planning first).
+- "Not now" works like the work nudge's (a reason, then it asks again in 15 minutes).
+- PC first; the phone gets the same flow on its Today later.
+- [ ] Commit `Start-of-day assistant: hours, first tasks, start`.
+
 ## Review Focus
 1. Migration: a v11 plan becomes v12 with the same guarded hours every day of the week; an old phone reading a v12 plan refuses cleanly ("update").
 2. Budget: the guard eases off exactly when the budget is met, never before. Focus from a test session or a side task never counts toward it.

@@ -3,7 +3,7 @@
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              x:Class="AccountabiliBuddy.App.Views.DevicesView"
              x:DataType="vm:DevicesViewModel">
-    <!-- The Devices tab (ADR 22): this PC and the user's other devices, the ways they share, and pairing over the link. -->
+    <!-- The Devices tab (ADR 22): this PC and the user's other devices, the ways they share. -->
     <UserControl.Styles>
         <Style Selector="Border.card">
             <Setter Property="Background" Value="#1A808080" />
@@ -51,10 +51,6 @@
                                                IsVisible="{Binding LastText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                    <!-- A phone's watch also paired with this PC over Wi-Fi: that pairing's Unpair (Task 18). -->
-                                    <Button Content="Unpair" IsVisible="{Binding CanUnpair}" Padding="8,2" FontSize="12"
-                                            Command="{Binding $parent[ItemsControl].((vm:DevicesViewModel)DataContext).UnpairCompanionCommand}"
-                                            CommandParameter="{Binding}" />
                                     <!-- The state in words and colour, never colour alone. -->
                                     <Border Background="{Binding PillBrush}" CornerRadius="10" Padding="9,2">
                                         <TextBlock Text="{Binding StateText}" FontSize="12" Foreground="White" />
@@ -153,69 +149,10 @@
                             </StackPanel>
                         </StackPanel>
                     </Expander>
-                    <CheckBox IsChecked="{Binding LinkOn}" Content="Network link: sync files go to devices paired over your own network (below)" />
                     <TextBlock Text="{Binding Message}" TextWrapping="Wrap"
                                IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 </StackPanel>
             </Border>
-
-            <!-- Phones, tablets and watches paired over the network link (ADR 14), being replaced by Drive sync (ADR 26):
-                 shown while it's on, else behind "Wi-Fi link (old way)…". -->
-            <Button DataContext="{Binding LinkedDevices}" x:DataType="vm:LinkedDevicesViewModel" Classes="link" HorizontalAlignment="Left" Opacity="0.7"
-                    Content="Wi-Fi link (old way, being replaced by Google Drive)…" Command="{Binding ShowOldLinkCommand}" IsVisible="{Binding !IsEnabled}" />
-            <StackPanel Spacing="8" DataContext="{Binding LinkedDevices}" x:DataType="vm:LinkedDevicesViewModel" IsVisible="{Binding ShowsLink}">
-            <TextBlock Text="Paired over the network link" Classes="title" Margin="0,8,0,0" />
-            <TextBlock Classes="muted" Foreground="#F4A261"
-                       Text="Being replaced by Google Drive sync (above): sign in there on this PC and on the phone. The link stays until Drive sync has worked for a week." TextWrapping="Wrap" />
-            <TextBlock Classes="muted"
-                       Text="Lets your phone or tablet (the AccountabiliBuddy companion) show this PC's session and start or end one, with the same rules for ending as here. Only on your home network and encrypted; nothing goes through the internet. Windows Firewall asks once: allow it on private networks." />
-            <Border Classes="card">
-                <StackPanel Spacing="10">
-                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-                        <TextBlock Text="Let phones and tablets link to this PC" Classes="title" />
-                        <TextBlock Grid.Row="1" Text="{Binding Status}" Classes="muted" />
-                        <StackPanel Grid.RowSpan="2" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <Button Content="Turn on" Command="{Binding TurnOnCommand}" Classes="accent" />
-                            <Button Content="Turn off" Command="{Binding TurnOffCommand}" />
-                        </StackPanel>
-                    </Grid>
-                    <Button Content="Pair a phone or tablet…" Command="{Binding PairCommand}" IsVisible="{Binding IsEnabled}" />
-                    <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding IsPairing}">
-                        <Border Background="White" Padding="8" CornerRadius="6" VerticalAlignment="Top">
-                            <Image Source="{Binding QrImage}" Width="220" Height="220" RenderOptions.BitmapInterpolationMode="None" />
-                        </Border>
-                        <StackPanel Spacing="6" VerticalAlignment="Center" MaxWidth="340">
-                            <TextBlock Text="Scan it with your phone's camera" FontWeight="SemiBold" />
-                            <TextBlock Classes="muted"
-                                       Text="The link opens the AccountabiliBuddy companion, which shows this code to compare before pairing:" />
-                            <TextBlock Text="{Binding PairingCode}" FontSize="24" FontWeight="SemiBold" FontFamily="Consolas, Courier New, monospace" />
-                            <TextBlock Text="{Binding PairingDetail}" Classes="muted" />
-                            <TextBlock Classes="muted" TextWrapping="Wrap"
-                                       Text="Pairing a Pixel Watch? Scan it with the phone and tap &quot;Pair my watch instead&quot;: the watch then reaches this PC over Wi-Fi when the phone isn't around." />
-                            <Button Content="Cancel" Command="{Binding CancelPairingCommand}" />
-                        </StackPanel>
-                    </StackPanel>
-                    <ItemsControl ItemsSource="{Binding Devices}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:LinkedDeviceRowViewModel">
-                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
-                                    <TextBlock Text="{Binding Icon}" FontSize="20" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding Detail}" Classes="muted" />
-                                    </StackPanel>
-                                    <Button Grid.Column="2" Content="Unpair" VerticalAlignment="Center"
-                                            Command="{Binding $parent[ItemsControl].((vm:LinkedDevicesViewModel)DataContext).UnpairCommand}"
-                                            CommandParameter="{Binding}" />
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap"
-                               IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                </StackPanel>
-            </Border>
-            </StackPanel>
 
         </StackPanel>
     </ScrollViewer>
