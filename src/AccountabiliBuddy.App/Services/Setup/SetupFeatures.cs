@@ -9,7 +9,7 @@ namespace AccountabiliBuddy.App.Services.Setup;
 public static class SetupFeatures
 {
     public static IReadOnlyList<SetupFeature> All(ColdTurkeyKeysService keys, ColdTurkeyService coldTurkey, Sync.SyncSettingsService sync,
-        ConfigurationService configuration, StartNudgeService startNudge) => new[]
+        ConfigurationService configuration, StartNudgeService startNudge, DpAssistantService dpAssistant) => new[]
     {
         new SetupFeature(
             "coldturkey.keys", "0.1.106",
@@ -40,5 +40,12 @@ public static class SetupFeatures
             IsRelevant: () => startNudge.Settings.On,
             IsSetUp: () => startNudge.AssistantSeen,
             Step: ViewModels.AssistantStep.StartOfDay),
+        new SetupFeature(
+            "dayplan.assistant", "0.1.112",
+            "Setup DP Assistant: your day plan, step by step",
+            "A button at the top right of the Day plan tab that sets up workdays, work time, deep work goal, lunch, sleep and weeks with sensible defaults, then shows how the buddy will behave before it saves.",
+            IsRelevant: () => true,
+            IsSetUp: () => dpAssistant.HasRun,
+            Step: ViewModels.AssistantStep.DpAssistant),
     };
 }

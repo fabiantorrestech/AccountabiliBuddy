@@ -43,7 +43,7 @@ public sealed record DayTemplate(
 
     // The window minus the fixed parts inside it, as work parts: the first with WorkWindowPartId, the others with ids
     // numbered after it (the same ids on every device, so they all sort alike).
-    private List<PlanPart> WindowPieces(WorkWindow window, DayCategory work)
+    internal List<PlanPart> WindowPieces(WorkWindow window, DayCategory work)
     {
         const int shortest = 15;
         int start = (int)window.Start.ToTimeSpan().TotalMinutes;

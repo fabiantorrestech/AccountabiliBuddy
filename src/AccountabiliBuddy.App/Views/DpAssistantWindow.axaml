@@ -1,0 +1,311 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        xmlns:engine="using:AccountabiliBuddy.Core.Engine"
+        x:Class="AccountabiliBuddy.App.Views.DpAssistantWindow"
+        x:DataType="vm:DpAssistantViewModel"
+        Title="Setup DP Assistant"
+        Icon="/Assets/app-icon.png"
+        Width="880" Height="720" MinWidth="720" MinHeight="560"
+        WindowStartupLocation="CenterScreen">
+    <Window.Styles>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="#1A808080" />
+            <Setter Property="BorderBrush" Value="#33808080" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16,12" />
+        </Style>
+        <Style Selector="Border.locked">
+            <Setter Property="Background" Value="#33F59E0B" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style Selector="TextBlock.title">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.muted">
+            <Setter Property="Opacity" Value="0.75" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="TextBlock.body">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="FontSize" Value="15" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+        <!-- Header -->
+        <Border DockPanel.Dock="Top" Padding="28,20,28,12">
+            <StackPanel Spacing="2">
+                <TextBlock Text="{Binding StepNumberText}" Opacity="0.7" />
+                <TextBlock Text="{Binding StepTitle}" FontSize="24" FontWeight="SemiBold" />
+            </StackPanel>
+        </Border>
+
+        <!-- Footer -->
+        <Border DockPanel.Dock="Bottom" Padding="28,12" BorderBrush="#33808080" BorderThickness="0,1,0,0">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Content="Close" Command="{Binding CloseCommand}" IsVisible="{Binding !IsDone}" AutomationProperties.Name="Close assistant" />
+                    <Button Content="Back" Command="{Binding BackCommand}" IsVisible="{Binding !IsDone}" />
+                    <Button Content="{Binding NextText}" Command="{Binding NextCommand}" Classes="accent" MinWidth="110" AutomationProperties.Name="Next step" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <ScrollViewer Padding="28,4,28,16">
+            <StackPanel Spacing="12">
+                <Border Classes="locked" IsVisible="{Binding IsLocked}">
+                    <TextBlock Text="The day plan is locked while a focus session you started is running. You can look through the steps, but Save waits for the session to end."
+                               TextWrapping="Wrap" />
+                </Border>
+
+                <!-- 1. Workdays: any days; Monday to Friday by default -->
+                <StackPanel IsVisible="{Binding IsWorkdays}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="Which days do you work? Tick any days: Monday to Friday are ticked to start with. Your other days follow the Off day type." />
+                    <ItemsControl ItemsSource="{Binding Days}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="4" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:WorkdayChip">
+                                <ToggleButton Content="{Binding Label}" IsChecked="{Binding IsOn}" MinWidth="48" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Classes="muted" Text="Several weeks that differ come in the Weeks step." />
+                </StackPanel>
+
+                <!-- 2. Work time: a window or a budget -->
+                <StackPanel IsVisible="{Binding IsWorkTime}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="How long are you at work? This is the time you're at work, or the window you try to stay on task in. It is not how many of those hours are focused work: you set that in the next step." />
+                    <RadioButton GroupName="worktime" IsChecked="{Binding IsWorkWindow}" Content="Fixed hours: a work window" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,0,0,0" IsVisible="{Binding IsWorkWindow}">
+                        <TextBlock Text="Work from" VerticalAlignment="Center" />
+                        <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding WindowStart}" MinuteIncrement="15" MinWidth="0" Width="196" />
+                        <TextBlock Text="to" VerticalAlignment="Center" />
+                        <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding WindowEnd}" MinuteIncrement="15" MinWidth="0" Width="196" />
+                    </StackPanel>
+                    <RadioButton GroupName="worktime" IsChecked="{Binding IsBudget}" Content="A budget of hours, at any time of the day" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,0,0,0" IsVisible="{Binding IsBudget}">
+                        <NumericUpDown Value="{Binding BudgetHours}" Minimum="0.25" Maximum="24" Increment="0.25" FormatString="0.00" Width="130" />
+                        <TextBlock Text="hours of work, between waking and bedtime" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <RadioButton GroupName="worktime" IsChecked="{Binding IsKeepTimeline}" IsVisible="{Binding HasTimeline}"
+                                 Content="Keep my timeline (the day's parts as they are)" />
+                </StackPanel>
+
+                <!-- 3. Deep work goal -->
+                <StackPanel IsVisible="{Binding IsDeepWork}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap" Text="How many deep work / focus hours should we aim for?" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <NumericUpDown Value="{Binding GoalHours}" Minimum="0.5" Maximum="8" Increment="0.5" FormatString="0.0" Width="130" />
+                        <TextBlock Text="hours a day" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <Border Classes="card">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <mi:MaterialIcon Kind="LightbulbOutline" Width="20" Height="20" VerticalAlignment="Top" />
+                            <TextBlock Text="{Binding GoalGuidance}" Classes="muted" MaxWidth="700" />
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Classes="muted"
+                               Text="This sets your daily goal (30 minutes to 8 hours). Raising it applies at once; lowering it waits until today's work hours are over." />
+                </StackPanel>
+
+                <!-- 4. Lunch: a window or a fixed period -->
+                <StackPanel IsVisible="{Binding IsLunch}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap" Text="How do you take lunch?" />
+                    <RadioButton GroupName="lunch" IsChecked="{Binding IsKeepLunch}" IsVisible="{Binding HasPlainLunch}"
+                                 Content="Keep my lunch as it is (a plain part of my day; nothing starts by itself)" />
+                    <RadioButton GroupName="lunch" IsChecked="{Binding IsLunchWindow}" Content="A lunch window: I press Start lunch when I go" />
+                    <StackPanel Spacing="8" Margin="28,0,0,0" IsVisible="{Binding IsLunchWindow}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="Lunch can start between" VerticalAlignment="Center" />
+                            <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding LunchWindowStart}" MinuteIncrement="15" MinWidth="0" Width="196" />
+                            <TextBlock Text="and" VerticalAlignment="Center" />
+                            <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding LunchWindowEnd}" MinuteIncrement="15" MinWidth="0" Width="196" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="It lasts" VerticalAlignment="Center" />
+                            <NumericUpDown Value="{Binding LunchMinutes}" Minimum="15" Maximum="120" Increment="5" FormatString="0" Width="130" />
+                            <TextBlock Text="minutes once started, with a hint at" VerticalAlignment="Center" />
+                            <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding LunchHint}" MinuteIncrement="15" MinWidth="0" Width="196" />
+                        </StackPanel>
+                        <TextBlock Classes="muted" Text="The window counts as work around it until you start lunch. If you haven't started by the hint time, you get one hint." />
+                    </StackPanel>
+                    <RadioButton GroupName="lunch" IsChecked="{Binding IsFixedLunch}" Content="A fixed lunch period: it starts by itself" />
+                    <StackPanel Spacing="8" Margin="28,0,0,0" IsVisible="{Binding IsFixedLunch}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="Lunch from" VerticalAlignment="Center" />
+                            <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding FixedLunchStart}" MinuteIncrement="15" MinWidth="0" Width="196" />
+                            <TextBlock Text="to" VerticalAlignment="Center" />
+                            <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding FixedLunchEnd}" MinuteIncrement="15" MinWidth="0" Width="196" />
+                        </StackPanel>
+                        <TextBlock Classes="muted" Text="The lunch timer starts by itself at that time (when you're at the PC and no session is running). If a focus session would run into it (overlap it, or end within a minute of it), you're asked when you schedule it, and again 5 minutes before lunch:" />
+                        <TextBlock Classes="muted" Text="• Keep: schedule the session right up against lunch." Margin="12,0,0,0" />
+                        <TextBlock Classes="muted" Text="• Adjust: shorten the session so it ends before lunch." Margin="12,0,0,0" />
+                        <TextBlock Classes="muted" Text="• Flexible this time: you must click Start lunch in the app before you go." Margin="12,0,0,0" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- 5. Sleep: the bedtime setup's options, or skip -->
+                <StackPanel IsVisible="{Binding IsSleep}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap" Text="When do you go to bed and get up?" />
+                    <RadioButton GroupName="sleep" IsChecked="{Binding SetUpSleep}" Content="Set up sleep" />
+                    <StackPanel Spacing="8" Margin="28,0,0,0" IsVisible="{Binding SetUpSleep}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="Bedtime before a workday" VerticalAlignment="Center" Width="210" />
+                            <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding WorkdayBedtime}" MinuteIncrement="15" MinWidth="0" Width="196" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="Bedtime before any other day" VerticalAlignment="Center" Width="210" />
+                            <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding OtherBedtime}" MinuteIncrement="15" MinWidth="0" Width="196" />
+                        </StackPanel>
+                        <TextBlock Text="Wake time" FontWeight="SemiBold" Margin="0,6,0,0" />
+                        <RadioButton GroupName="wake" IsChecked="{Binding IsWakePhone}" Content="From my phone's alarm (bedtime plus your sleep goal until it's set)" />
+                        <RadioButton GroupName="wake" IsChecked="{Binding IsWakePc}" Content="From this PC's alarm" />
+                        <RadioButton GroupName="wake" IsChecked="{Binding IsWakeFixed}" Content="A fixed wake time" />
+                        <StackPanel Spacing="8" Margin="28,0,0,0" IsVisible="{Binding IsWakeFixed}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Wake after a workday night" VerticalAlignment="Center" Width="210" />
+                                <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding WorkdayWake}" MinuteIncrement="15" MinWidth="0" Width="196" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Wake after any other night" VerticalAlignment="Center" Width="210" />
+                                <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding OtherWake}" MinuteIncrement="15" MinWidth="0" Width="196" />
+                            </StackPanel>
+                        </StackPanel>
+                        <TextBlock Text="Smart bedtime" FontWeight="SemiBold" Margin="0,6,0,0" />
+                        <TextBlock Classes="muted" Text="{Binding SmartBedtimeHint}" />
+                        <CheckBox IsChecked="{Binding SmartWorkdays}" Content="Smart bedtime for nights before a workday" />
+                        <CheckBox IsChecked="{Binding SmartOffDays}" Content="Smart bedtime for nights before other days" />
+                        <TextBlock Classes="muted" Text="The bedtime reminders (45 and 15 minutes before, and at bedtime) are set in Settings → Sleep." />
+                    </StackPanel>
+                    <RadioButton GroupName="sleep" IsChecked="{Binding IsSleepSkipped}" Content="Skip sleep" />
+                    <Border Classes="locked" IsVisible="{Binding IsSleepSkipped}">
+                        <TextBlock TextWrapping="Wrap"
+                                   Text="Sleep features won't work: no bedtime reminders, no sleep line on the day bar and no wake-up alarms. Sleep mode goes off; you can turn it on again in Settings → Sleep." />
+                    </Border>
+                </StackPanel>
+
+                <!-- 6. Weeks: the same every week, A/B, or a custom cycle -->
+                <StackPanel IsVisible="{Binding IsWeeks}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap" Text="Is every week the same?" />
+                    <RadioButton GroupName="weeks" IsChecked="{Binding IsSameWeeks}" Content="The same every week" />
+                    <RadioButton GroupName="weeks" IsChecked="{Binding IsAlternatingWeeks}" Content="Alternating: week A, week B, then repeat" />
+                    <RadioButton GroupName="weeks" IsChecked="{Binding IsCustomWeeks}" Content="A custom repeating cycle" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,0,0,0" IsVisible="{Binding IsCustomWeeks}">
+                        <NumericUpDown Value="{Binding CustomWeekCount}" Minimum="2" Maximum="8" Increment="1" FormatString="0" Width="130" />
+                        <TextBlock Text="weeks (2 to 8), then it repeats from week 1" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasSeveralWeeks}">
+                        <TextBlock Text="This week is week" VerticalAlignment="Center" />
+                        <ComboBox ItemsSource="{Binding ThisWeekChoices}" SelectedItem="{Binding ThisWeek}" MinWidth="80" />
+                    </StackPanel>
+                    <TextBlock Text="Which day type each weekday follows" FontWeight="SemiBold" Margin="0,6,0,0" />
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" HorizontalAlignment="Left">
+                        <StackPanel Spacing="2">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="110" />
+                                <ItemsControl ItemsSource="{Binding WeekHeaders}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="8" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String">
+                                            <TextBlock Width="160" Text="{Binding}" FontWeight="SemiBold" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding WeekRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:DpWeekRowViewModel">
+                                        <StackPanel Orientation="Horizontal" Margin="0,2" HorizontalAlignment="Left">
+                                            <TextBlock Text="{Binding Label}" Width="110" VerticalAlignment="Center" />
+                                            <ItemsControl ItemsSource="{Binding Cells}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Orientation="Horizontal" Spacing="8" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:DpWeekCellViewModel">
+                                                        <ComboBox Width="160" SelectedItem="{Binding Template}"
+                                                                  ItemsSource="{Binding $parent[Window].((vm:DpAssistantViewModel)DataContext).TemplateChoices}">
+                                                            <ComboBox.ItemTemplate>
+                                                                <DataTemplate x:DataType="vm:DpTemplateChoice">
+                                                                    <TextBlock Text="{Binding Name}" />
+                                                                </DataTemplate>
+                                                            </ComboBox.ItemTemplate>
+                                                        </ComboBox>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                    <TextBlock Classes="muted" Text="Week 1 follows the days you ticked on the first step. Work time and lunch are set on the Workday type; other day types keep their own times (edit them in the Day plan tab)." />
+                </StackPanel>
+
+                <!-- 7. Review: how the buddy behaves through each kind of day, then Save or Back -->
+                <StackPanel IsVisible="{Binding IsReview}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap" Text="Here is how AccountabiliBuddy will behave through each kind of day with these settings. Save to apply them, or Back to change something." />
+                    <ItemsControl ItemsSource="{Binding ReviewNotes}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <Border Classes="locked" Margin="0,0,0,6">
+                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <ItemsControl ItemsSource="{Binding ReviewDays}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="engine:DpReviewDay">
+                                <Border Classes="card" Margin="0,0,0,10">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="{Binding Title}" Classes="title" />
+                                        <ItemsControl ItemsSource="{Binding Lines}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="x:String">
+                                                    <Grid ColumnDefinitions="Auto,*" Margin="0,2">
+                                                        <TextBlock Text="•" Margin="0,0,8,0" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding}" TextWrapping="Wrap" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- Saved -->
+                <StackPanel IsVisible="{Binding IsDone}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <mi:MaterialIcon Kind="CheckCircleOutline" Width="24" Height="24" VerticalAlignment="Center" />
+                        <TextBlock Text="All set" Classes="title" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Classes="body" Text="{Binding SavedText}" />
+                    <TextBlock Classes="muted" Text="Run this again any time from the Day plan tab: Setup DP Assistant." />
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

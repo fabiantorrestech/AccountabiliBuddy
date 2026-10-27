@@ -40,6 +40,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 OnSessionActiveChanged(session.IsSessionActive);
             }
         };
+        // The Setup DP Assistant is locked with the editor: its button follows the Day plan tab's lock.
+        dayPlan.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(DayPlanViewModel.IsLocked))
+            {
+                OpenDpAssistantCommand.NotifyCanExecuteChanged();
+            }
+        };
         _sessionActive = session.IsSessionActive;
         RefreshFocusMode();
     }
@@ -228,7 +236,23 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     /// <summary>Index of the tab shown, in sidebar order (<see cref="MainTab"/>).</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsDpAssistantButton))]
     public partial int SelectedTab { get; set; }
+
+    /// <summary>The "Setup DP Assistant" button next to the refresh button: on the Day plan tab only.</summary>
+    public bool ShowsDpAssistantButton => SelectedTab == DayPlanTab;
+
+    /// <summary>Opens the Setup DP Assistant; set by the app.</summary>
+    public Action? ShowDpAssistant { get; set; }
+
+    /// <summary>Locked during a focus session the user started, like the day plan editor.</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenDpAssistant))]
+    private void OpenDpAssistant()
+    {
+        ShowDpAssistant?.Invoke();
+    }
+
+    private bool CanOpenDpAssistant => !DayPlan.IsLocked;
 
     public SessionViewModel Session { get; }
 
