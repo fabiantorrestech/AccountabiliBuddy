@@ -8,4 +8,7 @@ public enum DpLunchKind
 
     /// <summary>A fixed lunch period that starts by itself (schema v13).</summary>
     Fixed,
+
+    /// <summary>The day's lunch stays as it is (a plain Rest "Lunch" part, neither a window nor starting by itself).</summary>
+    Keep,
 }

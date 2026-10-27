@@ -30,6 +30,16 @@ public sealed partial class DpAssistantViewModel : ObservableObject
     // True while the pages are filled from the plan, so that isn't taken as an edit.
     private bool _loading;
 
+    // The answers the plan and settings gave when the pages were filled, and the page values then: Apply rewrites only the
+    // sections that differ, so clicking through and saving leaves the plan, the goal and the sleep settings as they were.
+    private DpAssistantPlanChoices _baseline = null!;
+    private int _initialWakeChoice;
+    private TimeSpan? _initialWorkdayBedtime;
+    private TimeSpan? _initialWorkdayWake;
+    private TimeSpan? _initialOtherBedtime;
+    private TimeSpan? _initialOtherWake;
+    private decimal? _initialGoalHours;
+
     // The workdays the Weeks grid last took over from the Workdays page.
     private string? _syncedWorkdays;
 
@@ -260,14 +270,49 @@ public sealed partial class DpAssistantViewModel : ObservableObject
 
     // ---- 4. Lunch ----
 
+    /// <summary>0 = a lunch window, 1 = a fixed lunch period, 2 = keep my lunch as it is.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsFixedLunch))]
-    public partial bool IsLunchWindow { get; set; } = true;
+    [NotifyPropertyChangedFor(nameof(IsLunchWindow), nameof(IsFixedLunch), nameof(IsKeepLunch))]
+    public partial int LunchChoice { get; set; }
+
+    /// <summary>The Workday type's lunch is a plain Rest part, so keeping it as it is is an option.</summary>
+    [ObservableProperty]
+    public partial bool HasPlainLunch { get; set; }
+
+    public bool IsLunchWindow
+    {
+        get => LunchChoice == 0;
+        set
+        {
+            if (value)
+            {
+                LunchChoice = 0;
+            }
+        }
+    }
 
     public bool IsFixedLunch
     {
-        get => !IsLunchWindow;
-        set => IsLunchWindow = !value;
+        get => LunchChoice == 1;
+        set
+        {
+            if (value)
+            {
+                LunchChoice = 1;
+            }
+        }
+    }
+
+    public bool IsKeepLunch
+    {
+        get => LunchChoice == 2;
+        set
+        {
+            if (value)
+            {
+                LunchChoice = 2;
+            }
+        }
     }
 
     [ObservableProperty]
@@ -570,7 +615,8 @@ public sealed partial class DpAssistantViewModel : ObservableObject
         GoalHours = Math.Clamp(_goal.Current.DailyMinutes, MinGoalMinutes, MaxGoalMinutes) / 60m;
 
         // 4. Lunch. A flexible lunch's length is the lunch setting's (it wins over the part's own).
-        IsLunchWindow = choices.Lunch == DpLunchKind.Flexible;
+        HasPlainLunch = choices.Lunch == DpLunchKind.Keep;
+        LunchChoice = choices.Lunch switch { DpLunchKind.Fixed => 1, DpLunchKind.Keep => 2, _ => 0 };
         LunchWindowStart = choices.LunchWindowStart.ToTimeSpan();
         LunchWindowEnd = choices.LunchWindowEnd.ToTimeSpan();
         LunchMinutes = (int)_lunch.Length.TotalMinutes;
@@ -612,7 +658,18 @@ public sealed partial class DpAssistantViewModel : ObservableObject
 
         RefreshWeekHeaders(weekCount);
         ThisWeek = Math.Clamp(plan.Cycle.WeekNumberFor(Today()), 1, weekCount);
-        _syncedWorkdays = string.Join(",", Days.Where(chip => chip.IsOn).Select(chip => chip.Day));
+        // What the grid holds is the plan's own workdays: ticks the plan doesn't have yet (no workday at all: the Monday-to-Friday
+        // default) are taken into week 1 when the Weeks step is reached; ticks that match change nothing.
+        _syncedWorkdays = string.Join(",", plan.Workdays);
+
+        // What the pages show now is what Apply compares against: only a section changed from this is written back.
+        _baseline = choices with { LunchMinutes = (int)_lunch.Length.TotalMinutes };
+        _initialWakeChoice = WakeChoice;
+        _initialWorkdayBedtime = WorkdayBedtime;
+        _initialWorkdayWake = WorkdayWake;
+        _initialOtherBedtime = OtherBedtime;
+        _initialOtherWake = OtherWake;
+        _initialGoalHours = GoalHours;
         _loading = false;
     }
 
@@ -641,7 +698,7 @@ public sealed partial class DpAssistantViewModel : ObservableObject
                 }
 
                 return windowEnd <= windowStart ? "The lunch window must end after it starts." : null;
-            case DpStep.Lunch:
+            case DpStep.Lunch when IsFixedLunch:
                 if (FixedLunchStart is not TimeSpan fixedStart || FixedLunchEnd is not TimeSpan fixedEnd)
                 {
                     return "Pick when lunch starts and ends.";
@@ -683,17 +740,24 @@ public sealed partial class DpAssistantViewModel : ObservableObject
             Time(WindowStart, DpAssistantPlanChoices.DefaultWindow.Start),
             Time(WindowEnd, DpAssistantPlanChoices.DefaultWindow.End),
             (int)Math.Round((double)(BudgetHours ?? 6) * 60),
-            IsLunchWindow ? DpLunchKind.Flexible : DpLunchKind.Fixed,
+            IsKeepLunch ? DpLunchKind.Keep : IsFixedLunch ? DpLunchKind.Fixed : DpLunchKind.Flexible,
             lunchStart,
             Time(LunchWindowEnd, DpAssistantPlanChoices.DefaultLunchWindow.End),
             (int)Math.Clamp(LunchMinutes ?? 60, LunchService.MinLengthMinutes, LunchService.MaxLengthMinutes),
             Time(LunchHint, lunchStart),
             Time(FixedLunchStart, DpAssistantPlanChoices.DefaultFixedLunch.Start),
             Time(FixedLunchEnd, DpAssistantPlanChoices.DefaultFixedLunch.End),
-            SetUpSleep ? Night(WorkdayBedtime, WorkdayWake) : null,
-            SetUpSleep ? Night(OtherBedtime, OtherWake) : null,
+            !SetUpSleep ? null : NightChanged(WorkdayBedtime, WorkdayWake, _initialWorkdayBedtime, _initialWorkdayWake) ? Night(WorkdayBedtime, WorkdayWake) : _baseline.WorkdayNight,
+            !SetUpSleep ? null : NightChanged(OtherBedtime, OtherWake, _initialOtherBedtime, _initialOtherWake) ? Night(OtherBedtime, OtherWake) : _baseline.OtherNight,
             weeks,
             startsOn);
+    }
+
+    // A night the sleep page changed (its bedtime, its wake time when fixed, or where the wake time comes from); one left alone
+    // keeps the plan's stored night as it is.
+    private bool NightChanged(TimeSpan? bedtime, TimeSpan? wake, TimeSpan? initialBedtime, TimeSpan? initialWake)
+    {
+        return bedtime != initialBedtime || (IsWakeFixed && wake != initialWake) || WakeChoice != _initialWakeChoice;
     }
 
     // A night from a bedtime and a wake time; woken by an alarm, the end is bedtime plus the sleep goal (how a Sleep part keeps it).
@@ -705,21 +769,24 @@ public sealed partial class DpAssistantViewModel : ObservableObject
             : new SleepTimes(bed, bed.Add(_sleep.Current.Goal), WakeByAlarm: true);
     }
 
-    private int GoalMinutes => (int)Math.Clamp(Math.Round((GoalHours ?? 1) * 2, MidpointRounding.AwayFromZero) * 30, MinGoalMinutes, MaxGoalMinutes);
+    // The goal in minutes: the current goal while the hours weren't touched (it may not be a half-hour step), else the hours asked for.
+    private int GoalMinutes => GoalHours == _initialGoalHours
+        ? _goal.Current.DailyMinutes
+        : (int)Math.Clamp(Math.Round((GoalHours ?? 1) * 2, MidpointRounding.AwayFromZero) * 30, MinGoalMinutes, MaxGoalMinutes);
 
+    // The sleep settings with this page's answers; the wake source only when the page changed it (the stored plan night may be
+    // woken by an alarm while the source stays the user's). Skipping turns sleep mode off at once, as Settings → Sleep does
+    // (these are the user's own switches, saved at once and not held, and also changeable during focus there).
     private SleepSettings BuildSleepSettings()
     {
         SleepSettings now = _sleep.Current;
-        return SetUpSleep
-            ? now with
-            {
-                Enabled = true,
-                UsePhoneAlarm = WakeChoice == 0,
-                UsePcAlarm = WakeChoice == 1,
-                SmartWorkdays = SmartWorkdays,
-                SmartOffDays = SmartOffDays,
-            }
-            : now with { Enabled = false };
+        if (!SetUpSleep)
+        {
+            return now with { Enabled = false };
+        }
+
+        SleepSettings next = now with { Enabled = true, SmartWorkdays = SmartWorkdays, SmartOffDays = SmartOffDays };
+        return WakeChoice == _initialWakeChoice ? next : next with { UsePhoneAlarm = WakeChoice == 0, UsePcAlarm = WakeChoice == 1 };
     }
 
     private void BuildReview()
@@ -727,7 +794,7 @@ public sealed partial class DpAssistantViewModel : ObservableObject
         DayPlan current = _configuration.Current.DayPlan;
         DayPlan before = _configuration.Editing.DayPlan;
         DpAssistantPlanChoices choices = BuildChoices();
-        DayPlan proposed = DpAssistantPlanBuilder.Apply(before, choices);
+        DayPlan proposed = DpAssistantPlanBuilder.Apply(before, choices, _baseline);
         SleepSettings sleep = BuildSleepSettings();
         var notes = new List<string>();
 
@@ -749,10 +816,8 @@ public sealed partial class DpAssistantViewModel : ObservableObject
             notes.Add($"The goal stays at {DpAssistantReview.Hours(_goal.Current.DailyMinutes)} until today's work hours are over: lowering it waits (raising it applies at once).");
         }
 
-        if (choices.WorkTime != DpWorkTime.KeepTimeline && before.Workday.Parts.Any(part => before.Category(part.CategoryId)?.Behavior.IsWork() == true))
-        {
-            notes.Add("The work and Comms parts of your Workday timeline are replaced by this, so those timed parts are gone. Lunch, Pre-Work and sleep stay.");
-        }
+        // Every timed work part this removes or cuts, by name and time.
+        notes.AddRange(DpAssistantPlanBuilder.TimelineChanges(before, proposed));
 
         if (!SetUpSleep)
         {
@@ -797,15 +862,24 @@ public sealed partial class DpAssistantViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            DpAssistantPlanChoices choices = BuildChoices();
-            await _configuration.UpdateAsync(document => document with { DayPlan = DpAssistantPlanBuilder.Apply(document.DayPlan, choices) });
+            // Checked first, so nothing at all (plan, goal, lunch, sleep) is saved while settings can't be.
             if (_configuration.IsReadOnly)
             {
-                StatusMessage = "Not saved: settings are read-only (see the banner).";
+                StatusMessage = "Nothing was saved: settings are read-only (see the banner).";
                 return;
             }
 
-            var saved = new List<string> { _configuration.DayPlanWaitText ?? "Your day plan is saved." };
+            DpAssistantPlanChoices choices = BuildChoices();
+            bool planChanged = !ReferenceEquals(DpAssistantPlanBuilder.Apply(_configuration.Editing.DayPlan, choices, _baseline), _configuration.Editing.DayPlan);
+            if (planChanged)
+            {
+                await _configuration.UpdateAsync(document => document with { DayPlan = DpAssistantPlanBuilder.Apply(document.DayPlan, choices, _baseline) });
+            }
+
+            var saved = new List<string>
+            {
+                planChanged ? _configuration.DayPlanWaitText ?? "Your day plan is saved." : "Your day plan is unchanged.",
+            };
             if (GoalMinutes != _goal.Current.DailyMinutes)
             {
                 if (GoalMinutes < _goal.Current.DailyMinutes && GoalLowerWaits())

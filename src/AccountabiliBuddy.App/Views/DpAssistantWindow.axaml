@@ -123,6 +123,8 @@
                 <!-- 4. Lunch: a window or a fixed period -->
                 <StackPanel IsVisible="{Binding IsLunch}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
                     <TextBlock Classes="body" TextWrapping="Wrap" Text="How do you take lunch?" />
+                    <RadioButton GroupName="lunch" IsChecked="{Binding IsKeepLunch}" IsVisible="{Binding HasPlainLunch}"
+                                 Content="Keep my lunch as it is (a plain part of my day; nothing starts by itself)" />
                     <RadioButton GroupName="lunch" IsChecked="{Binding IsLunchWindow}" Content="A lunch window: I press Start lunch when I go" />
                     <StackPanel Spacing="8" Margin="28,0,0,0" IsVisible="{Binding IsLunchWindow}">
                         <StackPanel Orientation="Horizontal" Spacing="8">
