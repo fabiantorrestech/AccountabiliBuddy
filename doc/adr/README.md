@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0048](0048-share-tasks-and-come-backs-across-devices.md) | Share tasks and come-backs across devices | Accepted | — |
 | [0047](0047-day-plan-modes.md) | Day plan modes | Accepted | — |
 | [0046](0046-add-a-self-hosted-sealed-relay.md) | Add a self-hosted sealed relay | Accepted | — |
 | [0045](0045-delete-the-wi-fi-link.md) | Delete the Wi-Fi link | Accepted | [14](0014-pair-the-phone-with-the-pc-over-the-local-network.md) |
