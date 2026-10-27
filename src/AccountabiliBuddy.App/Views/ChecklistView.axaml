@@ -237,7 +237,9 @@
                     AutomationProperties.Name="Category for new tasks" IsVisible="{Binding HasCategories}">
                 <Ellipse Width="12" Height="12" Fill="{Binding NewTaskCategoryBrush}" Stroke="#80808080" StrokeThickness="1" />
                 <Button.Flyout>
-                    <MenuFlyout ItemsSource="{Binding NewTaskCategoryChoices}" ItemContainerTheme="{StaticResource CategoryMenuItem}"
+                    <!-- Items are rebuilt each time it opens (OnNewTaskPickerOpening); a long-lived flyout whose ItemsSource is
+                         replaced kept the stale item set. -->
+                    <MenuFlyout Opening="OnNewTaskPickerOpening" ItemContainerTheme="{StaticResource CategoryMenuItem}"
                                 ItemTemplate="{StaticResource CategoryChoiceTemplate}" />
                 </Button.Flyout>
             </Button>

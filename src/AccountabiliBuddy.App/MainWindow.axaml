@@ -48,6 +48,8 @@
                         IsVisible="{Binding IsSessionRunning}"
                         Margin="20,0,12,10" Background="Transparent" BorderThickness="0" Padding="4,2"
                         ToolTip.Tip="Show the other tabs for this session, or hide them again" />
+                <!-- Scrolls (vertical, only when needed) in a short window; logo above and noise player / focus toggle below stay put. -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <TabControl x:Name="Tabs" TabStripPlacement="Left" Margin="0,4,0,8" SelectionChanged="OnTabChanged"
                             SelectedIndex="{Binding SelectedTab}">
                     <TabControl.Styles>
@@ -92,6 +94,7 @@
                     <TabItem Header="About" Classes="under" IsVisible="{Binding ShowsMoreItems}" />
                     <TabItem Header="Activity (dev)" IsVisible="{Binding ShowDevTools}" />
                 </TabControl>
+                </ScrollViewer>
             </DockPanel>
 
             <!-- Right-hand pane: search, banners, today's bar, then the selected page. -->
