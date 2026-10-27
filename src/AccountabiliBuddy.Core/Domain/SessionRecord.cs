@@ -36,23 +36,28 @@ public sealed record SessionRecord(
             TimeSpan planning = TimeSpan.Zero;
             foreach (AwayStretch stretch in (Away ?? []).Where(stretch => stretch.Kind == AwayKind.Planning && stretch.To != DateTimeOffset.MaxValue))
             {
-                TimeSpan away = (Away ?? [])
-                    .Where(other => other.Kind != AwayKind.Planning && other.To != DateTimeOffset.MaxValue)
-                    .Select(other => Overlap(stretch, other))
-                    .Aggregate(TimeSpan.Zero, (sum, piece) => sum + piece);
+                // The away time inside the stage, each moment once (breaks, side tasks and marked gaps may overlap each other).
+                TimeSpan away = TimeSpan.Zero;
+                DateTimeOffset reached = stretch.From;
+                foreach (AwayStretch other in (Away ?? [])
+                             .Where(other => other.Kind != AwayKind.Planning && other.To != DateTimeOffset.MaxValue && other.To > stretch.From && other.From < stretch.To)
+                             .OrderBy(other => other.From))
+                {
+                    DateTimeOffset from = other.From > reached ? other.From : reached;
+                    DateTimeOffset to = other.To < stretch.To ? other.To : stretch.To;
+                    if (to > from)
+                    {
+                        away += to - from;
+                        reached = to;
+                    }
+                }
+
                 TimeSpan length = stretch.To - stretch.From - away;
                 planning += length > TimeSpan.Zero ? length : TimeSpan.Zero;
             }
 
             return planning;
         }
-    }
-
-    private static TimeSpan Overlap(AwayStretch a, AwayStretch b)
-    {
-        DateTimeOffset from = a.From > b.From ? a.From : b.From;
-        DateTimeOffset to = a.To < b.To ? a.To : b.To;
-        return to > from ? to - from : TimeSpan.Zero;
     }
 
     private static TimeSpan Total(IEnumerable<AwayStretch> stretches) => stretches

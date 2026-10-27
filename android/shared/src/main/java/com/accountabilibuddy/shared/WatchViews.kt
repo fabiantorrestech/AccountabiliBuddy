@@ -65,7 +65,7 @@ data class TodayView(
 
         /** What runs ("Coding · 25m left") or, when nothing does, the next planned part that isn't sleep. */
         private fun status(snapshot: WatchSnapshot, now: Instant, zone: ZoneId, use24Hour: Boolean): String? {
-            val running = snapshot.running?.takeIf { it.endsAt == null || it.endsAt.isAfter(now) }
+            val running = snapshot.running?.takeIf { it.isLiveAt(now) }
             if (running != null) {
                 val name = if (running.onBreak) "Break" else running.profile ?: "Focus"
                 running.planningEndsAt?.takeIf { running.isPlanning }?.let { planningEnd ->
@@ -113,7 +113,7 @@ data class SessionView(
         }
 
         private fun build(running: RunningSession?, now: Instant, zone: ZoneId, use24Hour: Boolean): SessionView {
-            val session = running?.takeIf { it.endsAt == null || it.endsAt.isAfter(now) }
+            val session = running?.takeIf { it.isLiveAt(now) }
                 ?: return SessionView("Session", "—", "No focus session", 0f, active = false)
             val title = if (session.onBreak) "Break" else session.profile ?: "Focus"
             val planningEnd = session.planningEndsAt?.takeIf { session.isPlanning }

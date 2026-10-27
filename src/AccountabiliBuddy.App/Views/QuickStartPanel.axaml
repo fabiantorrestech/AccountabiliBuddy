@@ -32,11 +32,14 @@
         </Panel>
 
         <Button Classes="quickDefault" Command="{Binding QuickStartDefaultCommand}" AutomationProperties.Name="Quick Start with Default"
-                ToolTip.Tip="Starts your default profile (Settings) with no set end. The on-screen bar fills each hour and glows every 30 minutes with how long you've been at it; hold Ctrl+Alt to see it any time.">
+                ToolTip.Tip="Starts your default profile (Settings) for the length below; the on-screen bar counts down. Choose No set end under More options to count up instead.">
             <StackPanel Spacing="2" HorizontalAlignment="Center">
                 <TextBlock Text="Quick Start with Default" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBlock Text="{Binding DefaultProfileName, StringFormat='{}{0} · no set end'}" FontSize="12" Opacity="0.85"
-                           HorizontalAlignment="Center" />
+                <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" Opacity="0.85">
+                    <TextBlock Text="{Binding DefaultProfileName}" FontSize="12" />
+                    <TextBlock Text="·" FontSize="12" />
+                    <TextBlock Text="{Binding FocusLabel}" FontSize="12" />
+                </StackPanel>
             </StackPanel>
         </Button>
 
@@ -112,9 +115,9 @@
                 </Grid>
 
                 <!-- No set length with the profile picked above; the on-screen bar counts up. -->
-                <Button Content="{Binding QuickStartLabel}" Command="{Binding QuickStartCommand}"
+                <Button Content="{Binding OpenEndedLabel}" Command="{Binding StartOpenEndedCommand}"
                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,8"
-                        ToolTip.Tip="Starts the profile picked above with no set end. The on-screen bar fills each hour and glows every 30 minutes with how long you've been at it; hold Ctrl+Alt to see it any time." />
+                        ToolTip.Tip="Starts the profile picked above with no set end and no countdown. The on-screen bar fills each hour and glows every 30 minutes with how long you've been at it; hold Ctrl+Alt to see it any time." />
 
                 <!-- Test session: enforcement, prompts and the overlay as in a real one; never counted, logged or synced. -->
                 <StackPanel Spacing="6">

@@ -332,7 +332,7 @@ public sealed class LinkSessionHost : ILinkSessionHost
     public Task<string?> StartAsync(LinkStartRequest request)
     {
         return Dispatcher.UIThread.InvokeAsync(async () =>
-            request.CountUp ? await _control.StartCountUpAsync() : _control.Start(request.ProfileId, request.Minutes));
+            request.CountUp ? await _control.StartWithDefaultAsync() : _control.Start(request.ProfileId, request.Minutes));
     }
 
     public Task<LinkEndEarlyTerms?> GetEndEarlyTermsAsync()
@@ -393,8 +393,8 @@ public sealed class LinkSessionHost : ILinkSessionHost
             CountsAsFocus: state.IsEnforcing && !state.IsPlanning && state.Mode != SessionMode.Scheduled,
             state.ProfileId,
             ProfileOptions.NameOf(profiles, state.ProfileId),
-            state.FocusStartsAt,
-            state.FocusEndsAt,
+            state.FocusStartsAt(_sessions.Now),
+            state.FocusEndsAt(_sessions.Now),
             profiles.Select(profile => new LinkProfile(profile.Id, profile.Name)).ToList(),
             _quickSession.CountUpProfileId,
             _sessions.Now,

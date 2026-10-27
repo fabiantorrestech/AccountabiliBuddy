@@ -43,8 +43,10 @@ public sealed class PlanFirstService : IDisposable
     private bool _sawSession;
     private int _doneAtStart;
 
-    // The planning end the time-up chime already played for (a +N makes a new end).
-    private DateTimeOffset? _timeUpFor;
+    // How many +N the stage has had, and the count the time-up chime already played for. A step away moves the stage's end but
+    // is not an extension, so it never chimes twice; a +N re-arms the chime for the new end.
+    private int _extensions;
+    private int _chimedFor = -1;
     private DateTimeOffset _cardRaisedAt;
 
     // When planning ended in the session still running: unknowns' grace counts from then (null once the session ends).
@@ -157,7 +159,10 @@ public sealed class PlanFirstService : IDisposable
     {
         if (_planning && ExtraMinutes.Contains(minutes))
         {
-            _sessions.ExtendPlanning(TimeSpan.FromMinutes(minutes));
+            if (_sessions.ExtendPlanning(TimeSpan.FromMinutes(minutes)))
+            {
+                _extensions++;
+            }
         }
     }
 
@@ -183,9 +188,9 @@ public sealed class PlanFirstService : IDisposable
         }
 
         DateTimeOffset now = _sessions.Now;
-        if (_timeUpFor != end)
+        if (_chimedFor != _extensions)
         {
-            _timeUpFor = end;
+            _chimedFor = _extensions;
             if (end > _startedAt && now - end <= MaxLateness)
             {
                 TimeUp?.Invoke(this, EventArgs.Empty);
@@ -288,7 +293,8 @@ public sealed class PlanFirstService : IDisposable
         _held.Clear();
         _heldSubjects.Clear();
         _endedAt = null;
-        _timeUpFor = null;
+        _extensions = 0;
+        _chimedFor = -1;
         _doneAtStart = _tasks?.Current.DoneCount ?? 0;
         _learning = learning;
         _planning = !learning;

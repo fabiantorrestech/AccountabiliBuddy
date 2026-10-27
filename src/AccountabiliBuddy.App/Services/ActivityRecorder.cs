@@ -178,7 +178,7 @@ public sealed class ActivityRecorder : IDisposable
         if (!previous.IsActive && state.IsActive && IsEnabled && !_sessions.IsResuming)
         {
             var started = new SessionEvent(
-                _timeProvider.GetUtcNow(), SessionEventKind.Started, state.Mode, state.ProfileId, state.FocusEndsAt);
+                _timeProvider.GetUtcNow(), SessionEventKind.Started, state.Mode, state.ProfileId, state.FocusEndsAt(_timeProvider.GetUtcNow()));
             Enqueue(() => _log.RecordSessionEventAsync(started));
         }
 

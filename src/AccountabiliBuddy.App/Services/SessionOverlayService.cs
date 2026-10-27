@@ -78,8 +78,7 @@ public sealed class SessionOverlayService : IDisposable
     public bool IsOnForSession => _sessions.State.IsActive
                                   && (_settings.Current.For(_sessions.State.ProfileId).Enabled || IsCountUp(_sessions.State));
 
-    // A Quick Start (with the default profile or the one picked) has no set end: it always shows the timer, since the
-    // bar counting up is the point.
+    // A session started with "No set end" has no set end: it always shows the timer, since the bar counting up is the point.
     private static bool IsCountUp(SessionState state)
     {
         return state.Mode == SessionMode.Manual && !state.HasSetEnd;

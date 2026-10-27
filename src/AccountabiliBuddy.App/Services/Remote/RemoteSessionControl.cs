@@ -48,21 +48,21 @@ public sealed class RemoteSessionControl
         return _sessions.StartManual(profileId!.Value, TimeSpan.FromMinutes(length)) ? null : "The session couldn't start.";
     }
 
-    /// <summary>"Quick Start with Default": the count-up profile with no set end, made on first use.</summary>
+    /// <summary>"Quick Start with Default": the default profile for the remembered focus length (it counts down), made on first use.</summary>
     /// <returns>Null when it started; otherwise why not.</returns>
-    public async Task<string?> StartCountUpAsync()
+    public async Task<string?> StartWithDefaultAsync()
     {
         if (_sessions.State.IsActive)
         {
             return RunningMessage;
         }
 
-        return await _quickSession.StartCountUpAsync() ? null : "The Quick Start profile couldn't be set up on the PC.";
+        return await _quickSession.StartWithDefaultAsync() ? null : "The Quick Start profile couldn't be set up on the PC.";
     }
 
-    /// <summary>"Quick Start · <paramref name="profileId"/>": that profile with no set end.</summary>
+    /// <summary>"Quick Start · <paramref name="profileId"/>": that profile for the remembered focus length.</summary>
     /// <returns>Null when it started; otherwise why not.</returns>
-    public string? StartCountUp(Guid profileId)
+    public string? StartQuick(Guid profileId)
     {
         if (_sessions.State.IsActive)
         {
@@ -74,10 +74,10 @@ public sealed class RemoteSessionControl
             return MissingProfileMessage;
         }
 
-        return _quickSession.StartCountUp(profileId) ? null : "The session couldn't start.";
+        return _quickSession.StartQuick(profileId) ? null : "The session couldn't start.";
     }
 
-    /// <summary>The profile "Quick Start with Default" starts; null when it isn't made yet.</summary>
+    /// <summary>The profile "Quick Start with Default" starts (the default profile); null when it isn't made yet.</summary>
     public Guid? CountUpProfileId => _quickSession.CountUpProfileId;
 
     /// <summary>What ending the running session early takes now; null when none runs.</summary>

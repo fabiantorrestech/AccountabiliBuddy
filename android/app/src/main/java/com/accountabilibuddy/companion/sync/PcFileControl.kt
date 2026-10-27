@@ -52,7 +52,7 @@ object PcFileControl {
             return null
         }
 
-        return running.takeIf { it.phaseEndsAt?.let { end -> now.isBefore(end.plus(OVER_FOR)) } ?: true }
+        return running.takeIf { it.isLiveAt(now, OVER_FOR) }
     }
 
     /** The PC's session as its file says, in the link's shape (a running session in a file always counts as focus). */

@@ -166,7 +166,7 @@ private fun WatchApp(
         } else {
             // While a focus or break timer runs, its page comes first; else while lunch runs, the Lunch page (the pager
             // starts over when the pages change). The Lunch page shows on a workday or while lunch runs, from today's snapshot.
-            val running = snapshot.running?.let { it.endsAt?.isAfter(now) ?: true } == true
+            val running = snapshot.running?.isLiveAt(now) == true
             val onLunch = lunch?.isRunning(now) == true
             val order = when {
                 running -> listOfNotNull(Page.Session, Page.Today, Page.Lunch.takeIf { lunch != null })

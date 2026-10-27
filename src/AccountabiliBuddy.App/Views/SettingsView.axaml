@@ -110,7 +110,7 @@
                         <controls:HotkeyBox Text="{Binding HotkeyText}" Width="220" HorizontalAlignment="Left" />
                         <TextBlock Text="{Binding HotkeyStatus}" TextWrapping="Wrap" />
                         <TextBlock Text="Quick Start with Default" FontWeight="SemiBold" Margin="0,8,0,0" />
-                        <TextBlock Text="The big &quot;Quick Start with Default&quot; button (quick session and Today tab) starts this profile with no set end: the on-screen bar fills each hour and glows every 30 minutes with how long you've been at it (hold Ctrl+Alt to see it any time). &quot;Quick Start&quot; does the same with the profile picked there."
+                        <TextBlock Text="The big &quot;Quick Start with Default&quot; button (quick session and Today tab) starts this profile for the length chosen there (the remembered one from a phone or watch), and the on-screen bar counts down. &quot;No set end&quot; under More options runs the profile picked there until you end it, and the bar counts up."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <ComboBox ItemsSource="{Binding CountUpChoices}" SelectedItem="{Binding SelectedCountUp}" MinWidth="300" />
                     </StackPanel>

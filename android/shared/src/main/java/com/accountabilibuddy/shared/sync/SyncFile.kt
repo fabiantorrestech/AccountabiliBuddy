@@ -299,4 +299,11 @@ data class SyncRunning(
      */
     val planningStartedAt: java.time.Instant? = null,
     val planningEndsAt: java.time.Instant? = null,
-)
+) {
+    /**
+     * Still worth showing at [now] (a PC that went off mid-session stops counting down): before the end of its phase and
+     * [grace] after it, with no set end, or while planning (which has no end of its own until "Ready?" is answered).
+     */
+    fun isLiveAt(now: java.time.Instant, grace: java.time.Duration): Boolean =
+        planningEndsAt != null || phaseEndsAt?.let { end -> now.isBefore(end.plus(grace)) } ?: true
+}

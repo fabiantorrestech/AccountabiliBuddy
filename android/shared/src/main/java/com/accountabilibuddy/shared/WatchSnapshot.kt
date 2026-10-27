@@ -30,6 +30,12 @@ data class RunningSession(
     val isPlanning: Boolean get() = planningEndsAt != null && !onBreak
 
     /**
+     * Still running at [now]: before its end, with no set end, or while planning (which goes on past its time until the PC's
+     * "Ready?" is answered, whatever the projected focus end says).
+     */
+    fun isLiveAt(now: Instant): Boolean = isPlanning || endsAt == null || endsAt.isAfter(now)
+
+    /**
      * With the checklist's current task, as the PC's bar shows it ("Fix tests › Lint": the task picked on the PC, else
      * the first open one, with its subtask), and its progress.
      */
@@ -93,7 +99,15 @@ data class WatchSnapshot(
     }
 
     /** Where a session with no end stops on the rings: now, or the running session's end once that has passed. */
-    fun openUntil(now: Instant): Instant = running?.endsAt?.let { minOf(it, now) } ?: now
+    fun openUntil(now: Instant): Instant {
+        val planning = running?.takeIf { it.isPlanning }
+        if (planning != null) {
+            // Planning is not focus time: an open session counts for nothing until the PC's focus begins.
+            return planning.planningStartedAt ?: Instant.MIN
+        }
+
+        return running?.endsAt?.let { minOf(it, now) } ?: now
+    }
 
     companion object {
         /**

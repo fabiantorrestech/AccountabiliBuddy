@@ -40,7 +40,7 @@ object WatchGlance {
         }
 
         val focused = snapshot.focusedMinutes(now, zone)
-        val running = snapshot.running?.takeIf { it.endsAt == null || it.endsAt.isAfter(now) }
+        val running = snapshot.running?.takeIf { it.isLiveAt(now) }
         if (running != null) {
             val title = if (running.onBreak) "Break" else running.profile ?: "Focus"
             val detail = "${WatchText.duration(focused)} focused today"

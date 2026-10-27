@@ -281,12 +281,13 @@ public sealed class SyncActionsService
         }
         else if (request.ProfileId is Guid profileId && profileId != _control.CountUpProfileId)
         {
-            error = _control.StartCountUp(profileId);
+            // The phone's Quick Start of a profile (its request says "no set end", the name from before): the PC runs it for its remembered length.
+            error = _control.StartQuick(profileId);
         }
         else
         {
             // "Quick Start with Default" (made on first use, so a phone may not know its id yet).
-            error = await _control.StartCountUpAsync();
+            error = await _control.StartWithDefaultAsync();
         }
 
         return error is null ? Ok(action, "Started.") : Refused(action, error);

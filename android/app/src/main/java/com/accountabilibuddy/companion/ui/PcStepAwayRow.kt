@@ -39,7 +39,7 @@ internal fun PcStepAwayRow(clock: ClockFormat) {
     val pc = received
         .filter { it.file.device.kind == SyncDeviceCard.KIND_PC && it.file.running != null }
         .filter { Duration.between(it.file.device.writtenAt, now) <= Duration.ofHours(12) }
-        .filter { device -> device.file.running!!.phaseEndsAt?.let { now.isBefore(it.plusSeconds(600)) } ?: true }
+        .filter { device -> device.file.running!!.isLiveAt(now, java.time.Duration.ofSeconds(600)) }
         .maxByOrNull { it.file.device.writtenAt }
         ?: return
     val target = pc.file.device.deviceId

@@ -73,7 +73,7 @@ object DayHeader {
         val focus = input.focus?.takeIf { it.date == today }
 
         val runningNow = focus?.running
-        val running = runningNow?.takeIf { it.endsAt?.isAfter(nowInstant) ?: true }
+        val running = runningNow?.takeIf { it.isLiveAt(nowInstant) }
 
         // A session with a set length never counts up: past its end it says so, instead of falling through to the open session below.
         if (running == null && runningNow != null && !runningNow.onBreak && runningNow.endsAt != null) {

@@ -39,7 +39,8 @@ public static class SyncFileBuilder
         DateTimeOffset now,
         TimeZoneInfo zone,
         DateTimeOffset? oldestSessionStart,
-        Func<DateTimeOffset, IReadOnlyList<SessionTask>?>? tasksOf = null)
+        Func<DateTimeOffset, IReadOnlyList<SessionTask>?>? tasksOf = null,
+        DateTimeOffset? planningEndsAt = null)
     {
         SyncDeviceCard written = card with { WrittenAt = now };
         if (card.HistoryOff)
@@ -69,16 +70,17 @@ public static class SyncFileBuilder
 
                 // A session goes in the pieces the user was there for: time stepped away, the planning stage or time marked
                 // distracted in History comes out on the other devices too. Its checklist goes with the first piece. The running
-                // session's last piece stays open (no end); while it is still planning there is none, so a point at "now" stands
-                // in for it (it counts for nothing, and carries the checklist).
+                // session's last piece stays open (no end); while it is still planning there is none, so an open piece that starts
+                // when planning ends (not before: planning is not focus) stands in for it and carries the checklist.
                 List<(DateTimeOffset Start, DateTimeOffset End)> pieces = SessionGaps.Pieces(counted.Record.StartedAt, counted.End, cut).ToList();
                 if (counted.Running && (pieces.Count == 0 || pieces[^1].End != counted.End))
                 {
-                    pieces.Add((counted.End, counted.End));
+                    DateTimeOffset from = planningEndsAt is DateTimeOffset planned && planned > counted.End ? planned : counted.End;
+                    pieces.Add((from, from));
                 }
 
                 return pieces.Select((piece, index) => new SyncSession(
-                    piece.Start, counted.Running && piece.End == counted.End ? null : piece.End, profile, added, index == 0 ? tasks : null));
+                    piece.Start, counted.Running && piece.End >= counted.End ? null : piece.End, profile, added, index == 0 ? tasks : null));
             })
             .Where(session => session.End is not DateTimeOffset end || end > from)
             .ToList();

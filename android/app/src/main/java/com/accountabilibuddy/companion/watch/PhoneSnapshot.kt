@@ -89,7 +89,7 @@ object PhoneSnapshot {
             .filter { it.device.kind == SyncDeviceCard.KIND_PC && it.running != null }
             .filter { than == null || it.device.writtenAt.isAfter(than) }
             .filter { java.time.Duration.between(it.device.writtenAt, now) <= java.time.Duration.ofHours(12) }
-            .filter { file -> file.running!!.phaseEndsAt?.let { now.isBefore(it.plusSeconds(600)) } ?: true }
+            .filter { file -> file.running!!.isLiveAt(now, java.time.Duration.ofSeconds(600)) }
             .maxByOrNull { it.device.writtenAt }
             ?.let { file ->
                 val running = file.running!!

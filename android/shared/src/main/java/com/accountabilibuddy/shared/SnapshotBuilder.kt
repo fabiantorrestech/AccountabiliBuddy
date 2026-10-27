@@ -49,12 +49,12 @@ object SnapshotBuilder {
         val lastRunning = input.running
         val running = when {
             input.pcConnected || lastRunning == null -> lastRunning
-            lastRunning.endsAt != null -> lastRunning.takeIf { lastRunning.endsAt.isAfter(input.now) }
+            lastRunning.endsAt != null -> lastRunning.takeIf { it.isLiveAt(input.now) }
             else -> lastRunning.takeIf { input.runningAt != null && Duration.between(input.runningAt, input.now) < NO_END_LIMIT }
         }
 
         // Nothing runs (any more): an open session ends at the known end, else when the PC last said anything.
-        val closeAt = lastRunning?.endsAt?.takeIf { !input.pcConnected }?.let { minOf(it, input.now) }
+        val closeAt = lastRunning?.takeIf { !it.isPlanning }?.endsAt?.takeIf { !input.pcConnected }?.let { minOf(it, input.now) }
             ?: minOf(input.now, input.focusDayAt ?: input.now)
         val sessions = current?.sessions.orEmpty().map { session ->
             if (session.end == null && running == null) session.copy(end = maxOf(session.start, closeAt)) else session

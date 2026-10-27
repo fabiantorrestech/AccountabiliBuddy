@@ -43,7 +43,7 @@ object PhaseAlerts {
 
     fun goal(snapshot: WatchSnapshot?, now: Instant, zone: java.time.ZoneId): PhaseAlert? {
         val goal = snapshot?.goalMinutes?.takeIf { it > 0 } ?: return null
-        val running = snapshot.running?.takeIf { !it.onBreak && !it.isPlanning && (it.endsAt == null || it.endsAt.isAfter(now)) } ?: return null
+        val running = snapshot.running?.takeIf { !it.onBreak && !it.isPlanning && it.isLiveAt(now) } ?: return null
         val left = goal - snapshot.focusedMinutes(now, zone)
         if (left <= 0) {
             return null
