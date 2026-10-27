@@ -6,7 +6,7 @@ Date: 2026-10-27
 
 Accepted
 
-Amends [18. Leave enforcement to the blockers](0018-leave-enforcement-to-the-blockers.md) (what the plan says about when the buddy watches), [28. Close the work-hours guard's free exits](0028-close-the-work-hours-guards-free-exits.md) (which plan changes free today's work), [31. Guard pre-work parts](0031-guard-pre-work-parts.md) and [33. Plan sleep by bedtime and wake by the alarm](0033-plan-sleep-by-bedtime-and-wake-by-the-alarm.md) (sleep per weekday).
+Amends [18. Leave enforcement to the blockers](0018-leave-enforcement-to-the-blockers.md) (what the plan says about when the buddy watches), [28. Close the work-hours guard's free exits](0028-close-the-work-hours-guards-free-exits.md) (which plan changes free today's work), [31. Guard pre-work parts](0031-guard-pre-work-parts.md) and [33. Plan sleep by bedtime and wake by the alarm](0033-plan-sleep-by-bedtime-and-wake-by-alarm.md) (sleep per weekday).
 
 ## Context
 
