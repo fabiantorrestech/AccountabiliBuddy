@@ -14,6 +14,7 @@
   - PC: `LinkFraming.JsonOptions`, `DeviceCalendarEvents`, `LinkDayPlanEdit`/`Answer`/`Status`, `LinkEndEarlyTerms`, `FocusDayBuilder.CountedRecords`/`Local`/`At`/`DriftGap`, `DayPlanEditTimeService`, `SyncDeviceCard.MethodLink` (old files still read).
   - Phone: `PcState`/`PcProfile`/`PcStateAt`/`EndEarlyTerms`/`DayPlanAnswer`.
   - Shared: `TokenVault` with its Keystore alias `"accountabilibuddy-link-token"` (the sealed group code depends on it), and QRCoder.
+  - **For the relay (phase 6, ADR 46):** the PC's certificate fingerprint helper (`LinkIdentity.Fingerprint`, and `CreatePfx`'s self-signed certificate code as a reference) and the phone's `shared/.../link/PinnedTrustManager.kt`. Move both to sync packages; don't delete them.
 - Move and rename those kept types out of the link packages. Behaviour doesn't change.
 - Core keeps no reference to App types (ADR 4).
 

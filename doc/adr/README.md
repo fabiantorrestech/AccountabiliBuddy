@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0046](0046-add-a-self-hosted-sealed-relay.md) | Add a self-hosted sealed relay | Accepted | — |
 | [0045](0045-delete-the-wi-fi-link.md) | Delete the Wi-Fi link | Accepted | [14](0014-pair-the-phone-with-the-pc-over-the-local-network.md) |
 | [0043](0043-read-beeminder-goals.md) | Read Beeminder goals | Accepted | — |
 | [0042](0042-control-pc-sessions-and-plan-edits-through-sync-files.md) | Control PC sessions and plan edits through sync files | Accepted | — |
