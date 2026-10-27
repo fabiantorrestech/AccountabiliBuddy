@@ -111,4 +111,8 @@ Reword §1's "opens no connection" so it applies to the folder method only.
 - Task 1 first, so its API is real. Then Tasks 2 and 3 in parallel; the Contract above is their interface.
 - Implementers: Sonnet high. Reviewers: Opus medium (network, privacy, sync).
 - The orchestrator records the relay in `doc/hard-rules.md` (outbound connections, the stored `sync.settings` fields) and in `CLAUDE.md`'s "Local only" bullet after merge.
+- **Final security gate (user, 2026-10-27):** after Tasks 1–3 merge, two context-free security reviews by fresh Opus 5.5 high agents.
+  - Each is given only the code paths, ADR 46 and the threat model (an internet-facing server holding sealed files, plus the PC and phone clients, the join QR and the deploy files). Never the earlier reviews' conclusions.
+  - Pass 1, then its fixes, then pass 2 by a new agent that doesn't see pass 1.
+  - The option is called safe only if pass 2 finds no Critical or Important issue. Otherwise fix and report to the user.
 - C 6.1 synced timers gets its own plan once the relay is merged.
