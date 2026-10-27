@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
+using Avalonia.Media.Transformation;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 
@@ -23,6 +24,17 @@ public partial class MainWindow : Window
 
     private int _shownTab;
 
+    // The timeline's slide in a session: the strip left at the top, the slide time and the wait before it slides away.
+    private const double TimelineStripHeight = 6;
+    private static readonly TimeSpan TimelineSlideTime = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan TimelineHideDelay = TimeSpan.FromMilliseconds(400);
+
+    private readonly DispatcherTimer _timelineHideTimer = new() { Interval = TimelineHideDelay };
+    private bool _timelineCollapsed;
+    private bool _timelineHovered;
+    private double _timelineHeight;
+    private int _timelineGeneration;
+
     /// <summary>Files dropped on the window (sync files or pictures of sync codes, ADR 22), by their local paths.</summary>
     public event EventHandler<IReadOnlyList<string>>? FilesDropped;
 
@@ -30,15 +42,111 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         AddHandler(DragDrop.DropEvent, OnDrop);
+        TimelineHost.PointerEntered += (_, _) => SetTimelineHovered(true);
+        TimelineHost.PointerExited += (_, _) => _timelineHideTimer.Start();
+        _timelineHideTimer.Tick += (_, _) =>
+        {
+            _timelineHideTimer.Stop();
+            SetTimelineHovered(false);
+        };
         Opened += (_, _) => WarmUpPages();
         DataContextChanged += (_, _) =>
         {
             if (DataContext is MainWindowViewModel viewModel)
             {
                 viewModel.HideRequested += (_, _) => Hide();
+                viewModel.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(MainWindowViewModel.IsFocusMode))
+                    {
+                        SetTimelineCollapsed(viewModel.IsFocusMode);
+                    }
+                    else if (e.PropertyName == nameof(MainWindowViewModel.ShowsTimeline) && viewModel.ShowsTimeline && viewModel.IsFocusMode)
+                    {
+                        // The timeline was hidden (another page) when the session began, so it had no height to slide away from.
+                        Dispatcher.UIThread.Post(() => SetTimelineCollapsed(viewModel.IsFocusMode), DispatcherPriority.Loaded);
+                    }
+                };
+                SetTimelineCollapsed(viewModel.IsFocusMode);
                 ConnectSearch(viewModel);
             }
         };
+    }
+
+    /// <summary>In a session the timeline slides up and gives its height back; outside one it is as before.</summary>
+    private void SetTimelineCollapsed(bool collapsed)
+    {
+        if (collapsed == _timelineCollapsed)
+        {
+            return;
+        }
+
+        _timelineCollapsed = collapsed;
+        _timelineHovered = false;
+        _timelineHideTimer.Stop();
+        int generation = ++_timelineGeneration;
+        if (collapsed)
+        {
+            _timelineHeight = TimelineBody.Bounds.Height;
+            if (_timelineHeight <= TimelineStripHeight)
+            {
+                _timelineCollapsed = false;
+                return;
+            }
+
+            // Fix the heights where they are now, then let the next frame animate them down to the strip.
+            TimelineBody.Height = _timelineHeight;
+            TimelineClip.Height = _timelineHeight;
+            TimelineHost.Height = _timelineHeight;
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (generation == _timelineGeneration)
+                {
+                    TimelineHost.Height = TimelineStripHeight;
+                    ShowTimeline(false);
+                }
+            }, DispatcherPriority.Loaded);
+        }
+        else
+        {
+            TimelineHost.Height = _timelineHeight;
+            ShowTimeline(true);
+            DispatcherTimer.RunOnce(() =>
+            {
+                if (generation == _timelineGeneration)
+                {
+                    TimelineHost.ClearValue(HeightProperty);
+                    TimelineClip.ClearValue(HeightProperty);
+                    TimelineBody.ClearValue(HeightProperty);
+                }
+            }, TimelineSlideTime + TimeSpan.FromMilliseconds(50));
+        }
+    }
+
+    /// <summary>The pointer is over the strip or the timeline: slide it down over the page, or back up once it has left.</summary>
+    private void SetTimelineHovered(bool hovered)
+    {
+        if (hovered)
+        {
+            _timelineHideTimer.Stop();
+        }
+
+        if (!_timelineCollapsed || hovered == _timelineHovered)
+        {
+            return;
+        }
+
+        _timelineHovered = hovered;
+        ShowTimeline(hovered);
+    }
+
+    /// <summary>Slides the timeline body down (shown) or up (only the strip left) inside its clipping panel.</summary>
+    private void ShowTimeline(bool shown)
+    {
+        double visible = shown ? _timelineHeight : TimelineStripHeight;
+        TimelineClip.Height = visible;
+        double offset = visible - _timelineHeight;
+        TimelineBody.RenderTransform = TransformOperations.Parse($"translateY({offset.ToString(System.Globalization.CultureInfo.InvariantCulture)}px)");
     }
 
     private void OnDrop(object? sender, DragEventArgs e)
