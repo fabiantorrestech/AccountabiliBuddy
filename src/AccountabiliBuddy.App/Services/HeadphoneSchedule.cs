@@ -47,7 +47,12 @@ public static class HeadphoneSchedule
         TimeOnly time = TimeOnly.FromDateTime(now);
         TimeOnly start = settings.EffectiveStart;
         TimeOnly end = settings.EffectiveEnd;
-        // An end before the start runs past midnight.
+        // The same start and end is all day; an end before the start runs past midnight.
+        if (start == end)
+        {
+            return true;
+        }
+
         return start <= end ? time >= start && time < end : time >= start || time < end;
     }
 }

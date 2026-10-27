@@ -360,7 +360,7 @@ public sealed class SessionTasksService : IDisposable
     {
         // A step sent with no title at all ("title": null) is malformed: refuse it rather than throw in the apply loop.
         return steps is not null
-            && (steps.Count > MaxRemoteSteps || steps.Any(step => step.Title is null || step.Title.Trim().Length > MaxRemoteText));
+            && (steps.Count > MaxRemoteSteps || steps.Any(step => step is null || step.Title is null || step.Title.Trim().Length > MaxRemoteText));
     }
 
     private async Task<Guid?> ResolveRemoteCategoryAsync(SyncTaskRequest request)
@@ -779,7 +779,7 @@ public sealed class SessionTasksService : IDisposable
             .Where(task => task.DeletedAt is null)
             .OrderBy(task => task.Position)
             .Select(task => new SessionTask(
-                task.Id, task.Title, task.DoneAt, task.Subtasks ?? [],
+                task.Id, task.Title ?? string.Empty, task.DoneAt, task.Subtasks ?? [],
                 task.Category is string name ? _categories.FirstOrDefault(category => string.Equals(category.Name, name, StringComparison.OrdinalIgnoreCase))?.Id : null))
             .ToList();
         return new SessionChecklist(null, false, tasks, tasks.Any(task => !task.IsDone && task.Id == currentId) ? currentId : null);

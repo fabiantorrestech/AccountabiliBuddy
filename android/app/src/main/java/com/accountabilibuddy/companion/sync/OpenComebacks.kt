@@ -24,14 +24,25 @@ data class OpenComebacks(val items: List<Row>, val legacySource: String? = null)
          * has no shared come-back list, that file's open come-backs.
          */
         fun of(parked: List<SyncParked>, received: List<ReceivedDevice>, now: Instant): OpenComebacks {
-            val newestPc = received
-                .filter { it.file.device.kind == SyncDeviceCard.KIND_PC && !it.file.device.writtenAt.isAfter(now.plusSeconds(CLOCK_SLACK_SECONDS)) }
-                .maxByOrNull { it.file.device.writtenAt }
+            val newestPc = newestPc(received, now)
             if (newestPc != null && !newestPc.hasSharedLists) {
                 return OpenComebacks(newestPc.file.comebacks.orEmpty().map { Row(it.id, it.text) }, newestPc.file.device.name)
             }
 
             return OpenComebacks(parked.filter { it.deletedAt == null && it.doneAt == null }.map { Row(it.id, it.text) })
         }
+
+        /**
+         * The name of the newest PC when its files predate the shared lists (ADR 48), else null: the next session's list
+         * and the come-backs on this phone then don't reach it, and the cards say to update it.
+         */
+        fun pcWithoutSharedLists(received: List<ReceivedDevice>, now: Instant): String? {
+            val newestPc = newestPc(received, now)
+            return if (newestPc != null && !newestPc.hasSharedLists) newestPc.file.device.name else null
+        }
+
+        private fun newestPc(received: List<ReceivedDevice>, now: Instant): ReceivedDevice? = received
+            .filter { it.file.device.kind == SyncDeviceCard.KIND_PC && !it.file.device.writtenAt.isAfter(now.plusSeconds(CLOCK_SLACK_SECONDS)) }
+            .maxByOrNull { it.file.device.writtenAt }
     }
 }

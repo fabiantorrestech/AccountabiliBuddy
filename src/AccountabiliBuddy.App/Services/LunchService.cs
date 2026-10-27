@@ -53,6 +53,9 @@ public sealed class LunchService
     private readonly IUserIdleDetector _idle;
     private LunchState _state = new();
 
+    /// <summary>True while another of the user's PCs has a live session (its received file says so); set by the app. A fixed lunch doesn't start by itself then.</summary>
+    public Func<bool>? OtherPcSessionRunning { get; set; }
+
     public LunchService(
         SessionController sessions, ConfigurationService configuration, SqliteJsonDocumentStore store, Action<string, string> remind, Action chime,
         IUserIdleDetector idle)
@@ -246,9 +249,9 @@ public sealed class LunchService
         DateTime local = LocalNow();
         DateOnly today = DateOnly.FromDateTime(local);
         if (AutoStartPending is FixedLunch fixedLunch && local >= fixedLunch.Window.Start && local + ShortestLeft <= fixedLunch.Window.End
-            && !_sessions.State.IsActive && _idle.GetIdleTime() < PresenceWindow)
+            && !_sessions.State.IsActive && OtherPcSessionRunning?.Invoke() != true && _idle.GetIdleTime() < PresenceWindow)
         {
-            // The first chance within the part's window (no session running, so a session that was kept has ended, and the user
+            // The first chance within the part's window (no session running here or on another PC, so a session that was kept has ended, and the user
             // is at the PC: input in the last couple of minutes; away, it waits for the first input; also when the app just
             // started): it starts as if Start lunch was pressed and ends where the part does.
             TimeSpan remaining = fixedLunch.Window.End - local;

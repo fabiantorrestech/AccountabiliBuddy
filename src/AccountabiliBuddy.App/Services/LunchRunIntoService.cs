@@ -125,10 +125,22 @@ public sealed class LunchRunIntoService
             return;
         }
 
-        // A timed session has an end to compare; a session with none (open-ended, a Pomodoro) is still running at the 5-minute
-        // mark, but at its start nothing says it will reach lunch.
+        // On a Pomodoro break nothing is asked: the card waits for the next focus phase (the ticks keep asking until lunch).
+        if (state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak)
+        {
+            return;
+        }
+
+        // A timed session has an end to compare, and so has a Pomodoro with a cycle limit (when its cycles end); a session with
+        // none (open-ended, a Pomodoro that runs until stopped) is still running at the 5-minute mark, but at its start nothing
+        // says it will reach lunch.
         DateTimeOffset now = _sessions.Now;
-        DateTimeOffset? end = state.Mode == SessionMode.Manual ? state.FocusEndsAt(now) : null;
+        DateTimeOffset? end = state.Mode switch
+        {
+            SessionMode.Manual => state.FocusEndsAt(now),
+            SessionMode.Pomodoro => PomodoroEnd(state, now),
+            _ => null,
+        };
         DateTime? endLocal = end is DateTimeOffset e ? TimeZoneInfo.ConvertTime(e, _sessions.TimeProvider.LocalTimeZone).DateTime : null;
         bool runsInto = endLocal is DateTime known ? known > lunchStart - Margin : !atStart;
         if (!runsInto)
@@ -167,6 +179,37 @@ public sealed class LunchRunIntoService
                 Close();
             }));
         CardChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    // When a Pomodoro with a cycle limit ends, from its current focus phase on: every break and focus phase left, and the break
+    // after the last cycle when the session runs it. Null for one without a limit (it runs until stopped).
+    private DateTimeOffset? PomodoroEnd(SessionState state, DateTimeOffset now)
+    {
+        SessionCheckpoint checkpoint = _sessions.CreateCheckpoint();
+        if (checkpoint.Pomodoro is not { TotalCycles: int limit } settings || state.FocusEndsAt(now) is not DateTimeOffset end)
+        {
+            return null;
+        }
+
+        int completed = state.CompletedFocusCycles;
+        while (true)
+        {
+            // The current focus phase ends at `end`: that is one more finished cycle.
+            completed++;
+            if (completed >= limit && !checkpoint.BreakAfterLastCycle)
+            {
+                return end;
+            }
+
+            bool isLongBreak = completed % settings.CyclesBeforeLongBreak == 0;
+            end += isLongBreak ? settings.LongBreakLength : settings.ShortBreakLength;
+            if (completed >= limit)
+            {
+                return end;
+            }
+
+            end += settings.FocusLength;
+        }
     }
 
     private static string Describe(DateTime lunchStart, DateTime? endLocal)

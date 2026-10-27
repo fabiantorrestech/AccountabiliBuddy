@@ -36,6 +36,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.companion.sync.OpenComebacks
 import com.accountabilibuddy.companion.sync.OverLimitStore
 import com.accountabilibuddy.companion.sync.TaskCategoryChoices
 import com.accountabilibuddy.companion.sync.TaskCategoryChoices.Choice
@@ -53,6 +54,8 @@ fun NextTasksCard() {
     val app = LocalContext.current.applicationContext as CompanionApp
     val tasks by app.sharedLists.nextTasks.collectAsState()
     val received by app.sync.received.collectAsState()
+    // A PC that predates the shared lists (ADR 48) never gets this list, as with the come-backs.
+    val oldPc = remember(received) { OpenComebacks.pcWithoutSharedLists(received, java.time.Instant.now()) }
     val categories = remember(tasks, received) { TaskCategoryChoices.forNextTasks(tasks, received) }
     val groups = remember(tasks) { groupedByCategory(tasks) }
     val numbers = remember(groups) { groups.flatMap { it.second }.mapIndexed { index, task -> task.id to index + 1 }.toMap() }
@@ -83,6 +86,12 @@ fun NextTasksCard() {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             IconTitle("Next session", style = MaterialTheme.typography.titleSmall)
+            if (oldPc != null) {
+                Text(
+                    "Update AccountabiliBuddy on $oldPc to share this list",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             if (tasks.isEmpty()) {
                 Text("No tasks yet.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

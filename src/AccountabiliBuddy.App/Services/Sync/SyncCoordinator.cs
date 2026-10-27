@@ -184,7 +184,23 @@ public sealed class SyncCoordinator
     /// <returns>Null when accepted (or already held); otherwise why not, e.g. <see cref="CannotReadReason"/>.</returns>
     public Task<string?> AcceptSealedAsync(byte[] sealedBytes, string method)
     {
-        return Dispatcher.UIThread.InvokeAsync(() => AcceptOnUiThreadAsync(sealedBytes, method));
+        return Dispatcher.UIThread.InvokeAsync(() => AcceptGuardedAsync(sealedBytes, method));
+    }
+
+    // Every way a file arrives (folder, Drive, relay, file, QR) comes through here. A file that opens but is malformed in a
+    // way no check foresaw is skipped as unreadable (the same bytes would fail the same way, so the callers don't retry it);
+    // it never throws out of a sync loop. A storage failure (SqliteException) still goes to the caller, who reads it again
+    // later. Nothing of the file's content is logged or put in the reason.
+    private async Task<string?> AcceptGuardedAsync(byte[] sealedBytes, string method)
+    {
+        try
+        {
+            return await AcceptOnUiThreadAsync(sealedBytes, method);
+        }
+        catch (Exception exception) when (exception is not SqliteException and not OperationCanceledException)
+        {
+            return CannotReadReason;
+        }
     }
 
     /// <summary>
@@ -391,13 +407,36 @@ public sealed class SyncCoordinator
 
         if (file.NextTasks is { } nextTasks && MergeNextTasks is not null)
         {
-            await MergeNextTasks(nextTasks);
+            await MergeNextTasks(CleanNextTasks(nextTasks));
         }
 
         if (file.Parked is { } parked && MergeParked is not null)
         {
-            await MergeParked(parked);
+            await MergeParked(CleanParked(parked));
         }
+    }
+
+    // A sealed file is trusted for its key, not its shape: an item that is null, or a title, text or step list that is null
+    // (a hand-made or damaged file), must not throw out of the receive loop. A null item is dropped, a null text becomes empty,
+    // as the phone does per item.
+    private static List<SyncNextTask> CleanNextTasks(IEnumerable<SyncNextTask?> items)
+    {
+        return items
+            .OfType<SyncNextTask>()
+            .Select(task => task with
+            {
+                Title = task.Title ?? string.Empty,
+                Subtasks = task.Subtasks?.OfType<SessionSubtask>().Select(step => step with { Title = step.Title ?? string.Empty }).ToList(),
+            })
+            .ToList();
+    }
+
+    private static List<SyncParked> CleanParked(IEnumerable<SyncParked?> items)
+    {
+        return items
+            .OfType<SyncParked>()
+            .Select(item => item with { Text = item.Text ?? string.Empty })
+            .ToList();
     }
 
     private async Task ConsiderPlanAsync(SyncDayPlan incoming, Guid fromId, string fromName)

@@ -10,16 +10,16 @@ public static class PhonePlacementLookup
 
     /// <summary>
     /// The placement of the newest phone file whose session start is <paramref name="sessionStart"/>, with when that file was
-    /// written; null when no phone sent one for this session.
+    /// written and the app version on that phone's card; null when no phone sent one for this session.
     /// </summary>
-    public static (SyncPlacement Placement, DateTimeOffset WrittenAt)? Newest(IEnumerable<ReceivedDevice> devices, DateTimeOffset sessionStart)
+    public static (SyncPlacement Placement, DateTimeOffset WrittenAt, string AppVersion)? Newest(IEnumerable<ReceivedDevice> devices, DateTimeOffset sessionStart)
     {
         return devices
             .Where(device => device.File.Device.Kind == SyncDeviceCard.KindPhone && device.File.Placement is not null)
             .OrderByDescending(device => device.File.Device.WrittenAt)
-            .Select(device => (Placement: device.File.Placement!, WrittenAt: device.File.Device.WrittenAt))
+            .Select(device => (Placement: device.File.Placement!, WrittenAt: device.File.Device.WrittenAt, AppVersion: device.File.Device.AppVersion))
             .Where(entry => (entry.Placement.SessionStart - sessionStart).Duration() <= StartTolerance)
-            .Select(entry => ((SyncPlacement, DateTimeOffset)?)entry)
+            .Select(entry => ((SyncPlacement, DateTimeOffset, string)?)entry)
             .FirstOrDefault();
     }
 }

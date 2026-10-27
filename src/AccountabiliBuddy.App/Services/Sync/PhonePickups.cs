@@ -14,6 +14,9 @@ public sealed class PhonePickups
     /// <summary>More than this many minutes in a pocket and a session isn't phone-free (the phone's "No phone-free credit" penalty).</summary>
     public const int PocketLimitMinutes = 5;
 
+    // The phone's pocket switch arrived with 0.1.63; an older phone has none, so its pocket minutes never cost the credit.
+    private static readonly Version PocketSwitchSince = new(0, 1, 63);
+
     private readonly ReceivedDevicesService _received;
     private readonly SyncIdentityService _identity;
     private readonly TimeProvider _time;
@@ -64,13 +67,14 @@ public sealed class PhonePickups
     /// <summary>E.g. "out 2× · pocket 14 min" from the phone's placement for the session; null when the phone sent none.</summary>
     public string? DescribePlacement(DateTimeOffset sessionStart)
     {
-        if (PhonePlacementLookup.Newest(_received.Devices, sessionStart) is not { Placement: SyncPlacement placement })
+        if (PhonePlacementLookup.Newest(_received.Devices, sessionStart) is not { } found)
         {
             return null;
         }
 
+        SyncPlacement placement = found.Placement;
         string pocket = placement.PocketMinutes > 0
-            ? $" · pocket {placement.PocketMinutes} min{(placement.PocketMinutes > PocketLimitMinutes ? " (no phone-free credit)" : string.Empty)}"
+            ? $" · pocket {placement.PocketMinutes} min{(PocketCostsCredit(found) ? " (no phone-free credit)" : string.Empty)}"
             : string.Empty;
         return $"out {placement.OutCount}×{pocket}";
     }
@@ -98,7 +102,15 @@ public sealed class PhonePickups
 
     private bool TooLongInPocket(DateTimeOffset sessionStart)
     {
-        return PhonePlacementLookup.Newest(_received.Devices, sessionStart) is { Placement.PocketMinutes: > PocketLimitMinutes };
+        return PhonePlacementLookup.Newest(_received.Devices, sessionStart) is { } found && PocketCostsCredit(found);
+    }
+
+    // Only a phone whose card says 0.1.63 or later has the pocket switch; an unreadable version counts as older.
+    private static bool PocketCostsCredit((SyncPlacement Placement, DateTimeOffset WrittenAt, string AppVersion) found)
+    {
+        return found.Placement.PocketMinutes > PocketLimitMinutes
+            && Version.TryParse(found.AppVersion, out Version? version)
+            && version >= PocketSwitchSince;
     }
 
     /// <summary>The starts of this PC's sessions the phone saw no pickup in (a running one counts so far).</summary>

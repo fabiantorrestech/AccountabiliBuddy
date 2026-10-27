@@ -19,13 +19,15 @@ public sealed class HeadphoneAutoPlayService : IDisposable
     private readonly SqliteJsonDocumentStore _store;
     private readonly IHeadphoneWatcher _watcher;
     private readonly NoisePlayerService _noise;
+    private readonly TimeProvider _time;
     private bool _watching;
 
-    public HeadphoneAutoPlayService(SqliteJsonDocumentStore store, IHeadphoneWatcher watcher, NoisePlayerService noise)
+    public HeadphoneAutoPlayService(SqliteJsonDocumentStore store, IHeadphoneWatcher watcher, NoisePlayerService noise, TimeProvider time)
     {
         _store = store;
         _watcher = watcher;
         _noise = noise;
+        _time = time;
         _watcher.Changed += (_, change) => Dispatcher.UIThread.Post(() => _ = HandleAsync(change));
     }
 
@@ -115,6 +117,8 @@ public sealed class HeadphoneAutoPlayService : IDisposable
     private bool SchedulePermitsNow()
     {
         DayPlan plan = PlanProvider?.Invoke() ?? DayPlan.Default;
-        return HeadphoneSchedule.AllowsNow(Current, plan, DateTime.Now, FocusedOn, NightFallback);
+        // The app's time (trusted clock, its time zone), never the system's DateTime.Now.
+        DateTime now = TimeZoneInfo.ConvertTime(_time.GetUtcNow(), _time.LocalTimeZone).DateTime;
+        return HeadphoneSchedule.AllowsNow(Current, plan, now, FocusedOn, NightFallback);
     }
 }

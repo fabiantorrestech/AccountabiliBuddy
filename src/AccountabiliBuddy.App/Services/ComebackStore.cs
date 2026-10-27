@@ -189,7 +189,8 @@ public sealed class ComebackStore
 
     private static Comeback FromShared(SyncParked item)
     {
-        return new Comeback(item.Id, item.Text, item.CreatedAt, item.DoneAt, item.EditedAt, item.DeletedAt, item.Position);
+        // A malformed file's null text becomes empty rather than throwing.
+        return new Comeback(item.Id, item.Text ?? string.Empty, item.CreatedAt, item.DoneAt, item.EditedAt, item.DeletedAt, item.Position);
     }
 
     private Task SaveAsync()
