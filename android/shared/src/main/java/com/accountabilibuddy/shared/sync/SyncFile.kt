@@ -289,6 +289,22 @@ data class SyncAction(
         /** Control a PC's noise player (ADR 42, 36); [text] is `{ "op": "toggle|next|prev|volume", "value": 0.0-1.0? }`; a PC takes it only within 2 minutes. */
         const val NOISE = "noise"
 
+        /**
+         * Add a task to a PC's running session (ADR 48): [item] is the new task's id (chosen here), [text] JSON:
+         * `{ "title", "categoryId"?, "category"?, "categoryColor"?, "steps"?: [{ "title" }] }`. A PC parks a 4th task instead
+         * and says so; a PC takes it only within 2 minutes of first seeing it.
+         */
+        const val TASK_ADD = "taskAdd"
+
+        /** Rename a task or replace its steps in a PC's running session (ADR 48): [item] is the task, [text] `{ "title"?, "steps"?: [{ "id"?, "title" }] }`. */
+        const val TASK_EDIT = "taskEdit"
+
+        /** Put a PC's running session's tasks in a new order (ADR 48): [text] `{ "order": ["task id", ...] }`. */
+        const val TASK_REORDER = "taskReorder"
+
+        /** The kinds that change a PC's running session's tasks (a PC answers them in its results). */
+        val TASK_KINDS: Set<String> = setOf(TASK_ADD, TASK_EDIT, TASK_REORDER)
+
         /** The kinds that start or end a PC session (a PC answers them in its results). */
         val CONTROL_KINDS: Set<String> = setOf(START, END_EARLY_BEGIN, END_EARLY)
     }

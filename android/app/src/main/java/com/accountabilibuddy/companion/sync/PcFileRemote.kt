@@ -4,10 +4,13 @@ import android.content.Context
 import android.os.SystemClock
 import com.accountabilibuddy.shared.sync.SyncAction
 import com.accountabilibuddy.shared.sync.SyncActionResult
+import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncEndEarlyOffer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.time.Duration
@@ -35,6 +38,11 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
 
     /** The PC's end-early offer while the phone counts it down; null when none is open. */
     val offer: StateFlow<OpenOffer?> = _offer.asStateFlow()
+
+    /** Shows [message] once, like a PC's answer (why a change could not be sent). */
+    fun tell(message: String) {
+        _news.value = message
+    }
 
     fun clearNews() {
         _news.value = null
@@ -64,6 +72,83 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
             if (countUp) put("noSetEnd", true) else minutes?.let { put("minutes", it.coerceIn(1, 720)) }
         }
         actions.add(SyncAction.START, pc.file.device.deviceId, text = request.toString())
+        return null
+    }
+
+    /**
+     * Asks the PC [pcId] (its sync device id) to add a task to its running session's checklist (ADR 48). The PC applies the
+     * three-tasks rule: a 4th task is parked to Come back to instead (its answer says "Parked: 3 tasks this session", shown
+     * in [news]), and it refuses in the last minute of a phase or when no session runs. [taskId] is the id the task gets (so a
+     * later [editTask] can name it before the PC's file shows it); [categoryId] is one of the PC's category ids from its file,
+     * else [category] (a name, matched or made on the PC, with [categoryColor] "#RRGGBB" for a new one). Several adds may wait
+     * at once. Null when sent, else why not.
+     */
+    fun addTask(
+        pcId: UUID,
+        title: String,
+        categoryId: String? = null,
+        category: String? = null,
+        categoryColor: String? = null,
+        steps: List<String> = emptyList(),
+        taskId: UUID = UUID.randomUUID(),
+    ): String? {
+        val name = title.trim()
+        if (name.isEmpty()) {
+            return "Type a title first."
+        }
+
+        val pc = taskTarget(pcId).getOrElse { return it.message }
+        val request = buildJsonObject {
+            put("title", name)
+            categoryId?.let { put("categoryId", it) }
+            category?.trim()?.takeIf { it.isNotEmpty() }?.let { put("category", it) }
+            categoryColor?.let { put("categoryColor", it) }
+            if (steps.isNotEmpty()) {
+                put("steps", JsonArray(steps.map { step -> buildJsonObject { put("title", step.trim()) } }))
+            }
+        }
+        actions.add(SyncAction.TASK_ADD, pc.file.device.deviceId, item = taskId.toString(), text = request.toString())
+        return null
+    }
+
+    /**
+     * Asks the PC [pcId] to rename the task [taskId] of its running session ([title] null keeps it) and/or replace its steps
+     * ([steps] null keeps them; a list is the new steps in order: a step with the id of one of its own keeps its tick, any
+     * other is new, and steps left out are removed). Ticking a task stays [SyncAction.TICK_TASK]. Null when sent, else why not.
+     */
+    fun editTask(pcId: UUID, taskId: String, title: String? = null, steps: List<TaskStep>? = null): String? {
+        if (title != null && title.isBlank()) {
+            return "A task needs a title."
+        }
+
+        val pc = taskTarget(pcId).getOrElse { return it.message }
+        val request = buildJsonObject {
+            title?.let { put("title", it.trim()) }
+            steps?.let { list ->
+                put("steps", JsonArray(list.map { step ->
+                    buildJsonObject {
+                        step.id?.let { put("id", it) }
+                        put("title", step.title.trim())
+                    }
+                }))
+            }
+        }
+        actions.add(SyncAction.TASK_EDIT, pc.file.device.deviceId, item = taskId, text = request.toString())
+        return null
+    }
+
+    /**
+     * Asks the PC [pcId] to put its running session's tasks in the order [orderedIds] (task ids, as in its file). The checklist
+     * stays grouped by category, so the order counts within each category. Null when sent, else why not.
+     */
+    fun reorderTasks(pcId: UUID, orderedIds: List<String>): String? {
+        if (orderedIds.isEmpty()) {
+            return "Nothing to reorder."
+        }
+
+        val pc = taskTarget(pcId).getOrElse { return it.message }
+        val request = buildJsonObject { put("order", JsonArray(orderedIds.map { JsonPrimitive(it) })) }
+        actions.add(SyncAction.TASK_REORDER, pc.file.device.deviceId, text = request.toString())
         return null
     }
 
@@ -107,7 +192,9 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
      * much later; an open offer that ran out closes.
      */
     fun expire(now: Instant = Instant.now()) {
-        val gone = actions.pending.value.filter { it.kind in SyncAction.CONTROL_KINDS && Duration.between(it.at, now) > GIVE_UP_AFTER }
+        val gone = actions.pending.value.filter {
+            (it.kind in SyncAction.CONTROL_KINDS || it.kind in SyncAction.TASK_KINDS) && Duration.between(it.at, now) > GIVE_UP_AFTER
+        }
         gone.forEach { actions.remove(it.id) }
         if (gone.isNotEmpty()) {
             val names = gone.map { nameOf(it.target) }.distinct()
@@ -118,6 +205,11 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
 
     /** A PC acknowledged one of this phone's start or end-early actions ([ActionStore.onAnswered]). */
     fun answered(action: SyncAction, result: SyncActionResult?, pc: ReceivedDevice) {
+        if (action.kind in SyncAction.TASK_KINDS) {
+            answeredTask(result, pc)
+            return
+        }
+
         if (action.kind !in SyncAction.CONTROL_KINDS) {
             return
         }
@@ -153,6 +245,29 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
         }
     }
 
+    // A task change's answer: nothing to say when it was applied as asked; a refusal, or what the PC did instead (a parked 4th task), is shown.
+    private fun answeredTask(result: SyncActionResult?, pc: ReceivedDevice) {
+        val name = pc.file.device.name
+        when {
+            result == null || result.status == SyncActionResult.STATUS_UNSUPPORTED -> _news.value = updateTasksText(name)
+            !result.ok -> _news.value = result.message ?: "$name didn't change the task."
+            result.message != null -> _news.value = "$name: ${result.message}"
+        }
+    }
+
+    // The PC [pcId] for a task change: its file is here and its app is new enough to apply task changes.
+    private fun taskTarget(pcId: UUID): Result<ReceivedDevice> {
+        val pc = received.value.firstOrNull { it.file.device.deviceId == pcId && it.file.device.kind == SyncDeviceCard.KIND_PC }
+            ?: return Result.failure(IllegalStateException("That PC hasn't synced with this phone yet."))
+        if (!PcFileControl.supportsTaskEdits(pc.file.device)) {
+            return Result.failure(IllegalStateException(updateTasksText(pc.file.device.name)))
+        }
+
+        return Result.success(pc)
+    }
+
+    private fun updateTasksText(name: String): String = "Update AccountabiliBuddy on $name to change its session tasks from here."
+
     // The PC to control, if it can answer and isn't already busy with one of this phone's requests.
     private fun controllable(): Result<ReceivedDevice> {
         val pc = target() ?: return Result.failure(IllegalStateException("No PC has synced with this phone yet."))
@@ -165,6 +280,9 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
     }
 
     private fun nameOf(pcId: UUID): String = received.value.firstOrNull { it.file.device.deviceId == pcId }?.file?.device?.name ?: "The PC"
+
+    /** One step in [editTask]'s new list: [id] is a step's id from the PC's file, null for a new one. */
+    data class TaskStep(val id: String?, val title: String)
 
     /** An end-early offer from [pcName]'s file, being counted down here. */
     data class OpenOffer(val pcId: UUID, val pcName: String, val offer: SyncEndEarlyOffer) {

@@ -64,7 +64,7 @@ class ActionStore(context: Context) {
 
     /** True while this phone has asked [target] to tick [item] and it hasn't answered yet (shown ticked meanwhile). */
     fun isTicking(target: UUID, item: String?): Boolean =
-        item != null && _pending.value.any { it.target == target && it.item == item && it.kind != SyncAction.PARK }
+        item != null && _pending.value.any { it.target == target && it.item == item && it.kind != SyncAction.PARK && it.kind !in SyncAction.TASK_KINDS }
 
     /**
      * Drops what the PCs acknowledged in their files, and anything older than 3 days. Each acknowledged action goes to

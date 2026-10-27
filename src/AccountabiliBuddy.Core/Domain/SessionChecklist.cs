@@ -91,6 +91,91 @@ public sealed record SessionChecklist(
     }
 
     /// <summary>
+    /// A task with the id <paramref name="id"/> (chosen by the device that adds it; a fresh id when that one is already
+    /// used anywhere in the checklist) in <paramref name="categoryId"/>, with open steps <paramref name="steps"/>. A blank
+    /// title adds nothing.
+    /// </summary>
+    public SessionChecklist AddWithId(Guid id, string title, Guid? categoryId, IReadOnlyList<string>? steps = null)
+    {
+        string trimmed = title.Trim();
+        if (trimmed.Length == 0)
+        {
+            return this;
+        }
+
+        var used = Tasks.SelectMany(task => task.Subtasks.Select(subtask => subtask.Id).Prepend(task.Id)).ToHashSet();
+        Guid taskId = id != Guid.Empty && !used.Contains(id) ? id : Guid.NewGuid();
+        List<SessionSubtask> subtasks = (steps ?? [])
+            .Select(step => step.Trim())
+            .Where(step => step.Length > 0)
+            .Select(step => new SessionSubtask(Guid.NewGuid(), step, null))
+            .ToList();
+        return this with { Tasks = [.. Tasks, new SessionTask(taskId, trimmed, null, subtasks, categoryId)] };
+    }
+
+    /// <summary>
+    /// Renames the task <paramref name="id"/> (<paramref name="title"/> null or blank keeps its title) and, when
+    /// <paramref name="steps"/> is given, replaces its steps by that list: a step with the id of one of its own keeps its
+    /// tick and takes the new title, any other is a new open step (taking the given id when nothing in the checklist uses
+    /// it), and steps left out are taken off. A new step reopens a task that was done, as adding one does. Unchanged when
+    /// the task isn't here.
+    /// </summary>
+    public SessionChecklist Edit(Guid id, string? title, IReadOnlyList<SessionStepEdit>? steps)
+    {
+        SessionTask? task = Tasks.FirstOrDefault(task => task.Id == id);
+        if (task is null)
+        {
+            return this;
+        }
+
+        string newTitle = string.IsNullOrWhiteSpace(title) ? task.Title : title.Trim();
+        if (steps is null)
+        {
+            return WithTask(id, held => held with { Title = newTitle });
+        }
+
+        var used = Tasks.SelectMany(other => other.Subtasks.Select(subtask => subtask.Id).Prepend(other.Id)).ToHashSet();
+        var taken = new HashSet<Guid>();
+        bool added = false;
+        var subtasks = new List<SessionSubtask>();
+        foreach (SessionStepEdit step in steps)
+        {
+            string stepTitle = step.Title.Trim();
+            if (stepTitle.Length == 0)
+            {
+                continue;
+            }
+
+            SessionSubtask? held = step.Id is Guid stepId && taken.Add(stepId) ? task.Subtasks.FirstOrDefault(subtask => subtask.Id == stepId) : null;
+            if (held is not null)
+            {
+                subtasks.Add(held with { Title = stepTitle });
+                continue;
+            }
+
+            Guid newId = step.Id is Guid wanted && wanted != Guid.Empty && !used.Contains(wanted) && taken.Add(wanted) ? wanted : Guid.NewGuid();
+            subtasks.Add(new SessionSubtask(newId, stepTitle, null));
+            added = true;
+        }
+
+        SessionChecklist edited = WithTask(id, held => held with { Title = newTitle, DoneAt = added ? null : held.DoneAt, Subtasks = subtasks });
+        return edited.CurrentId is Guid picked && !edited.IsOpen(picked) ? edited with { CurrentId = null } : edited;
+    }
+
+    /// <summary>
+    /// The tasks in the order of <paramref name="order"/> (ids not here are ignored); tasks it leaves out follow in their
+    /// own order. Grouping by category (<see cref="Grouped"/>) then keeps each category's tasks in this order.
+    /// </summary>
+    public SessionChecklist InOrder(IReadOnlyList<Guid> order)
+    {
+        Dictionary<Guid, SessionTask> byId = Tasks.ToDictionary(task => task.Id);
+        List<SessionTask> ordered = order.Distinct().Where(byId.ContainsKey).Select(id => byId[id]).ToList();
+        var listed = ordered.Select(task => task.Id).ToHashSet();
+        ordered.AddRange(Tasks.Where(task => !listed.Contains(task.Id)));
+        return this with { Tasks = ordered };
+    }
+
+    /// <summary>
     /// A task put first: in the first open task's category (none when it has none, or the list is empty), at the top of
     /// the list, so it stays first once grouped. A blank title adds nothing.
     /// </summary>
