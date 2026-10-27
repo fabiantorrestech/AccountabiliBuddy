@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0045](0045-delete-the-wi-fi-link.md) | Delete the Wi-Fi link | Accepted | [14](0014-pair-the-phone-with-the-pc-over-the-local-network.md) |
 | [0043](0043-read-beeminder-goals.md) | Read Beeminder goals | Accepted | — |
 | [0042](0042-control-pc-sessions-and-plan-edits-through-sync-files.md) | Control PC sessions and plan edits through sync files | Accepted | — |
 | [0041](0041-get-a-new-spare-key-with-friction.md) | Get a new spare key with friction | Accepted | — |
@@ -34,7 +35,7 @@
 | [0017](0017-keep-the-section-of-a-site-readable-in-activity-history.md) | Keep the section of a site readable in activity history | Accepted | — |
 | [0016](0016-read-browser-addresses-on-android-with-an-accessibility-service.md) | Read browser addresses on Android with an accessibility service | Accepted | — |
 | [0015](0015-share-activity-history-between-paired-devices.md) | Share activity history between paired devices | Accepted | — |
-| [0014](0014-pair-the-phone-with-the-pc-over-the-local-network.md) | Pair the phone with the PC over the local network | Accepted | — |
+| [0014](0014-pair-the-phone-with-the-pc-over-the-local-network.md) | ~~Pair the phone with the PC over the local network~~ | Superseded by [45](0045-delete-the-wi-fi-link.md) | — |
 | [0013](0013-build-the-android-companion-with-kotlin-and-jetpack-compose.md) | Build the Android companion with Kotlin and Jetpack Compose | Accepted | — |
 | [0012](0012-check-for-updates-on-a-public-github-releases-repo.md) | Check for updates on a public GitHub releases repo | Accepted | — |
 | [0011](0011-allow-read-only-google-health-sleep-data.md) | Allow read-only Google Health sleep data | Proposed | — |

@@ -4,7 +4,7 @@ Date: 2026-10-20
 
 ## Status
 
-Accepted
+Superseded by [45. Delete the Wi-Fi link](0045-delete-the-wi-fi-link.md)
 
 ## Context
 

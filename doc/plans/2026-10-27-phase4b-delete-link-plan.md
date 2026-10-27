@@ -6,7 +6,7 @@
 
 **Spec:** user approval 2026-10-27 ("Delete it all": link, pairing, port and the watch's PC route; the watch works through the phone only). Research: the scope notes below (2026-10-27).
 
-**ADR:** a new ADR "Delete the Wi-Fi link", written by the orchestrator before Task 1. It supersedes ADR 14 and the link parts of 15, 19, 21 and 26, and amends 42's "separate step". The README rows are updated.
+**ADR:** [45. Delete the Wi-Fi link](../adr/0045-delete-the-wi-fi-link.md) (written 2026-10-27). It supersedes ADR 14 and the link parts of 15, 19, 21 and 26, and amends 42's "separate step". The README rows are updated.
 
 ## Global Constraints
 - Implementer rules: `.superpowers/sdd/implementer-rules.md`. No new dependencies. This is a **breaking change**: an old phone can't link to a new PC, and a new phone can't link to an old PC. Both still sync through files.
