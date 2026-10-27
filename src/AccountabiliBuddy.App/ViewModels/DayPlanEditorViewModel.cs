@@ -95,6 +95,11 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
     // True while a template is being loaded into the mode fields, so loading isn't reported back as an edit.
     private bool _loading;
 
+    // The work parts a switch to a work window or to Budget took out of the rows, so switching back puts them back
+    // instead of leaving a Schedule day with no work; the window they were taken for tells whether it was edited since.
+    private List<PlanPart> _setAsideWork = new();
+    private (TimeSpan? Start, TimeSpan? End) _setAsideWindow;
+
     /// <summary>The sleep goal, for a Sleep part woken by the alarm (its end is bedtime plus this); 8 hours unless set.</summary>
     public Func<TimeSpan> SleepGoal { get; set; } = () => AccountabiliBuddy.Core.Engine.SleepSchedule.DefaultGoal;
 
@@ -124,6 +129,7 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
 
     public void Load(DayTemplate template)
     {
+        _setAsideWork = new List<PlanPart>();
         Blocks = template.Blocks;
         _loading = true;
         Mode = template.Mode;
@@ -153,6 +159,9 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
         Refresh(rowsChanged: false);
     }
 
+    /// <summary>A row has no category (e.g. its category is gone) or a time: <see cref="ToTemplate"/> leaves it out.</summary>
+    public bool HasIncompleteRow => Parts.Any(row => row.ToPart() is null);
+
     /// <summary>What's wrong with the template as it is now (ignoring a message left by a refused click); null = fine.</summary>
     public string? ProblemNow()
     {
@@ -179,8 +188,15 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
 
         if (value == DayMode.Budget)
         {
-            // A Budget day's parts are only non-productive windows: the day's work parts give way to the budget.
-            LoadParts(Parts.Select(row => row.ToPart()).OfType<PlanPart>().Where(part => !IsWorkPart(part)).ToList());
+            // A Budget day's parts are only non-productive windows: the day's work parts give way to the budget (and come
+            // back if the day goes back to a timeline).
+            List<PlanPart> parts = Parts.Select(row => row.ToPart()).OfType<PlanPart>().ToList();
+            SetAsideWork(parts.Where(IsWorkPart));
+            LoadParts(parts.Where(part => !IsWorkPart(part)).ToList());
+        }
+        else if (value == DayMode.Schedule && !UseWorkWindow)
+        {
+            RestoreSetAsideWork(Parts.Select(row => row.ToPart()).OfType<PlanPart>().ToList(), windowPieces: false);
         }
 
         foreach (PlanPartRowViewModel row in Parts)
@@ -213,13 +229,25 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
                 WindowEnd = span.Any(part => part.EndsAtMidnight) ? TimeSpan.Zero : span.Max(part => part.End.ToTimeSpan());
             }
 
+            SetAsideWork(parts.Where(IsWorkPart));
+            _setAsideWindow = (WindowStart, WindowEnd);
             LoadParts(parts.Where(part => !IsWorkPart(part)).ToList());
         }
-        else if (WindowStart is TimeSpan start && WindowEnd is TimeSpan end && !parts.Any(IsWorkPart))
+        else if (Mode == DayMode.Schedule && !parts.Any(IsWorkPart))
         {
-            // Back to the timeline: the window becomes its work parts (cut around the day's rest parts, as the guards see it).
-            var window = new DayTemplate(parts, Blocks, DayMode.Schedule, new WorkWindow(TimeOnly.FromTimeSpan(start), TimeOnly.FromTimeSpan(end)));
-            LoadParts(window.WithWorkWindowPart(Categories).Parts.Select(part => part.Id == DayTemplate.WorkWindowPartId || !parts.Contains(part) ? part with { Id = Guid.NewGuid() } : part).ToList());
+            // Back to the timeline: the work the window replaced comes back as it was; when the window was edited since,
+            // it becomes its work parts instead (cut around the day's rest parts, as the guards see it).
+            if (_setAsideWork.Count > 0 && _setAsideWindow == (WindowStart, WindowEnd))
+            {
+                RestoreSetAsideWork(parts, windowPieces: false);
+            }
+            else if (WindowStart is TimeSpan start && WindowEnd is TimeSpan end)
+            {
+                var window = new DayTemplate(parts, Blocks, DayMode.Schedule, new WorkWindow(TimeOnly.FromTimeSpan(start), TimeOnly.FromTimeSpan(end)));
+                List<PlanPart> rebuilt = window.WithWorkWindowPart(Categories).Parts
+                    .Select(part => part.Id == DayTemplate.WorkWindowPartId || !parts.Contains(part) ? part with { Id = Guid.NewGuid() } : part).ToList();
+                RestoreSetAsideWork(rebuilt, windowPieces: true);
+            }
         }
 
         Refresh(rowsChanged: false);
@@ -247,6 +275,46 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
     private bool IsWorkPart(PlanPart part)
     {
         return CategoryOf(part)?.Behavior.IsWork() == true;
+    }
+
+    // Keeps the work parts a mode switch removed; nothing removed leaves what was kept before.
+    private void SetAsideWork(IEnumerable<PlanPart> work)
+    {
+        List<PlanPart> removed = work.ToList();
+        if (removed.Count > 0)
+        {
+            _setAsideWork = removed;
+        }
+    }
+
+    // Shows the parts plus the work parts set aside, each only if the day stays valid with it (a part added meanwhile may
+    // be in the way). With windowPieces the parts of the category the window became are left out (the window replaces
+    // them) and the rest, such as an evening of extra work, come back.
+    private void RestoreSetAsideWork(List<PlanPart> parts, bool windowPieces)
+    {
+        if (_setAsideWork.Count == 0)
+        {
+            if (windowPieces)
+            {
+                LoadParts(parts);
+            }
+
+            return;
+        }
+
+        Guid? windowCategory = windowPieces ? Categories.FirstOrDefault(category => category.Behavior == CategoryBehavior.Watch)?.Id : null;
+        var restored = new List<PlanPart>(parts);
+        foreach (PlanPart part in _setAsideWork.Where(part => part.CategoryId != windowCategory))
+        {
+            restored.Add(part);
+            if (DayPlanValidator.Validate(new DayTemplate(restored, Blocks), Categories) is not null)
+            {
+                restored.Remove(part);
+            }
+        }
+
+        _setAsideWork = new List<PlanPart>();
+        LoadParts(restored);
     }
 
     // Replaces the rows with these parts, leaving the mode fields as they are.
@@ -279,7 +347,9 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
         }
 
         Guid added = next.Parts[^1].Id;
+        List<PlanPart> setAside = _setAsideWork;
         Load(next);
+        _setAsideWork = setAside;
         Selected = Parts.First(row => row.Id == added);
     }
 

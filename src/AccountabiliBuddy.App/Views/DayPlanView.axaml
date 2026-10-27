@@ -20,7 +20,7 @@
         </StackPanel>
 
         <ScrollViewer>
-            <StackPanel Spacing="18" MaxWidth="1000" HorizontalAlignment="Left" IsEnabled="{Binding !IsLocked}">
+            <StackPanel Spacing="18" MaxWidth="1400" HorizontalAlignment="Stretch" IsEnabled="{Binding !IsLocked}">
                 <TextBlock TextWrapping="Wrap" Opacity="0.75"
                            Text="How your days are meant to go: day types (a timeline or just a work window, a budget of productive hours, or a free day) and which type each weekday follows. Watch parts are when the buddy asks about new sites and counts drift, Comms parts are work time for mail and chat, Rest parts are breaks, and Sleep sets bedtime and wake time. A part that crosses midnight is the night before the day it ends on. Single dates are changed in Exceptions." />
 

@@ -152,6 +152,13 @@ public sealed partial class DayPlanViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task SaveAsync()
     {
+        // A row with no category or time can't become a part; saving would silently drop it from the day.
+        if (Templates.FirstOrDefault(template => template.Editor.HasIncompleteRow) is PlanTemplateEditorViewModel incomplete)
+        {
+            StatusMessage = $"Not saved: {incomplete.Name}: pick a category and both times for every part.";
+            return;
+        }
+
         DayPlan plan = Build();
         if (DayPlanValidator.Validate(plan) is string problem)
         {
