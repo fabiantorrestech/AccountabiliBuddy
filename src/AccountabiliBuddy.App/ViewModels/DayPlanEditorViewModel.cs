@@ -201,31 +201,25 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
         List<PlanPart> parts = Parts.Select(row => row.ToPart()).OfType<PlanPart>().ToList();
         if (value)
         {
-            // The timeline's work parts become the window: the first start to the last end, cut back where a fixed rest
-            // or sleep part starts inside it (a window can't overlap them), so the result is a valid day to adjust.
-            List<PlanPart> work = parts.Where(IsWorkPart).ToList();
+            // The timeline's work parts become the window: the first work start to the end of the last part of that work
+            // (its category, plus Comms) the same day: Extra Work in the evening, a different category, stays out. Lunch and
+            // other rest parts stay as their own parts inside the window and are left out of the guarded time.
+            List<PlanPart> work = parts.Where(part => IsWorkPart(part) && !part.CrossesMidnight).ToList();
             if (work.Count > 0)
             {
-                TimeSpan start = work.Min(part => part.Start.ToTimeSpan());
-                TimeSpan end = work.Where(part => !part.CrossesMidnight).Select(part => part.End.ToTimeSpan()).DefaultIfEmpty(new TimeSpan(17, 0, 0)).Max();
-                TimeSpan firstBreak = parts
-                    .Where(part => !IsWorkPart(part) && !part.IsFlexible && !part.CrossesMidnight && part.Start.ToTimeSpan() > start && part.Start.ToTimeSpan() < end)
-                    .Select(part => part.Start.ToTimeSpan())
-                    .DefaultIfEmpty(end)
-                    .Min();
-                WindowStart = start;
-                WindowEnd = firstBreak;
+                Guid mainCategory = (work.Where(part => CategoryOf(part)?.Behavior == CategoryBehavior.Watch).OrderBy(part => part.Start).FirstOrDefault() ?? work[0]).CategoryId;
+                List<PlanPart> span = work.Where(part => part.CategoryId == mainCategory || CategoryOf(part)?.Behavior == CategoryBehavior.Comms).ToList();
+                WindowStart = span.Min(part => part.Start.ToTimeSpan());
+                WindowEnd = span.Any(part => part.EndsAtMidnight) ? TimeSpan.Zero : span.Max(part => part.End.ToTimeSpan());
             }
 
             LoadParts(parts.Where(part => !IsWorkPart(part)).ToList());
         }
-        else if (WindowStart is TimeSpan start && WindowEnd is TimeSpan end
-                 && Categories.FirstOrDefault(category => category.Behavior == CategoryBehavior.Watch) is DayCategory work
-                 && !parts.Any(IsWorkPart))
+        else if (WindowStart is TimeSpan start && WindowEnd is TimeSpan end && !parts.Any(IsWorkPart))
         {
-            // Back to the timeline: the window becomes its one work part.
-            parts.Add(new PlanPart(Guid.NewGuid(), work.Id, TimeOnly.FromTimeSpan(start), TimeOnly.FromTimeSpan(end)));
-            LoadParts(parts);
+            // Back to the timeline: the window becomes its work parts (cut around the day's rest parts, as the guards see it).
+            var window = new DayTemplate(parts, Blocks, DayMode.Schedule, new WorkWindow(TimeOnly.FromTimeSpan(start), TimeOnly.FromTimeSpan(end)));
+            LoadParts(window.WithWorkWindowPart(Categories).Parts.Select(part => part.Id == DayTemplate.WorkWindowPartId || !parts.Contains(part) ? part with { Id = Guid.NewGuid() } : part).ToList());
         }
 
         Refresh(rowsChanged: false);
@@ -245,9 +239,14 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
         }
     }
 
+    private DayCategory? CategoryOf(PlanPart part)
+    {
+        return Categories.FirstOrDefault(category => category.Id == part.CategoryId);
+    }
+
     private bool IsWorkPart(PlanPart part)
     {
-        return Categories.FirstOrDefault(category => category.Id == part.CategoryId)?.Behavior.IsWork() == true;
+        return CategoryOf(part)?.Behavior.IsWork() == true;
     }
 
     // Replaces the rows with these parts, leaving the mode fields as they are.

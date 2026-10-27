@@ -24,8 +24,10 @@ public sealed record DayTemplate(
     public static Guid WorkWindowPartId { get; } = Guid.Parse("5c7a2e10-0f00-4b3d-8f6e-1a9c40000f00");
 
     /// <summary>
-    /// A Schedule template that has a work window and no work parts of its own, with the window added as one work part
-    /// (the first Watch category); any other template as it is.
+    /// A Schedule template that has a work window and no work parts of its own, with the window added as work parts
+    /// (the first Watch category): one part, or several when fixed rest, sleep or other parts of the template lie inside
+    /// the window (lunch, a nap), which are left out of the work and stay as they are. A flexible break stays inside the
+    /// window, as it does over a timeline's work. Pieces under 15 minutes are left out. Any other template as it is.
     /// </summary>
     public DayTemplate WithWorkWindowPart(IReadOnlyList<DayCategory> categories)
     {
@@ -36,6 +38,63 @@ public sealed record DayTemplate(
             return this;
         }
 
-        return this with { Parts = [.. Parts, new PlanPart(WorkWindowPartId, work.Id, window.Start, window.End)] };
+        return this with { Parts = [.. Parts, .. WindowPieces(window, work)] };
+    }
+
+    // The window minus the fixed parts inside it, as work parts: the first with WorkWindowPartId, the others with ids
+    // numbered after it (the same ids on every device, so they all sort alike).
+    private List<PlanPart> WindowPieces(WorkWindow window, DayCategory work)
+    {
+        const int shortest = 15;
+        int start = (int)window.Start.ToTimeSpan().TotalMinutes;
+        int end = window.End == TimeOnly.MinValue ? 24 * 60 : (int)window.End.ToTimeSpan().TotalMinutes;
+
+        var holes = new List<(int Start, int End)>();
+        foreach (PlanPart part in Parts.Where(part => !part.IsFlexible))
+        {
+            int from = (int)part.Start.ToTimeSpan().TotalMinutes;
+            if (part.CrossesMidnight)
+            {
+                holes.Add((from, 24 * 60));
+                holes.Add((0, part.EndMinutes));
+            }
+            else
+            {
+                holes.Add((from, part.EndMinutes));
+            }
+        }
+
+        var pieces = new List<PlanPart>();
+        void Add(int from, int to)
+        {
+            if (to - from >= shortest)
+            {
+                Guid id = pieces.Count == 0 ? WorkWindowPartId : Guid.Parse($"5c7a2e10-0f10-4b3d-8f6e-1a9c4000{pieces.Count:x4}");
+                pieces.Add(new PlanPart(id, work.Id, TimeAt(from), TimeAt(to)));
+            }
+        }
+
+        int cursor = start;
+        foreach ((int holeStart, int holeEnd) in holes.Where(hole => hole.End > start && hole.Start < end).OrderBy(hole => hole.Start))
+        {
+            if (holeStart > cursor)
+            {
+                Add(cursor, Math.Min(holeStart, end));
+            }
+
+            cursor = Math.Max(cursor, holeEnd);
+        }
+
+        if (cursor < end)
+        {
+            Add(cursor, end);
+        }
+
+        return pieces;
+    }
+
+    private static TimeOnly TimeAt(int minutes)
+    {
+        return minutes >= 24 * 60 ? TimeOnly.MinValue : new TimeOnly(minutes / 60, minutes % 60);
     }
 }

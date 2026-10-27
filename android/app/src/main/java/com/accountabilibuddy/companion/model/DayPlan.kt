@@ -71,19 +71,51 @@ data class DayTemplate(
     val rules: BlockRules get() = blocks ?: BlockRules.Default
 
     /**
-     * A Schedule template that has a work window and no work parts of its own, with the window added as one work part
-     * (the first Watch category); any other template as it is. The PC's DayTemplate.WithWorkWindowPart.
+     * A Schedule template that has a work window and no work parts of its own, with the window added as work parts
+     * (the first Watch category): one part, or several when fixed rest, sleep or other parts of the template lie inside
+     * the window (lunch, a nap), which are left out of the work and stay as they are. A flexible break stays inside the
+     * window, as it does over a timeline's work. Pieces under 15 minutes are left out. Any other template as it is.
+     * The PC's DayTemplate.WithWorkWindowPart.
      */
     fun withWorkWindowPart(categories: List<DayCategory>): DayTemplate {
         val window = workWindow ?: return this
         if (mode != DayMode.Schedule || parts.any { part -> categories.firstOrNull { it.id == part.categoryId }?.behavior?.isWork == true }) return this
         val work = categories.firstOrNull { it.behavior == CategoryBehavior.Watch } ?: return this
-        return copy(parts = parts + PlanPart(WORK_WINDOW_PART_ID, work.id, window.start, window.end))
+        return copy(parts = parts + windowPieces(window, work))
+    }
+
+    // The window minus the fixed parts inside it, as work parts: the first with WORK_WINDOW_PART_ID, the others numbered after it.
+    private fun windowPieces(window: WorkWindow, work: DayCategory): List<PlanPart> {
+        val day = 24 * 60
+        val start = window.start.hour * 60 + window.start.minute
+        val end = if (window.end == LocalTime.MIDNIGHT) day else window.end.hour * 60 + window.end.minute
+        val holes = parts.filter { !it.isFlexible }.flatMap { part ->
+            val from = part.start.hour * 60 + part.start.minute
+            val to = if (part.endsAtMidnight) day else part.end.hour * 60 + part.end.minute
+            if (part.crossesMidnight) listOf(from to day, 0 to to) else listOf(from to to)
+        }
+        val pieces = mutableListOf<PlanPart>()
+        fun timeAt(minutes: Int): LocalTime = if (minutes >= day) LocalTime.MIDNIGHT else LocalTime.of(minutes / 60, minutes % 60)
+        fun add(from: Int, to: Int) {
+            if (to - from < 15) return
+            val id = if (pieces.isEmpty()) WORK_WINDOW_PART_ID else UUID.fromString("5c7a2e10-0f10-4b3d-8f6e-1a9c4000" + "%04x".format(pieces.size))
+            pieces += PlanPart(id, work.id, timeAt(from), timeAt(to))
+        }
+        var cursor = start
+        for ((holeStart, holeEnd) in holes.filter { it.second > start && it.first < end }.sortedBy { it.first }) {
+            if (holeStart > cursor) add(cursor, minOf(holeStart, end))
+            cursor = maxOf(cursor, holeEnd)
+        }
+        if (cursor < end) add(cursor, end)
+        return pieces
     }
 
     companion object {
-        /** The id of the part standing in for a work window, the PC's same one. */
+        /** The id of the part standing in for a work window (its first piece), the PC's same one. */
         val WORK_WINDOW_PART_ID: UUID = UUID.fromString("5c7a2e10-0f00-4b3d-8f6e-1a9c40000f00")
+
+        /** True for any piece standing in for a work window: [WORK_WINDOW_PART_ID] or the ids numbered after it. */
+        fun isWorkWindowPartId(id: UUID): Boolean = id == WORK_WINDOW_PART_ID || id.toString().startsWith("5c7a2e10-0f10-4b3d-8f6e-1a9c4000")
     }
 }
 

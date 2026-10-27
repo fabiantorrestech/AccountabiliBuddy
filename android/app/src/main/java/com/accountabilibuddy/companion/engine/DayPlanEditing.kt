@@ -32,12 +32,16 @@ object DayPlanEditing {
     fun withoutWorkParts(template: DayTemplate, categories: List<DayCategory>): DayTemplate =
         template.copy(parts = template.parts.filter { part -> categories.firstOrNull { it.id == part.categoryId }?.behavior?.isWork != true })
 
-    /** The work parts' span (first start to last end) as a window; null when there are none or the span runs past midnight. */
+    /** The main work's span (first start to last end, Comms included, other work categories left out) as a window; null when there is no work. */
     fun workSpan(template: DayTemplate, categories: List<DayCategory>): WorkWindow? {
         val work = template.parts.filter { part -> categories.firstOrNull { it.id == part.categoryId }?.behavior?.isWork == true && !part.crossesMidnight }
         if (work.isEmpty()) return null
-        val start = work.minOf { it.start }
-        val end = if (work.any { it.endsAtMidnight }) LocalTime.MIDNIGHT else work.maxOf { it.end }
+        // The first work start to the last end of that work (its category, plus Comms): a different category, such as
+        // evening Extra Work, stays out. Lunch and other rest parts stay their own parts inside the window.
+        val main = (work.filter { part -> categories.firstOrNull { it.id == part.categoryId }?.behavior == CategoryBehavior.Watch }.minByOrNull { it.start } ?: work[0]).categoryId
+        val span = work.filter { part -> part.categoryId == main || categories.firstOrNull { it.id == part.categoryId }?.behavior == CategoryBehavior.Comms }
+        val start = span.minOf { it.start }
+        val end = if (span.any { it.endsAtMidnight }) LocalTime.MIDNIGHT else span.maxOf { it.end }
         return WorkWindow(start, end)
     }
 
