@@ -126,6 +126,9 @@ object SyncFileJson {
                 running.currentTask?.let { put("currentTask", it) }
                 running.profileId?.let { put("profileId", it) }
                 running.countUpProfileId?.let { put("countUpProfileId", it) }
+                // Optional (phase 11): the PC's planning stage.
+                running.planningStartedAt?.let { put("planningStartedAt", writeTime(it)) }
+                running.planningEndsAt?.let { put("planningEndsAt", writeTime(it)) }
             })
         }
         // Optional (ADR 42): a PC's answers, its end-early offer, its goal and its profiles for the start picker.
@@ -286,6 +289,8 @@ object SyncFileJson {
                         optionalText(running, "currentTask"),
                         optionalText(running, "profileId"),
                         optionalText(running, "countUpProfileId"),
+                        running.optionalTime("planningStartedAt"),
+                        running.optionalTime("planningEndsAt"),
                     )
                 }.getOrNull()
             },

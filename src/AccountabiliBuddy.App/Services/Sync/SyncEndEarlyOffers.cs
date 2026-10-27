@@ -39,6 +39,8 @@ public sealed class SyncEndEarlyOffers
 
     private sealed record PhaseKey(SessionMode? Mode, SessionPhase Phase, Guid? ProfileId, int CompletedFocusCycles)
     {
-        public static PhaseKey Of(SessionState state) => new(state.Mode, state.Phase, state.ProfileId, state.CompletedFocusCycles);
+        // Planning leads straight into the same focus phase: an offer made while planning stays good when focus begins.
+        public static PhaseKey Of(SessionState state) =>
+            new(state.Mode, state.IsPlanning ? SessionPhase.Focus : state.Phase, state.ProfileId, state.CompletedFocusCycles);
     }
 }

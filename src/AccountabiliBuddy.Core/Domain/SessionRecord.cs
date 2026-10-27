@@ -25,6 +25,41 @@ public sealed record SessionRecord(
     /// <summary>How long the user was away for <paramref name="kind"/> (breaks or interruptions).</summary>
     public TimeSpan AwayTimeOf(AwayKind kind) => Total((Away ?? []).Where(stretch => stretch.Kind == kind));
 
+    /// <summary>
+    /// How long the planning stage lasted, without the time the user was stepped away in it (that is away time, kept apart).
+    /// Zero for a session without one; a stage still going isn't counted.
+    /// </summary>
+    public TimeSpan PlanningTime
+    {
+        get
+        {
+            TimeSpan planning = TimeSpan.Zero;
+            foreach (AwayStretch stretch in (Away ?? []).Where(stretch => stretch.Kind == AwayKind.Planning && stretch.To != DateTimeOffset.MaxValue))
+            {
+                // The away time inside the stage, each moment once (breaks, side tasks and marked gaps may overlap each other).
+                TimeSpan away = TimeSpan.Zero;
+                DateTimeOffset reached = stretch.From;
+                foreach (AwayStretch other in (Away ?? [])
+                             .Where(other => other.Kind != AwayKind.Planning && other.To != DateTimeOffset.MaxValue && other.To > stretch.From && other.From < stretch.To)
+                             .OrderBy(other => other.From))
+                {
+                    DateTimeOffset from = other.From > reached ? other.From : reached;
+                    DateTimeOffset to = other.To < stretch.To ? other.To : stretch.To;
+                    if (to > from)
+                    {
+                        away += to - from;
+                        reached = to;
+                    }
+                }
+
+                TimeSpan length = stretch.To - stretch.From - away;
+                planning += length > TimeSpan.Zero ? length : TimeSpan.Zero;
+            }
+
+            return planning;
+        }
+    }
+
     private static TimeSpan Total(IEnumerable<AwayStretch> stretches) => stretches
         .Where(stretch => stretch.To != DateTimeOffset.MaxValue)
         .Aggregate(TimeSpan.Zero, (sum, stretch) => sum + (stretch.To - stretch.From));

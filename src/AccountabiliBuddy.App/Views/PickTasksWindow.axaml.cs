@@ -12,8 +12,9 @@ public partial class PickTasksWindow : Window
 
     protected override void OnClosing(WindowClosingEventArgs e)
     {
-        // It can't be skipped: only answering (Keep) closes it.
-        if (DataContext is PickTasksViewModel { IsDone: false })
+        // It can't be skipped: only answering (Keep) closes it. Quitting the app or Windows still closes it; the next start asks again.
+        bool quitting = e.CloseReason is WindowCloseReason.ApplicationShutdown or WindowCloseReason.OSShutdown;
+        if (!quitting && DataContext is PickTasksViewModel { IsDone: false })
         {
             e.Cancel = true;
         }

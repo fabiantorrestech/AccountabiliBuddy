@@ -8,4 +8,7 @@ public enum SessionCue
 
     /// <summary>A break is up: focus starts again, or the session ends after the break.</summary>
     BreakEnded,
+
+    /// <summary>Planning time is up: the "Ready?" card asks (the focus-end chime plays, the overlay glows). Not an end of anything.</summary>
+    PlanningEnded,
 }

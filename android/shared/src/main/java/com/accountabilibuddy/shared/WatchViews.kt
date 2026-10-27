@@ -10,6 +10,9 @@ private const val MINUTES_PER_DAY = 24 * 60
 /** The ring colour of focus sessions (teal); the running one is drawn brighter. */
 const val FOCUS_COLOR: Long = 0xFF14B8A6L
 
+/** The ring colour of the PC's planning stage (periwinkle blue), the same as the bar on the PC. */
+const val PLANNING_COLOR: Long = 0xFF7C9EF2L
+
 /** A stretch on a 24-hour ring, in minutes after midnight on the watch (an end of 1440 is midnight at the end). */
 data class RingArc(val startMinute: Int, val endMinute: Int, val color: Long, val name: String, val bright: Boolean = false)
 
@@ -62,9 +65,14 @@ data class TodayView(
 
         /** What runs ("Coding · 25m left") or, when nothing does, the next planned part that isn't sleep. */
         private fun status(snapshot: WatchSnapshot, now: Instant, zone: ZoneId, use24Hour: Boolean): String? {
-            val running = snapshot.running?.takeIf { it.endsAt == null || it.endsAt.isAfter(now) }
+            val running = snapshot.running?.takeIf { it.isLiveAt(now) }
             if (running != null) {
                 val name = if (running.onBreak) "Break" else running.profile ?: "Focus"
+                running.planningEndsAt?.takeIf { running.isPlanning }?.let { planningEnd ->
+                    return if (planningEnd.isAfter(now)) "Planning · ${WatchText.duration(Duration.between(now, planningEnd).toMinutes().toInt().coerceAtLeast(1))} left"
+                    else "Planning · time's up"
+                }
+
                 val endsAt = running.endsAt ?: return if (running.onBreak) "On a break" else "$name · running"
                 val left = Duration.between(now, endsAt).toMinutes().toInt().coerceAtLeast(1)
                 return "$name · ${WatchText.duration(left)} left"
@@ -91,15 +99,34 @@ data class SessionView(
     val task: String? = null,
     /** Today's focus as a share of the daily goal (ADR 29): the thin outer ring; null without a goal. */
     val goalFraction: Float? = null,
+    /** The PC is in its planning stage (not focus time): the ring and the title read in the planning colour. */
+    val planning: Boolean = false,
 ) {
     companion object {
         fun from(running: RunningSession?, now: Instant, zone: ZoneId, use24Hour: Boolean, dataAt: Instant? = null, goalFraction: Float? = null): SessionView =
             build(running, now, zone, use24Hour).copy(updated = dataAt?.let { WatchText.updatedAgo(it, now) }, goalFraction = goalFraction)
 
+        private fun planningTask(session: RunningSession): String? = when {
+            session.tasksTotal == 0 -> null
+            session.task == null -> "All tasks done · ${session.tasksDone}/${session.tasksTotal}"
+            else -> "${if (session.taskNumber > 0) "${session.taskNumber}. " else ""}${session.task} · ${session.tasksDone}/${session.tasksTotal}"
+        }
+
         private fun build(running: RunningSession?, now: Instant, zone: ZoneId, use24Hour: Boolean): SessionView {
-            val session = running?.takeIf { it.endsAt == null || it.endsAt.isAfter(now) }
+            val session = running?.takeIf { it.isLiveAt(now) }
                 ?: return SessionView("Session", "—", "No focus session", 0f, active = false)
             val title = if (session.onBreak) "Break" else session.profile ?: "Focus"
+            val planningEnd = session.planningEndsAt?.takeIf { session.isPlanning }
+            if (planningEnd != null) {
+                // Planning (before the focus countdown) has its own ring and time; it goes on past its end until the PC's "Ready?" is answered.
+                val start = session.planningStartedAt ?: now
+                val left = Duration.between(now, planningEnd).coerceAtLeast(Duration.ZERO)
+                val total = Duration.between(start, planningEnd).seconds.coerceAtLeast(1)
+                return SessionView("Planning", WatchText.timer(left),
+                    if (left.isZero) "waiting for Ready? on the PC" else "ends ${WatchText.clock(planningEnd.atZone(zone).toLocalTime(), use24Hour)}",
+                    (1f - left.seconds.toFloat() / total).coerceIn(0f, 1f), active = true, task = planningTask(session), planning = true)
+            }
+
             val task = when {
                 session.tasksTotal == 0 -> null
                 session.task == null -> "All tasks done · ${session.tasksDone}/${session.tasksTotal}"

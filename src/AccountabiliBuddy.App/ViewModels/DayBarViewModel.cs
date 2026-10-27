@@ -783,6 +783,12 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
                 return until is null ? "Test session" : $"Test session until {until}";
             }
 
+            if (state.IsPlanning)
+            {
+                // Before the focus countdown: planning isn't focus time.
+                return $"Planning · {profile}";
+            }
+
             return state.IsEnforcing
                 ? until is null ? $"In focus · {profile}, no set end" : $"In focus · {profile} until {until}"
                 : until is null ? "On a break" : $"On a break until {until}";

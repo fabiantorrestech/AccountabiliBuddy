@@ -101,9 +101,9 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(StartCommand))]
-    [NotifyCanExecuteChangedFor(nameof(QuickStartCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StartOpenEndedCommand))]
     [NotifyCanExecuteChangedFor(nameof(StartTestCommand))]
-    [NotifyPropertyChangedFor(nameof(QuickStartLabel))]
+    [NotifyPropertyChangedFor(nameof(OpenEndedLabel))]
     public partial ProfileOption? SelectedProfile { get; set; }
 
     /// <summary>"More options" (profile, length, break) unfolded; folded by default so starting is one click.</summary>
@@ -216,11 +216,11 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
     /// <summary>Raised when the user starts a session with the current choices.</summary>
     public event EventHandler? StartRequested;
 
-    /// <summary>"Quick Start with Default": the default profile with no set end (the on-screen bar counts up).</summary>
+    /// <summary>"Quick Start with Default": the default profile for the length chosen here (the on-screen bar counts down).</summary>
     public event EventHandler? QuickStartDefaultRequested;
 
-    /// <summary>"Quick Start": the profile picked here with no set end.</summary>
-    public event EventHandler<Guid>? QuickStartRequested;
+    /// <summary>"No set end": the profile picked here, running until it is ended (the on-screen bar counts up).</summary>
+    public event EventHandler<Guid>? OpenEndedRequested;
 
     /// <summary>"Start test": a test session with the profile picked here (never counted, logged or synced).</summary>
     public event EventHandler? StartTestRequested;
@@ -229,8 +229,8 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
     [ObservableProperty]
     public partial string DefaultProfileName { get; set; }
 
-    /// <summary>E.g. "Quick Start · Coding".</summary>
-    public string QuickStartLabel => SelectedProfile is null ? "Quick Start" : $"Quick Start · {SelectedProfile.Name}";
+    /// <summary>E.g. "No set end · Coding".</summary>
+    public string OpenEndedLabel => SelectedProfile is null ? "No set end" : $"No set end · {SelectedProfile.Name}";
 
     /// <summary>Raised when the user wants to end the running session (friction applies).</summary>
     public event EventHandler? EndSessionRequested;
@@ -308,18 +308,18 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
         QuickStartDefaultRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    private bool CanQuickStart => !IsSessionRunning && SelectedProfile is not null;
+    private bool CanStartOpenEnded => !IsSessionRunning && SelectedProfile is not null;
 
-    [RelayCommand(CanExecute = nameof(CanQuickStart))]
-    private void QuickStart()
+    [RelayCommand(CanExecute = nameof(CanStartOpenEnded))]
+    private void StartOpenEnded()
     {
         if (SelectedProfile is { } profile)
         {
-            QuickStartRequested?.Invoke(this, profile.Id);
+            OpenEndedRequested?.Invoke(this, profile.Id);
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanQuickStart))]
+    [RelayCommand(CanExecute = nameof(CanStartOpenEnded))]
     private void StartTest()
     {
         StartTestRequested?.Invoke(this, EventArgs.Empty);

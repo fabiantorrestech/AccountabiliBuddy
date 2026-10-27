@@ -220,7 +220,8 @@ public sealed class SyncCoordinator
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
         SyncNoise? noise = Noise is null ? null : await Noise();
         return SyncFileBuilder.Build(card, records, drift, _omitted.IsOmitted, id => ProfileOptions.NameOf(profiles, id),
-            _sessions.State.IsRealSession, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles), Events = Events?.Invoke(),
+            _sessions.State.IsRealSession, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf,
+            _sessions.State.IsPlanning ? _sessions.State.PhaseEndsAt : null) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles), Events = Events?.Invoke(),
                 Pickups = PcPickups?.PickupsForOtherPcs(), InputRuns = PcPickups?.InputRunsToday(),
                 ReminderActions = ReminderActions?.Invoke() is { Count: > 0 } actions ? actions : null,
                 Blockers = Blockers?.Invoke(), Beeminder = Beeminder?.Invoke(),
@@ -262,8 +263,13 @@ public sealed class SyncCoordinator
             return null;
         }
 
-        return new SyncRunning(ProfileOptions.NameOf(profiles, state.ProfileId), started, state.PhaseEndsAt, state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak, state.AwaySince,
-            CurrentTask?.Invoke(), state.ProfileId, CountUpProfileId?.Invoke());
+        // Planning (not focus time): its own start and end go in the optional planning fields; the phase fields hold the focus
+        // phase it leads to (planning's end, and the focus length after it), which is all a build that doesn't know planning reads.
+        DateTimeOffset? planningStartedAt = state.IsPlanning ? started : null;
+        DateTimeOffset? planningEndsAt = state.IsPlanning ? state.PhaseEndsAt : null;
+        return new SyncRunning(ProfileOptions.NameOf(profiles, state.ProfileId), state.FocusStartsAt(_sessions.Now) ?? started, state.FocusEndsAt(_sessions.Now),
+            state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak, state.AwaySince,
+            CurrentTask?.Invoke(), state.ProfileId, CountUpProfileId?.Invoke(), planningStartedAt, planningEndsAt);
     }
 
     /// <summary>ADR 42: the task or subtask picked to show on the bar while a session runs (null: none); set by the app.</summary>

@@ -14,6 +14,10 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="CurrentTask">ADR 42: the task or subtask picked to show on the bar (its id, as the link's state); null for none.</param>
 /// <param name="ProfileId">ADR 42: the running profile's id.</param>
 /// <param name="CountUpProfileId">ADR 42: the profile "Quick Start with Default" starts; null when it isn't made yet.</param>
+/// <param name="PlanningStartedAt">Phase 11: set while the session is in its planning stage (not focus time); when it began. While planning,
+/// <see cref="PhaseStartedAt"/> and <see cref="PhaseEndsAt"/> are the focus phase's projected start and end (planning's end and its full
+/// length after it), so a build that doesn't know planning still shows a sensible countdown. Older builds leave it out.</param>
+/// <param name="PlanningEndsAt">Phase 11: when planning ends (time up); it keeps counting past it until the user answers "Ready?".</param>
 public sealed record SyncRunning(
     string? Profile,
     DateTimeOffset PhaseStartedAt,
@@ -22,4 +26,6 @@ public sealed record SyncRunning(
     DateTimeOffset? AwaySince,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? CurrentTask = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? ProfileId = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? CountUpProfileId = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? CountUpProfileId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? PlanningStartedAt = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? PlanningEndsAt = null);

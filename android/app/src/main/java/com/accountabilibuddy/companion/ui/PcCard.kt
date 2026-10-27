@@ -12,6 +12,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -69,7 +70,7 @@ fun PcCard(
                     if (state == null) {
                         Text("Connected…", style = MaterialTheme.typography.bodyMedium)
                     } else {
-                        Text(describe(state, clock), style = MaterialTheme.typography.bodyLarge)
+                        SessionLine(state, clock)
                         if (state.isActive) {
                             OutlinedButton(onClick = onEndEarly, enabled = !busy) { Text("End early…") }
                         } else {
@@ -104,6 +105,39 @@ fun PcCard(
             }
         }
     }
+}
+
+/** The planning stage's own colour, the same as on the PC (a periwinkle blue). */
+private val PLANNING_COLOR = androidx.compose.ui.graphics.Color(0xFF7C9EF2)
+
+/**
+ * The PC's session: the line [describe] gives, or, while the PC is planning (before its focus countdown; not focus time), "Planning · 3 min
+ * left" with its own bar in the planning colour. Planning keeps counting past its time until the PC's "Ready?" card is answered there.
+ */
+@Composable
+private fun SessionLine(state: PcState, clock: ClockFormat) {
+    val planningEnd = state.planningEndsAt
+    if (!state.isPlanning || planningEnd == null) {
+        Text(describe(state, clock), style = MaterialTheme.typography.bodyLarge)
+        return
+    }
+
+    var now by remember { mutableStateOf(OffsetDateTime.now()) }
+    LaunchedEffect(planningEnd) {
+        while (true) {
+            delay(1000)
+            now = OffsetDateTime.now()
+        }
+    }
+
+    val start = state.planningStartedAt ?: now
+    val left = Duration.between(now, planningEnd)
+    val span = Duration.between(start, planningEnd).seconds.coerceAtLeast(1)
+    val remaining = if (left.isNegative) 0f else (left.seconds.toFloat() / span).coerceIn(0f, 1f)
+    val minutes = Math.ceil(left.seconds / 60.0).toInt()
+    val what = if (left.isNegative || left.isZero) "time is up · waiting for Ready? on the PC" else "$minutes min left"
+    Text("Planning · ${state.profileName ?: "a profile"} · $what", style = MaterialTheme.typography.bodyLarge, color = PLANNING_COLOR)
+    LinearProgressIndicator(progress = { remaining }, color = PLANNING_COLOR, modifier = Modifier.fillMaxWidth())
 }
 
 /** E.g. "Focus · Coding until 12:00 PM (24 min left)", "Blocks on · Work until 5:00 PM", "Focus · Quick Start · 1h 12m so far". */
@@ -152,7 +186,9 @@ private fun StartOnPcDialog(state: PcState, onStart: (String?, Int?, Boolean) ->
                         FilterChip(selected = minutes == length, onClick = { minutes = length }, label = { Text("$length min") })
                     }
                 }
-                TextButton(onClick = { onStart(null, null, true) }) { Text("Count up with the Quick Start profile instead") }
+                // No length: the PC runs its default profile for the length it remembers, counting down. Or explicitly with no set end.
+                TextButton(onClick = { onStart(null, null, false) }) { Text("Quick Start with the PC's default profile") }
+                TextButton(onClick = { onStart(null, null, true) }) { Text("No set end with the PC's default profile") }
             }
         },
         confirmButton = { TextButton(onClick = { onStart(profileId, minutes, false) }, enabled = profileId != null) { Text("Start") } },
@@ -182,7 +218,7 @@ fun PcFileCard(
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             IconTitle("PC · $pcName", style = MaterialTheme.typography.titleMedium)
-            Text(describe(state, clock), style = MaterialTheme.typography.bodyLarge)
+            SessionLine(state, clock)
             Text(
                 "Through the sync files · as of ${clock.time(java.time.LocalDateTime.ofInstant(writtenAt, zone))}",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,

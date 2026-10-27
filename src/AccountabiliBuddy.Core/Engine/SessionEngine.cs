@@ -35,8 +35,10 @@ public sealed class SessionEngine
     private DateTimeOffset Now => _timeProvider.GetUtcNow();
 
     /// <param name="duration">Null runs until <see cref="EndSession"/> is called.</param>
+    /// <param name="planning">Null starts focus at once. Otherwise the session begins with a planning stage of this length
+    /// (<see cref="SessionPhase.Planning"/>), and <paramref name="duration"/> starts when it ends (<see cref="EndPlanning"/>).</param>
     /// <returns>False if a session is already running.</returns>
-    public bool StartManual(Guid profileId, TimeSpan? duration = null)
+    public bool StartManual(Guid profileId, TimeSpan? duration = null, TimeSpan? planning = null)
     {
         if (State.IsActive)
         {
@@ -49,6 +51,12 @@ public sealed class SessionEngine
         }
 
         DateTimeOffset now = Now;
+        if (planning is TimeSpan planningLength)
+        {
+            SetState(PlanningState(SessionMode.Manual, profileId, now, planningLength, duration));
+            return true;
+        }
+
         SetState(new SessionState(
             SessionMode.Manual,
             SessionPhase.Focus,
@@ -90,8 +98,9 @@ public sealed class SessionEngine
 
     /// <param name="breakAfterLastCycle">With a cycle limit: also run the break after the last focus cycle
     /// before ending (e.g. "one focus, one break").</param>
+    /// <param name="planning">As for <see cref="StartManual"/>: a planning stage of this length before the first focus cycle.</param>
     /// <returns>False if a session is already running.</returns>
-    public bool StartPomodoro(Guid profileId, PomodoroSettings settings, bool breakAfterLastCycle = false)
+    public bool StartPomodoro(Guid profileId, PomodoroSettings settings, bool breakAfterLastCycle = false, TimeSpan? planning = null)
     {
         if (State.IsActive)
         {
@@ -103,6 +112,12 @@ public sealed class SessionEngine
         _breakAfterLastCycle = breakAfterLastCycle;
 
         DateTimeOffset now = Now;
+        if (planning is TimeSpan planningLength)
+        {
+            SetState(PlanningState(SessionMode.Pomodoro, profileId, now, planningLength, settings.FocusLength));
+            return true;
+        }
+
         SetState(new SessionState(
             SessionMode.Pomodoro,
             SessionPhase.Focus,
@@ -110,6 +125,48 @@ public sealed class SessionEngine
             PhaseStartedAt: now,
             PhaseEndsAt: now + settings.FocusLength,
             CompletedFocusCycles: 0));
+        return true;
+    }
+
+    /// <summary>
+    /// Ends the planning stage now: the focus countdown starts fresh for its full length from this moment (planning time is not
+    /// focus time, so the focus phase's start and end are the moment planning ended and its length after it). A session with
+    /// no set end starts counting up from here.
+    /// </summary>
+    /// <returns>False when the session is not planning, or the user is away (planning ends when they are back).</returns>
+    public bool EndPlanning()
+    {
+        if (!State.IsPlanning || State.IsAway)
+        {
+            return false;
+        }
+
+        DateTimeOffset now = Now;
+        SetState(State with
+        {
+            Phase = SessionPhase.Focus,
+            PhaseStartedAt = now,
+            PhaseEndsAt = State.FocusLengthAfterPlanning is TimeSpan length ? now + length : null,
+            FocusLengthAfterPlanning = null,
+        });
+        return true;
+    }
+
+    /// <summary>
+    /// Gives the planning stage <paramref name="extra"/> more, counted from its end, or from now once that has passed (the
+    /// "Ready?" card's +2 / +5 / +15). Nothing here is focus time.
+    /// </summary>
+    /// <returns>False when the session is not planning, or the user is away.</returns>
+    public bool ExtendPlanning(TimeSpan extra)
+    {
+        if (!State.IsPlanning || State.IsAway || extra <= TimeSpan.Zero)
+        {
+            return false;
+        }
+
+        DateTimeOffset now = Now;
+        DateTimeOffset from = State.PhaseEndsAt is DateTimeOffset end && end > now ? end : now;
+        SetState(State with { PhaseEndsAt = from + extra });
         return true;
     }
 
@@ -280,10 +337,11 @@ public sealed class SessionEngine
         return true;
     }
 
-    /// <summary>Advances phases that have run out. Nothing runs out while the user is away.</summary>
+    /// <summary>Advances phases that have run out. Nothing runs out while the user is away or planning.</summary>
     public void Tick()
     {
-        if (State.IsAway)
+        // Planning has no end of its own: it lasts until the user answers (Ready, a ticked task, Start on the card).
+        if (State.IsAway || State.IsPlanning)
         {
             return;
         }
@@ -364,6 +422,23 @@ public sealed class SessionEngine
             PhaseEndsAt = phaseEnd + breakLength,
             CompletedFocusCycles = completed,
         };
+    }
+
+    private static SessionState PlanningState(SessionMode mode, Guid profileId, DateTimeOffset now, TimeSpan planning, TimeSpan? focusLength)
+    {
+        if (planning <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(planning), "Planning must be positive.");
+        }
+
+        return new SessionState(
+            mode,
+            SessionPhase.Planning,
+            profileId,
+            PhaseStartedAt: now,
+            PhaseEndsAt: now + planning,
+            CompletedFocusCycles: 0,
+            FocusLengthAfterPlanning: focusLength);
     }
 
     private void SetState(SessionState newState)

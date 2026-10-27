@@ -42,6 +42,18 @@ public sealed partial class PickTasksViewModel : ObservableObject
 
     public event EventHandler? Finished;
 
+    /// <summary>The session ended before the pick: the prompt goes away and nothing is parked.</summary>
+    public void Dismiss()
+    {
+        if (IsDone)
+        {
+            return;
+        }
+
+        IsDone = true;
+        Finished?.Invoke(this, EventArgs.Empty);
+    }
+
     private void Recount()
     {
         int picked = Rows.Count(row => row.IsPicked);

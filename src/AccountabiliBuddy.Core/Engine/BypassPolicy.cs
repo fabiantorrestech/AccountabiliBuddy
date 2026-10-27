@@ -29,7 +29,7 @@ public sealed class BypassPolicy
     /// </summary>
     public static bool EndsOnCommand(SessionState state)
     {
-        return state.IsTest || state.Mode == SessionMode.Scheduled || (state.Mode == SessionMode.Manual && state.PhaseEndsAt is null);
+        return state.IsTest || state.Mode == SessionMode.Scheduled || (state.Mode == SessionMode.Manual && !state.HasSetEnd);
     }
 
     public TimeSpan RemainingWait(DateTimeOffset requestedAt, DateTimeOffset now)

@@ -27,11 +27,14 @@ public static class ReceivedSessions
             .ToList();
     }
 
-    /// <summary>The received devices' sessions, each one still open ending when its device's file was written.</summary>
+    /// <summary>The received devices' sessions, each one still open ending when its device's file was written (never before it starts).</summary>
     public static IEnumerable<AccountabiliBuddy.Core.Sync.SyncSession> Closed(IReadOnlyList<ReceivedDevice> devices)
     {
-        return devices.SelectMany(device => device.File.Sessions.Select(session =>
-            session.End is null ? session with { End = device.File.Device.WrittenAt } : session));
+        // A PC's open piece while it plans starts at the planning end, after the file was written: it counts for nothing, so it is
+        // left out rather than closed before it starts.
+        return devices.SelectMany(device => device.File.Sessions
+            .Where(session => session.End is not null || session.Start <= device.File.Device.WrittenAt)
+            .Select(session => session.End is null ? session with { End = device.File.Device.WrittenAt } : session));
     }
 
     /// <summary>

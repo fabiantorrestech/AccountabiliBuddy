@@ -70,7 +70,9 @@ object FocusDayCombine {
     private fun plannedMinutes(parts: List<com.accountabilibuddy.shared.FocusPart>): Int =
         WatchSnapshot.minutes(parts.filter { it.kind == "watch" }.map { TimeWindow(it.start, it.end) })
 
-    // A device's sessions touching the day, cut to it; one running when its file was written ends at that time.
+    // A device's sessions touching the day, cut to it; one running when its file was written ends at that time. A PC's open piece
+    // while it plans starts at the planning end or later (SyncFileBuilder), so it ends before it starts and counts nothing, however
+    // long planning is overdue; the watch's WatchSnapshot.openUntil counts an open session as nothing while planning too.
     private fun sessionsOn(file: SyncFile, name: String, dayStart: Instant, dayEnd: Instant): List<FocusSession> =
         file.sessions.mapNotNull { session ->
             val window = clip(session.start, session.end ?: file.device.writtenAt, dayStart, dayEnd) ?: return@mapNotNull null

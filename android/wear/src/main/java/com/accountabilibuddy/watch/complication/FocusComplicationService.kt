@@ -32,7 +32,7 @@ class FocusComplicationService : SuspendingComplicationDataSourceService() {
     override suspend fun onComplicationRequest(request: ComplicationRequest): ComplicationData? {
         val snapshot = SnapshotStore.snapshot(this).value
         val now = Instant.now()
-        val running = snapshot?.running?.takeIf { it.endsAt?.isAfter(now) ?: true }
+        val running = snapshot?.running?.takeIf { it.isLiveAt(now) }
         return data(request.complicationType, WatchGlance.from(snapshot, now, ZoneId.systemDefault()), running)
     }
 
@@ -42,7 +42,7 @@ class FocusComplicationService : SuspendingComplicationDataSourceService() {
     private fun data(type: ComplicationType, glance: Glance, running: RunningSession? = null): ComplicationData? {
         val description = PlainComplicationText.Builder("${glance.title}: ${glance.headline}, ${glance.detail}").build()
         val text = running?.let(::timer) ?: PlainComplicationText.Builder(glance.shortText).build()
-        val title = running?.let { PlainComplicationText.Builder(if (it.onBreak) "Break" else it.profile ?: "Focus").build() }
+        val title = running?.let { PlainComplicationText.Builder(if (it.onBreak) "Break" else if (it.isPlanning) "Planning" else it.profile ?: "Focus").build() }
         return when (type) {
             ComplicationType.RANGED_VALUE -> RangedValueComplicationData.Builder(glance.value, 0f, glance.max, description)
                 .setText(text)
@@ -61,6 +61,16 @@ class FocusComplicationService : SuspendingComplicationDataSourceService() {
 
     // The watch face counts it: down to the phase's end ("24:59"), or up from its start for a session with no set end.
     private fun timer(running: RunningSession): ComplicationText {
+        if (running.isPlanning) {
+            // The PC's planning stage (not focus time) counts down to its own end; past it, it waits for "Ready?" on the PC.
+            val planningEnd = running.planningEndsAt
+            return if (planningEnd != null && planningEnd.isAfter(java.time.Instant.now())) {
+                TimeDifferenceComplicationText.Builder(TimeDifferenceStyle.STOPWATCH, CountDownTimeReference(planningEnd)).build()
+            } else {
+                PlainComplicationText.Builder("Ready?").build()
+            }
+        }
+
         val endsAt = running.endsAt
         return if (endsAt != null) {
             TimeDifferenceComplicationText.Builder(TimeDifferenceStyle.STOPWATCH, CountDownTimeReference(endsAt)).build()

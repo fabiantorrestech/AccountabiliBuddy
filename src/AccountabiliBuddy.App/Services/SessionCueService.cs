@@ -42,6 +42,12 @@ public sealed class SessionCueService
         };
     }
 
+    /// <summary>Planning time is up (the "Ready?" card follows): the focus-end chime, and the overlay glows. The session goes on.</summary>
+    public void RaisePlanningUp()
+    {
+        Raise(SessionCue.PlanningEnded, sessionEnded: false);
+    }
+
     /// <summary>Plays a sound by its <see cref="SoundChoice"/> id (also the Test buttons in Settings).</summary>
     /// <param name="volume">0–100 for the built-in chimes; null = the saved volume.</param>
     public void Play(string soundId, int? volume = null)
@@ -104,7 +110,7 @@ public sealed class SessionCueService
     private void Raise(SessionCue cue, bool sessionEnded)
     {
         SessionSoundSettings settings = _settings.Current;
-        Play(cue == SessionCue.FocusEnded ? settings.FocusEndSound : settings.BreakEndSound);
+        Play(cue == SessionCue.BreakEnded ? settings.BreakEndSound : settings.FocusEndSound);
         Cued?.Invoke(this, (cue, sessionEnded));
     }
 }
