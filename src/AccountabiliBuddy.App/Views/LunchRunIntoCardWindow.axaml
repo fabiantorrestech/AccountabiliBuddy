@@ -24,6 +24,8 @@
                         ToolTip.Tip="Leave the session as it is: lunch starts by itself once it has ended, for the rest of lunch's time" />
                 <Button Content="{Binding AdjustText}" Command="{Binding AdjustCommand}" IsVisible="{Binding CanAdjust}" Margin="0,0,8,8"
                         ToolTip.Tip="Shorten the session so it ends when lunch starts" />
+                <Button Content="End early at lunch" Command="{Binding EndEarlyCommand}" IsVisible="{Binding CanEndEarly}" Margin="0,0,8,8"
+                        ToolTip.Tip="End the session now, with the usual wait and reason, so you can take lunch" />
                 <Button Content="Flexible this time" Command="{Binding FlexibleCommand}" Margin="0,0,8,8"
                         ToolTip.Tip="Lunch won't start by itself today: press Start lunch before you go" />
             </WrapPanel>

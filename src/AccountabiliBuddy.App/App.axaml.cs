@@ -439,10 +439,11 @@ public partial class App : Application
         // Flexible lunch (schema v8): Start lunch on any workday, on any device, for the lunch length; one chime when it's over.
         _lunch = new LunchService(_sessions, _configuration, documents,
             (title, message) => presenter.ShowReminder(title, message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#CA8A04"))),
-            () => _sessionCues?.Play(soundSettings.Current.BreakEndSound));
+            () => _sessionCues?.Play(soundSettings.Current.BreakEndSound),
+            new Win32UserIdleDetector());
         _lunch.LoadBlocking();
         // A fixed lunch period starts by itself; a session that would run into it asks first (Keep, Adjust, Flexible this time).
-        _lunchRunInto = new LunchRunIntoService(_sessions!, _lunch);
+        _lunchRunInto = new LunchRunIntoService(_sessions!, _lunch) { EndEarlyAsync = () => _endFlow!.TryEndSessionAsync(null) };
         _lunchRunInto.CardChanged += (_, _) => Dispatcher.UIThread.Post(() => ShowLunchRunIntoCard(monitorLocator));
         // Browsing at lunch isn't being back: lunch's step away ends with "I'm back" or the lunch ending, not input.
         _stepAway!.HoldsAway = () => _lunch.HoldsSessionAway;
@@ -474,7 +475,11 @@ public partial class App : Application
         _startNudge.IsGoalMet = () => _deepWork?.Progress.Met == true;
         _startNudge.IsGateOpen = () => _workGate?.Current is not null;
         _startNudge.CardChanged += (_, _) => ShowStartNudgeCard(monitorLocator);
-        _startNudge.AssistantCardChanged += (_, _) => ShowStartOfDayCard(monitorLocator);
+        _startNudge.AssistantCardChanged += (_, _) =>
+        {
+            ShowStartOfDayCard(monitorLocator);
+            ShowLunchRunIntoCard(monitorLocator);
+        };
         // ADR 31: Pre-Work parts ask whether today is a work day, then hold work tools and distractions back.
         _preWork = new PreWorkService(
             _sessions, _configuration, documents, new DpapiDataProtector(), new Win32UserIdleDetector(), windowsEnforcer,
@@ -965,8 +970,13 @@ public partial class App : Application
         {
             ShowAwayCard(monitorLocator);
             ShowReadyCard(monitorLocator);
+            ShowLunchRunIntoCard(monitorLocator);
         };
-        _planFirst.CardChanged += (_, _) => ShowReadyCard(monitorLocator);
+        _planFirst.CardChanged += (_, _) =>
+        {
+            ShowReadyCard(monitorLocator);
+            ShowLunchRunIntoCard(monitorLocator);
+        };
         // Capture in Focus mode (redesign phase 5): notes for the session's review, come-backs with ⚑ or "!".
         sessionViewModel.Focus.Capture = new CaptureBoxViewModel(_sessionNotes!, _comebacks!);
         var notebook = new NotebookViewModel(_comebacks!, _sessionNotes!, sessionTasks, time);
@@ -1560,6 +1570,7 @@ public partial class App : Application
             _pickTasksWindow = null;
             window.Close();
             ShowReadyCard(monitors); // Planning's "Ready?" card waited for this.
+            ShowLunchRunIntoCard(monitors); // So did the run-into-lunch card.
         };
         if (monitors.Find(monitors.FindMonitorUnderCursor()) is MonitorArea area)
         {
@@ -1568,6 +1579,7 @@ public partial class App : Application
 
         _pickTasksWindow = window;
         ShowReadyCard(monitors); // Pick comes first: an already-open "Ready?" card closes until it is answered.
+        ShowLunchRunIntoCard(monitors); // And the run-into-lunch card.
         _frontCards.Show(window);
     }
 
@@ -1647,7 +1659,10 @@ public partial class App : Application
     /// <summary>Shows or closes the run-into-lunch card (a session that would overlap a fixed lunch) as the service opens or closes it.</summary>
     private void ShowLunchRunIntoCard(IMonitorLocator monitors)
     {
-        LunchRunIntoCardViewModel? card = _lunchRunInto?.Card;
+        // It waits behind the cards that come first (Pick, Ready?, the away card, the start-of-day assistant), like Ready? waits for
+        // the away card, and shows when they close; the service keeps asking meanwhile.
+        bool otherCardUp = _pickTasksWindow is not null || _stepAway?.Card is not null || _planFirst?.Card is not null || _startNudge?.AssistantCard is not null;
+        LunchRunIntoCardViewModel? card = otherCardUp ? null : _lunchRunInto?.Card;
         if (card is null)
         {
             LunchRunIntoCardWindow? open = _lunchRunIntoWindow;

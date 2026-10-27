@@ -37,7 +37,7 @@ public sealed partial class LunchCardViewModel : ObservableObject
     public partial bool CanShorten { get; set; }
 
     /// <summary>
-    /// "Lunch · usually 11:00 AM – 3:00 PM · 1 h", "Lunch starts at 12:00 PM by itself · 1 h" (a fixed lunch),
+    /// "Lunch · usually 11:00 AM – 3:00 PM · 1 h", "Lunch starts at 12:00 PM by itself · until 1:00 PM" (a fixed lunch, only until its window ends),
     /// "Lunch · 42:10 left · until 1:05 PM" or "Lunch done · 12:05 PM – 1:05 PM".
     /// </summary>
     [ObservableProperty]
@@ -70,7 +70,7 @@ public sealed partial class LunchCardViewModel : ObservableObject
         }
         else if (_lunch.AutoStartPending is FixedLunch pending)
         {
-            Text =$"Lunch starts at {pending.Window.Start:t} by itself · {LunchService.FormatLength(pending.Length)}";
+            Text = $"Lunch starts at {pending.Window.Start:t} by itself · until {pending.Window.End:t}";
         }
         else if (_lunch.IsFlexibleToday && _lunch.FixedToday is FixedLunch skipped)
         {

@@ -5,10 +5,12 @@ namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
 /// The run-into-lunch prompt (a fixed lunch period, schema v13): when a real session would overlap today's fixed lunch, or end
-/// within a minute of its start, a front card asks Keep, Adjust or Flexible this time. It asks when the session starts (for the
+/// within a minute of its start, a front card asks Keep, Adjust (or End early at lunch) or Flexible this time. It asks when the session starts (for the
 /// length chosen, whichever way it was started: Quick Start, Start, a phone, the start-of-day assistant) and once more 5 minutes
 /// before lunch if the session still runs into it. Keep leaves the session as it is: lunch waits and starts by itself once the session
-/// has ended, for the rest of its window (<see cref="LunchService"/>). Adjust, for a timed session only, moves its end to when lunch starts.
+/// has ended, for the rest of its window (<see cref="LunchService"/>). Adjust, offered only before any
+/// focus has run (at the start, or while planning) and for a timed session, picks the length that ends when lunch starts; once focus
+/// has run it is "End early at lunch" instead, through the normal end-early flow (wait and reason).
 /// Flexible this time leaves today's lunch to the user's Start lunch (<see cref="LunchService.MakeFlexibleTodayAsync"/>). Never
 /// in a test session, while away, after lunch started or once it was made flexible. Use from the UI thread only.
 /// </summary>
@@ -40,6 +42,9 @@ public sealed class LunchRunIntoService
 
     /// <summary>Raised when <see cref="Card"/> opens or closes (the app shows or closes the window).</summary>
     public event EventHandler? CardChanged;
+
+    /// <summary>The normal end-early flow (the end dialog with its wait and reason); set by the app. Without it no "End early at lunch" is offered.</summary>
+    public Func<Task<bool>>? EndEarlyAsync { get; set; }
 
     /// <summary>The card's window was closed some other way: it is asked again at the next check, if it is still due.</summary>
     public void CardWindowClosed()
@@ -138,14 +143,24 @@ public sealed class LunchRunIntoService
         }
 
         _cardLunchStart = lunchStart;
-        Card = new LunchRunIntoCardViewModel(Describe(lunchStart, endLocal), AdjustText(state, now, lunchStart - local, end), new LunchRunIntoActions(
+        // Choosing a shorter length is free only before any focus has run (a start, or planning); a session that has run
+        // ends sooner only through the normal end-early flow (wait and reason).
+        bool canEndEarly = !_sessions.HasNotRunFocus && EndEarlyAsync is not null;
+        Card = new LunchRunIntoCardViewModel(Describe(lunchStart, endLocal), AdjustText(state, now, lunchStart - local, end), canEndEarly, new LunchRunIntoActions(
             Keep: Close,
             Adjust: () =>
             {
-                // At the click: lunch's start from now (the card may have waited a while).
-                _sessions.ShortenFocusEnd(_sessions.Now + (lunchStart - LocalNow()));
+                // At the click: lunch's start from now (the card may have waited a while, in front of other cards). If focus has
+                // run meanwhile it isn't free any more: the end-early flow instead.
+                if (!_sessions.ShortenFocusEnd(_sessions.Now + (lunchStart - LocalNow())) && !_sessions.HasNotRunFocus)
+                {
+                    EndEarly();
+                    return;
+                }
+
                 Close();
             },
+            EndEarly: EndEarly,
             Flexible: () =>
             {
                 _ = _lunch.MakeFlexibleTodayAsync();
@@ -163,10 +178,21 @@ public sealed class LunchRunIntoService
                + "Keep it (lunch starts when it ends, and ends when its time does), shorten it, or start lunch yourself today.";
     }
 
-    // Adjust only for a timed session that can end when lunch starts: strictly shorter, with at least a minute of focus.
+    // The card closes and the session ends through the normal end-early flow (the end dialog: wait and reason); it isn't asked again.
+    private void EndEarly()
+    {
+        Close();
+        if (EndEarlyAsync is not null)
+        {
+            _ = EndEarlyAsync();
+        }
+    }
+
+    // Adjust only for a timed session that hasn't run any focus yet and can end when lunch starts: strictly shorter, with at
+    // least a minute of focus.
     private string? AdjustText(SessionState state, DateTimeOffset now, TimeSpan untilLunch, DateTimeOffset? end)
     {
-        if (state.Mode != SessionMode.Manual || end is not DateTimeOffset sessionEnd)
+        if (!_sessions.HasNotRunFocus || state.Mode != SessionMode.Manual || end is not DateTimeOffset sessionEnd)
         {
             return null;
         }

@@ -74,7 +74,9 @@ fun LunchCard(
                         }
                         taken != null -> "Lunch done · ${time(taken.start)} – ${time(taken.end)}"
                         // A fixed lunch period: the PC starts it by itself (this phone doesn't ask about it).
-                        fixed != null -> "Lunch starts at ${clock.time(fixed.window.start)} by itself · ${LunchStore.formatLength(Duration.between(fixed.window.start, fixed.window.end).toMinutes().toInt())}"
+                        // Only until its window ends: after that it can't start by itself any more.
+                        fixed != null && LocalDateTime.ofInstant(now, zone).isBefore(fixed.window.end) ->
+                            "Lunch starts at ${clock.time(fixed.window.start)} by itself · until ${clock.time(fixed.window.end)}"
                         flex != null -> "${flex.name} · $length · usually ${clock.time(flex.window.start)} – ${clock.time(flex.window.end)}"
                         else -> "Lunch · $length, any time"
                     }
