@@ -122,8 +122,8 @@
                     <CheckBox IsChecked="{Binding RelayOn}" Content="Own relay: sync through a small relay you run (changes arrive in about a second)" />
                     <StackPanel Spacing="6" Margin="28,0,0,0">
                         <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                            <TextBox Text="{Binding RelayUrlText}" PlaceholderText="Relay address, e.g. https://192.168.1.20:8743" />
-                            <TextBox Grid.Column="1" Text="{Binding RelayPinText}"
+                            <TextBox Text="{Binding RelayUrlText}" PlaceholderText="Relay address, e.g. https://192.168.1.20:8743" IsEnabled="{Binding !RelayHost.HostOn}" />
+                            <TextBox Grid.Column="1" Text="{Binding RelayPinText}" IsEnabled="{Binding !RelayHost.HostOn}"
                                      PlaceholderText="Pin (empty if the relay has a normal certificate)" />
                         </Grid>
                         <StackPanel Orientation="Horizontal" Spacing="8">
@@ -147,6 +147,108 @@
                             </StackPanel>
                         </Expander>
                     </StackPanel>
+                    <!-- Running the relay on this PC (ADR 46): the relay program ships next to the app and ends with it. -->
+                    <Border Classes="card" Margin="28,0,0,0" IsVisible="{Binding RelayHost, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Run a relay on this PC" Classes="title" />
+                            <TextBlock Classes="muted"
+                                       Text="No other computer needed: this PC runs the relay while AccountabiliBuddy runs, so your phone and tablet can sync through it on any network. Everything on it is sealed, and the connection is HTTPS pinned to its own certificate." />
+                            <Button Content="Run a relay on this PC…" Command="{Binding RelayHost.BeginTurnOnCommand}" Classes="accent"
+                                    HorizontalAlignment="Left" IsVisible="{Binding !RelayHost.HostOn}" />
+
+                            <!-- Said before Windows' permission prompt. -->
+                            <Border IsVisible="{Binding RelayHost.ConfirmingTurnOn}" Background="#33F59E0B" Padding="12,8" CornerRadius="6">
+                                <StackPanel Spacing="8">
+                                    <TextBlock TextWrapping="Wrap" Text="What turning this on does:" FontWeight="SemiBold" />
+                                    <TextBlock TextWrapping="Wrap" Text="• Starts the relay program that came with the app, whenever the app starts; it ends when the app quits." />
+                                    <TextBlock TextWrapping="Wrap" Text="• Lets other devices reach it on any network: home Wi-Fi, someone else's Wi-Fi, a coffee shop. Windows will ask for permission once to open its firewall for the relay program; if you say no, the relay still runs but Windows may block your phone." />
+                                    <TextBlock TextWrapping="Wrap" Text="• Makes this PC sync through it too (Own relay above)." />
+                                    <TextBlock TextWrapping="Wrap" Text="• It never changes what is blocked during focus: only sync." />
+                                    <CheckBox IsChecked="{Binding RelayHost.AlsoPublic}" Content="Also on public networks (coffee shops, someone else's Wi-Fi)" />
+                                    <TextBlock TextWrapping="Wrap" Foreground="#F59E0B" IsVisible="{Binding RelayHost.ReplacesOtherRelay}"
+                                               Text="This PC already syncs through another relay; this replaces that address." />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Content="Turn on" Command="{Binding RelayHost.ConfirmTurnOnCommand}" Classes="accent" />
+                                        <Button Content="Cancel" Command="{Binding RelayHost.CancelTurnOnCommand}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <StackPanel Spacing="8" IsVisible="{Binding RelayHost.HostOn}">
+                                <!-- The public-network notice, with a quick way out. -->
+                                <Border IsVisible="{Binding RelayHost.PublicNetworkNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                        Background="#33F59E0B" Padding="12,8" CornerRadius="6">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="{Binding RelayHost.PublicNetworkNotice}" TextWrapping="Wrap" />
+                                        <Button Content="Stop the relay" Command="{Binding RelayHost.StopRelayCommand}" HorizontalAlignment="Left" />
+                                    </StackPanel>
+                                </Border>
+                                <TextBlock Text="{Binding RelayHost.StatusText}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding RelayHost.LastChangeText}" Classes="muted"
+                                           IsVisible="{Binding RelayHost.LastChangeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Start" Command="{Binding RelayHost.StartRelayCommand}" IsEnabled="{Binding !RelayHost.IsRunning}" />
+                                    <Button Content="Stop" Command="{Binding RelayHost.StopRelayCommand}" IsEnabled="{Binding RelayHost.IsRunning}" />
+                                    <Button Content="Restart" Command="{Binding RelayHost.RestartRelayCommand}" />
+                                    <Button Content="Turn the relay off" Command="{Binding RelayHost.TurnOffCommand}" />
+                                </StackPanel>
+
+                                <TextBlock Text="Address and pin for your other devices" FontWeight="SemiBold" Margin="0,6,0,0" />
+                                <ComboBox ItemsSource="{Binding RelayHost.ShareAddresses}" SelectedItem="{Binding RelayHost.SelectedShareAddress}" MinWidth="320" />
+                                <TextBlock Classes="muted" Text="Pick the address your phone can reach: a 192.168… or 10… one on home Wi-Fi, a 100… one over Tailscale. The pin is the same for all of them." />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="Pin:" VerticalAlignment="Center" />
+                                    <SelectableTextBlock Text="{Binding RelayHost.PinText}" FontFamily="Consolas, Courier New, monospace" TextWrapping="Wrap" MaxWidth="520" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <Button Content="Show join QR (carries the address, the pin and the group code)" Command="{Binding LinkDeviceCommand}" HorizontalAlignment="Left" />
+                                <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding HasLinkCode}">
+                                    <Border Background="White" Padding="8" CornerRadius="6" VerticalAlignment="Top">
+                                        <Image Source="{Binding LinkQrImage}" Width="200" Height="200" RenderOptions.BitmapInterpolationMode="None" />
+                                    </Border>
+                                    <TextBlock Classes="muted" MaxWidth="320" VerticalAlignment="Center"
+                                               Text="Scan it with the phone's camera: it joins your group and sets up this relay. Change the address above first if the phone needs another one, then show the QR again." />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding RelayHost.HostOn}">
+                                <TextBlock Text="Port" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding RelayHost.PortText}" Width="100" />
+                                <Button Content="Set port" Command="{Binding RelayHost.SetPortCommand}" />
+                                <CheckBox IsChecked="{Binding RelayHost.AlsoPublic}" Content="Also on public networks" VerticalAlignment="Center" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding RelayHost.ShowAddFirewallRule}">
+                                <TextBlock Text="Windows' firewall has no rule for the relay, so it may block your phone." Classes="muted" VerticalAlignment="Center" MaxWidth="400" />
+                                <Button Content="Add the firewall rule…" Command="{Binding RelayHost.AddFirewallRuleCommand}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding RelayHost.ShowRemoveFirewallRule}">
+                                <TextBlock Text="The relay is off, but its firewall rule is still there." Classes="muted" VerticalAlignment="Center" MaxWidth="400" />
+                                <Button Content="Remove the firewall rule…" Command="{Binding RelayHost.RemoveFirewallRuleCommand}" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="{Binding RelayHost.StorageText, StringFormat='Stored on the relay: {0}'}" VerticalAlignment="Center" />
+                                <Button Content="Clear relay storage…" Command="{Binding RelayHost.BeginClearCommand}" />
+                            </StackPanel>
+                            <Border IsVisible="{Binding RelayHost.ConfirmingClear}" Background="#33F59E0B" Padding="12,8" CornerRadius="6">
+                                <StackPanel Spacing="8">
+                                    <TextBlock TextWrapping="Wrap" Text="Delete every sync file stored on this relay? Each device writes its file again within minutes, so nothing is lost; the relay's certificate and pin stay." />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Content="Clear" Command="{Binding RelayHost.ConfirmClearCommand}" />
+                                        <Button Content="Cancel" Command="{Binding RelayHost.CancelClearCommand}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Expander Header="Relay log (last 50 lines: times, group prefixes and statuses only)" HorizontalAlignment="Stretch">
+                                <ScrollViewer MaxHeight="220">
+                                    <SelectableTextBlock Text="{Binding RelayHost.LogText}" FontFamily="Consolas, Courier New, monospace" FontSize="12" />
+                                </ScrollViewer>
+                            </Expander>
+                            <TextBlock Text="{Binding RelayHost.Message}" TextWrapping="Wrap"
+                                       IsVisible="{Binding RelayHost.Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
+                    </Border>
                     <CheckBox IsChecked="{Binding FolderOn}" Content="Sync folder: write and read sync files in a folder (e.g. inside Google Drive)" />
                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,0,0,0">
                         <TextBlock Text="{Binding FolderPath, TargetNullValue=No folder chosen}" Classes="muted" VerticalAlignment="Center" MaxWidth="360" TextTrimming="CharacterEllipsis" />

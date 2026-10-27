@@ -111,6 +111,9 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Running the relay on this PC (ADR 46); set by the app. Its address and pin go in the join QR while it is on.</summary>
+    public RelayHostViewModel? RelayHost { get; set; }
+
     /// <summary>Opens Google's sign-in page in the browser; set by the app.</summary>
     public Func<Uri, bool>? OpenBrowser { get; set; }
 
@@ -610,6 +613,14 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
             || !RelayAddress.TryNormalizePin(settings.RelayPin, out string? pin))
         {
             return string.Empty;
+        }
+
+        // This PC's own address for its relay is 127.0.0.1: a phone needs the one it reaches this PC by.
+        if (settings.HostRelayOn)
+        {
+            return RelayHost?.JoinTarget is { } target
+                ? "&r=" + Uri.EscapeDataString(target.Address) + "&p=" + Uri.EscapeDataString(target.Pin)
+                : string.Empty;
         }
 
         string parameters = "&r=" + Uri.EscapeDataString(RelayAddress.Format(address));

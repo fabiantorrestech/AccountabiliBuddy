@@ -14,6 +14,9 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// <param name="RelayOn">This PC syncs through the user's own relay at <paramref name="RelayUrl"/> (ADR 46).</param>
 /// <param name="RelayUrl">The relay's https address as typed; null until one is entered.</param>
 /// <param name="RelayPin">The relay certificate's SHA-256 fingerprint (base64url) to pin; null for a relay with a normal certificate.</param>
+/// <param name="HostRelayOn">This PC runs the relay program itself while the app runs (ADR 46); off by default.</param>
+/// <param name="HostRelayPort">The port the hosted relay listens on.</param>
+/// <param name="HostRelayPublic">The hosted relay's firewall rule also covers Public networks (coffee shops, someone else's Wi-Fi).</param>
 public sealed record SyncSettings(
     bool FolderOn = false,
     string? FolderPath = null,
@@ -25,7 +28,10 @@ public sealed record SyncSettings(
     bool DriveOn = false,
     bool RelayOn = false,
     string? RelayUrl = null,
-    string? RelayPin = null)
+    string? RelayPin = null,
+    bool HostRelayOn = false,
+    int HostRelayPort = 8743,
+    bool HostRelayPublic = true)
 {
     public static SyncSettings Default { get; } = new();
 }

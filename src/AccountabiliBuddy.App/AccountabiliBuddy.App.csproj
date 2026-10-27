@@ -34,6 +34,26 @@
     <ProjectReference Include="..\AccountabiliBuddy.NativeHost\AccountabiliBuddy.NativeHost.csproj" />
   </ItemGroup>
 
+  <!-- The sealed relay program (ADR 46) the "Run a relay on this PC" switch starts. Built before the app, but not referenced: it
+       is a separate program with its own framework. A development build copies its build output to relay\ next to the app; the
+       packaged app gets the self-contained build in the same folder from scripts/package.ps1. -->
+  <ItemGroup>
+    <ProjectReference Include="..\AccountabiliBuddy.Relay\AccountabiliBuddy.Relay.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Target Name="CopyRelayToOutput" AfterTargets="Build">
+    <MSBuild Projects="..\AccountabiliBuddy.Relay\AccountabiliBuddy.Relay.csproj" Targets="GetTargetPath">
+      <Output TaskParameter="TargetOutputs" ItemName="RelayTargetPath" />
+    </MSBuild>
+    <PropertyGroup>
+      <RelayBuildFolder>@(RelayTargetPath->'%(RootDir)%(Directory)')</RelayBuildFolder>
+    </PropertyGroup>
+    <ItemGroup>
+      <RelayBuildFile Include="$(RelayBuildFolder)**" Exclude="$(RelayBuildFolder)**\*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(RelayBuildFile)" DestinationFiles="@(RelayBuildFile->'$(OutDir)relay\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+
   <!-- The browser extension ships with the app: shared files plus one manifest per browser family. -->
   <ItemGroup>
     <None Include="..\..\extensions\shared\**" LinkBase="browser-extension\chromium" CopyToOutputDirectory="PreserveNewest" />
