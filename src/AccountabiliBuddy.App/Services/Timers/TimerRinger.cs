@@ -57,13 +57,15 @@ public sealed class TimerRinger
     private void RingAlarm(AlarmItem alarm)
     {
         string time = alarm.Time.ToString("h:mm tt", CultureInfo.InvariantCulture);
-        var viewModel = new PcAlarmViewModel(
+        var viewModel = new AlarmRingViewModel(
             $"Alarm · {alarm.Name}",
-            $"{time}. Snooze rings again in 9 minutes.",
+            $"{time}. Snooze rings again in {AlarmRingViewModel.DefaultSnoozeMinutes} minutes, or pick another length.",
+            "Dismiss",
+            () => _timers.LocalNow,
             onStop: () => { _ = _timers.DismissAlarmAsync(alarm.Id); Stop(alarm.Id); },
-            onSnooze: () => { _ = _timers.SnoozeAlarmAsync(alarm.Id); Stop(alarm.Id); },
-            snoozeText: "Snooze 9 min");
-        var window = new PcAlarmWindow { DataContext = viewModel, ShowActivated = false, Title = "Alarm" };
+            onSnooze: minutes => { _ = _timers.SnoozeAlarmAsync(alarm.Id, minutes); Stop(alarm.Id); });
+        var window = new AlarmRingWindow { DataContext = viewModel, ShowActivated = false, Title = "Alarm" };
+        window.Closed += (_, _) => viewModel.Dispose();
         Ring(alarm.Id, window, AlarmMaxRing, isAlarm: true, onClosedByHand: () => _ = _timers.DismissAlarmAsync(alarm.Id));
     }
 

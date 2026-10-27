@@ -1,3 +1,4 @@
+using System.Globalization;
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.App.Views;
 using AccountabiliBuddy.Core.Domain;
@@ -15,7 +16,6 @@ namespace AccountabiliBuddy.App.Services;
 /// </summary>
 public sealed class PcAlarmService
 {
-    private static readonly TimeSpan Snooze = TimeSpan.FromMinutes(9);
     private static readonly TimeSpan TooLate = TimeSpan.FromHours(1);
     private static readonly TimeSpan RepeatSound = TimeSpan.FromSeconds(10);
 
@@ -115,10 +115,14 @@ public sealed class PcAlarmService
             return;
         }
 
-        var viewModel = new PcAlarmViewModel(due, onStop: Stop, onSnooze: SnoozeNow);
-        _window = new PcAlarmWindow { DataContext = viewModel };
+        var viewModel = new AlarmRingViewModel(
+            $"Good morning · {due.ToString("h:mm tt", CultureInfo.InvariantCulture)}",
+            $"Your wake time. Snooze rings again in {AlarmRingViewModel.DefaultSnoozeMinutes} minutes, or pick another length.",
+            "Stop", () => Now, onStop: Stop, onSnooze: SnoozeNow);
+        _window = new AlarmRingWindow { DataContext = viewModel };
         _window.Closed += (_, _) =>
         {
+            viewModel.Dispose();
             _window = null;
             _sound.Stop();
         };
@@ -137,9 +141,9 @@ public sealed class PcAlarmService
         _window?.Close();
     }
 
-    private void SnoozeNow()
+    private void SnoozeNow(int minutes)
     {
-        _snoozeUntil = Now + Snooze;
+        _snoozeUntil = Now.AddMinutes(minutes);
         _next = _snoozeUntil;
         Stop();
         Check();
