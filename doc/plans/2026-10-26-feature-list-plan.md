@@ -102,3 +102,5 @@ Each phase: a detailed plan (files, steps, acceptance checks) agreed with the us
   - "Need it for work" (lift for its minutes);
   - test sessions;
   - what happens when the phone is offline at lunch start.
+- **Lettered subtasks (user, 2026-10-27):** subtasks under a task are labelled a., b., c.… on the PC, in the overlay, on the phone and the watch, under the task's number (1. Task / a. step / b. step).
+- **Planning guidance (user, 2026-10-27):** during the planning stage, urge the user to write everything they need to do on paper (a bigger task bank), then choose **at most 3** for this session; even 1 task is fine. Shown on the planning bar / Ready? card and the start-of-day assistant's "What's first?" step.
