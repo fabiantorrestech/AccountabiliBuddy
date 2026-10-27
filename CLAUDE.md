@@ -5,7 +5,7 @@ Windows desktop focus guardian. Runs at startup, watches the visible window on e
 ## Hard rules
 Short version. The full text, with every stored document, synced field and edge case, is `doc/hard-rules.md`: **read its matching part before changing privacy, sync, devices, enforcement, focus sessions, sleep, storage or schema code**, and record new or changed rules there, not here.
 - **Local only.** The only outbound connections: read-only iCal downloads and Google Calendar (ADR 9), Google Drive (scope drive.file, the app's own folder, sealed sync files only; ADR 26), read-only Beeminder goal reads (ADR 43), all in `CalendarNetwork`; update checks/downloads from `fabiantorrestech/AccountabiliBuddy-releases` (ADR 12, `VelopackUpdater`). Any other connection needs a new ADR.
-- Window titles, full URLs, OCR text, reasons and notes never leave the device. Between the user's own devices only: the ADR 14 link (pinned TLS, local network), sealed sync files (ADR 22, AES-256-GCM, one file per device), and the watch's limited snapshot (ADR 21). What each may carry is listed in `doc/hard-rules.md`.
+- Window titles, full URLs, OCR text, reasons and notes never leave the device. Between the user's own devices only: sealed sync files (ADR 22, AES-256-GCM, one file per device; the Wi-Fi link is deleted, ADR 45) and the watch's limited snapshot through the phone (ADR 21). What each may carry is listed in `doc/hard-rules.md`.
 - Core (`src/AccountabiliBuddy.Core`) has **no UI or OS dependencies**; Windows code goes in `Platform.Windows` behind a `Core/Ports` interface (ADR 4).
 - Profiles/rules are a versioned JSON schema readable by Kotlin (ADR 7), currently **v11**; any shape change bumps it with a migration in `ProfileDocumentSerializer`.
 - App-owned preferences and device-local state live in the `documents` table (`SqliteJsonDocumentStore`), never in the shared profile JSON; secrets and private text are DPAPI-encrypted (`IDataProtector`).
@@ -30,7 +30,7 @@ src/AccountabiliBuddy.App/               Avalonia tray app
 src/AccountabiliBuddy.NativeHost/        browser native messaging host
 extensions/                              browser extension (shared + per-browser manifests)
 android/                                 Android companion (Kotlin, Compose; doc/plans/android-companion.md)
-android/shared/                          code the phone and watch share (snapshot, focus day, link framing/pinning; ADR 21); sync/ the sealed sync files (ADR 22)
+android/shared/                          code the phone and watch share (snapshot, focus day, certificate pinning for the relay; ADR 21); sync/ the sealed sync files (ADR 22)
 android/wear/                            Pixel Watch companion (rings, Tile, complication; ADR 21)
 doc/adr/                                 architecture decision records
 handoffContext/                          agent handoff (gitignored)
@@ -48,7 +48,7 @@ pwsh scripts/publish-apks.ps1 [-Tag vx.y.z]   # after a release build: phone + w
 ```
 
 ## Roadmap
-Done so far and what's next: `doc/roadmap.md`. Current run: `doc/plans/2026-10-26-feature-list-plan.md`. Waiting on the user: deleting the Wi-Fi link (ADR 42), the sealed relay, the day plan rework, the Claude Design batch.
+Done so far and what's next: `doc/roadmap.md`. Current run: `doc/plans/2026-10-26-feature-list-plan.md`. Plans for the rest: `doc/plans/2026-10-27-*` (relay clients, day plan modes, ideas to plan later). Waiting on the user: the Claude Design batch, Places.
 
 ## Conventions
 - Explicit, readable code; SOLID; one public type per file; file-scoped namespaces; nullable enabled.
