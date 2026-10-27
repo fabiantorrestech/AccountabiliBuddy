@@ -19,6 +19,7 @@ public sealed class CardBackdrop : IDisposable
     private readonly List<ScreenDimWindow> _dims = new();
     private List<Window> _cards = new();
     private Screens? _watchedScreens;
+    private List<nint>? _handles;
     private bool _rebuildNeeded;
     private bool _closingDims;
     private bool _disposed;
@@ -31,13 +32,20 @@ public sealed class CardBackdrop : IDisposable
     /// <summary>The card in front (the last one set), or null when there is none.</summary>
     public Window? Newest => _cards.Count > 0 ? _cards[^1] : null;
 
-    /// <summary>The dim windows followed by the cards: everything that has to be on the user's current virtual desktop.</summary>
-    public IReadOnlyList<Window> Windows => _dims.Cast<Window>().Concat(_cards).ToList();
+    /// <summary>
+    /// The native handles of the dim windows and the cards: everything that has to be on the user's current virtual desktop.
+    /// Kept between calls; rebuilt only after the dims or the cards changed.
+    /// </summary>
+    public IReadOnlyList<nint> Handles => _handles ??= _dims.Cast<Window>().Concat(_cards)
+        .Select(window => window.TryGetPlatformHandle()?.Handle ?? 0)
+        .Where(handle => handle != 0)
+        .ToList();
 
     /// <summary>The cards the dims sit behind, oldest first.</summary>
     public void SetCards(IReadOnlyList<Window> cards)
     {
         _cards = cards.ToList();
+        _handles = null;
         WatchScreens();
     }
 
@@ -60,6 +68,7 @@ public sealed class CardBackdrop : IDisposable
         }
 
         _rebuildNeeded = false;
+        _handles = null;
         CloseDims();
         foreach (Screen screen in screens)
         {
@@ -72,6 +81,7 @@ public sealed class CardBackdrop : IDisposable
                 if (!_closingDims)
                 {
                     _dims.Remove(dim);
+                    _handles = null;
                     _rebuildNeeded = true; // Closed by someone else: covered again at the next tick.
                 }
             };
@@ -166,6 +176,7 @@ public sealed class CardBackdrop : IDisposable
         }
 
         _dims.Clear();
+        _handles = null;
         _closingDims = false;
     }
 

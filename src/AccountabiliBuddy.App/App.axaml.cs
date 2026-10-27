@@ -1605,9 +1605,7 @@ public partial class App : Application
             }
 
             // Raised again: back in front of everything.
-            _awayCardWindow.Topmost = false;
-            _awayCardWindow.Topmost = true;
-            _awayCardWindow.Activate();
+            _frontCards.Raise(_awayCardWindow);
             return;
         }
 
@@ -1653,9 +1651,7 @@ public partial class App : Application
             }
 
             // Raised again: back in front of everything.
-            _readyCardWindow.Topmost = false;
-            _readyCardWindow.Topmost = true;
-            _readyCardWindow.Activate();
+            _frontCards.Raise(_readyCardWindow);
             return;
         }
 

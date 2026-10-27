@@ -40,10 +40,31 @@ public sealed class FrontCardHost
         _backdrop.SetCards(_cards);
         _backdrop.Maintain(); // The dim first, so the card opens on top of it.
         card.Show();
+        _backdrop.SetCards(_cards); // The card has a native window now: its handle is read again.
         _backdrop.Maintain(); // If the screens weren't known before the card existed on screen.
         _backdrop.Raise();
         card.Activate();
         _keeper ??= new CardKeeper(_desktops, _focus, _backdrop);
+    }
+
+    /// <summary>
+    /// Asks again for a card that is already up: puts the windows back in order (the dim never above a card, a newer card or an
+    /// alarm kept in front of it) and gives the newest card the focus, but only while it is on the desktop the user is looking at,
+    /// since activating it on another one would switch the user back.
+    /// </summary>
+    public void Raise(Window card)
+    {
+        if (_backdrop is null || !_cards.Contains(card))
+        {
+            return;
+        }
+
+        _backdrop.Raise();
+        nint handle = card.TryGetPlatformHandle()?.Handle ?? 0;
+        if (ReferenceEquals(card, _backdrop.Newest) && handle != 0 && _desktops.IsOnCurrentDesktop(handle))
+        {
+            card.Activate();
+        }
     }
 
     private void OnCardClosed(object? sender, EventArgs e)

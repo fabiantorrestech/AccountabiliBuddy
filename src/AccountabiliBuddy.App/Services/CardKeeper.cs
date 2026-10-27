@@ -63,11 +63,8 @@ public sealed class CardKeeper : IDisposable
     /// <returns>True when the cards are on the current desktop (already, or moved there now).</returns>
     private bool FollowVirtualDesktop()
     {
-        List<nint> handles = _backdrop.Windows
-            .Select(window => window.TryGetPlatformHandle()?.Handle ?? 0)
-            .Where(handle => handle != 0)
-            .ToList();
-        if (handles.All(_desktops.IsOnCurrentDesktop))
+        IReadOnlyList<nint> handles = _backdrop.Handles;
+        if (AllOnCurrentDesktop(handles))
         {
             return true;
         }
@@ -77,7 +74,27 @@ public sealed class CardKeeper : IDisposable
             return false; // Tried again at the next tick.
         }
 
+        // A move can succeed and still leave a window behind (the desktop id came from a window that isn't on the one the user is
+        // looking at): checked again, and focus waits for the next tick if not.
+        if (!AllOnCurrentDesktop(handles))
+        {
+            return false;
+        }
+
         _backdrop.Raise();
+        return true;
+    }
+
+    private bool AllOnCurrentDesktop(IReadOnlyList<nint> handles)
+    {
+        foreach (nint handle in handles)
+        {
+            if (!_desktops.IsOnCurrentDesktop(handle))
+            {
+                return false;
+            }
+        }
+
         return true;
     }
 
