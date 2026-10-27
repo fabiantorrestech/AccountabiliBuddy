@@ -9,7 +9,7 @@ namespace AccountabiliBuddy.App.Services.Setup;
 public static class SetupFeatures
 {
     public static IReadOnlyList<SetupFeature> All(ColdTurkeyKeysService keys, ColdTurkeyService coldTurkey, Sync.SyncSettingsService sync,
-        ConfigurationService configuration) => new[]
+        ConfigurationService configuration, StartNudgeService startNudge) => new[]
     {
         new SetupFeature(
             "coldturkey.keys", "0.1.106",
@@ -33,5 +33,12 @@ public static class SetupFeatures
             IsSetUp: () => configuration.Current.DayPlan is { } plan
                 && (plan.Week.B is not null || plan.Templates.Any(template => template.Template.Mode != Core.Domain.DayMode.Schedule || template.Template.WorkWindow is not null)),
             Step: ViewModels.AssistantStep.Workdays),
+        new SetupFeature(
+            "startofday.assistant", "0.1.111",
+            "Start-of-day assistant: hours, first tasks, start",
+            "On your first arrival of a workday, asks how many hours you hope to get done, what's first, and starts your session.",
+            IsRelevant: () => startNudge.Settings.On,
+            IsSetUp: () => startNudge.AssistantSeen,
+            Step: ViewModels.AssistantStep.StartOfDay),
     };
 }

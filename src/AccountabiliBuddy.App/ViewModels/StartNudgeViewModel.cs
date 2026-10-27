@@ -12,6 +12,7 @@ public sealed partial class StartNudgeViewModel : ObservableObject
     {
         _nudge = nudge;
         IsOn = nudge.Settings.On;
+        IsAssistantOn = nudge.Settings.AssistantOn;
         RepeatIndex = Math.Max(0, Array.IndexOf(RepeatChoices, nudge.Settings.RepeatMinutes));
     }
 
@@ -34,5 +35,14 @@ public sealed partial class StartNudgeViewModel : ObservableObject
     partial void OnIsOnChanged(bool value)
     {
         _ = _nudge.SaveAsync(_nudge.Settings with { On = value });
+    }
+
+    /// <summary>The first arrival of a workday opens the start-of-day assistant (hours, first tasks, Start); it needs the nudge on.</summary>
+    [ObservableProperty]
+    public partial bool IsAssistantOn { get; set; }
+
+    partial void OnIsAssistantOnChanged(bool value)
+    {
+        _ = _nudge.SaveAsync(_nudge.Settings with { AssistantOn = value });
     }
 }
