@@ -43,7 +43,7 @@
             <Border Margin="2" CornerRadius="10" Padding="10,7" Background="#FF15191E"
                     BorderBrush="{Binding OutlineBrush}" BorderThickness="1.5" Opacity="{Binding PanelOpacity}">
                 <Grid RowDefinitions="Auto,Auto,Auto">
-                    <StackPanel Grid.Row="1" Spacing="8" HorizontalAlignment="{Binding MainAlignment}">
+                    <StackPanel x:Name="MainStack" Grid.Row="1" Spacing="8" HorizontalAlignment="{Binding MainAlignment}">
                         <!-- Plan first: the session's first minutes. -->
                         <TextBlock Text="{Binding PlanningText}" IsVisible="{Binding ShowsPlanning}" Foreground="#E6FFFFFF" FontSize="11"
                                    Width="{x:Static vm:SessionOverlayViewModel.BarLength}" TextTrimming="CharacterEllipsis" />
@@ -100,7 +100,7 @@
 
                         <Panel IsVisible="{Binding ShowsTimer}">
                             <StackPanel Spacing="6" DataContext="{Binding Timer}" x:DataType="vm:SessionOverlayViewModel">
-                                <Panel HorizontalAlignment="Center">
+                                <Panel HorizontalAlignment="{Binding #MainStack.HorizontalAlignment}">
                                     <StackPanel Spacing="4" IsVisible="{Binding !IsRing}" MaxWidth="{x:Static vm:SessionOverlayViewModel.BarLength}">
                                         <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding ShowsHeader}">
                                             <TextBlock Text="{Binding HeaderLabel}" TextTrimming="CharacterEllipsis"
@@ -189,16 +189,18 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </StackPanel>
-                    <!-- Only while Ctrl+Alt is held. It opens toward the middle of the screen (above the bar in the lower half), so
-                         the bar itself never moves and stays where the window's spot is measured from. -->
-                    <StackPanel Grid.Row="{Binding DetailsRow}" Margin="{Binding DetailsMargin}" Spacing="8" IsVisible="{Binding ShowsDetails}">
-                        <TextBlock Text="{Binding Day.SummaryText}" IsVisible="{Binding ShowsTimeline}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}"
+                    <!-- Only while Ctrl+Alt is held. It opens away from the bar's zone of the screen (above the bar in the bottom third), so
+                         the bar stays where the window's spot is measured from, and it hugs the same edge as the bar (the right edge in the
+                         right third, otherwise the left). Its rows fill its width: at least the bar's length, at most 360, so long names wrap. -->
+                    <StackPanel Grid.Row="{Binding DetailsRow}" Margin="{Binding DetailsMargin}" Spacing="8" IsVisible="{Binding ShowsDetails}"
+                                HorizontalAlignment="{Binding MainAlignment}" MinWidth="200" MaxWidth="360">
+                        <TextBlock Text="{Binding Day.SummaryText}" IsVisible="{Binding ShowsTimeline}"
                                    Foreground="#CCFFFFFF" FontSize="11" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding GoalText}" IsVisible="{Binding GoalText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                   Width="{x:Static vm:SessionOverlayViewModel.BarLength}" Foreground="#CCFFFFFF" FontSize="11" />
+                                   Foreground="#CCFFFFFF" FontSize="11" TextWrapping="Wrap" />
                         <Panel IsVisible="{Binding ShowsTimer}">
                             <Panel DataContext="{Binding Timer}" x:DataType="vm:SessionOverlayViewModel">
-                                <StackPanel Spacing="1" IsVisible="{Binding ShowsDetails}" MaxWidth="{x:Static vm:SessionOverlayViewModel.BarLength}">
+                                <StackPanel Spacing="1" IsVisible="{Binding ShowsDetails}">
                                     <TextBlock Text="{Binding DetailTitle}" Foreground="White" FontSize="12" FontWeight="SemiBold"
                                                TextWrapping="Wrap" />
                                     <TextBlock Text="{Binding DetailTimes}" Foreground="#CCFFFFFF" FontSize="11" />
@@ -208,8 +210,7 @@
                             </Panel>
                         </Panel>
                         <!-- Timers: pause or resume, a minute more, and stop (or dismiss once it's up). -->
-                        <ItemsControl ItemsSource="{Binding Timers.Lines}" IsVisible="{Binding ShowsTimers}"
-                                      Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
+                        <ItemsControl ItemsSource="{Binding Timers.Lines}" IsVisible="{Binding ShowsTimers}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <StackPanel Spacing="4" />
@@ -236,14 +237,14 @@
                         </ItemsControl>
                         <!-- Guided sessions: tick tasks here while Ctrl+Alt is held; done ones collapsed; end at once when all are done. -->
                         <Panel IsVisible="{Binding ShowsTasks}">
-                            <views:ChecklistView DataContext="{Binding Checklist}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}" />
+                            <views:ChecklistView DataContext="{Binding Checklist}" />
                         </Panel>
                         <Panel IsVisible="{Binding ShowsDetails}">
                             <TextBlock Text="{Binding AppDropText}" IsVisible="{Binding ShowsAppDrop}" Foreground="#CCFFFFFF" FontSize="10"
-                                       TextWrapping="Wrap" Width="{x:Static vm:SessionOverlayViewModel.BarLength}" />
+                                       TextWrapping="Wrap" />
                         </Panel>
                         <!-- After a drag: only for now, until Keep. -->
-                        <StackPanel Spacing="4" IsVisible="{Binding ShowsTemporary}" Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
+                        <StackPanel Spacing="4" IsVisible="{Binding ShowsTemporary}">
                             <TextBlock Text="Moved for now" Foreground="#CCFFFFFF" FontSize="10" />
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <Button Content="{Binding KeepText}" Click="OnKeepClick" Padding="8,2" FontSize="11" Foreground="White"
@@ -264,8 +265,7 @@
                         <!-- Sleep mode: tonight's wake time, which − and + change for this one night (the plan stays). -->
                         <Panel IsVisible="{Binding ShowsDetails}">
                           <Panel IsVisible="{Binding Wake.IsShown, FallbackValue=False}">
-                            <StackPanel DataContext="{Binding Wake}" x:DataType="vm:TonightWakeViewModel" Spacing="4"
-                                        Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
+                            <StackPanel DataContext="{Binding Wake}" x:DataType="vm:TonightWakeViewModel" Spacing="4">
                                 <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="4">
                                     <TextBlock Text="{Binding WakeText}" Foreground="White" FontSize="11" VerticalAlignment="Center" />
                                     <Button Grid.Column="1" Content="−" Command="{Binding EarlierCommand}" views:OverlayHint.Text="15 minutes earlier, tonight only"
@@ -282,8 +282,7 @@
                              "Connect headphones" under it for a moment after Play while locked without them. -->
                         <Panel IsVisible="{Binding ShowsDetails}">
                           <Panel IsVisible="{Binding Noise, Converter={x:Static ObjectConverters.IsNotNull}}">
-                            <StackPanel DataContext="{Binding Noise}" x:DataType="vm:NoisePlayerViewModel" Spacing="2"
-                                        Width="{x:Static vm:SessionOverlayViewModel.BarLength}">
+                            <StackPanel DataContext="{Binding Noise}" x:DataType="vm:NoisePlayerViewModel" Spacing="2">
                               <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="6">
                                 <Button Content="{Binding PlayGlyph}" Command="{Binding PlayPauseCommand}" views:OverlayHint.Text="{Binding PlayTip}"
                                         FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="12" Padding="8,4" Foreground="White"
