@@ -58,6 +58,9 @@ class RelaySyncSource(
 
     private var soon: Job? = null
 
+    // Writes this phone's own file only when it changed (or on the slow heartbeat).
+    private val ownGate = OwnFileWriteGate()
+
     val status: StateFlow<FolderStatus> = _status.asStateFlow()
 
     /** Polls at [DrivePoll]'s pace and keeps the push stream open while [busy]; runs until cancelled. */
@@ -86,6 +89,7 @@ class RelaySyncSource(
     fun forget() {
         inRelay.clear()
         seen.clear()
+        ownGate.reset()
         cacheOwner = null
         _status.value = FolderStatus()
     }
@@ -329,9 +333,12 @@ class RelaySyncSource(
     }
 
     private fun write(endpoint: RelayEndpoint) {
-        for (file in sync.filesForFolder(inRelay, SyncDeviceCard.METHOD_RELAY)) {
+        for (file in sync.filesForFolder(inRelay, ownGate, SyncDeviceCard.METHOD_RELAY)) {
             seen[file.name] = RelayNetwork.put(endpoint, file.name, file.sealed)
             inRelay[file.deviceId] = file.writtenAt
+            if (file.own) {
+                ownGate.written(Instant.now())
+            }
         }
     }
 

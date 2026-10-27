@@ -36,6 +36,9 @@ class DriveSyncSource(
     // Files already read, by Drive id: the change time Drive gave then.
     private val seen = mutableMapOf<String, Instant>()
 
+    // Writes this phone's own file only when it changed (or on the slow heartbeat).
+    private val ownGate = OwnFileWriteGate()
+
     val status: StateFlow<FolderStatus> = _status.asStateFlow()
 
     /** Syncs at [DrivePoll]'s pace while the app runs; [busy] says whether a session runs or the timeline is pinned. */
@@ -91,6 +94,7 @@ class DriveSyncSource(
     fun forget() {
         inDrive.clear()
         seen.clear()
+        ownGate.reset()
         _status.value = FolderStatus()
     }
 
@@ -119,9 +123,12 @@ class DriveSyncSource(
 
     private fun write(token: String, listed: List<DriveFileInfo>) {
         val existing = listed.associate { it.name to it.id }
-        for (file in sync.filesForFolder(inDrive, SyncDeviceCard.METHOD_DRIVE)) {
+        for (file in sync.filesForFolder(inDrive, ownGate, SyncDeviceCard.METHOD_DRIVE)) {
             files.upload(token, file.name, file.sealed, existing[file.name])
             inDrive[file.deviceId] = file.writtenAt
+            if (file.own) {
+                ownGate.written(Instant.now())
+            }
         }
     }
 

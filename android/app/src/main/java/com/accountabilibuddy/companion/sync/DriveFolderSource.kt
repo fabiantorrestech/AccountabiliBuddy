@@ -36,6 +36,9 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
     // Each device's newest file in the folder as last read or written, so a carried file is written only when newer.
     private val inFolder = mutableMapOf<UUID, Instant>()
 
+    // Writes this phone's own file only when it changed (or on the slow heartbeat).
+    private val ownGate = OwnFileWriteGate()
+
     val status: StateFlow<FolderStatus> = _status.asStateFlow()
 
     /** Starts or stops the 15-minute background sync to match the folder switch. */
@@ -108,11 +111,14 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
 
     private fun write(tree: Uri) {
         val existing = children(tree).toMap()
-        for (file in sync.filesForFolder(inFolder)) {
+        for (file in sync.filesForFolder(inFolder, ownGate)) {
             val target = existing[file.name] ?: DocumentsContract.createDocument(context.contentResolver, folderDocument(tree), MIME, file.name)
                 ?: continue
             context.contentResolver.openOutputStream(target, "wt")?.use { it.write(file.sealed) }
             inFolder[file.deviceId] = file.writtenAt
+            if (file.own) {
+                ownGate.written(Instant.now())
+            }
         }
     }
 

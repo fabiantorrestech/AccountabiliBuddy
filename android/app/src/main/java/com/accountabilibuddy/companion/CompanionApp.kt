@@ -317,6 +317,7 @@ class CompanionApp : Application() {
                 ?.filterNot { unlock -> reader.appAfter(unlock)?.let { (app, screen) -> allowed.isAllowed(app, screen) } == true }
         }
         // Phase 11b: where the phone is during a PC session (label, times and counts only).
+        sync.inFocusSession = { placementStore.load()?.active == true }
         sync.placement = {
             // Guard off: no placement in the file, so the PC sees unknown and never nags.
             if (placementGuard.isOn(java.time.Instant.now())) placementStore.forSyncFile(java.time.Instant.now(), workUse) else null
