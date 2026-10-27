@@ -14,7 +14,8 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// tick a come-back, step away or come back (only within 10 minutes of doing it, so an old one never replays); start a
 /// session or ask to end one early (only within 2 minutes), end early after the offer's wait (until its allowed-from
 /// time plus 10 minutes), edit the day plan (within a day), and control the noise player (within 2 minutes, by its own
-/// buttons' rules: <see cref="RemoteNoiseControl"/>), all by the same rules as the PC's own buttons
+/// buttons' rules: <see cref="RemoteNoiseControl"/>), add, rename or reorder the running session's tasks (ADR 48, within 2
+/// minutes; <see cref="SessionTasksService.AddRemoteAsync"/> and its siblings keep the three-tasks rule), all by the same rules as the PC's own buttons
 /// (<see cref="RemoteSessionControl"/>, <see cref="RemotePlanEdits"/>). An action past its freshness is refused, never
 /// applied late; freshness counts from when this PC first saw the action (its file's arrival, on this PC's clock), and
 /// an action the phone made more than a day ago is refused too, so neither clock's skew decides alone. The ids applied
@@ -255,6 +256,10 @@ public sealed class SyncActionsService
                 return await EditPlanAsync(action, now);
             case SyncAction.KindNoise:
                 return await ControlNoiseAsync(action, now);
+            case SyncAction.KindTaskAdd:
+            case SyncAction.KindTaskEdit:
+            case SyncAction.KindTaskReorder:
+                return await ChangeTasksAsync(action, now);
             default:
                 return Unsupported(action);
         }
@@ -414,6 +419,35 @@ public sealed class SyncActionsService
 
         string? error = await _noise.ApplyAsync(request, _identity.DeviceName);
         return error is null ? Ok(action) : Refused(action, error);
+    }
+
+    // ADR 48: the running session's checklist, changed through SessionTasksService's rules (three tasks, nothing in a phase's
+    // last minute, nothing without a running session). Never worth applying late: the checklist moves on meanwhile.
+    private async Task<SyncActionResult> ChangeTasksAsync(SyncAction action, DateTimeOffset now)
+    {
+        if (IsLate(action, ControlFresh, now))
+        {
+            return TooLate(action);
+        }
+
+        if (Read<SyncTaskRequest>(action.Text) is not SyncTaskRequest request)
+        {
+            return Invalid(action, "The PC couldn't read this request.");
+        }
+
+        RemoteTaskResult result = action.Kind switch
+        {
+            SyncAction.KindTaskAdd => await _tasks.AddRemoteAsync(action.Item ?? Guid.Empty, request),
+            SyncAction.KindTaskEdit when action.Item is Guid task => await _tasks.EditRemoteAsync(task, request),
+            SyncAction.KindTaskReorder => await _tasks.ReorderRemoteAsync(request.Order),
+            _ => RemoteTaskResult.NotValid("The PC couldn't read this request."),
+        };
+        if (result.Ok)
+        {
+            return Ok(action, result.Message);
+        }
+
+        return result.Invalid ? Invalid(action, result.Message ?? "The PC couldn't read this request.") : Refused(action, result.Message ?? "Refused.");
     }
 
     // An offer belongs to its phase: a session ending or a new phase drops it, and the file loses it.

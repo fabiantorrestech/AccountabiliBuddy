@@ -307,7 +307,7 @@ class CompanionApp : Application() {
         // A PC that's off sends no file, so a waiting start, end early or noise command is also given up on a minute tick.
         appScope.launch {
             actions.pending
-                .map { pending -> pending.any { it.kind in SyncAction.CONTROL_KINDS || it.kind == SyncAction.NOISE } }
+                .map { pending -> pending.any { it.kind in SyncAction.CONTROL_KINDS || it.kind in SyncAction.TASK_KINDS || it.kind == SyncAction.NOISE } }
                 .distinctUntilChanged()
                 .collectLatest { waiting ->
                     while (waiting) {
@@ -408,7 +408,7 @@ class CompanionApp : Application() {
         // A request to a PC counts for the 10 minutes it is worth answering (PcFileRemote.expire), a noise command too; a plan edit may wait for days.
         val now = java.time.Instant.now()
         val answeredSoon = setOf(SyncAction.DAY_PLAN_EDIT, SyncAction.NOISE)
-        if (actions.pending.value.any { (it.kind in SyncAction.CONTROL_KINDS || it.kind in answeredSoon) && java.time.Duration.between(it.at, now) <= PcFileRemote.GIVE_UP_AFTER }) {
+        if (actions.pending.value.any { (it.kind in SyncAction.CONTROL_KINDS || it.kind in SyncAction.TASK_KINDS || it.kind in answeredSoon) && java.time.Duration.between(it.at, now) <= PcFileRemote.GIVE_UP_AFTER }) {
             return true
         }
 
