@@ -1,0 +1,42 @@
+# The sealed relay (ADR 46) as a systemd service.
+#
+# One-time setup (as root), with the linux-x64 or linux-arm64 build from scripts/publish-relay.ps1:
+#   useradd --system --no-create-home --shell /usr/sbin/nologin abrelay
+#   mkdir -p /opt/accountabilibuddy-relay
+#   cp AccountabiliBuddy.Relay /opt/accountabilibuddy-relay/ && chmod 755 /opt/accountabilibuddy-relay/AccountabiliBuddy.Relay
+#   cp accountabilibuddy-relay.service /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now accountabilibuddy-relay
+#   journalctl -u accountabilibuddy-relay      # the address + pin line is printed here on the first start
+#
+# Behind a reverse proxy (Caddyfile): add --proxy to ExecStart.
+
+[Unit]
+Description=AccountabiliBuddy sealed relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=abrelay
+Group=abrelay
+ExecStart=/opt/accountabilibuddy-relay/AccountabiliBuddy.Relay --data /var/lib/accountabilibuddy-relay
+Restart=on-failure
+RestartSec=5
+# Creates /var/lib/accountabilibuddy-relay owned by the service user.
+StateDirectory=accountabilibuddy-relay
+StateDirectoryMode=0700
+Environment=DOTNET_BUNDLE_EXTRACT_BASE_DIR=/var/lib/accountabilibuddy-relay/.bundle
+Environment=DOTNET_CLI_TELEMETRY_OPTOUT=1
+
+# Hardening: the relay only needs its data folder and the network.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target
