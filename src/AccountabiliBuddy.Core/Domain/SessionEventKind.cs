@@ -24,4 +24,7 @@ public enum SessionEventKind
 
     /// <summary>The user was back.</summary>
     AwayEnded,
+
+    /// <summary>The user added 5 minutes to a side task; the reason they typed is stored encrypted and never leaves the PC.</summary>
+    SideTaskExtended,
 }

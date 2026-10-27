@@ -111,6 +111,7 @@ public partial class App : Application
     private WorkGateService? _workGate;
     private WorkGateWindow? _workGateWindow;
     private StartNudgeCardWindow? _startNudgeCardWindow;
+    private AwayCardWindow? _awayCardWindow;
     private PreWorkService? _preWork;
     private PreWorkWindow? _preWorkWindow;
     private Win32GlobalHotkey? _stepAwayHotkey;
@@ -248,7 +249,7 @@ public partial class App : Application
         // Every install has "QS - Default" (and the old "Quick Start" made by the app gets that name). After the
         // quick-session settings load: they say which profile is the default.
         _ = _quickSession.EnsureDefaultProfileAsync();
-        // Step away: the countdown pauses until any input, the shortcut again or "I'm back".
+        // Step away: the countdown pauses until "Back on track" (the card the first input brings up), the shortcut again or "I'm back".
         _stepAwayHotkey = new Win32GlobalHotkey();
         _stepAway = new StepAwayService(_sessions, new Win32UserIdleDetector(), new Win32CursorPosition(), _stepAwayHotkey, documents, time);
         _stepAway.LoadBlocking();
@@ -867,6 +868,15 @@ public partial class App : Application
             PlanFirst = _planFirst,
             PhoneLine = () => sessionTasks.Current.SessionStart is DateTimeOffset started ? _phonePickups!.Describe(started) : null,
         };
+        // The away card ("Back to <task>?", a side task's length): the task in front, the end-early flow, the session's chime.
+        _stepAway!.CurrentTaskName = () =>
+        {
+            string task = sessionViewModel.Tasks?.CurrentTaskText ?? string.Empty;
+            return task == "All tasks done" ? string.Empty : task; // Nothing left to go back to: "Back to your session?".
+        };
+        _stepAway.EndSessionAsync = () => _endFlow!.TryEndSessionAsync(null);
+        _stepAway.PlaySideTaskChime = () => _sessionCues?.Play(soundSettings.Current.FocusEndSound);
+        _stepAway.CardChanged += (_, _) => ShowAwayCard(monitorLocator);
         // Capture in Focus mode (redesign phase 5): notes for the session's review, come-backs with ⚑ or "!".
         sessionViewModel.Focus.Capture = new CaptureBoxViewModel(_sessionNotes!, _comebacks!);
         var notebook = new NotebookViewModel(_comebacks!, _sessionNotes!, sessionTasks, time);
@@ -1557,6 +1567,54 @@ public partial class App : Application
         }
 
         _startNudgeCardWindow = window;
+        window.Show();
+        window.Activate();
+    }
+
+    /// <summary>
+    /// Shows, raises or closes the away card ("Back to the task?", a side task's length) as the step-away service opens it,
+    /// asks again (unanswered cards come back every 2 minutes) or closes it. One window at a time, so it never stacks.
+    /// </summary>
+    private void ShowAwayCard(IMonitorLocator monitors)
+    {
+        AwayCardViewModel? card = _stepAway?.Card;
+        if (card is null)
+        {
+            AwayCardWindow? open = _awayCardWindow;
+            _awayCardWindow = null;
+            open?.Close();
+            return;
+        }
+
+        if (_awayCardWindow is not null)
+        {
+            if (!ReferenceEquals(_awayCardWindow.DataContext, card))
+            {
+                _awayCardWindow.DataContext = card; // A different question in the same window.
+            }
+
+            // Raised again: back in front of everything.
+            _awayCardWindow.Topmost = false;
+            _awayCardWindow.Topmost = true;
+            _awayCardWindow.Activate();
+            return;
+        }
+
+        var window = new AwayCardWindow { DataContext = card };
+        window.Closed += (_, _) =>
+        {
+            if (_awayCardWindow == window)
+            {
+                // Closed some other way: it opens again when the question is due (a side task's card at the next check).
+                _awayCardWindow = null;
+            }
+        };
+        if (monitors.Find(monitors.FindMonitorUnderCursor()) is MonitorArea area)
+        {
+            MonitorPlacement.Center(window, area);
+        }
+
+        _awayCardWindow = window;
         window.Show();
         window.Activate();
     }

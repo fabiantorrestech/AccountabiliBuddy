@@ -66,6 +66,9 @@ public sealed class SessionController : IDisposable
     /// <summary>Raised when the user ends a session by hand (with the friction reason, if one was required).</summary>
     public event EventHandler<SessionEnd>? SessionEnded;
 
+    /// <summary>Raised when the user adds time to a side task, with the reason they gave (for the activity log).</summary>
+    public event EventHandler<SideTaskExtension>? SideTaskExtended;
+
     /// <summary>Raised at launch when a session saved before the app stopped was put back (before catching up).</summary>
     public event EventHandler<SessionResume>? SessionResumed;
 
@@ -125,6 +128,26 @@ public sealed class SessionController : IDisposable
     public bool StepAway(AwayKind kind)
     {
         return _engine.StepAway(kind);
+    }
+
+    /// <summary>A side task: the countdown pauses like a step away, enforcement keeps running (see <see cref="StepAwayService"/>).</summary>
+    /// <returns>False with no session running or when already away.</returns>
+    public bool StartSideTask(TimeSpan length)
+    {
+        return _engine.StartSideTask(length);
+    }
+
+    /// <summary>+5 minutes on the running side task; <paramref name="reason"/> is what the user typed for it (logged, sealed).</summary>
+    /// <returns>False when no side task is running.</returns>
+    public bool ExtendSideTask(TimeSpan extra, string reason)
+    {
+        if (!_engine.ExtendSideTask(extra))
+        {
+            return false;
+        }
+
+        SideTaskExtended?.Invoke(this, new SideTaskExtension(_engine.State, reason));
+        return true;
     }
 
     /// <returns>How long the user was away; null when not away.</returns>

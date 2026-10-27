@@ -163,6 +163,7 @@ public sealed class SessionOverlayService : IDisposable
     {
         _stepAway = stepAway;
         _viewModel.SetStepAway(stepAway.Toggle);
+        _viewModel.SetSideTask(stepAway.AskSideTaskLength);
         stepAway.Changed += (_, _) => Update();
     }
 
@@ -280,7 +281,7 @@ public sealed class SessionOverlayService : IDisposable
 
         if (_stepAway is not null)
         {
-            _viewModel.SetAway(state.IsAway ? _stepAway.AwayText : null, state.IsActive);
+            _viewModel.SetAway(state.IsAway ? _stepAway.AwayText : null, state.IsActive, _stepAway.IsSideTask);
         }
 
         if (_planFirst is not null)

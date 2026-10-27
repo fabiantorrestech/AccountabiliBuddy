@@ -572,6 +572,12 @@ public sealed partial class HistoryViewModel : ObservableObject
             outcome += $" · interrupted {FormatDuration(interrupted)}";
         }
 
+        // A side task is time away from the session's focus, shown apart and never counted as focus.
+        if (record.AwayTimeOf(AwayKind.SideTask) is { } sideTasks && sideTasks > TimeSpan.Zero)
+        {
+            outcome += $" · side task {FormatDuration(sideTasks)}";
+        }
+
         outcome += MarkedText(record);
         bool omitted = _omitted.IsOmitted(record.StartedAt);
         if (omitted)

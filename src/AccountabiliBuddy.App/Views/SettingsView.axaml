@@ -121,7 +121,7 @@
                             <mi:MaterialIcon Kind="Walk" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
                             <TextBlock Text="Step away" Classes="sectionTitle" />
                         </StackPanel>
-                        <TextBlock Text="A bathroom break or someone at your desk: the countdown pauses until you're back. Any key or mouse movement brings you back. It never shortens a wait. Also in the tray and the on-screen window (hold Ctrl+Alt)."
+                        <TextBlock Text="A bathroom break or someone at your desk: the countdown pauses until you say you're back. The first key or mouse movement asks if you are back to your task; Back on track resumes, Still away asks again in 2 minutes. It never shortens a wait. Also in the tray and the on-screen window (hold Ctrl+Alt)."
                                    Opacity="0.75" TextWrapping="Wrap" />
                         <controls:HotkeyBox Text="{Binding StepAwayHotkey}" Width="220" HorizontalAlignment="Left" />
                         <TextBlock Text="{Binding StepAwayStatus}" TextWrapping="Wrap" />

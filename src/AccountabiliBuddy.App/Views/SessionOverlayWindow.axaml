@@ -47,9 +47,9 @@
                         <!-- Plan first: the session's first minutes. -->
                         <TextBlock Text="{Binding PlanningText}" IsVisible="{Binding ShowsPlanning}" Foreground="#E6FFFFFF" FontSize="11"
                                    Width="{x:Static vm:SessionOverlayViewModel.BarLength}" TextTrimming="CharacterEllipsis" />
-                        <!-- Stepped away: the countdown is paused until any input. -->
+                        <!-- Stepped away: the countdown is paused until Back on track (side task: amber). -->
                         <Border IsVisible="{Binding ShowsAway}" Background="#33FFFFFF" CornerRadius="6" Padding="8,2" HorizontalAlignment="Left">
-                            <TextBlock Text="{Binding AwayText}" Foreground="White" FontSize="12" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding AwayText}" Foreground="{Binding AwayBrush}" FontSize="12" FontWeight="SemiBold" />
                         </Border>
                         <!-- Guided sessions: how far along and the task now on one line ("2/5 ▸ Fix tests"), its subtask
                              under it (2 lines then "…"); all of both while Ctrl+Alt is held. -->
@@ -305,12 +305,15 @@
                                     views:OverlayHint.Text="End the planning minutes now"
                                     Padding="8,2" FontSize="11" Foreground="White" Background="#4D0F766E" CornerRadius="5" HorizontalAlignment="Left" />
                         </Panel>
-                        <!-- Step away: pauses the countdown until any key or mouse movement. -->
-                        <Panel IsVisible="{Binding ShowsDetails}">
+                        <!-- Step away: pauses the countdown until you say you are back on track. Side task: the same pause for 5-15 minutes, enforcement keeps running. -->
+                        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsDetails}">
                             <Button Content="{Binding StepAwayText}" Command="{Binding StepAwayCommand}" IsVisible="{Binding ShowsStepAway}"
-                                    views:OverlayHint.Text="Pauses the countdown; any key or mouse movement brings you back"
+                                    views:OverlayHint.Text="Pauses the countdown until you say you are back on track"
                                     Padding="8,2" FontSize="11" Foreground="White" Background="#4D0F766E" CornerRadius="5" HorizontalAlignment="Left" />
-                        </Panel>
+                            <Button Content="Side task" Command="{Binding SideTaskCommand}" IsVisible="{Binding ShowsSideTask}"
+                                    views:OverlayHint.Text="A small errand of 5, 10 or 15 minutes; blocking and nudges keep running"
+                                    Padding="8,2" FontSize="11" Foreground="White" Background="#4D0F766E" CornerRadius="5" HorizontalAlignment="Left" />
+                        </StackPanel>
                         <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" IsVisible="{Binding ShowsDetails}">
                             <TextBlock Text="Drag to move" Foreground="#99FFFFFF" FontSize="10" VerticalAlignment="Center" />
                             <!-- Only reachable while Ctrl+Alt is held (otherwise clicks pass through the window). -->

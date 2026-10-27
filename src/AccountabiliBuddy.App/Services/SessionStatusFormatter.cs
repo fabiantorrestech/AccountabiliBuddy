@@ -39,8 +39,13 @@ public static class SessionStatusFormatter
             _ => "Manual session",
         };
 
-        // Stepped away: the countdown is paused.
-        string away = state.IsAway ? "Away · " : string.Empty;
+        // Stepped away or on a side task: the countdown is paused.
+        string away = state.Away switch
+        {
+            AwayKind.SideTask => "Side task · ",
+            not null => "Away · ",
+            null => string.Empty,
+        };
         DateTimeOffset clock = state.CountdownTime(now);
         if (state.PhaseEndsAt is DateTimeOffset end)
         {

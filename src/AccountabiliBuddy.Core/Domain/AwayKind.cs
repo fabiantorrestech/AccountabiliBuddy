@@ -1,6 +1,6 @@
 namespace AccountabiliBuddy.Core.Domain;
 
-/// <summary>Why the user stepped away during a session. Either way the countdown pauses until they're back.</summary>
+/// <summary>Why the user stepped away during a session. Whatever the kind, the countdown pauses until they're back.</summary>
 public enum AwayKind
 {
     /// <summary>A short break: bathroom, a drink.</summary>
@@ -14,4 +14,11 @@ public enum AwayKind
     /// folded into a record by <see cref="Engine.SessionGaps.Apply"/>.
     /// </summary>
     Distracted,
+
+    /// <summary>
+    /// A small errand of 5-15 minutes done at the desk. The focus clock pauses like any away, but enforcement keeps running
+    /// (<see cref="SessionState.PausesEnforcement"/>) and it is recorded apart as a side task, never as focus. Appended last:
+    /// the checkpoint stores the kind as a number.
+    /// </summary>
+    SideTask,
 }
