@@ -3,6 +3,8 @@ package com.accountabilibuddy.companion.data
 import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.companion.model.DayTemplate
 import com.accountabilibuddy.companion.model.PlanPart
+import com.accountabilibuddy.companion.model.WeekdayTemplate
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -30,11 +32,20 @@ object DayPlanJson {
                 })
             }
         }
-        putJsonArray("workdays") {
-            plan.workdays.sorted().forEach { add(kotlinx.serialization.json.JsonPrimitive(camel(it.name))) }
+        putJsonArray("templates") {
+            for (named in plan.templates) {
+                add(buildJsonObject {
+                    put("id", named.id.toString())
+                    put("name", named.name)
+                    put("template", template(named.template))
+                })
+            }
         }
-        put("workday", template(plan.workday))
-        put("otherDay", template(plan.otherDay))
+        put("week", buildJsonObject {
+            put("a", weekdays(plan.week.a))
+            plan.week.b?.let { put("b", weekdays(it)) }
+            plan.week.bStartsOn?.let { put("bStartsOn", it.format(date)) }
+        })
         putJsonArray("oneOffDays") {
             for (day in plan.oneOffDays) {
                 add(buildJsonObject {
@@ -47,9 +58,26 @@ object DayPlanJson {
         }
     }
 
+    private fun weekdays(week: List<WeekdayTemplate>): JsonArray = buildJsonArray {
+        for (entry in week) {
+            add(buildJsonObject {
+                put("day", camel(entry.day.name))
+                put("templateId", entry.templateId.toString())
+            })
+        }
+    }
+
     private fun template(template: DayTemplate): JsonObject = buildJsonObject {
         put("parts", buildJsonArray { template.parts.forEach { add(part(it)) } })
         template.blocks?.let { put("blocks", BlockRulesJson.write(it)) }
+        put("mode", camel(template.mode.name))
+        template.workWindow?.let { window ->
+            put("workWindow", buildJsonObject {
+                put("start", window.start.format(time))
+                put("end", window.end.format(time))
+            })
+        }
+        template.budgetMinutes?.let { put("budgetMinutes", it) }
     }
 
     private fun part(part: PlanPart): JsonObject = buildJsonObject {

@@ -10,6 +10,32 @@ public static class DayPlanValidator
     /// <returns>Null when fine; otherwise what's wrong, e.g. "Work 12:00–13:00 overlaps Lunch 12:30–13:30."</returns>
     public static string? Validate(DayTemplate template, IReadOnlyList<DayCategory> categories)
     {
+        if (!Enum.IsDefined(template.Mode))
+        {
+            return "A day has a mode this version doesn't know.";
+        }
+
+        if (template.Mode == DayMode.Budget)
+        {
+            if (template.BudgetMinutes is not (>= 15 and <= 24 * 60))
+            {
+                return "A budget day needs a budget between 15 minutes and 24 hours.";
+            }
+
+            // A budget day's parts are only the non-productive windows (and Pre-Work).
+            if (template.Parts.Any(part => categories.FirstOrDefault(category => category.Id == part.CategoryId)?.Behavior.IsWork() == true))
+            {
+                return "A budget day's parts are only rest, sleep and pre-work windows.";
+            }
+        }
+
+        if (template.WorkWindow is WorkWindow window && window.End != TimeOnly.MinValue && window.End <= window.Start)
+        {
+            return "The work window must end after it starts.";
+        }
+
+        // A work window counts as the day's work part (when it has none of its own), so it is checked like one.
+        template = template.WithWorkWindowPart(categories);
         foreach (PlanPart part in template.Parts)
         {
             if (categories.All(category => category.Id != part.CategoryId))
@@ -72,10 +98,72 @@ public static class DayPlanValidator
             return "Two one-off days are on the same date.";
         }
 
-        return Validate(plan.Workday, plan.Categories) is string workday ? $"Workdays: {workday}"
-            : Validate(plan.OtherDay, plan.Categories) is string other ? $"Off-Days: {other}"
-            : plan.OneOffDays.Select(day => Validate(day.Template, plan.Categories) is string problem ? $"{day.Date:ddd d MMM}: {problem}" : null)
-                .FirstOrDefault(problem => problem is not null);
+        if (Templates(plan) is string templateProblem)
+        {
+            return templateProblem;
+        }
+
+        if (Week(plan) is string weekProblem)
+        {
+            return weekProblem;
+        }
+
+        return plan.OneOffDays.Select(day => Validate(day.Template, plan.Categories) is string problem ? $"{day.Date:ddd d MMM}: {problem}" : null)
+            .FirstOrDefault(problem => problem is not null);
+    }
+
+    private static string? Templates(DayPlan plan)
+    {
+        if (plan.Templates.Any(template => string.IsNullOrWhiteSpace(template.Name)))
+        {
+            return "Every day type needs a name.";
+        }
+
+        if (plan.Templates.GroupBy(template => template.Name.Trim(), StringComparer.OrdinalIgnoreCase).Any(group => group.Count() > 1))
+        {
+            return "Two day types have the same name.";
+        }
+
+        if (plan.Templates.GroupBy(template => template.Id).Any(group => group.Count() > 1))
+        {
+            return "Two day types have the same id.";
+        }
+
+        if (plan.Templates.All(template => template.Id != DayPlan.OffDayTemplateId))
+        {
+            return "Keep the Off day type: it is what any day not mapped to a type follows.";
+        }
+
+        return plan.Templates.Select(template => Validate(template.Template, plan.Categories) is string problem ? $"{template.Name}: {problem}" : null)
+            .FirstOrDefault(problem => problem is not null);
+    }
+
+    private static string? Week(DayPlan plan)
+    {
+        foreach ((string title, IReadOnlyList<WeekdayTemplate>? week) in new[] { ("Week A", plan.Week.A), ("Week B", plan.Week.B) })
+        {
+            if (week is null)
+            {
+                continue;
+            }
+
+            if (week.GroupBy(entry => entry.Day).Any(group => group.Count() > 1))
+            {
+                return $"{title} lists a weekday twice.";
+            }
+
+            if (week.Any(entry => plan.Templates.All(template => template.Id != entry.TemplateId)))
+            {
+                return $"{title} uses a day type that no longer exists.";
+            }
+        }
+
+        if (plan.Week.B is not null && plan.Week.BStartsOn is not { DayOfWeek: DayOfWeek.Monday })
+        {
+            return "Alternating weeks need a Monday for week B to start on.";
+        }
+
+        return null;
     }
 
     private static bool IsColor(string? color)

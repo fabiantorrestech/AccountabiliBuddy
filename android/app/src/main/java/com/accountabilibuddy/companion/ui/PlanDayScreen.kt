@@ -109,7 +109,7 @@ fun PlanDayScreen(
     fun template() = if (offDay) plan.otherDay else plan.workday
     fun nightOf(off: Boolean): SleepTimes? {
         val t = if (off) plan.otherDay else plan.workday
-        return DayPlan(plan.categories, plan.workdays, t, t, emptyList()).nightBefore(today)
+        return DayPlan.fromWorkdayAndOffDay(plan.categories, plan.workdays, t, t).nightBefore(today)
     }
 
     var bedtime by remember { mutableStateOf(nightOf(false)?.bedtime ?: LocalTime.of(23, 0)) }

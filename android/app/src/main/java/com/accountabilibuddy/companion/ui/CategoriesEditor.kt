@@ -39,7 +39,7 @@ private val Palette = listOf("#2563EB", "#7C3AED", "#CA8A04", "#0D9488", "#16A34
 @Composable
 fun CategoriesEditor(plan: DayPlan, onChange: (DayPlan) -> Unit, onMessage: (String) -> Unit) {
     fun used(id: UUID): Boolean =
-        (plan.workday.parts + plan.otherDay.parts + plan.oneOffDays.flatMap { it.template.parts }).any { it.categoryId == id }
+        (plan.templates.flatMap { it.template.parts } + plan.oneOffDays.flatMap { it.template.parts }).any { it.categoryId == id }
 
     fun update(category: DayCategory) = onChange(plan.copy(categories = plan.categories.map { if (it.id == category.id) category else it }))
 

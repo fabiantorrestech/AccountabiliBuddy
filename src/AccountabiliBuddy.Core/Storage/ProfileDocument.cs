@@ -9,6 +9,7 @@ namespace AccountabiliBuddy.Core.Storage;
 /// Version 3 added <see cref="LockSettings.LooseningDelay"/> and <see cref="FocusProfile.AskAboutUnlistedSites"/>.
 /// Version 4 replaced off days with time off and added one-off blocks.
 /// Version 5 replaced the weekly schedule (blocks, time off, one-off blocks) with <see cref="DayPlan"/> (ADR 18).
+/// Version 12 gave the day plan named templates, a week map (A/B weeks) and a mode per template (ADR 47).
 /// </summary>
 public sealed record ProfileDocument(
     int SchemaVersion,
@@ -17,7 +18,7 @@ public sealed record ProfileDocument(
     EscalationSettings Escalation,
     BypassSettings Bypass)
 {
-    public const int CurrentSchemaVersion = 11;
+    public const int CurrentSchemaVersion = 12;
 
     public LockSettings Locks { get; init; } = LockSettings.Default;
 

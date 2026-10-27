@@ -1,9 +1,11 @@
 package com.accountabilibuddy.companion.engine
 
 import com.accountabilibuddy.companion.model.DayCategory
+import com.accountabilibuddy.companion.model.DayMode
 import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.companion.model.DayTemplate
 import com.accountabilibuddy.companion.model.PlanPart
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -18,6 +20,26 @@ object DayPlanValidator {
 
     /** Null when fine; otherwise what's wrong, e.g. "Work 12:00–13:00 overlaps Lunch 12:30–13:30." */
     fun validate(template: DayTemplate, categories: List<DayCategory>): String? {
+        if (template.mode == DayMode.Budget) {
+            if (template.budgetMinutes == null || template.budgetMinutes !in 15..24 * 60) {
+                return "A budget day needs a budget between 15 minutes and 24 hours."
+            }
+
+            // A budget day's parts are only the non-productive windows (and Pre-Work).
+            if (template.parts.any { part -> categories.firstOrNull { it.id == part.categoryId }?.behavior?.isWork == true }) {
+                return "A budget day's parts are only rest, sleep and pre-work windows."
+            }
+        }
+
+        template.workWindow?.let { window ->
+            if (window.end != LocalTime.MIDNIGHT && !window.end.isAfter(window.start)) return "The work window must end after it starts."
+        }
+
+        return validateParts(template.withWorkWindowPart(categories), categories)
+    }
+
+    // A work window counts as the day's work part (when it has none of its own), so it is checked like one.
+    private fun validateParts(template: DayTemplate, categories: List<DayCategory>): String? {
         for (part in template.parts) {
             if (categories.none { it.id == part.categoryId }) {
                 return "A part uses a category that no longer exists."
@@ -50,10 +72,36 @@ object DayPlanValidator {
         plan.categories.firstOrNull { !isColor(it.color) }?.let { return "${it.name} has a colour that isn't #RRGGBB." }
         if (plan.oneOffDays.groupBy { it.date }.any { it.value.size > 1 }) return "Two one-off days are on the same date."
 
-        validate(plan.workday, plan.categories)?.let { return "Workdays: $it" }
-        validate(plan.otherDay, plan.categories)?.let { return "Off-Days: $it" }
+        templates(plan)?.let { return it }
+        week(plan)?.let { return it }
         for (day in plan.oneOffDays) {
             validate(day.template, plan.categories)?.let { return "${day.date.format(dayFormat)}: $it" }
+        }
+
+        return null
+    }
+
+    private fun templates(plan: DayPlan): String? {
+        if (plan.templates.any { it.name.isBlank() }) return "Every day type needs a name."
+        if (plan.templates.groupBy { it.name.trim().lowercase() }.any { it.value.size > 1 }) return "Two day types have the same name."
+        if (plan.templates.groupBy { it.id }.any { it.value.size > 1 }) return "Two day types have the same id."
+        if (plan.templates.none { it.id == DayPlan.OFF_DAY_TEMPLATE_ID }) return "Keep the Off day type: it is what any day not mapped to a type follows."
+        for (named in plan.templates) {
+            validate(named.template, plan.categories)?.let { return "${named.name}: $it" }
+        }
+
+        return null
+    }
+
+    private fun week(plan: DayPlan): String? {
+        for ((title, week) in listOf("Week A" to plan.week.a, "Week B" to plan.week.b)) {
+            if (week == null) continue
+            if (week.groupBy { it.day }.any { it.value.size > 1 }) return "$title lists a weekday twice."
+            if (week.any { entry -> plan.templates.none { it.id == entry.templateId } }) return "$title uses a day type that no longer exists."
+        }
+
+        if (plan.week.b != null && plan.week.bStartsOn?.dayOfWeek != java.time.DayOfWeek.MONDAY) {
+            return "Alternating weeks need a Monday for week B to start on."
         }
 
         return null
