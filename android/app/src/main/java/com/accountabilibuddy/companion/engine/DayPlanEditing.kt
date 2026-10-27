@@ -129,9 +129,16 @@ object DayPlanEditing {
         return plan.copy(cycle = PlanCycle(weeks + listOf(last), startsOn))
     }
 
-    /** The plan without the last week of the cycle (the cycle keeps at least one week). */
-    fun withLastWeekRemoved(plan: DayPlan): DayPlan =
-        if (plan.cycle.weeks.size <= 1) plan else plan.copy(cycle = plan.cycle.copy(weeks = plan.cycle.weeks.dropLast(1)))
+    /**
+     * The plan without the last week of the cycle (the cycle keeps at least one week). Going down to one week the start makes
+     * no difference, so it goes back to [baseStartsOn] (the plan being edited from), as on the PC: adding and removing a week isn't an edit.
+     */
+    fun withLastWeekRemoved(plan: DayPlan, baseStartsOn: LocalDate? = null): DayPlan {
+        if (plan.cycle.weeks.size <= 1) return plan
+        val weeks = plan.cycle.weeks.dropLast(1)
+        val startsOn = if (weeks.size == 1 && baseStartsOn != null) baseStartsOn else plan.cycle.startsOn
+        return plan.copy(cycle = plan.cycle.copy(weeks = weeks, startsOn = startsOn))
+    }
 
     /** The plan with week 1 starting on [monday] (a Monday). */
     fun withStartsOn(plan: DayPlan, monday: LocalDate): DayPlan = plan.copy(cycle = plan.cycle.copy(startsOn = monday))

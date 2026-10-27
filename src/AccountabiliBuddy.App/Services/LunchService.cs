@@ -1,4 +1,5 @@
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using AccountabiliBuddy.Core.Sync;
 using Microsoft.Data.Sqlite;
@@ -11,7 +12,12 @@ namespace AccountabiliBuddy.App.Services;
 /// break in today's plan is only a guideline: its window is drawn on the day bar and gives the hint time. A running
 /// session steps away as a Break for it, held while lunch runs (input doesn't end it; "I'm back" or the lunch ending
 /// does, <see cref="StepAwayService.HoldsAway"/>). Not started by its hint time: one hint; never started: skipped (the window
-/// stays work). When it's over: one chime and "Lunch over!". A lunch started or changed on another device arrives in
+/// stays work). A fixed lunch period (schema v13, a Rest part marked to start by itself) starts by itself on a
+/// workday at the first moment within its window (part start to part end) when no session runs (so it isn't a test, and a session
+/// that was kept has ended) and the user is at the PC (input in the last 2 minutes, else it waits for the first input; also when the
+/// app starts inside the window), as if Start lunch was pressed. It
+/// always ends where the part does, so a late start is the rest of the window. Not when lunch was taken or the user chose
+/// "Flexible this time" (<see cref="LunchRunIntoService"/>). When it's over: one chime and "Lunch over!". A lunch started or changed on another device arrives in
 /// its sync file (<see cref="SyncFile.Lunch"/>) and is taken here when its edit is newer. Document "lunch". Use from
 /// the UI thread only.
 /// </summary>
@@ -36,20 +42,27 @@ public sealed class LunchService
     /// <summary>A shortened lunch ends no sooner than this after now.</summary>
     private static readonly TimeSpan ShortestLeft = TimeSpan.FromMinutes(1);
 
+    /// <summary>A fixed lunch starts by itself only with input this recently: the user is at the PC.</summary>
+    private static readonly TimeSpan PresenceWindow = TimeSpan.FromMinutes(2);
+
     private readonly SessionController _sessions;
     private readonly ConfigurationService _configuration;
     private readonly SqliteJsonDocumentStore _store;
     private readonly Action<string, string> _remind;
     private readonly Action _chime;
+    private readonly IUserIdleDetector _idle;
     private LunchState _state = new();
 
-    public LunchService(SessionController sessions, ConfigurationService configuration, SqliteJsonDocumentStore store, Action<string, string> remind, Action chime)
+    public LunchService(
+        SessionController sessions, ConfigurationService configuration, SqliteJsonDocumentStore store, Action<string, string> remind, Action chime,
+        IUserIdleDetector idle)
     {
         _sessions = sessions;
         _configuration = configuration;
         _store = store;
         _remind = remind;
         _chime = chime;
+        _idle = idle;
         _sessions.Ticked += (_, _) => CheckNow();
     }
 
@@ -83,6 +96,20 @@ public sealed class LunchService
     /// </summary>
     public bool HoldsSessionAway => IsOnLunch && Taken is SyncLunch lunch && _sessions.Now < lunch.Start + MaxLength;
 
+    /// <summary>Today's fixed lunch period from the plan (schema v13); null on a day without one.</summary>
+    public FixedLunch? FixedToday => _configuration.Current.DayPlan.FixedLunchOn(DateOnly.FromDateTime(LocalNow()));
+
+    /// <summary>True when "Flexible this time" was chosen today: the fixed lunch is left to the user's Start lunch.</summary>
+    public bool IsFlexibleToday => _state.NoAutoStartOn == DateOnly.FromDateTime(LocalNow());
+
+    /// <summary>
+    /// Today's fixed lunch is still to start by itself: a workday with one, no lunch taken yet and "Flexible this time" not chosen.
+    /// </summary>
+    /// <remarks>Only until its window ends: after that it can no longer start by itself, and "Start lunch" is the user's.</remarks>
+    public FixedLunch? AutoStartPending => IsWorkdayToday && Taken is null && !IsFlexibleToday && FixedToday is FixedLunch lunch && LocalNow() < lunch.Window.End
+        ? lunch
+        : null;
+
     /// <summary>"Start lunch" shows: today is a workday (or has a flexible break) and no lunch was taken yet.</summary>
     public bool CanStart => (IsWorkdayToday || Today is not null) && Taken is null;
 
@@ -102,14 +129,31 @@ public sealed class LunchService
     }
 
     /// <summary>Starts lunch now for the lunch length; a running session steps away.</summary>
-    public async Task StartAsync()
+    public Task StartAsync() => StartForAsync(Length);
+
+    private async Task StartForAsync(TimeSpan length)
     {
         DateTimeOffset now = _sessions.Now;
-        await SaveAsync(_state with { Start = now, End = now + Length, OverTold = false, EditedAt = now });
+        await SaveAsync(_state with { Start = now, End = now + length, OverTold = false, EditedAt = now });
         if (_sessions.State.IsActive && !_sessions.State.IsAway)
         {
             _sessions.StepAway(AwayKind.Break);
         }
+    }
+
+    /// <summary>
+    /// "Flexible this time" on the run-into-lunch card: today's fixed lunch doesn't start by itself, so the user presses
+    /// Start lunch before going. Reminded at once, and the Today card says so.
+    /// </summary>
+    public async Task MakeFlexibleTodayAsync()
+    {
+        DateOnly today = DateOnly.FromDateTime(LocalNow());
+        if (_state.NoAutoStartOn != today)
+        {
+            await SaveAsync(_state with { NoAutoStartOn = today });
+        }
+
+        _remind("Lunch won't start by itself today", "Press Start lunch before you go.");
     }
 
     /// <summary>+5 min (positive) or −5 min (negative) on the running lunch; it never ends sooner than a minute from now.</summary>
@@ -201,6 +245,17 @@ public sealed class LunchService
 
         DateTime local = LocalNow();
         DateOnly today = DateOnly.FromDateTime(local);
+        if (AutoStartPending is FixedLunch fixedLunch && local >= fixedLunch.Window.Start && local + ShortestLeft <= fixedLunch.Window.End
+            && !_sessions.State.IsActive && _idle.GetIdleTime() < PresenceWindow)
+        {
+            // The first chance within the part's window (no session running, so a session that was kept has ended, and the user
+            // is at the PC: input in the last couple of minutes; away, it waits for the first input; also when the app just
+            // started): it starts as if Start lunch was pressed and ends where the part does.
+            TimeSpan remaining = fixedLunch.Window.End - local;
+            _ = StartForAsync(remaining < MaxLength ? remaining : MaxLength);
+            return;
+        }
+
         if (Today is FlexibleBreak flex && Taken is null && flex.HintAt is DateTime hint && local >= hint && local < flex.Window.End
             && _state.HintedOn != today)
         {
@@ -238,7 +293,8 @@ public sealed class LunchService
 
 /// <summary>
 /// Today's lunch on this computer (document "lunch"): when it started and ends, when it was last edited (on any
-/// device), whether "Lunch over!" came, the last hint's day, and the lunch length setting in minutes.
+/// device), whether "Lunch over!" came, the last hint's day, the lunch length setting in minutes, and the day "Flexible this time"
+/// was chosen for (that day's fixed lunch doesn't start by itself; this computer only).
 /// </summary>
 public sealed record LunchState(
     DateTimeOffset? Start = null,
@@ -246,4 +302,5 @@ public sealed record LunchState(
     bool OverTold = false,
     DateOnly? HintedOn = null,
     DateTimeOffset? EditedAt = null,
-    int LengthMinutes = 60);
+    int LengthMinutes = 60,
+    DateOnly? NoAutoStartOn = null);

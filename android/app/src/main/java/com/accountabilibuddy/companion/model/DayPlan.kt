@@ -56,6 +56,9 @@ data class PlanPart(
 /** A day's flexible break placed on its date (as on the PC's Core FlexibleBreak). */
 data class FlexibleBreak(val name: String, val color: Long, val window: LocalWindow, val minutes: Int, val hintAt: java.time.LocalDateTime?)
 
+/** A day's fixed lunch period (schema v13) placed on its date: it starts by itself at [window]'s start and lasts as long (the PC's Core FixedLunch). */
+data class FixedLunch(val name: String, val color: Long, val window: LocalWindow)
+
 /** How a day template says its day is guarded (schema v12, ADR 47; the PC's DayMode). */
 enum class DayMode { Schedule, Budget, Free }
 
@@ -220,6 +223,14 @@ data class DayPlan(
         val day = date.atStartOfDay()
         val end = if (part.endsAtMidnight) day.plusDays(1) else date.atTime(part.end)
         return FlexibleBreak(part.label ?: category.name, category.argb, LocalWindow(date.atTime(part.start), end), part.flexMinutes!!, part.hintAt?.let { date.atTime(it) })
+    }
+
+    /** The fixed lunch period (a Rest part with fixed hours that starts by itself) on [date]; null on a day without one. */
+    fun fixedLunchOn(date: LocalDate): FixedLunch? {
+        val part = templateFor(date).parts.firstOrNull { it.autoStart && !it.isFlexible && !it.crossesMidnight } ?: return null
+        val category = category(part.categoryId) ?: return null
+        val end = if (part.endsAtMidnight) date.atStartOfDay().plusDays(1) else date.atTime(part.end)
+        return FixedLunch(part.label ?: category.name, category.argb, LocalWindow(date.atTime(part.start), end))
     }
 
     /**

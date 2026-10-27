@@ -178,6 +178,7 @@ fun MainScreen(
                     LunchCard(
                         workday = state.document.dayPlan.isWorkday(java.time.LocalDate.now()),
                         flex = state.document.dayPlan.flexibleBreakOn(java.time.LocalDate.now()),
+                        fixed = state.document.dayPlan.fixedLunchOn(java.time.LocalDate.now()),
                         taken = lunchTaken?.takeIf { it.start.atZone(java.time.ZoneId.systemDefault()).toLocalDate() == java.time.LocalDate.now() },
                         lengthMinutes = lunchLength,
                         clock = viewModel.clock,

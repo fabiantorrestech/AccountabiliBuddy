@@ -46,11 +46,12 @@ private val WeekColumnWidth = 140.dp
 /**
  * Which day type each weekday follows (schema v13, ADR 47): Monday to Sunday, one column per week of a repeating cycle of
  * 1 to 8 weeks (scrolling sideways when they don't fit), buttons to add or remove a week, and the Monday week 1 starts on
- * once there are several. A one-off day still replaces whatever its date follows.
+ * once there are several. A one-off day still replaces whatever its date follows. [basePlan] is the plan being edited from:
+ * removing weeks down to one puts its week 1 start back.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WeekGridEditor(plan: DayPlan, onChange: (DayPlan) -> Unit) {
+fun WeekGridEditor(plan: DayPlan, basePlan: DayPlan, onChange: (DayPlan) -> Unit) {
     val weekCount = plan.cycle.weeks.size
     var pickingStart by remember { mutableStateOf(false) }
     val today = LocalDate.now()
@@ -63,7 +64,7 @@ fun WeekGridEditor(plan: DayPlan, onChange: (DayPlan) -> Unit) {
                 modifier = Modifier.weight(1f),
             )
             OutlinedButton(onClick = { onChange(DayPlanEditing.withWeekAdded(plan, today)) }, enabled = weekCount < PlanCycle.MAX_WEEKS) { Text("Add week") }
-            OutlinedButton(onClick = { onChange(DayPlanEditing.withLastWeekRemoved(plan)) }, enabled = weekCount > 1) { Text("Remove last") }
+            OutlinedButton(onClick = { onChange(DayPlanEditing.withLastWeekRemoved(plan, basePlan.cycle.startsOn)) }, enabled = weekCount > 1) { Text("Remove last") }
         }
         if (weekCount > 1) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

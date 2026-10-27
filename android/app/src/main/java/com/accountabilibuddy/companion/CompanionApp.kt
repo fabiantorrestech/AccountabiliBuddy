@@ -455,6 +455,14 @@ class CompanionApp : Application() {
             return true
         }
 
+        // A fixed lunch period starts by itself on the PC: hear of it as quickly as a flexible one.
+        val fixedLunch = plan.fixedLunchOn(local.toLocalDate())
+        if (fixedLunch != null && lunch.today(now) == null &&
+            !local.isBefore(fixedLunch.window.start.minus(LUNCH_LEAD)) && local.isBefore(fixedLunch.window.end)
+        ) {
+            return true
+        }
+
         // The guards' own view of the day (a Budget day's windows included), not the plan's raw parts.
         return com.accountabilibuddy.companion.engine.DayWorkWindows
             .partAt(plan, local, nightFallback = state.sleep::fallbackNightBefore)?.category?.behavior?.isWork == true

@@ -171,6 +171,46 @@ public sealed class SessionEngine
     }
 
     /// <summary>
+    /// Shortens a timed manual session so its focus ends at <paramref name="newEnd"/> (the run-into-lunch card's "Adjust"): the
+    /// running focus phase's end, or, while planning, the focus length that follows it. It never lengthens a session and never
+    /// leaves less than <paramref name="shortest"/> of focus.
+    /// </summary>
+    /// <returns>False when the session isn't a timed manual one, or the new end isn't earlier than its end or leaves too little.</returns>
+    public bool ShortenFocusEnd(DateTimeOffset newEnd, TimeSpan shortest)
+    {
+        if (!State.IsActive || State.Mode != SessionMode.Manual || !State.HasSetEnd)
+        {
+            return false;
+        }
+
+        DateTimeOffset now = Now;
+        if (State.IsPlanning)
+        {
+            if (State.FocusStartsAt(now) is not DateTimeOffset focusStart || State.FocusLengthAfterPlanning is not TimeSpan length)
+            {
+                return false;
+            }
+
+            TimeSpan newLength = newEnd - focusStart;
+            if (newLength < shortest || newLength >= length)
+            {
+                return false;
+            }
+
+            SetState(State with { FocusLengthAfterPlanning = newLength });
+            return true;
+        }
+
+        if (State.PhaseEndsAt is not DateTimeOffset end || newEnd >= end || newEnd < State.CountdownTime(now) + shortest)
+        {
+            return false;
+        }
+
+        SetState(State with { PhaseEndsAt = newEnd });
+        return true;
+    }
+
+    /// <summary>
     /// Ends the current session immediately. Callers must apply <see cref="BypassPolicy"/> first
     /// when the user is ending a focus phase early.
     /// </summary>

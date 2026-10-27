@@ -155,7 +155,7 @@ public static class ProfileDocumentSerializer
                 json = JsonSerializer.SerializeToElement(v12Object, Options);
             }
 
-            plan =json.Deserialize<DayPlan>(Options) ?? throw new JsonException("The day plan is empty.");
+            plan = json.Deserialize<DayPlan>(Options) ?? throw new JsonException("The day plan is empty.");
         }
         catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or ArgumentException)
         {
