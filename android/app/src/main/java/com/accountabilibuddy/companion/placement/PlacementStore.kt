@@ -27,6 +27,10 @@ class PlacementStore(context: Context) {
         val pocketMillis: Long,
         val active: Boolean,
         val endedAt: Instant?,
+        /** The last screen-off reading that said pocket, until a bag, desk or face-up reading; null for none. */
+        val lastPocketAt: Instant? = null,
+        /** The "No phone-free credit" switch as it was when the session began; the session's pocket minutes are sent only if it was on. */
+        val countPocket: Boolean = true,
     )
 
     @Synchronized
@@ -42,6 +46,8 @@ class PlacementStore(context: Context) {
             prefs.getLong(KEY_POCKET, 0L),
             prefs.getBoolean(KEY_ACTIVE, false),
             prefs.getLong(KEY_ENDED, 0L).takeIf { it > 0 }?.let(Instant::ofEpochMilli),
+            prefs.getLong(KEY_LAST_POCKET, 0L).takeIf { it > 0 }?.let(Instant::ofEpochMilli),
+            prefs.getBoolean(KEY_COUNT_POCKET, true),
         )
     }
 
@@ -51,14 +57,14 @@ class PlacementStore(context: Context) {
      * counted session: then it is the same session and the better start is kept. Returns the record.
      */
     @Synchronized
-    fun begin(session: PlacementSession.Info, now: Instant): Record {
+    fun begin(session: PlacementSession.Info, now: Instant, countPocket: Boolean = true): Record {
         val current = load()
         // A session that "ended" a moment ago with the same start was a flicker of the PC's word (a file gap).
         val endedJustNow = current?.endedAt?.let { Duration.between(it, now) <= REOPEN_WITHIN } ?: false
         val sameSession = current != null && (current.endedAt == null || endedJustNow) &&
             (PlacementSession.same(current.sessionStart, session.start) || (current.endedAt == null && !(current.authoritative && session.authoritative)))
         if (current == null || !sameSession) {
-            save(Record(session.start, session.authoritative, PlacementState.Unknown, now, now, 0, 0L, true, null))
+            save(Record(session.start, session.authoritative, PlacementState.Unknown, now, now, 0, 0L, true, null, countPocket = countPocket))
         } else {
             val start = if (session.authoritative && !current.authoritative) session.start else current.sessionStart
             save(current.copy(sessionStart = start, authoritative = current.authoritative || session.authoritative, active = true, endedAt = null))
@@ -92,7 +98,20 @@ class PlacementStore(context: Context) {
         val gap = Duration.between(current.lastReadingAt, now)
         val pocket = if (current.state == PlacementState.Pocket && current.active && gap <= STALE_AFTER) current.pocketMillis + gap.toMillis() else current.pocketMillis
         val since = if (state != current.state || !current.active) now else current.since
-        save(current.copy(state = state, since = since, lastReadingAt = now, pocketMillis = pocket, active = true))
+        // Turning the screen on reads unknown, so the pocket is remembered for the "Phone down" screen's unlock wait.
+        val lastPocket = when (state) {
+            PlacementState.Pocket -> now
+            PlacementState.Bag, PlacementState.Desk, PlacementState.FaceUp -> null
+            else -> current.lastPocketAt
+        }
+        save(current.copy(state = state, since = since, lastReadingAt = now, pocketMillis = pocket, active = true, lastPocketAt = lastPocket))
+    }
+
+    /** True when the phone was read as in a pocket within the last [STALE_AFTER] and not in a bag, on a desk or face up since. */
+    @Synchronized
+    fun pocketRecently(now: Instant): Boolean {
+        val at = load()?.lastPocketAt ?: return false
+        return Duration.between(at, now) <= STALE_AFTER
     }
 
     /** A new stretch of the phone being out (in use or face up, no work use). */
@@ -102,7 +121,11 @@ class PlacementStore(context: Context) {
         save(current.copy(outCount = current.outCount + 1))
     }
 
-    /** The placement for this phone's sync file; null when there's none (no session recorded, or over for a day). */
+    /**
+     * The placement for this phone's sync file; null when there's none (no session recorded, or over for a day).
+     * A session that began with the "No phone-free credit" penalty off ([Record.countPocket]) sends 0 pocket minutes, so the PC
+     * gives full credit; the switch is read once, when the session begins, so changing it later can't change a session.
+     */
     fun forSyncFile(now: Instant, workUse: WorkUseStore): SyncPlacement? {
         val record = load() ?: return null
         if (record.endedAt?.let { Duration.between(it, now) > KEEP_AFTER_END } == true) {
@@ -113,7 +136,7 @@ class PlacementStore(context: Context) {
         val state = if (!record.active || stale) PlacementState.Unknown else record.state
         val since = if (stale) record.lastReadingAt.plus(STALE_AFTER) else record.since
         val workUseUntil = if (record.active) workUse.active(now)?.takeIf { PlacementSession.same(it.sessionStart, record.sessionStart) }?.end else null
-        return SyncPlacement(state.wire, since, workUseUntil, record.outCount, (record.pocketMillis / 60_000L).toInt(), record.sessionStart)
+        return SyncPlacement(state.wire, since, workUseUntil, record.outCount, if (record.countPocket) (record.pocketMillis / 60_000L).toInt() else 0, record.sessionStart)
     }
 
     private fun save(record: Record) {
@@ -127,6 +150,8 @@ class PlacementStore(context: Context) {
             .putLong(KEY_POCKET, record.pocketMillis)
             .putBoolean(KEY_ACTIVE, record.active)
             .putLong(KEY_ENDED, record.endedAt?.toEpochMilli() ?: 0L)
+            .putLong(KEY_LAST_POCKET, record.lastPocketAt?.toEpochMilli() ?: 0L)
+            .putBoolean(KEY_COUNT_POCKET, record.countPocket)
             .apply()
     }
 
@@ -147,5 +172,7 @@ class PlacementStore(context: Context) {
         private const val KEY_POCKET = "pocketMillis"
         private const val KEY_ACTIVE = "active"
         private const val KEY_ENDED = "endedAt"
+        private const val KEY_LAST_POCKET = "lastPocketAt"
+        private const val KEY_COUNT_POCKET = "countPocket"
     }
 }

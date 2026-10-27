@@ -198,7 +198,7 @@ class PlacementDetector(context: Context) {
             session.onBreak || app.pause.isQuiet -> {
                 stopSensing()
                 val before = app.placementStore.load()
-                app.placementStore.begin(session, now)
+                app.placementStore.begin(session, now, app.phoneDown.isOn(PocketPenalty.NoPhoneFreeCredit, now))
                 app.placementStore.pause(now)
                 if (before?.active == true) syncSoon(now)
                 resetStretch()
@@ -206,7 +206,7 @@ class PlacementDetector(context: Context) {
             }
         }
 
-        app.placementStore.begin(session, now)
+        app.placementStore.begin(session, now, app.phoneDown.isOn(PocketPenalty.NoPhoneFreeCredit, now))
         startSensing()
         val interactive = power.isInteractive
         if (interactive) {
@@ -295,12 +295,19 @@ class PlacementDetector(context: Context) {
 
     // Opens the essentials screen silently, with the skip rules of the essentials screen: locked, a call, an emergency.
     private fun escalate(now: Instant): Boolean {
-        if (!power.isInteractive || keyguard.isKeyguardLocked || inCall() || app.emergency.isActive(now) || app.essentialsOnScreen || app.lunch.isOnLunch(now)) {
+        if (!power.isInteractive || keyguard.isKeyguardLocked || inCall() || app.emergency.isActive(now) || app.essentialsOnScreen || app.phoneDownOnScreen || app.lunch.isOnLunch(now)) {
             return false
         }
 
         if (!app.essentials.onUnlockInSession) {
             return false
+        }
+
+        // A real session with the guard on: the "Phone down" screen (no unlock wait: the phone isn't in a pocket).
+        if (PhoneDownLaunch.applies(context, now)) {
+            Log.i(TAG, "out for 3 minutes: opening the phone down screen")
+            Takeover.startFromBackground(context, PhoneDownLaunch.intent(context))
+            return true
         }
 
         Log.i(TAG, "out for 3 minutes: opening the essentials screen")
@@ -314,7 +321,7 @@ class PlacementDetector(context: Context) {
 
     // Without Usage access nothing is known about the app in front, so it counts as not essential.
     private fun essentialInFront(now: Instant): Boolean {
-        if (app.essentialsOnScreen) {
+        if (app.essentialsOnScreen || app.phoneDownOnScreen) {
             return true
         }
 

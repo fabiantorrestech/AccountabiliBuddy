@@ -22,6 +22,7 @@ object SetupFeatures {
     const val CURBOX = "curbox.setup"
     const val BEDTIME = "bedtime.essentials"
     const val PLACEMENT = "phone.placement"
+    const val PHONE_DOWN = "phone.down"
     const val RELAY = "sync.relay"
     const val DAY_PLAN_MODES = "dayplan.modes"
     private const val PREFS = "setupFeatures"
@@ -43,6 +44,11 @@ object SetupFeatures {
             relevant = { true },
             // Set up once seen in the assistant, or the timeline notification is on (the detector runs in its service).
             setUp = { done(it, PLACEMENT) || (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).store.state.value.timelineNotificationOn },
+        ),
+        SetupFeature(
+            PHONE_DOWN, "0.1.63", "Phone down screen: unlocking in a PC session shows \"Phones down\", with pocket penalties",
+            relevant = { true },
+            setUp = { done(it, PHONE_DOWN) },
         ),
         SetupFeature(
             RELAY, "0.1.62", "Own relay: sync through a small relay you run yourself, in about a second",

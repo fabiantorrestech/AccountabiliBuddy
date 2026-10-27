@@ -6,6 +6,7 @@ import android.util.Log
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.sync.PcFileControl
 import com.accountabilibuddy.companion.nudge.Takeover
+import com.accountabilibuddy.companion.placement.PhoneDownLaunch
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import java.time.Duration
 import java.time.Instant
@@ -54,6 +55,12 @@ object EssentialsLaunch {
         Log.d(TAG, "unlock: ${kind ?: "no"} essentials (emergency ${app.emergency.isActive(now)}, session $session, night $night)")
         // In a session with LockMyPhone-Extended set up, that app's lock is the screen, not this one.
         if (kind == EssentialsKind.Focus && session && !app.emergency.isActive(now) && startLockMyPhoneForSession(context, now)) return
+        // A real PC session with the placement guard on: the "Phone down" screen instead of the essentials screen.
+        if (kind == EssentialsKind.Focus && session && PhoneDownLaunch.shouldShowOnUnlock(context, now)) {
+            PhoneDownLaunch.showOnUnlock(context, now)
+            return
+        }
+
         kind?.let { Takeover.startFromBackground(context, EssentialsActivity.intent(context, it)) }
     }
 
