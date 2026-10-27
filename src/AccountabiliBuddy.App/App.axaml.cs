@@ -582,6 +582,8 @@ public partial class App : Application
             lastBeeminder = summary;
             syncCoordinator.NotifyHistoryChanged();
         };
+        // A manual Refresh/Test seals the file again so the phone gets the new goals at its next sync.
+        _beeminder.ReadOnRequest += (_, _) => syncCoordinator.NotifyHistoryChanged();
         // Lunch is the user's, not this PC's: started here or on another device, every device takes the newest.
         syncCoordinator.Lunch = () => _lunch!.Taken;
         // What the user did on the phone for this PC (ADR 26): applied once each, acknowledged in this PC's file.
