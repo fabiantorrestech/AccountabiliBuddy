@@ -95,3 +95,4 @@ Each phase: a detailed plan (files, steps, acceptance checks) agreed with the us
   - A tablet is for notes and productivity but also a browser and media: note apps allowed, browser and media apps guarded.
   - Like the PC's computer-type presets.
 - **Recommend an app blocker first:** when the setup assistant detects no app blocker on the device, it recommends setting one up with AccountabiliBuddy first (CurBox) before the rest.
+- **Rotate the sync group code:** new code, re-seal, re-join by QR; also how a lost device is removed. Closes the relay's long-lived-key gap (phase 6 plan, Encryption).

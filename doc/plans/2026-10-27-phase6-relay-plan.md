@@ -83,6 +83,35 @@ Reword §1's "opens no connection" so it applies to the folder method only.
 
 - [ ] Commit `PC: Own relay sync method (push in about a second), join link carries it, guide`.
 
+### Task 2b: Run the relay on this PC (user, 2026-10-27)
+- A switch in Devices: "Run a relay on this PC", off by default.
+  - When on, AccountabiliBuddy ships the relay (self-contained, next to the app, from `src/AccountabiliBuddy.Relay`), starts it as a child process when the app starts and stops it when the app quits. It restarts it if it crashes, with backoff.
+  - Its data goes in `%LocalAppData%\AccountabiliBuddyelay` (dev builds: `-Dev`).
+- **Any network** (user's choice): it listens on all interfaces, so phone and tablet can sync on home Wi-Fi, someone else's Wi-Fi or a coffee shop.
+  - The Windows firewall rule covers Private and Public networks. Adding it needs one elevation prompt, asked when the switch is turned on and explained first.
+  - A notice when the PC is on a Public network: "Your relay is reachable on this public network; your data stays sealed and HTTPS-pinned." Plus a quick "Stop the relay" button.
+- **Controlled from the app** (Devices → Own relay):
+  - status (running, port, connected devices, last change);
+  - start, stop and restart;
+  - its address(es) and pin, with a join QR that carries `r` and `p`;
+  - the port (default 8743);
+  - "also on public networks", on by default per the user;
+  - storage used, and "Clear relay storage";
+  - the last 50 log lines (times and statuses only).
+- The PC itself syncs through its own relay at `https://127.0.0.1:<port>` with the pin.
+- This PC's own "Own relay" method turns on with it.
+- [ ] Commit `PC: run the relay on this PC (starts and stops with the app, controlled from Devices)`.
+
+### Encryption (user question, 2026-10-27)
+- Already end-to-end: the sync files are sealed on each device with AES-256-GCM, using a key derived from the group code with HKDF-SHA256 (platform crypto: .NET `System.Security.Cryptography`/CNG; Android `javax.crypto`/Conscrypt). The relay, Drive and the network never get the key.
+- In transit: HTTPS with the relay's certificate pinned, as a second layer that also hides names, tokens and timing.
+- No new crypto libraries: platform crypto is the most trusted option. libsodium and Tink were considered and rejected as new dependencies for the same primitives.
+- Known gaps for the security passes to weigh:
+  - no key rotation (a leaked code exposes old sealed files);
+  - the relay sees metadata;
+  - a lost device is removed only by a new group.
+- A later "Rotate the group code" (re-seal, re-join with QR) is in Ideas.
+
 ### Task 3: Phone "Own relay" sync method
 **Files:**
 - `shared/.../sync/SyncKey.kt`.
@@ -108,7 +137,7 @@ Reword §1's "opens no connection" so it applies to the folder method only.
 
 ## Execution
 - After phase 4b.
-- Task 1 first, so its API is real. Then Tasks 2 and 3 in parallel; the Contract above is their interface.
+- Task 1 first, so its API is real. Then Tasks 2 and 3 in parallel, then 2b (PC, after Task 2); the Contract above is their interface.
 - Implementers: Sonnet high. Reviewers: Opus medium (network, privacy, sync).
 - The orchestrator records the relay in `doc/hard-rules.md` (outbound connections, the stored `sync.settings` fields) and in `CLAUDE.md`'s "Local only" bullet after merge.
 - **Final security gate (user, 2026-10-27):** after Tasks 1–3 merge, two context-free security reviews by fresh Opus 5.5 high agents.
