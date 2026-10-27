@@ -1,5 +1,6 @@
 package com.accountabilibuddy.companion.sync
 
+import com.accountabilibuddy.shared.SnapshotBuilder
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFile
 import java.time.Duration
@@ -43,10 +44,18 @@ object PcFileControl {
     fun updateNeeded(card: SyncDeviceCard): String? =
         if (supportsControl(card)) null else "Update AccountabiliBuddy on ${card.name} to start and end its sessions from here."
 
-    /** The PC file's running session while it can still be running: written in the last 12 hours, its phase not over for 10 minutes. */
+    /**
+     * The PC file's running session while it can still be running: written in the last 12 hours, its phase not over for 10
+     * minutes; a session with no set end only while the file is under [SnapshotBuilder.NO_END_LIMIT] old.
+     */
     fun liveRunning(file: SyncFile, now: Instant): com.accountabilibuddy.shared.sync.SyncRunning? {
         val running = file.running ?: return null
         if (Duration.between(file.device.writtenAt, now) > FRESH) {
+            return null
+        }
+
+        val noEnd = running.phaseEndsAt == null && running.planningEndsAt == null
+        if (noEnd && Duration.between(file.device.writtenAt, now) > SnapshotBuilder.NO_END_LIMIT) {
             return null
         }
 

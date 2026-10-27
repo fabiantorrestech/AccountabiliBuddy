@@ -55,7 +55,7 @@ fun LinkPage(pcName: String?, updated: String?, isSample: Boolean, onForget: () 
                 Text("Focus from", color = Color(0xB3FFFFFF), fontSize = 12.sp)
                 sources.forEach { line -> Text(line, color = Color(0xB3FFFFFF), fontSize = 11.sp, textAlign = TextAlign.Center) }
             } else {
-                Text(pcName?.let { "Focus from $it" } ?: "No PC linked to the phone", color = Color(0xB3FFFFFF), fontSize = 12.sp, textAlign = TextAlign.Center)
+                Text(pcName?.let { "Focus from $it" } ?: "No PC data on the phone yet", color = Color(0xB3FFFFFF), fontSize = 12.sp, textAlign = TextAlign.Center)
                 Text(updated ?: "Up to date", color = Color(0xB3FFFFFF), fontSize = 11.sp)
             }
             OutlinedButton(onClick = onForget) { Text("Forget data") }

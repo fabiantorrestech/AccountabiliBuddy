@@ -19,7 +19,7 @@ object PhoneLink {
     // When the watch last asked, on the uptime clock; 0 = not yet.
     @Volatile private var lastAsked = 0L
 
-    // Asking wakes the phone (and through it the PC), so not more often than this unless the user asks.
+    // Asking wakes the phone (which then reads the PCs' sync files from Drive), so not more often than this unless the user asks.
     private const val ASK_GAP_MS = 2 * 60_000L
 
     /** Whether the last ask reached the phone app; null before the first. */

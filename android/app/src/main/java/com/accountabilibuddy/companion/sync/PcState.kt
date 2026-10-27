@@ -3,9 +3,6 @@ package com.accountabilibuddy.companion.sync
 import com.accountabilibuddy.shared.sync.SessionTaskItem
 import java.time.OffsetDateTime
 
-/** The PC's last state and when it came, kept so the watch still shows what runs (ADR 21). */
-data class PcStateAt(val state: PcState, val at: java.time.Instant)
-
 /** A profile the phone can start on the PC. */
 data class PcProfile(val id: String, val name: String)
 

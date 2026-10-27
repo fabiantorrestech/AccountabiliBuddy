@@ -47,6 +47,8 @@ class WatchBridge(
     /** Today's lunch for the watch's Lunch page, and what changes it (lunch started or changed, the length setting). */
     private val lunch: () -> com.accountabilibuddy.shared.WatchLunch? = { null },
     private val lunchChanges: kotlinx.coroutines.flow.Flow<Any?> = kotlinx.coroutines.flow.flowOf(Unit),
+    /** The PC picked in Devices (its sync device id), the one named in the snapshot; null: the newest PC file's. */
+    private val pickedPc: () -> String? = { null },
     /** Reads the other devices' files from Drive now (ADR 42): what "/hello" does before it answers. */
     private val syncNow: suspend () -> Unit = {},
 ) {
@@ -189,7 +191,7 @@ class WatchBridge(
         val pcFiles = received.value.map { it.file.device.name to it.file }
         return SnapshotBuilder.build(
             PhoneSnapshot.input(
-                store.state.value, linked = true, PcFileControl.target(received.value, null)?.file?.device?.name, Instant.now(),
+                store.state.value, linked = true, PcFileControl.target(received.value, pickedPc())?.file?.device?.name, Instant.now(),
                 ZoneId.systemDefault(), relayAllowed = settings.relayOn, received = pcFiles,
             ).copy(lunch = lunch()),
         )

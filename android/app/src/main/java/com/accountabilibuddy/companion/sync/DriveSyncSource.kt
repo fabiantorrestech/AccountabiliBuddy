@@ -2,6 +2,7 @@ package com.accountabilibuddy.companion.sync
 
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFolder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -59,11 +60,18 @@ class DriveSyncSource(
 
         val ownName = sync.ownFolderFileName() ?: return
         running.withLock {
-            runCatching { beforeSync() }
             val token = signIn.accessToken()
             if (token == null) {
                 _status.value = FolderStatus(_status.value.lastSyncAt, SIGN_IN_AGAIN)
                 return
+            }
+
+            try {
+                beforeSync()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A failed check of the watch link doesn't stop the sync.
             }
 
             _status.value = withContext(Dispatchers.IO) {

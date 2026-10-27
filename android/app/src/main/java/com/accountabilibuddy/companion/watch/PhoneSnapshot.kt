@@ -5,6 +5,7 @@ import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.FocusDayCombine
 import com.accountabilibuddy.shared.DataSource
 import com.accountabilibuddy.companion.data.CompanionState
+import com.accountabilibuddy.companion.sync.PcFileControl
 import com.accountabilibuddy.companion.model.CategoryBehavior
 import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.companion.model.LocalWindow
@@ -65,14 +66,13 @@ object PhoneSnapshot {
     /**
      * A PC's running session from its sync file (ADR 26) with the time that file was written: the newest PC file written
      * in the last 12 hours whose phase hasn't been over for more than 10 minutes (a PC that went off mid-session stops
-     * counting down). Its open session's checklist comes along.
+     * counting down; one with no set end only while the file is under 30 minutes old). Its open session's checklist comes along.
      */
     fun runningFromFiles(received: List<Pair<String, SyncFile>>, now: Instant): Pair<RunningSession, Instant>? =
         received
             .map { it.second }
-            .filter { it.device.kind == SyncDeviceCard.KIND_PC && it.running != null }
-            .filter { java.time.Duration.between(it.device.writtenAt, now) <= java.time.Duration.ofHours(12) }
-            .filter { file -> file.running!!.isLiveAt(now, java.time.Duration.ofSeconds(600)) }
+            .filter { it.device.kind == SyncDeviceCard.KIND_PC }
+            .filter { PcFileControl.liveRunning(it, now) != null }
             .maxByOrNull { it.device.writtenAt }
             ?.let { file ->
                 val running = file.running!!

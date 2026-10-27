@@ -185,6 +185,7 @@ class CompanionApp : Application() {
         appScope.launch { sync.received.collect { devices -> applyPcFileSettings(devices.map { it.file }) } }
         watchBridge = WatchBridge(
             this, store, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope, sync.received,
+            pickedPc = { pcRemote.chosenPcId.value },
             // The watch's Lunch page: today's lunch and the length setting.
             lunch = { lunch.forWatch(store.state.value.document.dayPlan) },
             lunchChanges = kotlinx.coroutines.flow.combine(lunch.lunch, lunch.lengthMinutes) { taken, length -> taken to length },

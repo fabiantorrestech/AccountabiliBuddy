@@ -27,15 +27,15 @@ data class SnapshotInput(
 
 /**
  * Builds the watch's [WatchSnapshot] (ADR 21) for today. A focus day from another date never reaches today's rings
- * (its dated week totals stay). The session the PC's file last said runs is taken to run until its end, or for up to 12
- * hours with no set end; after that, or when the PC says nothing runs, an open session ends at that end or now. A
+ * (its dated week totals stay). The session the PC's file last said runs is taken to run until its end, or for up to 30
+ * minutes with no set end; after that, or when the PC says nothing runs, an open session ends at that end or now. A
  * session running across midnight shows only its part after midnight.
  */
 object SnapshotBuilder {
     private const val WEEK_DAYS = 7L
 
-    // A session with no set end is taken to run this long after the PC last said so.
-    private val NO_END_LIMIT: Duration = Duration.ofHours(12)
+    /** A session with no set end is taken to run this long after the PC's file said so (the PC writes every ~10 s in a session). */
+    val NO_END_LIMIT: Duration = Duration.ofMinutes(30)
 
     fun build(input: SnapshotInput): WatchSnapshot {
         val today = input.now.atZone(input.zone).toLocalDate()

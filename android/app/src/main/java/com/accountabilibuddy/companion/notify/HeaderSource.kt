@@ -64,7 +64,7 @@ object HeaderSource {
 
         return SnapshotBuilder.build(
             PhoneSnapshot.input(
-                state, linked = true, PcFileControl.target(app.sync.received.value, null)?.file?.device?.name, now.atZone(zone).toInstant(), zone,
+                state, linked = true, PcFileControl.target(app.sync.received.value, app.pcRemote.chosenPcId.value)?.file?.device?.name, now.atZone(zone).toInstant(), zone,
                 received = received,
             ),
         )
