@@ -256,7 +256,11 @@ public sealed class QuickSessionService
     }
 
     /// <summary>The remembered focus length (last Start): what the Quick Starts run for when no start panel chose one.</summary>
-    private TimeSpan RememberedLength => TimeSpan.FromMinutes(Math.Max(1, Preferences.FocusMinutes));
+    private TimeSpan RememberedLength => ClampedLength(TimeSpan.FromMinutes(Preferences.FocusMinutes));
+
+    // 1 minute to 12 hours, the range a phone or watch may start (RemoteSessionControl.MaxMinutes).
+    private static TimeSpan ClampedLength(TimeSpan length) =>
+        TimeSpan.FromMinutes(Math.Clamp(length.TotalMinutes, 1, Remote.RemoteSessionControl.MaxMinutes));
 
     /// <summary>
     /// "Quick Start with Default": the default profile (Settings; "QS - Default" unless another is chosen) for
@@ -277,15 +281,22 @@ public sealed class QuickSessionService
         return _sessions.StartManual(profileId, RememberedLength);
     }
 
-    /// <summary>"No set end" (start panel, More options): <paramref name="profileId"/> runs until it is ended; the on-screen bar counts up.</summary>
+    /// <summary>"No set end" (start panel, More options; a phone's explicit choice): <paramref name="profileId"/> runs until it is ended; the on-screen bar counts up.</summary>
     public bool StartOpenEnded(Guid profileId)
     {
         CloseAll();
         return _sessions.StartManual(profileId, duration: null);
     }
 
+    /// <summary>"No set end" with the default profile (made on first use), for a phone's explicit choice.</summary>
+    public async Task<bool> StartOpenEndedWithDefaultAsync()
+    {
+        CloseAll();
+        return await EnsureCountUpProfileAsync() is Guid profileId && _sessions.StartManual(profileId, duration: null);
+    }
+
     private TimeSpan LengthOrRemembered(TimeSpan? length) =>
-        length is TimeSpan chosen && chosen >= TimeSpan.FromMinutes(1) ? chosen : RememberedLength;
+        length is TimeSpan chosen && chosen >= TimeSpan.FromMinutes(1) ? ClampedLength(chosen) : RememberedLength;
 
     /// <summary>
     /// At launch: every install has the default profile. When the saved one is missing, a profile named "Quick Start"

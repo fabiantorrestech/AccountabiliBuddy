@@ -302,8 +302,10 @@ data class SyncRunning(
 ) {
     /**
      * Still worth showing at [now] (a PC that went off mid-session stops counting down): before the end of its phase and
-     * [grace] after it, with no set end, or while planning (which has no end of its own until "Ready?" is answered).
+     * [grace] after it, with no set end, or while planning (which has no end of its own until "Ready?" is answered, but is
+     * believed only until its time, the focus length it leads to and 10 minutes have passed).
      */
     fun isLiveAt(now: java.time.Instant, grace: java.time.Duration): Boolean =
-        planningEndsAt != null || phaseEndsAt?.let { end -> now.isBefore(end.plus(grace)) } ?: true
+        if (planningEndsAt != null) now.isBefore(planningEndsAt.plus(com.accountabilibuddy.shared.PlanningBound.after(phaseStartedAt, phaseEndsAt)))
+        else phaseEndsAt?.let { end -> now.isBefore(end.plus(grace)) } ?: true
 }

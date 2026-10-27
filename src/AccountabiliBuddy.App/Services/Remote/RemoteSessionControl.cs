@@ -77,6 +77,35 @@ public sealed class RemoteSessionControl
         return _quickSession.StartQuick(profileId) ? null : "The session couldn't start.";
     }
 
+    /// <summary>"No set end" with the default profile (made on first use): runs until ended, no wait or reason, the bar counts up.</summary>
+    /// <returns>Null when it started; otherwise why not.</returns>
+    public async Task<string?> StartOpenEndedWithDefaultAsync()
+    {
+        if (_sessions.State.IsActive)
+        {
+            return RunningMessage;
+        }
+
+        return await _quickSession.StartOpenEndedWithDefaultAsync() ? null : "The Quick Start profile couldn't be set up on the PC.";
+    }
+
+    /// <summary>"No set end" with <paramref name="profileId"/>: runs until ended, no wait or reason, the bar counts up.</summary>
+    /// <returns>Null when it started; otherwise why not.</returns>
+    public string? StartOpenEnded(Guid profileId)
+    {
+        if (_sessions.State.IsActive)
+        {
+            return RunningMessage;
+        }
+
+        if (!Exists(profileId))
+        {
+            return MissingProfileMessage;
+        }
+
+        return _quickSession.StartOpenEnded(profileId) ? null : "The session couldn't start.";
+    }
+
     /// <summary>The profile "Quick Start with Default" starts (the default profile); null when it isn't made yet.</summary>
     public Guid? CountUpProfileId => _quickSession.CountUpProfileId;
 

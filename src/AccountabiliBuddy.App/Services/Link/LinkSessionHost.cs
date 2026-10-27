@@ -331,8 +331,11 @@ public sealed class LinkSessionHost : ILinkSessionHost
 
     public Task<string?> StartAsync(LinkStartRequest request)
     {
+        // The link is being deleted (ADR 42): "count up" stays no set end; a start with no length is a Quick Start.
         return Dispatcher.UIThread.InvokeAsync(async () =>
-            request.CountUp ? await _control.StartWithDefaultAsync() : _control.Start(request.ProfileId, request.Minutes));
+            request.CountUp ? await _control.StartOpenEndedWithDefaultAsync()
+            : request.Minutes is null && request.ProfileId is null ? await _control.StartWithDefaultAsync()
+            : _control.Start(request.ProfileId, request.Minutes));
     }
 
     public Task<LinkEndEarlyTerms?> GetEndEarlyTermsAsync()

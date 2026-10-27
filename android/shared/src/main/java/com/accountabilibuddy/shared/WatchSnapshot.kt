@@ -31,9 +31,16 @@ data class RunningSession(
 
     /**
      * Still running at [now]: before its end, with no set end, or while planning (which goes on past its time until the PC's
-     * "Ready?" is answered, whatever the projected focus end says).
+     * "Ready?" is answered, whatever the projected focus end says) but not forever: planning stops being believed after its
+     * time, the focus length it leads to and 10 more minutes (12 hours with no set length), like a session that ends.
      */
-    fun isLiveAt(now: Instant): Boolean = isPlanning || endsAt == null || endsAt.isAfter(now)
+    fun isLiveAt(now: Instant): Boolean {
+        if (!isPlanning || planningEndsAt == null) {
+            return endsAt == null || endsAt.isAfter(now)
+        }
+
+        return now.isBefore(planningEndsAt.plus(PlanningBound.after(startedAt, endsAt)))
+    }
 
     /**
      * With the checklist's current task, as the PC's bar shows it ("Fix tests › Lint": the task picked on the PC, else
@@ -45,6 +52,16 @@ data class RunningSession(
         val number = shown?.let { (task, _) -> com.accountabilibuddy.shared.sync.SessionTaskItem.openInShownOrder(tasks).indexOfFirst { it.id == task.id } + 1 } ?: 0
         return copy(task = text, tasksDone = tasks.count { it.isDone }, tasksTotal = tasks.size, taskNumber = number)
     }
+}
+
+/** How long past its time a planning stage is still believed, when no newer word from the PC comes. */
+object PlanningBound {
+    private val GRACE: Duration = Duration.ofMinutes(10)
+    private val NO_LENGTH: Duration = Duration.ofHours(12)
+
+    /** The focus length it leads to ([focusStart] to [focusEnd], null for a session with no set end) plus 10 minutes. */
+    fun after(focusStart: Instant, focusEnd: Instant?): Duration =
+        (focusEnd?.let { Duration.between(focusStart, it).coerceAtLeast(Duration.ZERO) } ?: NO_LENGTH).plus(GRACE)
 }
 
 /** A device whose focus is in the snapshot (ADR 22), and how old its data is: shown on the watch's "where from" page. */

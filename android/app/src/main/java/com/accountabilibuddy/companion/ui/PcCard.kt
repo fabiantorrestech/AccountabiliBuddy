@@ -186,7 +186,9 @@ private fun StartOnPcDialog(state: PcState, onStart: (String?, Int?, Boolean) ->
                         FilterChip(selected = minutes == length, onClick = { minutes = length }, label = { Text("$length min") })
                     }
                 }
-                TextButton(onClick = { onStart(null, null, true) }) { Text("Quick Start with the PC's default profile instead") }
+                // No length: the PC runs its default profile for the length it remembers, counting down. Or explicitly with no set end.
+                TextButton(onClick = { onStart(null, null, false) }) { Text("Quick Start with the PC's default profile") }
+                TextButton(onClick = { onStart(null, null, true) }) { Text("No set end with the PC's default profile") }
             }
         },
         confirmButton = { TextButton(onClick = { onStart(profileId, minutes, false) }, enabled = profileId != null) { Text("Start") } },
