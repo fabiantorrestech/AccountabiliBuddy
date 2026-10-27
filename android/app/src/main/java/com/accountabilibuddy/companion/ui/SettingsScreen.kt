@@ -274,6 +274,11 @@ private fun NoiseSection(player: com.accountabilibuddy.companion.noise.NoisePlay
             settings.stopOnDisconnect, onChange = player::setStopOnDisconnect,
         )
         ToggleRow(
+            "Pause during calls",
+            "Pauses the player while a call rings or is active, and resumes it afterwards if it was playing.",
+            settings.pauseDuringCalls, onChange = player::setPauseDuringCalls,
+        )
+        ToggleRow(
             "Use Android's media controls",
             "On: it shows in the media controls, headset buttons work, and it pauses when other audio plays. Off: other audio, like a YouTube video, plays over it.",
             settings.systemControls, onChange = player::setSystemControls,

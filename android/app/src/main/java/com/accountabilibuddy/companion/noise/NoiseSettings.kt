@@ -13,6 +13,7 @@ package com.accountabilibuddy.companion.noise
  * pauses when the last ones go.
  * @property stopOnDisconnect Pause when headphones disconnect, locked or not (off by default; separate from "Play when
  * headphones connect").
+ * @property pauseDuringCalls Pause while a call rings or is active and resume after it if it was playing (on by default).
  */
 data class NoiseSettings(
     val folderUri: String? = null,
@@ -24,4 +25,5 @@ data class NoiseSettings(
     val widgetVolume: Boolean = true,
     val headphoneLock: Boolean = false,
     val stopOnDisconnect: Boolean = false,
+    val pauseDuringCalls: Boolean = true,
 )

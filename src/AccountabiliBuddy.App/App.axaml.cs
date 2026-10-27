@@ -370,6 +370,7 @@ public partial class App : Application
             () => new AccountabiliBuddy.Platform.Windows.Audio.WindowsNoisePlayer(), _noiseSettings, () => new Win32GlobalHotkey(), headphoneWatcher);
         _noise.Start();
         _headphones = new HeadphoneAutoPlayService(documents, headphoneWatcher, _noise);
+        _headphones.PlanProvider = () => _configuration!.Current.DayPlan;
         _headphones.LoadBlocking();
         var noisePlayer = new NoisePlayerViewModel(_noise);
         _sessionOverlay.SetNoisePlayer(noisePlayer);
@@ -899,6 +900,7 @@ public partial class App : Application
         Func<DateOnly, TimeSpan> countedFocus = date => _deepWork?.FocusedOn(date) ?? TimeSpan.Zero;
         _workHours.FocusedOn = countedFocus;
         _startNudge!.FocusedOn = countedFocus;
+        _headphones!.FocusedOn = countedFocus;
         _shutdown.FocusedOn = countedFocus;
         _dayBar.FocusedOn = countedFocus;
         timelineDay.FocusedOn = countedFocus;
@@ -918,6 +920,7 @@ public partial class App : Application
             return date => derived.FallbackNightBefore(date);
         };
         _startNudge.NightFallback = nightFallback;
+        _headphones!.NightFallback = nightFallback;
         _shutdown.NightFallback = nightFallback;
         _dayBar.NightFallback = nightFallback;
         timelineDay.NightFallback = nightFallback;
