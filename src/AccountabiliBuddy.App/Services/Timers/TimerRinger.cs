@@ -10,7 +10,7 @@ namespace AccountabiliBuddy.App.Services.Timers;
 /// <summary>
 /// Rings a timer or alarm on this PC like a phase end: the on-screen window's glow and the chosen "time is up" chime
 /// (Settings → Sounds when time is up; with "Off" the bell, so it's never silent), plus a small window ("Timer · Tea is up" with Dismiss and
-/// +1 min; "Alarm · Wake" with Dismiss and Snooze 9 min). The chime comes again every 10 seconds while it rings, for at
+/// +5 min with a menu of more; "Alarm · Wake" with Dismiss and Snooze 9 min). The chime comes again every 10 seconds while it rings, for at
 /// most 2 minutes (a timer) or 10 (an alarm). Several can ring at once, one window each, each 24 px further down and
 /// right than the last so none hides another. The window shows without
 /// taking focus, so typing elsewhere isn't caught. Use from the UI thread only.
@@ -43,13 +43,15 @@ public sealed class TimerRinger
 
     private void RingTimer(TimerItem timer)
     {
-        var viewModel = new PcAlarmViewModel(
+        var viewModel = new TimerUpViewModel(
             $"Timer · {timer.Name} is up",
-            $"Set for {DescribeLength(timer.Length)}. +1 min runs it a minute more.",
-            onStop: () => _ = _timers.DismissTimerAsync(timer.Id),
-            onSnooze: () => _ = _timers.AddMinuteAsync(timer.Id),
-            snoozeText: "+1 min");
-        Ring(timer.Id, viewModel, TimerMaxRing, isAlarm: false, onClosedByHand: () => _ = _timers.DismissTimerAsync(timer.Id));
+            $"Set for {DescribeLength(timer.Length)}. Extend it to run it on.",
+            () => _timers.LocalNow,
+            onDismiss: () => _ = _timers.DismissTimerAsync(timer.Id),
+            onExtend: minutes => _ = _timers.AddMinutesAsync(timer.Id, minutes));
+        var window = new TimerUpWindow { DataContext = viewModel, ShowActivated = false, Title = "Timer" };
+        window.Closed += (_, _) => viewModel.Dispose();
+        Ring(timer.Id, window, TimerMaxRing, isAlarm: false, onClosedByHand: () => _ = _timers.DismissTimerAsync(timer.Id));
     }
 
     private void RingAlarm(AlarmItem alarm)
@@ -61,15 +63,15 @@ public sealed class TimerRinger
             onStop: () => { _ = _timers.DismissAlarmAsync(alarm.Id); Stop(alarm.Id); },
             onSnooze: () => { _ = _timers.SnoozeAlarmAsync(alarm.Id); Stop(alarm.Id); },
             snoozeText: "Snooze 9 min");
-        Ring(alarm.Id, viewModel, AlarmMaxRing, isAlarm: true, onClosedByHand: () => _ = _timers.DismissAlarmAsync(alarm.Id));
+        var window = new PcAlarmWindow { DataContext = viewModel, ShowActivated = false, Title = "Alarm" };
+        Ring(alarm.Id, window, AlarmMaxRing, isAlarm: true, onClosedByHand: () => _ = _timers.DismissAlarmAsync(alarm.Id));
     }
 
-    private void Ring(Guid id, PcAlarmViewModel viewModel, TimeSpan maxRing, bool isAlarm, Action onClosedByHand)
+    private void Ring(Guid id, Window window, TimeSpan maxRing, bool isAlarm, Action onClosedByHand)
     {
         Stop(id);
         _glow();
         _playChime();
-        var window = new PcAlarmWindow { DataContext = viewModel, ShowActivated = false, Title = isAlarm ? "Alarm" : "Timer" };
         var ringing = new Ringing(window, DateTime.UtcNow, maxRing, isAlarm);
         // Each window already ringing moves this one 24 px down and right (centred first), so several show as several.
         int alreadyOpen = _ringing.Count;
