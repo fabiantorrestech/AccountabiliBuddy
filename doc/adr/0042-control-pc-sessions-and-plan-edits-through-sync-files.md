@@ -18,6 +18,9 @@ The phone controls a PC through `SyncAction`s in its own file, and the PC answer
 
 Added with the watch's noise switcher (W 1, 2026-10-26): a `noise` action (`{op: toggle|next|prev|volume, value?}`) plays/pauses, skips and sets the volume of a PC's noise player, sent by the phone on the watch's behalf, and the PC's file carries a `noise` object (playing, the shown name and never a path, volume, locked, at). It needs PC 0.1.109. While its noise plays, and for 10 minutes after a noise command, the PC polls Drive every 10 seconds instead of every 5 minutes. A start, end early or noise command a PC hasn't answered in 10 minutes is given up on the phone, checked each minute while one waits, so an off PC that sends no file doesn't keep it waiting.
 
+
+Changed with C 13 (2026-10-27): a `start` with no length is a Quick Start that counts down from the PC's remembered focus length; a session with no set end is asked for explicitly (`noSetEnd`). The "count-up profile" names on the wire stay for older builds.
+
 ## Consequences
 
 The phone can start and end PC sessions and edit the plan at home, at work and on mobile data, with a lag of seconds to a minute instead of near real time, and the link can be deleted (a separate step, with its own clean-up of ADR 14, 15 and 21's link parts). The sync file grows an offer, results, three running-session fields and the goal; an old PC simply never answers, which the phone detects by version. The end-early wait still runs on the PC's clock, so a phone can't shorten it. Controlling a PC's noise player from the watch costs that PC more Drive calls (a poll every 10 seconds while noise plays), a known network and battery cost.
