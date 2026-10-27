@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        xmlns:views="using:AccountabiliBuddy.App.Views"
         x:Class="AccountabiliBuddy.App.Views.ReadyCardWindow"
         x:DataType="vm:ReadyCardViewModel"
         Title="Ready?"
@@ -19,6 +20,7 @@
         <StackPanel Spacing="12">
             <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" />
             <TextBlock Text="Planning time is up. Start the focus countdown, or plan a little longer." Opacity="0.85" TextWrapping="Wrap" />
+            <views:PlanningTip />
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <Button Content="Start" Command="{Binding StartCommand}" Classes="accent" />
                 <Button Content="+2 min" Command="{Binding ExtendCommand}" CommandParameter="2" />

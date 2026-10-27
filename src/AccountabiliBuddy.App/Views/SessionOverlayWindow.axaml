@@ -47,6 +47,8 @@
                         <!-- Plan first: the session's first minutes. -->
                         <TextBlock Text="{Binding PlanningText}" IsVisible="{Binding ShowsPlanning}" Foreground="#E6FFFFFF" FontSize="11"
                                    Width="{x:Static vm:SessionOverlayViewModel.BarLength}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{x:Static vm:PlanningGuidance.Tip}" IsVisible="{Binding ShowsPlanning}" Foreground="#B3FFFFFF" FontSize="10"
+                                   Width="{x:Static vm:SessionOverlayViewModel.BarLength}" TextWrapping="Wrap" />
                         <!-- Stepped away: the countdown is paused until Back on track (side task: amber). -->
                         <Border IsVisible="{Binding ShowsAway}" Background="#33FFFFFF" CornerRadius="6" Padding="8,2" HorizontalAlignment="Left">
                             <TextBlock Text="{Binding AwayText}" Foreground="{Binding AwayBrush}" FontSize="12" FontWeight="SemiBold" />

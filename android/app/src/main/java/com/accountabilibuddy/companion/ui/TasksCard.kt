@@ -85,7 +85,7 @@ fun TasksCard(running: RunningTasks) {
 // [markedId]: the task or subtask the PC's bar shows, marked with a pin.
 // [onTick]: ticks an open line on the PC (null: read-only); a line ticked here shows done until the PC catches up.
 @Composable
-private fun TaskLine(task: SessionTaskItem, indent: Boolean, markedId: String?, ticking: (String?) -> Boolean, onTick: ((String) -> Unit)?, number: Int? = null) {
+private fun TaskLine(task: SessionTaskItem, indent: Boolean, markedId: String?, ticking: (String?) -> Boolean, onTick: ((String) -> Unit)?, number: Int? = null, letter: String? = null) {
     val done = task.isDone || ticking(task.id)
     val canTick = !done && onTick != null && task.id != null
     Row(
@@ -97,13 +97,18 @@ private fun TaskLine(task: SessionTaskItem, indent: Boolean, markedId: String?, 
             Icon(Icons.Filled.PushPin, contentDescription = "Current task", modifier = Modifier.padding(end = 4.dp).size(14.dp))
         }
         Text(
-            (if (done) "☑ " else "☐ ") + (if (number != null) "$number. " else "") + task.title,
+            (if (done) "☑ " else "☐ ") + (if (number != null) "$number. " else "") + (if (letter != null) "$letter " else "") + task.title,
             style = MaterialTheme.typography.bodyMedium,
             textDecoration = if (done) TextDecoration.LineThrough else null,
             color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
         )
     }
-    task.subtasks.forEach { subtask -> TaskLine(subtask, indent = true, markedId = markedId, ticking, onTick) }
+    // Only the open subtasks of an open (numbered) task are lettered a., b., … (aa. after z), as on the PC.
+    var place = 0
+    task.subtasks.forEach { subtask ->
+        val letter = if (number != null && !subtask.isDone) subtaskLetter(++place) else null
+        TaskLine(subtask, indent = true, markedId = markedId, ticking, onTick, letter = letter)
+    }
 }
 
 /** Open tasks of one category; [name] null = no category. */
@@ -144,4 +149,16 @@ private fun parseCategoryColor(hex: String?): Color? {
     if (hex == null || hex.length != 7 || hex[0] != '#') return null
     val rgb = hex.substring(1).toLongOrNull(16) ?: return null
     return Color(0xFF000000 or rgb)
+}
+
+/** 1 = "a.", 26 = "z.", 27 = "aa.", 28 = "ab." */
+private fun subtaskLetter(place: Int): String {
+    var rest = place
+    val letters = StringBuilder()
+    while (rest > 0) {
+        rest--
+        letters.insert(0, 'a' + rest % 26)
+        rest /= 26
+    }
+    return "$letters."
 }

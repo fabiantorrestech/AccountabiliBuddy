@@ -10,4 +10,12 @@ public sealed class SubtaskRowViewModel : ChecklistRowViewModel
         : base(subtask.Id, subtask.Title, subtask.IsDone, isCurrent, tasks)
     {
     }
+
+    /// <summary>Its place among its task's open subtasks in the order shown (1, 2, 3…); 0 = not lettered (done).</summary>
+    public int Letter { get; set; }
+
+    public bool HasLetter => Letter > 0;
+
+    /// <summary>E.g. "a."</summary>
+    public string LetterText => SubtaskLetters.Of(Letter);
 }
