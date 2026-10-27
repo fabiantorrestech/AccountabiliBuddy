@@ -203,6 +203,10 @@ fun MainScreen(
                                 onStart = viewModel::startOnPc,
                                 onEndEarly = viewModel::beginEndEarly,
                                 onCancelWaiting = viewModel::cancelPcWaiting,
+                                // Worked out again when the bar's model ticks or the plan changes.
+                                pace = remember(model, state.document.dayPlan) {
+                                    BudgetPaceLine.today(context.applicationContext as com.accountabilibuddy.companion.CompanionApp, java.time.LocalDateTime.now())
+                                },
                             )
                         }
                     },
@@ -212,6 +216,9 @@ fun MainScreen(
                     onDiscardPlanEdit = viewModel::discardDayPlanEdit,
                     onPlanDay = if (!canControlPc) null else {
                         { viewModel.planDayOpen.value = true }
+                    },
+                    onSetWeek = if (!canControlPc) null else {
+                        { weekB -> viewModel.setThisWeek(weekB)?.let { viewModel.message.value = it } }
                     },
                     runningTasks = runningTasks,
                     comebacks = comebacks,

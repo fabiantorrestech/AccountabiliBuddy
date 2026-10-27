@@ -561,6 +561,17 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         return if (savePlanDraft()) null else message.value ?: "Not saved."
     }
 
+    /**
+     * "This week is A/B" on Today (ADR 47): moves week B's start so today's week is [weekB], saved like an Edit plan
+     * change and sent to the PC, which decides (more work at once, less waits). Null when saved, else why not.
+     */
+    fun setThisWeek(weekB: Boolean): String? {
+        openPlanEditor()?.let { return it }
+        val plan = planDraft.value?.plan ?: return "The plan couldn't be opened."
+        updatePlanDraft(com.accountabilibuddy.companion.engine.DayPlanEditing.withThisWeek(plan, weekB, java.time.LocalDate.now()))
+        return if (savePlanDraft()) null else message.value ?: "Not saved."
+    }
+
     fun discardDayPlanEdit() {
         store.clearPendingPlan(null)
         message.value = "Edit discarded; showing the PC's plan."
