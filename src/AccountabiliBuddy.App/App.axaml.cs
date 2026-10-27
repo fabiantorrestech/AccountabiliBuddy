@@ -101,6 +101,7 @@ public partial class App : Application
     private LunchService? _lunch;
     private Motion? _motion;
     private AccountabiliBuddy.App.Services.Sync.PhonePickups? _phonePickups;
+    private AccountabiliBuddy.App.Services.Sync.PhonePlacementService? _phonePlacement;
     private DeepWorkService? _deepWork;
     private DeepWorkHistoryViewModel? _deepWorkHistory;
     private ShutdownService? _shutdown;
@@ -615,6 +616,11 @@ public partial class App : Application
         pcPickups.LoadBlocking();
         syncCoordinator.PcPickups = pcPickups;
         pcPickups.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
+        // Phone placement: nags when the phone is out or in a pocket during a real session.
+        _phonePlacement = new AccountabiliBuddy.App.Services.Sync.PhonePlacementService(
+            _sessions, receivedDevices, () => sessionTasks.IsLive ? sessionTasks.Current.SessionStart : null,
+            notify: presenter.ShowNotice,
+            remind: (title, message) => presenter.ShowReminder(title, message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#CA8A04"))));
         // Calendar events in this PC's file too (ADR 26), so the phone's Calendar row stays current on Drive alone.
         syncCoordinator.Events = () => System.Text.Json.JsonSerializer.SerializeToElement(
             AccountabiliBuddy.App.Services.Link.DeviceCalendarEvents.Build(calendars, DateOnly.FromDateTime(time.GetLocalNow().DateTime)));
