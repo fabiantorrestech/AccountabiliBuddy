@@ -175,6 +175,16 @@ class PlacementDetector(context: Context) {
     private fun look(force: Boolean) {
         val now = Instant.now()
         val session = PlacementSession.current(app, now)
+        if (!app.placementGuard.isOn(now)) {
+            // Switched off in Settings: no sensors, no placement in the file, no escalation.
+            stopSensing()
+            val before = app.placementStore.load()
+            app.placementStore.pause(now)
+            if (before?.active == true) syncSoon(now)
+            resetStretch()
+            return
+        }
+
         when {
             session == null -> {
                 stopSensing()

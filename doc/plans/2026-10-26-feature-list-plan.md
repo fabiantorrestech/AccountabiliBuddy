@@ -96,3 +96,9 @@ Each phase: a detailed plan (files, steps, acceptance checks) agreed with the us
   - Like the PC's computer-type presets.
 - **Recommend an app blocker first:** when the setup assistant detects no app blocker on the device, it recommends setting one up with AccountabiliBuddy first (CurBox) before the rest.
 - **Rotate the sync group code:** new code, re-seal, re-join by QR; also how a lost device is removed. Closes the relay's long-lived-key gap (phase 6 plan, Encryption).
+- **When else to lift LockMyPhone-Extended's session lock (to refine later, user 2026-10-27):** lunch is done (STOP_LOCK at lunch start, START_LOCK again for the time left). Still open:
+  - a session ended early (the lock now runs to the planned end);
+  - Pomodoro breaks (lift, re-lock at the next focus);
+  - "Need it for work" (lift for its minutes);
+  - test sessions;
+  - what happens when the phone is offline at lunch start.
