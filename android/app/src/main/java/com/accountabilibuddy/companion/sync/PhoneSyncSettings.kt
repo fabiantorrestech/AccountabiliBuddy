@@ -14,7 +14,7 @@ import java.io.File
 
 /**
  * Which ways the phone shares sync files (ADR 22), safest first: QR codes it scans, sync files shared by hand, a sync
- * folder another app keeps in step with Google Drive, and Google Drive itself. QR codes and shared files are on by
+ * folder another app keeps in step with Google Drive, Google Drive itself, and the user's own relay (ADR 46). QR codes and shared files are on by
  * default; each switch is in the Devices tab. (The network link switch is gone, ADR 45.)
  */
 data class PhoneSyncSettings(
@@ -31,6 +31,12 @@ data class PhoneSyncSettings(
     val alarmApp: String? = null,
     /** Sync through the app's Google Drive folder (ADR 26); on once signed in. */
     val driveOn: Boolean = false,
+    /** Sync through the user's own sealed relay (ADR 46); needs [relayUrl]. */
+    val relayOn: Boolean = false,
+    /** The relay's https address (no trailing slash), or null. */
+    val relayUrl: String? = null,
+    /** The relay certificate's SHA-256 (base64url) when it is self-signed; null: a normal certificate authority check. */
+    val relayPin: String? = null,
 )
 
 /** [PhoneSyncSettings] in sync-settings.json in the app's private folder. */
@@ -50,6 +56,9 @@ class PhoneSyncSettingsStore(private val file: File) {
             put("alarmOn", settings.alarmOn)
             settings.alarmApp?.let { put("alarmApp", it) }
             put("driveOn", settings.driveOn)
+            put("relayOn", settings.relayOn)
+            settings.relayUrl?.let { put("relayUrl", it) }
+            settings.relayPin?.let { put("relayPin", it) }
         }
         file.parentFile?.mkdirs()
         val temporary = File(file.parentFile, "${file.name}.tmp")
@@ -67,7 +76,7 @@ class PhoneSyncSettingsStore(private val file: File) {
         return PhoneSyncSettings(
             json.bool("qrOn", true), json.bool("fileOn", true), json.bool("folderOn", false),
             json.string("folderUri"), json.int("folderMinutes") ?: 15, json.bool("alarmOn", true), json.string("alarmApp"),
-            json.bool("driveOn", false),
+            json.bool("driveOn", false), json.bool("relayOn", false), json.string("relayUrl"), json.string("relayPin"),
         )
     }
 }

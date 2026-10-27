@@ -76,7 +76,7 @@ data class SyncFile(
  * @property name The device's own name. Never part of a file name (ADR 22).
  * @property kind [KIND_PC], [KIND_PHONE] or [KIND_WATCH].
  * @property writtenAt When the device wrote the file; a running session's end is taken as this time.
- * @property methods The methods this device uses: [METHOD_LINK], [METHOD_FOLDER], [METHOD_QR], [METHOD_FILE].
+ * @property methods The methods this device uses: [METHOD_LINK], [METHOD_FOLDER], [METHOD_QR], [METHOD_FILE], [METHOD_DRIVE], [METHOD_RELAY].
  * @property historyOff Activity history is off on the device: the file carries no sessions or drift, and receivers
  * delete the ones they have from it (ADR 15).
  * @property seen For each other device (by id), the newest [writtenAt] this device holds from it.
@@ -114,6 +114,9 @@ data class SyncDeviceCard(
 
         /** The app's own Google Drive folder (ADR 26). */
         const val METHOD_DRIVE = "drive"
+
+        /** The user's own sealed relay (ADR 46). */
+        const val METHOD_RELAY = "relay"
     }
 }
 

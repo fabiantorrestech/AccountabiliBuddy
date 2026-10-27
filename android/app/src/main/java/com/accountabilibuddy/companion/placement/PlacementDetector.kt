@@ -384,6 +384,7 @@ class PlacementDetector(context: Context) {
             try {
                 runCatching {
                     app.driveSource.syncNow()
+                    app.relaySource.syncNow()
                 }.onFailure { Log.w(TAG, "placement not synced", it) }
             } finally {
                 done?.invoke()

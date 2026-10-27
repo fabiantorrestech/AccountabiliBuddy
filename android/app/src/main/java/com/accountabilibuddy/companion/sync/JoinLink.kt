@@ -5,13 +5,22 @@ import java.net.URI
 
 /**
  * The PC's link code as a QR code (ADR 22): `accountabilibuddy://join?c=<40-character code>&n=<PC name>`. Scanning it
- * asks "Join <PC name>'s devices?" before the phone joins the group.
+ * asks "Join <PC name>'s devices?" before the phone joins the group. A device using the user's own relay (ADR 46) adds
+ * `&r=<https address>` and, for a self-signed certificate, `&p=<43-character SHA-256 pin>`, so the phone sets the relay
+ * up too.
  */
-data class JoinLink(val code: String, val pcName: String) {
+data class JoinLink(
+    val code: String,
+    val pcName: String,
+    /** The relay's address, or null when the link doesn't carry one. */
+    val relayUrl: String? = null,
+    /** The relay certificate's pin; null with an address means a normal certificate authority check. */
+    val relayPin: String? = null,
+) {
     companion object {
         const val HOST = "join"
 
-        /** Null when [text] isn't a join link with a valid code. */
+        /** Null when [text] isn't a join link with a valid code (and, if it names a relay, a valid address and pin). */
         fun parse(text: String): JoinLink? {
             val uri = runCatching { URI(text.trim()) }.getOrNull() ?: return null
             if (!uri.scheme.equals("accountabilibuddy", ignoreCase = true) || !uri.host.equals(HOST, ignoreCase = true)) {
@@ -22,7 +31,22 @@ data class JoinLink(val code: String, val pcName: String) {
                 .mapNotNull { pair -> pair.split('=', limit = 2).takeIf { it.size == 2 } }
                 .associate { (name, value) -> name to java.net.URLDecoder.decode(value, Charsets.UTF_8) }
             val code = query["c"]?.takeIf { SyncKeyCode.parse(it) != null } ?: return null
-            return JoinLink(code, query["n"]?.takeIf { it.isNotBlank() } ?: "your other device")
+            val name = query["n"]?.takeIf { it.isNotBlank() } ?: "your other device"
+            val address = query["r"]
+            val pin = query["p"]
+            if (address == null) {
+                // A pin without an address means nothing; refuse the link rather than guess.
+                return if (pin == null) JoinLink(code, name) else null
+            }
+
+            // A relay that can't be used as given (not https, a malformed pin) refuses the whole link: dropping the pin
+            // would silently check the certificate another way.
+            val relayUrl = RelayAddress.normalize(address) ?: return null
+            if (pin != null && !RelayAddress.isPin(pin)) {
+                return null
+            }
+
+            return JoinLink(code, name, relayUrl, pin)
         }
     }
 }
