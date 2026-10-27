@@ -312,7 +312,7 @@
                     </StackPanel>
                 </Border>
 
-                <Expander Header="Other ways to start: Pomodoro, no set end" HorizontalAlignment="Stretch">
+                <Expander Header="Other ways to start: Pomodoro" HorizontalAlignment="Stretch">
                     <StackPanel Spacing="16">
                         <StackPanel Spacing="6">
                             <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="TimerOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" /><TextBlock Text="Pomodoro" FontWeight="SemiBold" /></StackPanel>
@@ -322,11 +322,6 @@
                                 <TextBox Text="{Binding PomodoroCycles}" Width="120" />
                                 <Button Content="Start Pomodoro" Command="{Binding StartPomodoroCommand}" />
                             </StackPanel>
-                        </StackPanel>
-                        <StackPanel Spacing="6">
-                            <StackPanel Orientation="Horizontal" Spacing="8"><mi:MaterialIcon Kind="AllInclusive" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" /><TextBlock Text="No set end" FontWeight="SemiBold" /></StackPanel>
-                            <TextBlock Text="Runs until you end it; ending it takes no wait or reason." Opacity="0.75" TextWrapping="Wrap" />
-                            <Button Content="Start until I end it" Command="{Binding StartOpenEndedCommand}" />
                         </StackPanel>
                         <TextBlock Text="Uses the profile picked under More options. Pomodoro lengths are set in Settings." Opacity="0.6" FontSize="12" TextWrapping="Wrap" />
                     </StackPanel>

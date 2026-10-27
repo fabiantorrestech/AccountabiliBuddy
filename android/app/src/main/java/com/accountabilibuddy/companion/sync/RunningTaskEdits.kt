@@ -16,8 +16,8 @@ interface RunningTaskEdits {
     /** Asks the PC [pcId] to add a task to its running session, in the PC's category [categoryId] (null: none). */
     fun addTask(pcId: UUID, title: String, categoryId: String?)
 
-    /** Asks the PC to change a task's title and/or its steps' titles in order (null leaves that part). */
-    fun editTask(pcId: UUID, taskId: String, title: String?, steps: List<String>?)
+    /** Asks the PC to change a task's title and/or replace its steps by this list in order (null leaves that part); a step keeps its tick by its id, a step with no id is new. */
+    fun editTask(pcId: UUID, taskId: String, title: String?, steps: List<PcFileRemote.TaskStep>?)
 
     /** Asks the PC to put the tasks in this order (their ids). */
     fun reorderTasks(pcId: UUID, orderedIds: List<String>)
