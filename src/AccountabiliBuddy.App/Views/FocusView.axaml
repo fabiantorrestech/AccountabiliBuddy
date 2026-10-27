@@ -42,6 +42,7 @@
                                        Classes.planning="{Binding InPlanningStage}" />
                             <Button Grid.Column="1" Content="I'm ready" Command="{Binding ReadyCommand}" Classes="accent" IsVisible="{Binding CanReady}" />
                         </Grid>
+                        <views:PlanningTip />
                         <!-- The stage's own bar: empties as planning time passes, in the planning colour. -->
                         <ProgressBar Classes="planning" Minimum="0" Maximum="100" Value="{Binding PlanningLeftPercent}" IsVisible="{Binding InPlanningStage}" />
                     </StackPanel>

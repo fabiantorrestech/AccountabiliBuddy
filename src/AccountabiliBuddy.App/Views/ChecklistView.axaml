@@ -189,9 +189,10 @@
                                                         <Button Grid.Column="2" Classes="name" Command="{Binding PickCommand}" IsVisible="{Binding !IsEditing}"
                                                     AutomationProperties.Name="{Binding Title}"
                                                                 ToolTip.Tip="Show this on the on-screen bar (click it again: back to the first open task)">
-                                                            <Grid ColumnDefinitions="Auto,*">
+                                                            <Grid ColumnDefinitions="Auto,Auto,*">
                                                                 <mi:MaterialIcon Kind="Pin" Width="14" Height="14" IsVisible="{Binding IsCurrent}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                                <TextBlock Grid.Column="1" Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Center" Opacity="0.85"
+                                                                <TextBlock Grid.Column="1" Text="{Binding LetterText}" IsVisible="{Binding HasLetter}" Opacity="0.7" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                                <TextBlock Grid.Column="2" Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Center" Opacity="0.85"
                                                                            Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
                                                             </Grid>
                                                         </Button>

@@ -89,6 +89,11 @@ private fun SessionLine(state: PcState, clock: ClockFormat) {
     val what = if (left.isNegative || left.isZero) "time is up · waiting for Ready? on the PC" else "$minutes min left"
     Text("Planning · ${state.profileName ?: "a profile"} · $what", style = MaterialTheme.typography.bodyLarge, color = PLANNING_COLOR)
     LinearProgressIndicator(progress = { remaining }, color = PLANNING_COLOR, modifier = Modifier.fillMaxWidth())
+    Text(
+        "Write everything you need to do on paper first. Then pick at most 3 for this session — even 1 is great.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /** E.g. "Focus · Coding until 12:00 PM (24 min left)", "Blocks on · Work until 5:00 PM", "Focus · Quick Start · 1h 12m so far". */
