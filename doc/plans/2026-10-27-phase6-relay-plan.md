@@ -86,7 +86,7 @@ Reword §1's "opens no connection" so it applies to the folder method only.
 ### Task 2b: Run the relay on this PC (user, 2026-10-27)
 - A switch in Devices: "Run a relay on this PC", off by default.
   - When on, AccountabiliBuddy ships the relay (self-contained, next to the app, from `src/AccountabiliBuddy.Relay`), starts it as a child process when the app starts and stops it when the app quits. It restarts it if it crashes, with backoff.
-  - Its data goes in `%LocalAppData%\AccountabiliBuddyelay` (dev builds: `-Dev`).
+  - Its data goes in `%LocalAppData%\AccountabiliBuddy\relay` (dev builds: `-Dev`).
 - **Any network** (user's choice): it listens on all interfaces, so phone and tablet can sync on home Wi-Fi, someone else's Wi-Fi or a coffee shop.
   - The Windows firewall rule covers Private and Public networks. Adding it needs one elevation prompt, asked when the switch is turned on and explained first.
   - A notice when the PC is on a Public network: "Your relay is reachable on this public network; your data stays sealed and HTTPS-pinned." Plus a quick "Stop the relay" button.
