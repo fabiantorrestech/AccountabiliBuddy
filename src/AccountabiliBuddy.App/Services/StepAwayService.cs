@@ -14,7 +14,8 @@ namespace AccountabiliBuddy.App.Services;
 /// doesn't count). Input alone never ends it. "Still away" brings the card back 2 minutes later; unanswered it is raised
 /// again every 2 minutes. A side task is the same pause for 5, 10 or 15 minutes with enforcement still running; when its
 /// time is up a chime and a card ask "Back to the task?", and the side time keeps growing until the user answers. None of
-/// this shortens a wait or ends the session. Optionally steps away by itself after a few idle minutes (off by default).
+/// this shortens a wait or ends the session. Enforcement holds as it was only until the first input after a break
+/// (<see cref="SessionState.AwayAtDesk"/>); from then on, and through a side task, it runs as in focus. Optionally steps away by itself after a few idle minutes (off by default).
 /// Use from the UI thread only (the shortcut is marshalled here).
 /// </summary>
 public sealed class StepAwayService : IDisposable
@@ -61,9 +62,8 @@ public sealed class StepAwayService : IDisposable
     private DateTimeOffset? _stillAwayUntil;
     private DateTimeOffset _cardRaisedAt;
 
-    // The side task end already chimed for (a +5 min makes a new end), and the +5 min given to this side task so far.
+    // The side task end already chimed for (a +5 min makes a new end). The +5 min given so far is kept in the session state.
     private DateTimeOffset? _chimedFor;
-    private int _sideTaskExtensions;
 
     public StepAwayService(
         SessionController sessions, IUserIdleDetector idle, ICursorPosition cursor, IGlobalHotkey hotkey, SqliteJsonDocumentStore store, TimeProvider time)
@@ -80,7 +80,7 @@ public sealed class StepAwayService : IDisposable
             BackOnTrack: Return,
             StillAway: StillAway,
             AddFive: AddFiveMinutes,
-            AddFiveRules: () => _sideTaskExtensions == 0 ? FirstExtensionRules : LaterExtensionRules,
+            AddFiveRules: () => _sessions.State.SideTaskExtensions == 0 ? FirstExtensionRules : LaterExtensionRules,
             EndSession: () => _ = EndSessionFromCardAsync(),
             Close: CloseCard);
 
@@ -199,7 +199,6 @@ public sealed class StepAwayService : IDisposable
         }
 
         CloseCard();
-        _sideTaskExtensions = 0;
         _chimedFor = null;
         return _sessions.StartSideTask(TimeSpan.FromMinutes(minutes));
     }
@@ -238,6 +237,8 @@ public sealed class StepAwayService : IDisposable
                     CloseCard();
                 }
 
+                // Lunch holds the away again: enforcement holds as it did until the next input after the hold lifts.
+                _sessions.SetAwayAtDesk(false);
                 return;
             }
 
@@ -263,6 +264,13 @@ public sealed class StepAwayService : IDisposable
                 return;
             }
 
+            if (state.AwayAtDesk)
+            {
+                // Input was already seen (before a restart, say) and the card was never answered: it asks again.
+                OpenCard(AwayCardKind.BackOnTrack, AwayText);
+                return;
+            }
+
             DateTimeOffset ignoreUntil = (since > _startedAt ? since : _startedAt) + PressGrace;
             if (_heldAt is DateTimeOffset heldAt && heldAt > ignoreUntil)
             {
@@ -271,8 +279,10 @@ public sealed class StepAwayService : IDisposable
 
             if (HasNewInput(lastInput, ignoreUntil))
             {
-                // Input never ends the away: it only asks.
+                // Input never ends the away: it only asks. The user is at the desk, so enforcement runs as in focus from now
+                // (the countdown stays paused until Back on track).
                 _awayAnchor = null;
+                _sessions.SetAwayAtDesk(true);
                 OpenCard(AwayCardKind.BackOnTrack, AwayText);
             }
 
@@ -301,7 +311,12 @@ public sealed class StepAwayService : IDisposable
         if (_chimedFor != end)
         {
             _chimedFor = end;
-            PlaySideTaskChime();
+
+            // An end that passed before this launch (a restart in the middle) chimed already: only the card comes back.
+            if (end > _startedAt)
+            {
+                PlaySideTaskChime();
+            }
         }
 
         if (Card is null)
@@ -351,7 +366,6 @@ public sealed class StepAwayService : IDisposable
     {
         if (_sessions.ExtendSideTask(SideTaskExtra, reason))
         {
-            _sideTaskExtensions++;
             CloseCard();
         }
     }
@@ -461,7 +475,6 @@ public sealed class StepAwayService : IDisposable
         {
             _stillAwayUntil = null;
             _chimedFor = null;
-            _sideTaskExtensions = 0;
         }
 
         Changed?.Invoke(this, EventArgs.Empty);

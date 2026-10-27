@@ -4,6 +4,10 @@ namespace AccountabiliBuddy.Core.Domain;
 /// <param name="Away">Set while the user has stepped away; the countdown is paused (no phase ends) until they're back.</param>
 /// <param name="AwaySince">When the user stepped away.</param>
 /// <param name="AwayEndsAt">For a side task (<see cref="AwayKind.SideTask"/>): when its chosen length is up; null for any other away.</param>
+/// <param name="AwayAtDesk">A break or interruption in which input was seen (the "Back to the task?" card was shown): the user is
+/// at the desk, so enforcement runs as in focus although the countdown stays paused until Back on track.</param>
+/// <param name="SideTaskExtensions">How many times 5 minutes were added to the running side task (kept with it, so a restart
+/// can't reset the wait the next +5 min needs).</param>
 /// <param name="IsTest">A test session (Today, More options): it enforces and cues like a real one, but it is never counted,
 /// logged, synced, shown to linked devices or saved for a restart, and it ends on command.</param>
 public sealed record SessionState(
@@ -16,7 +20,9 @@ public sealed record SessionState(
     AwayKind? Away = null,
     DateTimeOffset? AwaySince = null,
     bool IsTest = false,
-    DateTimeOffset? AwayEndsAt = null)
+    DateTimeOffset? AwayEndsAt = null,
+    bool AwayAtDesk = false,
+    int SideTaskExtensions = 0)
 {
     public static SessionState Idle { get; } = new(null, SessionPhase.Idle, null, null, null, 0);
 
@@ -30,10 +36,11 @@ public sealed record SessionState(
     public bool IsAway => Away is not null;
 
     /// <summary>
-    /// True while enforcement holds as it was (a break or an interruption): nothing new is judged and nothing blocked is
-    /// lifted. A side task is away from the focus clock only; enforcement keeps running through it.
+    /// True while enforcement holds as it was (a break or an interruption with no input seen yet): nothing new is judged and
+    /// nothing blocked is lifted. From the first input (<see cref="AwayAtDesk"/>) and through a side task, enforcement runs
+    /// as in focus; only the focus clock stays paused.
     /// </summary>
-    public bool PausesEnforcement => IsAway && Away != AwayKind.SideTask;
+    public bool PausesEnforcement => IsAway && Away != AwayKind.SideTask && !AwayAtDesk;
 
     /// <summary>The time countdowns read: frozen at <see cref="AwaySince"/> while away, else <paramref name="now"/>.</summary>
     public DateTimeOffset CountdownTime(DateTimeOffset now) => AwaySince is DateTimeOffset since && since < now ? since : now;

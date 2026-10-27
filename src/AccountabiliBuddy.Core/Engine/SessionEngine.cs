@@ -180,7 +180,24 @@ public sealed class SessionEngine
 
         DateTimeOffset now = Now;
         DateTimeOffset from = State.AwayEndsAt is DateTimeOffset end && end > now ? end : now;
-        SetState(State with { AwayEndsAt = from + extra });
+        SetState(State with { AwayEndsAt = from + extra, SideTaskExtensions = State.SideTaskExtensions + 1 });
+        return true;
+    }
+
+    /// <summary>
+    /// Input was seen during a break or interruption: the user is at the desk, so enforcement runs as in focus from now
+    /// (the countdown stays paused until <see cref="Return"/>). <paramref name="atDesk"/> false puts the hold back
+    /// (lunch holds the away again).
+    /// </summary>
+    /// <returns>False when not away on a break or interruption, or nothing changed.</returns>
+    public bool SetAwayAtDesk(bool atDesk)
+    {
+        if (!State.IsAway || State.Away == AwayKind.SideTask || State.AwayAtDesk == atDesk)
+        {
+            return false;
+        }
+
+        SetState(State with { AwayAtDesk = atDesk });
         return true;
     }
 
@@ -207,6 +224,8 @@ public sealed class SessionEngine
             Away = null,
             AwaySince = null,
             AwayEndsAt = null,
+            AwayAtDesk = false,
+            SideTaskExtensions = 0,
             PhaseStartedAt = State.PhaseStartedAt + away,
             PhaseEndsAt = State.PhaseEndsAt + away,
         });

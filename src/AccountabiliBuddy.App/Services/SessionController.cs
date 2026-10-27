@@ -150,6 +150,12 @@ public sealed class SessionController : IDisposable
         return true;
     }
 
+    /// <summary>Input was seen while stepped away (or lunch holds the away again): see <see cref="SessionEngine.SetAwayAtDesk"/>.</summary>
+    public bool SetAwayAtDesk(bool atDesk)
+    {
+        return _engine.SetAwayAtDesk(atDesk);
+    }
+
     /// <returns>How long the user was away; null when not away.</returns>
     public TimeSpan? Return()
     {
