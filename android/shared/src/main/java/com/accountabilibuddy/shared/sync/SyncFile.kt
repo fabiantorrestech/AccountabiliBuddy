@@ -292,4 +292,11 @@ data class SyncRunning(
     val currentTask: String? = null,
     val profileId: String? = null,
     val countUpProfileId: String? = null,
+    /**
+     * Phase 11, optional (a build that doesn't know planning leaves them out): set while the PC is in its planning stage, which is
+     * not focus time. [phaseStartedAt] and [phaseEndsAt] are then the focus phase it leads to (planning's end, and the focus
+     * length after it). Planning keeps counting past [planningEndsAt] until the user answers "Ready?" on the PC.
+     */
+    val planningStartedAt: java.time.Instant? = null,
+    val planningEndsAt: java.time.Instant? = null,
 )

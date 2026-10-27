@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material3.Text
 import com.accountabilibuddy.shared.FOCUS_COLOR
+import com.accountabilibuddy.shared.PLANNING_COLOR
 import com.accountabilibuddy.shared.SessionView
 
 /**
@@ -26,6 +27,7 @@ fun SessionPage(view: SessionView) {
     val color = when {
         !view.active -> Color(0x66FFFFFF)
         view.title == "Break" -> Color(0xFF86EFAC)
+        view.planning -> Color(PLANNING_COLOR)
         else -> Color(FOCUS_COLOR)
     }
 

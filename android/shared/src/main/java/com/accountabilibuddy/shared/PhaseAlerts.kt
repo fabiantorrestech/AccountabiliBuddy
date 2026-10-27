@@ -8,15 +8,23 @@ import java.time.Instant
  * or when planned work starts with no session running.
  */
 data class PhaseAlert(val at: Instant, val kind: Kind, val onBreak: Boolean) {
-    enum class Kind { Warning, End, Goal, WorkStart }
+    enum class Kind { Warning, End, Goal, WorkStart, PlanningEnd }
 }
 
 /** When the watch buzzes for the running session's phase (focus or break): at its end, and a minute before when wanted. */
 object PhaseAlerts {
     private val WARNING_BEFORE: Duration = Duration.ofMinutes(1)
 
-    /** The alerts still ahead of [now], soonest first; none for a session with no set end, or one that has ended. */
+    /**
+     * The alerts still ahead of [now], soonest first; none for a session with no set end, or one that has ended. While the PC
+     * plans (before its focus countdown) the only one is the planning stage's end; the focus alerts follow once planning ends and
+     * the next snapshot brings the focus phase's real end.
+     */
     fun due(running: RunningSession?, now: Instant, warning: Boolean): List<PhaseAlert> {
+        if (running != null && running.isPlanning) {
+            return listOfNotNull(running.planningEndsAt?.takeIf { it.isAfter(now) }?.let { PhaseAlert(it, PhaseAlert.Kind.PlanningEnd, onBreak = false) })
+        }
+
         val endsAt = running?.endsAt?.takeIf { it.isAfter(now) } ?: return emptyList()
         val warnAt = endsAt.minus(WARNING_BEFORE)
         return listOfNotNull(
@@ -35,7 +43,7 @@ object PhaseAlerts {
 
     fun goal(snapshot: WatchSnapshot?, now: Instant, zone: java.time.ZoneId): PhaseAlert? {
         val goal = snapshot?.goalMinutes?.takeIf { it > 0 } ?: return null
-        val running = snapshot.running?.takeIf { !it.onBreak && (it.endsAt == null || it.endsAt.isAfter(now)) } ?: return null
+        val running = snapshot.running?.takeIf { !it.onBreak && !it.isPlanning && (it.endsAt == null || it.endsAt.isAfter(now)) } ?: return null
         val left = goal - snapshot.focusedMinutes(now, zone)
         if (left <= 0) {
             return null

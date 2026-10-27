@@ -19,7 +19,16 @@ data class RunningSession(
     val tasksTotal: Int = 0,
     /** The current task's place among the open tasks (1, 2, 3…, as numbered on the PC); 0 = unknown or none. */
     val taskNumber: Int = 0,
+    /**
+     * Set while the PC is in its planning stage (not focus time): when it began and when its time is up. [startedAt] and [endsAt]
+     * are then the focus phase it leads to. Null from an older phone or PC, and outside planning.
+     */
+    val planningStartedAt: Instant? = null,
+    val planningEndsAt: Instant? = null,
 ) {
+    /** True while the PC is planning (before its focus countdown); its time keeps counting past [planningEndsAt] until it is answered. */
+    val isPlanning: Boolean get() = planningEndsAt != null && !onBreak
+
     /**
      * With the checklist's current task, as the PC's bar shows it ("Fix tests › Lint": the task picked on the PC, else
      * the first open one, with its subtask), and its progress.

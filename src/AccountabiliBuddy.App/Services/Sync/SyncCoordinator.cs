@@ -264,18 +264,10 @@ public sealed class SyncCoordinator
 
         // Planning (not focus time): its own start and end go in the optional planning fields; the phase fields hold the focus
         // phase it leads to (planning's end, and the focus length after it), which is all a build that doesn't know planning reads.
-        DateTimeOffset? planningStartedAt = null;
-        DateTimeOffset? planningEndsAt = null;
-        DateTimeOffset? phaseEndsAt = state.PhaseEndsAt;
-        if (state.IsPlanning && state.PhaseEndsAt is DateTimeOffset planningEnd)
-        {
-            planningStartedAt = started;
-            planningEndsAt = planningEnd;
-            started = planningEnd;
-            phaseEndsAt = state.FocusLengthAfterPlanning is TimeSpan focusLength ? planningEnd + focusLength : null;
-        }
-
-        return new SyncRunning(ProfileOptions.NameOf(profiles, state.ProfileId), started, phaseEndsAt, state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak, state.AwaySince,
+        DateTimeOffset? planningStartedAt = state.IsPlanning ? started : null;
+        DateTimeOffset? planningEndsAt = state.IsPlanning ? state.PhaseEndsAt : null;
+        return new SyncRunning(ProfileOptions.NameOf(profiles, state.ProfileId), state.FocusStartsAt ?? started, state.FocusEndsAt,
+            state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak, state.AwaySince,
             CurrentTask?.Invoke(), state.ProfileId, CountUpProfileId?.Invoke(), planningStartedAt, planningEndsAt);
     }
 

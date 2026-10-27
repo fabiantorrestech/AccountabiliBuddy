@@ -94,7 +94,10 @@ object PhoneSnapshot {
             ?.let { file ->
                 val running = file.running!!
                 val tasks = file.sessions.lastOrNull { it.end == null }?.tasks.orEmpty()
-                RunningSession(running.profile, running.phaseStartedAt, running.phaseEndsAt, running.isBreak).withTasks(tasks, running.currentTask)
+                RunningSession(
+                    running.profile, running.phaseStartedAt, running.phaseEndsAt, running.isBreak,
+                    planningStartedAt = running.planningStartedAt, planningEndsAt = running.planningEndsAt,
+                ).withTasks(tasks, running.currentTask)
             }
 
     /** The PC's session when it's one that counts as focus (a scheduled block isn't); breaks belong to it. */
@@ -104,6 +107,9 @@ object PhoneSnapshot {
         }
 
         val startedAt = state.phaseStartedAt?.toInstant() ?: return null
-        return RunningSession(state.profileName, startedAt, state.phaseEndsAt?.toInstant(), state.isBreak).withTasks(state.tasks, state.currentTask)
+        return RunningSession(
+            state.profileName, startedAt, state.phaseEndsAt?.toInstant(), state.isBreak,
+            planningStartedAt = state.planningStartedAt?.toInstant(), planningEndsAt = state.planningEndsAt?.toInstant(),
+        ).withTasks(state.tasks, state.currentTask)
     }
 }

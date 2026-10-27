@@ -177,12 +177,8 @@ public sealed class ActivityRecorder : IDisposable
         // A resumed session was logged as started before the app stopped.
         if (!previous.IsActive && state.IsActive && IsEnabled && !_sessions.IsResuming)
         {
-            // While planning, PhaseEndsAt is the planning's end; the session's own end is the focus length after it.
-            DateTimeOffset? plannedEnd = state.IsPlanning
-                ? state.FocusLengthAfterPlanning is TimeSpan focusLength && state.PhaseEndsAt is DateTimeOffset planningEnd ? planningEnd + focusLength : null
-                : state.PhaseEndsAt;
             var started = new SessionEvent(
-                _timeProvider.GetUtcNow(), SessionEventKind.Started, state.Mode, state.ProfileId, plannedEnd);
+                _timeProvider.GetUtcNow(), SessionEventKind.Started, state.Mode, state.ProfileId, state.FocusEndsAt);
             Enqueue(() => _log.RecordSessionEventAsync(started));
         }
 

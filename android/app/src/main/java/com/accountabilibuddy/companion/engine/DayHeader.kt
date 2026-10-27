@@ -72,10 +72,27 @@ object DayHeader {
         val today = now.toLocalDate()
         val focus = input.focus?.takeIf { it.date == today }
 
-        val running = focus?.running?.takeIf { it.endsAt?.isAfter(nowInstant) ?: true }
+        val runningNow = focus?.running
+        val running = runningNow?.takeIf { it.endsAt?.isAfter(nowInstant) ?: true }
+
+        // A session with a set length never counts up: past its end it says so, instead of falling through to the open session below.
+        if (running == null && runningNow != null && !runningNow.onBreak && runningNow.endsAt != null) {
+            return HeaderText("${runningNow.profile ?: "Focus"} · time's up", "")
+        }
+
         if (running != null) {
             val name = if (running.onBreak) "Break" else running.profile ?: "Focus"
             val endsAt = running.endsAt
+            val planningEnd = running.planningEndsAt
+            if (running.isPlanning && planningEnd != null) {
+                // The PC's planning stage (not focus time) counts down to its own end; it goes on past it until "Ready?" is answered there.
+                return if (planningEnd.isAfter(nowInstant)) {
+                    HeaderText("Planning · $name · ${minutesText(Duration.between(nowInstant, planningEnd))} left", "", planningEnd, "Planning · $name · %s left")
+                } else {
+                    HeaderText("Planning · $name · time's up", "")
+                }
+            }
+
             return when {
                 endsAt != null -> HeaderText("$name · ${minutesText(Duration.between(nowInstant, endsAt))} left", "", endsAt, "$name · %s left")
                 running.onBreak -> HeaderText("On a break", "")

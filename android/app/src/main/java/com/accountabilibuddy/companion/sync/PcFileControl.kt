@@ -76,6 +76,8 @@ object PcFileControl {
             tasks = if (running == null) emptyList() else file.sessions.lastOrNull { it.end == null }?.tasks.orEmpty(),
             currentTask = running?.currentTask,
             comebacks = file.comebacks,
+            planningStartedAt = running?.planningStartedAt?.let { OffsetDateTime.ofInstant(it, zone) },
+            planningEndsAt = running?.planningEndsAt?.let { OffsetDateTime.ofInstant(it, zone) },
         )
     }
 

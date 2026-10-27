@@ -42,6 +42,17 @@ public sealed record SessionState(
     public bool IsPlanning => Phase == SessionPhase.Planning;
 
     /// <summary>
+    /// When the (current or coming) focus phase starts: its own start, or, while planning, the planning stage's end (what a device
+    /// that doesn't know planning is told: a focus countdown that begins when planning ends).
+    /// </summary>
+    public DateTimeOffset? FocusStartsAt => IsPlanning ? PhaseEndsAt : PhaseStartedAt;
+
+    /// <summary>When that focus phase ends: null for a session with no set end.</summary>
+    public DateTimeOffset? FocusEndsAt => IsPlanning
+        ? FocusLengthAfterPlanning is TimeSpan length && PhaseEndsAt is DateTimeOffset planningEnd ? planningEnd + length : null
+        : PhaseEndsAt;
+
+    /// <summary>
     /// True when the session counts down to a set end: this phase's, or, while planning, the focus phase that follows it. A
     /// session without one (count-up, "No set end") ends on command (<see cref="Engine.BypassPolicy.EndsOnCommand"/>).
     /// </summary>

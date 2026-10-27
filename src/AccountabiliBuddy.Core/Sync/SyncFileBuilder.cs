@@ -57,17 +57,28 @@ public static class SyncFileBuilder
                 bool added = counted.Record.Mode == SessionMode.Added;
                 string? profile = added ? null : profileName(counted.Record.ProfileId);
                 IReadOnlyList<SessionTask>? tasks = tasksOf?.Invoke(counted.Record.StartedAt);
-                if (counted.Record.Away is not { Count: > 0 } away)
+                // The running session goes whole, except for its planning stage (not focus time): the devices count focus from when
+                // planning ended. Its other away stretches come out once it has ended.
+                IReadOnlyList<AwayStretch> cut = counted.Record.Away is not { Count: > 0 } away ? []
+                    : counted.Running ? away.Where(stretch => stretch.Kind == AwayKind.Planning).ToList()
+                    : away;
+                if (cut.Count == 0)
                 {
                     return [new SyncSession(counted.Record.StartedAt, counted.Running ? null : counted.End, profile, added, tasks)];
                 }
 
                 // A session goes in the pieces the user was there for: time stepped away, the planning stage or time marked
                 // distracted in History comes out on the other devices too. Its checklist goes with the first piece. The running
-                // session's last piece stays open (no end), and none is left while it is planning or away.
-                return SessionGaps.Pieces(counted.Record.StartedAt, counted.End, away)
-                    .Select((piece, index) => new SyncSession(
-                        piece.Start, counted.Running && piece.End == counted.End ? null : piece.End, profile, added, index == 0 ? tasks : null));
+                // session's last piece stays open (no end); while it is still planning there is none, so a point at "now" stands
+                // in for it (it counts for nothing, and carries the checklist).
+                List<(DateTimeOffset Start, DateTimeOffset End)> pieces = SessionGaps.Pieces(counted.Record.StartedAt, counted.End, cut).ToList();
+                if (counted.Running && (pieces.Count == 0 || pieces[^1].End != counted.End))
+                {
+                    pieces.Add((counted.End, counted.End));
+                }
+
+                return pieces.Select((piece, index) => new SyncSession(
+                    piece.Start, counted.Running && piece.End == counted.End ? null : piece.End, profile, added, index == 0 ? tasks : null));
             })
             .Where(session => session.End is not DateTimeOffset end || end > from)
             .ToList();

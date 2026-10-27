@@ -44,6 +44,15 @@ object WatchGlance {
         if (running != null) {
             val title = if (running.onBreak) "Break" else running.profile ?: "Focus"
             val detail = "${WatchText.duration(focused)} focused today"
+            val planningEnd = running.planningEndsAt?.takeIf { running.isPlanning }
+            if (planningEnd != null) {
+                // The PC's planning stage (not focus time): its own countdown, "Planning" for the title.
+                val total = Duration.between(running.planningStartedAt ?: now, planningEnd).toMinutes().toInt().coerceAtLeast(1)
+                val left = Duration.between(now, planningEnd).toMinutes().toInt().coerceAtLeast(0)
+                return Glance((total - left).coerceIn(0, total).toFloat(), total.toFloat(), WatchText.duration(left), "Planning",
+                    if (left == 0) "Planning · ready?" else "${WatchText.duration(left)} left", detail)
+            }
+
             val endsAt = running.endsAt
             if (endsAt == null) {
                 val elapsed = Duration.between(running.startedAt, now).toMinutes().toInt().coerceAtLeast(0)
