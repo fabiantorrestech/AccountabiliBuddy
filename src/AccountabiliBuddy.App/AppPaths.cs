@@ -48,5 +48,11 @@ public static class AppPaths
 
     public static string NativeHostPath => Path.Combine(AppContext.BaseDirectory, "AccountabiliBuddy.NativeHost.exe");
 
+    /// <summary>
+    /// The sealed relay program (ADR 46) that ships with the app, in a "relay" folder next to it. A packaged app has the
+    /// self-contained build (scripts/package.ps1); a development build has the project's build output, copied there by the App project.
+    /// </summary>
+    public static string RelayPath => Path.Combine(AppContext.BaseDirectory, "relay", "AccountabiliBuddy.Relay.exe");
+
     public static string BundledExtensionFolder => Path.Combine(AppContext.BaseDirectory, "browser-extension");
 }

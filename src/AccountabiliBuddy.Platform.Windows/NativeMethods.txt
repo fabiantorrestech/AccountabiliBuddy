@@ -135,3 +135,10 @@ AttachThreadInput
 // Cards that follow the user across virtual desktops
 IVirtualDesktopManager
 VirtualDesktopManager
+// The relay child process dies with the app: a job object that kills its processes when its last handle closes
+CreateJobObject
+SetInformationJobObject
+AssignProcessToJobObject
+JOBOBJECT_EXTENDED_LIMIT_INFORMATION
+JOBOBJECTINFOCLASS
+JOB_OBJECT_LIMIT

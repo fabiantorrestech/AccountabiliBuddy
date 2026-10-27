@@ -6,7 +6,8 @@ Rebuilds AccountabiliBuddy and packages it as an installer and a portable zip wi
 1. Picks the version: -Version if given, otherwise the newest package in releases\ with the patch number + 1
    (Velopack needs a higher version for every update), otherwise the App project's <Version>.
 2. Publishes the app self-contained for win-x64 into publish\, and the browser native host too, so neither needs
-   .NET installed.
+   .NET installed. The sealed relay (ADR 46) goes into publish\relay\ the same way: the "Run a relay on this PC"
+   switch starts it from there.
 3. Packs publish\ with vpk into releases\: AccountabiliBuddyApp-win-Setup.exe (installer), a portable zip and the
    update packages.
 4. Writes the version into the App project, so development builds show the last packaged version.
@@ -34,6 +35,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $appProject = Join-Path $root 'src\AccountabiliBuddy.App\AccountabiliBuddy.App.csproj'
 $hostProject = Join-Path $root 'src\AccountabiliBuddy.NativeHost\AccountabiliBuddy.NativeHost.csproj'
+$relayProject = Join-Path $root 'src\AccountabiliBuddy.Relay\AccountabiliBuddy.Relay.csproj'
 $icon = Join-Path $root 'src\AccountabiliBuddy.App\Assets\app-icon.ico'
 $publishFolder = Join-Path $root 'publish'
 $releases = Join-Path $root 'releases'
@@ -72,6 +74,11 @@ Invoke-Step 'Publish app' {
 }
 Invoke-Step 'Publish browser native host' {
     dotnet publish $hostProject -c $Configuration -r win-x64 --self-contained true -p:Version=$Version -o $publishFolder --nologo -v q
+}
+Invoke-Step 'Publish relay' {
+    # Its own folder and one compressed file (about 48 MB instead of 105 MB in 334 files): it brings the ASP.NET Core runtime.
+    dotnet publish $relayProject -c $Configuration -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+        -p:EnableCompressionInSingleFile=true -p:Version=$Version -p:DebugType=None -o (Join-Path $publishFolder 'relay') --nologo -v q
 }
 Invoke-Step 'Pack installer' {
     vpk pack --packId $packId --packVersion $Version --packDir $publishFolder --mainExe 'AccountabiliBuddy.App.exe' --runtime win-x64 `

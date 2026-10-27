@@ -16,6 +16,7 @@ using AccountabiliBuddy.Platform.Windows.Enforcement;
 using AccountabiliBuddy.Platform.Windows.Hotkeys;
 using AccountabiliBuddy.Platform.Windows.Shortcuts;
 using AccountabiliBuddy.Platform.Windows.Integrations;
+using AccountabiliBuddy.Platform.Windows.Network;
 using AccountabiliBuddy.Platform.Windows.Ocr;
 using AccountabiliBuddy.Platform.Windows.Security;
 using AccountabiliBuddy.Platform.Windows.Startup;
@@ -87,6 +88,7 @@ public partial class App : Application
     private AccountabiliBuddy.App.Services.Sync.SyncFolderService? _syncFolder;
     private AccountabiliBuddy.App.Services.Sync.SyncDriveService? _syncDrive;
     private AccountabiliBuddy.App.Services.Sync.SyncRelayService? _syncRelay;
+    private AccountabiliBuddy.App.Services.Sync.RelayHostService? _relayHost;
     private AccountabiliBuddy.App.Services.Sync.QrSyncService? _qrSync;
     private NamedPipeBrowserSource? _browserSource;
     private Win32GlobalHotkey? _hotkey;
@@ -698,6 +700,11 @@ public partial class App : Application
             InWorkHours = _syncDrive.InWorkHours,
         };
 
+        // Run a relay on this PC (ADR 46): the relay program ships next to the app, lives in the app's data folder and ends with the app.
+        _relayHost = new AccountabiliBuddy.App.Services.Sync.RelayHostService(
+            syncSettings, new WindowsRelayProcess(), new WindowsRelayFirewall(),
+            new AccountabiliBuddy.App.Services.Sync.RelayHostFiles(Path.Combine(dataDirectory, "relay")), AppPaths.RelayPath);
+
         var setupViewModel = new SetupViewModel(
             startupRegistrar,
             quickLaunch,
@@ -1073,6 +1080,7 @@ public partial class App : Application
         devices.Import = syncImport;
         devices.DriveAccount = driveAccount;
         devices.Relay = _syncRelay;
+        devices.RelayHost = new RelayHostViewModel(_relayHost!, syncSettings, new WindowsNetworkTrust());
         devices.OpenBrowser = OpenInBrowser;
         devices.SyncNow = async () =>
         {
@@ -1167,6 +1175,7 @@ public partial class App : Application
         _syncFolder.Start();
         _syncDrive.Start();
         _syncRelay.Start();
+        _relayHost!.Start();
         _qrSync?.Start();
         _activityWatcher.ActivityChanged += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(_sessionOverlay.OnActivityChanged);
         _dayBar.Start();
@@ -2019,6 +2028,7 @@ public partial class App : Application
         _syncFolder?.Dispose();
         _syncDrive?.Dispose();
         _syncRelay?.Dispose();
+        _relayHost?.Dispose();
         _qrSync?.Dispose();
         _clockAnchors?.Dispose();
         _unlocks?.Dispose();
