@@ -230,6 +230,7 @@ class CompanionApp : Application() {
         appScope.launch {
             sync.received.collect { devices ->
                 devices.mapNotNull { it.file.lunch }.forEach { lunch.receive(it) }
+                runCatching { com.accountabilibuddy.companion.essentials.LunchLockLift.check(this@CompanionApp) }
                 actions.prune(devices)
                 pcRemote.expire()
                 pcNoise.expire()
