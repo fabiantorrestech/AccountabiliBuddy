@@ -1,3 +1,4 @@
+using Avalonia.Threading;
 using AccountabiliBuddy.App.DevTools;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -129,7 +130,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
             // "More" has no page: each click folds or unfolds it, and the page stays where it was (also one of its own,
             // whose tab hides while folded).
             IsMoreOpen = !IsMoreOpen;
-            SelectedTab = oldValue == MoreTab ? (int)MainTab.Today : oldValue;
+            // Posted, not set here: resetting inside the change callback left the TabControl on "More", so the next click
+            // on it raised no change and "More" only worked every other time.
+            int back = oldValue == MoreTab ? (int)MainTab.Today : oldValue;
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (SelectedTab == MoreTab)
+                {
+                    SelectedTab = back;
+                }
+            });
             return;
         }
 

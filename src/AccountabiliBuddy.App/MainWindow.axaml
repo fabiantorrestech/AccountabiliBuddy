@@ -48,50 +48,53 @@
                         IsVisible="{Binding IsSessionRunning}"
                         Margin="20,0,12,10" Background="Transparent" BorderThickness="0" Padding="4,2"
                         ToolTip.Tip="Show the other tabs for this session, or hide them again" />
-                <TabControl x:Name="Tabs" TabStripPlacement="Left" Margin="0,4,0,8" SelectionChanged="OnTabChanged"
-                            SelectedIndex="{Binding SelectedTab}">
-                    <TabControl.Styles>
-                        <Style Selector="TabControl[TabStripPlacement=Left] /template/ ItemsPresenter#PART_ItemsPresenter">
-                            <Setter Property="Margin" Value="8,4,12,0" />
-                        </Style>
-                        <Style Selector="TabItem">
-                            <Setter Property="FontSize" Value="16" />
-                            <Setter Property="MinHeight" Value="40" />
-                            <Setter Property="MinWidth" Value="168" />
-                            <Setter Property="Padding" Value="16,0,24,0" />
-                            <Setter Property="CornerRadius" Value="6" />
-                        </Style>
-                        <Style Selector="TabItem:selected">
-                            <Setter Property="Background" Value="#1F808080" />
-                            <Setter Property="FontWeight" Value="SemiBold" />
-                        </Style>
-                        <Style Selector="TabItem:pointerover /template/ Border#PART_LayoutRoot">
-                            <Setter Property="Background" Value="#14808080" />
-                        </Style>
-                        <!-- Under More: smaller and set in. -->
-                        <Style Selector="TabItem.under">
-                            <Setter Property="FontSize" Value="14" />
-                            <Setter Property="MinHeight" Value="34" />
-                            <Setter Property="Padding" Value="32,0,24,0" />
-                        </Style>
-                    </TabControl.Styles>
-                    <!-- Same order as Pages below (MainTab). Three tiers: daily, sometimes, and the ones set once under More. -->
-                    <!-- Focus mode (a session running): only Today and History, and "Show everything" below. -->
-                    <TabItem Header="Today" />
-                    <TabItem Header="Profiles" IsVisible="{Binding !IsFocusMode}" />
-                    <TabItem Header="Day plan" IsVisible="{Binding !IsFocusMode}" />
-                    <TabItem Header="Calendar" IsVisible="{Binding !IsFocusMode}" />
-                    <TabItem Header="History" Margin="0,10,0,0" />
-                    <TabItem Header="Notebook" IsVisible="{Binding !IsFocusMode}" />
-                    <TabItem Header="Devices" IsVisible="{Binding !IsFocusMode}" />
-                    <!-- No page of its own: selecting it unfolds the four under it (the view model puts the selection back). -->
-                    <TabItem Header="{Binding MoreHeader}" Margin="0,10,0,0" Opacity="0.8" IsVisible="{Binding !IsFocusMode}" />
-                    <TabItem Header="Setup" Classes="under" IsVisible="{Binding ShowsMoreItems}" />
-                    <TabItem Header="Integrations" Classes="under" IsVisible="{Binding ShowsMoreItems}" />
-                    <TabItem Header="Settings" Classes="under" IsVisible="{Binding ShowsMoreItems}" />
-                    <TabItem Header="About" Classes="under" IsVisible="{Binding ShowsMoreItems}" />
-                    <TabItem Header="Activity (dev)" IsVisible="{Binding ShowDevTools}" />
-                </TabControl>
+                <!-- Scrolls (vertical, only when needed) in a short window; logo above and noise player / focus toggle below stay put. -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <TabControl x:Name="Tabs" TabStripPlacement="Left" Margin="0,4,0,8" SelectionChanged="OnTabChanged"
+                                SelectedIndex="{Binding SelectedTab}">
+                        <TabControl.Styles>
+                            <Style Selector="TabControl[TabStripPlacement=Left] /template/ ItemsPresenter#PART_ItemsPresenter">
+                                <Setter Property="Margin" Value="8,4,12,0" />
+                            </Style>
+                            <Style Selector="TabItem">
+                                <Setter Property="FontSize" Value="16" />
+                                <Setter Property="MinHeight" Value="40" />
+                                <Setter Property="MinWidth" Value="168" />
+                                <Setter Property="Padding" Value="16,0,24,0" />
+                                <Setter Property="CornerRadius" Value="6" />
+                            </Style>
+                            <Style Selector="TabItem:selected">
+                                <Setter Property="Background" Value="#1F808080" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Style>
+                            <Style Selector="TabItem:pointerover /template/ Border#PART_LayoutRoot">
+                                <Setter Property="Background" Value="#14808080" />
+                            </Style>
+                            <!-- Under More: smaller and set in. -->
+                            <Style Selector="TabItem.under">
+                                <Setter Property="FontSize" Value="14" />
+                                <Setter Property="MinHeight" Value="34" />
+                                <Setter Property="Padding" Value="32,0,24,0" />
+                            </Style>
+                        </TabControl.Styles>
+                        <!-- Same order as Pages below (MainTab). Three tiers: daily, sometimes, and the ones set once under More. -->
+                        <!-- Focus mode (a session running): only Today and History, and "Show everything" below. -->
+                        <TabItem Header="Today" />
+                        <TabItem Header="Profiles" IsVisible="{Binding !IsFocusMode}" />
+                        <TabItem Header="Day plan" IsVisible="{Binding !IsFocusMode}" />
+                        <TabItem Header="Calendar" IsVisible="{Binding !IsFocusMode}" />
+                        <TabItem Header="History" Margin="0,10,0,0" />
+                        <TabItem Header="Notebook" IsVisible="{Binding !IsFocusMode}" />
+                        <TabItem Header="Devices" IsVisible="{Binding !IsFocusMode}" />
+                        <!-- No page of its own: selecting it unfolds the four under it (the view model puts the selection back). -->
+                        <TabItem Header="{Binding MoreHeader}" Margin="0,10,0,0" Opacity="0.8" IsVisible="{Binding !IsFocusMode}" />
+                        <TabItem Header="Setup" Classes="under" IsVisible="{Binding ShowsMoreItems}" />
+                        <TabItem Header="Integrations" Classes="under" IsVisible="{Binding ShowsMoreItems}" />
+                        <TabItem Header="Settings" Classes="under" IsVisible="{Binding ShowsMoreItems}" />
+                        <TabItem Header="About" Classes="under" IsVisible="{Binding ShowsMoreItems}" />
+                        <TabItem Header="Activity (dev)" IsVisible="{Binding ShowDevTools}" />
+                    </TabControl>
+                </ScrollViewer>
             </DockPanel>
 
             <!-- Right-hand pane: search, banners, today's bar, then the selected page. -->

@@ -43,6 +43,15 @@ public partial class ChecklistView : UserControl
         }
     }
 
+    // The new-task category picker: fill the menu from the current choices every time it opens.
+    private void OnNewTaskPickerOpening(object? sender, EventArgs e)
+    {
+        if (sender is MenuFlyout flyout && DataContext is ChecklistViewModel viewModel)
+        {
+            flyout.ItemsSource = viewModel.NewTaskCategoryChoices.ToList();
+        }
+    }
+
     // The start nudge: the keyboard goes to "Add a task" once the window shows.
     private void OnFocusEntryRequested(object? sender, EventArgs e)
     {
