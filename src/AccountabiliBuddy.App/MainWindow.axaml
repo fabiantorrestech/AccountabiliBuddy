@@ -3,6 +3,7 @@
         xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
         xmlns:views="using:AccountabiliBuddy.App.Views"
         xmlns:controls="using:AccountabiliBuddy.App.Controls"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         x:Class="AccountabiliBuddy.App.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="AccountabiliBuddy"
@@ -129,8 +130,8 @@
 
                 <!-- Today at a glance: the rows chosen in Settings (calendar, plan, focus, blockers) and a live "now" line.
                      Only on Today and History: the other pages are for doing, not for watching the day. -->
-                <!-- In focus mode (a session running) it slides up out of view, leaving a thin hover strip; hovering the strip
-                     slides it down over the page, and it slides away again shortly after the pointer leaves (MainWindow.axaml.cs). -->
+                <!-- In focus mode (a session running) it slides up out of view, leaving a thin strip with a small handle at its left;
+                     resting the pointer on the handle slides it down over the page, and it slides away again shortly after the pointer leaves (MainWindow.axaml.cs). -->
                 <Panel x:Name="TimelineHost" DockPanel.Dock="Top" IsVisible="{Binding ShowsTimeline}" ZIndex="10">
                 <Panel.Transitions>
                     <Transitions>
@@ -211,6 +212,14 @@
                 </Border>
                 </Panel>
                 </Panel>
+                <!-- Only while the timeline is slid away: the small tab that opens it after the pointer rests on it a moment. -->
+                <Border x:Name="TimelineHandle" IsVisible="False" HorizontalAlignment="Left" VerticalAlignment="Top"
+                        Width="140" Height="10" Background="Transparent" Opacity="0.35">
+                    <Border HorizontalAlignment="Center" VerticalAlignment="Top" Width="44" Height="10" CornerRadius="0,0,6,6"
+                            Background="#33808080">
+                        <mi:MaterialIcon Kind="Timeline" Width="9" Height="9" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                </Border>
                 </Panel>
 
                 <Grid Margin="12,8,8,8">
