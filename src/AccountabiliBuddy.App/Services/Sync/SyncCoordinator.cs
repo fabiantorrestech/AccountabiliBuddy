@@ -560,6 +560,28 @@ public sealed class SyncCoordinator
         }
     }
 
+    /// <summary>
+    /// Tries the newest received goal again, on every Drive poll pass: a lower goal that had to wait is otherwise only
+    /// seen again when the sender writes a new file. Not during a focus session (settings are locked then); the next
+    /// pass after it tries again. The usual filter skips it when it isn't newer than this PC's own edit.
+    /// </summary>
+    public async Task RetryGoalAsync()
+    {
+        if (_sessions.IsEnforcing)
+        {
+            return;
+        }
+
+        SyncDocument? newest = _received.Devices
+            .SelectMany(device => device.File.Documents)
+            .Where(document => document.Key == SyncDocument.GoalKey)
+            .MaxBy(document => document.EditedAt);
+        if (newest is not null)
+        {
+            await ApplyDocumentsAsync([newest]);
+        }
+    }
+
     /// <summary>Applies each received setting edited later than this PC's own, by this PC's rules.</summary>
     private async Task ApplyDocumentsAsync(IReadOnlyList<SyncDocument> documents)
     {
