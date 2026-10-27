@@ -213,6 +213,7 @@ fun SettingsScreen(
                             }
                         }
                         item { OtherBlockersSection() }
+                        item { BeeminderSection(connected = (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).sync.received.value.any { it.file.beeminder != null }) }
                         item {
                             Section("Setup", summary = "The first-run questions", startOpen = true) {
                                 Text("Walks through linking, permissions and the basics again; nothing is lost.", style = MaterialTheme.typography.bodySmall)
