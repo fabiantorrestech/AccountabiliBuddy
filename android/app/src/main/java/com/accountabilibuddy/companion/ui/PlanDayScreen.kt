@@ -106,10 +106,11 @@ fun PlanDayScreen(
     var blockList by remember { mutableStateOf(blocks) }
     var refreshing by remember { mutableStateOf(false) }
 
-    fun template() = if (offDay) plan.otherDay else plan.workday
+    // What the answers start from: the first chosen date's workday template (week B and custom templates included) or the Off day one.
+    fun template() = com.accountabilibuddy.companion.engine.DayPlanner.baseFor(plan, offDay, dates.firstOrNull() ?: today.plusDays(1))
     fun nightOf(off: Boolean): SleepTimes? {
-        val t = if (off) plan.otherDay else plan.workday
-        return DayPlan.fromWorkdayAndOffDay(plan.categories, plan.workdays, t, t).nightBefore(today)
+        val t = com.accountabilibuddy.companion.engine.DayPlanner.baseFor(plan, off, dates.firstOrNull() ?: today.plusDays(1))
+        return DayPlan.fromWorkdayAndOffDay(plan.categories, emptySet(), t, t).nightBefore(today)
     }
 
     var bedtime by remember { mutableStateOf(nightOf(false)?.bedtime ?: LocalTime.of(23, 0)) }
@@ -124,9 +125,9 @@ fun PlanDayScreen(
     val lifted = remember { mutableStateListOf<BlockRef>() }
     var liftsOpen by remember { mutableStateOf(false) }
     var liftFrom by remember { mutableStateOf(LocalTime.MIDNIGHT) }
-    var liftTo by remember { mutableStateOf(plan.workday.rules.reenableAt) }
+    var liftTo by remember { mutableStateOf(template().rules.reenableAt) }
     var auto by remember { mutableStateOf(false) }
-    var headsUp by remember { mutableStateOf((plan.workday.rules.warnMinutes ?: 0) > 0) }
+    var headsUp by remember { mutableStateOf((template().rules.warnMinutes ?: 0) > 0) }
 
     fun deviceTime(device: String) = deviceTimes[device] ?: template().rules.reenableFor(device)
 

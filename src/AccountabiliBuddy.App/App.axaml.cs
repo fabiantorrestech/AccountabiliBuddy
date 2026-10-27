@@ -687,7 +687,8 @@ public partial class App : Application
             InWorkHours = () =>
             {
                 DateTime now = time.GetLocalNow().DateTime;
-                return DayTimeline.Planned(_configuration.Current.DayPlan, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)))
+                return DayWorkWindows.WorkWindows(
+                        _configuration.Current.DayPlan, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)), now, _workHours?.FocusedOn)
                     .Any(focus => focus.Window.Start <= now && now < focus.Window.End);
             },
         };
@@ -865,6 +866,13 @@ public partial class App : Application
         _ = _deepWorkHistory.RefreshAsync();
         // Earned time (design K): today's goal met across the user's devices opens this computer's work hours.
         _workHours!.Goal = () => _deepWork?.UnlockProgress;
+        // Counted focus per date for the day plan's Budget days: one source for every guard that reads the work windows (ADR 47).
+        Func<DateOnly, TimeSpan> countedFocus = date => _deepWork?.FocusedOn(date) ?? TimeSpan.Zero;
+        _workHours.FocusedOn = countedFocus;
+        _startNudge!.FocusedOn = countedFocus;
+        _shutdown.FocusedOn = countedFocus;
+        _dayBar.FocusedOn = countedFocus;
+        timelineDay.FocusedOn = countedFocus;
         _ = _deepWork.ReloadAsync();
         sessionViewModel.Review = _sessionReview!.Pending;
         _sessionReview.Changed += (_, _) =>
@@ -1001,6 +1009,7 @@ public partial class App : Application
         var qrSync = new AccountabiliBuddy.App.Services.Sync.QrSyncService(
             syncCoordinator, syncIdentity, syncSettings, receivedDevices, _configuration, documents, time);
         qrSync.LoadBlocking();
+        qrSync.FocusedOn = _workHours!.FocusedOn;
         _qrSync = qrSync;
         var syncImport = new AccountabiliBuddy.App.Services.Sync.SyncImportService(syncCoordinator, syncIdentity);
         void ShowSyncQr() => new SyncQrWindow { DataContext = new SyncQrViewModel(qrSync.LinksForNowAsync) }.Show();
@@ -1026,6 +1035,7 @@ public partial class App : Application
             () => syncIdentity.DeviceId == Guid.Empty ? null : syncIdentity.DeviceId,
             documents, new DpapiDataProtector(), time);
         coldTurkeyKeys.LoadBlocking();
+        coldTurkeyKeys.FocusedOn = _workHours!.FocusedOn;
         _coldTurkeyKeys = coldTurkeyKeys;
         coldTurkeyKeys.Notice += (_, notice) => presenter.ShowNotice(notice.Title, notice.Text);
         // A new key comes from a timer, a check or a session ending, never straight from a click: shown without taking focus.

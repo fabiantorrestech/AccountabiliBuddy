@@ -51,9 +51,9 @@ data class SleepSettings(
             alarm,
             goal,
             if (plan == null || smartLevels.isEmpty()) null
-            else { day: java.time.LocalDate -> smartLevels[com.accountabilibuddy.companion.engine.SmartBedtime.kindOf(day, plan.workdays)] },
+            else { day: java.time.LocalDate -> smartLevels[com.accountabilibuddy.companion.engine.SmartBedtime.kindOf(day, plan::isWorkdayByWeek)] },
             if (plan == null || wakeEstimates.isEmpty()) null
-            else { morning: java.time.LocalDate -> wakeEstimates[com.accountabilibuddy.companion.engine.SmartBedtime.kindOf(morning, plan.workdays)] },
+            else { morning: java.time.LocalDate -> wakeEstimates[com.accountabilibuddy.companion.engine.SmartBedtime.kindOf(morning, plan::isWorkdayByWeek)] },
         )
 
     companion object {

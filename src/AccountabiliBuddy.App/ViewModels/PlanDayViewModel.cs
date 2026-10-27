@@ -45,11 +45,18 @@ public sealed partial class PlanDayViewModel : ObservableObject
     [RelayCommand]
     private void RefreshBlocks() => LoadBlocks();
 
+    // The template the answers start from: for the first chosen date (tomorrow before one is picked), what that date follows
+    // as a workday (week B and custom templates included) or the Off day template.
+    private DayTemplate BaseTemplate(DayPlan plan)
+    {
+        return DayPlanner.BaseFor(plan, IsOffDay, Dates.Count > 0 ? Dates[0] : Today.AddDays(1));
+    }
+
     private void LoadBlocks()
     {
         var old = Devices.SelectMany(group => group.Rows).ToDictionary(row => (row.Block.Device, row.Block.Kind, row.Block.Id));
         var oldTimes = Devices.ToDictionary(group => group.Device, group => group.AgreedTime);
-        BlockRules rules = (IsOffDay ? _configuration.Current.DayPlan.OtherDay : _configuration.Current.DayPlan.Workday).Rules;
+        BlockRules rules = BaseTemplate(_configuration.Current.DayPlan).Rules;
         Devices.Clear();
         Blocks.Clear();
         foreach (var device in _loadBlocks().GroupBy(item => (Id: item.Block.Device, Name: item.Device)))
@@ -276,7 +283,7 @@ public sealed partial class PlanDayViewModel : ObservableObject
     private DayPlanRequest Request()
     {
         DayPlan plan = _configuration.Current.DayPlan;
-        DayTemplate template = IsOffDay ? plan.OtherDay : plan.Workday;
+        DayTemplate template = BaseTemplate(plan);
         SleepTimes? sleep = ChosenNight();
 
         BlockRules rules = template.Rules;
@@ -301,7 +308,7 @@ public sealed partial class PlanDayViewModel : ObservableObject
     private void LoadDefaults()
     {
         DayPlan plan = _configuration.Current.DayPlan;
-        DayTemplate template = IsOffDay ? plan.OtherDay : plan.Workday;
+        DayTemplate template = BaseTemplate(plan);
         SleepTimes? night = DayPlanSleep.SleepOf(template, plan);
         Bedtime = night?.Bedtime.ToTimeSpan();
         Wake = night?.Wake.ToTimeSpan();

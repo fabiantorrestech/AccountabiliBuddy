@@ -16,6 +16,16 @@ public static class DayPlanSleep
         return sleep is null ? null : new SleepTimes(sleep.Start, sleep.End, sleep.WakeByAlarm);
     }
 
+    /// <summary>
+    /// The night a plan's workdays (or, with <paramref name="workday"/> off, its other days) usually have: the Sleep part of
+    /// their typical template (<see cref="DayPlan.TypicalTemplate"/>). The sleep settings' weeknight and weekend fallbacks
+    /// follow it. Null when there is no such template or it has no night.
+    /// </summary>
+    public static SleepTimes? TypicalNight(DayPlan plan, bool workday)
+    {
+        return plan.TypicalTemplate(workday) is DayTemplate template ? SleepOf(template, plan) : null;
+    }
+
     /// <summary>The night before <paramref name="day"/> as the plan has it for that day (one-off days included).</summary>
     public static SleepTimes? NightBefore(DayPlan plan, DateOnly day)
     {

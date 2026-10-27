@@ -159,11 +159,74 @@ public sealed record DayPlan(
     public DayTemplate TemplateFor(DateOnly date)
     {
         OneOffDay? oneOff = OneOffDays.FirstOrDefault(day => day.Date == date);
-        DayTemplate stored = oneOff?.Template
-            ?? (Week.TemplateIdFor(date) is Guid id ? TemplateById(id) : null)
+        return (oneOff?.Template ?? WeekMapTemplate(date)).WithWorkWindowPart(Categories);
+    }
+
+    /// <summary>The template the week map gives a date, ignoring one-off days: what the date would follow if nothing replaced it.</summary>
+    public DayTemplate WeekTemplateFor(DateOnly date)
+    {
+        return WeekMapTemplate(date).WithWorkWindowPart(Categories);
+    }
+
+    /// <summary>
+    /// True on a workday, the one rule for every device and feature (the phone's DayPlan.isWorkday is the same): a
+    /// one-off day with work in it, else a date whose week maps its weekday to the "Workday" template, or to a template of
+    /// its own that has work (a Budget day, or work parts or a work window). A one-off day replaces a workday's template,
+    /// so a one-off day off on a Monday isn't one. With <paramref name="withOneOffDays"/> off, the week map decides alone.
+    /// </summary>
+    public bool IsWorkday(DateOnly date, bool withOneOffDays = true)
+    {
+        OneOffDay? oneOff = withOneOffDays ? OneOffDays.FirstOrDefault(day => day.Date == date) : null;
+        if (oneOff is not null)
+        {
+            return HasWork(oneOff.Template);
+        }
+
+        if (Week.TemplateIdFor(date) is not Guid id)
+        {
+            return false;
+        }
+
+        return IsWorkdayTemplate(id);
+    }
+
+    /// <summary>
+    /// The template a plan's workdays (or, with <paramref name="workday"/> off, its other days) usually follow: the one
+    /// the first such weekday of week A, Monday first, follows; null when there is none. Settings that keep one value
+    /// for "workdays" and one for "other days" (sleep fallbacks, re-enable times) read it.
+    /// </summary>
+    public DayTemplate? TypicalTemplate(bool workday)
+    {
+        foreach (DayOfWeek day in MondayFirst)
+        {
+            Guid id = Week.A.FirstOrDefault(entry => entry.Day == day)?.TemplateId ?? OffDayTemplateId;
+            if (IsWorkdayTemplate(id) == workday && TemplateById(id) is DayTemplate template)
+            {
+                return template;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>True when a day that follows template <paramref name="id"/> is a workday: the "Workday" template, or a template of its own with work.</summary>
+    public bool IsWorkdayTemplate(Guid id)
+    {
+        return id == WorkdayTemplateId || (id != OffDayTemplateId && TemplateById(id) is DayTemplate template && HasWork(template));
+    }
+
+    private bool HasWork(DayTemplate template)
+    {
+        return template.Mode == DayMode.Budget
+            || (template.Mode == DayMode.Schedule
+                && template.WithWorkWindowPart(Categories).Parts.Any(part => Category(part.CategoryId)?.Behavior.IsWork() == true));
+    }
+
+    private DayTemplate WeekMapTemplate(DateOnly date)
+    {
+        return (Week.TemplateIdFor(date) is Guid id ? TemplateById(id) : null)
             ?? TemplateById(OffDayTemplateId)
             ?? DayTemplate.Empty;
-        return stored.WithWorkWindowPart(Categories);
     }
 
     /// <summary>

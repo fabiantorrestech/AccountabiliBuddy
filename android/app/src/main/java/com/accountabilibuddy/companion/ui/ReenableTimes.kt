@@ -38,7 +38,7 @@ internal fun ReenableTimes(onSet: (Boolean, LocalTime) -> String?) {
     Column {
         Text("Blocks come back on at", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
         listOf(false to "Workdays", true to "Off-Days").forEach { (offDay, name) ->
-            val time = (if (offDay) plan.otherDay else plan.workday).rules.reenableAt
+            val time = (plan.typicalTemplate(workday = !offDay) ?: if (offDay) plan.otherDay else plan.workday).rules.reenableAt
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().clickable { editing = offDay }.padding(vertical = 8.dp),
@@ -51,7 +51,7 @@ internal fun ReenableTimes(onSet: (Boolean, LocalTime) -> String?) {
     }
 
     editing?.let { offDay ->
-        var picked by remember(offDay) { mutableStateOf((if (offDay) plan.otherDay else plan.workday).rules.reenableAt) }
+        var picked by remember(offDay) { mutableStateOf((plan.typicalTemplate(workday = !offDay) ?: if (offDay) plan.otherDay else plan.workday).rules.reenableAt) }
         AlertDialog(
             onDismissRequest = { editing = null },
             title = { Text("${if (offDay) "Off-Days" else "Workdays"}: blocks back on at") },

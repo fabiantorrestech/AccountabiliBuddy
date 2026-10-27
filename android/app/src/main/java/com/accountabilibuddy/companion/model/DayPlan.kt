@@ -177,15 +177,36 @@ data class DayPlan(
     }
 
     /**
-     * True on a workday (as the PC's LunchService.IsWorkdayToday): a one-off day with work in it, else a date whose week
-     * maps its weekday to the "Workday" template, or to a template of its own that has work (a Budget day, or work parts
-     * or a work window). A one-off day replaces a workday's template, so a one-off day off on a Monday isn't one.
+     * True on a workday, the one rule for every device and feature (the PC's DayPlan.IsWorkday is the same): a one-off day
+     * with work in it, else a date whose week maps its weekday to the "Workday" template, or to a template of its own that
+     * has work (a Budget day, or work parts or a work window). A one-off day replaces a workday's template, so a one-off
+     * day off on a Monday isn't one. With [withOneOffDays] off, the week map decides alone.
      */
-    fun isWorkday(date: LocalDate): Boolean {
-        val oneOff = oneOffDays.firstOrNull { it.date == date }
+    fun isWorkday(date: LocalDate, withOneOffDays: Boolean = true): Boolean {
+        val oneOff = if (withOneOffDays) oneOffDays.firstOrNull { it.date == date } else null
         if (oneOff != null) return hasWork(oneOff.template)
         val id = week.templateIdFor(date) ?: return false
-        return id == WORKDAY_TEMPLATE_ID || (id != OFF_DAY_TEMPLATE_ID && templateById(id)?.let { hasWork(it) } == true)
+        return isWorkdayTemplate(id)
+    }
+
+    /** [isWorkday] by the week map alone (one-off days ignored): the kind of a night or morning for the smart bedtime and wake estimates. */
+    fun isWorkdayByWeek(date: LocalDate): Boolean = isWorkday(date, withOneOffDays = false)
+
+    /** True when a day that follows template [id] is a workday: the "Workday" template, or a template of its own with work. */
+    fun isWorkdayTemplate(id: UUID): Boolean =
+        id == WORKDAY_TEMPLATE_ID || (id != OFF_DAY_TEMPLATE_ID && templateById(id)?.let { hasWork(it) } == true)
+
+    /**
+     * The template a plan's workdays (or, with [workday] off, its other days) usually follow: the one the first such
+     * weekday of week A, Monday first, follows; null when there is none. The PC's DayPlan.TypicalTemplate.
+     */
+    fun typicalTemplate(workday: Boolean): DayTemplate? {
+        for (day in MONDAY_FIRST) {
+            val id = week.a.firstOrNull { it.day == day }?.templateId ?: OFF_DAY_TEMPLATE_ID
+            if (isWorkdayTemplate(id) == workday) templateById(id)?.let { return it }
+        }
+
+        return null
     }
 
     private fun hasWork(template: DayTemplate): Boolean =
@@ -197,13 +218,14 @@ data class DayPlan(
      * template (empty when there is none). A Schedule template with only a work window comes with that window as its work
      * part, so everything that reads parts sees it.
      */
-    fun templateFor(date: LocalDate): DayTemplate {
-        val stored = oneOffDays.firstOrNull { it.date == date }?.template
-            ?: week.templateIdFor(date)?.let { templateById(it) }
-            ?: templateById(OFF_DAY_TEMPLATE_ID)
-            ?: DayTemplate()
-        return stored.withWorkWindowPart(categories)
-    }
+    fun templateFor(date: LocalDate): DayTemplate =
+        (oneOffDays.firstOrNull { it.date == date }?.template ?: weekMapTemplate(date)).withWorkWindowPart(categories)
+
+    /** The template the week map gives a date, ignoring one-off days: what the date would follow if nothing replaced it. */
+    fun weekTemplateFor(date: LocalDate): DayTemplate = weekMapTemplate(date).withWorkWindowPart(categories)
+
+    private fun weekMapTemplate(date: LocalDate): DayTemplate =
+        week.templateIdFor(date)?.let { templateById(it) } ?: templateById(OFF_DAY_TEMPLATE_ID) ?: DayTemplate()
 
     /**
      * Every part touching [range], on real dates, clipped to the range, in order. Where parts of different dates

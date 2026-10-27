@@ -3,6 +3,7 @@ package com.accountabilibuddy.companion.widget
 import com.accountabilibuddy.companion.data.CompanionState
 import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.engine.DayTimeline
+import com.accountabilibuddy.companion.engine.DayWorkWindows
 import com.accountabilibuddy.companion.model.LocalWindow
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -13,7 +14,7 @@ object Upcoming {
 
     fun items(now: LocalDateTime, state: CompanionState, clock: ClockFormat): List<String> {
         val window = LocalWindow(now, now.plusHours(24))
-        val blocks = DayTimeline.planned(state.document.dayPlan, LocalWindow(now.minusDays(1), window.end))
+        val blocks = DayWorkWindows.workWindows(state.document.dayPlan, LocalWindow(now.minusDays(1), window.end), now)
             .filter { it.window.end.isAfter(now) }
             .map { it.window.start to "${it.name}${if (it.window.contains(now)) " · now" else ""}" }
         val events = state.events

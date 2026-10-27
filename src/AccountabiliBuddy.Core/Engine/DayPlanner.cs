@@ -3,15 +3,31 @@ using AccountabiliBuddy.Core.Domain;
 namespace AccountabiliBuddy.Core.Engine;
 
 /// <summary>
-/// Turns the "Plan a day" walkthrough's answers into one-off days (ADR 37): each date gets the Workdays or Off-Days
-/// template with the night and block rules applied. The templates themselves never change.
+/// Turns the "Plan a day" walkthrough's answers into one-off days (ADR 37): each date gets the template it would follow
+/// as a workday, or the Off day template, with the night and block rules applied. The templates themselves never change.
 /// </summary>
 public static class DayPlanner
 {
-    /// <summary>The template the answers make (the same for every date).</summary>
-    public static DayTemplate TemplateFor(DayPlan plan, DayPlanRequest request)
+    /// <summary>
+    /// The template an answer starts from for <paramref name="date"/>: the Off day template for an off-day; for an adjusted
+    /// workday the template the week map gives that date when it is a workday (week B and custom templates included), else
+    /// the "Workday" template. As stored, ignoring one-off days.
+    /// </summary>
+    public static DayTemplate BaseFor(DayPlan plan, bool offDay, DateOnly date)
     {
-        DayTemplate template = request.OffDay ? plan.OtherDay : plan.Workday;
+        if (offDay)
+        {
+            return plan.TemplateById(DayPlan.OffDayTemplateId) ?? DayTemplate.Empty;
+        }
+
+        Guid? followed = plan.IsWorkday(date, withOneOffDays: false) ? plan.Week.TemplateIdFor(date) : null;
+        return plan.TemplateById(followed ?? DayPlan.WorkdayTemplateId) ?? DayTemplate.Empty;
+    }
+
+    /// <summary>The template the answers make for <paramref name="date"/>.</summary>
+    public static DayTemplate TemplateFor(DayPlan plan, DayPlanRequest request, DateOnly date)
+    {
+        DayTemplate template = BaseFor(plan, request.OffDay, date);
         if (request.NoSleep)
         {
             template = DayPlanSleep.WithoutNight(template, plan);
@@ -33,11 +49,10 @@ public static class DayPlanner
     /// <summary>The plan with a one-off day for each date (replacing any there), in date order.</summary>
     public static DayPlan Apply(DayPlan plan, DayPlanRequest request)
     {
-        DayTemplate template = TemplateFor(plan, request);
         HashSet<DateOnly> dates = request.Dates.ToHashSet();
         string note = string.IsNullOrWhiteSpace(request.Note) ? (request.OffDay ? "Off-day" : "Adjusted workday") : request.Note.Trim();
         IEnumerable<OneOffDay> added = dates.Select(date =>
-            new OneOffDay(plan.OneOffDays.FirstOrDefault(day => day.Date == date)?.Id ?? Guid.NewGuid(), date, template, note));
+            new OneOffDay(plan.OneOffDays.FirstOrDefault(day => day.Date == date)?.Id ?? Guid.NewGuid(), date, TemplateFor(plan, request, date), note));
         return plan with
         {
             OneOffDays = plan.OneOffDays.Where(day => !dates.Contains(day.Date)).Concat(added).OrderBy(day => day.Date).ToList(),

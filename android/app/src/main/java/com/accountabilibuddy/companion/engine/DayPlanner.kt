@@ -29,12 +29,25 @@ data class DayPlanRequest(
 )
 
 /**
- * Turns the walkthrough's answers into one-off days: each date gets the Workdays or Off-Days template with the night
- * and block rules applied; the templates never change. A port of the PC's Core DayPlanner (kept in step by hand).
+ * Turns the walkthrough's answers into one-off days: each date gets the template it would follow as a workday, or the
+ * Off day template, with the night and block rules applied; the templates never change. A port of the PC's Core
+ * DayPlanner (kept in step by hand).
  */
 object DayPlanner {
-    fun templateFor(plan: DayPlan, request: DayPlanRequest): DayTemplate {
-        var template = if (request.offDay) plan.otherDay else plan.workday
+    /**
+     * The template an answer starts from for [date]: the Off day template for an off-day; for an adjusted workday the
+     * template the week map gives that date when it is a workday (week B and custom templates included), else the
+     * "Workday" template. As stored, ignoring one-off days.
+     */
+    fun baseFor(plan: DayPlan, offDay: Boolean, date: LocalDate): DayTemplate {
+        if (offDay) return plan.templateById(DayPlan.OFF_DAY_TEMPLATE_ID) ?: DayTemplate()
+        val followed = if (plan.isWorkday(date, withOneOffDays = false)) plan.week.templateIdFor(date) else null
+        return plan.templateById(followed ?: DayPlan.WORKDAY_TEMPLATE_ID) ?: DayTemplate()
+    }
+
+    /** The template the answers make for [date]. */
+    fun templateFor(plan: DayPlan, request: DayPlanRequest, date: LocalDate): DayTemplate {
+        var template = baseFor(plan, request.offDay, date)
         if (request.noSleep) {
             template = withoutNight(template, plan)
         } else {
@@ -49,11 +62,10 @@ object DayPlanner {
 
     /** The plan with a one-off day for each date (replacing any there), in date order. */
     fun apply(plan: DayPlan, request: DayPlanRequest): DayPlan {
-        val template = templateFor(plan, request)
         val dates = request.dates.toSet()
         val note = request.note?.trim()?.takeIf { it.isNotEmpty() } ?: if (request.offDay) "Off-day" else "Adjusted workday"
         val added = dates.map { date ->
-            OneOffDay(plan.oneOffDays.firstOrNull { it.date == date }?.id ?: UUID.randomUUID(), date, template, note)
+            OneOffDay(plan.oneOffDays.firstOrNull { it.date == date }?.id ?: UUID.randomUUID(), date, templateFor(plan, request, date), note)
         }
         return plan.copy(oneOffDays = (plan.oneOffDays.filter { it.date !in dates } + added).sortedBy { it.date })
     }

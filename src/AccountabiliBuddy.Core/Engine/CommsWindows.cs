@@ -8,7 +8,7 @@ public static class CommsWindows
     /// <returns>Null when today's plan has no Comms parts (the profile decides); true inside one; false outside.</returns>
     public static bool? At(DayPlan plan, DateTime localNow)
     {
-        var comms = plan.PartsIn(DayTimeline.FullDay(localNow))
+        var comms = DayWorkWindows.PartsIn(plan, DayTimeline.FullDay(localNow), localNow)
             .Where(part => part.Category.Behavior == CategoryBehavior.Comms)
             .ToList();
         if (comms.Count == 0)

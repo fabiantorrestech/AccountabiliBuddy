@@ -15,6 +15,7 @@ import com.accountabilibuddy.companion.engine.DayBarModel
 import com.accountabilibuddy.companion.curbox.CurboxClient
 import com.accountabilibuddy.companion.curbox.CurboxStatus
 import com.accountabilibuddy.companion.engine.DayTimeline
+import com.accountabilibuddy.companion.engine.DayWorkWindows
 import com.accountabilibuddy.companion.health.SleepReader
 import com.accountabilibuddy.companion.notify.HeaderSource
 import com.accountabilibuddy.companion.usage.PhoneUsage
@@ -510,9 +511,10 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     fun setReenableTime(offDay: Boolean, time: java.time.LocalTime): String? {
         openPlanEditor()?.let { return it }
         val plan = planDraft.value?.plan ?: return "The plan couldn't be opened."
-        val template = if (offDay) plan.otherDay else plan.workday
-        val updated = template.copy(blocks = template.rules.copy(reenableAt = time))
-        updatePlanDraft(if (offDay) plan.withOtherDay(updated) else plan.withWorkday(updated))
+        // Every template of that kind (a workday one has work, or is the Workday template), as the PC's setup assistant does.
+        updatePlanDraft(plan.copy(templates = plan.templates.map { named ->
+            if (plan.isWorkdayTemplate(named.id) != offDay) named.copy(template = named.template.copy(blocks = named.template.rules.copy(reenableAt = time))) else named
+        }))
         return if (savePlanDraft()) null else message.value ?: "Not saved."
     }
 
@@ -539,7 +541,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
             val state = store.state.value
             val day = builder.dayAt(LocalDateTime.now(), state.dayBar, state.sleep, state.document.dayPlan)
-            val focus = DayTimeline.planned(state.document.dayPlan, day).map { it.window }
+            val focus = DayWorkWindows.workWindows(state.document.dayPlan, day, LocalDateTime.now()).map { it.window }
             phoneUsage.value = runCatching { withContext(Dispatchers.IO) { usageReader.read(day, focus) } }.getOrNull()
         }
     }

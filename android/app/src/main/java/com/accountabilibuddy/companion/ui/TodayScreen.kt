@@ -32,6 +32,7 @@ import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.engine.DayBarBuilder
 import com.accountabilibuddy.companion.engine.DayBarModel
 import com.accountabilibuddy.companion.engine.DayTimeline
+import com.accountabilibuddy.companion.engine.DayWorkWindows
 import com.accountabilibuddy.companion.engine.LegendEntry
 import com.accountabilibuddy.companion.model.CalendarEvent
 import com.accountabilibuddy.companion.model.LocalWindow
@@ -171,7 +172,7 @@ private val TOMORROW_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EE
 
 private fun blocksTouching(document: ProfileDocument, window: LocalWindow): List<PlannedFocus> {
     val around = LocalWindow(window.start.minusDays(1), window.end.plusDays(1))
-    return DayTimeline.planned(document.dayPlan, around).filter { DayTimeline.clip(it.window, window) != null }
+    return DayWorkWindows.workWindows(document.dayPlan, around, LocalDateTime.now()).filter { DayTimeline.clip(it.window, window) != null }
 }
 
 private fun eventsIn(events: List<CalendarEvent>, window: LocalWindow): List<CalendarEvent> =

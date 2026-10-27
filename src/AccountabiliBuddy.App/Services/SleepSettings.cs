@@ -53,13 +53,13 @@ public sealed record SleepSettings(
         Func<DateOnly, TimeOnly?>? wakeGuess = null;
         if ((UsePhoneAlarm || UsePcAlarm) && plan is not null && phoneWake is not null)
         {
-            wakeGuess = morning => ParseTime(plan.Workdays.Contains(morning.DayOfWeek) ? phoneWake.Workdays : phoneWake.OffDays);
+            wakeGuess = morning => ParseTime(plan.IsWorkday(morning, withOneOffDays: false) ? phoneWake.Workdays : phoneWake.OffDays);
         }
 
         Func<DateOnly, TimeSpan?>? bedLevel = null;
         if (UsePhoneBedtime && plan is not null && phoneBedtime is not null)
         {
-            bedLevel = day => (plan.Workdays.Contains(day.DayOfWeek) ? phoneBedtime.Workdays : phoneBedtime.OffDays)?.LevelMinutes is int minutes
+            bedLevel = day => (plan.IsWorkday(day, withOneOffDays: false) ? phoneBedtime.Workdays : phoneBedtime.OffDays)?.LevelMinutes is int minutes
                 ? TimeSpan.FromMinutes(minutes)
                 : null;
         }

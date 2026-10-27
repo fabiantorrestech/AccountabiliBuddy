@@ -258,7 +258,8 @@ public sealed class PreWorkService
     {
         DateTime now = Local(_sessions.Now);
         DayPlan plan = _configuration.Current.DayPlan;
-        return plan.PartsIn(new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)))
+        // Through the work-window engine: a Free day has no Pre-Work, a Budget day only its first one (before its first window).
+        return DayWorkWindows.PartsIn(plan, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)), now)
             .Where(part => part.Category.Behavior == CategoryBehavior.PreWork && part.Window.Start <= now && now < part.Window.End)
             .Select(part => (LocalWindow?)part.Window)
             .FirstOrDefault();

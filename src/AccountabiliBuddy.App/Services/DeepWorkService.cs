@@ -26,6 +26,8 @@ public sealed class DeepWorkService : IDisposable
     private bool _reloading;
     private bool _loaded;
     private int _loadNumber;
+    private DateOnly _countedDay;
+    private TimeSpan _countedYesterday;
 
     /// <param name="loadRecords">This PC's sessions around today, newest first (<see cref="SessionHistoryBuilder.Build"/>).</param>
     /// <param name="others">The other devices' sessions (ADR 22).</param>
@@ -52,6 +54,19 @@ public sealed class DeepWorkService : IDisposable
     /// nor sessions added by hand, so the personal PC opens when the work PC reports the goal met.
     /// </summary>
     public GoalProgress UnlockProgress { get; private set; } = new(TimeSpan.Zero, GoalSettings.Default.DailyMinutes);
+
+    /// <summary>
+    /// Counted focus on a date, in whole minutes, for the day plan's Budget days (<see cref="DayWorkWindows"/>): today's
+    /// across the user's devices (test sessions, side tasks and planning never count, as in <see cref="Progress"/>) and
+    /// yesterday's; zero for any other date or before the first read.
+    /// </summary>
+    public TimeSpan FocusedOn(DateOnly date)
+    {
+        return !_loaded ? TimeSpan.Zero
+            : date == _countedDay ? Progress.Focused
+            : date == _countedDay.AddDays(-1) ? _countedYesterday
+            : TimeSpan.Zero;
+    }
 
     /// <summary>Raised when <see cref="Progress"/> changes (at most once a minute while a session runs).</summary>
     public event EventHandler? Changed;
@@ -104,7 +119,11 @@ public sealed class DeepWorkService : IDisposable
         // Only the other devices' sessions near today (each device keeps up to 90 days).
         DateTimeOffset from = now.AddDays(-2);
         List<SyncSession> others = _others().Where(session => (session.End ?? now) > from).ToList();
-        DeepWorkDay day = DeepWork.Days(_records, others, _isOmitted, _sessions.State.IsRealSession, today, today, now, zone)[0];
+        // Yesterday too: a Budget day that runs past midnight is still counted against yesterday (see FocusedOn).
+        IReadOnlyList<DeepWorkDay> counted = DeepWork.Days(_records, others, _isOmitted, _sessions.State.IsRealSession, today.AddDays(-1), today, now, zone);
+        DeepWorkDay day = counted[1];
+        _countedDay = today;
+        _countedYesterday = TimeSpan.FromMinutes(Math.Floor(counted[0].Focused.TotalMinutes));
         var progress = new GoalProgress(TimeSpan.FromMinutes(Math.Floor(day.Focused.TotalMinutes)), _goal.Current.DailyMinutes);
         DeepWorkDay earned = DeepWork.Days([], others.Where(session => !session.Added), _isOmitted, false, today, today, now, zone)[0];
         UnlockProgress = new GoalProgress(TimeSpan.FromMinutes(Math.Floor(earned.Focused.TotalMinutes)), _goal.Current.DailyMinutes);
