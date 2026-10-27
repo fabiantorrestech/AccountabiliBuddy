@@ -10,8 +10,8 @@ import java.time.Instant
 import java.time.OffsetDateTime
 
 /**
- * A task (or subtask) of a guided session's checklist as the PC sends it (ADR 24): in the link's session state and as
- * part of a session in a sync file. [doneAt] is when it was ticked; null while open. [categoryId], [category] (its name)
+ * A task (or subtask) of a guided session's checklist as the PC sends it (ADR 24), as part of a session in a sync
+ * file. [doneAt] is when it was ticked; null while open. [categoryId], [category] (its name)
  * and [categoryColor] ("#RRGGBB") are the task's category; all null = no category. The PC sends the list already grouped.
  */
 data class SessionTaskItem(

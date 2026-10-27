@@ -12,29 +12,18 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-/** The watch's side of the phone link (ADR 21): asking the phone app for a fresh snapshot, and when it last answered. */
+/** The watch's side of the phone link (ADR 21): asking the phone app for a fresh snapshot, and whether it was reached. */
 object PhoneLink {
     private val _phoneReachable = MutableStateFlow<Boolean?>(null)
 
-    // When a message from the phone last came, and when the watch last asked, on the uptime clock; 0 = not yet.
-    @Volatile private var lastHeard = 0L
+    // When the watch last asked, on the uptime clock; 0 = not yet.
     @Volatile private var lastAsked = 0L
 
-    // Asking wakes the phone (and through it the PC), so not more often than this unless the user asks.
+    // Asking wakes the phone (which then reads the PCs' sync files from Drive), so not more often than this unless the user asks.
     private const val ASK_GAP_MS = 2 * 60_000L
 
     /** Whether the last ask reached the phone app; null before the first. */
     val phoneReachable: StateFlow<Boolean?> = _phoneReachable.asStateFlow()
-
-    fun heardFromPhone() {
-        lastHeard = SystemClock.elapsedRealtime()
-    }
-
-    /** True when the phone sent something at or after [since] (an uptime-clock time). */
-    fun heardSince(since: Long): Boolean = lastHeard != 0L && lastHeard >= since
-
-    /** True when nothing came from the phone for [millis] (or ever, since the app started). */
-    fun quietFor(millis: Long): Boolean = lastHeard == 0L || SystemClock.elapsedRealtime() - lastHeard >= millis
 
     /**
      * Sends "/hello"; the phone answers with a snapshot, or says this watch isn't linked. With the relay off (the phone's

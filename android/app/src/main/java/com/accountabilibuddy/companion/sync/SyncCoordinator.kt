@@ -15,9 +15,9 @@ import java.util.UUID
 
 /**
  * The phone's part in device sync (ADR 22): it joins the group from the PC's link code, takes in files that come by
- * the link, QR codes, Drive or a share, and carries them on ([SyncCarry]): what came by QR code or Drive goes to the
- * PC over the link, and the PC's files go to Drive or out as a share. Its own file holds its card and what it has
- * seen (and its linked watch, Task 18), nothing else.
+ * QR codes, a sync folder, Drive or a share, and carries them on ([SyncCarry]): what came by QR code or a share goes to
+ * Drive, and the PC's files go to Drive or out as a share. Its own file holds its card and what it has seen (and its
+ * linked watch, Task 18), nothing else.
  */
 class SyncCoordinator(
     private val identity: SyncIdentityStore,
@@ -25,8 +25,6 @@ class SyncCoordinator(
     private val deviceName: String,
     private val appVersion: String,
     private val settingsStore: PhoneSyncSettingsStore,
-    /** True while a PC is paired (the link is then one of this phone's methods). */
-    private val pcPaired: () -> Boolean,
     private val now: () -> Instant = Instant::now,
 ) {
     private val scan = QrScan()
@@ -55,10 +53,9 @@ class SyncCoordinator(
         return SyncQr.links(SyncFileCodec.seal(ownFile(), key), key.groupId)
     }
 
-    // The methods on the phone's card: what's switched on (the link only while a PC is paired).
+    // The methods on the phone's card: what's switched on.
     private fun methods(): List<String> = settingsStore.settings.value.let { settings ->
         listOfNotNull(
-            SyncDeviceCard.METHOD_LINK.takeIf { settings.linkOn && pcPaired() },
             SyncDeviceCard.METHOD_QR.takeIf { settings.qrOn },
             SyncDeviceCard.METHOD_FILE.takeIf { settings.fileOn },
             SyncDeviceCard.METHOD_FOLDER.takeIf { settings.folderOn && settings.folderUri != null },
@@ -66,7 +63,7 @@ class SyncCoordinator(
         )
     }
 
-    /** Called after a file that didn't come over the link was taken in, so it can go on to the PC. */
+    /** Called after a file that didn't come by Drive was taken in, so it can go on to the PCs through Drive. */
     var onCarryChanged: (() -> Unit)? = null
 
     /** The phone's linked watch for its card (Task 18), as the watch bridge last checked it. */
@@ -140,14 +137,13 @@ class SyncCoordinator(
     }
 
     /**
-     * Takes in a file another device sealed, carried by [method] ([SyncDeviceCard.METHOD_LINK], QR, folder or file).
+     * Takes in a file another device sealed, carried by [method] (QR, folder, Drive or file).
      * Null when taken in (or already held); otherwise why not.
      */
     @Synchronized
     fun acceptSealed(bytes: ByteArray, method: String): String? {
         val settings = settingsStore.settings.value
         when {
-            method == SyncDeviceCard.METHOD_LINK && !settings.linkOn -> return "Sync files over the link are off on this phone."
             method == SyncDeviceCard.METHOD_FILE && !settings.fileOn -> return "Turn on \"Sync files\" in Devices to open sync files."
             method == SyncDeviceCard.METHOD_FOLDER && !settings.folderOn -> return "The sync folder is off on this phone."
         }
@@ -160,7 +156,7 @@ class SyncCoordinator(
         }
 
         store.save(outcome.devices)
-        if (method != SyncDeviceCard.METHOD_LINK) {
+        if (method != SyncDeviceCard.METHOD_DRIVE) {
             onCarryChanged?.invoke()
         }
 
@@ -205,21 +201,6 @@ class SyncCoordinator(
     /** Everything to hand over by [method] (Drive or a share): this phone's own file first, then what it carries. */
     fun filesToCarry(method: String): List<ByteArray> =
         listOfNotNull(ownSealed()) + SyncCarry.filesFor(store.devices.value, method, emptyMap())
-
-    /**
-     * For the linked PC: this phone's own file and what didn't come from the link, unless the PC's own file (by its
-     * name) says it has it already.
-     */
-    fun filesForPc(pcName: String): List<ByteArray> {
-        if (!settingsStore.settings.value.linkOn) {
-            return emptyList()
-        }
-
-        val pcSeen = store.devices.value
-            .firstOrNull { it.method == SyncDeviceCard.METHOD_LINK && it.file.device.kind == SyncDeviceCard.KIND_PC && it.file.device.name == pcName }
-            ?.file?.device?.seen.orEmpty()
-        return listOfNotNull(ownSealed()) + SyncCarry.filesFor(store.devices.value, SyncDeviceCard.METHOD_LINK, pcSeen)
-    }
 
     /** This phone's file name in the sync folder (the PCs' naming); null outside a group. */
     fun ownFolderFileName(): String? = identity.key.value?.let { SyncFolder.fileNameFor(it.groupId, identity.deviceId) }

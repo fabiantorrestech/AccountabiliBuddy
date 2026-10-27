@@ -2,6 +2,7 @@ package com.accountabilibuddy.companion.sync
 
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFolder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +24,8 @@ class DriveSyncSource(
     private val sync: SyncCoordinator,
     private val signIn: DriveSignIn,
     private val files: DriveFiles = DriveFiles(DriveNetwork),
+    /** Runs before each sync, so this phone's file says what's true now (e.g. its linked watch is still valid, Task 18). */
+    private val beforeSync: suspend () -> Unit = {},
 ) {
     private val running = Mutex()
     private val _status = MutableStateFlow(FolderStatus())
@@ -61,6 +64,14 @@ class DriveSyncSource(
             if (token == null) {
                 _status.value = FolderStatus(_status.value.lastSyncAt, SIGN_IN_AGAIN)
                 return
+            }
+
+            try {
+                beforeSync()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A failed check of the watch link doesn't stop the sync.
             }
 
             _status.value = withContext(Dispatchers.IO) {

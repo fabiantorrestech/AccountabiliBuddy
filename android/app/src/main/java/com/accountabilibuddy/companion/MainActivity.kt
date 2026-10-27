@@ -16,7 +16,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.health.connect.client.PermissionController
-import com.accountabilibuddy.companion.link.PairingLink
 import com.accountabilibuddy.companion.notify.TimelineNotifier
 import com.accountabilibuddy.companion.sync.JoinLink
 import com.accountabilibuddy.companion.sync.SyncShare
@@ -88,17 +87,16 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * What opened the app: the PC's pairing code, its link code for device sync ("join"), one of its sync QR codes
-     * ("sync"), or sync files (*.absync) opened or shared with the app (ADR 14, 22).
+     * What opened the app: the PC's link code for device sync ("join"), one of its sync QR codes ("sync"), or sync
+     * files (*.absync) opened or shared with the app (ADR 22).
      */
     private fun handleLink(intent: Intent?) {
         intent ?: return
         val data = intent.data
         when {
-            data?.scheme == PairingLink.SCHEME && data.host == PairingLink.HOST -> PairingLink.parse(data)?.let(viewModel::offerPairing)
-            data?.scheme == PairingLink.SCHEME && data.host == JoinLink.HOST ->
+            data?.scheme == SCHEME && data.host == JoinLink.HOST ->
                 JoinLink.parse(data.toString())?.let(viewModel::offerJoin) ?: viewModel.showMessage("That link code isn't complete.")
-            data?.scheme == PairingLink.SCHEME && data.host == SYNC_HOST -> viewModel.scanSyncCode(data.toString())
+            data?.scheme == SCHEME && data.host == SYNC_HOST -> viewModel.scanSyncCode(data.toString())
             else -> SyncShare.urisIn(intent).takeIf { it.isNotEmpty() }?.let(viewModel::openSyncFiles)
         }
     }
@@ -153,6 +151,7 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         /** The host of the PC's sync QR codes ([com.accountabilibuddy.shared.sync.SyncQr.LINK_START]). */
+        const val SCHEME = "accountabilibuddy"
         const val SYNC_HOST = "sync"
     }
 }

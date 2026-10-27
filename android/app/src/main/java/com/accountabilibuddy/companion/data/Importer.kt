@@ -47,8 +47,8 @@ object Importer {
         )
     }
 
-    /** The PC's settings sent over the link (ADR 14, L2): a backup's content, without the file around it. */
-    fun fromLink(content: JsonObject, pcName: String): ImportedData = fromBackup(content, "Linked PC $pcName").copy(
+    /** The PC's settings from its sync file (ADR 40): a backup's content, without the file around it. */
+    fun fromPcFile(content: JsonObject, pcName: String): ImportedData = fromBackup(content, "PC $pcName").copy(
         dayPlanVersion = content.string("dayPlanVersion"),
         dayPlanEditedAt = content.string("dayPlanEditedAt")?.let { runCatching { java.time.OffsetDateTime.parse(it).toInstant() }.getOrNull() },
     )

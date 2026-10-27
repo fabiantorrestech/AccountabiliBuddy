@@ -29,7 +29,7 @@ class ActionStore(context: Context) {
     /** Waiting for their PC. */
     val pending: StateFlow<List<SyncAction>> = _pending.asStateFlow()
 
-    /** Set by the app: sends the files at once (link, Drive) and redraws. */
+    /** Set by the app: sends the files at once (Drive) and redraws. */
     var onChanged: () -> Unit = {}
 
     /**
@@ -125,7 +125,7 @@ class ActionStore(context: Context) {
     }
 }
 
-/** The sync device id of the PC [name] in the received files (the linked PC carries its file over the link too). */
+/** The sync device id of the PC [name] in the received files. */
 fun deviceIdOf(name: String?, received: List<ReceivedDevice>): UUID? =
     received.firstOrNull { it.file.device.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC && it.file.device.name == name }
         ?.file?.device?.deviceId

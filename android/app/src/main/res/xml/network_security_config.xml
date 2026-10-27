@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- ADR 14: the only connection is to the paired PC, over TLS with its pinned certificate; nothing in cleartext. -->
+<!-- ADR 26: the only connection is to Google Drive, over TLS; nothing in cleartext. -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />
 </network-security-config>

@@ -27,7 +27,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accountabilibuddy.companion.R
-import com.accountabilibuddy.companion.link.LinkStatus
 import com.accountabilibuddy.companion.sync.PcFileControl
 import com.accountabilibuddy.shared.sync.SyncAction
 
@@ -50,7 +49,6 @@ fun MainScreen(
     val importing by viewModel.importing.collectAsStateWithLifecycle()
     val phoneUsage by viewModel.phoneUsage.collectAsStateWithLifecycle()
     val curbox by viewModel.curbox.collectAsStateWithLifecycle()
-    val linkStatus by viewModel.linkStatus.collectAsStateWithLifecycle()
     val folderStatus by viewModel.folderStatus.collectAsStateWithLifecycle()
     val driveStatus by viewModel.driveStatus.collectAsStateWithLifecycle()
     val pauseState by viewModel.pauseState.collectAsStateWithLifecycle()
@@ -59,10 +57,8 @@ fun MainScreen(
     val runningTasks by viewModel.runningTasks.collectAsStateWithLifecycle()
     val comebacks by viewModel.comebacks.collectAsStateWithLifecycle()
     val beeminder by viewModel.beeminder.collectAsStateWithLifecycle()
-    val pairedPc by viewModel.pairedPc.collectAsStateWithLifecycle()
     val watchSettings by viewModel.watchSettings.collectAsStateWithLifecycle()
     val detectedWatches by viewModel.detectedWatches.collectAsStateWithLifecycle()
-    val pairingOffer by viewModel.pairingOffer.collectAsStateWithLifecycle()
     val joinOffer by viewModel.joinOffer.collectAsStateWithLifecycle()
     val syncReceived by viewModel.syncReceived.collectAsStateWithLifecycle()
     val syncKey by viewModel.syncKey.collectAsStateWithLifecycle()
@@ -71,17 +67,15 @@ fun MainScreen(
     var nudgeRepeat by remember { mutableIntStateOf(com.accountabilibuddy.companion.notify.WorkStartNudge.repeatMinutes(context)) }
     var showSetup by remember { mutableStateOf(!SetupState.shown(context)) }
     var takeoverOn by remember { mutableStateOf(com.accountabilibuddy.companion.nudge.NudgeStore(context).load().takeoverOn) }
-    val pairing by viewModel.pairing.collectAsStateWithLifecycle()
-    val pcBusy by viewModel.pcBusy.collectAsStateWithLifecycle()
     val endEarlyTerms by viewModel.endEarlyTerms.collectAsStateWithLifecycle()
     val planConflict by viewModel.planConflict.collectAsStateWithLifecycle()
     val controlPc by viewModel.controlPc.collectAsStateWithLifecycle()
     val pcWaiting by viewModel.pcWaiting.collectAsStateWithLifecycle()
     val pcChoices by viewModel.pcChoices.collectAsStateWithLifecycle()
     val chosenPcId by viewModel.chosenPcId.collectAsStateWithLifecycle()
-    // ADR 42: without the Wi-Fi link, the PC card and plan edits go through the controlled PC's sync file.
-    val filePc = controlPc?.takeIf { linkStatus !is LinkStatus.Connected }
-    val canControlPc = pairedPc != null || controlPc != null
+    // ADR 42, 45: the PC card and plan edits go through the controlled PC's sync file.
+    val pcName = controlPc?.file?.device?.name
+    val canControlPc = controlPc != null
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val planDraft by viewModel.planDraft.collectAsStateWithLifecycle()
     // The migration assistant (5 taps on About's logo, or the Today card).
@@ -155,7 +149,7 @@ fun MainScreen(
                 DayPlanEditorScreen(
                     draft = draft,
                     startTab = viewModel.planEditorTab,
-                    pcName = pairedPc?.pcName,
+                    pcName = pcName,
                     clock = viewModel.clock,
                     onChange = viewModel::updatePlanDraft,
                     onSave = viewModel::savePlanDraft,
@@ -192,18 +186,11 @@ fun MainScreen(
                     )
                     TodayScreen(
                     state, model, viewModel.clock, health, onPickFile, onConnectHealth, viewModel::refreshSleep, phoneUsage, onAllowUsage,
-                    showsPcCard = canControlPc,
+                    showsPcCard = true,
                     pcCard = {
-                        val pc = filePc
+                        val pc = controlPc
                         if (pc == null) {
-                            PcCard(
-                                status = linkStatus,
-                                clock = viewModel.clock,
-                                busy = pcBusy,
-                                onStart = viewModel::startOnPc,
-                                onEndEarly = viewModel::beginEndEarly,
-                                onRetry = viewModel::retryPc,
-                            )
+                            PcMissingCard()
                         } else {
                             PcFileCard(
                                 pcName = pc.file.device.name,
@@ -236,9 +223,8 @@ fun MainScreen(
                 1 -> ProfilesScreen(
                     state,
                     viewModel.clock,
-                    pcName = pairedPc?.pcName ?: controlPc?.file?.device?.name,
-                    pcState = (linkStatus as? LinkStatus.Connected)?.state
-                        ?: filePc?.let { PcFileControl.stateOf(it.file, java.time.Instant.now()) },
+                    pcName = pcName,
+                    pcState = controlPc?.let { PcFileControl.stateOf(it.file, java.time.Instant.now()) },
                     deviceName = viewModel.deviceName,
                     curbox = curbox,
                 )
@@ -248,9 +234,6 @@ fun MainScreen(
                         joined = syncKey != null,
                         settings = syncSettings,
                         received = syncReceived,
-                        focusDay = state.focusDay,
-                        pcName = pairedPc?.pcName,
-                        pcConnected = (linkStatus as? LinkStatus.Connected)?.state != null,
                         folder = folderStatus,
                         drive = driveStatus,
                         alarmApps = viewModel.alarmApps(),
@@ -269,10 +252,6 @@ fun MainScreen(
                         onDriveSignInResult = viewModel::finishDriveSignIn,
                         onSyncDriveNow = viewModel::syncDriveNow,
                     ),
-                    pcStatus = linkStatus,
-                    pairedPc = pairedPc,
-                    onPastePairingLink = viewModel::pastePairingLink,
-                    onUnpairPc = viewModel::unpairPc,
                     watch = WatchSectionState(watchSettings, detectedWatches),
                     watchActions = WatchSectionActions(
                         onFind = viewModel::findWatches,
@@ -280,7 +259,6 @@ fun MainScreen(
                         onUnlink = viewModel::unlinkWatch,
                         onDataLayer = viewModel::setWatchDataLayer,
                         onRelay = viewModel::setWatchRelay,
-                        onWifi = viewModel::setWatchWifi,
                     ),
                     pcChoices = pcChoices,
                     chosenPcId = chosenPcId,
@@ -314,7 +292,7 @@ fun MainScreen(
                         devicesSummary = listOfNotNull(
                             if (syncKey != null) "In your device group" else "Not linked yet",
                             "Drive".takeIf { syncSettings.driveOn },
-                            pairedPc?.pcName,
+                            pcName,
                         ).joinToString(" · "),
                         onOpenDevices = { tab = 2 },
                         pauseActions = PauseActions(
@@ -341,19 +319,10 @@ fun MainScreen(
                         ),
                     )
                 }
-                else -> AboutScreen(pcName = pairedPc?.pcName, onOpenWhatsNew = { whatsNewOpen = true })
+                else -> AboutScreen(pcName = pcName, onOpenWhatsNew = { whatsNewOpen = true })
             }
             }
         }
-    }
-
-    pairingOffer?.let { offer ->
-        // A linked watch with the Wi-Fi fallback on can take the code instead (ADR 21).
-        val canPairWatch = watchSettings.linkedNodeId != null && watchSettings.dataLayerOn && watchSettings.wifiFallbackOn
-        PairingDialog(
-            offer, busy = pairing, onPair = viewModel::confirmPairing, onCancel = viewModel::cancelPairing,
-            onPairWatch = if (canPairWatch) viewModel::pairWatchWithPc else null,
-        )
     }
 
     joinOffer?.let { offer ->

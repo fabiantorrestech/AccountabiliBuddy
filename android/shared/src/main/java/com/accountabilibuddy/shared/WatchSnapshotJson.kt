@@ -23,7 +23,6 @@ object WatchSnapshotJson {
         put("drift", buildJsonArray { snapshot.drift.forEach { add(FocusDayJson.writeWindow(it)) } })
         put("plannedMinutes", snapshot.plannedMinutes)
         put("week", buildJsonArray { snapshot.week.forEach { add(FocusDayJson.writeTotal(it)) } })
-        put("wifiAllowed", snapshot.wifiAllowed)
         put("dataAt", snapshot.dataAt.toString())
         put("relayAllowed", snapshot.relayAllowed)
         snapshot.goalMinutes?.let { put("goalMinutes", it) }
@@ -80,8 +79,8 @@ object WatchSnapshotJson {
             plannedMinutes = json.int("plannedMinutes") ?: 0,
             week = json.objects("week").mapNotNull(FocusDayJson::readTotal),
             running = (json["running"] as? JsonObject)?.let(::running),
-            // Snapshots from before these existed: the switches' defaults, and data as old as the snapshot.
-            wifiAllowed = (json["wifiAllowed"] as? kotlinx.serialization.json.JsonPrimitive)?.let { json.bool("wifiAllowed") } ?: true,
+            // Snapshots from before these existed: the switch's default, and data as old as the snapshot. An old
+            // "wifiAllowed" (ADR 45) is ignored.
             dataAt = json.instant("dataAt") ?: createdAt,
             relayAllowed = (json["relayAllowed"] as? kotlinx.serialization.json.JsonPrimitive)?.let { json.bool("relayAllowed") } ?: true,
             sources = json.objects("sources").mapNotNull { source ->

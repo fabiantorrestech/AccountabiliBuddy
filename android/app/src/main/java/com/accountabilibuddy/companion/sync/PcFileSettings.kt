@@ -10,10 +10,9 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 
 /**
- * The PC's settings from its sync file (ADR 40, instead of the Wi-Fi link's "settings" message): its profiles with
- * the day plan, sleep and day bar documents, calendar events and the plan's version, in the same shape the link
- * sent, so the phone imports them the same way. The PC is the one the phone was paired with (by name) when there is
- * one, else the PC whose file is newest.
+ * The PC's settings from its sync file (ADR 40, 45): its profiles with the day plan, sleep and day bar documents,
+ * calendar events and the plan's version, in the shape of a backup's content, so the phone imports them the same way.
+ * The PC is the one the settings were last taken from (by name) when its file is here, else the PC whose file is newest.
  */
 object PcFileSettings {
     /** The PC file to take settings from, or null when no PC file carries them. */
@@ -22,7 +21,7 @@ object PcFileSettings {
         return pcs.firstOrNull { pairedName != null && it.device.name == pairedName } ?: pcs.maxByOrNull { it.device.writtenAt }
     }
 
-    /** The link-shaped content of [file], or null when it has no profiles. */
+    /** The backup-shaped content of [file], or null when it has no profiles. */
     fun content(file: SyncFile): JsonObject? {
         val profiles = file.documents.firstOrNull { it.key == SyncDocument.PROFILES_KEY } ?: return null
         val profilesJson = runCatching { Json.parseToJsonElement(profiles.json).jsonObject }.getOrNull() ?: return null

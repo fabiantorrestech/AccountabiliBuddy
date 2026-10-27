@@ -31,7 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.accountabilibuddy.companion.link.PcState
+import com.accountabilibuddy.companion.sync.PcState
 import com.accountabilibuddy.companion.data.CompanionState
 import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.engine.ProfileColors
@@ -74,7 +74,7 @@ fun ProfilesScreen(
         }
 
         if (profiles.isEmpty()) {
-            item { Text("No PC profiles yet. Link the PC or import a backup from it in Settings.", modifier = Modifier.padding(top = 8.dp)) }
+            item { Text("No PC profiles yet. Sign in to Google Drive (Devices) or import a backup from the PC in Settings.", modifier = Modifier.padding(top = 8.dp)) }
             return@LazyColumn
         }
 
@@ -90,7 +90,7 @@ fun ProfilesScreen(
         }
 
         val running = when {
-            pcState == null -> "not connected right now"
+            pcState == null -> "no session data yet"
             pcState.isScheduledBlock -> "blocks on: ${pcState.profileName ?: "a profile"}"
             pcState.isActive -> "running: ${pcState.profileName ?: "a profile"}"
             else -> "nothing running"

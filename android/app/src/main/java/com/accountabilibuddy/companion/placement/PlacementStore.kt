@@ -53,7 +53,7 @@ class PlacementStore(context: Context) {
     @Synchronized
     fun begin(session: PlacementSession.Info, now: Instant): Record {
         val current = load()
-        // A session that "ended" a moment ago with the same start was a flicker of the PC's word (a file or link gap).
+        // A session that "ended" a moment ago with the same start was a flicker of the PC's word (a file gap).
         val endedJustNow = current?.endedAt?.let { Duration.between(it, now) <= REOPEN_WITHIN } ?: false
         val sameSession = current != null && (current.endedAt == null || endedJustNow) &&
             (PlacementSession.same(current.sessionStart, session.start) || (current.endedAt == null && !(current.authoritative && session.authoritative)))

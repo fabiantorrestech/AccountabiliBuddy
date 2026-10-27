@@ -7,10 +7,8 @@ import java.time.Instant
 
 /**
  * The PC focus session the phone's placement is about: the newest PC sync file's running session (planning counts, a
- * break is flagged), else the linked PC's, else the phone's own test session (so the feature can be tried without a
- * real session; a PC ignores a placement for a session it doesn't have).
- *
- * A newer link state that says nothing runs wins over an older file that says it does.
+ * break is flagged), else the phone's own test session (so the feature can be tried without a real session; a PC
+ * ignores a placement for a session it doesn't have).
  */
 object PlacementSession {
     /** Two starts this close are the same session (the PC compares with the same tolerance). */
@@ -32,33 +30,12 @@ object PlacementSession {
         app.testSession.running(now)?.let { (start, _) -> Info(start, authoritative = true, onBreak = false) }
 
     private fun fromPc(app: CompanionApp, now: Instant): Info? {
-        val lastState = app.link.lastState.value
         val file = app.sync.received.value
             .filter { it.file.device.kind == SyncDeviceCard.KIND_PC && Duration.between(it.file.device.writtenAt, now) <= FILE_FRESH_FOR }
             .filter { it.file.running?.isLiveAt(now, Duration.ZERO) == true }
-            .maxByOrNull { it.file.device.writtenAt }
-        if (file != null) {
-            // A newer word from the linked PC that nothing runs: the session is over.
-            if (lastState != null && lastState.at.isAfter(file.file.device.writtenAt) && !lastState.state.isActive) {
-                return null
-            }
-
-            val running = file.file.running!!
-            val counted = file.file.sessions.lastOrNull { it.end == null && !it.added }?.start
-            return Info(counted ?: running.planningStartedAt ?: running.phaseStartedAt, authoritative = counted != null, onBreak = running.isBreak)
-        }
-
-        val last = lastState ?: return null
-        val state = last.state
-        if (!state.isActive || state.isScheduledBlock || Duration.between(last.at, now) > FILE_FRESH_FOR) {
-            return null
-        }
-
-        if (state.phaseEndsAt?.toInstant()?.isBefore(now) == true && !state.isPlanning) {
-            return null
-        }
-
-        val start = (state.planningStartedAt ?: state.phaseStartedAt)?.toInstant() ?: return null
-        return Info(start, authoritative = false, onBreak = state.isBreak)
+            .maxByOrNull { it.file.device.writtenAt } ?: return null
+        val running = file.file.running!!
+        val counted = file.file.sessions.lastOrNull { it.end == null && !it.added }?.start
+        return Info(counted ?: running.planningStartedAt ?: running.phaseStartedAt, authoritative = counted != null, onBreak = running.isBreak)
     }
 }

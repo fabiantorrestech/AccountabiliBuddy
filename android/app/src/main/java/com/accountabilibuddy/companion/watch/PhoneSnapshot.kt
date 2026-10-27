@@ -5,8 +5,7 @@ import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.FocusDayCombine
 import com.accountabilibuddy.shared.DataSource
 import com.accountabilibuddy.companion.data.CompanionState
-import com.accountabilibuddy.companion.link.LinkStatus
-import com.accountabilibuddy.companion.link.PcState
+import com.accountabilibuddy.companion.sync.PcFileControl
 import com.accountabilibuddy.companion.model.CategoryBehavior
 import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.companion.model.LocalWindow
@@ -18,47 +17,33 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /**
- * What the phone knows, as the watch snapshot's input (ADR 21): today's plan, the PC's focus day and its session. While
- * the link is idle (the app isn't on screen), the PC's last state ([lastState], at [lastStateAt]) says what runs.
+ * What the phone knows, as the watch snapshot's input (ADR 21): today's plan, the focus the devices' sync files carry
+ * (ADR 22), and the session a PC's file says runs.
  */
 object PhoneSnapshot {
     fun input(
         state: CompanionState,
-        status: LinkStatus,
         linked: Boolean,
         pcName: String?,
         now: Instant,
         zone: ZoneId,
-        wifiAllowed: Boolean = true,
-        lastState: PcState? = null,
-        lastStateAt: Instant? = null,
         relayAllowed: Boolean = true,
-        /** The other devices' names and sync files on the phone (ADR 22): their focus joins today's, tagged. */
+        /** The devices' names and sync files on the phone (ADR 22): their focus makes today's, tagged with the device. */
         received: List<Pair<String, SyncFile>> = emptyList(),
     ): SnapshotInput {
-        val connected = status as? LinkStatus.Connected
-        val pcConnected = connected?.state != null
         val today = now.atZone(zone).toLocalDate()
-        val others = received.filter { (name, file) -> !(file.device.kind == SyncDeviceCard.KIND_PC && name == pcName) }
+        val fileRunning = runningFromFiles(received, now)
         return SnapshotInput(
             now = now,
             zone = zone,
             linked = linked,
             pcName = pcName,
             parts = todayParts(state.document.dayPlan, today, zone),
-            // The linked PC's live day wins over its own sync file; the other devices' sessions join it.
-            // Without the link today, the parts and planned minutes come from the imported plan (ADR 42).
-            focusDay = if (received.isEmpty()) state.focusDay else FocusDayCombine.combine(
-                state.focusDay, pcName, received, today, zone, now, planParts = { date -> todayParts(state.document.dayPlan, date, zone) },
-            ),
-            focusDayAt = state.focusDayAt,
-            sources = listOfNotNull(pcName?.let { name -> state.focusDayAt?.let { DataSource(name, it) } }) +
-                others.map { (name, file) -> DataSource(name, file.device.writtenAt) },
-            running = running(connected?.state ?: lastState)?.takeUnless { !pcConnected && newerFileRunning(received, lastStateAt, now) != null }
-                ?: newerFileRunning(received, if (pcConnected) now else lastStateAt, now),
-            pcConnected = pcConnected,
-            wifiAllowed = wifiAllowed,
-            runningAt = if (pcConnected) now else lastStateAt,
+            // The parts and planned minutes come from the imported plan (ADR 42).
+            focusDay = FocusDayCombine.combine(received, today, zone, now, planParts = { date -> todayParts(state.document.dayPlan, date, zone) }),
+            sources = received.map { (name, file) -> DataSource(name, file.device.writtenAt) },
+            running = fileRunning?.first,
+            runningAt = fileRunning?.second,
             relayAllowed = relayAllowed,
         )
     }
@@ -79,17 +64,15 @@ object PhoneSnapshot {
     }
 
     /**
-     * A PC's running session from its sync file (ADR 26) when that file is newer than [than] (the link's last state):
-     * the newest PC file written in the last 12 hours whose phase hasn't been over for more than 10 minutes (a PC that
-     * went off mid-session stops counting down). Its open session's checklist comes along.
+     * A PC's running session from its sync file (ADR 26) with the time that file was written: the newest PC file written
+     * in the last 12 hours whose phase hasn't been over for more than 10 minutes (a PC that went off mid-session stops
+     * counting down; one with no set end only while the file is under 30 minutes old). Its open session's checklist comes along.
      */
-    fun newerFileRunning(received: List<Pair<String, SyncFile>>, than: Instant?, now: Instant): RunningSession? =
+    fun runningFromFiles(received: List<Pair<String, SyncFile>>, now: Instant): Pair<RunningSession, Instant>? =
         received
             .map { it.second }
-            .filter { it.device.kind == SyncDeviceCard.KIND_PC && it.running != null }
-            .filter { than == null || it.device.writtenAt.isAfter(than) }
-            .filter { java.time.Duration.between(it.device.writtenAt, now) <= java.time.Duration.ofHours(12) }
-            .filter { file -> file.running!!.isLiveAt(now, java.time.Duration.ofSeconds(600)) }
+            .filter { it.device.kind == SyncDeviceCard.KIND_PC }
+            .filter { PcFileControl.liveRunning(it, now) != null }
             .maxByOrNull { it.device.writtenAt }
             ?.let { file ->
                 val running = file.running!!
@@ -97,19 +80,6 @@ object PhoneSnapshot {
                 RunningSession(
                     running.profile, running.phaseStartedAt, running.phaseEndsAt, running.isBreak,
                     planningStartedAt = running.planningStartedAt, planningEndsAt = running.planningEndsAt,
-                ).withTasks(tasks, running.currentTask)
+                ).withTasks(tasks, running.currentTask) to file.device.writtenAt
             }
-
-    /** The PC's session when it's one that counts as focus (a scheduled block isn't); breaks belong to it. */
-    fun running(state: PcState?): RunningSession? {
-        if (state == null || !state.isActive || state.isScheduledBlock) {
-            return null
-        }
-
-        val startedAt = state.phaseStartedAt?.toInstant() ?: return null
-        return RunningSession(
-            state.profileName, startedAt, state.phaseEndsAt?.toInstant(), state.isBreak,
-            planningStartedAt = state.planningStartedAt?.toInstant(), planningEndsAt = state.planningEndsAt?.toInstant(),
-        ).withTasks(state.tasks, state.currentTask)
-    }
 }

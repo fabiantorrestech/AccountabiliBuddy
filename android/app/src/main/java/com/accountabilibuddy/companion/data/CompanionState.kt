@@ -7,14 +7,13 @@ import com.accountabilibuddy.companion.model.LocalWindow
 import com.accountabilibuddy.companion.model.PendingDayPlan
 import com.accountabilibuddy.companion.model.ProfileDocument
 import com.accountabilibuddy.companion.model.SleepSettings
-import com.accountabilibuddy.shared.FocusDay
 import java.time.Instant
 
 /**
  * Everything the phone knows: the profiles and calendar events imported from the PC, sleep and day-bar settings,
  * the sleep Health Connect measured, and the phone's own choices (notification, bedtime reminder).
  * While a day plan edit waits for the PC ([pendingPlan], ADR 19), [document] shows the edited plan and [pcDayPlan]
- * keeps the PC's. [focusDay] is today's focus as the linked PC last sent it, at [focusDayAt] (ADR 21).
+ * keeps the PC's.
  */
 data class CompanionState(
     val document: ProfileDocument = ProfileDocument.Empty,
@@ -33,8 +32,6 @@ data class CompanionState(
     val pcPlanVersion: String? = null,
     val pcPlanEditedAt: Instant? = null,
     val pendingPlan: PendingDayPlan? = null,
-    val focusDay: FocusDay? = null,
-    val focusDayAt: Instant? = null,
 ) {
     val hasImport: Boolean get() = importedFrom != null
 }

@@ -1,4 +1,4 @@
-package com.accountabilibuddy.shared.link
+package com.accountabilibuddy.shared.sync
 
 import android.util.Base64
 import java.security.MessageDigest
@@ -9,8 +9,9 @@ import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.X509TrustManager
 
 /**
- * Trusts exactly one certificate: the paired PC's, whose SHA-256 (base64url) came in its QR code (ADR 14). No
- * authority is involved, so another machine on the network can't pose as the PC.
+ * Trusts exactly one certificate, whose SHA-256 (base64url) the user's own device gave: the pairing of the Wi-Fi link
+ * used it (ADR 14, deleted by ADR 45), and the self-hosted relay (phase 6, ADR 46) reuses it. No authority is involved,
+ * so another machine on the network can't pose as the PC.
  */
 class PinnedTrustManager(private val fingerprint: String) : X509TrustManager {
     override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {

@@ -15,7 +15,7 @@ import java.time.ZoneId
 
 /**
  * The phone's own timers and alarms (V1): named, editable, several at once, kept in prefs "timers". Nothing here leaves
- * the phone: not in the sync file, the settings backup, the link or the watch. A running timer keeps its end time and
+ * the phone: not in the sync file, the settings backup or the watch. A running timer keeps its end time and
  * an alarm its next ring, so both come back after a restart ([TimerScheduler]). Timers never touch focus sessions.
  */
 class TimersStore(private val context: Context) {

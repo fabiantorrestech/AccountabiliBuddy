@@ -4,9 +4,9 @@ import java.time.Instant
 import java.time.LocalDate
 
 /**
- * Today's focus as the PC counts it (its "focusDay" link message, ADR 21): the plan's parts, the sessions that count,
- * drift marks, and focused and planned minutes for today and the 7 days ending today. No titles, addresses, reasons
- * or notes ever come with it.
+ * Today's focus across the devices' sync files (ADR 21, 22): the plan's parts, the sessions that count, drift marks,
+ * and focused and planned minutes for today and the 7 days ending today. No titles, addresses, reasons or notes ever
+ * come with it.
  */
 data class FocusDay(
     val date: LocalDate,

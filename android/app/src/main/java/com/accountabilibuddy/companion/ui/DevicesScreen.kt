@@ -46,14 +46,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
-import com.accountabilibuddy.companion.link.LinkStatus
-import com.accountabilibuddy.companion.link.LinkedPc
 import com.accountabilibuddy.companion.sync.DriveFolderSource
 import com.accountabilibuddy.companion.sync.DriveSyncSource
 import com.accountabilibuddy.companion.sync.FolderStatus
 import com.accountabilibuddy.companion.sync.PhoneSyncSettings
 import com.accountabilibuddy.companion.sync.ReceivedDevice
-import com.accountabilibuddy.shared.FocusDay
 import com.accountabilibuddy.shared.sync.FocusDayCombine
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncKeyCode
@@ -69,9 +66,6 @@ data class DevicesState(
     val joined: Boolean,
     val settings: PhoneSyncSettings,
     val received: List<ReceivedDevice>,
-    val focusDay: FocusDay?,
-    val pcName: String?,
-    val pcConnected: Boolean,
     /** The sync folder's last result (ADR 22, way B). */
     val folder: FolderStatus = FolderStatus(),
     /** Google Drive's last result (ADR 26). */
@@ -100,16 +94,12 @@ data class DevicesActions(
 
 /**
  * The phone's Devices tab (ADR 22): this phone and every device in the group with a state pill, today's focus across
- * them, the sharing methods (safest first) and actions, then the PC link and the Pixel Watch (moved from Settings).
+ * them, the sharing methods (safest first) and actions, then the Pixel Watch (moved from Settings).
  */
 @Composable
 fun DevicesScreen(
     devices: DevicesState,
     actions: DevicesActions,
-    pcStatus: LinkStatus,
-    pairedPc: LinkedPc?,
-    onPastePairingLink: (String) -> Boolean,
-    onUnpairPc: () -> Unit,
     watch: WatchSectionState,
     watchActions: WatchSectionActions,
     /** The PCs whose files are here (sync device id to name, newest first), for picking the one to control (ADR 42). */
@@ -133,7 +123,7 @@ fun DevicesScreen(
                 DevicesModel.rows(devices, now).forEach { row -> DeviceRowView(row) }
                 if (devices.joined && devices.received.isEmpty()) {
                     Text("No other device yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Hint("Scan the PC's codes, open a sync file, or connect to the linked PC.", label = "How to bring them in")
+                    Hint("Scan the PC's codes, open a sync file, or sign in to Google Drive below.", label = "How to bring them in")
                 }
             }
         }
@@ -173,7 +163,6 @@ fun DevicesScreen(
             val methods = listOfNotNull(
                 "QR".takeIf { devices.settings.qrOn },
                 "files".takeIf { devices.settings.fileOn },
-                "link".takeIf { devices.settings.linkOn },
                 "Drive".takeIf { devices.settings.driveOn },
                 "folder".takeIf { devices.settings.folderOn },
             )
@@ -189,9 +178,6 @@ fun DevicesScreen(
                 ToggleRow("Sync files", "Open or share a .absync file by hand (email, chat, a USB cable).", devices.settings.fileOn) {
                     actions.onSettings(devices.settings.copy(fileOn = it))
                 }
-                ToggleRow("Network link", "With the paired PC, on your own network, encrypted.", devices.settings.linkOn) {
-                    actions.onSettings(devices.settings.copy(linkOn = it))
-                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { dialog = DevicesDialog.Scan }, enabled = devices.joined && devices.settings.qrOn) { Text("Scan code") }
                     OutlinedButton(onClick = actions.onShare, enabled = devices.joined && devices.settings.fileOn) { Text("Share sync file") }
@@ -204,8 +190,6 @@ fun DevicesScreen(
             }
         }
 
-        item { HorizontalDivider() }
-        item { PcSection(pcStatus, pairedPc, onPastePairingLink, onUnpairPc) }
         item { HorizontalDivider() }
         item { WatchSection(watch, watchActions) }
     }
@@ -486,13 +470,12 @@ object DevicesModel {
         .map { device ->
             val card = device.file.device
             val age = Duration.between(card.writtenAt, now).coerceAtLeast(Duration.ZERO)
-            val live = device.method == SyncDeviceCard.METHOD_LINK && devices.pcConnected && card.name == devices.pcName
             val kind = when (card.kind) {
                 SyncDeviceCard.KIND_PC -> "PC"
                 SyncDeviceCard.KIND_WATCH -> "Watch"
                 else -> "Phone"
             }
-            val state = if (live) SyncState.UP_TO_DATE else SyncState.of(age, DEFAULT_INTERVAL)
+            val state = SyncState.of(age, DEFAULT_INTERVAL)
             DeviceRow(
                 card.name,
                 "$kind · ${ago(age)} · ${methodName(device.method)}",
@@ -505,10 +488,8 @@ object DevicesModel {
     /** E.g. "Today: 5h 10m focused across 3 devices"; null when there's nothing to add up. */
     fun todayLine(devices: DevicesState, now: Instant, zone: ZoneId): String? {
         val today = now.atZone(zone).toLocalDate()
-        val combined = FocusDayCombine.combine(
-            devices.focusDay, devices.pcName, devices.received.map { it.file.device.name to it.file }, today, zone, now,
-        ) ?: return null
-        val count = combined.sessions.mapNotNull { it.device ?: devices.pcName }.distinct().size
+        val combined = FocusDayCombine.combine(devices.received.map { it.file.device.name to it.file }, today, zone, now) ?: return null
+        val count = combined.sessions.mapNotNull { it.device }.distinct().size
         val minutes = combined.focusedMinutes
         val time = if (minutes >= 60) "${minutes / 60}h ${"%02d".format(minutes % 60)}m" else "${minutes}m"
         return if (count > 1) "Today: $time focused across $count devices" else "Today: $time focused"
@@ -522,7 +503,7 @@ object DevicesModel {
     }
 
     private fun methodName(method: String): String = when (method) {
-        SyncDeviceCard.METHOD_LINK -> "network link"
+        SyncDeviceCard.METHOD_LINK -> "network link (old)"
         SyncDeviceCard.METHOD_FOLDER -> "sync folder"
         SyncDeviceCard.METHOD_QR -> "QR codes"
         else -> "sync file"

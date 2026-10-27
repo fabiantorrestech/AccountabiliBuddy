@@ -24,6 +24,18 @@ class WatchLinkStore(private val file: File) {
         _settings.value = next
     }
 
+    init {
+        dropWifiFallback()
+    }
+
+    // ADR 45: the "Wi-Fi straight to the PC" switch is gone; a watch.json from before is rewritten once without it.
+    private fun dropWifiFallback() {
+        val json = if (file.exists()) runCatching { Json.parseToJsonElement(file.readText()) as? JsonObject }.getOrNull() else null
+        if (json?.containsKey("wifiFallbackOn") == true) {
+            save(_settings.value)
+        }
+    }
+
     private fun load(): WatchLinkSettings {
         val json = if (file.exists()) runCatching { Json.parseToJsonElement(file.readText()) as? JsonObject }.getOrNull() else null
         json ?: return WatchLinkSettings()
@@ -33,7 +45,6 @@ class WatchLinkStore(private val file: File) {
             linkedName = json.string("linkedName"),
             dataLayerOn = json.bool("dataLayerOn", defaults.dataLayerOn),
             relayOn = json.bool("relayOn", defaults.relayOn),
-            wifiFallbackOn = json.bool("wifiFallbackOn", defaults.wifiFallbackOn),
         )
     }
 
@@ -45,7 +56,6 @@ class WatchLinkStore(private val file: File) {
             settings.linkedName?.let { put("linkedName", it) }
             put("dataLayerOn", settings.dataLayerOn)
             put("relayOn", settings.relayOn)
-            put("wifiFallbackOn", settings.wifiFallbackOn)
         }.toString())
         if (!temporary.renameTo(file)) {
             file.delete()

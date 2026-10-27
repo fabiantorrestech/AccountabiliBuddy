@@ -13,14 +13,13 @@ import kotlinx.serialization.json.put
 import java.io.File
 
 /**
- * Which ways the phone shares sync files (ADR 22), safest first: QR codes it scans, sync files shared by hand, the
- * network link to the paired PC, and a sync folder another app keeps in step with Google Drive. All but the folder
- * are on by default; each switch is in the Devices tab.
+ * Which ways the phone shares sync files (ADR 22), safest first: QR codes it scans, sync files shared by hand, a sync
+ * folder another app keeps in step with Google Drive, and Google Drive itself. QR codes and shared files are on by
+ * default; each switch is in the Devices tab. (The network link switch is gone, ADR 45.)
  */
 data class PhoneSyncSettings(
     val qrOn: Boolean = true,
     val fileOn: Boolean = true,
-    val linkOn: Boolean = true,
     val folderOn: Boolean = false,
     /** The folder chosen with Android's folder picker (a tree uri), or null. */
     val folderUri: String? = null,
@@ -45,7 +44,6 @@ class PhoneSyncSettingsStore(private val file: File) {
         val json = buildJsonObject {
             put("qrOn", settings.qrOn)
             put("fileOn", settings.fileOn)
-            put("linkOn", settings.linkOn)
             put("folderOn", settings.folderOn)
             settings.folderUri?.let { put("folderUri", it) }
             put("folderMinutes", settings.folderMinutes)
@@ -67,7 +65,7 @@ class PhoneSyncSettingsStore(private val file: File) {
     private fun load(): PhoneSyncSettings {
         val json = runCatching { Json.parseToJsonElement(file.readText()) as JsonObject }.getOrNull() ?: return PhoneSyncSettings()
         return PhoneSyncSettings(
-            json.bool("qrOn", true), json.bool("fileOn", true), json.bool("linkOn", true), json.bool("folderOn", false),
+            json.bool("qrOn", true), json.bool("fileOn", true), json.bool("folderOn", false),
             json.string("folderUri"), json.int("folderMinutes") ?: 15, json.bool("alarmOn", true), json.string("alarmApp"),
             json.bool("driveOn", false),
         )

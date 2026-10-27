@@ -1,7 +1,7 @@
 package com.accountabilibuddy.companion.sync
 
 import com.accountabilibuddy.companion.data.JsonValues.string
-import com.accountabilibuddy.shared.link.TokenVault
+import com.accountabilibuddy.shared.TokenVault
 import com.accountabilibuddy.shared.sync.SyncKey
 import com.accountabilibuddy.shared.sync.SyncKeyCode
 import kotlinx.coroutines.flow.MutableStateFlow
