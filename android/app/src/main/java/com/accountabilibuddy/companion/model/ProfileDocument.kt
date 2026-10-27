@@ -15,7 +15,7 @@ data class ProfileDocument(
 
     companion object {
         /** The newest schema this app reads; a newer document needs an app update. */
-        const val CURRENT_SCHEMA_VERSION = 11
+        const val CURRENT_SCHEMA_VERSION = 12
 
         val Empty = ProfileDocument(CURRENT_SCHEMA_VERSION, emptyList(), DayPlan.Default)
     }

@@ -8,18 +8,24 @@ import com.accountabilibuddy.companion.data.JsonValues.string
 import com.accountabilibuddy.companion.model.CategoryBehavior
 import com.accountabilibuddy.companion.model.DayCategory
 import com.accountabilibuddy.companion.model.DayPlan
+import com.accountabilibuddy.companion.model.DayMode
 import com.accountabilibuddy.companion.model.DayTemplate
 import com.accountabilibuddy.companion.model.FocusProfile
 import com.accountabilibuddy.companion.model.MatchKind
 import com.accountabilibuddy.companion.model.MatchTarget
 import com.accountabilibuddy.companion.model.OneOffDay
 import com.accountabilibuddy.companion.model.PlanPart
+import com.accountabilibuddy.companion.model.PlanTemplate
+import com.accountabilibuddy.companion.model.PlanWeek
 import com.accountabilibuddy.companion.model.ProfileDocument
 import com.accountabilibuddy.companion.model.Rule
 import com.accountabilibuddy.companion.model.RuleVerdict
 import com.accountabilibuddy.companion.model.UnlockOption
+import com.accountabilibuddy.companion.model.WeekdayTemplate
+import com.accountabilibuddy.companion.model.WorkWindow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -86,9 +92,13 @@ object ProfileDocumentParser {
         note = json.string("note"),
     )
 
-    /** A day plan on its own, in the document's shape (also a conflict answer's plan, ADR 19). */
-    fun dayPlan(json: JsonObject): DayPlan = DayPlan(
-        categories = (json["categories"] as? JsonArray).orEmpty().map {
+    /**
+     * A day plan on its own, in the document's shape (also a conflict answer's plan, ADR 19). A plan in the v11 shape
+     * (a "workday" and an "otherDay" template and "workdays", no "templates") becomes the two named templates and week A
+     * of the week map, like the PC's DayModesMigration, so a plan saved by an earlier version of the app still reads.
+     */
+    fun dayPlan(json: JsonObject): DayPlan {
+        val categories = (json["categories"] as? JsonArray).orEmpty().map {
             val c = it.jsonObject
             DayCategory(
                 id = JsonValues.uuid(c.requireString("id")),
@@ -96,11 +106,8 @@ object ProfileDocumentParser {
                 color = c.requireString("color"),
                 behavior = JsonValues.enumValue<CategoryBehavior>(c["behavior"], "category behaviour"),
             )
-        },
-        workdays = (json["workdays"] as? JsonArray).orEmpty().map { JsonValues.dayOfWeek(it.jsonPrimitive.content) }.toSet(),
-        workday = template(json.obj("workday")),
-        otherDay = template(json.obj("otherDay")),
-        oneOffDays = (json["oneOffDays"] as? JsonArray).orEmpty().map {
+        }
+        val oneOffDays = (json["oneOffDays"] as? JsonArray).orEmpty().map {
             val d = it.jsonObject
             OneOffDay(
                 id = JsonValues.uuid(d.requireString("id")),
@@ -108,8 +115,33 @@ object ProfileDocumentParser {
                 template = template(d.obj("template")),
                 note = d.string("note"),
             )
-        },
-    )
+        }
+
+        if (json["templates"] == null && json["workday"] != null) {
+            val workdays = (json["workdays"] as? JsonArray).orEmpty().map { JsonValues.dayOfWeek(it.jsonPrimitive.content) }.toSet()
+            return DayPlan.fromWorkdayAndOffDay(categories, workdays, template(json.obj("workday")), template(json.obj("otherDay")), oneOffDays)
+        }
+
+        val week = json.obj("week")
+        return DayPlan(
+            categories = categories,
+            templates = (json["templates"] as? JsonArray).orEmpty().map {
+                val t = it.jsonObject
+                PlanTemplate(JsonValues.uuid(t.requireString("id")), t.requireString("name"), template(t.obj("template")))
+            },
+            week = PlanWeek(
+                a = weekdays(week?.get("a")),
+                b = (week?.get("b") as? JsonArray)?.let { weekdays(it) },
+                bStartsOn = week?.string("bStartsOn")?.let(JsonValues::date),
+            ),
+            oneOffDays = oneOffDays,
+        )
+    }
+
+    private fun weekdays(json: kotlinx.serialization.json.JsonElement?): List<WeekdayTemplate> = (json as? JsonArray).orEmpty().map {
+        val entry = it.jsonObject
+        WeekdayTemplate(JsonValues.dayOfWeek(entry.requireString("day")), JsonValues.uuid(entry.requireString("templateId")))
+    }
 
     private fun template(json: JsonObject?): DayTemplate = DayTemplate(
         (json?.get("parts") as? JsonArray).orEmpty().map {
@@ -126,5 +158,9 @@ object ProfileDocumentParser {
             )
         },
         blocks = json?.get("blocks")?.let { it as? JsonObject }?.let(BlockRulesJson::read),
+        // v12 (ADR 47): optional; a template from before has none, which reads as a plain Schedule day.
+        mode = json?.get("mode")?.takeUnless { it is JsonNull }?.let { JsonValues.enumValue<DayMode>(it, "day mode") } ?: DayMode.Schedule,
+        workWindow = json?.obj("workWindow")?.let { WorkWindow(JsonValues.time(it.requireString("start")), JsonValues.time(it.requireString("end"))) },
+        budgetMinutes = json?.int("budgetMinutes"),
     )
 }

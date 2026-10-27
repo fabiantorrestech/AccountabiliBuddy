@@ -51,9 +51,64 @@ data class PlanPart(
 /** A day's flexible break placed on its date (as on the PC's Core FlexibleBreak). */
 data class FlexibleBreak(val name: String, val color: Long, val window: LocalWindow, val minutes: Int, val hintAt: java.time.LocalDateTime?)
 
-/** A day's parts; [blocks] = its block rules (schema v10, ADR 37), null = [BlockRules.Default]. */
-data class DayTemplate(val parts: List<PlanPart> = emptyList(), val blocks: BlockRules? = null) {
+/** How a day template says its day is guarded (schema v12, ADR 47; the PC's DayMode). */
+enum class DayMode { Schedule, Budget, Free }
+
+/** A Schedule day's simple work window (schema v12, ADR 47): the work part when the template has none; an [end] of 00:00 is midnight. */
+data class WorkWindow(val start: LocalTime, val end: LocalTime)
+
+/**
+ * A day's parts; [blocks] = its block rules (schema v10, ADR 37), null = [BlockRules.Default]. [mode], [workWindow]
+ * and [budgetMinutes] are schema v12 (ADR 47): a Budget day's parts are only its non-productive windows.
+ */
+data class DayTemplate(
+    val parts: List<PlanPart> = emptyList(),
+    val blocks: BlockRules? = null,
+    val mode: DayMode = DayMode.Schedule,
+    val workWindow: WorkWindow? = null,
+    val budgetMinutes: Int? = null,
+) {
     val rules: BlockRules get() = blocks ?: BlockRules.Default
+
+    /**
+     * A Schedule template that has a work window and no work parts of its own, with the window added as one work part
+     * (the first Watch category); any other template as it is. The PC's DayTemplate.WithWorkWindowPart.
+     */
+    fun withWorkWindowPart(categories: List<DayCategory>): DayTemplate {
+        val window = workWindow ?: return this
+        if (mode != DayMode.Schedule || parts.any { part -> categories.firstOrNull { it.id == part.categoryId }?.behavior?.isWork == true }) return this
+        val work = categories.firstOrNull { it.behavior == CategoryBehavior.Watch } ?: return this
+        return copy(parts = parts + PlanPart(WORK_WINDOW_PART_ID, work.id, window.start, window.end))
+    }
+
+    companion object {
+        /** The id of the part standing in for a work window, the PC's same one. */
+        val WORK_WINDOW_PART_ID: UUID = UUID.fromString("5c7a2e10-0f00-4b3d-8f6e-1a9c40000f00")
+    }
+}
+
+/** A named day template (schema v12, ADR 47); the week map points at its [id]. */
+data class PlanTemplate(val id: UUID, val name: String, val template: DayTemplate)
+
+/** One weekday of a week map (schema v12): which template that weekday follows. */
+data class WeekdayTemplate(val day: DayOfWeek, val templateId: UUID)
+
+/**
+ * Which template each weekday follows (schema v12, ADR 47). Week [a] is always there; with [b] set, weeks alternate from
+ * [bStartsOn] (a Monday): that week is B, the next A, and so on, before it too. A weekday missing from the week in force
+ * follows the Off day template. The PC's PlanWeek.
+ */
+data class PlanWeek(val a: List<WeekdayTemplate>, val b: List<WeekdayTemplate>? = null, val bStartsOn: LocalDate? = null) {
+    /** The template id [date] follows, or null when its weekday is missing from the week in force. */
+    fun templateIdFor(date: LocalDate): UUID? = (if (isWeekB(date)) b!! else a).firstOrNull { it.day == date.dayOfWeek }?.templateId
+
+    /** True when alternating weeks are on and [date]'s week is an even number of weeks from B's start. */
+    fun isWeekB(date: LocalDate): Boolean {
+        val start = bStartsOn ?: return false
+        if (b == null) return false
+        // Floor, so the weeks before B's start alternate too (-1 week = A, -2 = B).
+        return Math.floorDiv(java.time.temporal.ChronoUnit.DAYS.between(start, date), 7L) % 2L == 0L
+    }
 }
 
 /** A single date planned differently; its template replaces that day's usual one. */
@@ -65,16 +120,51 @@ data class PlannedPart(val part: PlanPart, val category: DayCategory, val window
 }
 
 /**
- * The PC's day plan (schema v5, ADR 18): categories, a template for Workdays and one for Off-Days (every other day), and one-off
- * days. A port of the Windows Core's DayPlan (same rules, kept in step by hand).
+ * The PC's day plan (schema v5, ADR 18; named templates and a week map since schema v12, ADR 47): categories, named
+ * [templates], the [week] map saying which one each weekday follows (week A, optionally alternating with week B), and
+ * one-off days. A port of the Windows Core's DayPlan (same rules, kept in step by hand).
  */
 data class DayPlan(
     val categories: List<DayCategory>,
-    val workdays: Set<DayOfWeek>,
-    val workday: DayTemplate,
-    val otherDay: DayTemplate,
+    val templates: List<PlanTemplate>,
+    val week: PlanWeek,
     val oneOffDays: List<OneOffDay> = emptyList(),
 ) {
+    /** The "Workday" template as stored (the classic two-template view, until the editors know named templates); empty when removed. */
+    val workday: DayTemplate get() = templateById(WORKDAY_TEMPLATE_ID) ?: DayTemplate()
+
+    /** The "Off day" template as stored; see [workday]. */
+    val otherDay: DayTemplate get() = templateById(OFF_DAY_TEMPLATE_ID) ?: DayTemplate()
+
+    /** The weekdays of week A that follow the "Workday" template (the classic two-template view). */
+    val workdays: Set<DayOfWeek> get() = week.a.filter { it.templateId == WORKDAY_TEMPLATE_ID }.map { it.day }.toSet()
+
+    /** The template with [id] as stored; null when there is none. */
+    fun templateById(id: UUID): DayTemplate? = templates.firstOrNull { it.id == id }?.template
+
+    /** The plan with the "Workday" template replaced (added when it was removed). */
+    fun withWorkday(template: DayTemplate): DayPlan = withTemplate(WORKDAY_TEMPLATE_ID, "Workday", template)
+
+    /** The plan with the "Off day" template replaced (added when it was removed). */
+    fun withOtherDay(template: DayTemplate): DayPlan = withTemplate(OFF_DAY_TEMPLATE_ID, "Off day", template)
+
+    /**
+     * Week A with exactly [days] following "Workday" (the classic two-template view): a weekday that follows "Workday"
+     * and isn't listed goes to "Off day"; one following any other template stays as it is unless listed.
+     */
+    fun withWorkdays(days: Set<DayOfWeek>): DayPlan {
+        val a = MONDAY_FIRST.map { day ->
+            val current = week.a.firstOrNull { it.day == day }?.templateId ?: OFF_DAY_TEMPLATE_ID
+            val next = if (day in days) WORKDAY_TEMPLATE_ID else if (current == WORKDAY_TEMPLATE_ID) OFF_DAY_TEMPLATE_ID else current
+            WeekdayTemplate(day, next)
+        }
+        return copy(week = week.copy(a = a))
+    }
+
+    private fun withTemplate(id: UUID, name: String, template: DayTemplate): DayPlan =
+        if (templates.any { it.id == id }) copy(templates = templates.map { if (it.id == id) it.copy(template = template) else it })
+        else copy(templates = templates + PlanTemplate(id, name, template))
+
     fun category(id: UUID): DayCategory? = categories.firstOrNull { it.id == id }
 
     /** The flexible break (e.g. lunch) on [date]; null on a day without one. */
@@ -87,16 +177,33 @@ data class DayPlan(
     }
 
     /**
-     * True on a workday (as the PC's LunchService.IsWorkdayToday): one of the plan's workdays, or a one-off day with
-     * work in it. A one-off day replaces a workday's template, so a one-off day off on a Monday isn't one.
+     * True on a workday (as the PC's LunchService.IsWorkdayToday): a one-off day with work in it, else a date whose week
+     * maps its weekday to the "Workday" template, or to a template of its own that has work (a Budget day, or work parts
+     * or a work window). A one-off day replaces a workday's template, so a one-off day off on a Monday isn't one.
      */
     fun isWorkday(date: LocalDate): Boolean {
-        val oneOff = oneOffDays.firstOrNull { it.date == date } ?: return date.dayOfWeek in workdays
-        return oneOff.template.parts.any { category(it.categoryId)?.behavior?.isWork == true }
+        val oneOff = oneOffDays.firstOrNull { it.date == date }
+        if (oneOff != null) return hasWork(oneOff.template)
+        val id = week.templateIdFor(date) ?: return false
+        return id == WORKDAY_TEMPLATE_ID || (id != OFF_DAY_TEMPLATE_ID && templateById(id)?.let { hasWork(it) } == true)
     }
 
-    fun templateFor(date: LocalDate): DayTemplate =
-        oneOffDays.firstOrNull { it.date == date }?.template ?: if (date.dayOfWeek in workdays) workday else otherDay
+    private fun hasWork(template: DayTemplate): Boolean =
+        template.mode == DayMode.Budget ||
+            (template.mode == DayMode.Schedule && template.withWorkWindowPart(categories).parts.any { category(it.categoryId)?.behavior?.isWork == true })
+
+    /**
+     * The template a date follows, in order: its one-off day, that week's (A or B) template for the weekday, the Off day
+     * template (empty when there is none). A Schedule template with only a work window comes with that window as its work
+     * part, so everything that reads parts sees it.
+     */
+    fun templateFor(date: LocalDate): DayTemplate {
+        val stored = oneOffDays.firstOrNull { it.date == date }?.template
+            ?: week.templateIdFor(date)?.let { templateById(it) }
+            ?: templateById(OFF_DAY_TEMPLATE_ID)
+            ?: DayTemplate()
+        return stored.withWorkWindowPart(categories)
+    }
 
     /**
      * Every part touching [range], on real dates, clipped to the range, in order. Where parts of different dates
@@ -184,8 +291,36 @@ data class DayPlan(
         /** The guarded warm-up before work (schema v7, ADR 31), the PC's same id; no parts by default. */
         val preWork = DayCategory(UUID.fromString("8b1f0c52-0008-4c6e-9a51-3f2d7c000008"), "Pre-Work", "#D97706", CategoryBehavior.PreWork)
 
+        /** The migrated "Workday" template (schema v12), the PC's same id. */
+        val WORKDAY_TEMPLATE_ID: UUID = UUID.fromString("9d3e5a20-0001-4e8a-b2c4-6f1d00000001")
+
+        /** The "Off day" template, also the fallback for a date no map entry covers (schema v12), the PC's same id. */
+        val OFF_DAY_TEMPLATE_ID: UUID = UUID.fromString("9d3e5a20-0002-4e8a-b2c4-6f1d00000002")
+
+        /** The weekdays in the order the week map lists them (declared before [Default], which uses it). */
+        val MONDAY_FIRST: List<DayOfWeek> = listOf(
+            DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY,
+        )
+
+        /**
+         * A plan of the two classic templates (schema v11's shape): [workdays] follow "Workday", every other weekday "Off day",
+         * week A only. The PC's DayPlan.FromWorkdayAndOffDay.
+         */
+        fun fromWorkdayAndOffDay(
+            categories: List<DayCategory>,
+            workdays: Set<DayOfWeek>,
+            workday: DayTemplate,
+            otherDay: DayTemplate,
+            oneOffDays: List<OneOffDay> = emptyList(),
+        ): DayPlan = DayPlan(
+            categories = categories,
+            templates = listOf(PlanTemplate(WORKDAY_TEMPLATE_ID, "Workday", workday), PlanTemplate(OFF_DAY_TEMPLATE_ID, "Off day", otherDay)),
+            week = PlanWeek(MONDAY_FIRST.map { WeekdayTemplate(it, if (it in workdays) WORKDAY_TEMPLATE_ID else OFF_DAY_TEMPLATE_ID) }),
+            oneOffDays = oneOffDays,
+        )
+
         /** The PC's starting plan (same ids, two comms windows since schema v6), used for documents from before schema v5. */
-        val Default = DayPlan(
+        val Default = fromWorkdayAndOffDay(
             categories = listOf(work, extraWork, lunch, evenings, freeTime, sleep, comms, preWork),
             workdays = setOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY),
             workday = DayTemplate(

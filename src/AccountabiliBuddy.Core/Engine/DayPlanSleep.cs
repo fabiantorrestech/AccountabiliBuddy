@@ -31,11 +31,9 @@ public static class DayPlanSleep
             return plan;
         }
 
-        return plan with
-        {
-            Workday = WithSleep(plan.Workday, plan, category, workdayNight),
-            OtherDay = WithSleep(plan.OtherDay, plan, category, otherNight),
-        };
+        return plan
+            .WithWorkday(WithSleep(plan.Workday, plan, category, workdayNight))
+            .WithOtherDay(WithSleep(plan.OtherDay, plan, category, otherNight));
     }
 
     /// <summary>

@@ -512,7 +512,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         val plan = planDraft.value?.plan ?: return "The plan couldn't be opened."
         val template = if (offDay) plan.otherDay else plan.workday
         val updated = template.copy(blocks = template.rules.copy(reenableAt = time))
-        updatePlanDraft(if (offDay) plan.copy(otherDay = updated) else plan.copy(workday = updated))
+        updatePlanDraft(if (offDay) plan.withOtherDay(updated) else plan.withWorkday(updated))
         return if (savePlanDraft()) null else message.value ?: "Not saved."
     }
 

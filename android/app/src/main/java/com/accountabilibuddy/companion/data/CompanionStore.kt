@@ -57,10 +57,18 @@ class CompanionStore(private val folder: File) {
             val shown = it.pendingPlan?.let { pending -> data.document.copy(dayPlan = pending.edited) } ?: data.document
             // A PC that was too old for edits sends its plan version once updated: the waiting edit goes again.
             val pending = it.pendingPlan?.let { waiting ->
-                if (waiting.status == PendingStatus.NeedsPcUpdate && data.dayPlanVersion != null) {
-                    waiting.copy(status = PendingStatus.Waiting, message = null).also(::writePending)
+                val version = data.dayPlanVersion
+                // The PC's plan is the one the edit started from but under a new version (the v12 upgrade changed the
+                // hashing, not the plan): the edit builds on that version, so it isn't taken for a clash.
+                val rebased = if (version != null && waiting.baseVersion != version && waiting.basePlan == data.document.dayPlan) {
+                    waiting.copy(baseVersion = version)
                 } else {
                     waiting
+                }
+                if (rebased.status == PendingStatus.NeedsPcUpdate && version != null) {
+                    rebased.copy(status = PendingStatus.Waiting, message = null).also(::writePending)
+                } else {
+                    rebased.also { next -> if (next !== waiting) writePending(next) }
                 }
             }
             it.copy(

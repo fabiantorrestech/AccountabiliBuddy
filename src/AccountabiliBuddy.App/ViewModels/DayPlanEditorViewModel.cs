@@ -24,6 +24,9 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
     /// <summary>This template's block rules (ADR 37), kept through part edits; null = the defaults.</summary>
     public BlockRules? Blocks { get; set; }
 
+    /// <summary>This template's mode, work window and budget (schema v12, ADR 47), kept through part edits; no editor changes them yet.</summary>
+    private DayTemplate _modeFields = DayTemplate.Empty;
+
     /// <summary>The sleep goal, for a Sleep part woken by the alarm (its end is bedtime plus this); 8 hours unless set.</summary>
     public Func<TimeSpan> SleepGoal { get; set; } = () => AccountabiliBuddy.Core.Engine.SleepSchedule.DefaultGoal;
 
@@ -54,6 +57,7 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
     public void Load(DayTemplate template)
     {
         Blocks = template.Blocks;
+        _modeFields = template;
         Parts.Clear();
         foreach (PlanPart part in template.Parts.OrderBy(PositionInDay))
         {
@@ -85,7 +89,8 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
 
     public DayTemplate ToTemplate()
     {
-        return new DayTemplate(Parts.Select(row => row.ToPart()).OfType<PlanPart>().ToList(), Blocks);
+        return new DayTemplate(Parts.Select(row => row.ToPart()).OfType<PlanPart>().ToList(), Blocks,
+            _modeFields.Mode, _modeFields.WorkWindow, _modeFields.BudgetMinutes);
     }
 
     /// <summary>Adds an hour-long part (the first Rest category) at the clicked time, shortened to fit, and selects it.</summary>

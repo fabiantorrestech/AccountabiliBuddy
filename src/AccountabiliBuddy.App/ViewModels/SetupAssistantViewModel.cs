@@ -1061,11 +1061,9 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         {
             await _configuration.UpdateAsync(document => document with
             {
-                DayPlan = document.DayPlan with
-                {
-                    Workday = document.DayPlan.Workday with { Blocks = document.DayPlan.Workday.Rules with { ReenableAt = workday } },
-                    OtherDay = document.DayPlan.OtherDay with { Blocks = document.DayPlan.OtherDay.Rules with { ReenableAt = offDay } },
-                },
+                DayPlan = document.DayPlan
+                    .WithWorkday(document.DayPlan.Workday with { Blocks = document.DayPlan.Workday.Rules with { ReenableAt = workday } })
+                    .WithOtherDay(document.DayPlan.OtherDay with { Blocks = document.DayPlan.OtherDay.Rules with { ReenableAt = offDay } }),
             });
         }
     }

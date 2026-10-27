@@ -91,13 +91,11 @@ public sealed partial class DayPlanViewModel : ObservableObject
 
     public DayPlan Build()
     {
-        return _configuration.Current.DayPlan with
-        {
-            Categories = Categories.Select(row => row.ToCategory()).ToList(),
-            Workdays = Days.Where(chip => chip.IsOn).Select(chip => chip.Day).ToList(),
-            Workday = Workday.ToTemplate(),
-            OtherDay = OtherDay.ToTemplate(),
-        };
+        // Until the editor knows named templates and week B, it edits the two classic templates and week A's workdays.
+        return (_configuration.Current.DayPlan with { Categories = Categories.Select(row => row.ToCategory()).ToList() })
+            .WithWorkdays(Days.Where(chip => chip.IsOn).Select(chip => chip.Day))
+            .WithWorkday(Workday.ToTemplate())
+            .WithOtherDay(OtherDay.ToTemplate());
     }
 
     [RelayCommand(CanExecute = nameof(CanSave))]
@@ -140,6 +138,7 @@ public sealed partial class DayPlanViewModel : ObservableObject
 
         DayPlan plan = _configuration.Current.DayPlan;
         bool used = Workday.ToTemplate().Parts.Concat(OtherDay.ToTemplate().Parts)
+            .Concat(plan.Templates.SelectMany(template => template.Template.Parts))
             .Concat(plan.OneOffDays.SelectMany(day => day.Template.Parts))
             .Any(part => part.CategoryId == row.Id);
         if (used)
@@ -222,9 +221,14 @@ public sealed partial class DayPlanViewModel : ObservableObject
     {
         return plan with
         {
-            Workdays = plan.Workdays.Order().ToList(),
-            Workday = plan.Workday with { Parts = plan.Workday.Parts.OrderBy(part => part.Id).ToList() },
-            OtherDay = plan.OtherDay with { Parts = plan.OtherDay.Parts.OrderBy(part => part.Id).ToList() },
+            Templates = plan.Templates
+                .Select(template => template with { Template = template.Template with { Parts = template.Template.Parts.OrderBy(part => part.Id).ToList() } })
+                .ToList(),
+            Week = plan.Week with
+            {
+                A = plan.Week.A.OrderBy(entry => entry.Day).ToList(),
+                B = plan.Week.B?.OrderBy(entry => entry.Day).ToList(),
+            },
         };
     }
 
