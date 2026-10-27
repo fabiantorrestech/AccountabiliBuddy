@@ -393,7 +393,23 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     /** Joins the group from a typed link code; this phone's file goes out with the next Drive or folder sync. */
     fun joinWithCode(code: String): Boolean {
-        if (!sync.join(code.trim())) {
+        val typed = code.trim()
+        val target = SyncKeyCode.parse(typed) ?: return false
+
+        // A different group than the one this phone is in: the same question and second confirmation as a join link.
+        val currentGroup = sync.key.value?.groupId
+        if (currentGroup != null && currentGroup != target.groupId) {
+            joinOffer.value = JoinPrompt(
+                link = JoinLink(typed, "your other device"),
+                leavesCurrentGroup = true,
+                newRelay = false,
+                relayOnInternet = false,
+                typedCode = true,
+            )
+            return true
+        }
+
+        if (!sync.join(typed)) {
             return false
         }
 

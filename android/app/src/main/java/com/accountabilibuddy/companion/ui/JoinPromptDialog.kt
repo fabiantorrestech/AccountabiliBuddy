@@ -58,11 +58,13 @@ internal fun JoinPromptDialog(prompt: JoinPrompt, onContinue: () -> Unit, onCanc
                     )
                 }
 
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "The link calls itself \"${link.pcName}\". That name is only a label in the link, not proof of whose it is.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                if (!prompt.typedCode) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "The link calls itself \"${link.pcName}\". That name is only a label in the link, not proof of whose it is.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 link.relayHost?.let { host ->
                     Spacer(Modifier.height(8.dp))
                     Text("It also sends this phone's sync files to the relay at $host" + (if (link.relayPin != null) " (certificate pinned)." else "."))
@@ -84,7 +86,7 @@ internal fun JoinPromptDialog(prompt: JoinPrompt, onContinue: () -> Unit, onCanc
 
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Only go on if you just made this link yourself, on your own device. A link from a message, a web page or " +
+                    "Only go on if you just made this code or link yourself, on your own device. One from a message, a web page or " +
                         "someone else can move your data to their group and their server.",
                     style = MaterialTheme.typography.bodySmall,
                 )

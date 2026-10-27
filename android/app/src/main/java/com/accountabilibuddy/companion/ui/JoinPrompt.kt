@@ -12,6 +12,7 @@ import com.accountabilibuddy.companion.sync.JoinLink
  * @property newRelay The link's relay is not the one this phone syncs through now.
  * @property relayOnInternet The link's relay is not on a local network (not a home, office or VPN address).
  * @property confirmingLeave The second question, "Really leave your current group?", is showing.
+ * @property typedCode The user typed the code in Devices; the link name line is left out.
  */
 data class JoinPrompt(
     val link: JoinLink,
@@ -19,4 +20,6 @@ data class JoinPrompt(
     val newRelay: Boolean,
     val relayOnInternet: Boolean,
     val confirmingLeave: Boolean = false,
+    /** The code was typed in Devices, not opened as a link: there is no name or relay in it. */
+    val typedCode: Boolean = false,
 )
