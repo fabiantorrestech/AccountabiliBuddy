@@ -131,6 +131,12 @@ public sealed class ShutdownService : IDisposable
             await _tasks.AddAsync(row.Title, null, ExistingCategory(row.CategoryId));
         }
 
+        HashSet<string> ticked = card.Unfinished.Where(row => row.IsDone).Select(row => row.Title).ToHashSet(StringComparer.Ordinal);
+        if (ticked.Count > 0)
+        {
+            await _tasks.MarkHistoryDoneAsync(_state.LastShownOn!.Value, ticked);
+        }
+
         await CloseAsync();
     }
 

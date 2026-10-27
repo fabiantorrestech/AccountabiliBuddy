@@ -220,6 +220,24 @@ public sealed class SessionTasksService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Marks the open tasks with these titles done in the checklists of the sessions that started on <paramref name="date"/>
+    /// (the shutdown card's ticked "Left open" rows), with the app's trusted time as the done time.
+    /// </summary>
+    public async Task MarkHistoryDoneAsync(DateOnly date, IReadOnlySet<string> titles)
+    {
+        DateTimeOffset now = _time.GetUtcNow();
+        _history = _history.Select(checklist => checklist.SessionStart is DateTimeOffset start
+                && DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(start, _sessions.TimeProvider.LocalTimeZone).DateTime) == date
+            ? checklist with
+            {
+                Tasks = checklist.Tasks.Select(task => !task.IsDone && titles.Contains(task.Title) ? task with { DoneAt = now } : task).ToList(),
+            }
+            : checklist).ToList();
+        await _store.SaveAsync(HistoryKey, _history.Select(item => new StoredHistory(Seal(item))).ToList());
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     public Task SetNotifyAllDoneAsync(bool notify)
     {
         NotifyAllDone = notify;
