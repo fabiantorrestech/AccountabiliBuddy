@@ -28,6 +28,9 @@ public enum AssistantStep
     /// <summary>ADR 46: the own relay, a pointer to Devices → Own relay (only in the migration assistant).</summary>
     OwnRelay,
 
+    /// <summary>The start-of-day assistant on the first arrival of a workday: on or off (only in the migration assistant).</summary>
+    StartOfDay,
+
     /// <summary>The first run's last question: how much focus a day (redesign phase 2).</summary>
     Goal,
     Done,

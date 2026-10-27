@@ -96,6 +96,24 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     public bool HasWorkHours => WorkHours is not null;
 
+    /// <summary>The work nudge and its start-of-day assistant, for the migration assistant's page about it; null hides the choice.</summary>
+    public StartNudgeService? StartNudge { get; init; }
+
+    /// <summary>The start-of-day page's choice: the first arrival of a workday asks for hours, first tasks and Start.</summary>
+    public bool IsStartOfDayOn
+    {
+        get => StartNudge?.Settings.AssistantOn ?? false;
+        set
+        {
+            if (StartNudge is not null && StartNudge.Settings.AssistantOn != value)
+            {
+                _ = StartNudge.SaveAsync(StartNudge.Settings with { AssistantOn = value });
+            }
+
+            OnPropertyChanged();
+        }
+    }
+
     /// <summary>Holding Cold Turkey's keys (ADR 39); null skips its pages.</summary>
     public ColdTurkeyKeysService? Keys { get; init; }
 
@@ -301,7 +319,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsLinkFirst), nameof(IsComputerType), nameof(IsImport), nameof(IsUsage), nameof(IsReview), nameof(IsBrowsers),
-        nameof(IsBasics), nameof(IsWorkdays), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
+        nameof(IsBasics), nameof(IsWorkdays), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsStartOfDay), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(BackCommand))]
     public partial AssistantStep Step { get; set; }
 
@@ -407,6 +425,8 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     public bool IsOwnRelay => Step == AssistantStep.OwnRelay;
 
+    public bool IsStartOfDay => Step == AssistantStep.StartOfDay;
+
     public bool IsGoal => Step == AssistantStep.Goal;
 
     public bool IsDone => Step == AssistantStep.Done;
@@ -425,6 +445,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.ColdTurkeyKeys => "Cold Turkey: let AccountabiliBuddy hold the keys",
         AssistantStep.SpareKey => "Your spare key",
         AssistantStep.OwnRelay => "Own relay: sync through your own server",
+        AssistantStep.StartOfDay => "Start-of-day assistant",
         AssistantStep.Goal => "How much focus a day?",
         _ => "All set",
     };
@@ -449,6 +470,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.ColdTurkeyKeys => "Finish",
         AssistantStep.SpareKey => "I wrote it down",
         AssistantStep.OwnRelay => "Finish",
+        AssistantStep.StartOfDay => "Finish",
         AssistantStep.Goal => "Finish",
         AssistantStep.Done => "Close",
         _ => "Next",
@@ -616,6 +638,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
                 break;
             case AssistantStep.OwnRelay:
+            case AssistantStep.StartOfDay:
                 GoToNextQuickStep();
                 break;
             default:

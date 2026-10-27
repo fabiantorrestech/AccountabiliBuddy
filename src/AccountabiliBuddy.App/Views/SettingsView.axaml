@@ -250,12 +250,14 @@
                             <TextBlock Text="Steer me to start" Classes="sectionTitle" />
                         </StackPanel>
                         <CheckBox IsChecked="{Binding IsOn}" Content="During work parts with no session, open Today with the task box ready when I arrive" />
+                        <CheckBox IsChecked="{Binding IsAssistantOn}" IsEnabled="{Binding IsOn}" Margin="28,0,0,0"
+                                  Content="On my first arrival of a workday, ask how many hours I hope to get done, what's first, then start (start-of-day assistant)" />
                         <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,0,0,0">
                             <TextBlock Text="Ask again every" VerticalAlignment="Center" />
                             <ComboBox ItemsSource="{x:Static vm:StartNudgeViewModel.RepeatNames}" SelectedIndex="{Binding RepeatIndex}" MinWidth="140" />
                         </StackPanel>
                         <TextBlock Opacity="0.75" TextWrapping="Wrap"
-                                   Text="It starts when you arrive: your first input in a work part, or after 10 minutes away. 5 minutes later with still no session, a card in front of everything asks you to start, or to say why not now (kept sealed on this computer for 14 days), and comes back until a session starts. Never during a session, a calendar event, a day off or once today's goal is met." />
+                                   Text="It starts when you arrive: your first input in a work part, or after 10 minutes away. 5 minutes later with still no session, a card in front of everything asks you to start, or to say why not now (kept sealed on this computer for 14 days), and comes back until a session starts. Never during a session, a calendar event, a day off or once today's goal is met. The first arrival of a workday (before work starts too, never on a free day) opens the start-of-day assistant in front of everything instead, once a day: your hours for today (raising applies at once, lowering waits like any looser change), up to 3 first tasks, then Start with your remembered length. Not now works the same: a reason, then it asks again." />
                     </StackPanel>
                     </Border>
                     <Border Classes="card" search:SearchArea.Name="Lunch length on workdays" IsVisible="{Binding HasLunch}">

@@ -17,6 +17,11 @@ namespace AccountabiliBuddy.App.Services;
 /// or Not now with a reason), and again every <see cref="StartNudgeSettings.RepeatMinutes"/> while the user is at the
 /// computer. Never while a session runs, during a calendar event, on a day off, or once today's goal is met. On by
 /// default; Settings → Your day ("startNudge"). Use from the UI thread only.
+/// <para>
+/// The first arrival of a workday (in the day's first guarded window, or before it while the user is at the computer) opens
+/// <see cref="AssistantCard"/> (<see cref="StartOfDayAssistant"/>) at once instead of Today and the ordinary card, once a
+/// day; its "Not now" comes back after the repeat like the card's. Later arrivals that day use the ordinary nudge.
+/// </para>
 /// </summary>
 public sealed class StartNudgeService
 {
@@ -42,6 +47,9 @@ public sealed class StartNudgeService
     // A reason half typed when the card was closed some other way; the reopened card shows it again.
     private string _keptReason = string.Empty;
     private DateOnly _prunedOn;
+    // The start-of-day assistant is next in line to open (instead of the ordinary card) until it is answered, or the user is gone.
+    private bool _assistantFlow;
+    private string _keptAssistantReason = string.Empty;
 
     public StartNudgeService(SessionController sessions, ConfigurationService configuration, IUserIdleDetector idle, SqliteJsonDocumentStore store, StartNudgeCardLog cardLog)
     {
@@ -73,8 +81,20 @@ public sealed class StartNudgeService
     /// <summary>True while the work-hours gate shows; the card waits until it's closed. Set by the app.</summary>
     public Func<bool> IsGateOpen { get; set; } = () => false;
 
+    /// <summary>The start-of-day assistant (hours, first tasks, Start). Set by the app.</summary>
+    public StartOfDayAssistant? Assistant { get; set; }
+
+    /// <summary>The assistant has opened at least once on this computer (or was turned off): nothing left to set up.</summary>
+    public bool AssistantSeen => Assistant?.ShownOn is not null || !Settings.AssistantOn;
+
     /// <summary>The card showing, or null.</summary>
     public StartNudgeCardViewModel? Card { get; private set; }
+
+    /// <summary>The start-of-day assistant's card showing, or null. Never together with <see cref="Card"/>.</summary>
+    public StartOfDayCardViewModel? AssistantCard { get; private set; }
+
+    /// <summary>Raised when <see cref="AssistantCard"/> opens or closes (the app shows or closes the window).</summary>
+    public event EventHandler? AssistantCardChanged;
 
     /// <summary>Time to steer: the app opens Today with the task box ready, or only flashes its taskbar button.</summary>
     public event EventHandler<StartNudgeReason>? Due;
@@ -123,6 +143,21 @@ public sealed class StartNudgeService
         CardChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>The assistant's window was closed some other way (no Start, no reason): it opens again at the next check.</summary>
+    public void AssistantWindowClosed()
+    {
+        if (AssistantCard is null)
+        {
+            return;
+        }
+
+        _keptAssistantReason = AssistantCard.Reason;
+        AssistantCard.Dispose();
+        AssistantCard = null;
+        _cardDueAt = _sessions.Now;
+        AssistantCardChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>Runs every second.</summary>
     public void CheckNow()
     {
@@ -141,8 +176,14 @@ public sealed class StartNudgeService
         bool suppressed = IsDayOff() || InCalendarEvent() || IsGoalMet();
         bool suppressionJustLifted = _suppressedLastTick && !suppressed;
         _suppressedLastTick = suppressed;
+        if (sessionRunning && _sessions.State.IsRealSession)
+        {
+            Assistant?.MarkDone(Today()); // A session the user started is the day's start; a test session is not.
+        }
+
+        // Before the day's first window the assistant already waits for the user (the ordinary nudge does not).
         LocalWindow? part = Settings.On && !sessionRunning && !suppressed
-            ? CurrentWorkPart()
+            ? CurrentWorkPart() ?? UpcomingWindowForAssistant()
             : null;
         if (part is not LocalWindow workPart)
         {
@@ -160,18 +201,19 @@ public sealed class StartNudgeService
             if (sessionJustEnded)
             {
                 // Counts as arrived, so no loud nudge follows just because it ended while idle; quiet: the user may be typing elsewhere.
-                Arrive();
+                // A test session ending is not the day's start: no assistant.
+                Arrive(assistantAllowed: false, quiet: true);
                 Nudge(StartNudgeReason.SessionEnded);
             }
             else if (suppressionJustLifted)
             {
                 // The same quiet way: the user may be typing elsewhere (closing meeting notes, back from lunch).
-                Arrive();
+                Arrive(assistantAllowed: true, quiet: true);
                 Nudge(StartNudgeReason.Resumed);
             }
             else if (idle < PresentWithin)
             {
-                Arrive();
+                Arrive(assistantAllowed: true, quiet: false);
                 Nudge(firstCheck ? StartNudgeReason.AppStarted : StartNudgeReason.WorkStarted);
             }
             else
@@ -187,8 +229,8 @@ public sealed class StartNudgeService
             // The idle time only drops when there was input: the user just arrived or came back.
             if (idle < _lastIdle)
             {
-                Arrive();
-                Nudge(_comingBack ? StartNudgeReason.Back : StartNudgeReason.WorkStarted);
+                Arrive(assistantAllowed: true, quiet: false);
+                Nudge(_comingBack ?StartNudgeReason.Back : StartNudgeReason.WorkStarted);
             }
 
             _lastIdle = idle;
@@ -202,24 +244,98 @@ public sealed class StartNudgeService
             _cardDueAt = null;
             _comingBack = true;
             _lastIdle = idle;
+            if (AssistantCard is null)
+            {
+                _assistantFlow = false; // Coming back later is a later arrival: the ordinary nudge.
+            }
+
             return;
         }
 
         // Only in front of someone at the computer, and never over the work-hours gate: otherwise it stays due.
-        if (Card is null && _cardDueAt is DateTimeOffset due && _sessions.Now >= due && idle < PresentWithin && !IsGateOpen())
+        if (Card is null && AssistantCard is null && _cardDueAt is DateTimeOffset due && _sessions.Now >= due && idle < PresentWithin && !IsGateOpen())
         {
-            OpenCard(workPart);
+            if (_assistantFlow && Assistant is not null)
+            {
+                OpenAssistantCard();
+            }
+            else if (workPart.Start <= TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime)
+            {
+                OpenCard(workPart); // Not before the window starts: only the assistant comes early.
+            }
         }
     }
 
-    private void Arrive()
+    // The first arrival of the day with the assistant on opens it at once; every other arrival waits the usual few minutes.
+    private void Arrive(bool assistantAllowed, bool quiet)
     {
         _arrivedAt = _sessions.Now;
         _comingBack = false;
-        if (Card is null)
+        _assistantFlow = _assistantFlow || (assistantAllowed && AssistantDue());
+        if (Card is null && AssistantCard is null)
         {
-            _cardDueAt = _sessions.Now + CardAfter;
+            _cardDueAt = _sessions.Now + (_assistantFlow && !quiet ? TimeSpan.Zero : CardAfter);
         }
+    }
+
+    private bool AssistantDue() => Settings.AssistantOn && Assistant is not null && !Assistant.IsDoneOn(Today());
+
+    private void OpenAssistantCard()
+    {
+        _cardDueAt = null;
+        Assistant!.MarkDone(Today());
+        AssistantCard = Assistant.CreateCard(Settings.RepeatMinutes > 0, OnAssistantStartAsync, OnAssistantNotNow);
+        AssistantCard.Reason = _keptAssistantReason;
+        _keptAssistantReason = string.Empty;
+        AssistantCardChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private async Task<bool> OnAssistantStartAsync(StartOfDayCardViewModel card)
+    {
+        if (card != AssistantCard || Assistant is null)
+        {
+            return false;
+        }
+
+        bool started = await Assistant.StartAsync();
+        if (started)
+        {
+            _assistantFlow = false;
+            CloseAssistantCard(scheduleNext: false);
+        }
+
+        return started;
+    }
+
+    private void OnAssistantNotNow(StartOfDayCardViewModel card, string reason)
+    {
+        if (card != AssistantCard || !reason.Any(char.IsLetterOrDigit))
+        {
+            return;
+        }
+
+        _ = _cardLog.AddAsync(_sessions.Now, reason);
+        CloseAssistantCard(scheduleNext: true);
+    }
+
+    // Next card after the repeat (none for "once"); it is the assistant again until a session starts.
+    private void CloseAssistantCard(bool scheduleNext)
+    {
+        if (AssistantCard is null)
+        {
+            return;
+        }
+
+        AssistantCard.Dispose();
+        AssistantCard = null;
+        _keptAssistantReason = string.Empty;
+        _cardDueAt = scheduleNext && Settings.RepeatMinutes > 0 ? _sessions.Now + TimeSpan.FromMinutes(Settings.RepeatMinutes) : null;
+        if (_cardDueAt is null)
+        {
+            _assistantFlow = false;
+        }
+
+        AssistantCardChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void OpenCard(LocalWindow workPart)
@@ -276,8 +392,11 @@ public sealed class StartNudgeService
         _arrivedAt = null;
         _comingBack = false;
         CloseCard(scheduleNext: false);
+        CloseAssistantCard(scheduleNext: false);
+        _assistantFlow = false;
         _cardDueAt = null;
         _keptReason = string.Empty;
+        _keptAssistantReason = string.Empty;
     }
 
     private void PruneLog()
@@ -291,7 +410,33 @@ public sealed class StartNudgeService
 
     private void Nudge(StartNudgeReason reason)
     {
+        if (_assistantFlow && reason is not (StartNudgeReason.SessionEnded or StartNudgeReason.Resumed))
+        {
+            return; // The assistant is the greeting: no Today window behind it.
+        }
+
         Due?.Invoke(this, reason);
+    }
+
+    // The day's first guarded window when it has not begun yet and the assistant still has to come (or is up): a user
+    // arriving before work starts gets it then. Null once the day's work has begun, on a day with no guarded window (a free
+    // day), or when the assistant is off or has come.
+    private LocalWindow? UpcomingWindowForAssistant()
+    {
+        if (!Settings.AssistantOn || Assistant is null || !(AssistantDue() || _assistantFlow))
+        {
+            return null;
+        }
+
+        DateTime now = TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime;
+        IReadOnlyList<PlannedFocus> today = DayWorkWindows.WorkWindows(_configuration.Current.DayPlan, new LocalWindow(now.Date, now.Date.AddDays(1)), now, FocusedOn, NightFallback);
+        if (today.Count == 0)
+        {
+            return null;
+        }
+
+        LocalWindow first = today.Select(focus => focus.Window).MinBy(window => window.Start);
+        return first.Start > now ? first : null;
     }
 
     private LocalWindow? CurrentWorkPart()

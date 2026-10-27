@@ -114,6 +114,7 @@ public partial class App : Application
     private WorkGateService? _workGate;
     private WorkGateWindow? _workGateWindow;
     private StartNudgeCardWindow? _startNudgeCardWindow;
+    private StartOfDayWindow? _startOfDayWindow;
     // The cards in front of everything (gate, Pre-Work, start nudge, session cards): dim behind, kept in front, follow the virtual desktop.
     private readonly FrontCardHost _frontCards = new(new WindowsVirtualDesktops(), new WindowsForegroundFocus(), new Win32OverlayWindowControl());
     private AwayCardWindow? _awayCardWindow;
@@ -467,6 +468,7 @@ public partial class App : Application
         _startNudge.IsGoalMet = () => _deepWork?.Progress.Met == true;
         _startNudge.IsGateOpen = () => _workGate?.Current is not null;
         _startNudge.CardChanged += (_, _) => ShowStartNudgeCard(monitorLocator);
+        _startNudge.AssistantCardChanged += (_, _) => ShowStartOfDayCard(monitorLocator);
         // ADR 31: Pre-Work parts ask whether today is a work day, then hold work tools and distractions back.
         _preWork = new PreWorkService(
             _sessions, _configuration, documents, new DpapiDataProtector(), new Win32UserIdleDetector(), windowsEnforcer,
@@ -735,6 +737,7 @@ public partial class App : Application
             Types = computerTypes,
             Identity = syncIdentity,
             Goal = goal,
+            StartNudge = _startNudge,
             WorkHours = _workHours,
             Keys = _coldTurkeyKeys,
             ColdTurkey = _coldTurkey,
@@ -830,6 +833,14 @@ public partial class App : Application
         _deepWork.Changed += (_, _) => _sessionOverlay?.SetGoalText(goalOverlayText());
         Func<bool> goalLowerWaits = () => _workHours?.HasWorkLeftToday == true;
         syncCoordinator.GoalLowerWaits = goalLowerWaits;
+        // The start-of-day assistant (first arrival of a workday): today's hours, first tasks, Start. Lowering the goal waits like on the goal card.
+        var startOfDay = new StartOfDayAssistant(documents, goal, _configuration, sessionTasks, _quickSession!, _sessions)
+        {
+            GoalLowerWaits = goalLowerWaits,
+            RefreshProgress = () => _deepWork?.CheckNow(),
+        };
+        startOfDay.LoadBlocking();
+        _startNudge!.Assistant = startOfDay;
         sessionViewModel.Goal = new GoalCardViewModel(_deepWork, goal)
         {
             LowerWaits = goalLowerWaits,
@@ -1071,7 +1082,7 @@ public partial class App : Application
 
         // The migration assistant: features added since the last version that aren't set up yet.
         var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
-            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration), BackupService.AppVersion);
+            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!), BackupService.AppVersion);
         setupFeatures.LoadBlocking();
         _setupFeatures = setupFeatures;
         coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();
@@ -1638,6 +1649,42 @@ public partial class App : Application
         }
 
         _startNudgeCardWindow = window;
+        _frontCards.Show(window); // Dimmed behind, kept in front, follows the virtual desktop.
+    }
+
+    /// <summary>Shows or closes the start-of-day assistant's card, like the start nudge's, as the service opens or closes it.</summary>
+    private void ShowStartOfDayCard(IMonitorLocator monitors)
+    {
+        StartOfDayCardViewModel? card = _startNudge?.AssistantCard;
+        if (card is null)
+        {
+            StartOfDayWindow? open = _startOfDayWindow;
+            _startOfDayWindow = null;
+            open?.Close();
+            return;
+        }
+
+        if (_startOfDayWindow is not null)
+        {
+            return;
+        }
+
+        var window = new StartOfDayWindow { DataContext = card };
+        window.Closed += (_, _) =>
+        {
+            if (_startOfDayWindow == window)
+            {
+                // Closed some other way: it opens again at the next check.
+                _startOfDayWindow = null;
+                _startNudge?.AssistantWindowClosed();
+            }
+        };
+        if (monitors.Find(monitors.FindMonitorUnderCursor()) is MonitorArea area)
+        {
+            MonitorPlacement.Center(window, area);
+        }
+
+        _startOfDayWindow = window;
         _frontCards.Show(window); // Dimmed behind, kept in front, follows the virtual desktop.
     }
 

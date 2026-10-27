@@ -363,6 +363,15 @@
                                Text="To set it up, finish here, then open Devices → How this PC shares → Own relay. Type your relay's address and pin, press Test connection and tick Own relay. The Devices page has the short steps and the full guide." />
                 </StackPanel>
 
+                <!-- The start-of-day assistant: on the first arrival of a workday -->
+                <StackPanel IsVisible="{Binding IsStartOfDay}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="On your first arrival of a workday, a card in front of everything now asks how many hours of work you hope to get done today, what's first (up to 3 tasks), and starts your session with the remembered length, counting down, planning first." />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="Raising today's goal (and budget on a Budget day) applies at once; lowering it waits like any looser change. Not now takes a reason and asks again later. It never comes on a free day. You can switch it off any time in Settings → Your day → Steer me to start." />
+                    <CheckBox IsChecked="{Binding IsStartOfDayOn}" Content="Ask me at the start of my workday" />
+                </StackPanel>
+
                 <!-- ADR 39: Cold Turkey, let AccountabiliBuddy hold the keys -->
                 <StackPanel IsVisible="{Binding IsColdTurkeyKeys}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
                     <TextBlock Classes="body" TextWrapping="Wrap"
