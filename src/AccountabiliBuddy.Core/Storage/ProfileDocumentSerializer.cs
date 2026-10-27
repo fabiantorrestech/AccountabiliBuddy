@@ -33,7 +33,14 @@ public static class ProfileDocumentSerializer
 
     public static string Serialize(ProfileDocument document)
     {
-        return JsonSerializer.Serialize(document, Options);
+        // The day plan also carries the v11 fields (workdays, workday, otherDay) for older apps; see LegacyDayPlan.
+        JsonNode node = JsonSerializer.SerializeToNode(document, Options)!;
+        if (node["dayPlan"] is JsonObject plan)
+        {
+            LegacyDayPlan.AddTo(plan, document.DayPlan, Options);
+        }
+
+        return node.ToJsonString(Options);
     }
 
     /// <exception cref="UnsupportedSchemaVersionException">The document is from a newer app version.</exception>
@@ -86,6 +93,17 @@ public static class ProfileDocumentSerializer
     /// device or receive one back (ADR 19).
     /// </summary>
     public static JsonElement SerializeDayPlan(DayPlan plan)
+    {
+        JsonObject node = JsonSerializer.SerializeToNode(plan, Options)!.AsObject();
+        LegacyDayPlan.AddTo(node, plan, Options);
+        return JsonSerializer.SerializeToElement(node, Options);
+    }
+
+    /// <summary>
+    /// The day plan with the v12 fields only (no <see cref="LegacyDayPlan"/> fields): what <see cref="Engine.DayPlanVersion"/>
+    /// hashes, so the version doesn't depend on the compatibility projection.
+    /// </summary>
+    internal static JsonElement SerializeDayPlanV12(DayPlan plan)
     {
         return JsonSerializer.SerializeToElement(plan, Options);
     }

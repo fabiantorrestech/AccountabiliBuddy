@@ -1,8 +1,10 @@
 package com.accountabilibuddy.companion.data
 
+import com.accountabilibuddy.companion.model.DayMode
 import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.companion.model.DayTemplate
 import com.accountabilibuddy.companion.model.PlanPart
+import com.accountabilibuddy.companion.model.PlanTemplate
 import com.accountabilibuddy.companion.model.WeekdayTemplate
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -56,6 +58,31 @@ object DayPlanJson {
                 })
             }
         }
+
+        // The v11 fields, for an older app that reads only those (the PC's LegacyDayPlan); a v12 reader ignores them.
+        val workdayId = legacyWorkdayTemplate(plan)
+        putJsonArray("workdays") {
+            plan.week.a.filter { it.templateId == workdayId }.map { it.day }.sorted().forEach { add(kotlinx.serialization.json.JsonPrimitive(camel(it.name))) }
+        }
+        put("workday", template(projected(plan, workdayId)))
+        put("otherDay", template(projected(plan, DayPlan.OFF_DAY_TEMPLATE_ID)))
+    }
+
+    /** The template most weekdays of week A follow, other than the Off day template and Free ones (ties: "Workday", then the first listed). */
+    private fun legacyWorkdayTemplate(plan: DayPlan): java.util.UUID {
+        val counts = plan.week.a
+            .filter { entry -> entry.templateId != DayPlan.OFF_DAY_TEMPLATE_ID && plan.templates.any { it.id == entry.templateId && it.template.mode != DayMode.Free } }
+            .groupingBy { it.templateId }.eachCount()
+        return plan.templates.filter { it.id in counts }
+            .sortedWith(compareByDescending<PlanTemplate> { counts[it.id] }.thenByDescending { it.id == DayPlan.WORKDAY_TEMPLATE_ID })
+            .firstOrNull()?.id ?: DayPlan.WORKDAY_TEMPLATE_ID
+    }
+
+    /** A template as the parts a v11 reader sees: a work window as its work part, a Budget day as its non-productive windows, a Free day as none. */
+    private fun projected(plan: DayPlan, id: java.util.UUID): DayTemplate {
+        val stored = plan.templateById(id)
+        if (stored == null || stored.mode == DayMode.Free) return DayTemplate()
+        return DayTemplate(stored.withWorkWindowPart(plan.categories).parts, stored.blocks)
     }
 
     private fun weekdays(week: List<WeekdayTemplate>): JsonArray = buildJsonArray {

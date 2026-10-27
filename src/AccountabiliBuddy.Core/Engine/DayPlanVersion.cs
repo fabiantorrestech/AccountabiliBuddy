@@ -24,7 +24,7 @@ public static class DayPlanVersion
             Week = plan.Week with { A = Ordered(plan.Week.A), B = plan.Week.B is null ? null : Ordered(plan.Week.B) },
             OneOffDays = plan.OneOffDays.OrderBy(day => day.Date).Select(day => day with { Template = Ordered(day.Template) }).ToList(),
         };
-        string json = ProfileDocumentSerializer.SerializeDayPlan(normalized).GetRawText();
+        string json = ProfileDocumentSerializer.SerializeDayPlanV12(normalized).GetRawText();
         return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(json)));
     }
 
