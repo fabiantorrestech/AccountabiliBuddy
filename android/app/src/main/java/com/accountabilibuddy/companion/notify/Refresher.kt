@@ -110,6 +110,8 @@ object Refresher {
             // for the chosen profile.
             val testRunning = !quiet && app.testSession.running() != null
             if (running != null || testRunning) com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartHardcore(context)
+            // Lunch lifts the session's LockMyPhone-Extended lock and brings it back after.
+            runCatching { com.accountabilibuddy.companion.essentials.LunchLockLift.check(context) }
             // The night's lock: LockMyPhone-Extended's profile from bedtime until the wake time.
             com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartBedtimeHardcore(context)
             bedtimeAt = app.bedtimeEssentials.hardcoreProfile?.let {
@@ -146,8 +148,11 @@ object Refresher {
         // A work use ending: the parked notice reads "Done? Put it back" then.
         val untilWorkUse = (context.applicationContext as CompanionApp).workUse.activeUntil()
             ?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
+        // Lunch's end: the session's lock is asked for again then.
+        val untilLunchEnd = (context.applicationContext as CompanionApp).lunch.today()?.end
+            ?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         val untilMinute = if (minutely) 60_000L - System.currentTimeMillis() % 60_000L + 500L else null
-        val delay = listOfNotNull(untilCountdownEnd, untilNudge, untilBedtime, untilTestEnd, untilWorkUse, untilMinute).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
+        val delay = listOfNotNull(untilCountdownEnd, untilNudge, untilBedtime, untilTestEnd, untilWorkUse, untilLunchEnd, untilMinute).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
         alarms.set(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + delay, intent)
     }
 }

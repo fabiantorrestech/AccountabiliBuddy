@@ -25,9 +25,13 @@ object EssentialsLaunch {
     const val LOCK_MY_PHONE = "com.fabiantorrestech.lockmyphone_extended"
     private const val LMP_PACKAGE = LOCK_MY_PHONE
     private const val LMP_START = "$LMP_PACKAGE.action.START_LOCK"
+    internal const val LMP_STOP = "$LMP_PACKAGE.action.STOP_LOCK"
     private const val PREFS = "essentials-launch"
     private const val KEY_HARDCORE_FOR = "hardcoreFor"
     private const val KEY_BEDTIME_FOR = "bedtimeFor"
+    /** The session start (ISO) AccountabiliBuddy itself asked LockMyPhone-Extended to lock for; the only lock lunch may lift. */
+    internal const val KEY_SESSION_LOCK_FOR = "sessionLockFor"
+    private const val KEY_TEST_LOCK_UNTIL = "testLockUntil"
     /** The first LockMyPhone-Extended that keeps more than one synced profile (its ADR 0010, 0.13.0). */
     private const val SLOTS_SINCE_VERSION_CODE = 7L
 
@@ -85,7 +89,9 @@ object EssentialsLaunch {
             return
         }
 
-        prefs.edit().putString(KEY_HARDCORE_FOR, start.toString()).apply()
+        // Lunch has lifted the lock: LunchLockLift asks for it again when lunch ends.
+        if (LunchLockLift.liftingNow(context, now)) return
+        prefs.edit().putString(KEY_HARDCORE_FOR, start.toString()).putString(KEY_SESSION_LOCK_FOR, start.toString()).apply()
         val intent = Intent(LMP_START).setPackage(LMP_PACKAGE).putExtra("profile", profile)
         // Rounded up, so a 1-minute test asked a moment after it started still gets its minute.
         endsAt?.let { end -> ceilMinutes(Duration.between(now, end)).takeIf { it > 0 }?.let { intent.putExtra("duration_min", it.toInt()) } }
@@ -102,18 +108,32 @@ object EssentialsLaunch {
         val app = context.applicationContext as CompanionApp
         if (!app.essentials.useLockMyPhone || !lockMyPhoneInstalled(context)) return false
         val profile = app.essentials.hardcoreProfile ?: return false
-        val (_, endsAt) = runningSessionStart(app, now) ?: return false
-        val intent = Intent(LMP_START).setPackage(LMP_PACKAGE).putExtra("profile", profile)
-        endsAt?.let { end -> ceilMinutes(Duration.between(now, end)).takeIf { it > 0 }?.let { intent.putExtra("duration_min", it.toInt()) } }
-        if (runCatching { context.sendBroadcast(intent) }.isFailure) return false
+        val (start, endsAt) = runningSessionStart(app, now) ?: return false
+        // During a lunch the lock is lifted on purpose: unlocking does not bring it back (nor the in-app screen).
+        if (LunchLockLift.liftingNow(context, now)) return true
+        if (!sendSessionLock(context, profile, endsAt, now)) return false
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_SESSION_LOCK_FOR, start.toString()).apply()
         Log.i(TAG, "unlock in a session: asked LockMyPhone-Extended for '$profile' until $endsAt")
         return true
     }
+
+    /** Asks LockMyPhone-Extended for [profile] until [endsAt] (no set end: its own length). False when the broadcast failed. */
+    internal fun sendSessionLock(context: Context, profile: String, endsAt: Instant?, now: Instant): Boolean {
+        val intent = Intent(LMP_START).setPackage(LMP_PACKAGE).putExtra("profile", profile)
+        endsAt?.let { end -> ceilMinutes(Duration.between(now, end)).takeIf { it > 0 }?.let { intent.putExtra("duration_min", it.toInt()) } }
+        return runCatching { context.sendBroadcast(intent) }.isSuccess
+    }
+
+    /** True while a test lock started here may still be running (Settings → Essentials → "Test stop"). */
+    fun testLockMayRun(context: Context, now: Instant = Instant.now()): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(KEY_TEST_LOCK_UNTIL, 0L) > now.toEpochMilli()
 
     /** Starts a LockMyPhone-Extended lock with [profile] for [minutes] (Settings → Essentials → try it for 1 minute). */
     fun startTestLock(context: Context, profile: String, minutes: Int = 1) {
         val intent = Intent(LMP_START).setPackage(LMP_PACKAGE).putExtra("profile", profile).putExtra("duration_min", minutes)
         runCatching { context.sendBroadcast(intent) }.onFailure { Log.w(TAG, "LockMyPhone-Extended not reached", it) }
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putLong(KEY_TEST_LOCK_UNTIL, Instant.now().plus(Duration.ofMinutes(minutes.toLong())).toEpochMilli()).apply()
         Log.i(TAG, "test: asked LockMyPhone-Extended for '$profile' for $minutes min")
     }
 
@@ -132,6 +152,14 @@ object EssentialsLaunch {
     // A session on another device (it always wins), else the phone's test session (Today → More options).
     internal fun runningSessionStart(app: CompanionApp, now: Instant): Pair<Instant, Instant?>? =
         realSessionStart(app, now) ?: app.testSession.running(now)
+
+    /** True when the PC's running session is on a break right now (the lock isn't re-asked for then). */
+    internal fun sessionOnBreak(app: CompanionApp, now: Instant): Boolean =
+        app.sync.received.value
+            .filter { it.file.device.kind == SyncDeviceCard.KIND_PC && Duration.between(it.file.device.writtenAt, now) <= Duration.ofHours(12) }
+            .mapNotNull { it.file.running }
+            .filter { it.phaseEndsAt?.let { end -> now.isBefore(end) } ?: true }
+            .maxByOrNull { it.phaseStartedAt }?.isBreak == true
 
     // The newest PC file's running focus session (start, end), not a break, its phase not over.
     internal fun realSessionStart(app: CompanionApp, now: Instant): Pair<Instant, Instant?>? {
