@@ -158,9 +158,10 @@ class CompanionApp : Application() {
     /** "I need my phone for a bit". */
     val emergency by lazy { com.accountabilibuddy.companion.nudge.EmergencyStore(this) }
 
-    /** Where the phone is during a PC session (phase 11b): the state and counts the sync file carries. */
     /** The on/off switch for the placement guard (Settings; off waits 10 minutes, never in a session). */
     val placementGuard by lazy { com.accountabilibuddy.companion.placement.PlacementGuard(this) }
+
+    /** Where the phone is during a PC session (phase 11b): the state and counts the sync file carries. */
     val placementStore by lazy { com.accountabilibuddy.companion.placement.PlacementStore(this) }
 
     /** "Need it for work" uses during a session (phase 11b); the reasons stay on the phone. */
@@ -326,10 +327,11 @@ class CompanionApp : Application() {
         folderSource = DriveFolderSource(this, sync)
         com.accountabilibuddy.companion.ui.UiPrefs.load(this)
         driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn, beforeSync = { watchBridge.refreshKnownWatches() })
+        // The relay source comes first: a file the Drive loop accepts at start-up calls relaySource.syncSoon().
+        relaySource = com.accountabilibuddy.companion.sync.RelaySyncSource(sync, appScope, beforeSync = { watchBridge.refreshKnownWatches() })
         // Drive (ADR 26): every 30 s while a session runs or the timeline is pinned, else 15 min.
         appScope.launch { driveSource.loop { driveBusy() } }
         // The relay (ADR 46): the same pace, plus a push stream open while a session runs or the timeline is pinned.
-        relaySource = com.accountabilibuddy.companion.sync.RelaySyncSource(sync, appScope, beforeSync = { watchBridge.refreshKnownWatches() })
         appScope.launch { relaySource.loop { driveBusy() } }
         noise = com.accountabilibuddy.companion.noise.NoisePlayer(this, com.accountabilibuddy.companion.noise.NoiseSettingsStore(this), appScope)
         com.accountabilibuddy.companion.noise.HeadphoneWatcher(this, headphones, noise).start()
@@ -404,21 +406,30 @@ class CompanionApp : Application() {
         }
     }
 
-    // Today's work parts, and lunch: running, or still to come from the plan's flexible break. Lunch is started on any
-    // device, so the phone must hear of it (and be heard) within about 30 seconds, not 15 minutes.
+    /** How long before a planned lunch window the phone starts listening for a lunch started elsewhere. */
+    private val LUNCH_LEAD: java.time.Duration = java.time.Duration.ofHours(1)
+
+    // Today's work parts, and lunch: running, or about to come from the plan's flexible break. Lunch is started on any
+    // device, so the phone must hear of it (and be heard) within about 30 seconds, not 15 minutes, but only from an hour
+    // before the planned lunch window until it ends: never all night.
     private fun inWorkPartOrLunchExpected(now: java.time.Instant): Boolean {
-        val plan = store.state.value.document.dayPlan
+        val state = store.state.value
+        val plan = state.document.dayPlan
         val local = java.time.LocalDateTime.ofInstant(now, java.time.ZoneId.systemDefault())
         if (lunch.isOnLunch(now)) {
             return true
         }
 
         val flexibleBreak = plan.flexibleBreakOn(local.toLocalDate())
-        if (flexibleBreak != null && lunch.today(now) == null && local.isBefore(flexibleBreak.window.end)) {
+        if (flexibleBreak != null && lunch.today(now) == null &&
+            !local.isBefore(flexibleBreak.window.start.minus(LUNCH_LEAD)) && local.isBefore(flexibleBreak.window.end)
+        ) {
             return true
         }
 
-        return plan.partAt(local)?.category?.behavior?.isWork == true
+        // The guards' own view of the day (a Budget day's windows included), not the plan's raw parts.
+        return com.accountabilibuddy.companion.engine.DayWorkWindows
+            .partAt(plan, local, nightFallback = state.sleep::fallbackNightBefore)?.category?.behavior?.isWork == true
     }
 
     private var lastUnlockSyncAt = java.time.Instant.EPOCH

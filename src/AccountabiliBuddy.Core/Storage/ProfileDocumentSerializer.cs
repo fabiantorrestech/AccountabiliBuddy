@@ -124,6 +124,14 @@ public static class ProfileDocumentSerializer
         DayPlan plan;
         try
         {
+            // A plan in the v11 shape (an older phone's edit: "workday" and "otherDay", no "templates") is upgraded first.
+            JsonNode? node = JsonNode.Parse(json.GetRawText());
+            if (node is JsonObject planObject && DayModesMigration.IsLegacy(planObject))
+            {
+                DayModesMigration.Upgrade(planObject);
+                json = JsonSerializer.SerializeToElement(planObject, Options);
+            }
+
             plan = json.Deserialize<DayPlan>(Options) ?? throw new JsonException("The day plan is empty.");
         }
         catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or ArgumentException)
@@ -133,7 +141,6 @@ public static class ProfileDocumentSerializer
         }
 
         // Missing lists and null items come through as null from the records' constructors; a plan needs them all.
-        // (A plan in the v11 shape, with "workday" and "otherDay", has no templates and so is refused here.)
         if (plan.Categories is null || plan.Templates is null || plan.Week?.A is null || plan.OneOffDays is null
             || plan.Categories.Any(category => category is null || category.Name is null || category.Color is null)
             || plan.Templates.Any(template => template?.Name is null || template.Template?.Parts is null || template.Template.Parts.Any(part => part is null))

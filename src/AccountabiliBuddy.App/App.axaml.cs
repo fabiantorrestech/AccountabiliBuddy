@@ -903,6 +903,18 @@ public partial class App : Application
         // A Budget day whose plan has no Sleep part takes its night from the sleep settings.
         Func<DateOnly, SleepTimes?> nightFallback = date => sleepSettings.Current.FallbackNightBefore(date);
         _workHours.NightFallback = nightFallback;
+        // What the fallback will be once a plan is saved (SleepSettingsService.SaveFromPlanAsync): the plan's own typical nights.
+        _workHours.NightFallbackFor = plan =>
+        {
+            SleepSettings now = sleepSettings.Current;
+            SleepSettings derived = now with
+            {
+                SameEveryNight = false,
+                Weeknights = DayPlanSleep.TypicalNight(plan, workday: true) ?? DayPlanSleep.SleepOf(plan.Workday, plan) ?? now.Weeknights,
+                Weekends = DayPlanSleep.TypicalNight(plan, workday: false) ?? DayPlanSleep.SleepOf(plan.OtherDay, plan) ?? now.Weekends,
+            };
+            return date => derived.FallbackNightBefore(date);
+        };
         _startNudge.NightFallback = nightFallback;
         _shutdown.NightFallback = nightFallback;
         _dayBar.NightFallback = nightFallback;

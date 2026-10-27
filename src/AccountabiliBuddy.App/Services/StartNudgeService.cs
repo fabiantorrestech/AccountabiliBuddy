@@ -47,6 +47,8 @@ public sealed class StartNudgeService
     // A reason half typed when the card was closed some other way; the reopened card shows it again.
     private string _keptReason = string.Empty;
     private DateOnly _prunedOn;
+    // How long before the day's first guarded window the start-of-day assistant may open at the earliest.
+    private static readonly TimeSpan AssistantLead = TimeSpan.FromHours(2);
     // The start-of-day assistant is next in line to open (instead of the ordinary card) until it is answered, or the user is gone.
     private bool _assistantFlow;
     private string _keptAssistantReason = string.Empty;
@@ -271,7 +273,7 @@ public sealed class StartNudgeService
     {
         _arrivedAt = _sessions.Now;
         _comingBack = false;
-        _assistantFlow = _assistantFlow || (assistantAllowed && AssistantDue());
+        _assistantFlow = _assistantFlow || (assistantAllowed && AssistantDue() && AssistantMayOpenNow());
         if (Card is null && AssistantCard is null)
         {
             _cardDueAt = _sessions.Now + (_assistantFlow && !quiet ? TimeSpan.Zero : CardAfter);
@@ -419,8 +421,9 @@ public sealed class StartNudgeService
     }
 
     // The day's first guarded window when it has not begun yet and the assistant still has to come (or is up): a user
-    // arriving before work starts gets it then. Null once the day's work has begun, on a day with no guarded window (a free
-    // day), or when the assistant is off or has come.
+    // arriving before work starts gets it then, but only once the day has started (see AssistantMayOpenNow). Null once the
+    // day's work has begun, on a day with no guarded window (a free day), when it is too early, or when the assistant is
+    // off or has come.
     private LocalWindow? UpcomingWindowForAssistant()
     {
         if (!Settings.AssistantOn || Assistant is null || !(AssistantDue() || _assistantFlow))
@@ -436,7 +439,51 @@ public sealed class StartNudgeService
         }
 
         LocalWindow first = today.Select(focus => focus.Window).MinBy(window => window.Start);
-        return first.Start > now ? first : null;
+        if (first.Start <= now)
+        {
+            return null;
+        }
+
+        // An assistant already up stays up; a new one waits for the day to start, so night-time input never uses it up.
+        return _assistantFlow || AssistantCard is not null || AssistantMayOpenNow() ? first : null;
+    }
+
+    // The assistant opens from the day's wake time (the plan's night, else the sleep settings') or at most
+    // AssistantLead before the first guarded window, whichever is later, and never during a Sleep part. With no wake
+    // time known and no window to count back from, not before 5:00 AM.
+    private bool AssistantMayOpenNow()
+    {
+        DateTime now = TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime;
+        DayPlan plan = _configuration.Current.DayPlan;
+        DateOnly today = DateOnly.FromDateTime(now);
+
+        bool asleep = DayWorkWindows.PartsIn(plan, new LocalWindow(now, now.AddMinutes(1)), now, FocusedOn, NightFallback)
+            .Any(part => part.Category.Behavior == CategoryBehavior.Sleep && part.Window.Contains(now));
+        if (asleep)
+        {
+            return false;
+        }
+
+        DateTime? wake = (DayPlanSleep.NightBefore(plan, today) ?? NightFallback?.Invoke(today)) is SleepTimes night
+            ? now.Date + night.Wake.ToTimeSpan()
+            : null;
+
+        // Windows that begin today; the part of last night's window after midnight is not the day's start.
+        DateTime? firstStart = DayWorkWindows.WorkWindows(plan, new LocalWindow(now.Date, now.Date.AddDays(1)), now, FocusedOn, NightFallback)
+            .Select(focus => focus.Window.Start)
+            .Where(start => start > now.Date)
+            .Cast<DateTime?>()
+            .Min();
+        DateTime? leadFrom = firstStart - AssistantLead;
+
+        DateTime openFrom = (wake, leadFrom) switch
+        {
+            ({ } w, { } l) => w > l ? w : l,
+            ({ } w, null) => w,
+            (null, { } l) => l,
+            _ => now.Date.AddHours(5),
+        };
+        return now >= openFrom;
     }
 
     private LocalWindow? CurrentWorkPart()

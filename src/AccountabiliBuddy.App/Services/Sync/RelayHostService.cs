@@ -8,7 +8,8 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// Runs the sealed relay (ADR 46) on this PC: the "Run a relay on this PC" switch. While it is on, the relay program that
 /// ships next to the app is started as a child process when the app starts (listening on all interfaces, HTTPS with its own
 /// certificate) and ends with the app. If it ends by itself it is started again after 1 s, then 2 s, 4 s … up to 60 s
-/// (a run that lasted a minute starts the waits over). Its data is kept in the app's data folder, so it survives updates.
+/// (a run that lasted a minute starts the waits over). When the port is taken by another program it stops after
+/// <see cref="MaxPortTries"/> tries in a row and says "Port N is in use" (Devices); "Start", a new port or a restart tries again. Its data is kept in the app's data folder, so it survives updates.
 /// Turning it on also points this PC's own "Own relay" method at it (https://127.0.0.1:port, with the relay's pin).
 /// Nothing here touches focus sessions, profiles or any enforcement setting: it only runs a program, edits one firewall rule
 /// and edits the sync settings, so it is allowed during a session. The relay's output (times, group prefixes and statuses,
@@ -19,6 +20,7 @@ public sealed class RelayHostService : IDisposable
     private const int MaxLogLines = 50;
     private const int MaxErrorLength = 200;
     private const string ReadyMarker = " relay starting on ";
+    private const int MaxPortTries = 3;
     private static readonly TimeSpan FirstRestartWait = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan LastRestartWait = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan StableRun = TimeSpan.FromSeconds(60);
@@ -33,6 +35,7 @@ public sealed class RelayHostService : IDisposable
     private TimeSpan _nextRestartWait = FirstRestartWait;
     private long _startedAtTick;
     private string? _runError;
+    private int _portTakenRuns;
     private bool _stoppedByUser;
     private bool _useForOwnMethod;
     private bool _started;
@@ -102,6 +105,7 @@ public sealed class RelayHostService : IDisposable
         _useForOwnMethod = true;
         await _settings.SaveAsync(_settings.Current with { HostRelayOn = true });
         _stoppedByUser = false;
+        _portTakenRuns = 0;
         StartProcess();
     }
 
@@ -126,6 +130,7 @@ public sealed class RelayHostService : IDisposable
     public void StartNow()
     {
         _stoppedByUser = false;
+        _portTakenRuns = 0;
         StartProcess();
     }
 
@@ -141,6 +146,7 @@ public sealed class RelayHostService : IDisposable
     {
         StopProcess();
         _stoppedByUser = false;
+        _portTakenRuns = 0;
         StartProcess();
     }
 
@@ -247,6 +253,11 @@ public sealed class RelayHostService : IDisposable
         }
 
         AddLog(line);
+        if (_runError is null && IsPortTaken(line))
+        {
+            _runError = line.Trim().Length > MaxErrorLength ? line.Trim()[..MaxErrorLength] : line.Trim(); // Logged on stdout, not stderr.
+        }
+
         if (line.Contains(ReadyMarker, StringComparison.Ordinal))
         {
             _ = PointOwnMethodAtRelayAsync();
@@ -285,10 +296,17 @@ public sealed class RelayHostService : IDisposable
         if (ranStably)
         {
             _nextRestartWait = FirstRestartWait;
+            _portTakenRuns = 0;
         }
 
         string reason = $"The relay stopped (exit code {code}). {_runError}".TrimEnd();
-        if (IsOn && !_stoppedByUser)
+        _portTakenRuns = !ranStably && IsPortTaken(_runError) ? _portTakenRuns + 1 : 0;
+        if (_portTakenRuns >= MaxPortTries)
+        {
+            // Another program (a dev build, or the installed app) holds the port: trying again changes nothing.
+            Problem = $"Port {Port} is in use. Close the program using it or choose another port, then press Start.";
+        }
+        else if (IsOn && !_stoppedByUser)
         {
             ScheduleRestart(reason);
         }
@@ -298,6 +316,15 @@ public sealed class RelayHostService : IDisposable
         }
 
         Raise();
+    }
+
+    // What Kestrel (and Windows) say when the port is taken.
+    private static bool IsPortTaken(string? error)
+    {
+        return error is not null
+            && (error.Contains("address already in use", StringComparison.OrdinalIgnoreCase)
+                || error.Contains("Only one usage of each socket address", StringComparison.OrdinalIgnoreCase)
+                || error.Contains("Failed to bind", StringComparison.OrdinalIgnoreCase));
     }
 
     private void ScheduleRestart(string reason)
