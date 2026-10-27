@@ -25,6 +25,14 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="DefaultProfileId">A PC's "Quick Start with Default" profile; null when it isn't made yet.</param>
 /// <param name="Noise">A PC's noise player (ADR 42, 36); null when it has no sound files.</param>
 /// <param name="Placement">A phone's placement during a PC focus session (bag, desk, pocket, out); null from a PC, an older phone or when no session runs.</param>
+/// <param name="NextTasks">
+/// The next session's task list with its tombstones (ADR 48), merged item by item by <see cref="SharedListMerge"/>; null
+/// from a QR file or an older app, which then take no part in it. Optional in the JSON, so older apps ignore it.
+/// </param>
+/// <param name="Parked">
+/// The come-backs, the user's parked thoughts, open and recently ticked, with their tombstones (ADR 48); null as
+/// <paramref name="NextTasks"/>. <see cref="Comebacks"/> stays for older phones: the open ones only.
+/// </param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
@@ -52,7 +60,9 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? DefaultProfileId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncBeeminderGoal>? Beeminder = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncNoise? Noise = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncPlacement? Placement = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncPlacement? Placement = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncNextTask>? NextTasks = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncParked>? Parked = null)
 {
     public const int CurrentFormatVersion = 1;
 }

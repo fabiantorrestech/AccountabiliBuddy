@@ -50,7 +50,8 @@ class SyncCoordinator(
     /** This phone's own file as QR code links, for "Show as picture" (a PC without a camera reads a screenshot). */
     fun ownQrLinks(): List<String> {
         val key = identity.key.value ?: return emptyList()
-        return SyncQr.links(SyncFileCodec.seal(ownFile(), key), key.groupId)
+        // The shared lists with their tombstones (ADR 48) stay out of QR codes, as on the PC: a file without them leaves them alone.
+        return SyncQr.links(SyncFileCodec.seal(ownFile().copy(nextTasks = null, parked = null), key), key.groupId)
     }
 
     // The methods on the phone's card: what's switched on.
@@ -94,6 +95,18 @@ class SyncCoordinator(
 
     /** Today's flexible lunch (schema v8), when started here or taken from another device. */
     var lunch: () -> com.accountabilibuddy.shared.sync.SyncLunch? = { null }
+
+    /** The next session's task list with its tombstones (ADR 48); null before the app sets it. */
+    var nextTasks: () -> List<com.accountabilibuddy.shared.sync.SyncNextTask>? = { null }
+
+    /** The come-backs with their tombstones (ADR 48); null before the app sets it. */
+    var parked: () -> List<com.accountabilibuddy.shared.sync.SyncParked>? = { null }
+
+    /**
+     * Another device's shared lists (ADR 48), from a file just taken in; a list the file doesn't carry is null. The app
+     * merges them into its own. Called with the lists only, so the copy kept of the file doesn't hold their text.
+     */
+    var onSharedLists: (List<com.accountabilibuddy.shared.sync.SyncNextTask>?, List<com.accountabilibuddy.shared.sync.SyncParked>?) -> Unit = { _, _ -> }
 
     /** What the user did here for a PC, waiting for its ack (ADR 26); set by the app. */
     var actions: () -> List<com.accountabilibuddy.shared.sync.SyncAction> = { emptyList() }
@@ -160,12 +173,21 @@ class SyncCoordinator(
         val key = identity.key.value ?: return NOT_JOINED
         val file = SyncFileCodec.open(bytes, key) ?: return CANNOT_READ
         val held = store.devices.value.firstOrNull { it.file.device.deviceId == file.device.deviceId }
-        val outcome = SyncCarry.accept(store.devices.value, file, bytes, method, identity.deviceId, now())
+        // The copy kept of the sender's file doesn't hold the shared lists (ADR 48): they merge into this phone's own sealed
+        // store below, so their text isn't kept a second time in the clear. The sealed bytes it carries on are sealed.
+        // An empty "parked" stays as the mark that the device keeps the shared lists (a QR file carries none: the mark is kept).
+        val mark = if (file.parked != null || held?.file?.parked != null) emptyList<com.accountabilibuddy.shared.sync.SyncParked>() else null
+        val outcome = SyncCarry.accept(store.devices.value, file.copy(nextTasks = null, parked = mark), bytes, method, identity.deviceId, now())
         if (outcome.error != null) {
             return outcome.error
         }
 
         store.save(outcome.devices)
+        // Not from a device whose clock runs more than a minute ahead; a later file from it, once the clocks agree, is taken.
+        if ((file.nextTasks != null || file.parked != null) && !file.device.writtenAt.isAfter(now().plusSeconds(60))) {
+            onSharedLists(file.nextTasks, file.parked)
+        }
+
         if (held == null || file.device.writtenAt > held.file.device.writtenAt) {
             onCarryChanged?.invoke(method)
         }
@@ -206,6 +228,8 @@ class SyncCoordinator(
         blockers = runCatching { blockers() }.getOrNull(),
         wakeEstimate = runCatching { wakeEstimate() }.getOrNull(),
         placement = runCatching { placement() }.getOrNull(),
+        nextTasks = runCatching { nextTasks() }.getOrNull(),
+        parked = runCatching { parked() }.getOrNull(),
     )
 
     /** Everything to hand over by [method] (Drive or a share): this phone's own file first, then what it carries. */

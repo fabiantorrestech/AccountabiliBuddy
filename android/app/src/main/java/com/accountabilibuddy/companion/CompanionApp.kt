@@ -170,6 +170,9 @@ class CompanionApp : Application() {
     /** What the user did here for a PC (ADR 26), until that PC acknowledges it. */
     val actions by lazy { com.accountabilibuddy.companion.sync.ActionStore(this) }
 
+    /** The shared next-session tasks and come-backs (ADR 48): items with edit times, merged with the other devices' lists. */
+    val sharedLists by lazy { com.accountabilibuddy.companion.sync.SharedListsStore(this) }
+
     /** "Play when headphones connect" (Settings → Noise player). */
     val headphones by lazy { com.accountabilibuddy.companion.noise.HeadphoneStore(this) }
 
@@ -262,6 +265,17 @@ class CompanionApp : Application() {
         sync.actions = { actions.pending.value }
         // A tick or a parked thought goes to the PC at once (Drive), and shows ticked here meanwhile.
         actions.onChanged = {
+            relaySoon()
+            appScope.launch {
+                driveSource.syncNow()
+                Refresher.refresh(this@CompanionApp)
+            }
+        }
+        // ADR 48: the next session's tasks and the come-backs are shared lists; this phone's go out in its file, other devices' merge in.
+        sync.nextTasks = { sharedLists.nextTasksForSync() }
+        sync.parked = { sharedLists.parkedForSync() }
+        sync.onSharedLists = { nextTasks, parked -> sharedLists.receive(nextTasks, parked) }
+        sharedLists.onChanged = {
             relaySoon()
             appScope.launch {
                 driveSource.syncNow()

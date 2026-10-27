@@ -31,52 +31,61 @@ import com.accountabilibuddy.companion.sync.deviceIdOf
 import com.accountabilibuddy.shared.sync.SyncAction
 
 /**
- * "Come back to" (ADR 30): the PC's parked thoughts. Ticking one or parking a new one goes to that PC through the sync
- * files (ADR 26); a tick shows at once and the PC's list catches up at its next sync. Read-only when the PC isn't in
- * the device group (no sync files from it).
+ * "Come back to" (ADR 30, 48): the user's parked thoughts, one list on every device. Ticking one or parking a new one
+ * changes this phone's copy at once and reaches the PCs with the next sync, where the newest edit of each thought wins.
+ *
+ * Next to a PC that predates the shared list ([OpenComebacks.legacySource]) the card shows that PC's open come-backs, and
+ * ticking or parking goes to it through the sync files (ADR 26) as before; it asks to update that PC.
  */
 @Composable
 fun ComebacksCard(comebacks: OpenComebacks) {
     val app = LocalContext.current.applicationContext as CompanionApp
     val received by app.sync.received.collectAsState()
     val pending by app.actions.pending.collectAsState()
-    val target = deviceIdOf(comebacks.source, received)
+    val legacySource = comebacks.legacySource
+    val target = if (legacySource == null) null else deviceIdOf(legacySource, received)
     var text by remember { mutableStateOf("") }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            IconTitle("Come back to · ${comebacks.source}", style = MaterialTheme.typography.titleSmall)
+            IconTitle(if (legacySource == null) "Come back to" else "Come back to · $legacySource", style = MaterialTheme.typography.titleSmall)
+            if (legacySource != null) {
+                Text(
+                    "Update AccountabiliBuddy on $legacySource to edit come-backs here",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             if (comebacks.items.isEmpty()) {
                 Text("Nothing parked.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             comebacks.items.forEach { item ->
                 val ticked = target != null && pending.any { it.target == target && it.item == item.id && it.kind == SyncAction.TICK_COMEBACK }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (target != null) {
-                        Checkbox(checked = ticked, enabled = !ticked, onCheckedChange = { app.actions.add(SyncAction.TICK_COMEBACK, target, item = item.id) })
-                    }
-                    Text(
-                        if (target == null) "• ${item.text}" else item.text,
-                        style = MaterialTheme.typography.bodyMedium,
-                        textDecoration = if (ticked) TextDecoration.LineThrough else null,
+                    Checkbox(
+                        checked = ticked, enabled = !ticked,
+                        onCheckedChange = {
+                            if (legacySource == null) app.sharedLists.tickParked(item.id)
+                            else if (target != null) app.actions.add(SyncAction.TICK_COMEBACK, target, item = item.id)
+                        },
                     )
+                    Text(item.text, style = MaterialTheme.typography.bodyMedium, textDecoration = if (ticked) TextDecoration.LineThrough else null)
                 }
             }
-            // Parked here, it waits on that PC under Come back to.
+            // Parked here for an older PC, it waits on that PC under Come back to.
             pending.filter { it.target == target && it.kind == SyncAction.PARK }.forEach { parked ->
                 Text("⚑ ${parked.text} · sending…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (target != null) {
+            if (legacySource == null || target != null) {
                 fun park() {
                     val thought = text.trim()
                     if (thought.isNotEmpty()) {
-                        app.actions.add(SyncAction.PARK, target, text = thought)
+                        if (legacySource == null) app.sharedLists.addParked(thought) else app.actions.add(SyncAction.PARK, target!!, text = thought)
                         text = ""
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = text, onValueChange = { text = it }, singleLine = true, modifier = Modifier.weight(1f),
-                        placeholder = { Text("Park a thought for ${comebacks.source}") },
+                        placeholder = { Text(if (legacySource == null) "Park a thought" else "Park a thought for $legacySource") },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = { park() }),
                     )

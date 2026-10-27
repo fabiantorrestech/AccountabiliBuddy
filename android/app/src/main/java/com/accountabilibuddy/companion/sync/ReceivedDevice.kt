@@ -13,4 +13,10 @@ import java.time.Instant
  * @property sealed The newest file's sealed bytes exactly as they arrived: what the phone carries on. A merged copy is
  * never sealed again and relayed, since it has gaps where its files didn't meet.
  */
-class ReceivedDevice(val file: SyncFile, val receivedAt: Instant, val method: String, val sealed: ByteArray)
+class ReceivedDevice(val file: SyncFile, val receivedAt: Instant, val method: String, val sealed: ByteArray) {
+    /**
+     * The device keeps the shared lists (ADR 48): its files carry "parked". The copy kept here has the lists themselves
+     * taken out (they merge into the phone's own store), leaving an empty "parked" as the mark.
+     */
+    val hasSharedLists: Boolean get() = file.parked != null
+}
