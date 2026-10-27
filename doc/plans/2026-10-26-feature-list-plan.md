@@ -60,6 +60,15 @@ Opus 5.5 high, implementers Opus 5.5 medium), one item or one group of items tha
 | Places (new, not in the note yet) | Location-based focus spots per device: Focus / Sometimes / Free / Not now; network first (VPN-proof), location as backup; spots only add rules. Full decisions: `doc/plans/2026-10-26-phase12-places-plan.md` (ADR 44 first). |
 | Future: auto-start at a spot | An option, off by default; needs an ADR 18 amendment. After Places. |
 
+### User answers (2026-10-27): phases 10, 11, 4b and 6 approved
+| Item | Decision |
+|---|---|
+| Phase 10 | Details in `doc/plans/2026-10-27-phase10-added-bugs-plan.md` ("User decisions"). |
+| 4b | Delete the link, its pairing, its port and the watch's PC route; the watch works through the phone only. |
+| C 3.1 relay | A small standalone .NET program (built-in ASP.NET Core, no NuGet): Windows service, Linux systemd or Docker. Stores the sealed files, pushes changes in about a second, can't read them. The phone uses plain HTTP streaming (no new Android libraries). |
+| Relay reach | All three, each in the guide: LAN + the user's VPN/Tailscale (pinned self-signed cert), the public internet with a real certificate (Let's Encrypt / reverse proxy), and a VPS. |
+| C 6.1 synced timers | A synced timer or alarm shows and rings on every device; dismissing or snoozing on one stops it on all. Each can be marked "this device only". |
+
 ## Phases
 
 1. **Bugs.** PC 3.1, PC 4, PC 5.1 (+ C 5 bug part), PC 7, PC 9, PC 6.1.1, PC 6.1.2, PC 11.1 (needs the ADR amendment).
