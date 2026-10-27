@@ -128,3 +128,10 @@ PowerReadDCValueIndex
 LocalFree
 // Start nudge after a session: flash the taskbar button instead of taking focus
 FlashWindowEx
+// Cards that take the foreground back
+SetForegroundWindow
+BringWindowToTop
+AttachThreadInput
+// Cards that follow the user across virtual desktops
+IVirtualDesktopManager
+VirtualDesktopManager

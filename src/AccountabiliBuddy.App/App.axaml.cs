@@ -111,6 +111,8 @@ public partial class App : Application
     private WorkGateService? _workGate;
     private WorkGateWindow? _workGateWindow;
     private StartNudgeCardWindow? _startNudgeCardWindow;
+    // The cards in front of everything (gate, Pre-Work, start nudge, session cards): dim behind, kept in front, follow the virtual desktop.
+    private readonly FrontCardHost _frontCards = new(new WindowsVirtualDesktops(), new WindowsForegroundFocus(), new Win32OverlayWindowControl());
     private AwayCardWindow? _awayCardWindow;
     private PickTasksWindow? _pickTasksWindow;
     private ReadyCardWindow? _readyCardWindow;
@@ -1467,8 +1469,7 @@ public partial class App : Application
 
         _pickTasksWindow = window;
         ShowReadyCard(monitors); // Pick comes first: an already-open "Ready?" card closes until it is answered.
-        window.Show();
-        window.Activate();
+        _frontCards.Show(window);
     }
 
     /// <summary>Shows or closes the Pre-Work window (ADR 31) as the service opens or closes it.</summary>
@@ -1505,8 +1506,7 @@ public partial class App : Application
         }
 
         _preWorkWindow = window;
-        window.Show();
-        window.Activate();
+        _frontCards.Show(window);
     }
 
     /// <summary>Shows or closes the work-hours gate (ADR 27) as the service opens or closes it.</summary>
@@ -1542,8 +1542,7 @@ public partial class App : Application
         }
 
         _workGateWindow = window;
-        window.Show();
-        window.Activate();
+        _frontCards.Show(window);
     }
 
     /// <summary>Shows or closes the start nudge's card, like the work-hours gate, as the service opens or closes it.</summary>
@@ -1579,8 +1578,7 @@ public partial class App : Application
         }
 
         _startNudgeCardWindow = window;
-        window.Show();
-        window.Activate();
+        _frontCards.Show(window); // Dimmed behind, kept in front, follows the virtual desktop.
     }
 
     /// <summary>
@@ -1607,9 +1605,7 @@ public partial class App : Application
             }
 
             // Raised again: back in front of everything.
-            _awayCardWindow.Topmost = false;
-            _awayCardWindow.Topmost = true;
-            _awayCardWindow.Activate();
+            _frontCards.Raise(_awayCardWindow);
             return;
         }
 
@@ -1628,8 +1624,7 @@ public partial class App : Application
         }
 
         _awayCardWindow = window;
-        window.Show();
-        window.Activate();
+        _frontCards.Show(window);
     }
 
     /// <summary>
@@ -1656,9 +1651,7 @@ public partial class App : Application
             }
 
             // Raised again: back in front of everything.
-            _readyCardWindow.Topmost = false;
-            _readyCardWindow.Topmost = true;
-            _readyCardWindow.Activate();
+            _frontCards.Raise(_readyCardWindow);
             return;
         }
 
@@ -1677,8 +1670,7 @@ public partial class App : Application
         }
 
         _readyCardWindow = window;
-        window.Show();
-        window.Activate();
+        _frontCards.Show(window);
     }
 
     private void UpdateTray()

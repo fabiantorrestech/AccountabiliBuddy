@@ -5,7 +5,7 @@
         x:DataType="vm:ColdTurkeyKeyViewModel"
         Title="{Binding Title}"
         Width="560" SizeToContent="Height" CanResize="False"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen" Topmost="True">
     <!-- ADR 39: the spare key, shown once and typed back; and Emergency release with it. ADR 41: get a new key. -->
     <StackPanel Margin="24" Spacing="12">
         <TextBlock Text="{Binding Title}" FontSize="20" FontWeight="SemiBold" />
