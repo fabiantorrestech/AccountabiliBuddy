@@ -1008,8 +1008,8 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
         RearmOn = Keys.RearmOn;
         DayPlan plan = _configuration.Current.DayPlan;
-        WorkdayReenable = plan.Workday.Rules.ReenableAt.ToTimeSpan();
-        OffDayReenable = plan.OtherDay.Rules.ReenableAt.ToTimeSpan();
+        WorkdayReenable = (plan.TypicalTemplate(workday: true) ?? plan.Workday).Rules.ReenableAt.ToTimeSpan();
+        OffDayReenable = (plan.TypicalTemplate(workday: false) ?? plan.OtherDay).Rules.ReenableAt.ToTimeSpan();
         OnPropertyChanged(nameof(ColdTurkeyNotPro));
         OnPropertyChanged(nameof(NextText));
     }
@@ -1057,13 +1057,23 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         TimeOnly workday = TimeOnly.FromTimeSpan(WorkdayReenable ?? TimeSpan.Zero);
         TimeOnly offDay = TimeOnly.FromTimeSpan(OffDayReenable ?? TimeSpan.Zero);
         DayPlan plan = _configuration.Current.DayPlan;
-        if (plan.Workday.Rules.ReenableAt != workday || plan.OtherDay.Rules.ReenableAt != offDay)
+        // Every template that is a workday one gets the workday time, every other one the off-day time.
+        if (plan.Templates.Any(template => template.Template.Rules.ReenableAt != (plan.IsWorkdayTemplate(template.Id) ? workday : offDay)))
         {
             await _configuration.UpdateAsync(document => document with
             {
-                DayPlan = document.DayPlan
-                    .WithWorkday(document.DayPlan.Workday with { Blocks = document.DayPlan.Workday.Rules with { ReenableAt = workday } })
-                    .WithOtherDay(document.DayPlan.OtherDay with { Blocks = document.DayPlan.OtherDay.Rules with { ReenableAt = offDay } }),
+                DayPlan = document.DayPlan with
+                {
+                    Templates = document.DayPlan.Templates
+                        .Select(template => template with
+                        {
+                            Template = template.Template with
+                            {
+                                Blocks = template.Template.Rules with { ReenableAt = document.DayPlan.IsWorkdayTemplate(template.Id) ? workday : offDay },
+                            },
+                        })
+                        .ToList(),
+                },
             });
         }
     }

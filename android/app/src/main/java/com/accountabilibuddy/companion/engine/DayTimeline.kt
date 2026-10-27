@@ -1,9 +1,7 @@
 package com.accountabilibuddy.companion.engine
 
 import com.accountabilibuddy.companion.model.LocalWindow
-import com.accountabilibuddy.companion.model.PlannedFocus
 import com.accountabilibuddy.companion.model.CategoryBehavior
-import com.accountabilibuddy.companion.model.DayPlan
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
@@ -58,12 +56,6 @@ object DayTimeline {
 
         return LocalWindow(maxOf(start, limit.start), minOf(end, limit.end))
     }
-
-    /** The day plan's work parts (Watch and Comms) overlapping [range], cut to it, earliest first. */
-    fun planned(plan: DayPlan, range: LocalWindow): List<PlannedFocus> =
-        plan.partsIn(range)
-            .filter { it.category.behavior.isWork }
-            .map { PlannedFocus(it.name, it.category.argb, it.window) }
 
     /** Merges overlapping and touching windows, earliest first. */
     fun union(windows: Iterable<LocalWindow>): List<LocalWindow> {

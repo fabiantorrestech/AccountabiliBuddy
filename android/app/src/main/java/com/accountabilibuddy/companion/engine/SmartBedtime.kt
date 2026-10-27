@@ -48,8 +48,8 @@ object SmartBedtime {
     private const val DEFAULT_LATENCY = 15
     private val PHONE_DOWN_WINDOW: Duration = Duration.ofHours(3)
 
-    /** The kind of night leading into [day]. */
-    fun kindOf(day: LocalDate, workdays: Set<DayOfWeek>): NightKind = if (day.dayOfWeek in workdays) NightKind.Workday else NightKind.OffDay
+    /** The kind of night leading into [day]: [isWorkday] says by the plan's week map (A or B, custom templates), as the PC does. */
+    fun kindOf(day: LocalDate, isWorkday: (LocalDate) -> Boolean): NightKind = if (isWorkday(day)) NightKind.Workday else NightKind.OffDay
 
     /** The night a sleep belongs to: the evening 12 hours before it ended (6:45 AM on the 24th is the night of the 23rd). */
     fun eveningOf(end: LocalDateTime): LocalDate = end.minusHours(12).toLocalDate()
@@ -61,7 +61,7 @@ object SmartBedtime {
     fun nights(
         slept: List<LocalWindow>,
         now: LocalDateTime,
-        workdays: Set<DayOfWeek>,
+        isWorkday: (LocalDate) -> Boolean,
         phoneDown: (LocalDate, LocalWindow) -> LocalDateTime?,
         asked: (LocalDate) -> LocalDateTime?,
     ): List<NightRecord> = slept.filter { it.end.isAfter(it.start) && !it.end.isAfter(now) }
@@ -72,7 +72,7 @@ object SmartBedtime {
             val asleep = windows.minOf { it.start }
             NightRecord(
                 evening = evening,
-                kind = kindOf(evening.plusDays(1), workdays),
+                kind = kindOf(evening.plusDays(1), isWorkday),
                 asleep = asleep,
                 woke = windows.maxOf { it.end },
                 sleptMinutes = DayTimeline.union(windows).sumOf { Duration.between(it.start, it.end).toMinutes() }.toInt(),

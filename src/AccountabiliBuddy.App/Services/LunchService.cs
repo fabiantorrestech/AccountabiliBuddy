@@ -60,24 +60,11 @@ public sealed class LunchService
     public FlexibleBreak? Today => _configuration.Current.DayPlan.FlexibleBreakOn(DateOnly.FromDateTime(LocalNow()));
 
     /// <summary>
-    /// True on a workday: one of the plan's workdays, or a one-off day with work in it. A one-off day replaces a
-    /// workday's template, so a one-off day off on a Monday isn't one.
+    /// True on a workday, by the plan's one rule (<see cref="DayPlan.IsWorkday"/>, the phone's too): its week map (A or B)
+    /// gives the day a workday template, or a one-off day has work in it. A one-off day replaces a workday's template, so
+    /// a one-off day off on a Monday isn't one.
     /// </summary>
-    public bool IsWorkdayToday
-    {
-        get
-        {
-            DayPlan plan = _configuration.Current.DayPlan;
-            DateOnly today = DateOnly.FromDateTime(LocalNow());
-            OneOffDay? oneOff = plan.OneOffDays.FirstOrDefault(day => day.Date == today);
-            if (oneOff is null)
-            {
-                return plan.Workdays.Contains(today.DayOfWeek);
-            }
-
-            return oneOff.Template.Parts.Any(part => plan.Category(part.CategoryId)?.Behavior.IsWork() == true);
-        }
-    }
+    public bool IsWorkdayToday => _configuration.Current.DayPlan.IsWorkday(DateOnly.FromDateTime(LocalNow()));
 
     /// <summary>How long a lunch lasts when it starts (the setting; it wins over a flexible break's own length).</summary>
     public TimeSpan Length => TimeSpan.FromMinutes(Math.Clamp(_state.LengthMinutes, MinLengthMinutes, MaxLengthMinutes));

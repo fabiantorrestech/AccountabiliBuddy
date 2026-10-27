@@ -61,6 +61,15 @@ public sealed class WorkHoursGuard : IDisposable
     /// </summary>
     public Func<GoalProgress?>? Goal { get; set; }
 
+    /// <summary>
+    /// Counted focus on a date, for the day plan's Budget days (<see cref="DayWorkWindows"/>): once a day's budget is met
+    /// its guarded windows are over. Set by the app; null = nothing counted.
+    /// </summary>
+    public Func<DateOnly, TimeSpan>? FocusedOn { get; set; }
+
+    /// <summary>The night before a date from the sleep settings, for a Budget day whose plan has no Sleep part. Set by the app.</summary>
+    public Func<DateOnly, SleepTimes?>? NightFallback { get; set; }
+
     /// <summary>Today's goal is met (earned time): the guard has lifted, and stopping for today costs nothing.</summary>
     public bool IsGoalMet => Goal?.Invoke() is { Met: true };
 
@@ -80,7 +89,7 @@ public sealed class WorkHoursGuard : IDisposable
 
         DateTime now = LocalNow();
         DateTime endOfDay = now.Date.AddDays(1);
-        return DayTimeline.Planned(_configuration.Current.DayPlan, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)))
+        return DayWorkWindows.WorkWindows(_configuration.Current.DayPlan, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)), now, FocusedOn, NightFallback)
             .Any(focus => focus.Window.End > now && focus.Window.Start < endOfDay);
     }
 
@@ -228,7 +237,7 @@ public sealed class WorkHoursGuard : IDisposable
             return null;
         }
 
-        TimeSpan freed = DayPlanCut.FreedToday(before, after, LocalNow());
+        TimeSpan freed = DayPlanCut.FreedToday(before, after, LocalNow(), FocusedOn, NightFallback);
         if (freed <= TimeSpan.Zero)
         {
             return null;
@@ -255,7 +264,7 @@ public sealed class WorkHoursGuard : IDisposable
         DateTime now = LocalNow();
         var around = new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2));
         // Work parts that touch (Work, then Comms, then Work) are one stretch of work hours.
-        LocalWindow? stretch = DayTimeline.Union(DayTimeline.Planned(_configuration.Current.DayPlan, around).Select(focus => focus.Window))
+        LocalWindow? stretch = DayTimeline.Union(DayWorkWindows.WorkWindows(_configuration.Current.DayPlan, around, now, FocusedOn, NightFallback).Select(focus => focus.Window))
             .Where(window => window.Start <= now && now < window.End)
             .Select(window => (LocalWindow?)window)
             .FirstOrDefault();

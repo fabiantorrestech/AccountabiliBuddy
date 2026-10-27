@@ -64,6 +64,12 @@ public sealed class StartNudgeService
     /// <summary>True once today's deep-work goal is met; then nothing steers. Set by the app.</summary>
     public Func<bool> IsGoalMet { get; set; } = () => false;
 
+    /// <summary>Counted focus on a date, for the day plan's Budget days (a met budget ends the day's work windows). Set by the app.</summary>
+    public Func<DateOnly, TimeSpan>? FocusedOn { get; set; }
+
+    /// <summary>The night before a date from the sleep settings, for a Budget day whose plan has no Sleep part. Set by the app.</summary>
+    public Func<DateOnly, SleepTimes?>? NightFallback { get; set; }
+
     /// <summary>True while the work-hours gate shows; the card waits until it's closed. Set by the app.</summary>
     public Func<bool> IsGateOpen { get; set; } = () => false;
 
@@ -291,7 +297,7 @@ public sealed class StartNudgeService
     private LocalWindow? CurrentWorkPart()
     {
         DateTime now = TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime;
-        return DayTimeline.Planned(_configuration.Current.DayPlan, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)))
+        return DayWorkWindows.WorkWindows(_configuration.Current.DayPlan, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)), now, FocusedOn, NightFallback)
             .Where(focus => focus.Window.Start <= now && now < focus.Window.End)
             .Select(focus => (LocalWindow?)focus.Window)
             .FirstOrDefault();

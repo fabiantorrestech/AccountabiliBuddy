@@ -543,7 +543,7 @@ public sealed partial class ExceptionsViewModel : ObservableObject
         OneOffDay? own = plan.OneOffDays.FirstOrDefault(day => day.Date == SelectedDate);
         SelectedHasOwnPlan = own is not null;
         SelectedIsAdjusted = IsAdjusted(plan, SelectedDate);
-        string usual = plan.Workdays.Contains(SelectedDate.DayOfWeek) ? "Workdays" : "Off-Days";
+        string usual = UsualDayName(plan, SelectedDate);
         SelectedDayPlanText = SelectedIsAdjusted ? "Adjusted plan for this day" : $"Default day plan ({usual})";
         SelectedDayAgenda.Clear();
         foreach (AgendaRow row in DayAgenda.For(plan, SelectedDate))
@@ -593,6 +593,24 @@ public sealed partial class ExceptionsViewModel : ObservableObject
         }
 
         return lines;
+    }
+
+    // What a date follows without a one-off day, as the Day plan tab names it ("Workdays" and "Off-Days" for the two
+    // stock templates, else the template's own name).
+    private static string UsualDayName(DayPlan plan, DateOnly date)
+    {
+        Guid? id = plan.Week.TemplateIdFor(date);
+        if (id == DayPlan.WorkdayTemplateId)
+        {
+            return "Workdays";
+        }
+
+        if (id is null || id == DayPlan.OffDayTemplateId)
+        {
+            return "Off-Days";
+        }
+
+        return plan.Templates.FirstOrDefault(template => template.Id == id)?.Name ?? "Off-Days";
     }
 
     /// <summary>The date has a one-off day whose parts differ from its default plan.</summary>

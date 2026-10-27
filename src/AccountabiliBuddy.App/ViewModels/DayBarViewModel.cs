@@ -132,6 +132,12 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         Redraw();
     }
 
+    /// <summary>Counted focus on a date, for the day plan's Budget days (a met budget ends the day's planned work). Set by the app.</summary>
+    public Func<DateOnly, TimeSpan>? FocusedOn { get; set; }
+
+    /// <summary>The night before a date from the sleep settings, for a Budget day whose plan has no Sleep part. Set by the app.</summary>
+    public Func<DateOnly, SleepTimes?>? NightFallback { get; set; }
+
     [ObservableProperty]
     public partial DayBarLayout Layout { get; set; }
 
@@ -374,7 +380,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 
         DateTime now = LocalNow();
         (LocalWindow day, LocalWindow span) = CurrentDay();
-        IReadOnlyList<PlannedFocus> planned = DayTimeline.Planned(_configuration.Current.DayPlan, span);
+        IReadOnlyList<PlannedFocus> planned = DayWorkWindows.WorkWindows(_configuration.Current.DayPlan, span, now, FocusedOn, NightFallback);
         // A lunch taken (flexible break, schema v8) isn't work: it comes out of the planned work it lies in.
         TimelineItem? lunch = TakenLunch();
         if (lunch is not null)
@@ -414,7 +420,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         IReadOnlyList<TimelineItem> phoneFree = PhoneFreeMarks(sessions, range);
         var timelineDay = new TimelineDay(
             range,
-            TimelineRowsBuilder.PartsAround(_configuration.Current.DayPlan, span),
+            TimelineRowsBuilder.PartsAround(_configuration.Current.DayPlan, span, now, FocusedOn, NightFallback),
             // The other devices' first, so this PC's own sessions draw on top where they overlap.
             received.Concat(sessions).ToList(),
             drift,

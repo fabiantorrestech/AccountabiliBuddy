@@ -48,7 +48,7 @@ class SmartBedtimeService(private val app: CompanionApp) {
         // Tonight's bedtime, remembered as asked until it has passed (then that night's is fixed).
         val night = app.store.state.value.sleep.toSchedule(plan).nightAround(now)
         val evening = SmartBedtime.eveningOf(night.end)
-        if (now.isBefore(night.start) && SmartBedtime.kindOf(evening.plusDays(1), plan.workdays) in levels) {
+        if (now.isBefore(night.start) && SmartBedtime.kindOf(evening.plusDays(1), plan::isWorkdayByWeek) in levels) {
             store.saveAsked(evening, night.start)
         }
     }
@@ -58,7 +58,7 @@ class SmartBedtimeService(private val app: CompanionApp) {
         val plan = state.document.dayPlan
         val known = store.nights().associateBy { it.evening }
         val measured = SmartBedtime.nights(
-            state.slept, now, plan.workdays,
+            state.slept, now, plan::isWorkdayByWeek,
             phoneDown = { evening, window -> known[evening]?.phoneDown ?: runCatching { usage.lastScreenOff(window) }.getOrNull() },
             asked = { evening -> store.asked(evening) },
         )
@@ -91,7 +91,7 @@ class SmartBedtimeService(private val app: CompanionApp) {
             parts += "Learning: $have of ${SmartBedtime.NIGHTS_TO_START} nights (needs Health Connect sleep)"
         } else {
             val plan = app.store.state.value.document.dayPlan
-            val tonight = nextNight(kind, now, plan.workdays)
+            val tonight = nextNight(kind, now, plan::isWorkdayByWeek)
             val bed = app.store.state.value.sleep.toSchedule(plan).night(tonight).start
             parts += "${DayBarBuilder.duration(Duration.ofMinutes(level.toLong()))} in bed → ${if (tonight == today || tonight == today.minusDays(1)) "tonight" else tonight.dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }} ${clock.time(bed)}"
             val minimum = (sleep().minHours * 60).toInt() + summary.latencyMinutes
@@ -106,10 +106,10 @@ class SmartBedtimeService(private val app: CompanionApp) {
     }
 
     // The next evening whose night is of this kind (tonight when it is).
-    private fun nextNight(kind: NightKind, now: LocalDateTime, workdays: Set<java.time.DayOfWeek>): LocalDate {
+    private fun nextNight(kind: NightKind, now: LocalDateTime, isWorkday: (LocalDate) -> Boolean): LocalDate {
         var evening = if (now.hour < 12) now.toLocalDate().minusDays(1) else now.toLocalDate()
         repeat(7) {
-            if (SmartBedtime.kindOf(evening.plusDays(1), workdays) == kind) return evening
+            if (SmartBedtime.kindOf(evening.plusDays(1), isWorkday) == kind) return evening
             evening = evening.plusDays(1)
         }
         return evening

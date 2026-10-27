@@ -39,6 +39,15 @@ public sealed record SleepSettings(
         Weeknights: new SleepTimes(new TimeOnly(22, 0), new TimeOnly(6, 0)),
         Weekends: new SleepTimes(new TimeOnly(23, 30), new TimeOnly(7, 30)));
 
+    /// <summary>
+    /// The night before <paramref name="day"/> by these settings alone (the weeknight times, or the weekend times before a
+    /// Saturday or Sunday): what a day's plan falls back on when it has no Sleep part, e.g. a Budget day's waking time.
+    /// </summary>
+    public SleepTimes FallbackNightBefore(DateOnly day)
+    {
+        return SleepSchedule.IsWeekendNight(day.AddDays(-1)) && !SameEveryNight ? Weekends : Weeknights;
+    }
+
     /// <param name="plan">The day plan, which sets each night (its workdays and one-off days included); these
     /// settings' times are the fallback for a day whose plan has no night.</param>
     /// <param name="phoneAlarm">The phone's next alarm (local time), used while <see cref="UsePhoneAlarm"/> is on.</param>
@@ -53,13 +62,13 @@ public sealed record SleepSettings(
         Func<DateOnly, TimeOnly?>? wakeGuess = null;
         if ((UsePhoneAlarm || UsePcAlarm) && plan is not null && phoneWake is not null)
         {
-            wakeGuess = morning => ParseTime(plan.Workdays.Contains(morning.DayOfWeek) ? phoneWake.Workdays : phoneWake.OffDays);
+            wakeGuess = morning => ParseTime(plan.IsWorkday(morning, withOneOffDays: false) ? phoneWake.Workdays : phoneWake.OffDays);
         }
 
         Func<DateOnly, TimeSpan?>? bedLevel = null;
         if (UsePhoneBedtime && plan is not null && phoneBedtime is not null)
         {
-            bedLevel = day => (plan.Workdays.Contains(day.DayOfWeek) ? phoneBedtime.Workdays : phoneBedtime.OffDays)?.LevelMinutes is int minutes
+            bedLevel = day => (plan.IsWorkday(day, withOneOffDays: false) ? phoneBedtime.Workdays : phoneBedtime.OffDays)?.LevelMinutes is int minutes
                 ? TimeSpan.FromMinutes(minutes)
                 : null;
         }

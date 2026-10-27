@@ -42,6 +42,13 @@ data class SleepSettings(
     val goal: java.time.Duration
         get() = if (goalHours in 4.0..12.0) java.time.Duration.ofMinutes((goalHours * 60).toLong()) else SleepSchedule.DefaultGoal
 
+    /**
+     * The night before [day] by these settings alone (the weeknight times, or the weekend times before a Saturday or Sunday):
+     * what a day's plan falls back on when it has no Sleep part, e.g. a Budget day's waking time. The PC's same.
+     */
+    fun fallbackNightBefore(day: java.time.LocalDate): SleepTimes =
+        if (com.accountabilibuddy.companion.engine.SleepSchedule.isWeekendNight(day.minusDays(1)) && !sameEveryNight) weekends else weeknights
+
     /** [plan] sets each night (workdays and one-off days included); these times are the fallback. */
     fun toSchedule(plan: DayPlan? = null): SleepSchedule =
         SleepSchedule(
@@ -51,9 +58,9 @@ data class SleepSettings(
             alarm,
             goal,
             if (plan == null || smartLevels.isEmpty()) null
-            else { day: java.time.LocalDate -> smartLevels[com.accountabilibuddy.companion.engine.SmartBedtime.kindOf(day, plan.workdays)] },
+            else { day: java.time.LocalDate -> smartLevels[com.accountabilibuddy.companion.engine.SmartBedtime.kindOf(day, plan::isWorkdayByWeek)] },
             if (plan == null || wakeEstimates.isEmpty()) null
-            else { morning: java.time.LocalDate -> wakeEstimates[com.accountabilibuddy.companion.engine.SmartBedtime.kindOf(morning, plan.workdays)] },
+            else { morning: java.time.LocalDate -> wakeEstimates[com.accountabilibuddy.companion.engine.SmartBedtime.kindOf(morning, plan::isWorkdayByWeek)] },
         )
 
     companion object {

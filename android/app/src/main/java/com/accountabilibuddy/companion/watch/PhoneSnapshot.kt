@@ -5,6 +5,7 @@ import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.FocusDayCombine
 import com.accountabilibuddy.shared.DataSource
 import com.accountabilibuddy.companion.data.CompanionState
+import com.accountabilibuddy.companion.engine.DayWorkWindows
 import com.accountabilibuddy.companion.sync.PcFileControl
 import com.accountabilibuddy.companion.model.CategoryBehavior
 import com.accountabilibuddy.companion.model.DayPlan
@@ -38,9 +39,9 @@ object PhoneSnapshot {
             zone = zone,
             linked = linked,
             pcName = pcName,
-            parts = todayParts(state.document.dayPlan, today, zone),
+            parts = todayParts(state.document.dayPlan, today, zone, state.sleep),
             // The parts and planned minutes come from the imported plan (ADR 42).
-            focusDay = FocusDayCombine.combine(received, today, zone, now, planParts = { date -> todayParts(state.document.dayPlan, date, zone) }),
+            focusDay = FocusDayCombine.combine(received, today, zone, now, planParts = { date -> todayParts(state.document.dayPlan, date, zone, state.sleep) }),
             sources = received.map { (name, file) -> DataSource(name, file.device.writtenAt) },
             running = fileRunning?.first,
             runningAt = fileRunning?.second,
@@ -49,9 +50,10 @@ object PhoneSnapshot {
     }
 
     /** The day plan's parts on [date] (midnight to midnight), as the PC would send them. */
-    fun todayParts(plan: DayPlan, date: LocalDate, zone: ZoneId): List<FocusPart> {
+    fun todayParts(plan: DayPlan, date: LocalDate, zone: ZoneId, sleep: com.accountabilibuddy.companion.model.SleepSettings? = null): List<FocusPart> {
         val start = date.atStartOfDay()
-        return plan.partsIn(LocalWindow(start, start.plusDays(1))).map { part ->
+        // Through the work-window engine: a Budget day goes out as its guarded windows in "watch" parts, a Free day without work.
+        return DayWorkWindows.partsIn(plan, LocalWindow(start, start.plusDays(1)), start, nightFallback = sleep?.let { it::fallbackNightBefore }).map { part ->
             val kind = when (part.category.behavior) {
                 CategoryBehavior.Watch, CategoryBehavior.Comms -> "watch"
                 CategoryBehavior.Sleep -> "sleep"

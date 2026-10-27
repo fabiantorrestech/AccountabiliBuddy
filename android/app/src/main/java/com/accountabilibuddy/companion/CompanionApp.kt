@@ -498,9 +498,9 @@ class CompanionApp : Application() {
             .map { java.time.LocalDateTime.ofInstant(it.at, zone) }
             .filter { WakeAlarm.inMorningWindow(it, plan::night) }
         val measuredWakes = state.slept.map { it.end }.filter { it.isBefore(java.time.LocalDateTime.ofInstant(now, zone)) }
-        val workdays = state.document.dayPlan.workdays
+        val dayPlan = state.document.dayPlan
         store.setWakeEstimates(WakeEstimate.of(alarms, measuredWakes) { morning ->
-            com.accountabilibuddy.companion.engine.SmartBedtime.kindOf(morning, workdays)
+            com.accountabilibuddy.companion.engine.SmartBedtime.kindOf(morning, dayPlan::isWorkdayByWeek)
         })
     }
 

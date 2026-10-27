@@ -1,4 +1,5 @@
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Engine;
 using Avalonia.Media;
 
 namespace AccountabiliBuddy.App.ViewModels;
@@ -13,7 +14,7 @@ public static class DayAgenda
     public static IReadOnlyList<AgendaRow> For(DayPlan plan, DateOnly date)
     {
         var day = new LocalWindow(date.ToDateTime(TimeOnly.MinValue), date.AddDays(1).ToDateTime(TimeOnly.MinValue));
-        return plan.PartsIn(day)
+        return DayWorkWindows.PartsIn(plan, day, day.Start)
             .Select(part =>
             {
                 Color color = Color.TryParse(part.Category.Color, out Color parsed) ? parsed : Colors.Gray;
@@ -22,10 +23,10 @@ public static class DayAgenda
             .ToList();
     }
 
-    /// <summary>The plan a date follows when it has no one-off day: Workdays on a workday, else Off-Days.</summary>
+    /// <summary>The plan a date follows when it has no one-off day: what the week map (A or B) gives its weekday.</summary>
     public static DayTemplate DefaultFor(DayPlan plan, DateOnly date)
     {
-        return plan.Workdays.Contains(date.DayOfWeek) ? plan.Workday : plan.OtherDay;
+        return plan.WeekTemplateFor(date);
     }
 
     /// <summary>True when a one-off day's parts differ from the default plan its date would follow.</summary>
@@ -34,9 +35,14 @@ public static class DayAgenda
         return !SameParts(day.Template, DefaultFor(plan, day.Date));
     }
 
-    /// <summary>The same parts (category, times and label), whatever their ids and order.</summary>
+    /// <summary>The same mode, budget and work window, and the same parts (category, times and label), whatever their ids and order.</summary>
     public static bool SameParts(DayTemplate first, DayTemplate second)
     {
+        if (first.Mode != second.Mode || first.BudgetMinutes != second.BudgetMinutes || first.WorkWindow != second.WorkWindow)
+        {
+            return false;
+        }
+
         static IEnumerable<(Guid CategoryId, TimeOnly Start, TimeOnly End, string? Label)> Keys(DayTemplate template) =>
             template.Parts
                 .Select(part => (part.CategoryId, part.Start, part.End, part.Label))
