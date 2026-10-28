@@ -9,7 +9,7 @@ namespace AccountabiliBuddy.App.Services.Setup;
 public static class SetupFeatures
 {
     public static IReadOnlyList<SetupFeature> All(ColdTurkeyKeysService keys, ColdTurkeyService coldTurkey, Sync.SyncSettingsService sync,
-        ConfigurationService configuration, StartNudgeService startNudge, DpAssistantService dpAssistant) => new[]
+        ConfigurationService configuration, StartNudgeService startNudge, DpAssistantService dpAssistant, Theming.AppTheme appearance) => new[]
     {
         new SetupFeature(
             "coldturkey.keys", "0.1.106",
@@ -47,5 +47,12 @@ public static class SetupFeatures
             IsRelevant: () => true,
             IsSetUp: () => dpAssistant.HasRun,
             Step: ViewModels.AssistantStep.DpAssistant),
+        new SetupFeature(
+            "appearance.themes", "0.1.114",
+            "Appearance: three themes, light and dark on a schedule",
+            "Pick Instrument, Night Desk or Paper, and have the app go dark at a time you set or after sunset, with a place that stays on this PC.",
+            IsRelevant: () => true,
+            IsSetUp: () => appearance.HasPickedTheme,
+            Step: ViewModels.AssistantStep.Appearance),
     };
 }

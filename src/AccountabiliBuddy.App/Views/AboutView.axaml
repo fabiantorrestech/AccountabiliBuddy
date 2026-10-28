@@ -58,6 +58,9 @@
                     </StackPanel>
                 </StackPanel>
             </Border>
+
+            <!-- ADR 49: the city list behind Settings → Appearance → Find a city. -->
+            <TextBlock Text="City list © GeoNames (geonames.org), CC BY 4.0." Opacity="0.65" FontSize="12" HorizontalAlignment="Center" Margin="0,0,0,16" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

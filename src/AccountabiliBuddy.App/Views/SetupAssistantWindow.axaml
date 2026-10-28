@@ -381,6 +381,15 @@
                     <CheckBox IsChecked="{Binding IsStartOfDayOn}" Content="Ask me at the start of my workday" />
                 </StackPanel>
 
+                <!-- ADR 49: the look, a theme and light or dark -->
+                <StackPanel IsVisible="{Binding IsAppearance}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="The app now has three themes, Instrument, Night Desk and Paper, each light or dark. Light and dark can follow Windows, switch at times you set, or switch at sunset." />
+                    <views:AppearanceView DataContext="{Binding Appearance}" IsCompact="True" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="Everything here can be changed any time in Settings → On screen &amp; sound → Appearance, which also has the place for sunset and how much colour the screens use." />
+                </StackPanel>
+
                 <!-- ADR 39: Cold Turkey, let AccountabiliBuddy hold the keys -->
                 <StackPanel IsVisible="{Binding IsColdTurkeyKeys}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
                     <TextBlock Classes="body" TextWrapping="Wrap"
