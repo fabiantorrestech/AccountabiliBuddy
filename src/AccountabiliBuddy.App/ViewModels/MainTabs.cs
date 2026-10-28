@@ -10,6 +10,15 @@ public static class MainTabs
     }
 
     /// <summary>
+    /// The day bar's strip above the page: History only. Today carries its own timeline under "More today", so the page
+    /// is not pushed down by a second copy of it.
+    /// </summary>
+    public static bool ShowsTimelineStrip(MainTab tab)
+    {
+        return tab is MainTab.History;
+    }
+
+    /// <summary>
     /// Focus mode: only Today and History in the sidebar while a session runs, until "Show everything" is chosen for
     /// that session.
     /// </summary>

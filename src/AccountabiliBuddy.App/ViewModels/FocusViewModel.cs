@@ -163,6 +163,14 @@ public sealed partial class FocusViewModel : ObservableObject
     /// <summary>The phone's line for the running session; set by the app.</summary>
     public Func<string?>? PhoneLine { get; set; }
 
+    /// <summary>The running card's chip: "Focus · 1 of 3", "Focus" without tasks, "Break" or "Test session".</summary>
+    [ObservableProperty]
+    public partial string ChipText { get; set; } = string.Empty;
+
+    /// <summary>The running card's line beside the chip: "Coding profile · ends 2:20 PM" (or "since 9:00 AM" with no set end).</summary>
+    [ObservableProperty]
+    public partial string SessionLineText { get; set; } = string.Empty;
+
     /// <summary>"Now · 1 of 3 done"; empty without tasks.</summary>
     [ObservableProperty]
     public partial string NowText { get; set; }
@@ -237,7 +245,7 @@ public sealed partial class FocusViewModel : ObservableObject
         EndSessionText = state.IsTest ? "End test" : "End session…";
         if (!state.IsActive)
         {
-            TimeLeftText = PhaseText = AwayText = string.Empty;
+            TimeLeftText = PhaseText = AwayText = SessionLineText = string.Empty;
             IsAway = false;
             IsSideTask = IsPlainAway = false;
             StepAwayText = "Step away";
@@ -250,6 +258,10 @@ public sealed partial class FocusViewModel : ObservableObject
         string profile = ProfileOptions.NameOf(_configuration.Current.Profiles, state.ProfileId) ?? "Focus";
         string who = state.IsTest ? "Test session" : state.IsPlanning ? $"Planning · {profile}" : state.IsEnforcing ? profile : "Break";
         TimeZoneInfo zone = _sessions.TimeProvider.LocalTimeZone;
+        string what = state.IsTest ? "Test session" : state.IsPlanning ? $"Planning · {profile}" : state.IsEnforcing ? $"{profile} profile" : "Break";
+        SessionLineText = state.PhaseEndsAt is DateTimeOffset phaseEnd
+            ? $"{what} · ends {TimeZoneInfo.ConvertTime(phaseEnd, zone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}"
+            : $"{what} · since {TimeZoneInfo.ConvertTime(state.PhaseStartedAt ?? now, zone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}";
         if (state.PhaseEndsAt is DateTimeOffset end)
         {
             TimeLeftText = SessionStatusFormatter.FormatDuration(end - clock);
@@ -274,6 +286,16 @@ public sealed partial class FocusViewModel : ObservableObject
         RefreshTasks();
     }
 
+    // "Focus · 1 of 3": the task in front among all of them (ProgressText is "done/total").
+    private void RefreshChip(ChecklistViewModel? checklist)
+    {
+        SessionState state = _sessions.State;
+        string label = state.IsTest ? "Test session" : state.IsEnforcing ? "Focus" : "Break";
+        string[] counts = checklist?.ProgressText.Split('/') ?? [];
+        bool hasOpenTask = counts.Length == 2 && int.TryParse(counts[0], out int done) && int.TryParse(counts[1], out int total) && done < total;
+        ChipText = hasOpenTask ? $"{label} · {int.Parse(counts[0]) + 1} of {counts[1]}" : label;
+    }
+
     private void RefreshTasks()
     {
         ChecklistViewModel? checklist = Checklist;
@@ -282,6 +304,7 @@ public sealed partial class FocusViewModel : ObservableObject
             : checklist?.CurrentTaskText ?? string.Empty;
         CurrentSubtaskText = checklist?.CurrentSubtaskText ?? string.Empty;
         NowText = checklist is { HasTasks: true } ? $"Now · {checklist.ProgressText.Replace("/", " of ")} done" : string.Empty;
+        RefreshChip(checklist);
         OnPropertyChanged(nameof(HasTasks));
         OnPropertyChanged(nameof(HasSubtask));
     }

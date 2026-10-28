@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using AccountabiliBuddy.App.ViewModels;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -14,6 +15,10 @@ namespace AccountabiliBuddy.App.Views;
 /// </summary>
 public partial class QuickStartPanel : UserControl
 {
+    /// <summary>Whether "No set end" shows in the panel; Today folds it under "Other ways to start" and turns this off.</summary>
+    public static readonly StyledProperty<bool> ShowsOpenEndedProperty =
+        AvaloniaProperty.Register<QuickStartPanel, bool>(nameof(ShowsOpenEnded), true);
+
     private QuickSessionViewModel? _subscribed;
 
     public QuickStartPanel()
@@ -27,6 +32,12 @@ public partial class QuickStartPanel : UserControl
         AddHandler(PointerMovedEvent, OnPreviewPointer, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnPreviewShiftKey, RoutingStrategies.Tunnel);
         AddHandler(KeyUpEvent, OnPreviewShiftKey, RoutingStrategies.Tunnel);
+    }
+
+    public bool ShowsOpenEnded
+    {
+        get => GetValue(ShowsOpenEndedProperty);
+        set => SetValue(ShowsOpenEndedProperty, value);
     }
 
     /// <summary>True while the profile list is open (it opens in its own popup window).</summary>

@@ -137,7 +137,7 @@
                 </Border>
 
                 <!-- Today at a glance: the rows chosen in Settings (calendar, plan, focus, blockers) and a live "now" line.
-                     Only on Today and History: the other pages are for doing, not for watching the day. -->
+                     Only on History now: Today carries its own copy under "More today"; the other pages are for doing, not for watching the day. -->
                 <!-- In focus mode (a session running) it slides up out of view, leaving a thin strip with a small handle at its left;
                      resting the pointer on the handle slides it down over the page, and it slides away again shortly after the pointer leaves (MainWindow.axaml.cs). -->
                 <Panel x:Name="TimelineHost" DockPanel.Dock="Top" IsVisible="{Binding ShowsTimeline}" ZIndex="10">

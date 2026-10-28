@@ -123,6 +123,14 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial int CurrentTaskNumber { get; set; }
 
+    /// <summary>The open task the on-screen bar shows (or one of whose steps it shows), for Today's steps list; null when there is none.</summary>
+    [ObservableProperty]
+    public partial TaskRowViewModel? CurrentTask { get; set; }
+
+    /// <summary>The open task after the current one, for "Next: ..."; empty when there is none.</summary>
+    [ObservableProperty]
+    public partial string NextTaskTitle { get; set; } = string.Empty;
+
     /// <summary>Its subtask shown under it (the picked one, else its first open one); empty when it has none.</summary>
     [ObservableProperty]
     public partial string CurrentSubtaskText { get; set; }
@@ -351,6 +359,11 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
                 CurrentTaskNumber = number;
             }
         }
+
+        List<TaskRowViewModel> openInOrder = OpenGroups.SelectMany(group => group.Tasks).Where(row => !row.IsDone).ToList();
+        int currentIndex = openInOrder.FindIndex(row => row.IsCurrent || row.Subtasks.Any(subtask => subtask.IsCurrent));
+        CurrentTask = currentIndex >= 0 ? openInOrder[currentIndex] : null;
+        NextTaskTitle = currentIndex >= 0 && currentIndex + 1 < openInOrder.Count ? openInOrder[currentIndex + 1].Title : string.Empty;
 
         TaskCategory? currentCategory = categories.FirstOrDefault(category => category.Id == checklist.Shown?.Task.CategoryId);
         CurrentCategoryBrush = TaskCategoryBrushes.Of(currentCategory?.Color);

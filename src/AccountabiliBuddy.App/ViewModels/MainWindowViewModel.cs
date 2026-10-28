@@ -127,9 +127,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public string MoreHeader => IsMoreOpen ? "More  ▾" : "More  ▸";
 
-    /// <summary>The day bar shows above the page only on Today and History.</summary>
+    /// <summary>The day bar shows above the page only on History (Today has its own under "More today").</summary>
     [ObservableProperty]
-    public partial bool ShowsTimeline { get; set; } = true;
+    public partial bool ShowsTimeline { get; set; } = MainTabs.ShowsTimelineStrip(MainTab.Today);
 
     partial void OnSelectedTabChanged(int oldValue, int newValue)
     {
@@ -164,7 +164,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             IsFocusMode = false;
         }
 
-        ShowsTimeline = MainTabs.ShowsTimeline((MainTab)newValue);
+        ShowsTimeline = MainTabs.ShowsTimelineStrip((MainTab)newValue);
     }
 
     // Where the user was going when Settings had unsaved changes: a tab, or null = hiding the window.

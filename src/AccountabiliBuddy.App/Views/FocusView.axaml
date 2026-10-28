@@ -1,93 +1,147 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.FocusView"
              x:DataType="vm:FocusViewModel">
-    <!-- Focus mode: the countdown, End session, the focus so far, the current task in front and the checklist, and
-         Step away / Interrupted. Nothing else while a session runs. -->
+    <!-- The inside of Today's main card while a session runs. Planning (the session's first minutes): the question, the
+         tasks, "I'm ready" and the time left to plan. Running: the line (chip, profile, end time), the big timer, the task
+         in front with its steps, Done / Pause / the ⋯ menu, and what comes next. Nothing else while a session runs. -->
     <UserControl.Styles>
-        <!-- The planning stage (before the focus countdown) reads in its own colour: the timer, the bar and the line. -->
-        <Style Selector="TextBlock.planning">
-            <Setter Property="Foreground" Value="#7C9EF2" />
+        <Style Selector="Border.chip">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+        <Style Selector="Border.chip.plan">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+        </Style>
+        <Style Selector="TextBlock.done">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="TextDecorations" Value="Strikethrough" />
+        </Style>
+        <!-- The planning stage's own bar: thin, in the muted ink (accent is for the progress ring and the one main button). -->
         <Style Selector="ProgressBar.planning">
-            <Setter Property="Foreground" Value="#7C9EF2" />
-            <Setter Property="Background" Value="#33FFFFFF" />
-            <Setter Property="Height" Value="6" />
-            <Setter Property="MinHeight" Value="6" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Height" Value="4" />
+            <Setter Property="MinHeight" Value="4" />
         </Style>
-        <Style Selector="Button.away">
-            <Setter Property="Background" Value="#4D0F766E" />
-            <Setter Property="Padding" Value="14,6" />
-            <Setter Property="CornerRadius" Value="6" />
+        <Style Selector="Button.pill">
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="24,16" />
+            <Setter Property="FontSize" Value="16" />
+        </Style>
+        <Style Selector="Button.primary.pill">
+            <Setter Property="Padding" Value="30,16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
     </UserControl.Styles>
     <StackPanel Spacing="16">
-        <Border Padding="20" CornerRadius="10" Background="#220F766E" BorderBrush="#550F766E" BorderThickness="1">
-            <StackPanel Spacing="10">
-                <Grid ColumnDefinitions="*,Auto">
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <TextBlock Text="{Binding TimeLeftText}" FontSize="44" FontWeight="SemiBold" VerticalAlignment="Center"
-                                   Classes.planning="{Binding InPlanningStage}" AutomationProperties.Name="Time left" />
-                        <TextBlock Text="{Binding PhaseText}" FontSize="15" Opacity="0.8" VerticalAlignment="Center" TextWrapping="Wrap" />
-                    </StackPanel>
-                    <Button Grid.Column="1" Content="{Binding EndSessionText}" Command="{Binding EndSessionCommand}" VerticalAlignment="Center" />
-                </Grid>
-                <!-- Plan first: the session's first minutes, for the plan; "I'm ready" ends them. -->
-                <Border IsVisible="{Binding IsPlanning}" Background="#33FFFFFF" CornerRadius="6" Padding="10,6">
-                    <StackPanel Spacing="6">
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                            <TextBlock Text="{Binding PlanningText}" VerticalAlignment="Center" TextWrapping="Wrap"
-                                       Classes.planning="{Binding InPlanningStage}" />
-                            <Button Grid.Column="1" Content="I'm ready" Command="{Binding ReadyCommand}" Classes="accent" IsVisible="{Binding CanReady}" />
-                        </Grid>
-                        <views:PlanningTip />
-                        <!-- The stage's own bar: empties as planning time passes, in the planning colour. -->
-                        <ProgressBar Classes="planning" Minimum="0" Maximum="100" Value="{Binding PlanningLeftPercent}" IsVisible="{Binding InPlanningStage}" />
-                    </StackPanel>
-                </Border>
-                <!-- Stepped away or on a side task: the countdown is paused until "I'm back" or "Back on track". -->
-                <Border IsVisible="{Binding IsPlainAway}" Background="#33FFFFFF" CornerRadius="6" Padding="10,4" HorizontalAlignment="Left">
-                    <TextBlock Text="{Binding AwayText}" FontWeight="SemiBold" />
-                </Border>
-                <!-- A side task's time grows in amber next to the paused focus time. -->
-                <Border IsVisible="{Binding IsSideTask}" Background="#33FBBF24" CornerRadius="6" Padding="10,4" HorizontalAlignment="Left">
-                    <TextBlock Text="{Binding AwayText}" FontWeight="SemiBold" Foreground="#FBBF24" />
-                </Border>
-                <TextBlock Text="{Binding FocusedTodayText}" Opacity="0.75" TextWrapping="Wrap"
-                           IsVisible="{Binding FocusedTodayText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                <TextBlock Text="{Binding PhoneText}" Opacity="0.75" TextWrapping="Wrap" Foreground="#22C55E"
-                           IsVisible="{Binding PhoneText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasStepAway}">
-                    <Button Classes="away" Content="{Binding StepAwayText}" Command="{Binding StepAwayCommand}"
-                            ToolTip.Tip="A bathroom break: the countdown pauses until you say you are back on track" />
-                    <Button Classes="away" Content="Interrupted" Command="{Binding InterruptedCommand}" IsVisible="{Binding !IsAway}"
-                            ToolTip.Tip="Someone at your desk or a call: the same pause, kept apart in History" />
-                    <Button Classes="away" Content="Side task" Command="{Binding SideTaskCommand}" IsVisible="{Binding !IsAway}"
-                            ToolTip.Tip="A small errand of 5, 10 or 15 minutes: the focus clock pauses, blocking and nudges keep running" />
-                </StackPanel>
-            </StackPanel>
-        </Border>
 
-        <!-- The task in front, then the checklist (tick, add, edit). -->
-        <Border Padding="20" CornerRadius="10" Background="#1A808080" BorderBrush="#33808080" BorderThickness="1"
-                IsVisible="{Binding Checklist, Converter={x:Static ObjectConverters.IsNotNull}}">
-            <StackPanel Spacing="10">
-                <StackPanel Spacing="2" IsVisible="{Binding HasTasks}">
-                    <TextBlock Text="{Binding NowText}" Opacity="0.7" FontSize="12" />
-                    <TextBlock Text="{Binding CurrentTaskText}" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding CurrentSubtaskText, StringFormat='↳ {0}'}" FontSize="14" Opacity="0.8" TextWrapping="Wrap"
-                               IsVisible="{Binding HasSubtask}" />
-                </StackPanel>
-                <views:ChecklistView DataContext="{Binding Checklist}" />
-            </StackPanel>
-        </Border>
+        <!-- Planning: the session's first minutes are for the plan; "I'm ready" ends them. -->
+        <StackPanel Spacing="22" IsVisible="{Binding IsPlanning}">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <Border Classes="chip plan">
+                    <TextBlock Text="Plan first" FontSize="13" FontWeight="SemiBold" />
+                </Border>
+                <TextBlock Grid.Column="1" Classes="muted" Text="{Binding PlanningText}" FontSize="14" VerticalAlignment="Center" TextWrapping="Wrap" />
+            </Grid>
+            <TextBlock Classes="display" FontSize="40" LineHeight="44" TextWrapping="Wrap" Text="What are the three things this session is for?" />
+            <ProgressBar Classes="planning" Minimum="0" Maximum="100" Value="{Binding PlanningLeftPercent}" IsVisible="{Binding InPlanningStage}" />
+            <views:PlanningTip />
+            <Panel IsVisible="{Binding Checklist, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <views:ChecklistView DataContext="{Binding Checklist}" MaxWidth="620" HorizontalAlignment="Left" />
+            </Panel>
+        </StackPanel>
 
-        <!-- Capture (redesign phase 5): a thought goes here instead of into a new tab. -->
-        <Border Padding="16,12" CornerRadius="10" Background="#1A808080" BorderBrush="#33808080" BorderThickness="1"
-                DataContext="{Binding Capture}" x:DataType="vm:CaptureBoxViewModel"
-                IsVisible="{Binding $parent[UserControl].((vm:FocusViewModel)DataContext).Capture, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
+        <!-- Running: the line, the timer, the task in front and its steps. -->
+        <StackPanel Spacing="16" IsVisible="{Binding !IsPlanning}">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <Border Classes="chip">
+                    <TextBlock Text="{Binding ChipText}" FontSize="13" FontWeight="SemiBold" />
+                </Border>
+                <TextBlock Grid.Column="1" Classes="muted" Text="{Binding SessionLineText}" FontSize="14" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" />
+            </Grid>
+            <!-- Scales down instead of clipping when the window is narrow. -->
+            <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left">
+                <TextBlock Classes="numeral" Text="{Binding TimeLeftText}" FontSize="120" LineHeight="114" LetterSpacing="-4"
+                           AutomationProperties.Name="Time left" />
+            </Viewbox>
+            <!-- Stepped away or on a side task: the countdown is paused until "I'm back" or "Back on track". -->
+            <Border Classes="chip" HorizontalAlignment="Left" IsVisible="{Binding IsAway}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <mi:MaterialIcon Kind="PauseCircleOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                    <TextBlock Text="{Binding AwayText}" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Sleep}" />
+                </StackPanel>
+            </Border>
+            <StackPanel Spacing="4" IsVisible="{Binding HasTasks}">
+                <TextBlock Classes="display" FontSize="32" LineHeight="36" TextWrapping="Wrap" Text="{Binding Checklist.CurrentTaskText}" />
+                <TextBlock Classes="muted" Text="{Binding CurrentSubtaskText, StringFormat='↳ {0}'}" FontSize="14" TextWrapping="Wrap"
+                           IsVisible="{Binding HasSubtask}" />
+            </StackPanel>
+            <ItemsControl ItemsSource="{Binding Checklist.CurrentTask.Subtasks}" MaxWidth="520" HorizontalAlignment="Left"
+                          IsVisible="{Binding Checklist.CurrentTask.HasSubtasks, FallbackValue=False}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SubtaskRowViewModel">
+                        <CheckBox IsChecked="{Binding IsDone}" Margin="0,2">
+                            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" Classes.done="{Binding IsDone}" />
+                        </CheckBox>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <!-- The actions: Done ticks the task in front (the next comes up), Pause is Step away, ⋯ holds the rest. -->
+        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="8" Margin="0,8,0,0">
+            <Button Classes="primary pill" Content="I'm ready" Command="{Binding ReadyCommand}" IsVisible="{Binding CanReady}" />
+            <Button Grid.Column="1" Classes="primary pill" Content="Done" Command="{Binding Checklist.TickCurrentTaskCommand}"
+                    AutomationProperties.Name="Done: tick the task in front">
+                <Button.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                        <Binding Path="!IsPlanning" />
+                        <Binding Path="Checklist.CurrentTask" Converter="{x:Static ObjectConverters.IsNotNull}" FallbackValue="False" />
+                    </MultiBinding>
+                </Button.IsVisible>
+            </Button>
+            <Button Grid.Column="1" Classes="primary pill" Content="End session · all tasks done" Command="{Binding Checklist.EndAtOnceCommand}"
+                    IsVisible="{Binding Checklist.CanEndAtOnce, FallbackValue=False}"
+                    ToolTip.Tip="Every task is ticked: the session ends now, with the reason &quot;All tasks done&quot;" />
+            <Button Grid.Column="2" Classes="pill" Content="{Binding StepAwayText}" Command="{Binding StepAwayCommand}"
+                    IsVisible="{Binding HasStepAway}"
+                    ToolTip.Tip="A bathroom break: the countdown pauses until you say you are back on track" />
+            <Button Grid.Column="3" Classes="quiet pill" Padding="12,16" ToolTip.Tip="Interrupted, Side task, End session" AutomationProperties.Name="More session actions">
+                <mi:MaterialIcon Kind="DotsHorizontal" Width="20" Height="20" />
+                <Button.Flyout>
+                    <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                        <MenuItem Header="Interrupted" Command="{Binding InterruptedCommand}" IsVisible="{Binding !IsAway}"
+                                  ToolTip.Tip="Someone at your desk or a call: the same pause, kept apart in History" />
+                        <MenuItem Header="Side task" Command="{Binding SideTaskCommand}" IsVisible="{Binding !IsAway}"
+                                  ToolTip.Tip="A small errand of 5, 10 or 15 minutes: the focus clock pauses, blocking and nudges keep running" />
+                        <MenuItem Header="{Binding EndSessionText}" Command="{Binding EndSessionCommand}" />
+                    </MenuFlyout>
+                </Button.Flyout>
+            </Button>
+            <TextBlock Grid.Column="4" Classes="muted" FontSize="13" VerticalAlignment="Center" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"
+                       Margin="12,0,0,0" Text="{Binding Checklist.NextTaskTitle, StringFormat='Next: {0}'}"
+                       IsVisible="{Binding Checklist.NextTaskTitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}, FallbackValue=False}" />
+            <!-- Planning: the time left to plan, where the running timer would be big. -->
+            <TextBlock Grid.Column="5" Classes="numeral muted" FontSize="40" VerticalAlignment="Center" Margin="12,0,0,0"
+                       Text="{Binding TimeLeftText}" IsVisible="{Binding IsPlanning}" />
+        </Grid>
+
+        <!-- The day so far, and the phone's line. -->
+        <TextBlock Classes="muted" Text="{Binding FocusedTodayText}" FontSize="13" TextWrapping="Wrap"
+                   IsVisible="{Binding FocusedTodayText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <TextBlock Text="{Binding PhoneText}" FontSize="13" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Met}"
+                   IsVisible="{Binding PhoneText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+        <!-- Capture: a thought goes here instead of into a new tab. -->
+        <Panel DataContext="{Binding Capture}" x:DataType="vm:CaptureBoxViewModel"
+               IsVisible="{Binding $parent[UserControl].((vm:FocusViewModel)DataContext).Capture, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
             <StackPanel Spacing="6">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <TextBox Text="{Binding Text}" PlaceholderText="A thought? Type it, Enter keeps it for later">
@@ -98,10 +152,19 @@
                     <ToggleButton Grid.Column="1" Content="⚑" IsChecked="{Binding IsComeback}"
                                   ToolTip.Tip="Must not drift: park it under Come back to (or start the line with !)" />
                 </Grid>
-                <TextBlock Text="{Binding Message}" FontSize="11" Opacity="0.7"
+                <TextBlock Classes="muted" Text="{Binding Message}" FontSize="12"
                            IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                <TextBlock Text="Enter keeps a note for this session's review · ⚑ or a leading ! parks it under Come back to" FontSize="11" Opacity="0.55" TextWrapping="Wrap" />
+                <TextBlock Classes="faint" FontSize="12" TextWrapping="Wrap"
+                           Text="Enter keeps a note for this session's review · ⚑ or a leading ! parks it under Come back to" />
             </StackPanel>
-        </Border>
+        </Panel>
+
+        <!-- All the tasks (add, rename, move, categories) stay one click away while it runs. -->
+        <Expander Header="{Binding Checklist.Heading}" HorizontalAlignment="Stretch" IsVisible="{Binding !IsPlanning}"
+                  IsExpanded="False">
+            <Panel IsVisible="{Binding Checklist, Converter={x:Static ObjectConverters.IsNotNull}}" Margin="0,8,0,0">
+                <views:ChecklistView DataContext="{Binding Checklist}" />
+            </Panel>
+        </Expander>
     </StackPanel>
 </UserControl>

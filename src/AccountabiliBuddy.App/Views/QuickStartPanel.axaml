@@ -5,62 +5,69 @@
              x:Class="AccountabiliBuddy.App.Views.QuickStartPanel"
              x:DataType="vm:QuickSessionViewModel">
     <UserControl.Styles>
-        <!-- "Quick Start with Default": the biggest button, in teal so it stands apart from Start. -->
-        <Style Selector="Button.quickDefault">
-            <Setter Property="Background" Value="#0F766E" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Center" />
-            <Setter Property="Padding" Value="0,14" />
-            <Setter Property="CornerRadius" Value="8" />
+        <!-- Length presets: outlined, the chosen one filled and in bold ink (accent stays on Start). -->
+        <Style Selector="Button.preset /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
         </Style>
-        <Style Selector="Button.quickDefault:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="#14917F" />
-            <Setter Property="Foreground" Value="White" />
+        <Style Selector="Button.preset:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
-        <Style Selector="Button.quickDefault:pressed /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="#0B5E57" />
+        <Style Selector="Button.preset.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.preset.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.preset.selected">
+            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
     </UserControl.Styles>
-    <!-- Tasks first (what the session is for), then Quick Start with Default on top, Start with the remembered length,
-         No set end, and "More options" folded away: profile, length (presets, slider or an end time), optional break, Quick Start
-         with the profile picked. Used by the quick-session popup and the Today tab. -->
+    <!-- Tasks first (what the session is for), then Start with the remembered length and Quick Start with Default beside it,
+         No set end, and "More options" folded away: profile, length (presets, slider or an end time), optional break, test
+         session. Used by the quick-session popup and the Today tab (which folds No set end under "Other ways to start"). -->
     <StackPanel Spacing="16">
         <!-- Guided sessions: what this session is for, as tasks with subtasks (optional). -->
         <Panel IsVisible="{Binding Checklist, Converter={x:Static ObjectConverters.IsNotNull}}">
             <views:ChecklistView DataContext="{Binding Checklist}" />
         </Panel>
 
-        <Button Classes="quickDefault" Command="{Binding QuickStartDefaultCommand}" AutomationProperties.Name="Quick Start with Default"
-                ToolTip.Tip="Starts your default profile (Settings) for the length below; the on-screen bar counts down. Choose No set end below to count up instead.">
-            <StackPanel Spacing="2" HorizontalAlignment="Center">
-                <TextBlock Text="Quick Start with Default" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" Opacity="0.85">
-                    <TextBlock Text="{Binding DefaultProfileName}" FontSize="12" />
-                    <TextBlock Text="·" FontSize="12" />
-                    <TextBlock Text="{Binding FocusLabel}" FontSize="12" />
+        <WrapPanel ItemSpacing="8" LineSpacing="8">
+            <Button Classes="primary" Content="{Binding StartLabel}" Command="{Binding StartCommand}"
+                    CornerRadius="999" Padding="30,16" FontSize="16" FontWeight="SemiBold"
+                    HorizontalContentAlignment="Center" AutomationProperties.Name="Start" />
+            <Button Command="{Binding QuickStartDefaultCommand}" AutomationProperties.Name="Quick Start with Default"
+                    CornerRadius="999" Padding="24,10" HorizontalContentAlignment="Center"
+                    ToolTip.Tip="Starts your default profile (Settings) for the length below; the on-screen bar counts down. Choose No set end below to count up instead.">
+                <StackPanel Spacing="1" HorizontalAlignment="Center">
+                    <TextBlock Text="Quick Start with Default" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                    <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
+                        <TextBlock Classes="muted" Text="{Binding DefaultProfileName}" FontSize="12" />
+                        <TextBlock Classes="muted" Text="·" FontSize="12" />
+                        <TextBlock Classes="muted" Text="{Binding FocusLabel}" FontSize="12" />
+                    </StackPanel>
                 </StackPanel>
-            </StackPanel>
-        </Button>
-
-        <Button Content="{Binding StartLabel}" Command="{Binding StartCommand}" Classes="accent"
-                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,12" FontSize="16" />
-
-        <!-- No set length with the profile picked under More options; the on-screen bar counts up. Its own button so it's one click. -->
-        <Button Content="{Binding OpenEndedLabel}" Command="{Binding StartOpenEndedCommand}"
-                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,10"
-                ToolTip.Tip="Starts the profile picked under More options with no set end and no countdown. The on-screen bar fills each hour and glows every 30 minutes with how long you've been at it; hold Ctrl+Alt to see it any time." />
+            </Button>
+            <!-- No set length with the profile picked under More options; the on-screen bar counts up. Its own button so it's one click. -->
+            <Button Classes="quiet" x:Name="OpenEndedButton" Content="{Binding OpenEndedLabel}" Command="{Binding StartOpenEndedCommand}"
+                    CornerRadius="999" Padding="20,16" HorizontalContentAlignment="Center"
+                    IsVisible="{Binding $parent[views:QuickStartPanel].ShowsOpenEnded}"
+                    ToolTip.Tip="Starts the profile picked under More options with no set end and no countdown. The on-screen bar fills each hour and glows every 30 minutes with how long you've been at it; hold Ctrl+Alt to see it any time." />
+        </WrapPanel>
 
         <Expander Header="More options: profile, length, break" HorizontalAlignment="Stretch" IsExpanded="{Binding ShowsOptions}">
             <StackPanel Spacing="16" Margin="0,8,0,0">
                 <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding HasProfiles}">
-                    <TextBlock Text="Profile" VerticalAlignment="Center" Margin="0,0,12,0" Opacity="0.8" />
+                    <TextBlock Classes="muted" Text="Profile" VerticalAlignment="Center" Margin="0,0,12,0" />
                     <ComboBox x:Name="ProfileBox" Grid.Column="1" ItemsSource="{Binding ProfileOptions}"
                               SelectedItem="{Binding SelectedProfile}" HorizontalAlignment="Stretch" />
                 </Grid>
 
                 <StackPanel Spacing="8">
-                    <TextBlock Text="Focus" Opacity="0.8" />
+                    <TextBlock Classes="muted" Text="Focus" />
                     <ItemsControl ItemsSource="{Binding Presets}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -69,8 +76,8 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:DurationPresetViewModel">
-                                <Button Content="{Binding Label}" ToolTip.Tip="{Binding ToolTip}"
-                                        Classes.accent="{Binding IsSelected}"
+                                <Button Classes="preset" Content="{Binding Label}" ToolTip.Tip="{Binding ToolTip}"
+                                        Classes.selected="{Binding IsSelected}"
                                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                                         Margin="3,0" Padding="0,8" FontSize="16"
                                         Command="{Binding $parent[ItemsControl].((vm:QuickSessionViewModel)DataContext).SelectPresetCommand}"
@@ -89,24 +96,24 @@
                     </Grid>
 
                     <!-- End time: click to choose one. -->
-                    <Button Command="{Binding BeginEditUntilCommand}"
+                    <Button Command="{Binding BeginEditUntilCommand}" Classes="quiet"
                             IsVisible="{Binding !IsEditingUntil}" HorizontalAlignment="Right"
-                            Background="Transparent" BorderThickness="0" Padding="2,0" Cursor="Hand"
+                            Padding="6,2" Cursor="Hand"
                             ToolTip.Tip="Click to choose when the session should end">
-                        <TextBlock Text="{Binding EndTimeText}" FontSize="13" Opacity="0.75" TextDecorations="Underline" />
+                        <TextBlock Classes="muted" Text="{Binding EndTimeText}" FontSize="13" TextDecorations="Underline" />
                     </Button>
                     <StackPanel Spacing="6" IsVisible="{Binding IsEditingUntil}" HorizontalAlignment="Right">
                         <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
-                            <TextBlock Text="Run until" VerticalAlignment="Center" Opacity="0.8" />
+                            <TextBlock Classes="muted" Text="Run until" VerticalAlignment="Center" />
                             <TextBox x:Name="UntilBox" Text="{Binding UntilText}" Width="120" PlaceholderText="6:30pm" />
-                            <Button Content="Set" Command="{Binding ApplyUntilCommand}" Classes="accent" />
+                            <Button Content="Set" Command="{Binding ApplyUntilCommand}" />
                             <Button Content="✕" Command="{Binding CancelEditUntilCommand}" ToolTip.Tip="Cancel (Esc)" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
-                            <TextBlock Text="or pick" VerticalAlignment="Center" Opacity="0.6" FontSize="12" />
+                            <TextBlock Classes="faint" Text="or pick" VerticalAlignment="Center" FontSize="12" />
                             <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding PickerTime}" MinuteIncrement="5" />
                         </StackPanel>
-                        <TextBlock Text="{Binding UntilError}" IsVisible="{Binding HasUntilError}" Foreground="#E76F51"
+                        <TextBlock Text="{Binding UntilError}" IsVisible="{Binding HasUntilError}" Foreground="{DynamicResource Ab.Drift}"
                                    HorizontalAlignment="Right" TextWrapping="Wrap" />
                     </StackPanel>
                 </StackPanel>
@@ -121,14 +128,14 @@
 
                 <!-- Test session: enforcement, prompts and the overlay as in a real one; never counted, logged or synced. -->
                 <StackPanel Spacing="6">
-                    <TextBlock Text="Test session" Opacity="0.8" />
+                    <TextBlock Classes="muted" Text="Test session" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <NumericUpDown Value="{Binding TestMinutesInput}" Minimum="1" Maximum="60" Increment="1" FormatString="0" Width="110" />
                         <TextBlock Text="minutes" VerticalAlignment="Center" />
                         <Button Content="Start test" Command="{Binding StartTestCommand}" />
                     </StackPanel>
-                    <TextBlock Text="Uses the profile picked above and runs like a session, so you can try the rules and prompts. It is never counted, not in History, and not synced. End test stops it at once."
-                               Opacity="0.65" FontSize="12" TextWrapping="Wrap" />
+                    <TextBlock Classes="faint" Text="Uses the profile picked above and runs like a session, so you can try the rules and prompts. It is never counted, not in History, and not synced. End test stops it at once."
+                               FontSize="12" TextWrapping="Wrap" />
                 </StackPanel>
             </StackPanel>
         </Expander>
