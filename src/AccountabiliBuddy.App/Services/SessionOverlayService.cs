@@ -354,6 +354,7 @@ public sealed class SessionOverlayService : IDisposable
             return;
         }
 
+        _ = _settings.MarkPanelSeenAsync();
         _model.HasNudgeDot = false;
         _model.Refresh();
         _panelModel ??= new OverlayPanelViewModel(_model, _settings, _sessions);

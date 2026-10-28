@@ -1,0 +1,225 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="AccountabiliBuddy.App.Views.OverlaySettingsView"
+             x:DataType="vm:OverlaySettingsViewModel">
+    <!-- 15c and 14c: PC overlay. Settings > Alerts & on-screen. DataContext: OverlaySettingsViewModel. Every change saves at once; segments never wrap. -->
+    <UserControl.Styles>
+        <Style Selector="ListBox.seg">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Padding" Value="3" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="ItemsPanel">
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="2" />
+                </ItemsPanelTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="ListBox.seg > ListBoxItem">
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="ListBox.seg > ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="ListBox.seg > ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="ListBox.seg > ListBoxItem:selected:focus /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Border.row">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="16,12" />
+        </Style>
+    </UserControl.Styles>
+    <StackPanel Spacing="8">
+        <TextBlock Text="Placement" Classes="section" Margin="2,4,0,0" />
+        <Border Classes="row">
+            <StackPanel Spacing="10">
+                <TextBlock Text="Where it lives" />
+                <ListBox Classes="seg" ItemsSource="{x:Static vm:OverlaySettingsViewModel.PlacementNames}" SelectedIndex="{Binding PlacementIndex}" />
+                <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                           Text="Over the taskbar sits right of your apps and ends where the tray starts. Floating positions keep clear of scrollbars; a Windows notification can cover a floating tile, because Windows doesn't say when one shows." />
+            </StackPanel>
+        </Border>
+        <Border Classes="row">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                    <TextBlock Text="When the taskbar auto-hides" />
+                    <TextBlock Classes="muted" FontSize="12" Text="Detected automatically, including on extra monitors" />
+                </StackPanel>
+                <ListBox Grid.Column="1" Classes="seg" ItemsSource="{x:Static vm:OverlaySettingsViewModel.AutoHideNames}" SelectedIndex="{Binding AutoHideIndex}" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+        <Border Classes="row">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Left-aligned taskbar" VerticalAlignment="Center" />
+                <ListBox Grid.Column="1" Classes="seg" ItemsSource="{x:Static vm:OverlaySettingsViewModel.LeftAlignedNames}" SelectedIndex="{Binding LeftAlignedIndex}" />
+            </Grid>
+        </Border>
+        <Border Classes="row">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                    <TextBlock Text="Taskbar docked on a side" />
+                    <TextBlock Classes="muted" FontSize="12" Text="Uses the vertical tile" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="Automatic" Classes="muted" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+        <Border Classes="row">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel>
+                        <TextBlock Text="Corner clock in full screen" />
+                        <TextBlock Classes="muted" FontSize="12" Text="Top right while an app covers the screen. Clicks pass through it; it fades near the mouse." />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding CornerClock}" OnContent="" OffContent="" AutomationProperties.Name="Corner clock in full screen" />
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding CornerClock}">
+                    <CheckBox Content="Session" IsChecked="{Binding ClockSession}" />
+                    <CheckBox Content="Time" IsChecked="{Binding ClockTime}" />
+                    <CheckBox Content="Date" IsChecked="{Binding ClockDate}" />
+                    <CheckBox Content="Battery" IsChecked="{Binding ClockBattery}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Text="Look" Classes="section" Margin="2,12,0,0" />
+        <Border Classes="row">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                    <TextBlock Text="Shape" />
+                    <TextBlock Classes="muted" FontSize="12" Text="Floating positions only" />
+                </StackPanel>
+                <ListBox Grid.Column="1" Classes="seg" ItemsSource="{x:Static vm:OverlaySettingsViewModel.ShapeNames}" SelectedIndex="{Binding ShapeIndex}" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+        <Border Classes="row">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Size" VerticalAlignment="Center" />
+                <ListBox Grid.Column="1" Classes="seg" ItemsSource="{x:Static vm:OverlaySettingsViewModel.SizeNames}" SelectedIndex="{Binding SizeIndex}" />
+            </Grid>
+        </Border>
+        <Border Classes="row">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="Progress" VerticalAlignment="Center" />
+                    <ListBox Grid.Column="1" Classes="seg" ItemsSource="{x:Static vm:OverlaySettingsViewModel.ProgressNames}" SelectedIndex="{Binding ProgressIndex}" />
+                </Grid>
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel>
+                        <TextBlock Text="Count seconds" />
+                        <TextBlock Classes="muted" FontSize="12" Text="The overlay counts whole minutes (18 min). On shows 18:42." />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding ShowSeconds}" OnContent="" OffContent="" AutomationProperties.Name="Count seconds" />
+                </Grid>
+            </StackPanel>
+        </Border>
+        <Border Classes="row">
+            <StackPanel Spacing="8">
+                <Button Command="{Binding ToggleOrderCommand}" Classes="quiet" HorizontalContentAlignment="Stretch" Padding="0" MinHeight="0">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2" HorizontalAlignment="Left">
+                            <TextBlock Text="What it shows, and in what order" />
+                            <TextBlock Classes="muted" FontSize="12" Text="{Binding PreviewLine}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <mi:MaterialIcon Grid.Column="1" Kind="ChevronRight" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                    </Grid>
+                </Button>
+                <StackPanel Spacing="2" IsVisible="{Binding IsOrderOpen}">
+                    <ItemsControl ItemsSource="{Binding Items}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:OverlayItemRowViewModel">
+                                <Grid ColumnDefinitions="Auto,200,*,Auto" ColumnSpacing="10" MinHeight="40">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Classes="quiet" Padding="4" MinHeight="0" Command="{Binding $parent[UserControl].((vm:OverlaySettingsViewModel)DataContext).MoveUpCommand}"
+                                                CommandParameter="{Binding}" AutomationProperties.Name="Move up"><mi:MaterialIcon Kind="ChevronUp" Width="16" Height="16" /></Button>
+                                        <Button Classes="quiet" Padding="4" MinHeight="0" Command="{Binding $parent[UserControl].((vm:OverlaySettingsViewModel)DataContext).MoveDownCommand}"
+                                                CommandParameter="{Binding}" AutomationProperties.Name="Move down"><mi:MaterialIcon Kind="ChevronDown" Width="16" Height="16" /></Button>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Sample}" Classes="muted" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    <ToggleSwitch Grid.Column="3" IsChecked="{Binding IsOn}" OnContent="" OffContent="" AutomationProperties.Name="{Binding Name}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                        <TextBlock Text="Presets" Classes="muted" VerticalAlignment="Center" />
+                        <Button Content="Focus first" Command="{Binding FocusFirstCommand}" />
+                        <Button Content="Clock first" Command="{Binding ClockFirstCommand}" />
+                        <Button Content="Just the essentials" Command="{Binding JustTheEssentialsCommand}" />
+                        <Button Content="Reset to default" Command="{Binding ResetOrderCommand}" Classes="quiet" />
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+        <Border Classes="row">
+            <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel>
+                        <TextBlock Text="Per-app rules" />
+                        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="Move the overlay up for an app (Word's status bar), or hide it during that app's calls. Games show the time only in the corner clock." />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                        <Button Content="Use the built-in list" Command="{Binding UseBuiltInRulesCommand}" Classes="quiet" IsVisible="{Binding !UsesBuiltInRules}" />
+                        <Button Content="Add an app" Command="{Binding AddRuleCommand}" />
+                    </StackPanel>
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Rules}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:OverlayRuleRowViewModel">
+                            <Grid ColumnDefinitions="180,Auto,Auto,Auto" ColumnSpacing="12" Margin="0,3">
+                                <TextBox Text="{Binding ProcessName}" PlaceholderText="App (process name)" />
+                                <NumericUpDown Grid.Column="1" Value="{Binding OffsetY}" Minimum="-400" Maximum="0" Increment="4" Width="130" FormatString="0" ToolTip.Tip="Move up by (pixels)" />
+                                <CheckBox Grid.Column="2" Content="Hide during calls" IsChecked="{Binding HideDuringCalls}" />
+                                <Button Grid.Column="3" Classes="quiet" Command="{Binding $parent[UserControl].((vm:OverlaySettingsViewModel)DataContext).RemoveRuleCommand}"
+                                        CommandParameter="{Binding}" AutomationProperties.Name="Remove"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Text="Ctrl+Alt panel" Classes="section" Margin="2,12,0,0" />
+        <Border Classes="row">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                    <TextBlock Text="Size" />
+                    <TextBlock Classes="muted" FontSize="12" Text="Ctrl+Alt with + or − changes it while it's open" />
+                </StackPanel>
+                <ListBox Grid.Column="1" Classes="seg" ItemsSource="{x:Static vm:OverlaySettingsViewModel.PanelSizeNames}" SelectedIndex="{Binding PanelSizeIndex}" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+        <Border Classes="row">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                    <TextBlock Text="Hold Ctrl+Alt to peek" />
+                    <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="Opens after a 300 ms hold, closes when you let go. Turn it off if AltGr on your keyboard layout counts as Ctrl+Alt." />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding HoldToPeek}" OnContent="" OffContent="" AutomationProperties.Name="Hold Ctrl+Alt to peek" />
+            </Grid>
+        </Border>
+        <Border Classes="row">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                    <TextBlock Text="Ctrl+Alt+Space keeps it open" />
+                    <TextBlock Classes="muted" FontSize="12" Text="Esc or a click elsewhere closes it" />
+                    <TextBlock Classes="muted" FontSize="12" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap" Text="{Binding StickyHotkeyError}" IsVisible="{Binding HasStickyHotkeyError}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding PanelSticky}" OnContent="" OffContent="" AutomationProperties.Name="Ctrl+Alt+Space keeps it open" />
+            </Grid>
+        </Border>
+    </StackPanel>
+</UserControl>

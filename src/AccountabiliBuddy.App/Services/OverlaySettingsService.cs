@@ -138,6 +138,12 @@ public sealed class OverlaySettingsService
             entry => entry.Key.ToLowerInvariant(), entry => Math.Clamp(entry.Value, 0, max));
     }
 
+    /// <summary>The panel was opened: the migration assistant counts the Ctrl+Alt panel as seen.</summary>
+    public Task MarkPanelSeenAsync()
+    {
+        return Current.PanelSeen ? Task.CompletedTask : SaveAsync(Current with { PanelSeen = true });
+    }
+
     /// <summary>Where the timer was dragged to; null puts it back in the default corner.</summary>
     public Task SavePositionAsync(int? x, int? y)
     {
