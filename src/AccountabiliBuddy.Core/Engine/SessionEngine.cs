@@ -11,6 +11,9 @@ namespace AccountabiliBuddy.Core.Engine;
 /// </summary>
 public sealed class SessionEngine
 {
+    /// <summary>The longest a timed focus phase may be made by "+10 min" (the same ceiling a session may be started with).</summary>
+    public static readonly TimeSpan MaxFocusLength = TimeSpan.FromHours(12);
+
     private readonly TimeProvider _timeProvider;
     private PomodoroSettings? _pomodoroSettings;
 
@@ -202,6 +205,30 @@ public sealed class SessionEngine
         }
 
         if (State.PhaseEndsAt is not DateTimeOffset end || newEnd >= end || newEnd < State.CountdownTime(now) + shortest)
+        {
+            return false;
+        }
+
+        SetState(State with { PhaseEndsAt = newEnd });
+        return true;
+    }
+
+    /// <summary>
+    /// "+10 min": lengthens the running focus phase of a timed manual session by <paramref name="extra"/>. It is the stricter
+    /// direction, so it applies at once; it never shortens a wait or unlocks anything. Refused in planning, in a break, away (a
+    /// break, an interruption or a side task), for a session with no set end, for Pomodoro, in a test session, once the phase's
+    /// end has been reached, and when the phase would run longer than <see cref="MaxFocusLength"/>.
+    /// </summary>
+    /// <returns>False when it was refused.</returns>
+    public bool ExtendFocus(TimeSpan extra)
+    {
+        if (extra <= TimeSpan.Zero || !State.CanExtendFocus || State.PhaseEndsAt is not DateTimeOffset end || State.PhaseStartedAt is not DateTimeOffset start)
+        {
+            return false;
+        }
+
+        DateTimeOffset newEnd = end + extra;
+        if (end <= Now || newEnd - start > MaxFocusLength)
         {
             return false;
         }

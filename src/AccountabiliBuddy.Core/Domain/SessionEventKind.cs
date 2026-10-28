@@ -33,4 +33,7 @@ public enum SessionEventKind
 
     /// <summary>The planning stage ended (Ready, a ticked task, Start on the card); focus began.</summary>
     PlanningEnded,
+
+    /// <summary>"+10 min": the running timed focus phase was lengthened; <see cref="SessionEvent.PlannedEnd"/> holds its new end.</summary>
+    FocusExtended,
 }

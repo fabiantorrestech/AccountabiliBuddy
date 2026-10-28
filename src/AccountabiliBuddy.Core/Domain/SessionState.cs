@@ -65,6 +65,15 @@ public sealed record SessionState(
     public bool IsAway => Away is not null;
 
     /// <summary>
+    /// "+10 min" is possible: a timed manual session in its focus phase, not away (break, interruption or side task). Never for
+    /// planning, a break phase, Pomodoro, a session with no set end or a test session.
+    /// </summary>
+    public bool CanExtendFocus => IsRealSession && Mode == SessionMode.Manual && Phase == SessionPhase.Focus && !IsAway && PhaseEndsAt is not null;
+
+    /// <summary>"+10 min" is offered at all: a timed manual session that is not a test (it may still be refused for now, e.g. while away).</summary>
+    public bool OffersExtendFocus => IsRealSession && Mode == SessionMode.Manual && HasSetEnd;
+
+    /// <summary>
     /// True while enforcement holds as it was (a break or an interruption with no input seen yet): nothing new is judged and
     /// nothing blocked is lifted. From the first input (<see cref="AwayAtDesk"/>) and through a side task, enforcement runs
     /// as in focus; only the focus clock stays paused.
