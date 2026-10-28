@@ -142,3 +142,32 @@ AssignProcessToJobObject
 JOBOBJECT_EXTENDED_LIMIT_INFORMATION
 JOBOBJECTINFOCLASS
 JOB_OBJECT_LIMIT
+
+// Taskbar geometry (ADR 51): a hidden top-level window for display / DPI / setting changes, location events of the taskbar (SHAppBarMessage is called through AppBarInterop: its struct needs a fixed CPU)
+RegisterClassEx
+WNDCLASSEXW
+CreateWindowEx
+DefWindowProc
+DestroyWindow
+UnregisterClass
+RegisterWindowMessage
+PostMessage
+GetModuleHandle
+WM_DISPLAYCHANGE
+WM_DPICHANGED
+WM_SETTINGCHANGE
+WM_DESTROY
+FindWindowEx
+GetDpiForMonitor
+SHQueryUserNotificationState
+QUERY_USER_NOTIFICATION_STATE
+EVENT_OBJECT_LOCATIONCHANGE
+OBJID_WINDOW
+// Taskbar contents: where the app icons end and the tray starts (UI Automation)
+CUIAutomation
+IUIAutomation
+IUIAutomationElement
+IUIAutomationElementArray
+TreeScope
+UIA_CONTROLTYPE_ID
+PostQuitMessage
