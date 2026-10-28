@@ -51,6 +51,11 @@ public partial class MainWindow : Window
                 MaximizeIcon.Kind = WindowState == WindowState.Maximized ? Material.Icons.MaterialIconKind.WindowRestore : Material.Icons.MaterialIconKind.CropSquare;
             }
         };
+        // The buttons' ElementRole makes Windows hit-test them as caption buttons (snap layouts), but the clicks arrive as
+        // pointer events and nothing acts on them by itself: Avalonia's own decorations wire these same three actions.
+        MinimizeButton.Click += (_, _) => WindowState = WindowState.Minimized;
+        MaximizeButton.Click += (_, _) => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        CloseButton.Click += (_, _) => Close(); // OnClosing hides to the tray unless AllowClose is set.
         SyncLightButton.PointerEntered += (_, _) => _syncHoverTimer.Start();
         SyncLightButton.PointerExited += (_, _) => _syncHoverTimer.Stop();
         _syncHoverTimer.Tick += (_, _) =>
