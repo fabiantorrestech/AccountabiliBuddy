@@ -253,7 +253,7 @@ public sealed class SessionOverlayService : IDisposable
 
     public void SetSyncQr(Action? show)
     {
-        // The QR button moved to the app (Devices); the overlay has no room for it.
+        Actions.ShowSyncQr = show;
     }
 
     public void SetHiddenForSession(bool hidden)
@@ -384,6 +384,7 @@ public sealed class SessionOverlayService : IDisposable
 
         _ = _settings.MarkPanelSeenAsync();
         _model.HasNudgeDot = false;
+        _model.Wake?.Refresh();
         _model.Refresh();
         _panelModel ??= new OverlayPanelViewModel(_model, _settings, _sessions);
         _panelModel.Size = _settings.Current.PanelSize;

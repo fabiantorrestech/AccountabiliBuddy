@@ -54,6 +54,9 @@ public sealed class OverlayActions
     /// <summary>The next blocks of the day as (time, text) pairs (the large panel's "Next up").</summary>
     public Func<IReadOnlyList<(string Time, string Text)>> NextUp { get; set; } = () => [];
 
+    /// <summary>Today's sync QR codes for the phone (ADR 22), while the QR code method is on; null hides the panel's QR button.</summary>
+    public Action? ShowSyncQr { get; set; }
+
     /// <summary>Other computers' and the watch's batteries: none yet (their sync data carries no level; ADR 52 would add one).</summary>
     public Func<IReadOnlyList<(string DeviceId, string Name, int Percent, string Kind)>> OtherBatteries { get; set; } = () => [];
 }

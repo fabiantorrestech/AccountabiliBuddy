@@ -70,6 +70,16 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
     [ObservableProperty]
     public partial string SwitchHint { get; set; }
 
+    /// <summary>Planning stage: "I'm ready" ends the planning minutes now (not while a first session learns).</summary>
+    [ObservableProperty]
+    public partial bool ShowsReady { get; set; }
+
+    /// <summary>Today's deep work against the goal ("Goal · 40m of 1h"); empty hides it.</summary>
+    [ObservableProperty]
+    public partial string GoalText { get; set; } = string.Empty;
+
+    public bool HasQr => Model.Actions.ShowSyncQr is not null;
+
     [ObservableProperty]
     public partial bool ShowsLunch { get; set; }
 
@@ -105,6 +115,9 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
         TasksHeader = state.IsActive ? "This session" : "Start focus on";
         SwitchHint = state.IsActive ? "1–3 to switch" : "1–3 to start";
         ShowsLunch = !state.IsActive && Model.Actions.CanStartLunch();
+        ShowsReady = Model.PlanFirst is { InStage: true };
+        GoalText = Model.GoalText;
+        OnPropertyChanged(nameof(HasQr));
         CanSideTask = state.IsEnforcing && !state.IsPlanning && !state.IsAway;
         OnPropertyChanged(nameof(ShowsSideTaskButton));
         OnPropertyChanged(nameof(Tasks));
@@ -150,6 +163,19 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
 
     /// <summary>Raised when the panel should close (Hide, Open app, the gear).</summary>
     public event EventHandler? CloseRequested;
+
+    [RelayCommand]
+    private void Ready()
+    {
+        Model.PlanFirst?.Ready();
+    }
+
+    [RelayCommand]
+    private void ShowQr()
+    {
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+        Model.Actions.ShowSyncQr?.Invoke();
+    }
 
     [RelayCommand]
     private void SideTask()
