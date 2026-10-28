@@ -782,6 +782,11 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public MotionViewModel? Motion { get; init; }
 
+    /// <summary>Theme, light or dark and colour (Settings → On screen &amp; sound → Appearance).</summary>
+    public AppearanceViewModel? Appearance { get; init; }
+
+    public bool HasAppearance => Appearance is not null;
+
     /// <summary>Lights out during work hours (design K).</summary>
     public LightsOutViewModel? LightsOut { get; init; }
 

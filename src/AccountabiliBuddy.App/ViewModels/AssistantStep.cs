@@ -34,6 +34,9 @@ public enum AssistantStep
     /// <summary>The start-of-day assistant on the first arrival of a workday: on or off (only in the migration assistant).</summary>
     StartOfDay,
 
+    /// <summary>ADR 49: the look, a theme and light or dark, set here or later in Settings → Appearance (only in the migration assistant).</summary>
+    Appearance,
+
     /// <summary>The first run's last question: how much focus a day (redesign phase 2).</summary>
     Goal,
     Done,

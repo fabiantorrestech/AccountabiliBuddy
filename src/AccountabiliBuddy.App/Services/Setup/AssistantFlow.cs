@@ -41,6 +41,7 @@ public static class AssistantFlow
             .Where(step => step != AssistantStep.OwnRelay)
             .Where(step => step != AssistantStep.DpAssistant)
             .Where(step => step != AssistantStep.StartOfDay)
+            .Where(step => step != AssistantStep.Appearance)
             .Where(step => step != AssistantStep.Usage || hasUsage)
             .Where(step => step != AssistantStep.LinkFirst || hasIdentity)
             .Where(step => step != AssistantStep.ComputerType || hasTypes)

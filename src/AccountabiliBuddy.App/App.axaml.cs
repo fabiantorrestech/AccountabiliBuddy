@@ -17,6 +17,7 @@ using AccountabiliBuddy.Platform.Windows.Enforcement;
 using AccountabiliBuddy.Platform.Windows.Hotkeys;
 using AccountabiliBuddy.Platform.Windows.Shortcuts;
 using AccountabiliBuddy.Platform.Windows.Integrations;
+using AccountabiliBuddy.Platform.Windows.Location;
 using AccountabiliBuddy.Platform.Windows.Network;
 using AccountabiliBuddy.Platform.Windows.Ocr;
 using AccountabiliBuddy.Platform.Windows.Security;
@@ -59,6 +60,7 @@ public partial class App : Application
     private SessionCheckpointService? _checkpoints;
     private ClockAnchorService? _clockAnchors;
     private ThemeService? _themes;
+    private AppTheme? _appearance;
     private WatchedBrowsersService? _watchedBrowsers;
     private UnlockService? _unlocks;
     private SessionOverlayService? _sessionOverlay;
@@ -458,8 +460,10 @@ public partial class App : Application
         // Animations at the chosen speed, or none (Settings → On screen & sound).
         _motion = new Motion(documents);
         _motion.LoadBlocking();
-        var appTheme = new AppTheme(documents);
+        // The look (ADR 49): theme, light or dark (set times or sunset) and colour; the place for sunset is stored encrypted.
+        var appTheme = new AppTheme(documents, _themes!, time, new DpapiDataProtector(), new WindowsLocationProvider());
         appTheme.LoadBlocking();
+        _appearance = appTheme;
         _motion.Apply();
         // ADR 28: while it guards, a day plan change that frees some of today's work waits like a looser change.
         _configuration.DayPlanHold = _workHours.DescribeCut;
@@ -767,6 +771,7 @@ public partial class App : Application
             Identity = syncIdentity,
             Goal = goal,
             StartNudge = _startNudge,
+            Appearance = new AppearanceViewModel(appTheme),
             WorkHours = _workHours,
             Keys = _coldTurkeyKeys,
             ColdTurkey = _coldTurkey,
@@ -1017,7 +1022,8 @@ public partial class App : Application
                 Hyperfocus = new HyperfocusViewModel(_hyperfocus!, _configuration),
                 StartNudge = new StartNudgeViewModel(_startNudge!),
                 Lunch = new LunchSettingsViewModel(_lunch!),
-                Motion = new MotionViewModel(_motion!) { Theme = appTheme },
+                Motion = new MotionViewModel(_motion!),
+                Appearance = new AppearanceViewModel(appTheme),
                 Headphones = new HeadphoneSettingsViewModel(_headphones!),
                 LightsOut = new LightsOutViewModel(_lightsOut!),
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
@@ -1133,10 +1139,11 @@ public partial class App : Application
 
         // The migration assistant: features added since the last version that aren't set up yet.
         var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
-            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant), BackupService.AppVersion);
+            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme), BackupService.AppVersion);
         setupFeatures.LoadBlocking();
         _setupFeatures = setupFeatures;
         coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();
+        appTheme.Changed += (_, _) => setupFeatures.Refresh();
         syncSettings.Changed += (_, _) => setupFeatures.Refresh();
         _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
         sessionViewModel.WhatsNew = new WhatsNewCardViewModel(setupFeatures, ShowWhatsNew);
@@ -2225,6 +2232,7 @@ public partial class App : Application
         _noise?.Dispose();
         _soundPlayer?.Dispose();
         _updates?.Dispose();
+        _appearance?.Dispose();
         _dayBar?.Dispose();
         _privateAccess?.Dispose();
         _coldTurkey?.Dispose();

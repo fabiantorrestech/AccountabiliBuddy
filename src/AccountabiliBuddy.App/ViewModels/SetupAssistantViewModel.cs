@@ -123,6 +123,9 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         }
     }
 
+    /// <summary>Theme and light or dark, for the migration assistant's page about them (ADR 49); null hides the choices.</summary>
+    public AppearanceViewModel? Appearance { get; init; }
+
     /// <summary>Holding Cold Turkey's keys (ADR 39); null skips its pages.</summary>
     public ColdTurkeyKeysService? Keys { get; init; }
 
@@ -328,7 +331,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsLinkFirst), nameof(IsComputerType), nameof(IsImport), nameof(IsUsage), nameof(IsReview), nameof(IsBrowsers),
-        nameof(IsBasics), nameof(IsWorkdays), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsDpAssistant), nameof(IsStartOfDay), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
+        nameof(IsBasics), nameof(IsWorkdays), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsDpAssistant), nameof(IsStartOfDay), nameof(IsAppearance), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(BackCommand))]
     public partial AssistantStep Step { get; set; }
 
@@ -438,6 +441,8 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     public bool IsStartOfDay => Step == AssistantStep.StartOfDay;
 
+    public bool IsAppearance => Step == AssistantStep.Appearance;
+
     public bool IsGoal => Step == AssistantStep.Goal;
 
     public bool IsDone => Step == AssistantStep.Done;
@@ -458,6 +463,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.OwnRelay => "Own relay: sync through your own server",
         AssistantStep.DpAssistant => "Setup DP Assistant: your day plan, step by step",
         AssistantStep.StartOfDay => "Start-of-day assistant",
+        AssistantStep.Appearance => "Appearance: three themes, light and dark on a schedule",
         AssistantStep.Goal => "How much focus a day?",
         _ => "All set",
     };
@@ -484,6 +490,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.OwnRelay => "Finish",
         AssistantStep.DpAssistant => "Finish",
         AssistantStep.StartOfDay => "Finish",
+        AssistantStep.Appearance => "Finish",
         AssistantStep.Goal => "Finish",
         AssistantStep.Done => "Close",
         _ => "Next",
@@ -500,6 +507,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     public void Dispose()
     {
         _sessions.StateChanged -= OnSessionStateChanged;
+        Appearance?.Dispose();
         foreach (PlannedProfileRowViewModel row in PlannedProfiles)
         {
             row.PropertyChanged -= OnPlannedProfileChanged;
@@ -653,6 +661,10 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
             case AssistantStep.OwnRelay:
             case AssistantStep.DpAssistant:
             case AssistantStep.StartOfDay:
+                GoToNextQuickStep();
+                break;
+            case AssistantStep.Appearance:
+                Appearance?.ConfirmTheme();
                 GoToNextQuickStep();
                 break;
             default:
