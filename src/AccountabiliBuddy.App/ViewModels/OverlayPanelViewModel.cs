@@ -32,7 +32,7 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
     public TaskbarOverlayViewModel Model { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Width), nameof(IsCompact), nameof(IsLarge), nameof(ShowsSteps))]
+    [NotifyPropertyChangedFor(nameof(Width), nameof(IsCompact), nameof(IsLarge), nameof(ShowsSteps), nameof(ShowsSideTaskButton))]
     public partial PanelSize Size { get; set; }
 
     public double Width => Size switch
@@ -76,6 +76,9 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
     [ObservableProperty]
     public partial bool CanSideTask { get; set; }
 
+    /// <summary>The footer's Side task button: not in Compact, where the key legend lists B and the footer has no room.</summary>
+    public bool ShowsSideTaskButton => CanSideTask && !IsCompact;
+
     /// <summary>The row ↑↓ is on (menu-style navigation); Enter picks it.</summary>
     [ObservableProperty]
     public partial int SelectedIndex { get; set; } = -1;
@@ -103,6 +106,7 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
         SwitchHint = state.IsActive ? "1–3 to switch" : "1–3 to start";
         ShowsLunch = !state.IsActive && Model.Actions.CanStartLunch();
         CanSideTask = state.IsEnforcing && !state.IsPlanning && !state.IsAway;
+        OnPropertyChanged(nameof(ShowsSideTaskButton));
         OnPropertyChanged(nameof(Tasks));
         Fill(Comebacks, Model.Actions.ComebackTitles());
         Fill(NextUpLines, Model.Actions.NextUp().Select(row => $"{row.Time}\t{row.Text}").ToList());

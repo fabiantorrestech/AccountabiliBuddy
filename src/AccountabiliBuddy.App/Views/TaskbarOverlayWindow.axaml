@@ -40,7 +40,7 @@
                 </Panel>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1" MinWidth="40">
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <Ellipse Width="8" Height="8" Fill="{Binding DotBrush}" IsVisible="{Binding ShowsDot}" VerticalAlignment="Center" />
+                        <Ellipse Width="8" Height="8" Fill="{Binding DotBrush}" IsVisible="{Binding ShowsInlineDot}" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding MinutesText}" FontSize="13" FontWeight="SemiBold" Foreground="{Binding MinutesBrush}" />
                         <TextBlock Text="{Binding TaskText}" FontSize="13" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis"
                                    MaxWidth="170" IsVisible="{Binding ShowsTask}" />

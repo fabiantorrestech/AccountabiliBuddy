@@ -193,7 +193,7 @@
                 <!-- Footer -->
                 <Grid ColumnDefinitions="*,Auto" Margin="8,4,8,6">
                     <StackPanel Orientation="Horizontal" Spacing="2">
-                        <Button Classes="foot" Command="{Binding SideTaskCommand}" IsVisible="{Binding CanSideTask}">
+                        <Button Classes="foot" Command="{Binding SideTaskCommand}" IsVisible="{Binding ShowsSideTaskButton}">
                             <StackPanel Orientation="Horizontal" Spacing="6"><mi:MaterialIcon Kind="CoffeeOutline" Width="14" Height="14" /><TextBlock Text="Side task" /><TextBlock Text="B" Classes="key" /></StackPanel>
                         </Button>
                         <Button Classes="foot" Command="{Binding HideCommand}">

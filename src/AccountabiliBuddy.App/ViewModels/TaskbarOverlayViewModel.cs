@@ -178,6 +178,10 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ShowsDriftDot { get; set; }
 
+    /// <summary>The drift dot sits before the text (there is no ring slot to put it in).</summary>
+    [ObservableProperty]
+    public partial bool ShowsInlineDot { get; set; }
+
     /// <summary>The tile is the one-line Small size: the second line is dropped.</summary>
     [ObservableProperty]
     public partial bool IsSmall { get; set; }
@@ -190,6 +194,7 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
         ShowsTask = settings.Items.Any(item => item.Kind == OverlayItemKind.Task && item.Enabled);
         ShowsInlineTimeline = settings.Progress == OverlayProgress.Timeline && ringItem;
         IsSmall = settings.Size == OverlaySize.Small;
+        ShowsInlineDot = ShowsDriftDot && !ShowsRing;
     }
 
     [RelayCommand]
@@ -419,6 +424,7 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
 
         State = state;
         ShowsDriftDot = state == OverlayState.Drift;
+        ShowsInlineDot = ShowsDriftDot && !ShowsRing;
         ShowsDot = dot || HasNudgeDot;
         DotBrush = OverlayBrushes.Get(dot ? "Drift" : "Waiting");
         BorderBrush = OverlayBrushes.Get(now < GlowUntil ? "Ink" : border);

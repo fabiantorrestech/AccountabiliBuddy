@@ -270,6 +270,13 @@ public partial class TaskbarOverlayWindow : Window
         return new PixelBox(area.X, area.Y, area.Right, area.Bottom);
     }
 
+    protected override void OnPointerEntered(PointerEventArgs e)
+    {
+        base.OnPointerEntered(e);
+        // The user looked: the unread-nudge dot goes (18d).
+        _model.HasNudgeDot = false;
+    }
+
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
