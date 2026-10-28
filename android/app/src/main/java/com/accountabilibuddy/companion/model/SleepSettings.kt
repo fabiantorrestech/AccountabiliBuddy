@@ -25,6 +25,11 @@ data class SleepSettings(
     val maxHours: Double = 9.0,
     /** The bedtime reminders (ADR 38, shared both ways). */
     val reminders: BedtimeReminderSettings = BedtimeReminderSettings.Default,
+    /**
+     * With [enabled] false: sleep mode was turned off after the looser-change wait (here or on the PC it came from), so
+     * a PC taking it from the sync file applies it at once instead of waiting again. Shared in the sleep document.
+     */
+    val offWaited: Boolean = false,
     /** The smart bedtime's levels (minutes in bed before waking) for the kinds of night it's on for (ADR 34); set by the app, never saved. */
     val smartLevels: Map<com.accountabilibuddy.companion.engine.NightKind, Int> = emptyMap(),
     /** The estimated wake time per kind of morning (ADR 40), for mornings woken by the alarm with none known; set by the app, never saved. */

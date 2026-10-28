@@ -648,7 +648,8 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun saveSleep(settings: SleepSettings) {
         // An edit here: stamped, so it goes to the PCs and wins over an older one there (ADR 35).
-        (getApplication<Application>() as com.accountabilibuddy.companion.CompanionApp).sleepSync.saveEdit(settings)
+        // Turning sleep mode off is held (10 min) or refused during a focus session; the note says which.
+        (getApplication<Application>() as com.accountabilibuddy.companion.CompanionApp).sleepSync.saveEdit(settings)?.let { message.value = it }
         refreshOutside()
     }
 
