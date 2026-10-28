@@ -74,10 +74,12 @@
             <StackPanel Spacing="6" DataContext="{Binding CalendarFeeds}" x:DataType="vm:CalendarFeedsViewModel"
                         IsVisible="{Binding $parent[UserControl].((vm:IntegrationsViewModel)DataContext).CalendarFeeds, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
                 <TextBlock Classes="sGroup" Text="Calendars" />
-                <Border Classes="sPanel" Padding="18,14">
-                    <StackPanel Spacing="8">
-                        <TextBlock Classes="sHint"
-                                   Text="Read-only calendars (iCal links and Google accounts) plus this app's own. Their events show on the Plan page's month view, Change a day. Nothing is ever written to them." />
+                <Border Classes="sPanel">
+                    <StackPanel>
+                        <Border Classes="sRow">
+                            <TextBlock Classes="sHint"
+                                       Text="Read-only calendars (iCal links and Google accounts) plus this app's own. Their events show on the Plan page's month view, Change a day. Nothing is ever written to them." />
+                        </Border>
                         <views:CalendarFeedsView />
                     </StackPanel>
                 </Border>
@@ -87,29 +89,43 @@
             <StackPanel Spacing="6" DataContext="{Binding Beeminder}" x:DataType="vm:BeeminderViewModel"
                         IsVisible="{Binding $parent[UserControl].((vm:IntegrationsViewModel)DataContext).Beeminder, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
                 <TextBlock Classes="sGroup" Text="Beeminder" />
-                <Border Classes="sPanel" Padding="18,14">
-                    <StackPanel Spacing="8">
-                        <TextBlock Classes="sHint"
-                                   Text="Shows your Beeminder goals on Today (and on your phone's Today through this PC's sync file): what each needs, safe days and the deadline. Read only: nothing is ever sent to Beeminder. Get your personal auth token at beeminder.com/api/v1/auth_token.json while signed in, and paste the token (the text after &quot;auth_token&quot;) here. It's kept encrypted on this PC." />
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBox Text="{Binding TokenText}" PasswordChar="•" Width="320" PlaceholderText="{Binding TokenPlaceholder}" />
-                            <Button Content="Save and test" Command="{Binding SaveCommand}" Classes="primary" />
-                        </StackPanel>
-                        <Button Content="Get my token (opens beeminder.com)" Click="OnGetBeeminderToken" HorizontalAlignment="Left"
-                                ToolTip.Tip="Signed in to Beeminder, the page shows your personal auth token at once: copy the text after &quot;auth_token&quot;." />
-                        <WrapPanel ItemSpacing="8" LineSpacing="6" IsVisible="{Binding HasToken}">
-                            <Button Content="Test" Command="{Binding TestCommand}" />
-                            <Button Command="{Binding RefreshGoalsCommand}" ToolTip.Tip="{Binding RefreshTip}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <mi:MaterialIcon Kind="Refresh" Width="16" Height="16" />
-                                    <TextBlock Text="{Binding RefreshLabel}" />
+                <Border Classes="sPanel">
+                    <StackPanel Margin="0,0,0,-1">
+                        <Border Classes="sRow">
+                            <TextBlock Classes="sHint"
+                                       Text="Shows your Beeminder goals on Today (and on your phone's Today through this PC's sync file): what each needs, safe days and the deadline. Read only: nothing is ever sent to Beeminder. Get your personal auth token at beeminder.com/api/v1/auth_token.json while signed in, and paste the token (the text after &quot;auth_token&quot;) here. It's kept encrypted on this PC." />
+                        </Border>
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Classes="sTitle" Text="Auth token" />
+                                    <TextBlock Classes="sHint" Text="Signed in to Beeminder, the page shows your personal auth token at once: copy the text after &quot;auth_token&quot;." />
                                 </StackPanel>
-                            </Button>
-                            <Button Content="Remove token" Command="{Binding RemoveCommand}" />
-                            <TextBlock Text="{Binding Status}" Classes="sHint" VerticalAlignment="Center" />
-                        </WrapPanel>
-                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap"
-                                   IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <Button Grid.Column="1" Content="Get my token (opens beeminder.com)" Click="OnGetBeeminderToken" VerticalAlignment="Top" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <TextBox Text="{Binding TokenText}" PasswordChar="•" PlaceholderText="{Binding TokenPlaceholder}" />
+                                <Button Grid.Column="1" Content="Save and test" Command="{Binding SaveCommand}" Classes="primary" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow" IsVisible="{Binding HasToken}">
+                            <WrapPanel ItemSpacing="8" LineSpacing="6">
+                                <Button Content="Test" Command="{Binding TestCommand}" />
+                                <Button Command="{Binding RefreshGoalsCommand}" ToolTip.Tip="{Binding RefreshTip}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <mi:MaterialIcon Kind="Refresh" Width="16" Height="16" />
+                                        <TextBlock Text="{Binding RefreshLabel}" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Content="Remove token" Command="{Binding RemoveCommand}" />
+                                <TextBlock Text="{Binding Status}" Classes="sHint" VerticalAlignment="Center" />
+                            </WrapPanel>
+                        </Border>
+                        <Border Classes="sRow" IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+                        </Border>
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -156,16 +172,24 @@
 
             <!-- Import -->
             <TextBlock Classes="sGroup" Text="Import a list" />
-            <Border Classes="sPanel" Padding="18,14">
-                <StackPanel Spacing="8">
-                    <TextBlock Classes="sHint"
-                               Text="Paste a list from Cold Turkey, LeechBlock, BlockSite or anywhere else: one site, address or app per line (e.g. reddit.com, *.tiktok.com, youtube.com/shorts, Discord.exe). Lines starting with # are ignored." />
-                    <TextBox Text="{Binding ImportText}" AcceptsReturn="True" TextWrapping="NoWrap" MinHeight="120" MaxHeight="260" FontFamily="Consolas,monospace" />
-                    <WrapPanel ItemSpacing="12" LineSpacing="6">
-                        <RadioButton Content="Block these" IsChecked="{Binding !ImportAsAllow}" GroupName="importVerdict" />
-                        <RadioButton Content="Allow these (exceptions)" IsChecked="{Binding ImportAsAllow}" GroupName="importVerdict" />
-                        <Button Content="Import" Command="{Binding ImportCommand}" />
-                    </WrapPanel>
+            <Border Classes="sPanel">
+                <StackPanel Margin="0,0,0,-1">
+                    <Border Classes="sRow">
+                        <TextBlock Classes="sHint"
+                                   Text="Paste a list from Cold Turkey, LeechBlock, BlockSite or anywhere else: one site, address or app per line (e.g. reddit.com, *.tiktok.com, youtube.com/shorts, Discord.exe). Lines starting with # are ignored." />
+                    </Border>
+                    <Border Classes="sRow">
+                        <TextBox Text="{Binding ImportText}" AcceptsReturn="True" TextWrapping="NoWrap" MinHeight="120" MaxHeight="260" FontFamily="Consolas,monospace" />
+                    </Border>
+                    <Border Classes="sRow">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                            <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                                <RadioButton Content="Block these" IsChecked="{Binding !ImportAsAllow}" GroupName="importVerdict" />
+                                <RadioButton Content="Allow these (exceptions)" IsChecked="{Binding ImportAsAllow}" GroupName="importVerdict" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Import" Command="{Binding ImportCommand}" />
+                        </Grid>
+                    </Border>
                 </StackPanel>
             </Border>
 

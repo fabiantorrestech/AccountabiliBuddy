@@ -3,80 +3,58 @@
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              x:Class="AccountabiliBuddy.App.Views.BrowserSetupList"
              x:DataType="vm:SetupViewModel">
-    <!-- "Browser extensions" with one short row per supported browser indented under it; used by the Setup tab and the setup assistant. -->
+    <!-- "Browser extensions": a heading, one line of explanation and one row per supported browser; used by Settings › Setup and the
+         setup assistant. -->
     <UserControl.Styles>
-        <Style Selector="Border.card">
-            <Setter Property="Background" Value="{DynamicResource Ab.Bg}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
-            <Setter Property="BorderThickness" Value="{DynamicResource Ab.CardBorderThickness}" />
-            <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
-            <Setter Property="Padding" Value="16,12" />
-        </Style>
-        <Style Selector="TextBlock.heading">
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
-        </Style>
-        <Style Selector="TextBlock.browser">
-            <Setter Property="FontSize" Value="15" />
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
-        </Style>
         <Style Selector="TextBlock.warning">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Waiting}" />
-        </Style>
-        <Style Selector="TextBlock.muted">
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
-            <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
     </UserControl.Styles>
 
     <StackPanel Spacing="6">
-        <TextBlock Text="Browser extensions" Classes="heading" />
-        <TextBlock Classes="muted" FontSize="12"
+        <TextBlock Text="Browser extensions" Classes="sGroup" Margin="4,0,0,0" />
+        <TextBlock Classes="sHint" Margin="4,0,0,0"
                    Text="Sees the active tab's address and talks only to this app. In a watched browser, windows the extension can't see count as distracting during focus." />
 
-        <ItemsControl ItemsSource="{Binding Browsers}" Margin="0,4,0,0">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <StackPanel Spacing="6" />
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:BrowserSetupRowViewModel">
-                    <Border Classes="card">
-                        <StackPanel Spacing="4">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Spacing="2">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <Ellipse Width="8" Height="8" Fill="{DynamicResource Ab.Met}" IsVisible="{Binding IsConnected}" VerticalAlignment="Center" />
-                                        <Ellipse Width="8" Height="8" Fill="{DynamicResource Ab.Faint}" IsVisible="{Binding !IsConnected}" VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding DisplayName}" Classes="browser" />
-                                        <TextBlock Text="{Binding ConnectionText}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+        <Border Classes="sPanel">
+            <ItemsControl ItemsSource="{Binding Browsers}" Margin="0,0,0,-1">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:BrowserSetupRowViewModel">
+                        <Border Classes="sRow">
+                            <StackPanel Spacing="6">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Ellipse Width="8" Height="8" Fill="{DynamicResource Ab.Met}" IsVisible="{Binding IsConnected}" VerticalAlignment="Center" />
+                                            <Ellipse Width="8" Height="8" Fill="{DynamicResource Ab.Faint}" IsVisible="{Binding !IsConnected}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding DisplayName}" Classes="sTitle" />
+                                            <TextBlock Text="{Binding ConnectionText}" Classes="sHint" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding StatusText}" Classes="sHint" Margin="16,0,0,0" />
+                                        <TextBlock Text="{Binding PrivateWindowsText}" IsVisible="{Binding HasPrivateWindowsText}"
+                                                   Classes="sHint" Classes.warning="{Binding IsPrivateWindowsWarning}" Margin="16,0,0,0" />
                                     </StackPanel>
-                                    <TextBlock Text="{Binding StatusText}" Classes="muted" FontSize="12" Margin="16,0,0,0" />
-                                    <TextBlock Text="{Binding PrivateWindowsText}" IsVisible="{Binding HasPrivateWindowsText}"
-                                               Classes.warning="{Binding IsPrivateWindowsWarning}"
-                                               FontSize="12" TextWrapping="Wrap" Margin="16,0,0,0" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
-                                    <Button Content="Install extension…" Command="{Binding InstallExtensionCommand}" />
-                                    <Button Content="Grant" Command="{Binding GrantCommand}" />
-                                    <Button Content="Revoke" Command="{Binding RevokeCommand}" />
-                                </StackPanel>
-                            </Grid>
-                            <StackPanel Spacing="4" Margin="16,4,0,0" IsVisible="{Binding HasInstallPath}">
-                                <TextBlock Text="{Binding InstallSteps}" IsVisible="{Binding HasInstallSteps}" FontSize="12" TextWrapping="Wrap" />
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <SelectableTextBlock Text="{Binding InstallPath}" FontFamily="Consolas,monospace" FontSize="12"
-                                                         TextWrapping="Wrap" VerticalAlignment="Center" />
-                                    <Button Grid.Column="1" Content="Copy path" Click="OnCopyPathClick" Margin="8,0,0,0"
-                                            ToolTip.Tip="Copy the path to paste into the browser's dialog"
-                                            AutomationProperties.Name="Copy extension path" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                                        <Button Content="Install extension…" Command="{Binding InstallExtensionCommand}" />
+                                        <Button Content="Grant" Command="{Binding GrantCommand}" />
+                                        <Button Content="Revoke" Command="{Binding RevokeCommand}" />
+                                    </StackPanel>
                                 </Grid>
+                                <StackPanel Spacing="4" Margin="16,0,0,0" IsVisible="{Binding HasInstallPath}">
+                                    <TextBlock Text="{Binding InstallSteps}" IsVisible="{Binding HasInstallSteps}" FontSize="12" TextWrapping="Wrap" />
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <SelectableTextBlock Text="{Binding InstallPath}" FontFamily="Consolas,monospace" FontSize="12"
+                                                             TextWrapping="Wrap" VerticalAlignment="Center" />
+                                        <Button Grid.Column="1" Content="Copy path" Click="OnCopyPathClick" Margin="8,0,0,0"
+                                                ToolTip.Tip="Copy the path to paste into the browser's dialog"
+                                                AutomationProperties.Name="Copy extension path" />
+                                    </Grid>
+                                </StackPanel>
                             </StackPanel>
-                        </StackPanel>
-                    </Border>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
     </StackPanel>
 </UserControl>
