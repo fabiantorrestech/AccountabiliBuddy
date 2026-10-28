@@ -33,7 +33,7 @@ public static class GoogleSetupSteps
             new[]
             {
                 "Open the page and sign in with any Google account you own: it holds the project. Use the same one on every page after this.",
-                "The account whose calendar (and watch) you link is picked later, when you sign in at the end or in Plan › Calendar; it can be a different one.",
+                "The account whose calendar (and watch) you link is picked later, when you sign in at the end or in Settings › Connections; it can be a different one.",
                 $"Project name: {AppName}. Leave the rest as it is and press Create.",
                 "Wait a few seconds, then make sure the new project is selected in the bar at the top of the page.",
                 "Already have a project for AccountabiliBuddy? Just select it and go on.",

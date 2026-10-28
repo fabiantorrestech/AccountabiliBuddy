@@ -6,23 +6,42 @@
              xmlns:domain="using:AccountabiliBuddy.Core.Domain"
              x:Class="AccountabiliBuddy.App.Views.DayPlanView"
              x:DataType="vm:DayPlanViewModel">
-    <DockPanel Margin="12">
-        <Border DockPanel.Dock="Top" IsVisible="{Binding IsLocked}" Background="#33F59E0B"
-                Padding="12,8" Margin="0,0,0,12" CornerRadius="6">
-            <TextBlock Text="The day plan is locked while a focus session you started is running." />
+    <UserControl.Styles>
+        <!-- The day type list: the selected type in Surface2 and Ink, not Fluent's accent fill. -->
+        <Style Selector="ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="CornerRadius" Value="12" />
+        </Style>
+        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+    </UserControl.Styles>
+    <!-- The week cycle, the day types and the categories, in the Plan page's "Day types" sheet. Save and Revert are the same as ever:
+         Save goes through the configuration (a change that frees today's work hours waits), and everything is locked during a session. -->
+    <DockPanel Margin="30,8,24,20">
+        <Border DockPanel.Dock="Top" IsVisible="{Binding IsLocked}" Background="{DynamicResource Ab.Surface2}" BorderBrush="{DynamicResource Ab.Waiting}"
+                BorderThickness="3,0,0,0" Padding="14,10" Margin="0,0,0,12" CornerRadius="6">
+            <TextBlock Text="The day plan is locked while a focus session you started is running." TextWrapping="Wrap" />
         </Border>
 
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
-            <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" />
-            <Button Content="Revert" Command="{Binding RevertCommand}" />
-            <Button Content="Plan day(s)…" Command="{Binding PlanDayCommand}" ToolTip.Tip="Make one-off days: an adjusted workday or an off-day" />
+            <Button Content="Save" Command="{Binding SaveCommand}" Classes="primary" Padding="22,9" />
+            <Button Content="Revert" Command="{Binding RevertCommand}" Padding="18,9" />
             <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Margin="8,0,0,0" TextWrapping="Wrap" />
         </StackPanel>
 
         <ScrollViewer>
-            <StackPanel Spacing="18" MaxWidth="1400" HorizontalAlignment="Stretch" IsEnabled="{Binding !IsLocked}">
-                <TextBlock TextWrapping="Wrap" Opacity="0.75"
-                           Text="How your days are meant to go: day types (a timeline or just a work window, a budget of productive hours, or a free day) and which type each weekday follows. Watch parts are when the buddy asks about new sites and counts drift, Comms parts are work time for mail and chat, Rest parts are breaks, and Sleep sets bedtime and wake time. A part that crosses midnight is the night before the day it ends on. Single dates are changed in Exceptions." />
+            <StackPanel Spacing="22" HorizontalAlignment="Stretch" IsEnabled="{Binding !IsLocked}" Margin="0,0,14,0">
+                <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="13"
+                           Text="Day types (a timeline, a work window, a budget of productive hours, or a free day) and which type each weekday follows. Watch parts are when the buddy asks about new sites and counts drift, Comms parts are work time for mail and chat, Rest parts are breaks, and Sleep sets bedtime and wake time. A part that crosses midnight is the night before the day it ends on. A single date is changed with Change a day." />
 
                 <!-- Which day type each weekday follows; one column per week of the repeating cycle, up to 8 (ADR 47). -->
                 <StackPanel Spacing="6">
@@ -102,14 +121,14 @@
                 <!-- The day types (ADR 47): each a Schedule, a Budget or a free day; Workday and Off day stay. -->
                 <StackPanel Spacing="6">
                     <TextBlock Text="Day types" FontSize="16" FontWeight="SemiBold" />
-                    <Grid ColumnDefinitions="260,*" ColumnSpacing="12">
+                    <StackPanel Spacing="10">
                         <StackPanel Spacing="6">
-                            <ListBox ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate}" MaxHeight="260">
+                            <ListBox ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate}" MaxHeight="220">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate x:DataType="vm:PlanTemplateEditorViewModel">
                                         <StackPanel>
                                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                            <TextBlock Text="{Binding Summary}" FontSize="11" Opacity="0.7" />
+                                            <TextBlock Classes="muted" Text="{Binding Summary}" FontSize="11" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
@@ -126,9 +145,9 @@
                                 </Button>
                             </WrapPanel>
                         </StackPanel>
-                        <views:DayTemplateEditorView Grid.Column="1" DataContext="{Binding SelectedTemplate}"
+                        <views:DayTemplateEditorView x:Name="TemplateEditor" DataContext="{Binding SelectedTemplate}"
                                                      IsVisible="{Binding $parent[UserControl].((vm:DayPlanViewModel)DataContext).HasSelectedTemplate}" />
-                    </Grid>
+                    </StackPanel>
                 </StackPanel>
 
                 <StackPanel Spacing="6">

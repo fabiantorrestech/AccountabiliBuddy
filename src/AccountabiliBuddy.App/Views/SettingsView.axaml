@@ -137,7 +137,7 @@
                     </ItemsControl>
 
                     <TextBlock Text="Calendars on the timeline" FontWeight="SemiBold" Margin="0,8,0,0" />
-                    <TextBlock Text="No calendars to show yet: add them in Plan › Calendar (hidden calendars aren't listed)."
+                    <TextBlock Text="No calendars to show yet: add them in Settings › Connections (hidden calendars aren't listed)."
                                IsVisible="{Binding !HasTimelineCalendars}" Opacity="0.75" TextWrapping="Wrap" />
                     <ItemsControl ItemsSource="{Binding TimelineCalendars}">
                         <ItemsControl.ItemTemplate>

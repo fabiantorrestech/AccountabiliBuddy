@@ -25,23 +25,19 @@ public sealed partial class ExceptionsViewModel : ObservableObject
     private readonly ConfigurationService _configuration;
     private readonly SessionController _sessions;
     private readonly CalendarService _calendars;
-    private readonly CalendarSyncService _sync;
-    private readonly Func<Uri, bool> _openBrowser;
 
-    /// <param name="openBrowser">Opens Google's sign-in page in the browser.</param>
+    /// <param name="feeds">The connected calendars (Settings › Connections); the month view's "Refresh calendars" uses them.</param>
     public ExceptionsViewModel(
         ConfigurationService configuration,
         SessionController sessions,
         CalendarService calendars,
-        CalendarSyncService sync,
-        Func<Uri, bool> openBrowser,
+        CalendarFeedsViewModel feeds,
         PendingChangesViewModel pendingChanges)
     {
         _configuration = configuration;
         _sessions = sessions;
         _calendars = calendars;
-        _sync = sync;
-        _openBrowser = openBrowser;
+        Feeds = feeds;
         PendingChanges = pendingChanges;
 
         DateOnly today = Today;
@@ -67,6 +63,15 @@ public sealed partial class ExceptionsViewModel : ObservableObject
     public static IReadOnlyList<string> WeekdayHeaders { get; } = new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
 
     public PendingChangesViewModel PendingChanges { get; }
+
+    /// <summary>The connected calendars: the month view only refreshes them; adding links and signing in are in Settings › Connections.</summary>
+    public CalendarFeedsViewModel Feeds { get; }
+
+    /// <summary>Opens Settings › Connections (calendar links and Google sign-in); set by the app.</summary>
+    public Action? OpenConnections { get; set; }
+
+    [RelayCommand]
+    private void OpenCalendarSettings() => OpenConnections?.Invoke();
 
     /// <summary>Every one-off day, by date; days that have passed are greyed out.</summary>
     public ObservableCollection<OneOffDayRowViewModel> OneOffDays { get; } = new();
@@ -109,24 +114,6 @@ public sealed partial class ExceptionsViewModel : ObservableObject
     private DateOnly _editingDate;
 
     public ObservableCollection<EventRowViewModel> SelectedEvents { get; } = new();
-
-    public ObservableCollection<CalendarSourceRowViewModel> CalendarSources { get; } = new();
-
-    [ObservableProperty]
-    public partial string? NewLinkAddress { get; set; }
-
-    [ObservableProperty]
-    public partial string? NewLinkGroup { get; set; }
-
-    [ObservableProperty]
-    public partial string? CalendarMessage { get; set; }
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(RefreshCalendarsCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ConnectGoogleCommand))]
-    public partial bool IsCalendarBusy { get; set; }
-
-    private bool CanUseCalendars => !IsCalendarBusy;
 
     [ObservableProperty]
     public partial string? NewEventTitle { get; set; }
@@ -288,68 +275,6 @@ public sealed partial class ExceptionsViewModel : ObservableObject
     private Task ClearSelectedDayAsync()
     {
         return RemoveOneOffDayAsync(SelectedDate);
-    }
-
-    /// <summary>Fetches every event of every connected calendar now, hidden ones included.</summary>
-    [RelayCommand(CanExecute = nameof(CanUseCalendars))]
-    private async Task RefreshCalendarsAsync()
-    {
-        IsCalendarBusy = true;
-        CalendarMessage = "Refreshing calendars…";
-        try
-        {
-            await _sync.RefreshAllAsync();
-            CalendarMessage = "Calendars refreshed.";
-        }
-        finally
-        {
-            IsCalendarBusy = false;
-        }
-    }
-
-    [RelayCommand]
-    private async Task AddLinkAsync()
-    {
-        if (string.IsNullOrWhiteSpace(NewLinkAddress))
-        {
-            CalendarMessage = "Paste the calendar's iCal address first.";
-            return;
-        }
-
-        CalendarMessage = "Adding the calendar…";
-        string? error = await _sync.AddLinkAsync(NewLinkAddress, NewLinkGroup);
-        if (error is null)
-        {
-            NewLinkAddress = null;
-            CalendarMessage = "Calendar added.";
-        }
-        else
-        {
-            CalendarMessage = error;
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(CanUseCalendars))]
-    private async Task ConnectGoogleAsync()
-    {
-        IsCalendarBusy = true;
-        CalendarMessage = "Finish signing in to Google in your browser…";
-        try
-        {
-            string? error = await _sync.ConnectGoogleAsync(_openBrowser, CancellationToken.None);
-            CalendarMessage = error ?? "Google account connected.";
-        }
-        finally
-        {
-            IsCalendarBusy = false;
-        }
-    }
-
-    [RelayCommand]
-    private async Task RemoveSourceAsync(CalendarSourceRowViewModel row)
-    {
-        await _sync.RemoveSourceAsync(row.Id);
-        CalendarMessage = $"{row.Name} removed.";
     }
 
     [RelayCommand]
@@ -562,17 +487,6 @@ public sealed partial class ExceptionsViewModel : ObservableObject
         foreach (CalendarEntry entry in _calendars.EventsOn(SelectedDate))
         {
             SelectedEvents.Add(new EventRowViewModel(entry));
-        }
-
-        CalendarSources.Clear();
-        foreach (CalendarSource source in _calendars.Sources)
-        {
-            CalendarSources.Add(new CalendarSourceRowViewModel(
-                source,
-                _calendars.StatusOf(source.Id),
-                _sync.IsFetching && source.Kind != CalendarSourceKind.Local && _calendars.StatusOf(source.Id).LastAttemptAt is null,
-                source.Calendars.Select(calendar => new CalendarRowViewModel(_calendars, source, calendar)).ToList(),
-                _sessions.TimeProvider.LocalTimeZone));
         }
     }
 

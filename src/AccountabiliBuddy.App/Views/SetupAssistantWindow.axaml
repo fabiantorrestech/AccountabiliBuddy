@@ -389,6 +389,14 @@
                                Text="To try it, finish here and open Tasks: pick a task, set its estimate, write a note, or press Move to Later or Put in plan. Notes stay on your devices, sealed, and sync only between them. Moving a task to Later during a focus session counts as taking it off, so it can't end the session early." />
                 </StackPanel>
 
+                <!-- The Plan page's helper -->
+                <StackPanel IsVisible="{Binding IsPlanHelper}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="The Plan page now has a Plan helper. It looks at your calendar, today's deep-work goal and next week's day types, and says when a coming day's calendar covers most of its work, when today's goal no longer fits in the work time left, or when a day next week has no day type yet." />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="It only suggests. Move it makes the change the same way you would by hand: it is refused while a focus session you started is running, and waits like any other day plan change. Leave it hides that suggestion for that day. Calendar links and Google sign-in moved to Settings › Connections; the month view is Change a day on the Plan page." />
+                </StackPanel>
+
                 <!-- ADR 49: the look, a theme and light or dark -->
                 <StackPanel IsVisible="{Binding IsAppearance}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
                     <TextBlock Classes="body" TextWrapping="Wrap"
@@ -481,7 +489,7 @@
                     <TextBlock Classes="body" Text="• Start a session from Today, or press Ctrl+Alt+F anywhere." />
                     <TextBlock Classes="body" IsVisible="{Binding IsQuick}"
                                Text="• Your first session learns: it asks about nothing new, and at its end you sort what you used on Today." />
-                    <TextBlock Classes="body" Text="• Your day plan is in Plan; a day planned differently is in its Calendar section." />
+                    <TextBlock Classes="body" Text="• Your day plan is in Plan; a day planned differently is in Plan › Change a day." />
                     <TextBlock Classes="body" IsVisible="{Binding IsQuick}"
                                Text="• Imports from other blockers and browser extensions: Settings › Setup → Full setup." />
                     <TextBlock Classes="body" IsVisible="{Binding !IsQuick}" Text="• Run this assistant again any time from Settings › Setup." />

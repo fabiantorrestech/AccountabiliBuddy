@@ -1,0 +1,80 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.CalendarFeedsView"
+             x:DataType="vm:CalendarFeedsViewModel">
+    <UserControl.Resources>
+        <!-- Check boxes read in ink, not accent. -->
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{DynamicResource Ab.Surface2Color}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPointerOver" Color="{DynamicResource Ab.Surface2Color}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPressed" Color="{DynamicResource Ab.Surface2Color}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeChecked" Color="{DynamicResource Ab.FaintColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPointerOver" Color="{DynamicResource Ab.FaintColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPressed" Color="{DynamicResource Ab.FaintColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPointerOver" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPressed" Color="{DynamicResource Ab.InkColor}" />
+    </UserControl.Resources>
+    <!-- The connected calendars, moved here from the old Calendar tab (now the Plan page's month view): each source with its
+         calendars (show on the month view, colour), an iCal link to add, and Google sign-in. -->
+    <StackPanel Spacing="10">
+        <ItemsControl ItemsSource="{Binding CalendarSources}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:CalendarSourceRowViewModel">
+                    <StackPanel Margin="0,0,0,10" Spacing="2">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center" ToolTip.Tip="{Binding Name}" />
+                            <Button Grid.Column="1" Content="{Binding RemoveLabel}" IsVisible="{Binding CanRemove}"
+                                    FontSize="12" Padding="8,3"
+                                    Command="{Binding $parent[ItemsControl].((vm:CalendarFeedsViewModel)DataContext).RemoveSourceCommand}"
+                                    CommandParameter="{Binding}" />
+                        </Grid>
+                        <TextBlock Text="{Binding StatusText}" FontSize="11" TextWrapping="Wrap"
+                                   Classes="muted" Classes.error="{Binding HasError}">
+                            <TextBlock.Styles>
+                                <Style Selector="TextBlock.error">
+                                    <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+                                </Style>
+                            </TextBlock.Styles>
+                        </TextBlock>
+                        <ItemsControl ItemsSource="{Binding Calendars}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:CalendarRowViewModel">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,1">
+                                        <CheckBox IsChecked="{Binding IsVisible}" ToolTip.Tip="Show on the Plan page's month view"
+                                                  AutomationProperties.Name="{Binding Name, StringFormat='Show {0}'}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" />
+                                        <Button Grid.Column="2" Width="22" Height="22" Padding="0" CornerRadius="11"
+                                                Background="{Binding Brush}" ToolTip.Tip="Change colour"
+                                                AutomationProperties.Name="Change colour"
+                                                Command="{Binding NextColorCommand}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock Text="Add an iCal link" FontWeight="SemiBold" />
+        <TextBlock FontSize="11" Classes="muted" TextWrapping="Wrap"
+                   Text="Google: calendar Settings → Integrate calendar → Secret address in iCal format. One link per calendar. Outlook, iCloud and Nextcloud have the same kind of link. The address is stored encrypted." />
+        <TextBox Text="{Binding NewLinkAddress}" PasswordChar="•" PlaceholderText="https://… or webcal://…"
+                 AutomationProperties.Name="iCal address" />
+        <TextBox Text="{Binding NewLinkGroup}" PlaceholderText="Group name (optional), e.g. Work account"
+                 AutomationProperties.Name="Group name" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Add link" Command="{Binding AddLinkCommand}" />
+            <Button Content="Refresh calendars" Command="{Binding RefreshCalendarsCommand}"
+                    ToolTip.Tip="Fetch every event of every connected calendar now, hidden ones included" />
+        </StackPanel>
+
+        <Button Content="Connect a Google account…" Command="{Binding ConnectGoogleCommand}" HorizontalAlignment="Left"
+                ToolTip.Tip="Add one Google account at a time (press again for another). Lists all calendars of the account; changes show up within about 30 seconds. Needs your Google client ID in Settings." />
+        <TextBlock Text="{Binding CalendarMessage}" TextWrapping="Wrap" FontSize="12"
+                   IsVisible="{Binding CalendarMessage, Converter={x:Static ObjectConverters.IsNotNull}}" />
+    </StackPanel>
+</UserControl>

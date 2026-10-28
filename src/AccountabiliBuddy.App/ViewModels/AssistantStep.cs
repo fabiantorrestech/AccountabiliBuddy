@@ -37,6 +37,9 @@ public enum AssistantStep
     /// <summary>ADR 50: the Tasks page's estimates, notes, Later list and Put in plan, a pointer to Tasks (only in the migration assistant).</summary>
     Tasks,
 
+    /// <summary>The Plan page's helper: suggestions about a coming day's calendar, today's goal and next week's day types, a pointer to Plan (only in the migration assistant).</summary>
+    PlanHelper,
+
     /// <summary>ADR 49: the look, a theme and light or dark, set here or later in Settings → Appearance (only in the migration assistant).</summary>
     Appearance,
 

@@ -1009,11 +1009,21 @@ public partial class App : Application
         // Capture in Focus mode (redesign phase 5): notes for the session's review, come-backs with ⚑ or "!".
         sessionViewModel.Focus.Capture = new CaptureBoxViewModel(_sessionNotes!, _comebacks!);
         var notebook = new NotebookViewModel(_comebacks!, _sessionNotes!, sessionTasks, time);
+        // The Plan page (design 5o): the editors (day plan, month view) are sheets over it; the helper remembers what "Leave it" dismissed.
+        var calendarFeeds = new CalendarFeedsViewModel(calendars, _calendarSync, _sessions, OpenInBrowser);
+        DayPlanViewModel dayPlanViewModel = WithSleepGoal(new DayPlanViewModel(_configuration, _sessions) { Today = () => DateOnly.FromDateTime(time.GetLocalNow().DateTime) }, sleepSettings);
+        var exceptionsViewModel = new ExceptionsViewModel(_configuration, _sessions, calendars, calendarFeeds, pendingChanges);
+        var planHelperDismissals = new PlanHelperDismissals(documents, () => DateOnly.FromDateTime(time.GetLocalNow().DateTime));
+        planHelperDismissals.LoadBlocking();
+        var planViewModel = new PlanViewModel(
+            _configuration, _sessions, calendars, dayPlanViewModel, exceptionsViewModel, planHelperDismissals,
+            () => TimeSpan.FromMinutes(goal.Current.DailyMinutes), countedFocus, nightFallback);
+        _deepWork.Changed += (_, _) => Dispatcher.UIThread.Post(planViewModel.NotifyFocusChanged);
         var mainViewModel = new MainWindowViewModel(
             sessionViewModel,
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, receivedDevices, exemptionDefaults),
-            WithSleepGoal(new DayPlanViewModel(_configuration, _sessions) { Today = () => DateOnly.FromDateTime(time.GetLocalNow().DateTime) }, sleepSettings),
-            new ExceptionsViewModel(_configuration, _sessions, calendars, _calendarSync, OpenInBrowser, pendingChanges),
+            dayPlanViewModel,
+            exceptionsViewModel,
             new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time,
                 _programPaths, desktopShell, isSessionRunning: () => _sessions!.State.IsRealSession)
             {
@@ -1023,7 +1033,7 @@ public partial class App : Application
                 NotesBetween = _sessionNotes.Between,
             },
             setupViewModel,
-            new IntegrationsViewModel(new ColdTurkeyDetector(), new WindowsOtherBlockerDetector(), sightings, _configuration, _sessions) { Beeminder = beeminderViewModel },
+            new IntegrationsViewModel(new ColdTurkeyDetector(), new WindowsOtherBlockerDetector(), sightings, _configuration, _sessions) { Beeminder = beeminderViewModel, CalendarFeeds = calendarFeeds },
             new SettingsViewModel(
                 _configuration, _sessions, _quickSession, calendars, dataProtector, pendingChanges, dayBarSettings, overlaySettings, soundSettings, _sessionCues, sleepSettings, database.DatabasePath,
                 _noise)
@@ -1053,9 +1063,18 @@ public partial class App : Application
             _configuration.LoadError)
         {
             Tasks = new TasksViewModel(sessionTasks, _later!, _comebacks!, notebook, sessionViewModel, _configuration!, time),
+            Plan = planViewModel,
             DayBar = _dayBar,
             Search = new SearchViewModel(SearchDataAsync),
             Devices = devices,
+        };
+        planViewModel.OpenDpAssistant = mainViewModel.OpenDpAssistantCommand;
+        planViewModel.WorkHoursGuardOn = () => _workHours?.Settings.On == true;
+        planViewModel.ShowToday = () => mainViewModel.SelectedTab = MainWindowViewModel.TodayTab;
+        exceptionsViewModel.OpenConnections = () =>
+        {
+            planViewModel.CloseSheet();
+            mainViewModel.OpenSettings(SettingsSection.Connections);
         };
         // Beeminder (ADR 43): every 30 minutes, and again when Today opens with an answer a few minutes old.
         mainViewModel.PropertyChanged += (_, args) =>
@@ -1150,7 +1169,7 @@ public partial class App : Application
 
         // The migration assistant: features added since the last version that aren't set up yet.
         var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
-            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks), BackupService.AppVersion);
+            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks, planHelperDismissals), BackupService.AppVersion);
         setupFeatures.LoadBlocking();
         _setupFeatures = setupFeatures;
         coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();

@@ -98,6 +98,9 @@ public sealed partial class IntegrationsViewModel : ObservableObject
     /// <summary>The Beeminder card (ADR 43: read only, the user's personal auth token); set by the app.</summary>
     public BeeminderViewModel? Beeminder { get; set; }
 
+    /// <summary>The connected calendars (iCal links, Google accounts), moved here from the Calendar tab; set by the app.</summary>
+    public CalendarFeedsViewModel? CalendarFeeds { get; set; }
+
     /// <summary>Get a new spare key for the Cold Turkey keys the app holds (ADR 41); set by the app.</summary>
     public Action? ShowNewSpareKey { get; set; }
 

@@ -10,7 +10,7 @@
         <controls:DayPlanBar Editor="{Binding}" />
         <TextBlock Text="Click empty space to add a part · drag an edge to resize it, the middle to move it · snaps to 15 minutes"
                    FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
-        <TextBlock Text="{Binding Error}" IsVisible="{Binding HasError}" Foreground="#DC2626" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding Error}" IsVisible="{Binding HasError}" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap" />
         <ItemsControl ItemsSource="{Binding ShownRows}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:PlanPartRowViewModel">

@@ -59,7 +59,8 @@ public static class DataSearchSource
         var planTab = new SearchTarget(SearchTabs.Plan);
         foreach (DayCategory category in plan.Categories)
         {
-            entries.Add(new SearchEntry($"{category.Name} ({category.Behavior})", "Plan › Categories", SearchKinds.Plan, planTab));
+            // -1: open the Day types sheet without changing its selected type.
+            entries.Add(new SearchEntry($"{category.Name} ({category.Behavior})", "Plan › Day types › Categories", SearchKinds.Plan, planTab with { PlanTemplate = -1 }));
         }
 
         for (int index = 0; index < plan.Templates.Count; index++)
@@ -73,8 +74,8 @@ public static class DataSearchSource
         {
             string date = day.Date.ToString("ddd M/d/yyyy");
             var target = new SearchTarget(SearchTabs.Plan, Date: day.Date);
-            entries.Add(new SearchEntry(day.Note is null ? $"One-off day {date}" : $"{day.Note} · one-off day {date}", "Plan › Calendar › One-off days", SearchKinds.Plan, target));
-            AddTemplate(entries, plan, day.Template, $"Plan › Calendar › {date}", target);
+            entries.Add(new SearchEntry(day.Note is null ? $"One-off day {date}" : $"{day.Note} · one-off day {date}", "Plan › Change a day › One-off days", SearchKinds.Plan, target));
+            AddTemplate(entries, plan, day.Template, $"Plan › Change a day › {date}", target);
         }
     }
 
@@ -100,7 +101,7 @@ public static class DataSearchSource
         {
             DateOnly date = DateOnly.FromDateTime(calendarEvent.LocalStart);
             string when = calendarEvent.IsAllDay ? date.ToString("ddd M/d") : $"{date:ddd M/d}, {calendarEvent.LocalStart:t}";
-            entries.Add(new SearchEntry($"{calendarEvent.Title} · {when}", "Plan › Calendar › Events", SearchKinds.Calendar,
+            entries.Add(new SearchEntry($"{calendarEvent.Title} · {when}", "Plan › Change a day › Events", SearchKinds.Calendar,
                 new SearchTarget(SearchTabs.Plan, Date: date)));
         }
     }

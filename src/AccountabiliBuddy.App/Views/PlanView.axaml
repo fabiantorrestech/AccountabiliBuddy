@@ -3,30 +3,383 @@
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:views="using:AccountabiliBuddy.App.Views"
-             xmlns:search="using:AccountabiliBuddy.App.Services.Search"
              x:Class="AccountabiliBuddy.App.Views.PlanView"
-             x:DataType="vm:MainWindowViewModel">
-    <!-- The Plan page: a title, the day plan, then the Calendar in a section below; both unchanged until the page is
-         rebuilt (design 5o). The guided day plan setup sits next to the title, locked like the editor. -->
-    <Border Classes="card" Padding="0" ClipToBounds="True">
-        <ScrollViewer>
-            <StackPanel Margin="36,30,28,24" Spacing="18">
-                <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Classes="display" Text="Plan" FontSize="34" />
-                    <Button Grid.Column="1" Classes="quiet" Command="{Binding OpenDpAssistantCommand}" VerticalAlignment="Center"
-                            ToolTip.Tip="Set up your day plan step by step, with sensible defaults">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <mi:MaterialIcon Kind="AutoFix" Width="16" Height="16" />
-                            <TextBlock Text="Setup DP Assistant" />
+             x:DataType="vm:PlanViewModel">
+    <!-- The Plan page (design 5o): a main card with the selected day ("Tuesday · Workday"), the week strip and the day's timeline,
+         and a 330 column with Day types, One-off days and the Plan helper. The editors (the month view "Change a day", and the
+         week cycle, day types and categories) open as a sheet over the page. The accent is used once: the "Now" line. -->
+    <UserControl.Styles>
+        <!-- A soft pill: Surface2, Ink text (the helper's buttons, "Change a day"). -->
+        <Style Selector="Button.softPill">
+            <Setter Property="Padding" Value="18,10" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+        <Style Selector="Button.softPill /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <Style Selector="Button.softPill:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.softPill:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.softPill:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Opacity" Value="0.5" />
+        </Style>
+        <Style Selector="Button.changeDay">
+            <Setter Property="Padding" Value="26,14" />
+            <Setter Property="FontSize" Value="16" />
+        </Style>
+        <Style Selector="TextBlock.pageTitle">
+            <Setter Property="FontSize" Value="34" />
+        </Style>
+        <!-- Beside the title and rule text; the 900-wide query below moves it under them. -->
+        <Style Selector="StackPanel.actions">
+            <Setter Property="Grid.Row" Value="0" />
+            <Setter Property="Grid.Column" Value="1" />
+            <Setter Property="Grid.RowSpan" Value="2" />
+            <Setter Property="Grid.ColumnSpan" Value="1" />
+            <Setter Property="Orientation" Value="Vertical" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
+
+        <!-- One day of the week strip. -->
+        <Style Selector="Button.dayCell">
+            <Setter Property="Padding" Value="4,10" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.dayCell /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="18" />
+        </Style>
+        <Style Selector="Button.dayCell:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Button.dayCell.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="TextBlock.today">
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+
+        <!-- A list row of the right column: transparent, Surface2 while selected or under the pointer. -->
+        <Style Selector="Button.listRow">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.listRow /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="18" />
+        </Style>
+        <Style Selector="Button.listRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Button.listRow.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+
+        <!-- The click area behind a timeline row: invisible, a soft wash under the pointer. -->
+        <Style Selector="Button.rowHit">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="Opacity" Value="0.55" />
+        </Style>
+        <Style Selector="Button.rowHit /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="14" />
+        </Style>
+        <Style Selector="Button.rowHit:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+
+        <Style Selector="TextBlock.timeCol">
+            <Setter Property="Width" Value="112" />
+        </Style>
+        <Style Selector="Border.bar">
+            <Setter Property="Background" Value="{DynamicResource Ab.Plan}" />
+        </Style>
+        <Style Selector="Border.bar.sleep">
+            <Setter Property="Background" Value="{DynamicResource Ab.Sleep}" />
+        </Style>
+
+        <!-- At 900 wide the header buttons drop under the title, the time column shrinks and the right column stays 330. -->
+        <ContainerQuery Name="PlanPage" Query="max-width:980">
+            <Style Selector="TextBlock.pageTitle">
+                <Setter Property="FontSize" Value="28" />
+                <Setter Property="Grid.ColumnSpan" Value="2" />
+            </Style>
+            <Style Selector="StackPanel.actions">
+                <Setter Property="Grid.Row" Value="2" />
+                <Setter Property="Grid.Column" Value="0" />
+                <Setter Property="Grid.RowSpan" Value="1" />
+                <Setter Property="Grid.ColumnSpan" Value="2" />
+                <Setter Property="Orientation" Value="Horizontal" />
+                <Setter Property="HorizontalAlignment" Value="Left" />
+                <Setter Property="Margin" Value="0,12,0,0" />
+            </Style>
+            <Style Selector="Button.changeDay">
+                <Setter Property="Padding" Value="18,9" />
+                <Setter Property="FontSize" Value="14" />
+            </Style>
+            <Style Selector="TextBlock.timeCol">
+                <Setter Property="Width" Value="82" />
+            </Style>
+        </ContainerQuery>
+    </UserControl.Styles>
+
+    <UserControl.DataTemplates>
+        <!-- One part of the day: time, bar, title and a Muted line; a work part lists its sub-rows under them. -->
+        <DataTemplate x:DataType="vm:PlanTimelineRowViewModel">
+            <Border BorderBrush="{DynamicResource Ab.Line}" BorderThickness="0,1,0,0" Padding="0,2">
+                <Panel>
+                    <Button Classes="rowHit" Command="{Binding OpenCommand}" AutomationProperties.Name="{Binding Title}"
+                            ToolTip.Tip="Open this part in its editor" />
+                    <Grid ColumnDefinitions="Auto,6,*" Margin="0,12" IsHitTestVisible="False">
+                        <TextBlock Classes="muted timeCol" Text="{Binding TimeText}" FontSize="13" VerticalAlignment="Top" Margin="8,3,0,0" />
+                        <Border Grid.Column="1" Classes="bar" Classes.sleep="{Binding IsSleep}" CornerRadius="3" Margin="0,2" />
+                        <StackPanel Grid.Column="2" Margin="16,0,8,0" Spacing="1">
+                            <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Ink}" TextWrapping="Wrap" />
+                            <TextBlock Classes="muted" Text="{Binding SubText}" FontSize="13" TextWrapping="Wrap" />
+                            <ItemsControl ItemsSource="{Binding SubRows}" IsVisible="{Binding HasSubRows}" Margin="0,12,0,0">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Spacing="6" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:PlanSubRowViewModel">
+                                        <Panel>
+                                            <!-- A part inside the work row. -->
+                                            <Border IsVisible="{Binding IsRow}" Background="{DynamicResource Ab.Surface2}" CornerRadius="12" Padding="14,10">
+                                                <Grid ColumnDefinitions="76,*,Auto">
+                                                    <TextBlock Classes="muted" Text="{Binding TimeText}" FontSize="13" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="15" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                                               Classes.muted="{Binding !IsEvent}" />
+                                                    <TextBlock Grid.Column="2" Classes="muted" Text="{Binding RightText}" FontSize="13" VerticalAlignment="Center" Margin="10,0,0,0" />
+                                                </Grid>
+                                            </Border>
+                                            <!-- The Now line: the page's one use of the accent. -->
+                                            <Grid IsVisible="{Binding IsNowLine}" ColumnDefinitions="Auto,Auto,*" Height="14" Margin="0,2">
+                                                <Border Width="12" Height="1" Background="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Accent}"
+                                                           VerticalAlignment="Center" Margin="8,0" />
+                                                <Border Grid.Column="2" Height="1" Background="{DynamicResource Ab.Accent}" Opacity="0.5" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Panel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
-                    </Button>
-                </Grid>
-                <views:DayPlanView DataContext="{Binding DayPlan}" />
-                <StackPanel x:Name="CalendarSection" Spacing="8" search:SearchArea.Name="Calendar">
-                    <TextBlock Classes="display" Text="Calendar" FontSize="24" />
-                    <views:ExceptionsView DataContext="{Binding Exceptions}" />
+                    </Grid>
+                </Panel>
+            </Border>
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
+    <Grid x:Name="Page" Container.Name="PlanPage" Container.Sizing="Width" KeyDown="OnKeyDown">
+        <Grid ColumnDefinitions="*,Auto">
+            <!-- The main card: the day, the week strip, the timeline. -->
+            <Border Classes="card" Padding="0" ClipToBounds="True" MinWidth="360">
+                <ScrollViewer x:Name="MainScroll" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="36,30,32,24" Spacing="14">
+                        <views:PendingChangesBanner DataContext="{Binding Exceptions.PendingChanges}" />
+
+                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12">
+                            <TextBlock Classes="display pageTitle" Text="{Binding TitleText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            <Grid Grid.Row="1" ColumnDefinitions="Auto,*" Margin="0,2,0,0">
+                                <mi:MaterialIcon Kind="LockOutline" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Top" Margin="0,3,6,0"
+                                                 IsVisible="{Binding IsLocked}" />
+                                <TextBlock Grid.Column="1" Classes="muted" Text="{Binding RuleText}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Top" />
+                            </Grid>
+                            <!-- The page's actions: "Change a day" as a pill, the rest quiet. At 900 wide they sit under the rule text. -->
+                            <StackPanel Classes="actions" Spacing="6">
+                                <Button Classes="softPill changeDay" Command="{Binding OpenChangeADayHereCommand}" Content="Change a day" HorizontalAlignment="Right"
+                                        AutomationProperties.Name="Change a day" ToolTip.Tip="The month view: events, a day off or half day, a day's own plan" />
+                                <StackPanel Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right">
+                                    <Button Classes="quiet" Command="{Binding GoToTodayCommand}" IsVisible="{Binding CanGoToToday}" Padding="10,4" FontSize="13" Content="Today"
+                                            AutomationProperties.Name="Back to today" />
+                                    <Button Classes="quiet" Command="{Binding OpenDpAssistant}" Padding="10,4" FontSize="13" AutomationProperties.Name="Setup DP Assistant"
+                                            ToolTip.Tip="Set up your day plan step by step, with sensible defaults">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <mi:MaterialIcon Kind="AutoFix" Width="14" Height="14" />
+                                            <TextBlock Text="Setup DP Assistant" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- The week strip. -->
+                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,6,0,0">
+                            <Button Classes="quiet" Padding="6" Command="{Binding PreviousWeekCommand}" VerticalAlignment="Center" ToolTip.Tip="Previous week"
+                                    AutomationProperties.Name="Previous week">
+                                <mi:MaterialIcon Kind="ChevronLeft" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
+                            </Button>
+                            <ItemsControl Grid.Column="1" ItemsSource="{Binding Days}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="7" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:PlanDayCellViewModel">
+                                        <Button Classes="dayCell" Classes.selected="{Binding IsSelected}" Command="{Binding SelectCommand}"
+                                                AutomationProperties.Name="{Binding AccessibleName}">
+                                            <StackPanel HorizontalAlignment="Center" Spacing="1">
+                                                <TextBlock Classes="muted" Classes.today="{Binding IsToday}" Text="{Binding WeekdayText}" FontSize="12" HorizontalAlignment="Center" />
+                                                <TextBlock Classes.today="{Binding IsToday}" Text="{Binding DayNumber}" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center"
+                                                           Foreground="{DynamicResource Ab.Ink}" />
+                                                <TextBlock Classes="muted" Text="{Binding TypeText}" FontSize="11" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="72" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Grid.Column="2" Classes="quiet" Padding="6" Command="{Binding NextWeekCommand}" VerticalAlignment="Center" ToolTip.Tip="Next week"
+                                    AutomationProperties.Name="Next week">
+                                <mi:MaterialIcon Kind="ChevronRight" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
+                            </Button>
+                        </Grid>
+
+                        <!-- The selected day's timeline. -->
+                        <StackPanel Margin="0,4,0,0">
+                            <TextBlock Classes="muted" Text="Nothing is planned on this day." FontSize="14" Margin="0,10" IsVisible="{Binding HasNoRows}" />
+                            <ItemsControl ItemsSource="{Binding Rows}" />
+                            <Border BorderBrush="{DynamicResource Ab.Line}" BorderThickness="0,1,0,0" IsVisible="{Binding !HasNoRows}" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- The right column, 330: Day types, One-off days, Plan helper. -->
+            <ScrollViewer Grid.Column="1" Width="330" Margin="14,0,0,0" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="14">
+                    <Border Classes="card" Padding="22,20">
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="section" Text="Day types" Margin="8,0,0,4" />
+                            <ItemsControl ItemsSource="{Binding DayTypes}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:PlanDayTypeRowViewModel">
+                                        <Button Classes="listRow" Classes.selected="{Binding IsSelected}" Command="{Binding OpenCommand}" AutomationProperties.Name="{Binding Name}">
+                                            <Grid ColumnDefinitions="*,Auto" Margin="14,10,12,10">
+                                                <StackPanel Spacing="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Ink}" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Classes="muted" Text="{Binding DaysText}" FontSize="12" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <mi:MaterialIcon Grid.Column="1" Kind="ChevronRight" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" Margin="8,0,0,0" />
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Classes="quiet" Command="{Binding OpenDayTypesSheetCommand}" HorizontalAlignment="Left" Padding="10,6" FontSize="13"
+                                    AutomationProperties.Name="Weeks, day types and categories" ToolTip.Tip="The week cycle, adding or copying a day type, and the categories">
+                                <TextBlock Classes="muted" Text="Weeks, types and categories" />
+                            </Button>
+                            <Button Classes="quiet" Command="{Binding OpenDayTypesSheetCommand}" HorizontalAlignment="Left" Padding="10,6" FontSize="13"
+                                    IsVisible="{Binding HasUnsavedPlan}" AutomationProperties.Name="Unsaved day plan changes">
+                                <TextBlock Foreground="{DynamicResource Ab.Waiting}" Text="Unsaved changes to review" />
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="card" Padding="22,20">
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="section" Text="One-off days" Margin="8,0,0,4" />
+                            <TextBlock Classes="muted" Text="None coming up." FontSize="14" Margin="8,2" IsVisible="{Binding !HasOneOffDays}" />
+                            <ItemsControl ItemsSource="{Binding OneOffDays}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:PlanOneOffRowViewModel">
+                                        <Button Classes="listRow" Command="{Binding OpenCommand}" AutomationProperties.Name="{Binding Text}">
+                                            <Grid ColumnDefinitions="56,*" Margin="8,9,8,9">
+                                                <TextBlock Classes="muted" Text="{Binding DateText}" FontSize="14" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Ink}"
+                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Classes="faint" Text="{Binding MoreOneOffText}" FontSize="12" Margin="8,0" IsVisible="{Binding MoreOneOffText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <Button Classes="quiet" Command="{Binding OpenChangeADayHereCommand}" HorizontalAlignment="Left" Padding="10,6" FontSize="13"
+                                    AutomationProperties.Name="Add a one-off day" ToolTip.Tip="Make a day off or a half day in the month view">
+                                <TextBlock Classes="muted" Text="Add one in the month view" />
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- The Plan helper: hidden when it has nothing to say. -->
+                    <Border Classes="card" Padding="22,20" IsVisible="{Binding ShowsHelper}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Classes="section" Text="Plan helper" Margin="8,0,0,0" />
+                            <TextBlock Classes="muted" Text="{Binding HelperMessage}" FontSize="14" TextWrapping="Wrap" Margin="8,0" IsVisible="{Binding HasHelperMessage}"
+                                       AutomationProperties.Name="Plan helper message" />
+                            <ItemsControl ItemsSource="{Binding Suggestions}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:PlanSuggestionViewModel">
+                                        <StackPanel Spacing="12" Margin="8,0,8,10">
+                                            <TextBlock Text="{Binding Text}" FontSize="15" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Ink}" />
+                                            <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                                <Button Classes="softPill" Command="{Binding ActCommand}" Content="{Binding ActionText}" AutomationProperties.Name="{Binding ActionText}" />
+                                                <Button Classes="softPill" Command="{Binding LeaveCommand}" Content="Leave it" AutomationProperties.Name="Leave it" />
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-            </StackPanel>
-        </ScrollViewer>
-    </Border>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- The sheet over the page: the month view or the day types editor. Esc, the X or a click outside closes it. -->
+        <Grid x:Name="SheetLayer" IsVisible="{Binding IsSheetOpen}">
+            <Border Background="{DynamicResource Ab.Bg}" Opacity="0.72" PointerPressed="OnScrimPressed" />
+            <Border x:Name="Sheet" Classes="card" HorizontalAlignment="Right" Width="700" Padding="0" ClipToBounds="True" AutomationProperties.Name="{Binding SheetTitle}">
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="30,22,18,6">
+                        <TextBlock Classes="display" Text="{Binding SheetTitle}" FontSize="26" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Classes="quiet" Command="{Binding DayPlan.PlanDayCommand}" IsVisible="{Binding IsChangeADayOpen}" VerticalAlignment="Center"
+                                AutomationProperties.Name="Plan day(s)" ToolTip.Tip="Make one-off days: an adjusted workday or an off-day">
+                            <TextBlock Text="Plan day(s)…" />
+                        </Button>
+                        <Button Grid.Column="2" Classes="quiet" Padding="8" Command="{Binding CloseSheetCommand}" VerticalAlignment="Center" ToolTip.Tip="Close (Esc)"
+                                AutomationProperties.Name="Close the sheet">
+                            <mi:MaterialIcon Kind="Close" Width="20" Height="20" Foreground="{DynamicResource Ab.Muted}" />
+                        </Button>
+                    </Grid>
+                    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="30,0,18,4" IsVisible="{Binding IsDayTypesOpen}">
+                        <TextBlock Classes="muted" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"
+                                   Text="A change here applies to every day that follows the type. Save keeps it; the lock and the wait are the same as before." />
+                        <Button Grid.Column="1" Classes="softPill" Command="{Binding ChangeOnlySelectedDayCommand}" Content="{Binding OnlyThisDayText}" Margin="12,0,0,0"
+                                AutomationProperties.Name="Change only the selected day" ToolTip.Tip="Give just this date its own plan, in the month view" />
+                    </Grid>
+                    <Panel>
+                        <views:DayPlanView x:Name="DayTypesView" DataContext="{Binding DayPlan}" IsVisible="{Binding $parent[views:PlanView].((vm:PlanViewModel)DataContext).IsDayTypesOpen}" />
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding IsChangeADayOpen}">
+                            <views:ExceptionsView x:Name="ChangeADayView" DataContext="{Binding Exceptions}" />
+                        </ScrollViewer>
+                    </Panel>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Grid>
 </UserControl>

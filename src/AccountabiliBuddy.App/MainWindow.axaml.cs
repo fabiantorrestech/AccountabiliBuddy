@@ -199,16 +199,17 @@ public partial class MainWindow : Window
         var navigator = new SearchNavigator(
             tab => viewModel.SelectedTab = tab,
             profileId => viewModel.Profiles.Select(profileId),
-            date => viewModel.Exceptions.ShowDate(date),
+            date => viewModel.Plan?.OpenChangeADay(date),
             row => viewModel.Settings.SelectedRowIndex = row,
-            template => viewModel.DayPlan.SelectedTemplateIndex = template,
+            template => viewModel.Plan?.OpenDayTypes(template),
             control => Dispatcher.UIThread.Post(() => RevealFound(control as Control), DispatcherPriority.Background));
         search.OpenRequested += (_, target) =>
         {
             navigator.Open(target);
-            if (target.Date is not null && Pages.Children[(int)MainTab.Plan] is PlanView plan)
+            // Words inside the Plan page's sheets: open the sheet that holds them, then the reveal below finds them on screen.
+            if (target.Control is Control found && Pages.Children[(int)MainTab.Plan] is PlanView plan)
             {
-                Dispatcher.UIThread.Post(plan.ShowCalendar, DispatcherPriority.Background);
+                plan.OpenSheetContaining(found);
             }
 
             // Data results have no control: the page's own matches show once it's laid out.

@@ -356,7 +356,7 @@
                         <Panel x:Name="Pages">
                             <views:TodayView DataContext="{Binding Session}" />
                             <views:TasksView DataContext="{Binding Tasks}" IsVisible="False" />
-                            <views:PlanView IsVisible="False" />
+                            <views:PlanView DataContext="{Binding Plan}" IsVisible="False" />
                             <views:StatsView DataContext="{Binding History}" IsVisible="False" />
                             <views:SettingsShellView IsVisible="False" />
                             <views:ActivityView DataContext="{Binding Activity}" IsVisible="False" />

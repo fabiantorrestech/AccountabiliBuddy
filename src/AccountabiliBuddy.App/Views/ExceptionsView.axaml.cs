@@ -8,4 +8,10 @@ public partial class ExceptionsView : UserControl
     {
         InitializeComponent();
     }
+
+    /// <summary>Scrolls the one-off day editor into view (a part was clicked on the Plan page).</summary>
+    public void ShowOneOffEditor()
+    {
+        OneOffEditorHost.BringIntoView();
+    }
 }
