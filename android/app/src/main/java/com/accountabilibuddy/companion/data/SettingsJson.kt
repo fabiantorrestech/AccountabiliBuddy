@@ -41,6 +41,7 @@ object SettingsJson {
             minHours = (json["minHours"] as? JsonPrimitive)?.doubleOrNull ?: default.minHours,
             maxHours = (json["maxHours"] as? JsonPrimitive)?.doubleOrNull ?: default.maxHours,
             reminders = reminders(json.obj("bedtimeReminders")) ?: default.reminders,
+            offWaited = !json.bool("enabled", default.enabled) && json.bool("offWaited", false),
         )
     }
 
@@ -55,6 +56,8 @@ object SettingsJson {
         put("minHours", settings.minHours)
         put("maxHours", settings.maxHours)
         put("bedtimeReminders", remindersJson(settings.reminders))
+        // Optional: an older PC ignores it and waits itself.
+        if (!settings.enabled && settings.offWaited) put("offWaited", true)
         settings.wakeOnce?.let { once ->
             put("wakeOnce", buildJsonObject {
                 put("morning", once.morning.toString())

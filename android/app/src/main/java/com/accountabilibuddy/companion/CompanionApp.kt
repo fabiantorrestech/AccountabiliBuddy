@@ -265,6 +265,9 @@ class CompanionApp : Application() {
         sync.smartBedtime = { smartBedtime.forSyncFile() }
         sync.wakeEstimate = { wakeEstimateForSync() }
         sync.sleepDocument = { sleepSync.document() }
+        // A held sleep-mode off (10 minutes) applies when due, also after a restart.
+        sleepSync.onPendingOff = ::watchSleepOff
+        watchSleepOff()
         // The smart bedtime's switches used to be kept apart (ADR 34): handed to the shared sleep settings once.
         smartBedtime.store.takeOldSettings()?.let { old ->
             if (old.workdays || old.offDays) {
@@ -589,6 +592,26 @@ class CompanionApp : Application() {
         appScope.launch {
             runCatching { driveSource.syncNow() }
             Refresher.refresh(this@CompanionApp)
+        }
+    }
+
+    private var sleepOffWatch: kotlinx.coroutines.Job? = null
+
+    /**
+     * Applies a pending sleep-mode off when its wait is over (and no session runs: it is retried every 30 s then).
+     * One watcher at a time; it ends when nothing is pending. A restart starts it again from the saved time.
+     */
+    fun watchSleepOff() {
+        sleepOffWatch?.cancel()
+        sleepOffWatch = appScope.launch {
+            while (true) {
+                val due = sleepSync.pendingOffAt() ?: break
+                val wait = java.time.Duration.between(java.time.Instant.now(), due).toMillis().coerceIn(1_000L, 30_000L)
+                delay(wait)
+                if (sleepSync.applyPendingOffIfDue()) {
+                    Refresher.refresh(this@CompanionApp)
+                }
+            }
         }
     }
 

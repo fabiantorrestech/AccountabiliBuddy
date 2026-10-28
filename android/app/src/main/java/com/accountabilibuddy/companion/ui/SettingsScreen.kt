@@ -507,11 +507,44 @@ private enum class SleepField { WeeknightBed, WeeknightWake, WeekendBed, Weekend
 @Composable
 private fun SleepSection(saved: SleepSettings, clock: ClockFormat, onSave: (SleepSettings) -> Unit) {
     var editing by remember { mutableStateOf<SleepField?>(null) }
+    val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp
+    val sleepSync = app.sleepSync
+    var offText by remember { mutableStateOf(sleepSync.pendingOffText()) }
+    var locked by remember { mutableStateOf(sleepSync.locked()) }
+    // A pending off comes due, or a session starts, while the page is open.
+    LaunchedEffect(Unit) {
+        while (true) {
+            if (sleepSync.applyPendingOffIfDue()) app.refreshSoon()
+            offText = sleepSync.pendingOffText()
+            locked = sleepSync.locked()
+            kotlinx.coroutines.delay(2_000L)
+        }
+    }
 
     val summary = if (!saved.enabled) "Off" else "Bed ${clock.time(LocalDate.now().atTime(saved.weeknights.bedtime))} · up ${clock.time(LocalDate.now().atTime(saved.weeknights.wake))}"
     Section("Sleep times", summary = summary) {
         Hint("The bar runs from wake time to bedtime and shades the night; from two hours before bedtime it says how much sleep you'll get if you go now. Comes from the PC's sync file (Google Drive), or from a backup.")
-        ToggleRow("Sleep mode", "Bedtime and wake time on the timeline", saved.enabled) { onSave(saved.copy(enabled = it)) }
+        // On applies at once; off waits 10 minutes and is refused during a focus session (a pending off shows as off, with Cancel).
+        val sleepDetail = when {
+            offText != null -> offText!!
+            locked && saved.enabled -> "Locked during a focus session"
+            else -> "Bedtime and wake time on the timeline"
+        }
+        ToggleRow("Sleep mode", sleepDetail, saved.enabled && offText == null, enabled = !(locked && saved.enabled && offText == null)) { wantOn ->
+            if (!wantOn) {
+                onSave(saved.copy(enabled = false))
+            } else if (offText != null) {
+                sleepSync.cancelPendingOff()
+            } else {
+                onSave(saved.copy(enabled = true))
+            }
+
+            offText = sleepSync.pendingOffText()
+            locked = sleepSync.locked()
+        }
+        if (offText != null) {
+            TextButton(onClick = { sleepSync.cancelPendingOff(); offText = null }) { Text("Cancel") }
+        }
         ToggleRow("Same every night", "Off: Friday and Saturday nights use the weekend times", saved.sameEveryNight) { onSave(saved.copy(sameEveryNight = it)) }
         NightRow(if (saved.sameEveryNight) "Every night" else "Weeknights (Sun–Thu)", saved.weeknights, clock,
             onBed = { editing = SleepField.WeeknightBed }, onWake = { editing = SleepField.WeeknightWake })
