@@ -54,6 +54,8 @@
             <Color x:Key="SystemBaseMediumColor">#6B655B</Color>
             <Color x:Key="SystemBaseMediumLowColor">#8C8578</Color>
             <Color x:Key="SystemBaseLowColor">#ECE7DC</Color>
+            <BoxShadows x:Key="Ab.FocusRing">0 0 0 2 #2E4A7D</BoxShadows>
+            <BoxShadows x:Key="Ab.FocusRingOnAccent">0 0 0 2 #1F1D1A</BoxShadows>
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
             <Color x:Key="Ab.BgColor">#1A1917</Color>
@@ -107,6 +109,8 @@
             <Color x:Key="SystemBaseMediumColor">#A39C8F</Color>
             <Color x:Key="SystemBaseMediumLowColor">#6F695F</Color>
             <Color x:Key="SystemBaseLowColor">#2C2A26</Color>
+            <BoxShadows x:Key="Ab.FocusRing">0 0 0 2 #A9BEE6</BoxShadows>
+            <BoxShadows x:Key="Ab.FocusRingOnAccent">0 0 0 2 #EDE8DE</BoxShadows>
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 
@@ -115,4 +119,5 @@
     <CornerRadius x:Key="Ab.CardRadius">18</CornerRadius>
     <Thickness x:Key="Ab.CardBorderThickness">1</Thickness>
     <x:Double x:Key="Ab.DisplayLetterSpacing">0</x:Double>
+    <FontWeight x:Key="Ab.NumeralWeight">Normal</FontWeight>
 </ResourceDictionary>

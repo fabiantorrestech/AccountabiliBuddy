@@ -7,7 +7,6 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceInclude Source="avares://AccountabiliBuddy.App/Themes/FluentOverrides.axaml" />
-                <ResourceInclude Source="avares://AccountabiliBuddy.App/Themes/Instrument.axaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

@@ -56,7 +56,7 @@
     </Style>
     <Style Selector="TextBlock.numeral">
         <Setter Property="FontFamily" Value="{DynamicResource Ab.NumeralFont}" />
-        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="FontWeight" Value="{DynamicResource Ab.NumeralWeight}" />
         <Setter Property="FontFeatures" Value="+tnum" />
     </Style>
     <Style Selector="TextBlock.section">
@@ -70,21 +70,22 @@
         <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
     </Style>
 
-    <!-- Keyboard focus: a 2px accent ring. -->
+    <!-- Keyboard focus: a 2px ring drawn as a zero-blur box shadow outside the control, so nothing shifts when it appears.
+         On the accent-filled primary button the ring is Ink, since accent on accent would not show. -->
     <Style Selector="Button:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
-        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
+    </Style>
+    <Style Selector="Button.primary:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRingOnAccent}" />
     </Style>
     <Style Selector="ToggleButton:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
-        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
     </Style>
-    <Style Selector="ToggleSwitch:focus-visible /template/ Border#SwitchKnobBounds">
-        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
-        <Setter Property="BorderThickness" Value="2" />
+    <!-- The knob bounds are invisible while the switch is off, so the ring sits on the track (OuterBorder) in both states. -->
+    <Style Selector="ToggleSwitch:focus-visible /template/ Border#OuterBorder">
+        <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
     </Style>
     <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
-        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
-        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
     </Style>
 </Styles>

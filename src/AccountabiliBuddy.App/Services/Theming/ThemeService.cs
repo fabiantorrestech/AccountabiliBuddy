@@ -29,12 +29,6 @@ public sealed class ThemeService
         }
 
         var merged = app.Resources.MergedDictionaries;
-        if (_current is null)
-        {
-            // The one App.axaml merges at startup (Instrument): find it by its source.
-            _current = merged.OfType<ResourceInclude>().FirstOrDefault(include => Sources.ContainsValue(include.Source!));
-        }
-
         var next = new ResourceInclude(Sources[theme]) { Source = Sources[theme] };
         if (_current is not null)
         {

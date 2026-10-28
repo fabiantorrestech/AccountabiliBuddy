@@ -157,6 +157,11 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // The look (ADR 49): the theme tokens must be in place before any window exists. Instrument until the Appearance settings
+        // choose another; light or dark stays with AppTheme.
+        _themes = new ThemeService();
+        _themes.Apply(ThemeName.Instrument);
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             _desktop = desktop;
@@ -453,9 +458,6 @@ public partial class App : Application
         // Animations at the chosen speed, or none (Settings → On screen & sound).
         _motion = new Motion(documents);
         _motion.LoadBlocking();
-        // The look (ADR 49): Instrument until the Appearance settings choose another. Light or dark stays with AppTheme.
-        _themes = new ThemeService();
-        _themes.Apply(ThemeName.Instrument);
         var appTheme = new AppTheme(documents);
         appTheme.LoadBlocking();
         _motion.Apply();
