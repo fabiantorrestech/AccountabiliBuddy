@@ -29,7 +29,7 @@ public sealed class OverlaySettingsService
             OverlaySettings? loaded = Task.Run(() => _store.LoadAsync<OverlaySettings>(DocumentKey)).GetAwaiter().GetResult();
             HasChosenPlacement = loaded?.Placement is not null;
             Current = loaded is null
-                ? OverlaySettings.Default
+                ? WithoutSavedDocument()
                 : WithPlacement(WithDefaultTimer(loaded with
                 {
                     Opacity = Math.Clamp(loaded.Opacity, OverlaySettings.MinOpacity, 1),
@@ -42,6 +42,17 @@ public sealed class OverlaySettingsService
         {
             Current = OverlaySettings.Default;
         }
+    }
+
+    /// <summary>
+    /// No saved overlay settings. A fresh install gets the defaults, with the timer on for every profile that follows the default. An upgrade
+    /// (the data ran an older version before, "app.version" has a Previous) keeps what it had: the timer stays off until the user turns it on.
+    /// </summary>
+    private OverlaySettings WithoutSavedDocument()
+    {
+        AppVersionRecord? version = Task.Run(() => _store.LoadAsync<AppVersionRecord>("app.version")).GetAwaiter().GetResult();
+        bool upgrade = version?.Previous is not null;
+        return upgrade ? OverlaySettings.Default with { DefaultTimer = ProfileOverlay.Off } : OverlaySettings.Default;
     }
 
     /// <summary>
@@ -64,7 +75,7 @@ public sealed class OverlaySettingsService
 
     /// <summary>
     /// Settings saved before there was a default timer: a profile with its timer off now follows the default
-    /// (which starts off, so nothing changes until the default is turned on); one with it on keeps its own choice.
+    /// (set to off here, so nothing changes for these users until the default is turned on; only a fresh install starts with it on); one with it on keeps its own choice.
     /// </summary>
     private static OverlaySettings WithDefaultTimer(OverlaySettings settings)
     {
