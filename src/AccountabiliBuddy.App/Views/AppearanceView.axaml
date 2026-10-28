@@ -59,7 +59,7 @@
         <!-- After sunset: where the place comes from -->
         <StackPanel Spacing="8" IsVisible="{Binding IsSunsetMode}">
             <TextBlock Classes="muted" TextWrapping="Wrap" IsVisible="{Binding #Root.IsCompact}"
-                       Text="After sunset needs a place. It reads Windows location once a day; to type a place or pick a city instead, open Settings → On screen &amp; sound → Appearance." />
+                       Text="After sunset needs a place. It reads Windows location once a day; to type a place or pick a city instead, open Settings › Appearance." />
             <StackPanel Spacing="8" IsVisible="{Binding !#Root.IsCompact}">
                 <TextBlock Text="Where is sunset worked out for?" Classes="muted" />
                 <ListBox Classes="segmented" ItemsSource="{x:Static vm:AppearanceViewModel.SourceNames}" SelectedIndex="{Binding SourceIndex}" />

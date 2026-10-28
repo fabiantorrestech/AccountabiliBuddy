@@ -334,7 +334,7 @@ public sealed class EnforcementPresenter
         else if (UnseenBrowserWindow.IsRule(decision.MatchedRule))
         {
             viewModel.Hint = "AccountabiliBuddy can't see what this browser window shows. Allow the extension in private "
-                             + "windows (Setup tab), or use a window it can see.";
+                             + "windows (Settings › Setup), or use a window it can see.";
         }
         else if (UnknownActivity.IsRule(decision.MatchedRule))
         {

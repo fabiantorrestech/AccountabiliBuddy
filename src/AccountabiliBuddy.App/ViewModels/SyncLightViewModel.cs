@@ -104,7 +104,7 @@ public sealed partial class SyncLightViewModel : ObservableObject
         return kind switch
         {
             "Phone" => MaterialIconKind.Cellphone,
-            "Watch" => MaterialIconKind.Smartwatch,
+            "Watch" => MaterialIconKind.Watch,
             _ => MaterialIconKind.Laptop,
         };
     }

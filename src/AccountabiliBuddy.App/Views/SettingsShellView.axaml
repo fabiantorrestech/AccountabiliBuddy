@@ -151,8 +151,8 @@
 
                     <!-- Guards: the profiles, then the Unlocks setting. -->
                     <ScrollViewer IsVisible="{Binding Settings.Rows[3].IsSelected}" search:SearchArea.Name="Guards" search:SearchArea.SettingsGroup="3"
-                                  HorizontalScrollBarVisibility="Auto">
-                        <StackPanel Spacing="16" Margin="0,0,16,24" MinWidth="860">
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Spacing="16" Margin="0,0,16,24">
                             <views:ProfilesView DataContext="{Binding Profiles}" />
                             <views:SettingsUnlocksCard DataContext="{Binding Settings}" />
                         </StackPanel>

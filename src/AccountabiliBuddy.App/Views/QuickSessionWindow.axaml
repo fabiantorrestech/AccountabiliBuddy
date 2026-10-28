@@ -34,7 +34,7 @@
                 </StackPanel>
             </StackPanel>
 
-            <TextBlock Text="Create a profile in the Profiles tab first." IsVisible="{Binding HasNoProfiles}" Opacity="0.85" />
+            <TextBlock Text="Create a profile in Settings › Guards first." IsVisible="{Binding HasNoProfiles}" Opacity="0.85" />
 
             <!-- Start controls -->
             <StackPanel Spacing="16" IsVisible="{Binding CanChoose}">

@@ -840,7 +840,7 @@ public sealed partial class DpAssistantViewModel : ObservableObject
 
         if (choices.Weeks.Count > 1 && choices.Weeks.Any(week => week.Any(entry => entry.TemplateId != DayPlan.WorkdayTemplateId && entry.TemplateId != DayPlan.OffDayTemplateId)))
         {
-            notes.Add("Day types other than Workday and Off day keep their own times; edit them in the Day plan tab.");
+            notes.Add("Day types other than Workday and Off day keep their own times; edit them in Plan.");
         }
 
         ReviewNotes = notes;

@@ -111,7 +111,7 @@
                         <mi:MaterialIcon Kind="ChartTimelineVariant" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
                         <TextBlock Text="Day bar" Classes="sectionTitle" />
                     </StackPanel>
-                    <TextBlock Text="The bar above the tabs: rows for your calendar, your day plan, the focus sessions you started (with red drift marks) and Cold Turkey's blocks, with a red line at now. The on-screen timeline uses the same rows. Can be saved during focus too."
+                    <TextBlock Text="The bar above the Stats page: rows for your calendar, your day plan, the focus sessions you started (with red drift marks) and Cold Turkey's blocks, with a red line at now. The on-screen timeline uses the same rows. Can be saved during focus too."
                                Opacity="0.75" TextWrapping="Wrap" />
                     <CheckBox IsChecked="{Binding ShowDayBar}" Content="Show the day bar" />
                     <RadioButton GroupName="dayRange" IsChecked="{Binding !DayBarFullDay}" Content="Fit to my day (grows when a block falls outside it; with sleep mode on, wake time to bedtime)" />
@@ -137,7 +137,7 @@
                     </ItemsControl>
 
                     <TextBlock Text="Calendars on the timeline" FontWeight="SemiBold" Margin="0,8,0,0" />
-                    <TextBlock Text="No calendars to show yet: add them in the Calendar tab (hidden calendars aren't listed)."
+                    <TextBlock Text="No calendars to show yet: add them in Plan › Calendar (hidden calendars aren't listed)."
                                IsVisible="{Binding !HasTimelineCalendars}" Opacity="0.75" TextWrapping="Wrap" />
                     <ItemsControl ItemsSource="{Binding TimelineCalendars}">
                         <ItemsControl.ItemTemplate>
@@ -315,7 +315,7 @@
                     <controls:HotkeyBox Text="{Binding HotkeyText}" Width="220" HorizontalAlignment="Left" />
                     <TextBlock Text="{Binding HotkeyStatus}" TextWrapping="Wrap" />
                     <TextBlock Text="Quick Start with Default" FontWeight="SemiBold" Margin="0,8,0,0" />
-                    <TextBlock Text="The big &quot;Quick Start with Default&quot; button (quick session and Today tab) starts this profile for the length chosen there (the remembered one from a phone or watch), and the on-screen bar counts down. The &quot;No set end&quot; button below Start runs the profile picked under More options until you end it, and the bar counts up."
+                    <TextBlock Text="The big &quot;Quick Start with Default&quot; button (quick session and Today) starts this profile for the length chosen there (the remembered one from a phone or watch), and the on-screen bar counts down. The &quot;No set end&quot; button below Start runs the profile picked under More options until you end it, and the bar counts up."
                                Opacity="0.75" TextWrapping="Wrap" />
                     <ComboBox ItemsSource="{Binding CountUpChoices}" SelectedItem="{Binding SelectedCountUp}" MinWidth="300" />
                 </StackPanel>
@@ -447,7 +447,7 @@
                         <ComboBox ItemsSource="{x:Static vm:MotionViewModel.SpeedNames}" SelectedIndex="{Binding SpeedIndex}" MinWidth="140" />
                     </StackPanel>
                     <TextBlock Opacity="0.75" TextWrapping="Wrap"
-                               Text="Pages fade and slide in when you open a tab, cards ease their colour and progress bars glide. Off shows every change at once." />
+                               Text="Pages fade and slide in when you open a page, cards ease their colour and progress bars glide. Off shows every change at once." />
                 </StackPanel>
                 </Border>
                 <Border Classes="card" search:SearchArea.Name="Sounds when time is up">
@@ -591,7 +591,7 @@
                         <mi:MaterialIcon Kind="ClockOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
                         <TextBlock Text="On-screen timer" Classes="sectionTitle" />
                     </StackPanel>
-                    <TextBlock Text="Shows how much of the session is left, on top of other windows, for the profiles chosen below (also set in each profile on the Profiles tab). Clicks go through it; hold Ctrl+Alt to see the details and drag to move it. Can be saved during focus too."
+                    <TextBlock Text="Shows how much of the session is left, on top of other windows, for the profiles chosen below (also set in each profile in Settings › Guards). Clicks go through it; hold Ctrl+Alt to see the details and drag to move it. Can be saved during focus too."
                                Opacity="0.75" TextWrapping="Wrap" />
                     <Grid ColumnDefinitions="240,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="6">
                         <TextBlock Grid.Row="0" Text="Look" VerticalAlignment="Center" />

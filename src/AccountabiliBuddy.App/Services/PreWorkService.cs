@@ -231,7 +231,7 @@ public sealed class PreWorkService
         await SaveAsync(_state with { UnlockedUntil = until, Unlocks = [.. _state.Unlocks ?? [], unlock] });
         Close();
         _notify("Unlocked until the part ends",
-            "If you need this computer or your phone unguarded at certain times, schedule an off day instead: Calendar tab → one-off days.");
+            "If you need this computer or your phone unguarded at certain times, schedule an off day instead: Plan › Calendar → one-off days.");
         return null;
     }
 

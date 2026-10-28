@@ -267,7 +267,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
             : _relay?.Problem ?? (_relay?.IsConnected == true ? "Connected: changes arrive in about a second." : "Connecting…");
         DriveSignedIn = _driveAccount?.IsSignedIn == true;
         DriveStatusText = _driveAccount is null || !_driveAccount.HasClient && !DriveSignedIn
-            ? "Set up your Google client first: Settings → Calendars → Google setup guide (turn on the Drive API there too)."
+            ? "Set up your Google client first: Settings › Your day › Calendars › Google setup guide (turn on the Drive API there too)."
             : DriveSignedIn
                 ? $"Signed in to Google Drive. The app sees only the files it made, in the folder \"{GoogleDriveFiles.FolderName}\"."
                 : "Not signed in to Google Drive.";

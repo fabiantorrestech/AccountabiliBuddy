@@ -61,7 +61,7 @@ public sealed class DriveAccountService
     {
         if (!TryGetClient(out string clientId, out string clientSecret))
         {
-            throw new GoogleSignInException("Set up your Google client first (Settings → Calendars → Google setup guide).");
+            throw new GoogleSignInException("Set up your Google client first (Settings › Your day › Calendars › Google setup guide).");
         }
 
         GoogleTokens tokens = await _google.SignInAsync(clientId, clientSecret, openBrowser, cancellationToken, Scope);
@@ -101,7 +101,7 @@ public sealed class DriveAccountService
         string refresh = RefreshToken() ?? throw new InvalidOperationException("Not signed in to Google Drive.");
         if (!TryGetClient(out string clientId, out string clientSecret))
         {
-            throw new InvalidOperationException("The Google client is gone from Settings → Calendars.");
+            throw new InvalidOperationException("The Google client is gone from Settings › Your day › Calendars.");
         }
 
         try

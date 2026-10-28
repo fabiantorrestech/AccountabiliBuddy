@@ -356,7 +356,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
             // A first key only: replacing a key in use goes through "Get a new spare key" and its wait (ADR 41).
             if (keys.PendingSpareKey is null && keys.HasSpareKey)
             {
-                StatusMessage = "Your spare key is already in use. To replace it, use Get a new spare key in Integrations.";
+                StatusMessage = "Your spare key is already in use. To replace it, use Get a new spare key in Settings › About.";
                 return;
             }
 
@@ -968,7 +968,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     /// <summary>Imported schedules aren't copied (ADR 18): the blocker they came from keeps enforcing them.</summary>
     private void RefreshWeekPreview()
     {
-        WeekPreview = "Schedules stay with the blocker they came from, which keeps enforcing them. Plan your days in the Day plan tab.";
+        WeekPreview = "Schedules stay with the blocker they came from, which keeps enforcing them. Plan your days in Plan.";
     }
 
     private async Task ImportAsync()
@@ -976,7 +976,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         List<PlannedProfileRowViewModel> included = PlannedProfiles.Where(row => row.IsIncluded).ToList();
         if (included.Count == 0 && !CopyUsageToHistory)
         {
-            Summary = "Nothing was imported. You can run this assistant again from the Setup tab.";
+            Summary = "Nothing was imported. You can run this assistant again from Settings › Setup.";
             return;
         }
 
@@ -995,7 +995,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
                 summary.Add($"Imported {profiles.Count} profile(s).");
                 if (pending is not null)
                 {
-                    summary.Add("Some of it loosens your setup, so it takes effect after the countdown (see the Profiles tab).");
+                    summary.Add("Some of it loosens your setup, so it takes effect after the countdown (see Settings › Guards).");
                 }
             }
 
