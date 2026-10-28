@@ -12,20 +12,21 @@
             <Setter Property="Padding" Value="8,6" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
         </Style>
         <Style Selector="Button.locked">
-            <Setter Property="Foreground" Value="#0F766E" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Met}" />
         </Style>
         <Style Selector="TextBlock.notice">
-            <Setter Property="Foreground" Value="#F59E0B" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Waiting}" />
             <Setter Property="Opacity" Value="1" />
         </Style>
     </UserControl.Styles>
-    <Border Padding="10,8" CornerRadius="8" Background="#14808080">
+    <Border Padding="10,8" CornerRadius="8" Background="{DynamicResource Ab.Surface2}">
         <StackPanel Spacing="4">
             <!-- The name (its own name for it, if renamed) with a pencil; the folder is chosen in Settings. -->
             <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding !IsRenaming}">
-                <TextBlock Text="{Binding TrackText}" ToolTip.Tip="{Binding TrackText}" FontSize="12" Opacity="0.85"
+                <TextBlock Foreground="{DynamicResource Ab.Ink}" Text="{Binding TrackText}" ToolTip.Tip="{Binding TrackText}" FontSize="12" Opacity="0.85"
                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Classes.notice="{Binding HasNotice}" />
                 <Button Grid.Column="1" Classes="icon" Content="&#xE70F;" Command="{Binding StartRenameCommand}" IsVisible="{Binding HasFiles}"
                         ToolTip.Tip="Rename (only how it's shown here)" Padding="6,2" FontSize="12" />
