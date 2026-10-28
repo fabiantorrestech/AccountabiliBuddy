@@ -52,7 +52,7 @@
                 </StackPanel>
             </Button>
             <!-- No set length with the profile picked under More options; the on-screen bar counts up. Its own button so it's one click. -->
-            <Button Classes="quiet" x:Name="OpenEndedButton" Content="{Binding OpenEndedLabel}" Command="{Binding StartOpenEndedCommand}"
+            <Button Classes="quiet" Content="{Binding OpenEndedLabel}" Command="{Binding StartOpenEndedCommand}"
                     CornerRadius="999" Padding="20,16" HorizontalContentAlignment="Center"
                     IsVisible="{Binding $parent[views:QuickStartPanel].ShowsOpenEnded}"
                     ToolTip.Tip="Starts the profile picked under More options with no set end and no countdown. The on-screen bar fills each hour and glows every 30 minutes with how long you've been at it; hold Ctrl+Alt to see it any time." />

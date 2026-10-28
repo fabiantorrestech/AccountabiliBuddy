@@ -29,15 +29,6 @@
             <Setter Property="Height" Value="4" />
             <Setter Property="MinHeight" Value="4" />
         </Style>
-        <Style Selector="Button.pill">
-            <Setter Property="CornerRadius" Value="999" />
-            <Setter Property="Padding" Value="24,16" />
-            <Setter Property="FontSize" Value="16" />
-        </Style>
-        <Style Selector="Button.primary.pill">
-            <Setter Property="Padding" Value="30,16" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
     </UserControl.Styles>
     <StackPanel Spacing="16">
 
@@ -49,7 +40,7 @@
                 </Border>
                 <TextBlock Grid.Column="1" Classes="muted" Text="{Binding PlanningText}" FontSize="14" VerticalAlignment="Center" TextWrapping="Wrap" />
             </Grid>
-            <TextBlock Classes="display" FontSize="40" LineHeight="44" TextWrapping="Wrap" Text="What are the three things this session is for?" />
+            <TextBlock Classes="display" FontSize="40" TextWrapping="Wrap" Text="What are the three things this session is for?" />
             <ProgressBar Classes="planning" Minimum="0" Maximum="100" Value="{Binding PlanningLeftPercent}" IsVisible="{Binding InPlanningStage}" />
             <views:PlanningTip />
             <Panel IsVisible="{Binding Checklist, Converter={x:Static ObjectConverters.IsNotNull}}">
@@ -68,7 +59,7 @@
             </Grid>
             <!-- Scales down instead of clipping when the window is narrow. -->
             <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left">
-                <TextBlock Classes="numeral" Text="{Binding TimeLeftText}" FontSize="120" LineHeight="114" LetterSpacing="-4"
+                <TextBlock Classes="numeral" Text="{Binding TimeLeftText}" FontSize="120" LetterSpacing="-4"
                            AutomationProperties.Name="Time left" />
             </Viewbox>
             <!-- Stepped away or on a side task: the countdown is paused until "I'm back" or "Back on track". -->
@@ -79,9 +70,15 @@
                 </StackPanel>
             </Border>
             <StackPanel Spacing="4" IsVisible="{Binding HasTasks}">
-                <TextBlock Classes="display" FontSize="32" LineHeight="36" TextWrapping="Wrap" Text="{Binding Checklist.CurrentTaskText}" />
-                <TextBlock Classes="muted" Text="{Binding CurrentSubtaskText, StringFormat='↳ {0}'}" FontSize="14" TextWrapping="Wrap"
-                           IsVisible="{Binding HasSubtask}" />
+                <TextBlock Classes="display" FontSize="32" TextWrapping="Wrap" Text="{Binding Checklist.CurrentTaskText}" />
+                <TextBlock Classes="muted" Text="{Binding CurrentSubtaskText, StringFormat='↳ {0}'}" FontSize="14" TextWrapping="Wrap">
+                    <TextBlock.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="HasSubtask" />
+                            <Binding Path="!Checklist.CurrentTask.HasSubtasks" FallbackValue="True" />
+                        </MultiBinding>
+                    </TextBlock.IsVisible>
+                </TextBlock>
             </StackPanel>
             <ItemsControl ItemsSource="{Binding Checklist.CurrentTask.Subtasks}" MaxWidth="520" HorizontalAlignment="Left"
                           IsVisible="{Binding Checklist.CurrentTask.HasSubtasks, FallbackValue=False}">
@@ -129,7 +126,7 @@
                        Margin="12,0,0,0" Text="{Binding Checklist.NextTaskTitle, StringFormat='Next: {0}'}"
                        IsVisible="{Binding Checklist.NextTaskTitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}, FallbackValue=False}" />
             <!-- Planning: the time left to plan, where the running timer would be big. -->
-            <TextBlock Grid.Column="5" Classes="numeral muted" FontSize="40" VerticalAlignment="Center" Margin="12,0,0,0"
+            <TextBlock Grid.Column="5" Classes="numeral muted" FontSize="56" VerticalAlignment="Center" Margin="12,0,0,0"
                        Text="{Binding TimeLeftText}" IsVisible="{Binding IsPlanning}" />
         </Grid>
 
@@ -149,7 +146,7 @@
                             <KeyBinding Gesture="Enter" Command="{Binding SaveCommand}" />
                         </TextBox.KeyBindings>
                     </TextBox>
-                    <ToggleButton Grid.Column="1" Content="⚑" IsChecked="{Binding IsComeback}"
+                    <ToggleButton Grid.Column="1" Classes="choice" Content="⚑" IsChecked="{Binding IsComeback}"
                                   ToolTip.Tip="Must not drift: park it under Come back to (or start the line with !)" />
                 </Grid>
                 <TextBlock Classes="muted" Text="{Binding Message}" FontSize="12"

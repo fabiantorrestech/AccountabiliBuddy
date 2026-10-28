@@ -36,9 +36,9 @@
                         <StackPanel Margin="0,4" Spacing="4">
                             <TextBlock Text="{Binding Text}" TextTrimming="CharacterEllipsis" />
                             <WrapPanel ItemSpacing="6" LineSpacing="6">
-                                <ToggleButton Content="Distracting" IsChecked="{Binding IsDistracting}" />
-                                <ToggleButton Content="Fine" IsChecked="{Binding IsFine}" />
-                                <ToggleButton Content="Ignore" IsChecked="{Binding IsIgnored}" />
+                                <ToggleButton Classes="choice" Content="Distracting" IsChecked="{Binding IsDistracting}" />
+                                <ToggleButton Classes="choice" Content="Fine" IsChecked="{Binding IsFine}" />
+                                <ToggleButton Classes="choice" Content="Ignore" IsChecked="{Binding IsIgnored}" />
                             </WrapPanel>
                         </StackPanel>
                     </DataTemplate>

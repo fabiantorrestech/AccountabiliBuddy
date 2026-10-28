@@ -49,6 +49,17 @@
         <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
     </Style>
 
+    <!-- Pill-shaped buttons (the Today page's actions); .primary.pill is the one main button. -->
+    <Style Selector="Button.pill">
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Padding" Value="24,16" />
+        <Setter Property="FontSize" Value="16" />
+    </Style>
+    <Style Selector="Button.primary.pill">
+        <Setter Property="Padding" Value="30,16" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
     <Style Selector="TextBlock.display">
         <Setter Property="FontFamily" Value="{DynamicResource Ab.DisplayFont}" />
         <Setter Property="FontWeight" Value="SemiBold" />

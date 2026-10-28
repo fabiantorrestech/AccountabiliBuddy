@@ -20,6 +20,16 @@
         <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="{DynamicResource Ab.InkColor}" />
         <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPointerOver" Color="{DynamicResource Ab.InkColor}" />
         <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPressed" Color="{DynamicResource Ab.InkColor}" />
+        <!-- The alarm switch, on: ink fill, Bg knob. -->
+        <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="{DynamicResource Ab.BgColor}" />
+        <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="{DynamicResource Ab.BgColor}" />
+        <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="{DynamicResource Ab.BgColor}" />
         <SolidColorBrush x:Key="ExpanderHeaderBackground" Color="Transparent" />
         <SolidColorBrush x:Key="ExpanderHeaderBackgroundPointerOver" Color="{DynamicResource Ab.Surface2Color}" />
         <SolidColorBrush x:Key="ExpanderHeaderBackgroundPressed" Color="{DynamicResource Ab.Surface2Color}" />
@@ -50,23 +60,14 @@
             <Setter Property="Padding" Value="8,1" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
-        <Style Selector="Button.pill">
-            <Setter Property="CornerRadius" Value="999" />
-            <Setter Property="Padding" Value="24,12" />
-            <Setter Property="FontSize" Value="15" />
-        </Style>
-        <Style Selector="Button.primary.pill">
-            <Setter Property="Padding" Value="30,16" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
         <!-- A switched-on toggle (Distracting / Fine / Ignore, weekdays): ink on Surface2, never accent. -->
-        <Style Selector="ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Style Selector="ToggleButton.choice:checked /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Ab.Ink}" />
             <Setter Property="BorderThickness" Value="1" />
         </Style>
-        <Style Selector="ToggleButton:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Style Selector="ToggleButton.choice:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Ab.Ink}" />
@@ -180,7 +181,7 @@
                             <StackPanel Spacing="14" IsVisible="{Binding ShowsWelcome}">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <mi:MaterialIcon Kind="HandWave" Width="24" Height="24" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                    <TextBlock Classes="display" Text="Welcome! Let's set up your first focus profile" FontSize="32" LineHeight="36"
+                                    <TextBlock Classes="display" Text="Welcome! Let's set up your first focus profile" FontSize="32"
                                                TextWrapping="Wrap" VerticalAlignment="Center" />
                                 </StackPanel>
                                 <TextBlock Classes="muted" TextWrapping="Wrap" MaxWidth="560"
@@ -202,7 +203,7 @@
                             <!-- Idle: the start card. Tasks, Start, Quick Start with Default, and the other ways folded away. -->
                             <StackPanel Spacing="22" IsVisible="{Binding ShowsStart}">
                                 <StackPanel Spacing="6">
-                                    <TextBlock Classes="display" Text="Nothing running." FontSize="40" LineHeight="44" TextWrapping="Wrap" />
+                                    <TextBlock Classes="display" Text="Nothing running." FontSize="40" TextWrapping="Wrap" />
                                     <!-- The day bar's status line: "Next: Deep work at 3:00 PM", or what is on now. -->
                                     <TextBlock Classes="muted" FontSize="14" TextWrapping="Wrap" Text="{Binding Day.StatusText}"
                                                IsVisible="{Binding Day.StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}, FallbackValue=False}" />
@@ -232,7 +233,7 @@
                                                                    Text="Uses the profile picked under More options. Pomodoro lengths are set in Settings." />
                                                     </StackPanel>
                                                     <StackPanel Spacing="4">
-                                                        <Button Content="{Binding QuickStart.OpenEndedLabel}" Command="{Binding StartOpenEndedCommand}"
+                                                        <Button Content="{Binding QuickStart.OpenEndedLabel}" Command="{Binding QuickStart.StartOpenEndedCommand}"
                                                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                                                                 ToolTip.Tip="Starts the profile picked under More options with no set end and no countdown. The on-screen bar fills each hour and glows every 30 minutes with how long you've been at it; hold Ctrl+Alt to see it any time." />
                                                     </StackPanel>
