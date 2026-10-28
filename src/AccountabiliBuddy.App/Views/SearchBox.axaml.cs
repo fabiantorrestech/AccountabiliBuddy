@@ -14,6 +14,9 @@ public partial class SearchBox : UserControl
 {
     private TopLevel? _topLevel;
 
+    /// <summary>Esc was pressed in the box: it is cleared, and the flyout it sits in should close.</summary>
+    public event EventHandler? CloseRequested;
+
     public SearchBox()
     {
         InitializeComponent();
@@ -103,6 +106,7 @@ public partial class SearchBox : UserControl
         else if (e.Key == Key.Escape)
         {
             search.ClearCommand.Execute(null);
+            CloseRequested?.Invoke(this, EventArgs.Empty);
             e.Handled = true;
         }
     }

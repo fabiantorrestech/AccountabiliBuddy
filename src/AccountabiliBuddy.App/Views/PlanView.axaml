@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             xmlns:search="using:AccountabiliBuddy.App.Services.Search"
+             x:Class="AccountabiliBuddy.App.Views.PlanView"
+             x:DataType="vm:MainWindowViewModel">
+    <!-- The Plan page: a title, the day plan, then the Calendar in a section below; both unchanged until the page is
+         rebuilt (design 5o). The guided day plan setup sits next to the title, locked like the editor. -->
+    <Border Classes="card" Padding="0" ClipToBounds="True">
+        <ScrollViewer>
+            <StackPanel Margin="36,30,28,24" Spacing="18">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="display" Text="Plan" FontSize="34" />
+                    <Button Grid.Column="1" Classes="quiet" Command="{Binding OpenDpAssistantCommand}" VerticalAlignment="Center"
+                            ToolTip.Tip="Set up your day plan step by step, with sensible defaults">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <mi:MaterialIcon Kind="AutoFix" Width="16" Height="16" />
+                            <TextBlock Text="Setup DP Assistant" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+                <views:DayPlanView DataContext="{Binding DayPlan}" />
+                <StackPanel x:Name="CalendarSection" Spacing="8" search:SearchArea.Name="Calendar">
+                    <TextBlock Classes="display" Text="Calendar" FontSize="24" />
+                    <views:ExceptionsView DataContext="{Binding Exceptions}" />
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Border>
+</UserControl>

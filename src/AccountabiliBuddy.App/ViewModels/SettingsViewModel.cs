@@ -8,6 +8,7 @@ using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -202,7 +203,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             OnPropertyChanged(nameof(WakeSource));
             OnPropertyChanged(nameof(PcAlarmNote));
         };
-        SelectedGroupIndex = 0;
+        SelectedRowIndex = 0;
         _ready = true;
         RefreshUnsaved();
     }
@@ -921,26 +922,100 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial string? DayBarStatus { get; set; }
 
-    /// <summary>The side list's groups; the one at <see cref="SelectedGroupIndex"/> shows on the right.</summary>
-    public IReadOnlyList<SettingsGroupViewModel> Groups { get; } = new[]
+    /// <summary>The Settings list's rows in <see cref="SettingsSection"/> order; the one at <see cref="SelectedRowIndex"/> shows on the right.</summary>
+    public IReadOnlyList<SettingsRowViewModel> Rows { get; } = new[]
     {
-        new SettingsGroupViewModel("Focus sessions", new[] { "Quick session shortcut", "Pomodoro defaults", "Escalation", "Ending a focus session early", "Unlocks", "Looser changes" }),
-        new SettingsGroupViewModel("Your day", new[] { "Day bar", "Sleep", "Calendars" }),
-        new SettingsGroupViewModel("On screen & sound", new[] { "Theme", "Animations", "Sounds when time is up", "Noise player" }),
-        new SettingsGroupViewModel("Overlay", new[] { "On-screen timer", "On-screen timeline" }),
-        new SettingsGroupViewModel("App & data", new[] { "Backup", "Data" }),
+        new SettingsRowViewModel(SettingsSection.YourDay, "Your day", Material.Icons.MaterialIconKind.WeatherSunny),
+        new SettingsRowViewModel(SettingsSection.Sleep, "Sleep", Material.Icons.MaterialIconKind.WeatherNight),
+        new SettingsRowViewModel(SettingsSection.FocusSessions, "Focus sessions", Material.Icons.MaterialIconKind.TimerOutline),
+        new SettingsRowViewModel(SettingsSection.Guards, "Guards", Material.Icons.MaterialIconKind.ShieldOutline),
+        new SettingsRowViewModel(SettingsSection.AlertsAndOnScreen, "Alerts & on-screen", Material.Icons.MaterialIconKind.BellOutline),
+        new SettingsRowViewModel(SettingsSection.DevicesAndSync, "Devices & sync", Material.Icons.MaterialIconKind.Devices),
+        new SettingsRowViewModel(SettingsSection.Connections, "Connections", Material.Icons.MaterialIconKind.PuzzleOutline),
+        new SettingsRowViewModel(SettingsSection.Appearance, "Appearance", Material.Icons.MaterialIconKind.PaletteOutline),
+        new SettingsRowViewModel(SettingsSection.AppAndData, "App & data", Material.Icons.MaterialIconKind.DatabaseOutline, gapBefore: true),
+        new SettingsRowViewModel(SettingsSection.Setup, "Setup", Material.Icons.MaterialIconKind.Wrench),
+        new SettingsRowViewModel(SettingsSection.About, "About", Material.Icons.MaterialIconKind.InformationOutline),
     };
 
-    /// <summary>Which group shows; switching groups changes no setting.</summary>
+    /// <summary>Which row shows; switching rows changes no setting.</summary>
     [ObservableProperty]
-    public partial int SelectedGroupIndex { get; set; } = -1;
+    [NotifyPropertyChangedFor(nameof(SelectedRow), nameof(UsesSettingsView))]
+    public partial int SelectedRowIndex { get; set; } = -1;
 
-    partial void OnSelectedGroupIndexChanged(int value)
+    /// <summary>
+    /// The row's content is the cards of SettingsView (Your day, Sleep, Focus sessions, Alerts &amp; on-screen, Appearance,
+    /// App &amp; data); the other rows (Guards, Devices &amp; sync, Connections, Setup, About) are pages of their own.
+    /// </summary>
+    public bool UsesSettingsView => SelectedRowIndex is (int)SettingsSection.YourDay or (int)SettingsSection.Sleep
+        or (int)SettingsSection.FocusSessions or (int)SettingsSection.AlertsAndOnScreen or (int)SettingsSection.Appearance
+        or (int)SettingsSection.AppAndData;
+
+    /// <summary>The row showing; its name heads the right-hand side.</summary>
+    public SettingsRowViewModel? SelectedRow => SelectedRowIndex >= 0 && SelectedRowIndex < Rows.Count ? Rows[SelectedRowIndex] : null;
+
+    partial void OnSelectedRowIndexChanged(int value)
     {
-        for (int i = 0; i < Groups.Count; i++)
+        for (int i = 0; i < Rows.Count; i++)
         {
-            Groups[i].IsSelected = i == value;
+            Rows[i].IsSelected = i == value;
         }
+    }
+
+    /// <summary>What the Settings list's Search field holds; it narrows the rows to those whose name or content matches.</summary>
+    [ObservableProperty]
+    public partial string ListFilter { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The rows (by index) whose content holds the words typed in the Search field, from the same index as the global
+    /// search; set by the window that holds the pages.
+    /// </summary>
+    public Func<string, IReadOnlySet<int>>? RowsMatching { get; set; }
+
+    private readonly DispatcherTimer _filterTimer = new() { Interval = TimeSpan.FromMilliseconds(220) };
+    private bool _filterTimerWired;
+
+    partial void OnListFilterChanged(string value)
+    {
+        if (!_filterTimerWired)
+        {
+            _filterTimerWired = true;
+            _filterTimer.Tick += (_, _) =>
+            {
+                _filterTimer.Stop();
+                ApplyListFilter();
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            _filterTimer.Stop();
+            ApplyListFilter();
+            return;
+        }
+
+        // Rows whose own name matches show at once; the content search (every page's words) follows once typing pauses.
+        _filterTimer.Stop();
+        _filterTimer.Start();
+        foreach (SettingsRowViewModel row in Rows)
+        {
+            row.IsListed = row.Name.Contains(value.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private void ApplyListFilter()
+    {
+        string query = ListFilter.Trim();
+        IReadOnlySet<int> inside = query.Length == 0 ? new HashSet<int>() : RowsMatching?.Invoke(query) ?? new HashSet<int>();
+        for (int i = 0; i < Rows.Count; i++)
+        {
+            Rows[i].IsListed = query.Length == 0 || Rows[i].Name.Contains(query, StringComparison.OrdinalIgnoreCase) || inside.Contains(i);
+        }
+    }
+
+    partial void OnIsLockedChanged(bool value)
+    {
+        Rows[(int)SettingsSection.Guards].IsResting = value;
     }
 
     /// <summary>The timeline's rows top to bottom, each shown or not.</summary>

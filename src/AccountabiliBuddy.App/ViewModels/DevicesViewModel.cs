@@ -212,6 +212,34 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
 
     public bool HasLinkCode => LinkCodeText is not null;
 
+    /// <summary>
+    /// Why this device can't send or receive right now (a relay that can't be reached, a Google Drive that isn't signed
+    /// in, no network while a network method is on); null when nothing is wrong. Read by the title bar's sync light.
+    /// </summary>
+    [ObservableProperty]
+    public partial string? SyncProblem { get; set; }
+
+    private string? DescribeSyncProblem(SyncSettings settings)
+    {
+        if (!InGroup)
+        {
+            return null;
+        }
+
+        bool usesNetwork = settings.DriveOn || settings.RelayOn;
+        if (usesNetwork && !System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
+        {
+            return "This device is offline";
+        }
+
+        if (settings.RelayOn && _relay?.Problem is string relayProblem)
+        {
+            return relayProblem;
+        }
+
+        return settings.DriveOn && !DriveSignedIn ? "Google Drive isn't signed in" : null;
+    }
+
     /// <summary>Builds the rows and switches again from what's saved and received.</summary>
     public void Refresh()
     {
@@ -248,6 +276,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         ReminderAt = settings.ReminderAt?.ToTimeSpan() ?? new TimeSpan(17, 0, 0);
         SnoozeIndex = Math.Max(0, Array.IndexOf(SnoozeChoices, settings.SnoozeMinutes));
         _loading = false;
+        SyncProblem = DescribeSyncProblem(settings);
 
         DateTimeOffset now = _time.GetUtcNow();
         Rows.Clear();
@@ -271,15 +300,20 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
                 MethodsText(card.Methods),
                 $"{Ago(age)} · {MethodName(device.Method)}",
                 state,
-                state == DeviceSyncState.Behind ? $"Behind by {Duration(age - interval)}" : "Up to date"));
+                state == DeviceSyncState.Behind ? $"Behind by {Duration(age - interval)}" : "Up to date",
+                Age: age < TimeSpan.Zero ? TimeSpan.Zero : age));
             foreach (SyncCompanion companion in card.Companions ?? [])
             {
                 Rows.Add(CompanionRow(companion, card.Name, now));
             }
         }
 
+        RowsRefreshed?.Invoke(this, EventArgs.Empty);
         _ = UpdateTodayAsync(now);
     }
+
+    /// <summary>Raised when <see cref="Rows"/> has been rebuilt (it is cleared and refilled one row at a time).</summary>
+    public event EventHandler? RowsRefreshed;
 
     /// <summary>
     /// A phone's linked watch under it (Task 18), display only: paired and unpaired on the phone.
@@ -303,7 +337,8 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
             DeviceSyncState.Waiting => "Waiting",
             _ => "Linked",
         };
-        return new DeviceRowViewModel(companion.Name, "Watch", methods, last, state, stateText, Indented: true);
+        TimeSpan? heardAgo = companion.LastHeard is DateTimeOffset lastHeard ? (now - lastHeard < TimeSpan.Zero ? TimeSpan.Zero : now - lastHeard) : null;
+        return new DeviceRowViewModel(companion.Name, "Watch", methods, last, state, stateText, Indented: true, Age: heardAgo);
     }
 
     [RelayCommand]
@@ -736,7 +771,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         };
     }
 
-    private static string Ago(TimeSpan age)
+    internal static string Ago(TimeSpan age)
     {
         return age < TimeSpan.FromMinutes(1) ? "just now"
             : age < TimeSpan.FromHours(1) ? $"{(int)age.TotalMinutes} min ago"

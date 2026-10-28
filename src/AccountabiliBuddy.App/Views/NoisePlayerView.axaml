@@ -4,7 +4,7 @@
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="AccountabiliBuddy.App.Views.NoisePlayerView"
              x:DataType="vm:NoisePlayerViewModel">
-    <!-- The noise player at the bottom of the sidebar: file name, the headphone lock, ⏮ ⏯ ⏭ and repeat, then its own volume. -->
+    <!-- The noise player, a card in Today's side column: file name, the headphone lock, ⏮ ⏯ ⏭ and repeat, then its own volume. -->
     <UserControl.Styles>
         <Style Selector="Button.icon, ToggleButton.icon">
             <Setter Property="FontFamily" Value="Segoe Fluent Icons,Segoe MDL2 Assets" />
@@ -26,7 +26,7 @@
             <Setter Property="Opacity" Value="1" />
         </Style>
     </UserControl.Styles>
-    <Border Padding="10,8" CornerRadius="8" Background="{DynamicResource Ab.Surface2}">
+    <Border Classes="card" Padding="18,14">
         <StackPanel Spacing="4">
             <!-- The name (its own name for it, if renamed) with a pencil; the folder is chosen in Settings. -->
             <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding !IsRenaming}">

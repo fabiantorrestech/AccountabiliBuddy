@@ -5,14 +5,14 @@ namespace AccountabiliBuddy.App.Services.Search;
 
 /// <summary>
 /// Names the parts of a page for search: a result's path is built from the <see cref="NameProperty"/>s around the text
-/// (e.g. "Your day › Sleep"), and a Settings group panel says which group it is, so opening a result can switch to it.
+/// (e.g. "Your day › Sleep"), and a Settings row's content says which row it is, so opening a result can switch to it.
 /// </summary>
 public sealed class SearchArea : AvaloniaObject
 {
     public static readonly AttachedProperty<string?> NameProperty =
         AvaloniaProperty.RegisterAttached<SearchArea, Control, string?>("Name");
 
-    /// <summary>The Settings group index of a group panel; -1 (the default) elsewhere.</summary>
+    /// <summary>The Settings row index (<see cref="AccountabiliBuddy.App.ViewModels.SettingsSection"/>) of a row's content; -1 (the default) elsewhere.</summary>
     public static readonly AttachedProperty<int> SettingsGroupProperty =
         AvaloniaProperty.RegisterAttached<SearchArea, Control, int>("SettingsGroup", -1);
 

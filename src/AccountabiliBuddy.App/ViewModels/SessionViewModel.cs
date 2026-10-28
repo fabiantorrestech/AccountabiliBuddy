@@ -91,6 +91,9 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Timers and alarms on this PC (set by the app); they keep running during a session.</summary>
     public TimersViewModel? Timers { get; set; }
 
+    /// <summary>The noise player, a card in the side column under Timers &amp; lunch; null hides it (set by the app).</summary>
+    public NoisePlayerViewModel? NoisePlayer { get; set; }
+
     /// <summary>The shutdown card after the day's last work part (redesign phase 5); null hides it.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowsShutdown))]

@@ -1231,8 +1231,8 @@ public partial class App : Application
             ShowSyncQr,
             minutes => _ = qrSync.SnoozeAsync(minutes));
 
-        mainViewModel.NoisePlayer = noisePlayer;
-        mainViewModel.Settings.OpenDayPlan = () => mainViewModel.SelectedTab = MainWindowViewModel.DayPlanTab;
+        sessionViewModel.NoisePlayer = noisePlayer;
+        mainViewModel.Settings.OpenDayPlan = () => mainViewModel.SelectedTab = MainWindowViewModel.PlanTab;
         _mainWindow = new MainWindow { DataContext = mainViewModel };
         // The start nudge: Today, with the keyboard in "Add a task". After a session (or a calendar event, lunch or the
         // met goal) the user may be typing elsewhere, so the window stays where it is and only its taskbar button flashes.
