@@ -50,8 +50,9 @@
                         <!-- This PC's profiles. Grouped by device (collapsible) once a phone or tablet is linked. -->
                         <Button Command="{Binding ToggleThisDeviceCommand}" Classes="quiet" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                 Padding="14,12" CornerRadius="0" IsHitTestVisible="{Binding HasLinkedDevices}" IsTabStop="{Binding HasLinkedDevices}" AutomationProperties.Name="This PC's profiles">
-                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                                 <mi:MaterialIcon Kind="Laptop" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                <TextBlock Grid.Column="2" Classes="sHint" Text="{Binding ThisDeviceArrow}" IsVisible="{Binding HasLinkedDevices}" VerticalAlignment="Top" Margin="0,2,0,0" />
                                 <StackPanel Grid.Column="1" Spacing="2">
                                     <TextBlock Classes="sTitle" Text="{Binding ThisDeviceTitle}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                                     <StackPanel Orientation="Horizontal" Spacing="8">

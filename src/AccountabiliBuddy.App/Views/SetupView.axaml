@@ -8,6 +8,8 @@
          while a focus session runs (the shell above says so); granting still works. -->
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="0,0,16,24" Spacing="12">
+            <TextBlock Classes="sHint" Margin="4,0,0,0" TextWrapping="Wrap"
+                       Text="Revoke anything outside a focus session. While one runs, revoking and deleting rest; granting still works." />
             <WrapPanel ItemSpacing="8" LineSpacing="6">
                 <Button Content="Full setup (imports, browsers)…" Command="{Binding RunAssistantCommand}" />
                 <Button Content="Refresh" Command="{Binding RefreshAllCommand}" />

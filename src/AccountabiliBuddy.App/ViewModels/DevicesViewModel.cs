@@ -238,7 +238,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         DateTimeOffset since = TimeZoneInfo.ConvertTime(now - oldest.Age!.Value, zone);
         DateTimeOffset today = TimeZoneInfo.ConvertTime(now, zone);
         string at = since.ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture);
-        string when = since.Date == today.Date ? at : since.Date == today.Date.AddDays(-1) ? $"yesterday {at}" : $"{since:ddd} {at}";
+        string when = since.Date == today.Date ? at : since.Date == today.Date.AddDays(-1) ? $"yesterday {at}" : $"{since.ToString("ddd", System.Globalization.CultureInfo.CurrentCulture)} {at}";
         string catchUp = oldest.Kind == "PC" ? "It catches up next time it's on." : "It catches up next time it's opened.";
         return behind.Count == 1
             ? $"{oldest.Name} hasn't synced since {when}. {catchUp}"

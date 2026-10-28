@@ -7,7 +7,8 @@ namespace AccountabiliBuddy.App.Controls;
 /// <summary>
 /// Stops a control's own scrolling into view (a ListBox scrolls its chosen item into view when the selection is set) from
 /// reaching the page's scroll viewer: otherwise a segmented choice halfway down a page scrolls the page to itself the first
-/// time the page shows. <c>controls:NoBringIntoView.Suppress="True"</c>.
+/// time the page shows. Only the requests made while the keyboard focus is NOT inside the control are stopped, so tabbing or
+/// arrowing onto a segment still scrolls it into view. <c>controls:NoBringIntoView.Suppress="True"</c>.
 /// </summary>
 public static class NoBringIntoView
 {
@@ -35,6 +36,9 @@ public static class NoBringIntoView
 
     private static void OnRequest(object? sender, RequestBringIntoViewEventArgs e)
     {
-        e.Handled = true;
+        if (sender is Control { IsKeyboardFocusWithin: false })
+        {
+            e.Handled = true;
+        }
     }
 }

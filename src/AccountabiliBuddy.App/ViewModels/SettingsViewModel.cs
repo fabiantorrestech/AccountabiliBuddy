@@ -148,8 +148,18 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         _sessions.StateChanged += (_, _) =>
         {
+            bool wasLocked = IsLocked;
             IsLocked = _sessions.IsEnforcing;
             RefreshRestingText();
+            // A session starting: last save's or last cancel's note is old news and would only crowd the banner (nothing unsaved is dropped).
+            if (IsLocked && !wasLocked)
+            {
+                StatusMessage = null;
+                if (!HasUnsavedChanges)
+                {
+                    SaveStatus = null;
+                }
+            }
         };
         _sessions.FocusExtended += (_, _) => RefreshRestingText();
         IsLocked = _sessions.IsEnforcing;

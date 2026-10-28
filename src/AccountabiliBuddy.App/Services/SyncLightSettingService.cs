@@ -49,9 +49,10 @@ public sealed class SyncLightSettingService
         {
             await _store.SaveAsync(DocumentKey, new SyncLightSettings(mode));
         }
-        catch (SqliteException)
+        catch (Exception ex)
         {
-            // Not remembered this time; the light still follows the choice until the app closes.
+            // Not remembered this time (any failure, as the save is fire-and-forget); the light still follows the choice until the app closes.
+            System.Diagnostics.Debug.WriteLine($"syncLight not saved: {ex.Message}");
         }
     }
 }

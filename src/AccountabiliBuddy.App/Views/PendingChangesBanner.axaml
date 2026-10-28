@@ -6,7 +6,7 @@
              x:DataType="vm:PendingChangesViewModel">
     <!-- The looser-changes queue (hard rules: stricter changes apply at once, looser ones wait): what is waiting, when it applies, and Cancel.
          No "apply now". Info colours, never the accent. -->
-    <Border Classes="sInfo" IsVisible="{Binding HasPending}">
+    <Border Classes="sInfo" Padding="14,10" IsVisible="{Binding HasPending}">
         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
             <mi:MaterialIcon Kind="TimerSand" Width="20" Height="20" VerticalAlignment="Top" Foreground="{DynamicResource Ab.InfoInk}" />
             <StackPanel Grid.Column="1" Spacing="4">

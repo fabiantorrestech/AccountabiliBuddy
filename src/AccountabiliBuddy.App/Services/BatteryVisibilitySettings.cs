@@ -15,5 +15,5 @@ public sealed record BatteryVisibilitySettings(
     /// <summary>The key of this PC in <see cref="Devices"/>.</summary>
     public const string ThisPcKey = "this-pc";
 
-    public BatteryPlaces PlacesOf(string key) => Devices is not null && Devices.TryGetValue(key, out BatteryPlaces? places) ? places : new BatteryPlaces();
+    public BatteryPlaces PlacesOf(string key) => Devices is not null && Devices.TryGetValue(key, out BatteryPlaces? places) ? places ?? new BatteryPlaces() : new BatteryPlaces();
 }

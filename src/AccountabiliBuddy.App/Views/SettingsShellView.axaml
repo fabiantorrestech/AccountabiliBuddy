@@ -126,7 +126,7 @@
             <!-- The chosen row's page. -->
             <DockPanel Grid.Column="1" Margin="32,26,12,0">
                 <!-- Title, a Muted one-line summary and the page's actions on the right (Devices & sync: Add a device, Sync now). -->
-                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="16" Margin="0,0,16,16">
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="16" Margin="0,0,16,12">
                     <StackPanel Spacing="4">
                         <TextBlock Classes="display" FontSize="28" Text="{Binding Settings.SelectedRow.Name}" />
                         <TextBlock Classes="muted" FontSize="14" TextWrapping="Wrap" Text="{Binding Settings.SelectedRow.Summary}" />
@@ -174,13 +174,13 @@
                     <TextBlock Text="{Binding Settings.SaveStatus}" TextWrapping="Wrap" />
                 </Border>
                 <!-- Guard settings are view-only while a session runs (as before); the banner shows on the pages that hold them. -->
-                <Border DockPanel.Dock="Top" Classes="sInfo" Margin="0,0,16,10" IsVisible="{Binding Settings.ShowsLockedBanner}">
+                <Border DockPanel.Dock="Top" Classes="sInfo" Margin="0,0,16,8" Padding="14,8" IsVisible="{Binding Settings.ShowsLockedBanner}">
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                         <mi:MaterialIcon Kind="LockOutline" Width="20" Height="20" VerticalAlignment="Center" Foreground="{DynamicResource Ab.InfoInk}" />
                         <TextBlock Grid.Column="1" Text="{Binding Settings.RestingBannerText}" TextWrapping="Wrap" VerticalAlignment="Center" />
                     </Grid>
                 </Border>
-                <views:PendingChangesBanner DockPanel.Dock="Top" DataContext="{Binding Settings.PendingChanges}" Margin="0,0,16,10" />
+                <views:PendingChangesBanner DockPanel.Dock="Top" DataContext="{Binding Settings.PendingChanges}" Margin="0,0,16,8" />
                 <TextBlock DockPanel.Dock="Top" Classes="muted" Text="{Binding Settings.StatusMessage}" TextWrapping="Wrap" Margin="0,0,16,10"
                            IsVisible="{Binding Settings.StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
@@ -204,7 +204,7 @@
                                             <StackPanel Spacing="2" VerticalAlignment="Center">
                                                 <TextBlock Classes="sTitle" Text="Cold Turkey Blocker" />
                                                 <TextBlock Classes="sHint" Text="{Binding ColdTurkeySummary}" />
-                                                <TextBlock Classes="sHint" Text="Its keys, spare key and the blocks each profile expects are set up in the full setup and here; nothing in Cold Turkey is changed." />
+                                                <TextBlock Classes="sHint" Text="Its keys and spare key are set up in the full setup (Setup); the blocks each profile expects are on that profile. Nothing in Cold Turkey is changed." />
                                             </StackPanel>
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                                 <Button Content="Get a new spare key…" Command="{Binding NewSpareKeyCommand}" IsVisible="{Binding IsColdTurkeyInstalled}" />

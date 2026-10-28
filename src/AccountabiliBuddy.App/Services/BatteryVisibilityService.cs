@@ -55,9 +55,10 @@ public sealed class BatteryVisibilityService
         {
             await _store.SaveAsync(DocumentKey, settings);
         }
-        catch (SqliteException)
+        catch (Exception ex)
         {
-            // Not remembered this time; the choice holds until the app closes.
+            // Not remembered this time (any failure, as the save is fire-and-forget); the choice holds until the app closes.
+            System.Diagnostics.Debug.WriteLine($"batteryVisibility not saved: {ex.Message}");
         }
     }
 }
