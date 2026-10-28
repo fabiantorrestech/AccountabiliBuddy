@@ -198,6 +198,9 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Today's "Next up" card: the next two plan parts (set by the app).</summary>
     public NextUpViewModel? NextUp { get; set; }
 
+    /// <summary>"Seen while planning": the sites and apps with no rule noticed during the planning stage (set by the app).</summary>
+    public SeenWhilePlanningViewModel? SeenWhilePlanning { get; set; }
+
     /// <summary>The count on the "More today" fold's header (set by the app, after the cards inside are).</summary>
     public MoreTodayViewModel? MoreToday { get; set; }
 

@@ -1149,6 +1149,7 @@ public partial class App : Application
         _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
         sessionViewModel.WhatsNew = new WhatsNewCardViewModel(setupFeatures, ShowWhatsNew);
         sessionViewModel.NextUp = new NextUpViewModel(_configuration, time, sessionViewModel.Day);
+        sessionViewModel.SeenWhilePlanning = new SeenWhilePlanningViewModel(_planFirst!);
         sessionViewModel.MoreToday = new MoreTodayViewModel(sessionViewModel);
         mainViewModel.Settings.Updates.OpenWhatsNew = ShowWhatsNew;
         mainViewModel.Settings.Updates.ShowEmergencyRelease = () => ShowColdTurkeyKey(ColdTurkeyKeyMode.Emergency);

@@ -449,6 +449,30 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Seen while planning: the sites and apps with no rule noticed so far; planning stage only, once there is one. They are
+                     asked about together when planning ends. -->
+                <Border Classes="card" DataContext="{Binding SeenWhilePlanning}" x:DataType="vm:SeenWhilePlanningViewModel"
+                        IsVisible="{Binding IsVisible, FallbackValue=False}">
+                    <StackPanel Spacing="12">
+                        <TextBlock Classes="section" Text="Seen while planning" />
+                        <TextBlock Text="{Binding Summary}" FontSize="14" TextWrapping="Wrap" />
+                        <ItemsControl ItemsSource="{Binding Subjects}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <Border Classes="count" Padding="13,7">
+                                        <TextBlock Text="{Binding}" FontSize="13" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
                 <!-- Come back to: parked ideas until ticked (idle and in Focus mode). Ctrl+Alt+N adds one from anywhere. -->
                 <Border Classes="card" DataContext="{Binding Comebacks}" x:DataType="vm:ComebacksViewModel"
                         IsVisible="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).Comebacks, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
