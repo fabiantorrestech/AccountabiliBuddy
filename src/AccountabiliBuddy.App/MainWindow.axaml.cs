@@ -59,7 +59,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         AddHandler(DragDrop.DropEvent, OnDrop);
-        // A click away from the search flyout closes it, unless it holds a search (its highlights are then still showing).
+        // A click away from the search flyout closes it, whatever it holds.
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         // The maximize button shows "restore" while the window is maximized.
         PropertyChanged += (_, e) =>
@@ -133,6 +133,7 @@ public partial class MainWindow : Window
             }
         };
         Opened += (_, _) => WarmUpPages();
+        Deactivated += (_, _) => CloseSearch(); // A click in another app is a click away too.
         Opened += (_, _) =>
         {
             if (!_hookedWindowMessages)
@@ -247,17 +248,21 @@ public partial class MainWindow : Window
             CloseSyncPopover();
         }
 
-        if (DataContext is not MainWindowViewModel { IsSearchOpen: true, Search: { } search } viewModel || search.HasQuery)
+        if (clickedVisual is not null && (IsInside(SearchFlyout, clickedVisual) || IsInside(SearchButton, clickedVisual) || Search.IsPartOf(clickedVisual)))
         {
-            return;
+            return; // In the box or its results dropdown (a popup of its own), or the magnifier that toggles it.
         }
 
-        if (e.Source is Visual clicked && (IsInside(SearchFlyout, clicked) || IsInside(SearchButton, clicked)))
-        {
-            return;
-        }
+        CloseSearch();
+    }
 
-        viewModel.IsSearchOpen = false;
+    // The search closes on any click away from it, with or without a search typed (Esc also clears it; this leaves it).
+    private void CloseSearch()
+    {
+        if (DataContext is MainWindowViewModel { IsSearchOpen: true } viewModel)
+        {
+            viewModel.IsSearchOpen = false;
+        }
     }
 
     private void CloseSyncPopover()
@@ -274,6 +279,7 @@ public partial class MainWindow : Window
         if (msg == WmNcLButtonDown)
         {
             CloseSyncPopover();
+            CloseSearch();
         }
 
         return IntPtr.Zero;
