@@ -57,8 +57,8 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
     private int _probing;
     private long _lastProbeTick;
     private volatile bool _needsProbe;
-    private ProbeKey? _probeKey;
-    private (int? AppsStart, int? AppsEnd, int? TrayStart) _probeResult;
+    // The last reading of the main taskbar, key and result published together (written on the thread pool, read on the loop thread).
+    private volatile ProbeReading? _reading;
     private uint _lastProcessId;
     private string? _lastProcessName;
     private IReadOnlyList<TaskbarInfo> _taskbars = [];
@@ -293,7 +293,7 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
 
     private void InvalidateProbe()
     {
-        _probeKey = null;
+        _reading = null;
     }
 
     private void RegisterAppBar()
@@ -416,7 +416,7 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
         PixelBox? free = null;
         PixelBox? leftFree = null;
         bool leftAligned = true;
-        if (shown && edge is TaskbarEdge.Bottom or TaskbarEdge.Top)
+        if (shown && isPrimary && edge is TaskbarEdge.Bottom or TaskbarEdge.Top)
         {
             (tray, free, leftFree, leftAligned) = FindFreeArea(taskbar, bounds, edge);
         }
@@ -428,12 +428,13 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
     private (PixelBox? Tray, PixelBox? Free, PixelBox? LeftFree, bool LeftAligned) FindFreeArea(HWND taskbar, PixelBox bounds, TaskbarEdge edge)
     {
         var key = new ProbeKey((nint)taskbar.Value, bounds);
-        if (_probeKey != key || _needsProbe)
+        ProbeReading? reading = _reading;
+        if (reading?.Key != key || _needsProbe)
         {
             StartProbe(taskbar, bounds, key);
         }
 
-        (int? appsStart, int? appsEnd, int? trayStart) = key == _probeKey ? _probeResult : (null, null, null);
+        (int? appsStart, int? appsEnd, int? trayStart) = reading?.Key == key ? reading.Result : (null, null, null);
         PixelBox? tray = trayStart is int start ? new PixelBox(start, bounds.Top, bounds.Right, bounds.Bottom) : TrayNotifyBox(taskbar, bounds);
         trayStart ??= tray?.Left;
         PixelBox? free = appsEnd is int end && trayStart is int tail && tail - end > 0
@@ -468,8 +469,7 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
             }
             finally
             {
-                _probeKey = key;
-                _probeResult = result;
+                _reading = new ProbeReading(key, result);
                 Interlocked.Exchange(ref _probing, 0);
                 if (!_window.IsNull)
                 {
@@ -658,4 +658,6 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
     private sealed record MonitorFacts(string Id, bool IsPrimary, PixelBox Bounds, PixelBox WorkArea, double Scale);
 
     private sealed record ProbeKey(nint Window, PixelBox Bounds);
+
+    private sealed record ProbeReading(ProbeKey Key, (int? AppsStart, int? AppsEnd, int? TrayStart) Result);
 }
