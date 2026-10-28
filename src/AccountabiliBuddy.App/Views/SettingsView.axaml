@@ -739,6 +739,8 @@
                     </StackPanel>
                 </StackPanel>
                 </Border>
+                <!-- Slot for the on-screen overlay settings page (design 15c, built with the overlay): it shows under the page's own cards. -->
+                <ContentControl x:Name="OverlaySettingsSlot" search:SearchArea.Name="On-screen overlay" />
             </StackPanel>
 
             <StackPanel Spacing="16" IsVisible="{Binding Rows[7].IsSelected}"
