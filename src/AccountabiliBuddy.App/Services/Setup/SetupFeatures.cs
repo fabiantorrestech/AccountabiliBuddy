@@ -43,7 +43,7 @@ public static class SetupFeatures
         new SetupFeature(
             "dayplan.assistant", "0.1.112",
             "Setup DP Assistant: your day plan, step by step",
-            "A button at the top right of the Day plan tab that sets up workdays, work time, deep work goal, lunch, sleep and weeks with sensible defaults, then shows how the buddy will behave before it saves.",
+            "A button at the top right of the Plan page (also in Settings › Setup) that sets up workdays, work time, deep work goal, lunch, sleep and weeks with sensible defaults, then shows how the buddy will behave before it saves.",
             IsRelevant: () => true,
             IsSetUp: () => dpAssistant.HasRun,
             Step: ViewModels.AssistantStep.DpAssistant),

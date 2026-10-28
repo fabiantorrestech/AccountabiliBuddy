@@ -14,7 +14,7 @@
             <Setter Property="Focusable" Value="False" />
         </Style>
         <Style Selector="Button.searchItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="#1F808080" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
         <Style Selector="Button.findArrow">
             <Setter Property="Background" Value="Transparent" />
@@ -27,7 +27,7 @@
             <Setter Property="Focusable" Value="False" />
         </Style>
         <Style Selector="Button.findArrow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="#1F808080" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
         <!-- The counter and arrows show only while the box has the focus (it's small otherwise). -->
         <Style Selector="TextBox#Box:not(:focus-within) Panel.findNav">
@@ -69,14 +69,14 @@
              would eat the first click on the page and the mouse wheel): Esc, opening a result or leaving the box closes it. -->
         <Popup x:Name="Dropdown" PlacementTarget="{Binding #Box}" Placement="BottomEdgeAlignedRight" IsOpen="{Binding IsOpen, Mode=TwoWay}"
                IsLightDismissEnabled="False" VerticalOffset="4">
-            <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}" BorderBrush="#55808080" BorderThickness="1"
+            <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1"
                     CornerRadius="8" Padding="6" Width="440">
                 <StackPanel Spacing="2">
                     <Button Classes="searchItem" Command="{Binding NextCommand}" IsVisible="{Binding HasPageMatches}">
                         <TextBlock Text="{Binding PageText}" />
                     </Button>
                     <Button Classes="searchItem" Command="{Binding SearchAllCommand}" IsVisible="{Binding !ShowsAll}">
-                        <TextBlock Text="{Binding AllText}" FontWeight="SemiBold" Foreground="#14B8A6" />
+                        <TextBlock Text="{Binding AllText}" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Ink}" />
                     </Button>
                     <TextBlock Text="Nothing found." Opacity="0.7" Margin="10,6" IsVisible="{Binding ShowsNothingFound}" />
                     <ScrollViewer IsVisible="{Binding ShowsAll}" MaxHeight="460">
@@ -84,7 +84,7 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:SearchResultGroup">
                                     <StackPanel Spacing="1" Margin="0,4,0,2">
-                                        <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold" Foreground="#14B8A6" Margin="10,2" />
+                                        <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Muted}" Margin="10,2" />
                                         <ItemsControl ItemsSource="{Binding Rows}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:SearchResultRow">
@@ -99,7 +99,7 @@
                                                                 </TextBlock>
                                                                 <TextBlock Text="{Binding Path}" FontSize="11" Opacity="0.65" TextTrimming="CharacterEllipsis" />
                                                             </StackPanel>
-                                                            <Border Grid.Column="1" BorderBrush="#55808080" BorderThickness="1" CornerRadius="9"
+                                                            <Border Grid.Column="1" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="9"
                                                                     Padding="7,1" Margin="8,0,0,0" VerticalAlignment="Center">
                                                                 <TextBlock Text="{Binding Kind}" FontSize="10" Opacity="0.75" />
                                                             </Border>

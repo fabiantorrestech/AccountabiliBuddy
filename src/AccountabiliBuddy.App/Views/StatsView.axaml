@@ -1,0 +1,15 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             x:Class="AccountabiliBuddy.App.Views.StatsView"
+             x:DataType="vm:HistoryViewModel">
+    <!-- The Stats page: a title, then History, unchanged until the page is rebuilt (design 5p). The day bar strip sits above
+         the page, in the window. -->
+    <Border Classes="card" Padding="0" ClipToBounds="True">
+        <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Classes="display" Text="Stats" FontSize="34" Margin="36,30,28,4" />
+            <views:HistoryView />
+        </DockPanel>
+    </Border>
+</UserControl>

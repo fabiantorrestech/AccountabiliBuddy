@@ -471,8 +471,8 @@ public sealed partial class ProfilesViewModel : ObservableObject
         if (added > 0)
         {
             StatusMessage = added == 1
-                ? "A rule was added from the classify prompt or the Integrations tab."
-                : $"{added} rules were added from the classify prompt or the Integrations tab.";
+                ? "A rule was added from the classify prompt or Settings › Connections."
+                : $"{added} rules were added from the classify prompt or Settings › Connections.";
         }
     }
 }

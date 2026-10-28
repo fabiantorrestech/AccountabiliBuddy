@@ -73,7 +73,7 @@
                                Text="AccountabiliBuddy watches what's on your screens and nudges you back when you drift from what you planned. Everything it sees stays on this computer." />
                     <TextBlock Classes="body"
                                Text="This assistant brings over your blocks from other blockers (Cold Turkey, AppBlock, BlockSite, LeechBlock, or any list you paste), then connects your browsers and sets the basics. It takes a couple of minutes, and you can skip any step." />
-                    <TextBlock Classes="muted" Text="You can run it again later from the Setup tab." />
+                    <TextBlock Classes="muted" Text="You can run it again later from Settings › Setup." />
                     <Border Classes="locked" IsVisible="{Binding IsLocked}">
                         <TextBlock Text="A focus session is running, so nothing can be imported right now. You can still set up browsers and the basics."
                                    TextWrapping="Wrap" />
@@ -88,10 +88,10 @@
                     <RadioButton GroupName="link" IsChecked="{Binding HasOtherDevice}" Content="I have AccountabiliBuddy on another device" />
                     <StackPanel Spacing="6" Margin="28,0,0,0" IsVisible="{Binding HasOtherDevice}">
                         <TextBlock Classes="muted"
-                                   Text="On the other device, open Devices → Link a device, and type its link code here (40 characters; the dashes don't matter)." />
+                                   Text="On the other device, open Devices → Link a device (on a PC: Settings › Devices &amp; sync), and type its link code here (40 characters; the dashes don't matter)." />
                         <TextBox Text="{Binding LinkCode}" PlaceholderText="e.g. 8KQ2V-7XHPM-D4WN6-…" MaxWidth="520" HorizontalAlignment="Left" />
                     </StackPanel>
-                    <TextBlock Classes="muted" Text="You can also do this later in the Devices tab." />
+                    <TextBlock Classes="muted" Text="You can also do this later in Settings › Devices &amp; sync." />
                 </StackPanel>
 
                 <!-- 1c. What kind of computer is this? (ADR 22) -->
@@ -283,7 +283,7 @@
                 <!-- 6. Basics -->
                 <Panel IsVisible="{Binding IsBasics}">
                 <StackPanel Spacing="8" DataContext="{Binding Setup}" x:DataType="vm:SetupViewModel">
-                    <TextBlock Classes="muted" Text="Each of these can be revoked later in the Setup tab (outside a focus session)." />
+                    <TextBlock Classes="muted" Text="Each of these can be revoked later in Settings › Setup (outside a focus session)." />
                     <Border Classes="card">
                         <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
                             <TextBlock Text="Start with Windows" Classes="title" />
@@ -323,7 +323,7 @@
                 <Panel IsVisible="{Binding IsWorkdays}">
                     <StackPanel DataContext="{Binding Workdays}" x:DataType="vm:WorkdaysSetupViewModel" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
                         <TextBlock Classes="body" TextWrapping="Wrap"
-                                   Text="Which days do you work, and when? A work window is enough for the buddy to guard your workdays; you can plan each day part by part, or a budget of hours, later in the Day plan tab." />
+                                   Text="Which days do you work, and when? A work window is enough for the buddy to guard your workdays; you can plan each day part by part, or a budget of hours, later in Plan." />
                         <ItemsControl ItemsSource="{Binding Days}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -360,13 +360,13 @@
                     <TextBlock Classes="body" TextWrapping="Wrap"
                                Text="Your devices can now sync through a small relay you run yourself, with changes arriving in about a second and no Google account. Everything stays sealed: the relay stores scrambled bytes and the key never leaves your devices." />
                     <TextBlock Classes="body" TextWrapping="Wrap"
-                               Text="To set it up, finish here, then open Devices → How this PC shares → Own relay. Type your relay's address and pin, press Test connection and tick Own relay. The Devices page has the short steps and the full guide." />
+                               Text="To set it up, finish here, then open Settings › Devices &amp; sync → How this PC shares → Own relay. Type your relay's address and pin, press Test connection and tick Own relay. The Devices page has the short steps and the full guide." />
                 </StackPanel>
 
-                <!-- The Setup DP Assistant: a button on the Day plan tab -->
+                <!-- The Setup DP Assistant: a button on the Plan page -->
                 <StackPanel IsVisible="{Binding IsDpAssistant}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
                     <TextBlock Classes="body" TextWrapping="Wrap"
-                               Text="The Day plan tab has a new button at its top right, next to the refresh button: Setup DP Assistant. It walks you through your workdays, work time, deep work goal, lunch, sleep and weeks in seven steps, each already filled in from your plan or with sensible defaults, and ends with a plain-language review of how the buddy will behave through each day before anything is saved." />
+                               Text="The Plan page has a button at its top right (also in Settings › Setup): Setup DP Assistant. It walks you through your workdays, work time, deep work goal, lunch, sleep and weeks in seven steps, each already filled in from your plan or with sensible defaults, and ends with a plain-language review of how the buddy will behave through each day before anything is saved." />
                     <TextBlock Classes="muted" TextWrapping="Wrap"
                                Text="You can run it again any time. It is locked while a focus session you started is running, and a change that frees today's work hours waits like any looser change." />
                     <Button Content="Open it now" Command="{Binding OpenSetupDpAssistantCommand}" HorizontalAlignment="Left" Classes="accent" />
@@ -387,7 +387,7 @@
                                Text="The app now has three themes, Instrument, Night Desk and Paper, each light or dark. Light and dark can follow Windows, switch at times you set, or switch at sunset." />
                     <views:AppearanceView DataContext="{Binding Appearance}" IsCompact="True" />
                     <TextBlock Classes="muted" TextWrapping="Wrap"
-                               Text="Everything here can be changed any time in Settings → On screen &amp; sound → Appearance, which also has the place for sunset and how much colour the screens use." />
+                               Text="Everything here can be changed any time in Settings › Appearance, which also has the place for sunset and how much colour the screens use." />
                 </StackPanel>
 
                 <!-- ADR 39: Cold Turkey, let AccountabiliBuddy hold the keys -->
@@ -470,13 +470,13 @@
                 <StackPanel IsVisible="{Binding IsDone}" Spacing="12" MaxWidth="720" HorizontalAlignment="Left">
                     <TextBlock Classes="body" Text="{Binding Summary}" />
                     <TextBlock Text="What's next" Classes="title" />
-                    <TextBlock Classes="body" Text="• Start a session from the Today tab, or press Ctrl+Alt+F anywhere." />
+                    <TextBlock Classes="body" Text="• Start a session from Today, or press Ctrl+Alt+F anywhere." />
                     <TextBlock Classes="body" IsVisible="{Binding IsQuick}"
                                Text="• Your first session learns: it asks about nothing new, and at its end you sort what you used on Today." />
-                    <TextBlock Classes="body" Text="• Your day plan is in the Day plan tab; a day planned differently is in Calendar." />
+                    <TextBlock Classes="body" Text="• Your day plan is in Plan; a day planned differently is in its Calendar section." />
                     <TextBlock Classes="body" IsVisible="{Binding IsQuick}"
-                               Text="• Imports from other blockers and browser extensions: More → Setup → Full setup." />
-                    <TextBlock Classes="body" IsVisible="{Binding !IsQuick}" Text="• Run this assistant again any time from More → Setup." />
+                               Text="• Imports from other blockers and browser extensions: Settings › Setup → Full setup." />
+                    <TextBlock Classes="body" IsVisible="{Binding !IsQuick}" Text="• Run this assistant again any time from Settings › Setup." />
                 </StackPanel>
             </Panel>
         </ScrollViewer>

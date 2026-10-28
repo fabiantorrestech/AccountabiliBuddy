@@ -33,7 +33,7 @@ public static class GoogleSetupSteps
             new[]
             {
                 "Open the page and sign in with any Google account you own: it holds the project. Use the same one on every page after this.",
-                "The account whose calendar (and watch) you link is picked later, when you sign in at the end or on the Calendar tab; it can be a different one.",
+                "The account whose calendar (and watch) you link is picked later, when you sign in at the end or in Plan › Calendar; it can be a different one.",
                 $"Project name: {AppName}. Leave the rest as it is and press Create.",
                 "Wait a few seconds, then make sure the new project is selected in the bar at the top of the page.",
                 "Already have a project for AccountabiliBuddy? Just select it and go on.",
@@ -58,7 +58,7 @@ public static class GoogleSetupSteps
             new[]
             {
                 "Open the page and press Enable. If it says Manage instead, it's already on.",
-                "Drive sync (Devices → Google Drive) keeps your devices' encrypted sync files in one folder the app makes; it can't see your other files.",
+                "Drive sync (Settings › Devices & sync → Google Drive) keeps your devices' encrypted sync files in one folder the app makes; it can't see your other files.",
             },
             "https://console.cloud.google.com/apis/library/drive.googleapis.com",
             Array.Empty<GoogleSetupCopyValue>()),
@@ -181,7 +181,7 @@ public static class GoogleSetupSteps
             {
                 "Press Connect a Google account. Your browser opens Google's sign-in: pick the account whose calendar you want (any of the test users).",
                 "Google warns that it hasn't verified the app: that's expected for your own project. Press Continue.",
-                "Allow the read-only access. Your calendars then show in the Calendar tab.",
+                "Allow the read-only access. Your calendars then show in Plan, under Calendar.",
             },
             null,
             Array.Empty<GoogleSetupCopyValue>()),

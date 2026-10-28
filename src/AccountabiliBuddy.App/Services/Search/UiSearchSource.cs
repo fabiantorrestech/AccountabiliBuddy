@@ -6,8 +6,8 @@ namespace AccountabiliBuddy.App.Services.Search;
 
 /// <summary>
 /// The app's own words as search entries: every text a page declares (titles, descriptions, labels, check box and
-/// button text), read from the live pages, so it always matches what the app shows. A result's path is the tab name
-/// plus the <see cref="SearchArea"/> names around the text; on Settings it also says which group to open.
+/// button text), read from the live pages, so it always matches what the app shows. A result's path is the page name
+/// plus the <see cref="SearchArea"/> names around the text; on Settings it also says which row to open.
 /// </summary>
 public static class UiSearchSource
 {
@@ -58,7 +58,7 @@ public static class UiSearchSource
         return double.TryParse(trimmed, NumberStyles.Any, CultureInfo.CurrentCulture, out _) ? null : trimmed;
     }
 
-    /// <summary>"Tab › Area › Area" from the outside in, and the Settings group the control sits in, if any.</summary>
+    /// <summary>"Page › Area › Area" from the outside in, and the Settings row the control sits in, if any.</summary>
     private static (string Path, int? Group) PlaceOf(Control control, Control page, string tabName)
     {
         var names = new List<string>();

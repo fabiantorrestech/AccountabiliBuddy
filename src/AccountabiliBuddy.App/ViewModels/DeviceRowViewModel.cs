@@ -7,8 +7,10 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="MethodsText">The methods it uses, e.g. "sync folder, QR codes".</param>
 /// <param name="LastText">When its data last arrived here and how, e.g. "14 min ago · sync folder".</param>
 /// <param name="Indented">Shown under the device above it (a phone's linked watch, Task 18).</param>
+/// <param name="Age">How long ago its newest data arrived; null for this PC and for a device not heard from yet (the sync light reads it).</param>
 public sealed record DeviceRowViewModel(
-    string Name, string Kind, string MethodsText, string LastText, DeviceSyncState State, string StateText, bool Indented = false)
+    string Name, string Kind, string MethodsText, string LastText, DeviceSyncState State, string StateText, bool Indented = false,
+    TimeSpan? Age = null)
 {
     /// <summary>A device's part counts as behind once it's older than its interval plus this margin (as on the phone).</summary>
     public static readonly TimeSpan Margin = TimeSpan.FromMinutes(5);

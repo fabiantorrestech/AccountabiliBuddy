@@ -1,7 +1,7 @@
 namespace AccountabiliBuddy.App.Services.Search;
 
 /// <summary>
-/// Opens a search result: the tab first, then what to show in it (a profile, a date, a Settings group), and last the
+/// Opens a search result: the page first, then what to show in it (a profile, a date, a Settings row), and last the
 /// control the text was found in, which the window brings into view and highlights.
 /// </summary>
 public sealed class SearchNavigator

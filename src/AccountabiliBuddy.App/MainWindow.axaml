@@ -3,6 +3,7 @@
         xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
         xmlns:views="using:AccountabiliBuddy.App.Views"
         xmlns:controls="using:AccountabiliBuddy.App.Controls"
+        xmlns:chrome="using:Avalonia.Controls.Chrome"
         xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         x:Class="AccountabiliBuddy.App.MainWindow"
         x:DataType="vm:MainWindowViewModel"
@@ -10,362 +11,371 @@
         Icon="/Assets/app-icon.png"
         Width="1180" Height="780" MinWidth="900" MinHeight="560"
         WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Ab.Bg}"
+        WindowDecorations="BorderOnly"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="34"
         DragDrop.AllowDrop="True">
-    <Panel>
-        <DockPanel>
-            <!--
-                Tabs as a sidebar on the left; headers sized for a vertical list rather than the Fluent top-row default.
-                The TabControl only draws the headers: the pages live side by side in Pages and switching only shows or
-                hides them. A TabControl takes a page out of the window and puts it back on every switch, which rebuilds
-                every control on it (hundreds of ms on Profiles or Settings); a hidden page costs nothing.
-            -->
-            <DockPanel DockPanel.Dock="Left" Classes="sidebar" Background="{DynamicResource Ab.Bg}">
-                <DockPanel.Styles>
-                    <!-- The focus-mode toggle only shows while the pointer is over the sidebar; otherwise it fades away. -->
-                    <Style Selector="Button.focusToggle">
-                        <Setter Property="Opacity" Value="0" />
-                        <Setter Property="Transitions">
-                            <Transitions>
-                                <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
-                            </Transitions>
-                        </Setter>
-                    </Style>
-                    <Style Selector="DockPanel.sidebar:pointerover Button.focusToggle">
-                        <Setter Property="Opacity" Value="0.75" />
-                    </Style>
-                </DockPanel.Styles>
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="22,18,12,6">
-                    <Image Source="/Assets/app-icon.png" Width="26" Height="26" />
-                    <TextBlock Text="AccountabiliBuddy" FontSize="19" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" />
-                </StackPanel>
-                <!-- The noise player, always at the bottom of the sidebar. -->
-                <!-- Takes the sidebar's width without widening it (a long file name is cut with "…"). -->
-                <controls:FillWidthDecorator DockPanel.Dock="Bottom" Margin="12,0,12,12"
-                                             IsVisible="{Binding NoisePlayer, Converter={x:Static ObjectConverters.IsNotNull}}">
-                    <views:NoisePlayerView DataContext="{Binding NoisePlayer}" />
-                </controls:FillWidthDecorator>
-                <!-- During a session: show the other tabs, or hide them again (focus mode). -->
-                <Button DockPanel.Dock="Bottom" Classes="focusToggle" Content="{Binding FocusToggleText}" Command="{Binding ToggleEverythingCommand}"
-                        IsVisible="{Binding IsSessionRunning}"
-                        Margin="20,0,12,10" Background="Transparent" BorderThickness="0" Padding="4,2"
-                        ToolTip.Tip="Show the other tabs for this session, or hide them again" />
-                <!-- Scrolls (vertical, only when needed) in a short window; logo above and noise player / focus toggle below stay put. -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <TabControl x:Name="Tabs" TabStripPlacement="Left" Margin="0,4,0,8" SelectionChanged="OnTabChanged"
-                                SelectedIndex="{Binding SelectedTab}">
-                        <TabControl.Styles>
-                            <Style Selector="TabControl[TabStripPlacement=Left] /template/ ItemsPresenter#PART_ItemsPresenter">
-                                <Setter Property="Margin" Value="8,4,12,0" />
-                            </Style>
-                            <Style Selector="TabItem">
-                                <Setter Property="FontSize" Value="16" />
-                                <Setter Property="MinHeight" Value="40" />
-                                <Setter Property="MinWidth" Value="168" />
-                                <Setter Property="Padding" Value="16,0,24,0" />
-                                <Setter Property="CornerRadius" Value="6" />
-                                <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
-                            </Style>
-                            <!-- Muted rows; the selected one is Ink on a Surface2 pill, hover is Surface2. Never the accent. -->
-                            <Style Selector="TabItem /template/ Border#PART_LayoutRoot">
-                                <Setter Property="Background" Value="Transparent" />
-                                <Setter Property="CornerRadius" Value="6" />
-                            </Style>
-                            <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
-                                <Setter Property="IsVisible" Value="False" />
-                            </Style>
-                            <Style Selector="TabItem:pointerover">
-                                <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
-                            </Style>
-                            <Style Selector="TabItem:pointerover /template/ Border#PART_LayoutRoot">
-                                <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
-                            </Style>
-                            <Style Selector="TabItem:selected">
-                                <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
-                                <Setter Property="FontWeight" Value="SemiBold" />
-                            </Style>
-                            <Style Selector="TabItem:selected /template/ Border#PART_LayoutRoot">
-                                <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
-                            </Style>
-                            <!-- Under More: smaller and set in. -->
-                            <Style Selector="TabItem.under">
-                                <Setter Property="FontSize" Value="14" />
-                                <Setter Property="MinHeight" Value="34" />
-                                <Setter Property="Padding" Value="32,0,24,0" />
-                            </Style>
-                        </TabControl.Styles>
-                        <!-- Same order as Pages below (MainTab). Three tiers: daily, sometimes, and the ones set once under More. -->
-                        <!-- Focus mode (a session running): only Today and History, and "Show everything" below. -->
-                        <TabItem AutomationProperties.Name="Today">
-                            <TabItem.Header>
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <mi:MaterialIcon Kind="CalendarToday" Width="20" Height="20" />
-                                    <TextBlock Text="Today" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
-                        <TabItem IsVisible="{Binding !IsFocusMode}" AutomationProperties.Name="Profiles">
-                            <TabItem.Header>
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <mi:MaterialIcon Kind="ShieldOutline" Width="20" Height="20" />
-                                    <TextBlock Text="Profiles" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
-                        <TabItem IsVisible="{Binding !IsFocusMode}" AutomationProperties.Name="Day plan">
-                            <TabItem.Header>
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <mi:MaterialIcon Kind="CalendarClock" Width="20" Height="20" />
-                                    <TextBlock Text="Day plan" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
-                        <TabItem IsVisible="{Binding !IsFocusMode}" AutomationProperties.Name="Calendar">
-                            <TabItem.Header>
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <mi:MaterialIcon Kind="CalendarMonth" Width="20" Height="20" />
-                                    <TextBlock Text="Calendar" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
-                        <TabItem Margin="0,10,0,0" AutomationProperties.Name="History">
-                            <TabItem.Header>
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <mi:MaterialIcon Kind="ChartLine" Width="20" Height="20" />
-                                    <TextBlock Text="History" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
-                        <TabItem IsVisible="{Binding !IsFocusMode}" AutomationProperties.Name="Notebook">
-                            <TabItem.Header>
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <mi:MaterialIcon Kind="NotebookOutline" Width="20" Height="20" />
-                                    <TextBlock Text="Notebook" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
-                        <TabItem IsVisible="{Binding !IsFocusMode}" AutomationProperties.Name="Devices">
-                            <TabItem.Header>
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <mi:MaterialIcon Kind="Devices" Width="20" Height="20" />
-                                    <TextBlock Text="Devices" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
-                        <!-- No page of its own: selecting it unfolds the four under it (the view model puts the selection back). -->
-                        <TabItem Margin="0,10,0,0" IsVisible="{Binding !IsFocusMode}" AutomationProperties.Name="More">
-                            <TabItem.Header>
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <mi:MaterialIcon Kind="DotsHorizontal" Width="20" Height="20" />
-                                    <TextBlock Text="{Binding MoreHeader}" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
-                        <TabItem Classes="under" IsVisible="{Binding ShowsMoreItems}" AutomationProperties.Name="Setup">
-                            <TabItem.Header>
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <mi:MaterialIcon Kind="Wrench" Width="16" Height="16" />
-                                    <TextBlock Text="Setup" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
-                        <TabItem Classes="under" IsVisible="{Binding ShowsMoreItems}" AutomationProperties.Name="Integrations">
-                            <TabItem.Header>
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <mi:MaterialIcon Kind="Puzzle" Width="16" Height="16" />
-                                    <TextBlock Text="Integrations" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
-                        <TabItem Classes="under" IsVisible="{Binding ShowsMoreItems}" AutomationProperties.Name="Settings">
-                            <TabItem.Header>
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <mi:MaterialIcon Kind="Cog" Width="16" Height="16" />
-                                    <TextBlock Text="Settings" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
-                        <TabItem Classes="under" IsVisible="{Binding ShowsMoreItems}" AutomationProperties.Name="About">
-                            <TabItem.Header>
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <mi:MaterialIcon Kind="InformationOutline" Width="16" Height="16" />
-                                    <TextBlock Text="About" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
-                        <TabItem IsVisible="{Binding ShowDevTools}" AutomationProperties.Name="Activity (dev)">
-                            <TabItem.Header>
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <mi:MaterialIcon Kind="Bug" Width="20" Height="20" />
-                                    <TextBlock Text="Activity (dev)" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </TabItem.Header>
-                        </TabItem>
-                    </TabControl>
-                </ScrollViewer>
-            </DockPanel>
-
-            <!-- Right-hand pane: search, banners, today's bar, then the selected page. -->
-            <DockPanel>
-                <!-- Search the page showing (highlighted as you type) or the whole app (Ctrl+F). -->
-                <Border DockPanel.Dock="Top" Padding="12,10,16,0">
-                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                        <!-- Today's sync QR codes for the phone (ADR 22), while the QR code method is on. -->
-                        <Button Classes="quiet" Foreground="{DynamicResource Ab.Muted}" Content="Sync phone" Command="{Binding ShowSyncQrCodesCommand}" IsVisible="{Binding ShowsQrButton}"
-                                ToolTip.Tip="Show today's QR codes for your phone to scan" VerticalAlignment="Center" />
-                        <!-- The guided day plan (Day plan tab only), next to the refresh button; locked like the editor. -->
-                        <Button Classes="quiet" Foreground="{DynamicResource Ab.Muted}" Command="{Binding OpenDpAssistantCommand}" IsVisible="{Binding ShowsDpAssistantButton}" VerticalAlignment="Center"
-                                ToolTip.Tip="Set up your day plan step by step, with sensible defaults">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <mi:MaterialIcon Kind="AutoFix" Width="16" Height="16" />
-                                <TextBlock Text="Setup DP Assistant" />
-                            </StackPanel>
-                        </Button>
-                        <!-- Sync now and reload everything, for a manual check that all is in step. -->
-                        <Button Classes="quiet" Foreground="{DynamicResource Ab.Muted}" Content="⟳" Command="{Binding RefreshNowCommand}" ToolTip.Tip="{Binding RefreshTip}" FontSize="16" Padding="10,2"
-                                VerticalAlignment="Center" AutomationProperties.Name="Refresh and sync now" Classes.busy="{Binding IsRefreshing}">
-                            <Button.Styles>
-                                <Style Selector="Button.busy">
-                                    <Setter Property="Opacity" Value="0.5" />
-                                </Style>
-                            </Button.Styles>
-                        </Button>
-                        <views:SearchBox x:Name="Search" DataContext="{Binding Search}"
-                                         IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).Search, Converter={x:Static ObjectConverters.IsNotNull}}" />
+    <Window.Styles>
+        <!-- The rail's items (design 5x/6d): a Material icon over a label. Muted; the chosen one is Ink and SemiBold on a
+             56 x 32 Surface2 pill; hover is Surface2. Never the accent. -->
+        <Style Selector="controls|RailButton">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Width" Value="76" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <StackPanel Background="Transparent" Spacing="4" HorizontalAlignment="Center">
+                        <Border x:Name="Pill" Width="56" Height="32" CornerRadius="16" Background="Transparent" HorizontalAlignment="Center">
+                            <mi:MaterialIcon Kind="{TemplateBinding Icon}" Width="22" Height="22" Foreground="{TemplateBinding Foreground}"
+                                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="{TemplateBinding Label}" Foreground="{TemplateBinding Foreground}" FontSize="{TemplateBinding FontSize}"
+                                   FontWeight="{TemplateBinding FontWeight}" HorizontalAlignment="Center" />
                     </StackPanel>
-                </Border>
-                <!-- Banners: a soft wash of the Drift / Waiting colour, a bar of it on the left, Ink text. -->
-                <Panel DockPanel.Dock="Top" IsVisible="{Binding HasLoadError}">
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="controls|RailButton:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="controls|RailButton:pointerover /template/ Border#Pill">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="controls|RailButton:selected">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="controls|RailButton:selected /template/ Border#Pill">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="controls|RailButton:focus-visible /template/ Border#Pill">
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
+        </Style>
+        <!-- "N resting": a quiet lock and label, no pill until hovered. -->
+        <Style Selector="controls|RailButton.resting">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="controls|RailButton.resting /template/ Border#Pill">
+            <Setter Property="Height" Value="26" />
+        </Style>
+
+        <!-- The title bar's buttons: quiet, muted icons. -->
+        <Style Selector="Button.titleIcon">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.titleIcon:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <!-- The window's own caption buttons, 46 x 34 (design 5x). Their roles make Windows treat them as the real ones
+             (minimize, maximize with snap layouts, close); a click is the system's, not a command of ours. -->
+        <Style Selector="Button.caption">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="IsTabStop" Value="False" />
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.caption /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.caption:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Button.caption.close:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+        <Style Selector="Button.caption.close:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        </Style>
+        <!-- Busy: the sync icon spins while a sync runs. -->
+        <Style Selector="Button.busy mi|MaterialIcon">
+            <Style.Animations>
+                <Animation Duration="0:0:1.1" IterationCount="Infinite">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="RotateTransform.Angle" Value="0" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="RotateTransform.Angle" Value="360" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+
+        <!-- The sync light (design 20a): green = all in step; lilac = 2+ devices over an hour old; red = this device can't sync. -->
+        <Style Selector="Ellipse.syncDot">
+            <Setter Property="Fill" Value="{DynamicResource Ab.Met}" />
+        </Style>
+        <Style Selector="Ellipse.syncDot.sleep">
+            <Setter Property="Fill" Value="{DynamicResource Ab.Sleep}" />
+        </Style>
+        <Style Selector="Ellipse.syncDot.drift">
+            <Setter Property="Fill" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.deviceGlyph">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.deviceGlyph.dim">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+            <Setter Property="Opacity" Value="0.55" />
+        </Style>
+        <Style Selector="TextBlock.deviceName.dim">
+            <Setter Property="Opacity" Value="0.55" />
+        </Style>
+        <Style Selector="FlyoutPresenter.syncPopover">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.CardRadius}" />
+            <Setter Property="Padding" Value="14" />
+            <Setter Property="MinWidth" Value="280" />
+            <Setter Property="MaxWidth" Value="360" />
+        </Style>
+    </Window.Styles>
+    <Panel>
+        <Grid RowDefinitions="34,Auto,*">
+            <!-- Title bar, 34 tall (design 5x): the app name, the sync light, the sync button and the search magnifier; the
+                 system's own minimize / maximize / close buttons stay at the right (snap layouts and all). The empty part
+                 drags the window and a double click maximizes it. -->
+            <Grid x:Name="TitleBar" Grid.Row="0" Background="{DynamicResource Ab.Bg}" ColumnDefinitions="*,Auto,Auto,Auto,Auto"
+                  chrome:WindowDecorationProperties.ElementRole="TitleBar">
+                <TextBlock Text="AccountabiliBuddy" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center"
+                           Margin="18,0,0,0" IsHitTestVisible="False" />
+                <!-- Only with another device linked: a dot and one glyph per device. Hover or click for each device's last sync. -->
+                <Button x:Name="SyncLightButton" Grid.Column="1" Classes="quiet titleIcon" Padding="10,0" Margin="0,0,2,0"
+                        chrome:WindowDecorationProperties.ElementRole="User"
+                        IsVisible="{Binding SyncLight.IsVisible, FallbackValue=False}" AutomationProperties.Name="Sync status"
+                        ToolTip.Tip="Sync status: hover or click for each device">
+                    <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedRight" ShowMode="Transient" FlyoutPresenterClasses="syncPopover">
+                            <StackPanel x:Name="SyncPopover" Spacing="10" x:DataType="vm:MainWindowViewModel">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Panel Width="7" Height="7" VerticalAlignment="Center">
+                                        <Ellipse Classes="syncDot" Width="7" Height="7" Classes.sleep="{Binding SyncLight.IsSeveralBehind}"
+                                                 Classes.drift="{Binding SyncLight.IsOffline}" IsVisible="{Binding SyncLight.IsDotSolid}" />
+                                        <Ellipse Width="7" Height="7" Stroke="{DynamicResource Ab.Met}" StrokeThickness="1.5" IsVisible="{Binding SyncLight.IsSyncing}" />
+                                    </Panel>
+                                    <TextBlock Classes="muted" FontSize="12" Text="{Binding SyncLight.SummaryText}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ItemsControl ItemsSource="{Binding SyncLight.Devices}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:SyncLightDeviceViewModel">
+                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" Margin="0,5">
+                                                <mi:MaterialIcon Classes="deviceGlyph" Classes.dim="{Binding IsDim}" Kind="{Binding Icon}" Width="18" Height="18" />
+                                                <TextBlock Grid.Column="1" Classes="deviceName" Classes.dim="{Binding IsDim}" Text="{Binding Name}" Foreground="{DynamicResource Ab.Ink}" />
+                                                <TextBlock Grid.Column="2" Classes="muted" FontSize="12" Text="{Binding AgoText}" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <WrapPanel ItemSpacing="4" LineSpacing="2">
+                                    <Button Classes="quiet" Command="{Binding RefreshNowCommand}" Content="Sync now" FontWeight="SemiBold" />
+                                    <Button Classes="quiet" Command="{Binding OpenDevicesAndSyncCommand}" Content="Devices &amp; sync" />
+                                    <Button Classes="quiet" Command="{Binding ShowSyncQrCodesCommand}" IsVisible="{Binding ShowsQrButton}"
+                                            ToolTip.Tip="Show today's QR codes for your phone to scan">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <mi:MaterialIcon Kind="QrcodeScan" Width="16" Height="16" />
+                                            <TextBlock Text="Add a device" />
+                                        </StackPanel>
+                                    </Button>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Flyout>
+                    </Button.Flyout>
+                    <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                        <Panel Width="7" Height="7" VerticalAlignment="Center">
+                            <Ellipse Classes="syncDot" Width="7" Height="7" Classes.sleep="{Binding SyncLight.IsSeveralBehind}"
+                                     Classes.drift="{Binding SyncLight.IsOffline}" IsVisible="{Binding SyncLight.IsDotSolid}" />
+                            <Ellipse Width="7" Height="7" Stroke="{DynamicResource Ab.Met}" StrokeThickness="1.5" IsVisible="{Binding SyncLight.IsSyncing}" />
+                        </Panel>
+                        <ItemsControl ItemsSource="{Binding SyncLight.Devices}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="5" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SyncLightDeviceViewModel">
+                                    <mi:MaterialIcon Classes="deviceGlyph" Classes.dim="{Binding IsDim}" Kind="{Binding Icon}" Width="13" Height="13" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Button>
+                <!-- Sync now and reload everything, for a manual check that all is in step (Ctrl+R). -->
+                <Border Grid.Column="2" Width="1" Height="16" Background="{DynamicResource Ab.Line}" VerticalAlignment="Center"
+                        IsVisible="{Binding SyncLight.IsVisible, FallbackValue=False}" />
+                <Button Grid.Column="2" Classes="quiet titleIcon" Width="44" Command="{Binding RefreshNowCommand}" ToolTip.Tip="{Binding RefreshTip}"
+                        chrome:WindowDecorationProperties.ElementRole="User"
+                        AutomationProperties.Name="Refresh and sync now" Classes.busy="{Binding IsRefreshing}">
+                    <mi:MaterialIcon Kind="Sync" Width="15" Height="15" RenderTransformOrigin="50%,50%">
+                        <mi:MaterialIcon.RenderTransform>
+                            <RotateTransform />
+                        </mi:MaterialIcon.RenderTransform>
+                    </mi:MaterialIcon>
+                </Button>
+                <Button x:Name="SearchButton" Grid.Column="3" Classes="quiet titleIcon" Width="44" Command="{Binding OpenSearchCommand}"
+                        chrome:WindowDecorationProperties.ElementRole="User"
+                        ToolTip.Tip="Search (Ctrl+F)" AutomationProperties.Name="Search">
+                    <mi:MaterialIcon Kind="Magnify" Width="17" Height="17" />
+                </Button>
+                <StackPanel Grid.Column="4" Orientation="Horizontal">
+                    <Button x:Name="MinimizeButton" Classes="caption" chrome:WindowDecorationProperties.ElementRole="MinimizeButton"
+                            AutomationProperties.Name="Minimize">
+                        <mi:MaterialIcon Kind="Minus" Width="16" Height="16" />
+                    </Button>
+                    <Button x:Name="MaximizeButton" Classes="caption" chrome:WindowDecorationProperties.ElementRole="MaximizeButton"
+                            AutomationProperties.Name="Maximize">
+                        <mi:MaterialIcon x:Name="MaximizeIcon" Kind="CropSquare" Width="16" Height="16" />
+                    </Button>
+                    <Button x:Name="CloseButton" Classes="caption close" chrome:WindowDecorationProperties.ElementRole="CloseButton"
+                            AutomationProperties.Name="Close">
+                        <mi:MaterialIcon Kind="Close" Width="16" Height="16" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- Banners: a soft wash of the Drift / Waiting colour, a bar of it on the left, Ink text. Full width under the title bar. -->
+            <StackPanel Grid.Row="1">
+                <Panel IsVisible="{Binding HasLoadError}">
                     <Border Background="{DynamicResource Ab.Drift}" Opacity="0.16" />
                     <Border BorderBrush="{DynamicResource Ab.Drift}" BorderThickness="3,0,0,0" Padding="16,10">
                         <TextBlock Text="{Binding LoadError}" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Ink}" />
                     </Border>
                 </Panel>
-                <Panel DockPanel.Dock="Top" IsVisible="{Binding HasClockNotice}">
+                <Panel IsVisible="{Binding HasClockNotice}">
                     <Border Background="{DynamicResource Ab.Waiting}" Opacity="0.16" />
                     <Border BorderBrush="{DynamicResource Ab.Waiting}" BorderThickness="3,0,0,0" Padding="16,10">
                         <TextBlock Text="{Binding ClockNotice}" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Ink}" />
                     </Border>
                 </Panel>
+            </StackPanel>
 
-                <!-- Today at a glance: the rows chosen in Settings (calendar, plan, focus, blockers) and a live "now" line.
-                     Only on History now: Today carries its own copy under "More today"; the other pages are for doing, not for watching the day. -->
-                <!-- In focus mode (a session running) it slides up out of view, leaving a thin strip with a small handle at its left;
-                     resting the pointer on the handle slides it down over the page, and it slides away again shortly after the pointer leaves (MainWindow.axaml.cs). -->
-                <Panel x:Name="TimelineHost" DockPanel.Dock="Top" IsVisible="{Binding ShowsTimeline}" ZIndex="10">
-                <Panel.Transitions>
-                    <Transitions>
-                        <DoubleTransition Property="Height" Duration="0:0:0.25" />
-                    </Transitions>
-                </Panel.Transitions>
-                <Panel x:Name="TimelineClip" ClipToBounds="True" VerticalAlignment="Top" Background="{DynamicResource Ab.Bg}">
-                <Panel.Transitions>
-                    <Transitions>
-                        <DoubleTransition Property="Height" Duration="0:0:0.25" />
-                    </Transitions>
-                </Panel.Transitions>
-                <Panel x:Name="TimelineBody" VerticalAlignment="Top">
-                <Panel.Transitions>
-                    <Transitions>
-                        <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.25" />
-                    </Transitions>
-                </Panel.Transitions>
-                <Border DataContext="{Binding DayBar}" x:DataType="vm:DayBarViewModel"
-                        IsVisible="{Binding IsVisible, FallbackValue=False}" Padding="12,14,16,4">
-                    <StackPanel Spacing="6">
-                        <!-- The day's numbers are in the legend under the bar. -->
-                        <Grid ColumnDefinitions="Auto,*">
-                            <TextBlock Text="{Binding DateText}" FontWeight="SemiBold" Margin="0,0,10,0" />
-                            <TextBlock Grid.Column="1" Text="{Binding StatusText}" Opacity="0.85" TextTrimming="CharacterEllipsis" />
-                        </Grid>
-                        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsSleep}">
-                            <Ellipse Width="8" Height="8" Fill="{Binding SleepBrush}" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding SleepText}" Opacity="0.85" />
-                        </StackPanel>
-                        <controls:DayBarControl Layout="{Binding Layout}" OpenProfileCommand="{Binding OpenProfileCommand}" OpenDayPlanCommand="{Binding OpenDayPlanCommand}"
-                                                AddSessionCommand="{Binding AddSessionCommand}" />
-                        <!-- Under the bar, lined up with its row labels: planned work by kind in its colours, and the focus so far,
-                             on a faint panel (the negative margin keeps the columns under the row labels). -->
-                        <Border Background="#1F808080" CornerRadius="6" Padding="6,4" Margin="-6,0">
-                            <Border.IsVisible>
-                                <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                                    <Binding Path="ShowsPlanTotals" />
-                                    <Binding Path="ShowsFocusTotal" />
-                                </MultiBinding>
-                            </Border.IsVisible>
-                        <Grid ColumnDefinitions="84,*" RowDefinitions="Auto,Auto">
-                            <TextBlock Text="Plan" FontSize="11" Opacity="0.75" VerticalAlignment="Center" IsVisible="{Binding ShowsPlanTotals}" />
-                            <ItemsControl Grid.Column="1" ItemsSource="{Binding PlanTotals}" IsVisible="{Binding ShowsPlanTotals}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:PlanTotal">
-                                        <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,1,16,1">
-                                            <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" />
-                                            <TextBlock Text="{Binding Text}" FontSize="12" Opacity="0.85" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <TextBlock Grid.Row="1" Text="Focus" FontSize="11" Opacity="0.75" VerticalAlignment="Center" IsVisible="{Binding ShowsFocusTotal}" />
-                            <ItemsControl Grid.Row="1" Grid.Column="1" ItemsSource="{Binding FocusTotals}" IsVisible="{Binding ShowsFocusTotal}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:PlanTotal">
-                                        <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,1,16,1">
-                                            <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" />
-                                            <TextBlock Text="{Binding Text}" FontSize="12" Opacity="0.85" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Grid>
-                        </Border>
+            <Grid Grid.Row="2" ColumnDefinitions="76,*">
+                <!-- The rail, 76 wide: Today, Tasks, Plan, Stats at the top; "N resting" (while a session runs) and Settings at the
+                     bottom. Every item shows in a session too: the locks stay where they were. -->
+                <Grid Background="{DynamicResource Ab.Bg}" RowDefinitions="Auto,*,Auto" Margin="0,10,0,20">
+                    <StackPanel Spacing="14">
+                        <controls:RailButton Label="Today" Icon="CalendarToday" IsSelected="{Binding IsTodaySelected}" AutomationProperties.Name="Today"
+                                             Command="{Binding SelectTabCommand}" CommandParameter="{x:Static vm:MainTab.Today}" />
+                        <controls:RailButton Label="Tasks" Icon="FormatListChecks" IsSelected="{Binding IsTasksSelected}" AutomationProperties.Name="Tasks"
+                                             Command="{Binding SelectTabCommand}" CommandParameter="{x:Static vm:MainTab.Tasks}" />
+                        <controls:RailButton Label="Plan" Icon="ViewAgendaOutline" IsSelected="{Binding IsPlanSelected}" AutomationProperties.Name="Plan"
+                                             Command="{Binding SelectTabCommand}" CommandParameter="{x:Static vm:MainTab.Plan}" />
+                        <controls:RailButton Label="Stats" Icon="ChartTimelineVariant" IsSelected="{Binding IsStatsSelected}" AutomationProperties.Name="Stats"
+                                             Command="{Binding SelectTabCommand}" CommandParameter="{x:Static vm:MainTab.Stats}" />
                     </StackPanel>
-                </Border>
-                </Panel>
-                </Panel>
-                <!-- Only while the timeline is slid away: the small tab that opens it after the pointer rests on it a moment. -->
-                <Border x:Name="TimelineHandle" IsVisible="False" HorizontalAlignment="Left" VerticalAlignment="Top"
-                        Width="140" Height="10" Background="Transparent" Opacity="0.35">
-                    <Border HorizontalAlignment="Center" VerticalAlignment="Top" Width="44" Height="10" CornerRadius="0,0,6,6"
-                            Background="#33808080">
-                        <mi:MaterialIcon Kind="Timeline" Width="9" Height="9" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
-                </Border>
-                </Panel>
-
-                <Grid Margin="12,8,8,8">
-                <Panel x:Name="Pages">
-                    <views:TodayView DataContext="{Binding Session}" />
-                    <views:ProfilesView DataContext="{Binding Profiles}" IsVisible="False" />
-                    <views:DayPlanView DataContext="{Binding DayPlan}" IsVisible="False" />
-                    <views:ExceptionsView DataContext="{Binding Exceptions}" IsVisible="False" />
-                    <views:HistoryView DataContext="{Binding History}" IsVisible="False" />
-                    <views:NotebookView DataContext="{Binding Notebook}" IsVisible="False" />
-                    <views:DevicesView DataContext="{Binding Devices}" IsVisible="False" />
-                    <!-- "More" has no page; this keeps the pages lined up with the tabs. -->
-                    <Panel IsVisible="False" />
-                    <views:SetupView DataContext="{Binding Setup}" IsVisible="False" />
-                    <views:IntegrationsView DataContext="{Binding Integrations}" IsVisible="False" />
-                    <views:SettingsView DataContext="{Binding Settings}" IsVisible="False" />
-                    <views:AboutView DataContext="{Binding Settings.Updates}" IsVisible="False" />
-                    <views:ActivityView DataContext="{Binding Activity}" IsVisible="False" />
-                </Panel>
-                <!-- Search matches on the page showing, drawn over it without taking clicks. -->
-                <controls:SearchHighlightLayer x:Name="Highlights" />
+                    <StackPanel Grid.Row="2" Spacing="14" VerticalAlignment="Bottom">
+                        <controls:RailButton Classes="resting" Label="{Binding RestingText}" Icon="LockOutline" IsVisible="{Binding ShowsResting}"
+                                             AutomationProperties.Name="Resting while you focus" Command="{Binding OpenGuardsCommand}"
+                                             ToolTip.Tip="Guards that are view-only while you focus; open them" />
+                        <controls:RailButton Label="Activity" Icon="Bug" IsSelected="{Binding IsActivitySelected}" AutomationProperties.Name="Activity (dev)"
+                                             IsVisible="{Binding ShowDevTools}" Command="{Binding SelectTabCommand}" CommandParameter="{x:Static vm:MainTab.Activity}" />
+                        <controls:RailButton Label="Settings" Icon="Cog" IsSelected="{Binding IsSettingsSelected}" AutomationProperties.Name="Settings"
+                                             Command="{Binding SelectTabCommand}" CommandParameter="{x:Static vm:MainTab.Settings}" />
+                    </StackPanel>
                 </Grid>
-            </DockPanel>
-        </DockPanel>
+
+                <DockPanel Grid.Column="1">
+                    <!-- The day bar's strip, on Stats (Today carries its own copy under "More today"). -->
+                    <Border x:Name="TimelineHost" DockPanel.Dock="Top" IsVisible="{Binding ShowsTimeline}" Background="{DynamicResource Ab.Bg}" Margin="0,0,20,0">
+                        <Border DataContext="{Binding DayBar}" x:DataType="vm:DayBarViewModel"
+                                IsVisible="{Binding IsVisible, FallbackValue=False}" Padding="12,14,16,4">
+                            <StackPanel Spacing="6">
+                                <!-- The day's numbers are in the legend under the bar. -->
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <TextBlock Text="{Binding DateText}" FontWeight="SemiBold" Margin="0,0,10,0" />
+                                    <TextBlock Grid.Column="1" Text="{Binding StatusText}" Opacity="0.85" TextTrimming="CharacterEllipsis" />
+                                </Grid>
+                                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsSleep}">
+                                    <Ellipse Width="8" Height="8" Fill="{Binding SleepBrush}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding SleepText}" Opacity="0.85" />
+                                </StackPanel>
+                                <controls:DayBarControl Layout="{Binding Layout}" OpenProfileCommand="{Binding OpenProfileCommand}" OpenDayPlanCommand="{Binding OpenDayPlanCommand}"
+                                                        AddSessionCommand="{Binding AddSessionCommand}" />
+                                <!-- Under the bar, lined up with its row labels: planned work by kind in its colours, and the focus so far,
+                                     on a faint panel (the negative margin keeps the columns under the row labels). -->
+                                <Border Background="{DynamicResource Ab.Surface2}" CornerRadius="6" Padding="6,4" Margin="-6,0">
+                                    <Border.IsVisible>
+                                        <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                                            <Binding Path="ShowsPlanTotals" />
+                                            <Binding Path="ShowsFocusTotal" />
+                                        </MultiBinding>
+                                    </Border.IsVisible>
+                                <Grid ColumnDefinitions="84,*" RowDefinitions="Auto,Auto">
+                                    <TextBlock Text="Plan" FontSize="11" Opacity="0.75" VerticalAlignment="Center" IsVisible="{Binding ShowsPlanTotals}" />
+                                    <ItemsControl Grid.Column="1" ItemsSource="{Binding PlanTotals}" IsVisible="{Binding ShowsPlanTotals}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:PlanTotal">
+                                                <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,1,16,1">
+                                                    <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Text}" FontSize="12" Opacity="0.85" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Grid.Row="1" Text="Focus" FontSize="11" Opacity="0.75" VerticalAlignment="Center" IsVisible="{Binding ShowsFocusTotal}" />
+                                    <ItemsControl Grid.Row="1" Grid.Column="1" ItemsSource="{Binding FocusTotals}" IsVisible="{Binding ShowsFocusTotal}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:PlanTotal">
+                                                <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,1,16,1">
+                                                    <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Text}" FontSize="12" Opacity="0.85" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Grid>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </Border>
+
+                    <!-- The pages sit side by side; switching only shows or hides them. A TabControl takes a page out of the window
+                         and puts it back on every switch, which rebuilds every control on it (hundreds of ms on Profiles or Settings);
+                         a hidden page costs nothing. Same order as MainTab. -->
+                    <Grid Margin="0,10,20,20">
+                        <Panel x:Name="Pages">
+                            <views:TodayView DataContext="{Binding Session}" />
+                            <views:TasksView DataContext="{Binding Notebook}" IsVisible="False" />
+                            <views:PlanView IsVisible="False" />
+                            <views:StatsView DataContext="{Binding History}" IsVisible="False" />
+                            <views:SettingsShellView IsVisible="False" />
+                            <views:ActivityView DataContext="{Binding Activity}" IsVisible="False" />
+                        </Panel>
+                        <!-- Search matches on the page showing, drawn over it without taking clicks. -->
+                        <controls:SearchHighlightLayer x:Name="Highlights" />
+                    </Grid>
+                </DockPanel>
+            </Grid>
+        </Grid>
+
+        <!-- Search: opened by Ctrl+F or the title bar's magnifier, under the title bar and over the page; Esc closes it. -->
+        <Border x:Name="SearchFlyout" IsVisible="{Binding IsSearchOpen}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,38,20,0"
+                Padding="10" CornerRadius="{DynamicResource Ab.CardRadius}" Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" ZIndex="20">
+            <views:SearchBox x:Name="Search" DataContext="{Binding Search}" />
+        </Border>
 
         <!-- Leaving Settings (or closing the window) with unsaved changes. -->
-        <Border IsVisible="{Binding ShowsLeavePrompt}" Background="#99000000">
+        <Border IsVisible="{Binding ShowsLeavePrompt}" Background="#99000000" ZIndex="30">
             <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="440" Padding="20,16"
                     CornerRadius="{DynamicResource Ab.CardRadius}" Background="{DynamicResource Ab.Surface}"
                     BorderBrush="{DynamicResource Ab.Line}" BorderThickness="{DynamicResource Ab.CardBorderThickness}">

@@ -143,7 +143,7 @@ public sealed class UpdateService : IDisposable
             _notifiedVersion = AvailableVersion;
             _notify(
                 "Update ready",
-                $"AccountabiliBuddy {AvailableVersion} is ready. Install it from Settings → Updates. "
+                $"AccountabiliBuddy {AvailableVersion} is ready. Install it from Settings › About. "
                 + "You can also turn on automatic updates there.");
         }
     }

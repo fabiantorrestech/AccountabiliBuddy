@@ -5,7 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace AccountabiliBuddy.App.ViewModels;
 
-/// <summary>Root of the main window: one view model per tab, the day bar, and banners for load errors and a changed clock.</summary>
+/// <summary>Root of the main window: one view model per page, the title bar's sync light, the day bar, and banners for load errors and a changed clock.</summary>
 public sealed partial class MainWindowViewModel : ObservableObject
 {
     public MainWindowViewModel(
@@ -32,7 +32,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Activity = activity;
         ShowDevTools = showDevTools;
         LoadError = loadError;
-        session.OpenProfilesRequested += (_, _) => SelectedTab = ProfilesTab;
+        session.OpenProfilesRequested += (_, _) => OpenSettings(SettingsSection.Guards);
         session.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(SessionViewModel.IsSessionActive))
@@ -40,7 +40,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 OnSessionActiveChanged(session.IsSessionActive);
             }
         };
-        // The Setup DP Assistant is locked with the editor: its button follows the Day plan tab's lock.
+        // The Setup DP Assistant is locked with the editor: its button follows the Day plan's lock.
         dayPlan.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(DayPlanViewModel.IsLocked))
@@ -48,123 +48,134 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 OpenDpAssistantCommand.NotifyCanExecuteChanged();
             }
         };
+        // "N resting": the guard areas that are view-only right now.
+        profiles.PropertyChanged += OnGuardLockChanged;
+        dayPlan.PropertyChanged += OnGuardLockChanged;
+        setup.PropertyChanged += OnGuardLockChanged;
+        settings.PropertyChanged += OnGuardLockChanged;
         _sessionActive = session.IsSessionActive;
         RefreshFocusMode();
     }
 
     private bool _sessionActive;
 
-    /// <summary>Focus mode: only Today and History in the sidebar while a session runs.</summary>
+    /// <summary>
+    /// A focus session is running. Every lock stays where it was (Profiles and Day plan carry their own banners, Settings'
+    /// guard parts are view-only); nothing is hidden from the rail any more.
+    /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsMoreItems), nameof(FocusToggleText))]
     public partial bool IsFocusMode { get; set; }
 
-    /// <summary>"Show everything" was chosen for this session: the whole sidebar is back until it ends.</summary>
+    /// <summary>True while a session runs: the rail then shows how many guard areas are resting.</summary>
     [ObservableProperty]
-    public partial bool ShowEverything { get; set; }
-
-    /// <summary>The four under More, when it's unfolded and not in focus mode.</summary>
-    public bool ShowsMoreItems => IsMoreOpen && !IsFocusMode;
-
-    [RelayCommand]
-    private void ShowEverythingNow()
-    {
-        ShowEverything = true;
-        RefreshFocusMode();
-    }
-
-    /// <summary>During a session: "Show everything" brings the other tabs back, "Hide everything" returns to focus mode.</summary>
-    [RelayCommand]
-    private void ToggleEverything()
-    {
-        ShowEverything = !ShowEverything;
-        RefreshFocusMode();
-    }
-
-    /// <summary>The toggle shows only while a session runs.</summary>
-    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsResting))]
     public partial bool IsSessionRunning { get; set; }
-
-    public string FocusToggleText => IsFocusMode ? "Show everything" : "Hide everything";
 
     private void OnSessionActiveChanged(bool active)
     {
         _sessionActive = active;
-        if (!active)
-        {
-            ShowEverything = false; // Each session starts in focus mode.
-        }
-
         RefreshFocusMode();
     }
 
     private void RefreshFocusMode()
     {
         IsSessionRunning = _sessionActive;
-        IsFocusMode = MainTabs.IsFocusMode(_sessionActive, ShowEverything);
-        if (IsFocusMode && !MainTabs.ShowsTimeline((MainTab)SelectedTab))
+        IsFocusMode = _sessionActive;
+        OnPropertyChanged(nameof(RestingCount));
+        OnPropertyChanged(nameof(RestingText));
+        OnPropertyChanged(nameof(ShowsResting));
+    }
+
+    private void OnGuardLockChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ProfilesViewModel.IsLocked))
         {
-            // A tab the rail no longer shows: land on Today.
-            SelectedTab = (int)MainTab.Today;
+            OnPropertyChanged(nameof(RestingCount));
+            OnPropertyChanged(nameof(RestingText));
+            OnPropertyChanged(nameof(ShowsResting));
         }
     }
 
-    partial void OnIsMoreOpenChanged(bool value)
-    {
-        OnPropertyChanged(nameof(ShowsMoreItems));
-    }
+    /// <summary>How many guard areas are locked now: Profiles, Day plan, Setup's revokes and the guard settings.</summary>
+    public int RestingCount => new[] { Profiles.IsLocked, DayPlan.IsLocked, Setup.IsLocked, Settings.IsLocked }.Count(locked => locked);
 
-    private const int ProfilesTab = (int)MainTab.Profiles;
-    public const int DayPlanTab = (int)MainTab.DayPlan;
-    public const int HistoryTab = (int)MainTab.History;
+    public string RestingText => $"{RestingCount} resting";
+
+    /// <summary>The rail's "N resting" shows only while a session runs and something is locked.</summary>
+    public bool ShowsResting => IsSessionRunning && RestingCount > 0;
+
+    public const int TodayTab = (int)MainTab.Today;
+    public const int PlanTab = (int)MainTab.Plan;
+    public const int StatsTab = (int)MainTab.Stats;
     public const int SettingsTab = (int)MainTab.Settings;
-    private const int MoreTab = (int)MainTab.More;
 
-    /// <summary>"More" in the sidebar is unfolded: Setup, Integrations, Settings and About show under it.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(MoreHeader))]
-    public partial bool IsMoreOpen { get; set; }
-
-    public string MoreHeader => IsMoreOpen ? "More  ▾" : "More  ▸";
-
-    /// <summary>The day bar shows above the page only on History (Today has its own under "More today").</summary>
+    /// <summary>The day bar shows above the page only on Stats (Today has its own under "More today").</summary>
     [ObservableProperty]
     public partial bool ShowsTimeline { get; set; } = MainTabs.ShowsTimelineStrip(MainTab.Today);
 
     partial void OnSelectedTabChanged(int oldValue, int newValue)
     {
-        if (newValue == MoreTab)
-        {
-            // "More" has no page: each click folds or unfolds it, and the page stays where it was (also one of its own,
-            // whose tab hides while folded).
-            IsMoreOpen = !IsMoreOpen;
-            // Posted, not set here: resetting inside the change callback left the TabControl on "More", so the next click
-            // on it raised no change and "More" only worked every other time.
-            int back = oldValue == MoreTab ? (int)MainTab.Today : oldValue;
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (SelectedTab == MoreTab)
-                {
-                    SelectedTab = back;
-                }
-            });
-            return;
-        }
-
-        if (MainTabs.IsUnderMore((MainTab)newValue))
-        {
-            IsMoreOpen = true;
-        }
-
-        // Focus mode: opening a page the rail hides (a search result, a profile link) shows everything for this session,
-        // so its tab is there to see.
-        if (IsFocusMode && !MainTabs.ShowsTimeline((MainTab)newValue))
-        {
-            ShowEverything = true;
-            IsFocusMode = false;
-        }
-
         ShowsTimeline = MainTabs.ShowsTimelineStrip((MainTab)newValue);
+        OnPropertyChanged(nameof(IsTodaySelected));
+        OnPropertyChanged(nameof(IsTasksSelected));
+        OnPropertyChanged(nameof(IsPlanSelected));
+        OnPropertyChanged(nameof(IsStatsSelected));
+        OnPropertyChanged(nameof(IsSettingsSelected));
+        OnPropertyChanged(nameof(IsActivitySelected));
+    }
+
+    public bool IsTodaySelected => SelectedTab == (int)MainTab.Today;
+
+    public bool IsTasksSelected => SelectedTab == (int)MainTab.Tasks;
+
+    public bool IsPlanSelected => SelectedTab == (int)MainTab.Plan;
+
+    public bool IsStatsSelected => SelectedTab == (int)MainTab.Stats;
+
+    public bool IsSettingsSelected => SelectedTab == (int)MainTab.Settings;
+
+    public bool IsActivitySelected => SelectedTab == (int)MainTab.Activity;
+
+    /// <summary>A rail item was clicked.</summary>
+    [RelayCommand]
+    private void SelectTab(MainTab tab)
+    {
+        SelectedTab = (int)tab;
+    }
+
+    /// <summary>Settings, on the given row (the Guards row from "N resting", Devices &amp; sync from the sync light).</summary>
+    public void OpenSettings(SettingsSection section)
+    {
+        SelectedTab = SettingsTab;
+        Settings.SelectedRowIndex = (int)section;
+    }
+
+    [RelayCommand]
+    private void OpenGuards()
+    {
+        OpenSettings(SettingsSection.Guards);
+    }
+
+    [RelayCommand]
+    private void OpenDevicesAndSync()
+    {
+        OpenSettings(SettingsSection.DevicesAndSync);
+    }
+
+    /// <summary>The search flyout under the title bar is open (Ctrl+F or the magnifier); Esc closes it.</summary>
+    [ObservableProperty]
+    public partial bool IsSearchOpen { get; set; }
+
+    [RelayCommand]
+    private void OpenSearch()
+    {
+        IsSearchOpen = true;
+    }
+
+    [RelayCommand]
+    private void CloseSearch()
+    {
+        IsSearchOpen = false;
     }
 
     // Where the user was going when Settings had unsaved changes: a tab, or null = hiding the window.
@@ -234,13 +245,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _leaveTarget = null;
     }
 
-    /// <summary>Index of the tab shown, in sidebar order (<see cref="MainTab"/>).</summary>
+    /// <summary>Index of the page shown, in rail order (<see cref="MainTab"/>).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsDpAssistantButton))]
     public partial int SelectedTab { get; set; }
-
-    /// <summary>The "Setup DP Assistant" button next to the refresh button: on the Day plan tab only.</summary>
-    public bool ShowsDpAssistantButton => SelectedTab == DayPlanTab;
 
     /// <summary>Opens the Setup DP Assistant; set by the app.</summary>
     public Action? ShowDpAssistant { get; set; }
@@ -264,7 +271,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public HistoryViewModel History { get; }
 
-    /// <summary>The Notebook tab; set by the app.</summary>
+    /// <summary>The Notebook, shown on the Tasks page; set by the app.</summary>
     public NotebookViewModel? Notebook { get; init; }
 
     /// <summary>
@@ -276,6 +283,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RefreshNowCommand))]
     public partial bool IsRefreshing { get; set; }
+
+    partial void OnIsRefreshingChanged(bool value)
+    {
+        if (SyncLight is not null)
+        {
+            SyncLight.IsSyncing = value;
+        }
+    }
 
     /// <summary>The refresh button's tip: what it does, then the last result.</summary>
     [ObservableProperty]
@@ -312,21 +327,31 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public SettingsViewModel Settings { get; }
 
-    /// <summary>The noise player at the bottom of the sidebar.</summary>
-    public NoisePlayerViewModel? NoisePlayer { get; set; }
-
     public ActivityDebugViewModel Activity { get; }
 
-    /// <summary>The search box in the top right; null hides it.</summary>
+    /// <summary>The search box in the flyout under the title bar; null hides it.</summary>
     public SearchViewModel? Search { get; init; }
 
-    /// <summary>The Devices tab (ADR 22): this PC and the user's other devices.</summary>
-    public DevicesViewModel? Devices { get; init; }
+    private readonly DevicesViewModel? _devices;
+
+    /// <summary>The Devices &amp; sync page (ADR 22): this PC and the user's other devices.</summary>
+    public DevicesViewModel? Devices
+    {
+        get => _devices;
+        init
+        {
+            _devices = value;
+            SyncLight = value is null ? null : new SyncLightViewModel(value);
+        }
+    }
+
+    /// <summary>The title bar's sync light, read from the Devices page; null when there is no Devices page.</summary>
+    public SyncLightViewModel? SyncLight { get; private set; }
 
     /// <summary>Opens today's sync QR codes (ADR 22); set by the app.</summary>
     public Action? ShowSyncQr { get; set; }
 
-    /// <summary>The QR button next to the search box: while the QR code method is on.</summary>
+    /// <summary>The sync light popover's "Add a device" (QR) entry: while the QR code method is on.</summary>
     [ObservableProperty]
     public partial bool ShowsQrButton { get; set; }
 
@@ -338,7 +363,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private readonly DayBarViewModel? _dayBar;
 
-    /// <summary>Today at a glance, above the tabs. Clicking a session opens its profile; a plan part, the Day plan tab.</summary>
+    /// <summary>Today at a glance, above the Stats page. Clicking a session opens its profile; a plan part, the Plan page.</summary>
     public DayBarViewModel? DayBar
     {
         get => _dayBar;
@@ -349,21 +374,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
             {
                 value.ProfileRequested += (_, profileId) =>
                 {
-                    SelectedTab = ProfilesTab;
+                    OpenSettings(SettingsSection.Guards);
                     Profiles.Select(profileId);
                 };
-                value.DayPlanRequested += (_, _) => SelectedTab = DayPlanTab;
-                // Empty Focus-row time clicked: add a past session there, in History (ADR 20).
+                value.DayPlanRequested += (_, _) => SelectedTab = PlanTab;
+                // Empty Focus-row time clicked: add a past session there, in History on the Stats page (ADR 20).
                 value.AddSessionRequested += (_, at) =>
                 {
-                    SelectedTab = HistoryTab;
+                    SelectedTab = StatsTab;
                     _ = History.OpenAddFormAtAsync(at);
                 };
             }
         }
     }
 
-    /// <summary>Shows the Activity (dev) tab. Off unless ACCOUNTABILIBUDDY_DEV_TOOLS=1.</summary>
+    /// <summary>Shows the Activity (dev) page. Off unless ACCOUNTABILIBUDDY_DEV_TOOLS=1.</summary>
     public bool ShowDevTools { get; }
 
     public string? LoadError { get; }

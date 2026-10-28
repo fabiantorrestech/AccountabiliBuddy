@@ -511,6 +511,11 @@
                     <views:TimersCardView DataContext="{Binding Timers}" />
                 </Panel>
 
+                <!-- The noise player (it left the rail), when a sound is set up. -->
+                <Panel IsVisible="{Binding NoisePlayer, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <views:NoisePlayerView DataContext="{Binding NoisePlayer}" />
+                </Panel>
+
                 <!-- Come back to: parked ideas until ticked (idle and in Focus mode). Ctrl+Alt+N adds one from anywhere. -->
                 <Border Classes="card" DataContext="{Binding Comebacks}" x:DataType="vm:ComebacksViewModel"
                         IsVisible="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).Comebacks, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">

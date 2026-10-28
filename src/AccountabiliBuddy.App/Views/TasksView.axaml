@@ -1,0 +1,15 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             x:Class="AccountabiliBuddy.App.Views.TasksView"
+             x:DataType="vm:NotebookViewModel">
+    <!-- The Tasks page: a title, then the Notebook (come-backs, notes, unfinished and done tasks), unchanged until the page is
+         rebuilt (design 5x). -->
+    <Border Classes="card" Padding="0" ClipToBounds="True">
+        <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Classes="display" Text="Tasks" FontSize="34" Margin="36,30,28,4" />
+            <views:NotebookView />
+        </DockPanel>
+    </Border>
+</UserControl>

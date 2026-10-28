@@ -4,8 +4,8 @@ using AccountabiliBuddy.Core.Storage;
 namespace AccountabiliBuddy.App.Services.Search;
 
 /// <summary>
-/// The user's own things as search entries: profiles and their rules, the day plan (categories, parts, one-off days),
-/// calendar events and the apps and sites in History. Built from what the app holds when searching, so it's never stale.
+/// The user's own things as search entries: profiles and their rules (Settings > Guards), the day plan (categories,
+/// parts, one-off days) and calendar events (Plan), and the apps and sites in History (Stats). Built from what the app holds when searching, so it's never stale.
 /// </summary>
 public static class DataSearchSource
 {
@@ -44,37 +44,37 @@ public static class DataSearchSource
     {
         foreach (FocusProfile profile in profiles)
         {
-            var target = new SearchTarget(SearchTabs.Profiles, ProfileId: profile.Id);
-            entries.Add(new SearchEntry(profile.Name, "Profiles", SearchKinds.Profiles, target));
+            var target = new SearchTarget(SearchTabs.Settings, SettingsGroup: SearchTabs.GuardsRow, ProfileId: profile.Id);
+            entries.Add(new SearchEntry(profile.Name, "Settings › Guards › Profiles", SearchKinds.Profiles, target));
             foreach (Rule rule in profile.Rules)
             {
                 string verdict = rule.Verdict == RuleVerdict.Block ? "block" : "allow";
-                entries.Add(new SearchEntry($"{rule.Pattern} ({verdict} {TargetName(rule.Target)})", $"Profiles › {profile.Name}", SearchKinds.Profiles, target));
+                entries.Add(new SearchEntry($"{rule.Pattern} ({verdict} {TargetName(rule.Target)})", $"Settings › Guards › {profile.Name}", SearchKinds.Profiles, target));
             }
         }
     }
 
     private static void AddDayPlan(List<SearchEntry> entries, DayPlan plan)
     {
-        var planTab = new SearchTarget(SearchTabs.DayPlan);
+        var planTab = new SearchTarget(SearchTabs.Plan);
         foreach (DayCategory category in plan.Categories)
         {
-            entries.Add(new SearchEntry($"{category.Name} ({category.Behavior})", "Day plan › Categories", SearchKinds.Plan, planTab));
+            entries.Add(new SearchEntry($"{category.Name} ({category.Behavior})", "Plan › Categories", SearchKinds.Plan, planTab));
         }
 
         for (int index = 0; index < plan.Templates.Count; index++)
         {
             PlanTemplate template = plan.Templates[index];
-            entries.Add(new SearchEntry(template.Name, "Day plan › Day types", SearchKinds.Plan, planTab with { PlanTemplate = index }));
-            AddTemplate(entries, plan, template.Template, $"Day plan › {template.Name}", planTab with { PlanTemplate = index });
+            entries.Add(new SearchEntry(template.Name, "Plan › Day types", SearchKinds.Plan, planTab with { PlanTemplate = index }));
+            AddTemplate(entries, plan, template.Template, $"Plan › {template.Name}", planTab with { PlanTemplate = index });
         }
 
         foreach (OneOffDay day in plan.OneOffDays)
         {
             string date = day.Date.ToString("ddd M/d/yyyy");
-            var target = new SearchTarget(SearchTabs.Calendar, Date: day.Date);
-            entries.Add(new SearchEntry(day.Note is null ? $"One-off day {date}" : $"{day.Note} · one-off day {date}", "Calendar › One-off days", SearchKinds.Plan, target));
-            AddTemplate(entries, plan, day.Template, $"Calendar › {date}", target);
+            var target = new SearchTarget(SearchTabs.Plan, Date: day.Date);
+            entries.Add(new SearchEntry(day.Note is null ? $"One-off day {date}" : $"{day.Note} · one-off day {date}", "Plan › Calendar › One-off days", SearchKinds.Plan, target));
+            AddTemplate(entries, plan, day.Template, $"Plan › Calendar › {date}", target);
         }
     }
 
@@ -100,14 +100,14 @@ public static class DataSearchSource
         {
             DateOnly date = DateOnly.FromDateTime(calendarEvent.LocalStart);
             string when = calendarEvent.IsAllDay ? date.ToString("ddd M/d") : $"{date:ddd M/d}, {calendarEvent.LocalStart:t}";
-            entries.Add(new SearchEntry($"{calendarEvent.Title} · {when}", "Calendar › Events", SearchKinds.Calendar,
-                new SearchTarget(SearchTabs.Calendar, Date: date)));
+            entries.Add(new SearchEntry($"{calendarEvent.Title} · {when}", "Plan › Calendar › Events", SearchKinds.Calendar,
+                new SearchTarget(SearchTabs.Plan, Date: date)));
         }
     }
 
     private static void AddHistory(List<SearchEntry> entries, IReadOnlyList<AppSiteUsage> usage, IReadOnlyDictionary<string, string>? shownNames)
     {
-        var target = new SearchTarget(SearchTabs.History);
+        var target = new SearchTarget(SearchTabs.Stats);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (AppSiteUsage item in usage)
         {
@@ -119,7 +119,7 @@ public static class DataSearchSource
 
             string key = item.Site ?? item.App;
             string text = shownNames is not null && shownNames.TryGetValue(key, out string? shown) && shown != key ? $"{shown} ({name})" : name;
-            entries.Add(new SearchEntry(text, "History › Most used", SearchKinds.History, target));
+            entries.Add(new SearchEntry(text, "Stats › History › Most used", SearchKinds.History, target));
         }
     }
 

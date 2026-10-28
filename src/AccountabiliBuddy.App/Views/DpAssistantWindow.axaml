@@ -258,7 +258,7 @@
                             </ItemsControl>
                         </StackPanel>
                     </ScrollViewer>
-                    <TextBlock Classes="muted" Text="Week 1 follows the days you ticked on the first step. Work time and lunch are set on the Workday type; other day types keep their own times (edit them in the Day plan tab)." />
+                    <TextBlock Classes="muted" Text="Week 1 follows the days you ticked on the first step. Work time and lunch are set on the Workday type; other day types keep their own times (edit them in Plan)." />
                 </StackPanel>
 
                 <!-- 7. Review: how the buddy behaves through each kind of day, then Save or Back -->
@@ -303,7 +303,7 @@
                         <TextBlock Text="All set" Classes="title" VerticalAlignment="Center" />
                     </StackPanel>
                     <TextBlock Classes="body" Text="{Binding SavedText}" />
-                    <TextBlock Classes="muted" Text="Run this again any time from the Day plan tab: Setup DP Assistant." />
+                    <TextBlock Classes="muted" Text="Run this again any time from Plan (or Settings › Setup): Setup DP Assistant." />
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>

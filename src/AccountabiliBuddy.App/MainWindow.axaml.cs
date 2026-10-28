@@ -1,15 +1,15 @@
 using AccountabiliBuddy.App.Controls;
 using AccountabiliBuddy.App.Services.Search;
 using AccountabiliBuddy.App.ViewModels;
+using AccountabiliBuddy.App.Views;
 using Avalonia;
-using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
-using Avalonia.Media.Transformation;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace AccountabiliBuddy.App;
 
@@ -22,25 +22,17 @@ public partial class MainWindow : Window
     private static readonly TimeSpan FlashTime = TimeSpan.FromMilliseconds(1400);
     private static readonly IBrush FoundBrush = new SolidColorBrush(Color.FromRgb(250, 204, 21));
 
+    // The pointer rests on the sync light this long before its popover opens (a click opens it at once).
+    private static readonly TimeSpan SyncHoverDelay = TimeSpan.FromMilliseconds(350);
+
+    // The pages the search reads, by MainTab (the dev Activity page is left out).
+    private static readonly string[] SearchedPageNames = ["Today", "Tasks", "Plan", "Stats", "Settings"];
+
+    private readonly DispatcherTimer _syncHoverTimer = new() { Interval = SyncHoverDelay };
+
     private bool _warmedUp;
 
     private int _shownTab;
-
-    // The timeline's slide in a session: the strip left at the top, the slide time and the wait before it slides away.
-    private const double TimelineStripHeight = 10;
-    private static readonly TimeSpan TimelineSlideTime = TimeSpan.FromMilliseconds(250);
-    private static readonly TimeSpan TimelineHideDelay = TimeSpan.FromMilliseconds(400);
-
-    // The pointer must rest on the handle this long before the timeline opens, so passing over it (on the way to the title bar) does nothing.
-    private static readonly TimeSpan TimelineOpenDelay = TimeSpan.FromMilliseconds(250);
-
-    private readonly DispatcherTimer _timelineHideTimer = new() { Interval = TimelineHideDelay };
-    private readonly DispatcherTimer _timelineOpenTimer = new() { Interval = TimelineOpenDelay };
-    private bool _timelineCollapsed;
-    private bool _timelineFocusMode;
-    private bool _timelineHovered;
-    private double _timelineHeight;
-    private int _timelineGeneration;
 
     /// <summary>Files dropped on the window (sync files or pictures of sync codes, ADR 22), by their local paths.</summary>
     public event EventHandler<IReadOnlyList<string>>? FilesDropped;
@@ -49,46 +41,32 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         AddHandler(DragDrop.DropEvent, OnDrop);
-        TimelineHandle.PointerEntered += (_, _) =>
+        // A click away from the search flyout closes it, unless it holds a search (its highlights are then still showing).
+        AddHandler(PointerPressedEvent, OnWindowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        // The maximize button shows "restore" while the window is maximized.
+        PropertyChanged += (_, e) =>
         {
-            if (_timelineCollapsed)
+            if (e.Property == WindowStateProperty)
             {
-                _timelineHideTimer.Stop();
-                _timelineOpenTimer.Start();
-                TimelineHandle.Opacity = 0.9;
+                MaximizeIcon.Kind = WindowState == WindowState.Maximized ? Material.Icons.MaterialIconKind.WindowRestore : Material.Icons.MaterialIconKind.CropSquare;
             }
         };
-        TimelineHandle.PointerExited += (_, _) =>
+        SyncLightButton.PointerEntered += (_, _) => _syncHoverTimer.Start();
+        SyncLightButton.PointerExited += (_, _) => _syncHoverTimer.Stop();
+        _syncHoverTimer.Tick += (_, _) =>
         {
-            _timelineOpenTimer.Stop();
-            TimelineHandle.Opacity = 0.35;
-        };
-        _timelineOpenTimer.Tick += (_, _) =>
-        {
-            _timelineOpenTimer.Stop();
-            SetTimelineHovered(true);
-        };
-        // Entering the timeline body once it is open keeps it open; opening itself only happens from the handle.
-        TimelineHost.PointerEntered += (_, _) => _timelineHideTimer.Stop();
-        TimelineHost.PointerExited += (_, _) =>
-        {
-            _timelineOpenTimer.Stop();
-            if (_timelineCollapsed)
+            _syncHoverTimer.Stop();
+            if (SyncLightButton.Flyout is { IsOpen: false } popover)
             {
-                _timelineHideTimer.Start();
+                popover.ShowAt(SyncLightButton);
             }
         };
-        TimelineBody.PropertyChanged += (_, e) =>
+        Search.CloseRequested += (_, _) =>
         {
-            if (e.Property == BoundsProperty)
+            if (DataContext is MainWindowViewModel viewModel)
             {
-                OnTimelineBodyBoundsChanged(TimelineBody.Bounds);
+                viewModel.IsSearchOpen = false;
             }
-        };
-        _timelineHideTimer.Tick += (_, _) =>
-        {
-            _timelineHideTimer.Stop();
-            SetTimelineHovered(false);
         };
         Opened += (_, _) => WarmUpPages();
         DataContextChanged += (_, _) =>
@@ -98,136 +76,20 @@ public partial class MainWindow : Window
                 viewModel.HideRequested += (_, _) => Hide();
                 viewModel.PropertyChanged += (_, e) =>
                 {
-                    if (e.PropertyName == nameof(MainWindowViewModel.IsFocusMode))
+                    if (e.PropertyName == nameof(MainWindowViewModel.SelectedTab))
                     {
-                        SetTimelineCollapsed(viewModel.IsFocusMode);
+                        OnSelectedTabChanged(viewModel);
                     }
-                    else if (e.PropertyName == nameof(MainWindowViewModel.ShowsTimeline) && viewModel.ShowsTimeline && viewModel.IsFocusMode)
+                    else if (e.PropertyName == nameof(MainWindowViewModel.IsSearchOpen) && viewModel.IsSearchOpen)
                     {
-                        // The timeline was hidden (another page) when the session began, so it had no height to slide away from.
-                        Dispatcher.UIThread.Post(() => SetTimelineCollapsed(viewModel.IsFocusMode), DispatcherPriority.Loaded);
+                        Dispatcher.UIThread.Post(Search.FocusBox, DispatcherPriority.Loaded);
                     }
                 };
-                SetTimelineCollapsed(viewModel.IsFocusMode);
+                // The sync light's popover is its own little tree; it reads the window's view model.
+                SyncPopover.DataContext = viewModel;
                 ConnectSearch(viewModel);
             }
         };
-    }
-
-    /// <summary>In a session the timeline slides up and gives its height back; outside one it is as before.</summary>
-    private void SetTimelineCollapsed(bool collapsed)
-    {
-        _timelineFocusMode = collapsed;
-        if (collapsed == _timelineCollapsed)
-        {
-            return;
-        }
-
-        _timelineHovered = false;
-        _timelineHideTimer.Stop();
-        _timelineOpenTimer.Stop();
-        int generation = ++_timelineGeneration;
-        double height = MeasureTimeline();
-        if (collapsed)
-        {
-            if (height <= TimelineStripHeight)
-            {
-                return; // Nothing showing yet; the Bounds handler tries again when it has a height.
-            }
-
-            _timelineCollapsed = true;
-            _timelineHeight = height;
-
-            // Fix the heights where they are now (no change on screen), then let the next frame animate them to the strip.
-            TimelineBody.Height = height;
-            TimelineClip.Height = height;
-            TimelineHost.Height = height;
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (generation == _timelineGeneration)
-                {
-                    TimelineHost.Height = TimelineStripHeight;
-                    ShowTimeline(false);
-                }
-            }, DispatcherPriority.Loaded);
-        }
-        else
-        {
-            // Measured again now, so rows that appeared during the session fit and the page does not jump when the heights clear.
-            _timelineCollapsed = false;
-            _timelineHeight = height;
-            TimelineBody.Height = height;
-            TimelineHost.Height = height;
-            ShowTimeline(true);
-            DispatcherTimer.RunOnce(() =>
-            {
-                if (generation == _timelineGeneration)
-                {
-                    TimelineHost.ClearValue(HeightProperty);
-                    TimelineClip.ClearValue(HeightProperty);
-                    TimelineBody.ClearValue(HeightProperty);
-                }
-            }, TimelineSlideTime + TimeSpan.FromMilliseconds(50));
-        }
-    }
-
-    /// <summary>The timeline's natural height: its fixed height is dropped and it is measured with all the room it wants.</summary>
-    private double MeasureTimeline()
-    {
-        TimelineBody.ClearValue(HeightProperty);
-        double width = TimelineHost.Bounds.Width > 0 ? TimelineHost.Bounds.Width : Bounds.Width;
-        TimelineBody.Measure(new Size(width, double.PositiveInfinity));
-        return TimelineBody.DesiredSize.Height;
-    }
-
-    /// <summary>The day bar got rows or appeared while a session runs: slide it away too.</summary>
-    private void OnTimelineBodyBoundsChanged(Rect bounds)
-    {
-        if (_timelineFocusMode && !_timelineCollapsed && bounds.Height > TimelineStripHeight)
-        {
-            Dispatcher.UIThread.Post(() => SetTimelineCollapsed(_timelineFocusMode), DispatcherPriority.Loaded);
-        }
-    }
-
-    /// <summary>The pointer is over the strip or the timeline: slide it down over the page, or back up once it has left.</summary>
-    private void SetTimelineHovered(bool hovered)
-    {
-        if (hovered)
-        {
-            _timelineHideTimer.Stop();
-        }
-
-        if (!_timelineCollapsed || hovered == _timelineHovered)
-        {
-            return;
-        }
-
-        _timelineHovered = hovered;
-        if (hovered)
-        {
-            // Rows that appeared during the session are measured in before it slides down.
-            _timelineHeight = MeasureTimeline();
-            TimelineBody.Height = _timelineHeight;
-        }
-
-        ShowTimeline(hovered);
-    }
-
-    /// <summary>Slides the timeline body down (shown) or up (only the strip left) inside its clipping panel.</summary>
-    private void ShowTimeline(bool shown)
-    {
-        double visible = shown ? _timelineHeight : TimelineStripHeight;
-        TimelineClip.Height = visible;
-        double offset = visible - _timelineHeight;
-        TimelineBody.RenderTransform = TransformOperations.Parse($"translateY({offset.ToString(System.Globalization.CultureInfo.InvariantCulture)}px)");
-
-        // Slid away: its buttons are not clickable and are skipped by Tab.
-        bool away = _timelineCollapsed && !shown;
-        TimelineBody.IsHitTestVisible = !away;
-        TimelineClip.IsHitTestVisible = !away; // The strip itself does nothing; only the handle opens it.
-        TimelineHandle.IsVisible = away;
-        TimelineHandle.Opacity = 0.35;
-        KeyboardNavigation.SetTabNavigation(TimelineBody, away ? KeyboardNavigationMode.None : KeyboardNavigationMode.Continue);
     }
 
     private void OnDrop(object? sender, DragEventArgs e)
@@ -243,19 +105,61 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel { IsSearchOpen: true, Search: { } search } viewModel || search.HasQuery)
+        {
+            return;
+        }
+
+        if (e.Source is Visual clicked && (IsInside(SearchFlyout, clicked) || IsInside(SearchButton, clicked)))
+        {
+            return;
+        }
+
+        viewModel.IsSearchOpen = false;
+    }
+
+    private static bool IsInside(Visual container, Visual visual)
+    {
+        return ReferenceEquals(container, visual) || container.IsVisualAncestorOf(visual);
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
         if (e.Key == Key.F && e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
+            viewModel.IsSearchOpen = true;
             Search.FocusBox();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.R && e.KeyModifiers == KeyModifiers.Control)
+        {
+            // The same as the title bar's sync button.
+            if (viewModel.RefreshNowCommand.CanExecute(null))
+            {
+                viewModel.RefreshNowCommand.Execute(null);
+            }
+
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && viewModel.IsSearchOpen)
+        {
+            viewModel.Search?.ClearCommand.Execute(null);
+            viewModel.IsSearchOpen = false;
             e.Handled = true;
         }
     }
 
     /// <summary>
     /// Wires the search box to the pages: highlights on the page showing, its words for "Search All Results…", and
-    /// opening a result (the tab, then the profile, date or Settings group, then the control, whose card flashes).
+    /// opening a result (the page, then the Settings row, profile or date, then the control, whose card flashes).
     /// </summary>
     private void ConnectSearch(MainWindowViewModel viewModel)
     {
@@ -264,8 +168,13 @@ public partial class MainWindow : Window
             return;
         }
 
-        Highlights.Page = Pages.Children[Math.Max(0, Tabs.SelectedIndex)];
+        Highlights.Page = Pages.Children[Math.Max(0, _shownTab)];
         search.UiEntries = SearchPages;
+        // Settings' own Search field finds rows by the same words.
+        viewModel.Settings.RowsMatching = query => SearchPages()
+            .Where(entry => entry.Target is { Tab: SearchTabs.Settings, SettingsGroup: not null } && TextMatcher.Find(entry.Text, query).Count > 0)
+            .Select(entry => entry.Target.SettingsGroup!.Value)
+            .ToHashSet();
         search.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(SearchViewModel.Query))
@@ -291,28 +200,29 @@ public partial class MainWindow : Window
             tab => viewModel.SelectedTab = tab,
             profileId => viewModel.Profiles.Select(profileId),
             date => viewModel.Exceptions.ShowDate(date),
-            group => viewModel.Settings.SelectedGroupIndex = group,
+            row => viewModel.Settings.SelectedRowIndex = row,
             template => viewModel.DayPlan.SelectedTemplateIndex = template,
             control => Dispatcher.UIThread.Post(() => RevealFound(control as Control), DispatcherPriority.Background));
         search.OpenRequested += (_, target) =>
         {
             navigator.Open(target);
+            if (target.Date is not null && Pages.Children[(int)MainTab.Plan] is PlanView plan)
+            {
+                Dispatcher.UIThread.Post(plan.ShowCalendar, DispatcherPriority.Background);
+            }
+
             // Data results have no control: the page's own matches show once it's laid out.
             Dispatcher.UIThread.Post(Highlights.RecountNow, DispatcherPriority.Background);
         };
     }
 
-    /// <summary>Every page's words (the dev tab left out), with its tab name.</summary>
+    /// <summary>Every page's words (the dev page left out), with its page name.</summary>
     private IReadOnlyList<SearchEntry> SearchPages()
     {
         var pages = new List<(int Tab, string TabName, Control Page)>();
-        for (int i = 0; i <= SearchTabs.About && i < Pages.Children.Count; i++)
+        for (int i = 0; i < SearchedPageNames.Length && i < Pages.Children.Count; i++)
         {
-            // The header is an icon plus a label, so the tab name is its AutomationProperties.Name.
-            if (Tabs.Items[i] is TabItem tab && AutomationProperties.GetName(tab) is { Length: > 0 } name)
-            {
-                pages.Add((i, name, Pages.Children[i]));
-            }
+            pages.Add((i, SearchedPageNames[i], Pages.Children[i]));
         }
 
         return UiSearchSource.Entries(pages);
@@ -336,33 +246,27 @@ public partial class MainWindow : Window
         Highlights.RecountNow();
     }
 
-    private void OnTabChanged(object? sender, SelectionChangedEventArgs e)
+    private void OnSelectedTabChanged(MainWindowViewModel viewModel)
     {
-        // Only the tab strip's own change; a ComboBox inside a page raises this event too.
-        if (!ReferenceEquals(e.Source, Tabs))
-        {
-            return;
-        }
-
-        // "More" only unfolds the tabs under it; the view model puts the selection back on the page showing.
-        if (Tabs.SelectedIndex == (int)MainTab.More)
+        int selected = viewModel.SelectedTab;
+        if (selected == _shownTab)
         {
             return;
         }
 
         // Settings with unsaved changes: stay there while it asks Save / Discard / Stay.
-        if (DataContext is MainWindowViewModel viewModel && !viewModel.MayLeaveTab(_shownTab, Tabs.SelectedIndex))
+        if (!viewModel.MayLeaveTab(_shownTab, selected))
         {
             int back = _shownTab;
-            Dispatcher.UIThread.Post(() => Tabs.SelectedIndex = back);
+            Dispatcher.UIThread.Post(() => viewModel.SelectedTab = back);
             return;
         }
 
-        _shownTab = Tabs.SelectedIndex;
+        _shownTab = selected;
 
         for (int i = 0; i < Pages.Children.Count; i++)
         {
-            Pages.Children[i].IsVisible = i == Tabs.SelectedIndex;
+            Pages.Children[i].IsVisible = i == selected;
         }
 
         // The page coming into view fades and lifts in (Settings → Animations).
@@ -374,8 +278,8 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Lays out each hidden page once, one at a time while the app is idle, so even the first visit to a tab is
-    /// instant. Each page is shown, laid out and hidden again within one step, so it never appears on screen.
+    /// Lays out each hidden page once (and each Settings row), one at a time while the app is idle, so even the first
+    /// visit to a page is instant. Each is shown, laid out and hidden again within one step, so it never appears on screen.
     /// </summary>
     private void WarmUpPages()
     {
@@ -385,16 +289,39 @@ public partial class MainWindow : Window
         }
 
         _warmedUp = true;
-        WarmUpPage(0);
+        var steps = new Queue<Action>();
+        for (int i = 0; i < Pages.Children.Count; i++)
+        {
+            int index = i;
+            steps.Enqueue(() => WarmUpPage(index));
+        }
+
+        if (DataContext is MainWindowViewModel viewModel)
+        {
+            // Row 0 is laid out with the Settings page; the rest are built here, so a first visit to Guards or Devices is instant.
+            for (int row = 1; row < viewModel.Settings.Rows.Count; row++)
+            {
+                int index = row;
+                steps.Enqueue(() => WarmUpSettingsRow(viewModel, index));
+            }
+        }
+
+        RunWarmUp(steps);
     }
 
-    private void WarmUpPage(int index)
+    private void RunWarmUp(Queue<Action> steps)
     {
-        if (index >= Pages.Children.Count)
+        if (steps.Count == 0)
         {
             return;
         }
 
+        steps.Dequeue()();
+        DispatcherTimer.RunOnce(() => Dispatcher.UIThread.Post(() => RunWarmUp(steps), DispatcherPriority.Background), WarmUpGap);
+    }
+
+    private void WarmUpPage(int index)
+    {
         Control page = Pages.Children[index];
         if (!page.IsVisible)
         {
@@ -404,10 +331,24 @@ public partial class MainWindow : Window
             page.IsVisible = false;
             page.Opacity = 1;
         }
+    }
 
-        DispatcherTimer.RunOnce(
-            () => Dispatcher.UIThread.Post(() => WarmUpPage(index + 1), DispatcherPriority.Background),
-            WarmUpGap);
+    private void WarmUpSettingsRow(MainWindowViewModel viewModel, int row)
+    {
+        Control page = Pages.Children[(int)MainTab.Settings];
+        if (page.IsVisible || viewModel.ShowsLeavePrompt)
+        {
+            return; // The user is there; what they look at is built already.
+        }
+
+        int original = viewModel.Settings.SelectedRowIndex;
+        page.Opacity = 0;
+        page.IsVisible = true;
+        viewModel.Settings.SelectedRowIndex = row;
+        Pages.UpdateLayout();
+        viewModel.Settings.SelectedRowIndex = original;
+        page.IsVisible = false;
+        page.Opacity = 1;
     }
 
     /// <summary>When false, closing the window only hides it to the tray.</summary>
