@@ -88,7 +88,7 @@
                     <RadioButton GroupName="link" IsChecked="{Binding HasOtherDevice}" Content="I have AccountabiliBuddy on another device" />
                     <StackPanel Spacing="6" Margin="28,0,0,0" IsVisible="{Binding HasOtherDevice}">
                         <TextBlock Classes="muted"
-                                   Text="On the other device, open Devices → Link a device, and type its link code here (40 characters; the dashes don't matter)." />
+                                   Text="On the other device, open Devices → Link a device (on a PC: Settings › Devices &amp; sync), and type its link code here (40 characters; the dashes don't matter)." />
                         <TextBox Text="{Binding LinkCode}" PlaceholderText="e.g. 8KQ2V-7XHPM-D4WN6-…" MaxWidth="520" HorizontalAlignment="Left" />
                     </StackPanel>
                     <TextBlock Classes="muted" Text="You can also do this later in Settings › Devices &amp; sync." />
@@ -360,7 +360,7 @@
                     <TextBlock Classes="body" TextWrapping="Wrap"
                                Text="Your devices can now sync through a small relay you run yourself, with changes arriving in about a second and no Google account. Everything stays sealed: the relay stores scrambled bytes and the key never leaves your devices." />
                     <TextBlock Classes="body" TextWrapping="Wrap"
-                               Text="To set it up, finish here, then open Devices → How this PC shares → Own relay. Type your relay's address and pin, press Test connection and tick Own relay. The Devices page has the short steps and the full guide." />
+                               Text="To set it up, finish here, then open Settings › Devices &amp; sync → How this PC shares → Own relay. Type your relay's address and pin, press Test connection and tick Own relay. The Devices page has the short steps and the full guide." />
                 </StackPanel>
 
                 <!-- The Setup DP Assistant: a button on the Plan page -->
@@ -387,7 +387,7 @@
                                Text="The app now has three themes, Instrument, Night Desk and Paper, each light or dark. Light and dark can follow Windows, switch at times you set, or switch at sunset." />
                     <views:AppearanceView DataContext="{Binding Appearance}" IsCompact="True" />
                     <TextBlock Classes="muted" TextWrapping="Wrap"
-                               Text="Everything here can be changed any time in Settings → On screen &amp; sound → Appearance, which also has the place for sunset and how much colour the screens use." />
+                               Text="Everything here can be changed any time in Settings › Appearance, which also has the place for sunset and how much colour the screens use." />
                 </StackPanel>
 
                 <!-- ADR 39: Cold Turkey, let AccountabiliBuddy hold the keys -->
@@ -475,8 +475,8 @@
                                Text="• Your first session learns: it asks about nothing new, and at its end you sort what you used on Today." />
                     <TextBlock Classes="body" Text="• Your day plan is in Plan; a day planned differently is in its Calendar section." />
                     <TextBlock Classes="body" IsVisible="{Binding IsQuick}"
-                               Text="• Imports from other blockers and browser extensions: More → Setup → Full setup." />
-                    <TextBlock Classes="body" IsVisible="{Binding !IsQuick}" Text="• Run this assistant again any time from More → Setup." />
+                               Text="• Imports from other blockers and browser extensions: Settings › Setup → Full setup." />
+                    <TextBlock Classes="body" IsVisible="{Binding !IsQuick}" Text="• Run this assistant again any time from Settings › Setup." />
                 </StackPanel>
             </Panel>
         </ScrollViewer>

@@ -690,7 +690,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
         if (!await Identity.JoinAsync(LinkCode?.Trim() ?? string.Empty))
         {
-            StatusMessage = "That isn't a link code: on your other device, open Devices → Link a device.";
+            StatusMessage = "That isn't a link code: on your other device, open Devices → Link a device (on a PC: Settings › Devices & sync).";
             return false;
         }
 

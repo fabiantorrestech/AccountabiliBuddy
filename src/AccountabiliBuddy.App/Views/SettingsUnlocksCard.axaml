@@ -11,7 +11,7 @@
             <Setter Property="Background" Value="{DynamicResource Ab.Bg}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.CardRadius}" />
             <Setter Property="Padding" Value="18,16" />
         </Style>
         <Style Selector="TextBlock.sectionTitle">
@@ -20,15 +20,15 @@
             <Setter Property="Margin" Value="0,0,0,4" />
         </Style>
     </UserControl.Styles>
-            <Border Classes="card" search:SearchArea.Name="Unlocks">
-            <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <mi:MaterialIcon Kind="LockOpenOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
-                    <TextBlock Text="Unlocks" Classes="sectionTitle" />
-                </StackPanel>
-                <CheckBox IsChecked="{Binding RelockAtMidnight}" Content="Relock at midnight" />
-                <TextBlock Opacity="0.75" TextWrapping="Wrap"
-                           Text="When on, an unlock lifts the blocks only until the next midnight unless you pick another time when unlocking. Unlock options are set per profile." />
+    <Border Classes="card" search:SearchArea.Name="Unlocks">
+        <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <mi:MaterialIcon Kind="LockOpenOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                <TextBlock Text="Unlocks" Classes="sectionTitle" />
             </StackPanel>
-            </Border>
+            <CheckBox IsChecked="{Binding RelockAtMidnight}" Content="Relock at midnight" />
+            <TextBlock Opacity="0.75" TextWrapping="Wrap"
+                       Text="When on, an unlock lifts the blocks only until the next midnight unless you pick another time when unlocking. Unlock options are set per profile." />
+        </StackPanel>
+    </Border>
 </UserControl>

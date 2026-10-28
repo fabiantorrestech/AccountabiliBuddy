@@ -17,7 +17,7 @@
             <Setter Property="Background" Value="{DynamicResource Ab.Bg}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.CardRadius}" />
             <Setter Property="Padding" Value="18,16" />
         </Style>
         <Style Selector="TextBlock.sectionTitle">
@@ -189,7 +189,7 @@
 
             <StackPanel Spacing="16" IsVisible="{Binding Rows[1].IsSelected}"
                         search:SearchArea.Name="Sleep" search:SearchArea.SettingsGroup="1">
-                <Border Classes="card" search:SearchArea.Name="Sleep">
+                <Border Classes="card">
                 <StackPanel Spacing="6">
                     <TextBlock Text="Your bedtime and wake time. The day bar runs from wake time to bedtime and shades the night; staying up past bedtime shades the lost sleep red. From when going to bed would give your sleep goal, a line on screen counts down the sleep you'll get if you go now, with your wake time (green down to an hour under the goal, yellow down to three hours under, red below), and a reminder pops up two hours before bedtime. Hold Ctrl+Alt over the on-screen window to change tonight's wake time. The times are the Sleep parts of your day plan. Can be changed during focus too, except turning sleep mode off: that waits like other looser changes and is refused during focus."
                                Opacity="0.75" TextWrapping="Wrap" />
@@ -742,7 +742,7 @@
 
             <StackPanel Spacing="16" IsVisible="{Binding Rows[7].IsSelected}"
                         search:SearchArea.Name="Appearance" search:SearchArea.SettingsGroup="7">
-                <Border Classes="card" search:SearchArea.Name="Appearance" IsVisible="{Binding HasAppearance}">
+                <Border Classes="card" IsVisible="{Binding HasAppearance}">
                 <StackPanel Spacing="6" DataContext="{Binding Appearance}" x:DataType="vm:AppearanceViewModel">
                     <views:AppearanceView />
                 </StackPanel>

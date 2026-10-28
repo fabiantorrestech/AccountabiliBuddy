@@ -75,6 +75,8 @@
         <!-- The window's own caption buttons, 46 x 34 (design 5x). Their roles make Windows treat them as the real ones
              (minimize, maximize with snap layouts, close); a click is the system's, not a command of ours. -->
         <Style Selector="Button.caption">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="IsTabStop" Value="False" />
             <Setter Property="Width" Value="46" />
             <Setter Property="Height" Value="34" />
             <Setter Property="Padding" Value="0" />
@@ -132,7 +134,7 @@
             <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.CardRadius}" />
             <Setter Property="Padding" Value="14" />
             <Setter Property="MinWidth" Value="280" />
             <Setter Property="MaxWidth" Value="360" />
@@ -285,66 +287,66 @@
                 <DockPanel Grid.Column="1">
                     <!-- The day bar's strip, on Stats (Today carries its own copy under "More today"). -->
                     <Border x:Name="TimelineHost" DockPanel.Dock="Top" IsVisible="{Binding ShowsTimeline}" Background="{DynamicResource Ab.Bg}" Margin="0,0,20,0">
-        <Border DataContext="{Binding DayBar}" x:DataType="vm:DayBarViewModel"
-                IsVisible="{Binding IsVisible, FallbackValue=False}" Padding="12,14,16,4">
-            <StackPanel Spacing="6">
-                <!-- The day's numbers are in the legend under the bar. -->
-                <Grid ColumnDefinitions="Auto,*">
-                    <TextBlock Text="{Binding DateText}" FontWeight="SemiBold" Margin="0,0,10,0" />
-                    <TextBlock Grid.Column="1" Text="{Binding StatusText}" Opacity="0.85" TextTrimming="CharacterEllipsis" />
-                </Grid>
-                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsSleep}">
-                    <Ellipse Width="8" Height="8" Fill="{Binding SleepBrush}" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding SleepText}" Opacity="0.85" />
-                </StackPanel>
-                <controls:DayBarControl Layout="{Binding Layout}" OpenProfileCommand="{Binding OpenProfileCommand}" OpenDayPlanCommand="{Binding OpenDayPlanCommand}"
-                                        AddSessionCommand="{Binding AddSessionCommand}" />
-                <!-- Under the bar, lined up with its row labels: planned work by kind in its colours, and the focus so far,
-                     on a faint panel (the negative margin keeps the columns under the row labels). -->
-                <Border Background="{DynamicResource Ab.Surface2}" CornerRadius="6" Padding="6,4" Margin="-6,0">
-                    <Border.IsVisible>
-                        <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                            <Binding Path="ShowsPlanTotals" />
-                            <Binding Path="ShowsFocusTotal" />
-                        </MultiBinding>
-                    </Border.IsVisible>
-                <Grid ColumnDefinitions="84,*" RowDefinitions="Auto,Auto">
-                    <TextBlock Text="Plan" FontSize="11" Opacity="0.75" VerticalAlignment="Center" IsVisible="{Binding ShowsPlanTotals}" />
-                    <ItemsControl Grid.Column="1" ItemsSource="{Binding PlanTotals}" IsVisible="{Binding ShowsPlanTotals}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:PlanTotal">
-                                <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,1,16,1">
-                                    <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" />
-                                    <TextBlock Text="{Binding Text}" FontSize="12" Opacity="0.85" />
+                        <Border DataContext="{Binding DayBar}" x:DataType="vm:DayBarViewModel"
+                                IsVisible="{Binding IsVisible, FallbackValue=False}" Padding="12,14,16,4">
+                            <StackPanel Spacing="6">
+                                <!-- The day's numbers are in the legend under the bar. -->
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <TextBlock Text="{Binding DateText}" FontWeight="SemiBold" Margin="0,0,10,0" />
+                                    <TextBlock Grid.Column="1" Text="{Binding StatusText}" Opacity="0.85" TextTrimming="CharacterEllipsis" />
+                                </Grid>
+                                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsSleep}">
+                                    <Ellipse Width="8" Height="8" Fill="{Binding SleepBrush}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding SleepText}" Opacity="0.85" />
                                 </StackPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <TextBlock Grid.Row="1" Text="Focus" FontSize="11" Opacity="0.75" VerticalAlignment="Center" IsVisible="{Binding ShowsFocusTotal}" />
-                    <ItemsControl Grid.Row="1" Grid.Column="1" ItemsSource="{Binding FocusTotals}" IsVisible="{Binding ShowsFocusTotal}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:PlanTotal">
-                                <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,1,16,1">
-                                    <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" />
-                                    <TextBlock Text="{Binding Text}" FontSize="12" Opacity="0.85" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </Grid>
-                </Border>
-            </StackPanel>
-        </Border>
+                                <controls:DayBarControl Layout="{Binding Layout}" OpenProfileCommand="{Binding OpenProfileCommand}" OpenDayPlanCommand="{Binding OpenDayPlanCommand}"
+                                                        AddSessionCommand="{Binding AddSessionCommand}" />
+                                <!-- Under the bar, lined up with its row labels: planned work by kind in its colours, and the focus so far,
+                                     on a faint panel (the negative margin keeps the columns under the row labels). -->
+                                <Border Background="{DynamicResource Ab.Surface2}" CornerRadius="6" Padding="6,4" Margin="-6,0">
+                                    <Border.IsVisible>
+                                        <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                                            <Binding Path="ShowsPlanTotals" />
+                                            <Binding Path="ShowsFocusTotal" />
+                                        </MultiBinding>
+                                    </Border.IsVisible>
+                                <Grid ColumnDefinitions="84,*" RowDefinitions="Auto,Auto">
+                                    <TextBlock Text="Plan" FontSize="11" Opacity="0.75" VerticalAlignment="Center" IsVisible="{Binding ShowsPlanTotals}" />
+                                    <ItemsControl Grid.Column="1" ItemsSource="{Binding PlanTotals}" IsVisible="{Binding ShowsPlanTotals}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:PlanTotal">
+                                                <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,1,16,1">
+                                                    <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Text}" FontSize="12" Opacity="0.85" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Grid.Row="1" Text="Focus" FontSize="11" Opacity="0.75" VerticalAlignment="Center" IsVisible="{Binding ShowsFocusTotal}" />
+                                    <ItemsControl Grid.Row="1" Grid.Column="1" ItemsSource="{Binding FocusTotals}" IsVisible="{Binding ShowsFocusTotal}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:PlanTotal">
+                                                <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,1,16,1">
+                                                    <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Text}" FontSize="12" Opacity="0.85" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Grid>
+                                </Border>
+                            </StackPanel>
+                        </Border>
                     </Border>
 
                     <!-- The pages sit side by side; switching only shows or hides them. A TabControl takes a page out of the window
@@ -368,7 +370,7 @@
 
         <!-- Search: opened by Ctrl+F or the title bar's magnifier, under the title bar and over the page; Esc closes it. -->
         <Border x:Name="SearchFlyout" IsVisible="{Binding IsSearchOpen}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,38,20,0"
-                Padding="10" CornerRadius="16" Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" ZIndex="20">
+                Padding="10" CornerRadius="{DynamicResource Ab.CardRadius}" Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" ZIndex="20">
             <views:SearchBox x:Name="Search" DataContext="{Binding Search}" />
         </Border>
 

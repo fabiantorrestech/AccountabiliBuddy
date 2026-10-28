@@ -940,7 +940,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Which row shows; switching rows changes no setting.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(SelectedRow), nameof(UsesSettingsView))]
+    [NotifyPropertyChangedFor(nameof(SelectedRow), nameof(UsesSettingsView), nameof(ShowsLockedBanner))]
     public partial int SelectedRowIndex { get; set; } = -1;
 
     /// <summary>
@@ -994,12 +994,13 @@ public sealed partial class SettingsViewModel : ObservableObject
             return;
         }
 
-        // Rows whose own name matches show at once; the content search (every page's words) follows once typing pauses.
+        // Rows whose own name matches show at once; nothing is hidden until the content search (every page's words) has
+        // run once typing pauses, so a row that matches by its content never flickers away and back.
         _filterTimer.Stop();
         _filterTimer.Start();
         foreach (SettingsRowViewModel row in Rows)
         {
-            row.IsListed = row.Name.Contains(value.Trim(), StringComparison.OrdinalIgnoreCase);
+            row.IsListed = row.IsListed || row.Name.Contains(value.Trim(), StringComparison.OrdinalIgnoreCase);
         }
     }
 
@@ -1013,9 +1014,23 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    // The rows whose cards go view-only during a session (Calendars, the focus-session and guard settings, Computer type).
+    private static readonly SettingsSection[] LockedRows =
+    [
+        SettingsSection.YourDay, SettingsSection.FocusSessions, SettingsSection.Guards, SettingsSection.AppAndData,
+    ];
+
+    /// <summary>The "locked while a focus session is running" banner: only on a row that holds a locked setting.</summary>
+    public bool ShowsLockedBanner => IsLocked && SelectedRowIndex >= 0 && Array.IndexOf(LockedRows, (SettingsSection)SelectedRowIndex) >= 0;
+
     partial void OnIsLockedChanged(bool value)
     {
-        Rows[(int)SettingsSection.Guards].IsResting = value;
+        foreach (SettingsSection section in LockedRows)
+        {
+            Rows[(int)section].IsResting = value;
+        }
+
+        OnPropertyChanged(nameof(ShowsLockedBanner));
     }
 
     /// <summary>The timeline's rows top to bottom, each shown or not.</summary>

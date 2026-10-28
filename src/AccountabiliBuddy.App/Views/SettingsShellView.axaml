@@ -99,7 +99,7 @@
                 <TextBlock DockPanel.Dock="Top" Classes="display" FontSize="28" Text="{Binding Settings.SelectedRow.Name}" Margin="0,0,0,12" />
 
                 <!-- One Save for the whole of Settings' cards; shown while there is something to save or to say. -->
-                <Border DockPanel.Dock="Top" Margin="0,0,16,10" Padding="14,8" CornerRadius="14" Background="{DynamicResource Ab.Surface2}">
+                <Border DockPanel.Dock="Top" Margin="0,0,16,10" Padding="14,8" CornerRadius="{DynamicResource Ab.CardRadius}" Background="{DynamicResource Ab.Surface2}">
                     <Border.IsVisible>
                         <MultiBinding Converter="{x:Static BoolConverters.Or}">
                             <Binding Path="Settings.HasUnsavedChanges" />
@@ -127,14 +127,14 @@
                             <Binding Path="Settings.SaveStatus" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
                         </MultiBinding>
                     </Panel.IsVisible>
-                    <Border Background="{DynamicResource Ab.Drift}" Opacity="0.16" CornerRadius="14" />
+                    <Border Background="{DynamicResource Ab.Drift}" Opacity="0.16" CornerRadius="{DynamicResource Ab.CardRadius}" />
                     <Border Padding="14,8">
                         <TextBlock Text="{Binding Settings.SaveStatus}" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Ink}" />
                     </Border>
                 </Panel>
-                <!-- Guard settings are view-only while a session runs (as before). -->
-                <Panel DockPanel.Dock="Top" Margin="0,0,16,10" IsVisible="{Binding Settings.IsLocked}">
-                    <Border Background="{DynamicResource Ab.Waiting}" Opacity="0.16" CornerRadius="14" />
+                <!-- Guard settings are view-only while a session runs (as before); the banner and the lock icon show on the rows that hold them. -->
+                <Panel DockPanel.Dock="Top" Margin="0,0,16,10" IsVisible="{Binding Settings.ShowsLockedBanner}">
+                    <Border Background="{DynamicResource Ab.Waiting}" Opacity="0.16" CornerRadius="{DynamicResource Ab.CardRadius}" />
                     <Border Padding="14,8">
                         <TextBlock Text="Settings are locked while a focus session is running." TextWrapping="Wrap" Foreground="{DynamicResource Ab.Ink}" />
                     </Border>

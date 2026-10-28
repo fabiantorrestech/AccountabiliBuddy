@@ -58,7 +58,7 @@ public static class GoogleSetupSteps
             new[]
             {
                 "Open the page and press Enable. If it says Manage instead, it's already on.",
-                "Drive sync (Devices → Google Drive) keeps your devices' encrypted sync files in one folder the app makes; it can't see your other files.",
+                "Drive sync (Settings › Devices & sync → Google Drive) keeps your devices' encrypted sync files in one folder the app makes; it can't see your other files.",
             },
             "https://console.cloud.google.com/apis/library/drive.googleapis.com",
             Array.Empty<GoogleSetupCopyValue>()),

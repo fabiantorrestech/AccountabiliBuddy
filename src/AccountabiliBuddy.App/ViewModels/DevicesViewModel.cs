@@ -72,6 +72,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         _timer = new DispatcherTimer { Interval = RefreshEvery };
         _timer.Tick += (_, _) => Refresh();
         _timer.Start();
+        WatchNetwork();
         Refresh();
     }
 
@@ -227,7 +228,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         }
 
         bool usesNetwork = settings.DriveOn || settings.RelayOn;
-        if (usesNetwork && !System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
+        if (usesNetwork && !_networkAvailable)
         {
             return "This device is offline";
         }
@@ -454,6 +455,23 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _timer.Stop();
+        System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged -= OnNetworkAvailabilityChanged;
+    }
+
+    // Whether Windows has a network, kept from its change events (asking can be slow with many virtual adapters, so it is
+    // read once off the UI thread, never on a refresh).
+    private volatile bool _networkAvailable = true;
+
+    private void WatchNetwork()
+    {
+        System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged += OnNetworkAvailabilityChanged;
+        _ = Task.Run(() => _networkAvailable = System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable());
+    }
+
+    private void OnNetworkAvailabilityChanged(object? sender, System.Net.NetworkInformation.NetworkAvailabilityEventArgs e)
+    {
+        _networkAvailable = e.IsAvailable;
+        Dispatcher.UIThread.Post(Refresh);
     }
 
     partial void OnFolderOnChanged(bool value)

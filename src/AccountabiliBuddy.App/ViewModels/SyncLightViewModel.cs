@@ -8,9 +8,11 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>
 /// The title bar's sync light (design 20a): a dot and one glyph per device, read from what the Devices page already knows
 /// (<see cref="DevicesViewModel.Rows"/> and <see cref="DevicesViewModel.SyncProblem"/>). Display only; it changes nothing.
-/// Green = all in step. A glyph dims when its device is behind (older than its interval plus 5 minutes). A hollow ring
-/// shows while a sync runs. The lilac dot means 2 or more devices are more than an hour old; the red one that this device
-/// can't sync (offline, or its sync method is failing). With no other device linked the light is hidden.
+/// Green = all in step. One definition of "behind" serves the glyphs, the dot and the popover: a device is behind when its
+/// newest data is more than 5 minutes older than its own sync interval (<see cref="DeviceSyncState.Behind"/>: a day for a
+/// phone or watch, the sync method's interval for a PC). A behind device's glyph dims. A hollow ring shows while a sync
+/// runs. The lilac dot means 2 or more devices are behind and over an hour old; the red one that this device can't sync
+/// (offline, or its sync method is failing). With no other device linked the light is hidden.
 /// </summary>
 public sealed partial class SyncLightViewModel : ObservableObject
 {
@@ -40,7 +42,7 @@ public sealed partial class SyncLightViewModel : ObservableObject
 
     public bool IsDotSolid => !IsSyncing;
 
-    /// <summary>2 or more other devices are more than an hour old: the dot turns lilac.</summary>
+    /// <summary>2 or more other devices are behind and over an hour old: the dot turns lilac.</summary>
     [ObservableProperty]
     public partial bool IsSeveralBehind { get; set; }
 
@@ -70,15 +72,21 @@ public sealed partial class SyncLightViewModel : ObservableObject
         foreach (DeviceRowViewModel row in rows.OrderBy(KindOrder).ThenBy(row => row.Name, StringComparer.CurrentCultureIgnoreCase))
         {
             bool isThisPc = row.Kind == "This PC";
-            bool dim = isThisPc ? problem is not null : row.State != DeviceSyncState.UpToDate;
+            bool dim = isThisPc ? problem is not null : IsBehind(row) || row.Age is null;
             string ago = isThisPc ? "this PC" : row.Age is TimeSpan age ? DevicesViewModel.Ago(age) : "not yet";
             Devices.Add(new SyncLightDeviceViewModel(row.Name, IconFor(row.Kind), ago, dim));
         }
 
         IsVisible = hasOthers;
         IsOffline = problem is not null;
-        IsSeveralBehind = problem is null && rows.Skip(1).Count(row => row.Age is TimeSpan age && age > SeveralBehindAge) >= 2;
-        SummaryText = problem ?? Summary(rows);
+        int behindForAnHour = rows.Skip(1).Count(row => IsBehind(row) && row.Age is TimeSpan age && age > SeveralBehindAge);
+        IsSeveralBehind = problem is null && behindForAnHour >= 2;
+        SummaryText = problem ?? (IsSeveralBehind ? $"{behindForAnHour} devices are behind: nothing from them for over an hour" : Summary(rows));
+    }
+
+    private static bool IsBehind(DeviceRowViewModel row)
+    {
+        return row.State == DeviceSyncState.Behind;
     }
 
     private static string Summary(IReadOnlyList<DeviceRowViewModel> rows)
