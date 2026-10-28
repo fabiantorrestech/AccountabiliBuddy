@@ -1,0 +1,49 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Maps FluentTheme's brushes for ground, text, buttons and text boxes onto the Ab.* tokens (ADR 49), so pages that
+         are not redesigned yet follow the active theme. Fluent's accent and base COLOUR keys (SystemAccentColor*,
+         SystemRegionColor, SystemAltHighColor, SystemBase*Color) are set inside each theme file, because a Color key
+         cannot alias another resource. -->
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="SystemRegionBrush" Color="{DynamicResource Ab.BgColor}" />
+            <SolidColorBrush x:Key="SystemControlBackgroundAltHighBrush" Color="{DynamicResource Ab.SurfaceColor}" />
+            <SolidColorBrush x:Key="SystemControlForegroundBaseHighBrush" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ButtonBackground" Color="{DynamicResource Ab.Surface2Color}" />
+            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{DynamicResource Ab.LineColor}" />
+            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{DynamicResource Ab.LineColor}" />
+            <SolidColorBrush x:Key="ButtonForeground" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="AccentButtonBackground" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="AccentButtonForeground" Color="{DynamicResource Ab.OnAccentColor}" />
+            <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="{DynamicResource Ab.OnAccentColor}" />
+            <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="{DynamicResource Ab.OnAccentColor}" />
+            <SolidColorBrush x:Key="TextControlBackground" Color="{DynamicResource Ab.SurfaceColor}" />
+            <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{DynamicResource Ab.SurfaceColor}" />
+            <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{DynamicResource Ab.SurfaceColor}" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+            <SolidColorBrush x:Key="SystemRegionBrush" Color="{DynamicResource Ab.BgColor}" />
+            <SolidColorBrush x:Key="SystemControlBackgroundAltHighBrush" Color="{DynamicResource Ab.SurfaceColor}" />
+            <SolidColorBrush x:Key="SystemControlForegroundBaseHighBrush" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ButtonBackground" Color="{DynamicResource Ab.Surface2Color}" />
+            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{DynamicResource Ab.LineColor}" />
+            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{DynamicResource Ab.LineColor}" />
+            <SolidColorBrush x:Key="ButtonForeground" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="AccentButtonBackground" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="AccentButtonForeground" Color="{DynamicResource Ab.OnAccentColor}" />
+            <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="{DynamicResource Ab.OnAccentColor}" />
+            <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="{DynamicResource Ab.OnAccentColor}" />
+            <SolidColorBrush x:Key="TextControlBackground" Color="{DynamicResource Ab.SurfaceColor}" />
+            <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{DynamicResource Ab.SurfaceColor}" />
+            <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{DynamicResource Ab.SurfaceColor}" />
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>

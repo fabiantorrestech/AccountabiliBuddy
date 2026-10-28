@@ -1,6 +1,7 @@
 using AccountabiliBuddy.App.DevTools;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.App.Services.Search;
+using AccountabiliBuddy.App.Services.Theming;
 using AccountabiliBuddy.App.Services.Backup;
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.App.Views;
@@ -57,6 +58,7 @@ public partial class App : Application
     private SessionEndFlow? _endFlow;
     private SessionCheckpointService? _checkpoints;
     private ClockAnchorService? _clockAnchors;
+    private ThemeService? _themes;
     private WatchedBrowsersService? _watchedBrowsers;
     private UnlockService? _unlocks;
     private SessionOverlayService? _sessionOverlay;
@@ -155,6 +157,11 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // The look (ADR 49): the theme tokens must be in place before any window exists. Instrument until the Appearance settings
+        // choose another; light or dark stays with AppTheme.
+        _themes = new ThemeService();
+        _themes.Apply(ThemeName.Instrument);
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             _desktop = desktop;
