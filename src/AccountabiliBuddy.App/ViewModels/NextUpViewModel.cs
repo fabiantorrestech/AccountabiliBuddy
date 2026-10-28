@@ -8,7 +8,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// Today's "Next up" card: the next two parts of today's plan that haven't ended (sleep left out). Read-only; it reads
-/// the plan again when it changes, when the day bar redraws and once a minute as the clock moves. It reads the plan the
+/// the plan again when it changes and when the day bar's status line changes (the bar redraws every 30 seconds, so the
+/// list moves on when a part's time passes). It reads the plan the
 /// way the day bar does (counted focus and the night fallback), so Budget days match the bar.
 /// </summary>
 public sealed partial class NextUpViewModel : ObservableObject
@@ -38,9 +39,6 @@ public sealed partial class NextUpViewModel : ObservableObject
                 }
             };
         }
-        var timer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
-        timer.Tick += (_, _) => Refresh();
-        timer.Start();
     }
 
     [ObservableProperty]
@@ -53,13 +51,20 @@ public sealed partial class NextUpViewModel : ObservableObject
     {
         DateTime now = _time.GetLocalNow().DateTime;
         var day = new LocalWindow(now.Date, now.Date.AddDays(1));
-        Rows = DayWorkWindows.PartsIn(_configuration.Current.DayPlan, day, now, _day?.FocusedOn, _day?.NightFallback)
+        var rows = DayWorkWindows.PartsIn(_configuration.Current.DayPlan, day, now, _day?.FocusedOn, _day?.NightFallback)
             .Where(part => part.Window.End > now && part.Category.Behavior != CategoryBehavior.Sleep)
             .Take(MaxRows)
             .Select(part => new NextUpRow(
                 part.Window.Start <= now ? "Now" : Clock(part.Window.Start),
                 $"{part.Name} until {Clock(part.Window.End)}"))
             .ToList();
+
+        // Assigned only when the content differs, so the list isn't rebuilt for nothing.
+        if (!rows.SequenceEqual(Rows))
+        {
+            Rows = rows;
+        }
+
         HasRows = Rows.Count > 0;
     }
 

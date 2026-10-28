@@ -2,6 +2,7 @@ using AccountabiliBuddy.App.Controls;
 using AccountabiliBuddy.App.Services.Search;
 using AccountabiliBuddy.App.ViewModels;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
@@ -307,7 +308,8 @@ public partial class MainWindow : Window
         var pages = new List<(int Tab, string TabName, Control Page)>();
         for (int i = 0; i <= SearchTabs.About && i < Pages.Children.Count; i++)
         {
-            if (Tabs.Items[i] is TabItem { Header: string name })
+            // The header is an icon plus a label, so the tab name is its AutomationProperties.Name.
+            if (Tabs.Items[i] is TabItem tab && AutomationProperties.GetName(tab) is { Length: > 0 } name)
             {
                 pages.Add((i, name, Pages.Children[i]));
             }

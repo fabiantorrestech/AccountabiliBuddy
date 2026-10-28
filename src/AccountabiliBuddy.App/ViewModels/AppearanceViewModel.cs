@@ -20,6 +20,7 @@ public sealed partial class AppearanceViewModel : ObservableObject, IDisposable
     private readonly AppTheme _appearance;
     private readonly CityIndex _cities = new();
     private City? _selectedCity;
+    private int _cityQueryVersion;
 
     public AppearanceViewModel(AppTheme appearance)
     {
@@ -183,19 +184,25 @@ public sealed partial class AppearanceViewModel : ObservableObject, IDisposable
         }
     }
 
-    partial void OnCityQueryChanged(string value)
+    // The list stays loaded while the picker is open (even with the box cleared) and goes in ReleaseCities.
+    partial void OnCityQueryChanged(string value) => _ = ShowCityResultsAsync(value);
+
+    private async Task ShowCityResultsAsync(string query)
     {
+        int version = ++_cityQueryVersion;
+        IReadOnlyList<City> found = await _cities.SearchAsync(query);
+        if (version != _cityQueryVersion)
+        {
+            return; // a newer keystroke, or the picker closed, while this one loaded
+        }
+
         CityResults.Clear();
-        foreach (City city in _cities.Search(value))
+        foreach (City city in found)
         {
             CityResults.Add(city);
         }
 
         OnPropertyChanged(nameof(HasCityResults));
-        if (value.Length == 0)
-        {
-            _cities.Release();
-        }
     }
 
     [RelayCommand]
@@ -223,6 +230,7 @@ public sealed partial class AppearanceViewModel : ObservableObject, IDisposable
     /// <summary>Lets the city list go (the picker closed, or this page left).</summary>
     public void ReleaseCities()
     {
+        _cityQueryVersion++;
         CityResults.Clear();
         _selectedCity = null;
         OnPropertyChanged(nameof(HasCityResults));

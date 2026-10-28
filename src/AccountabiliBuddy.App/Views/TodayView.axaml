@@ -115,12 +115,12 @@
                     <Panel>
 
                         <!-- The shutdown card (redesign phase 5): once after the day's last work part. It takes the card's place. -->
-                        <Panel IsVisible="{Binding Shutdown, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <Panel IsVisible="{Binding ShowsShutdown}">
                             <StackPanel Spacing="16" DataContext="{Binding Shutdown}" x:DataType="vm:ShutdownCardViewModel">
-                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                                     <mi:MaterialIcon Kind="WeatherSunset" Width="24" Height="24" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                    <TextBlock Classes="display" Text="Wrap up the day" FontSize="32" VerticalAlignment="Center" />
-                                </StackPanel>
+                                    <TextBlock Grid.Column="1" Classes="display" Text="Wrap up the day" FontSize="32" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                </Grid>
                                 <TextBlock Classes="muted" Text="Tick what's done. The rest carries over." />
                                 <Border Classes="inner" IsVisible="{Binding HasComebacks}">
                                     <StackPanel Spacing="4">
@@ -174,16 +174,16 @@
                             </StackPanel>
                         </Panel>
 
-                        <!-- Everything else, while there is no shutdown card. -->
-                        <Panel IsVisible="{Binding Shutdown, Converter={x:Static ObjectConverters.IsNull}}">
+                        <!-- Everything else, while there is no shutdown card (a running session also takes the card's place). -->
+                        <Panel IsVisible="{Binding !ShowsShutdown}">
 
                             <!-- New here: no profiles yet. -->
                             <StackPanel Spacing="14" IsVisible="{Binding ShowsWelcome}">
-                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                                     <mi:MaterialIcon Kind="HandWave" Width="24" Height="24" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                    <TextBlock Classes="display" Text="Welcome! Let's set up your first focus profile" FontSize="32" LineHeight="40" Padding="0,0,0,10" Margin="0,0,0,-10"
+                                    <TextBlock Grid.Column="1" Classes="display" Text="Welcome! Let's set up your first focus profile" FontSize="32" LineHeight="40" Padding="0,0,0,10" Margin="0,0,0,-10"
                                                TextWrapping="Wrap" VerticalAlignment="Center" />
-                                </StackPanel>
+                                </Grid>
                                 <TextBlock Classes="muted" TextWrapping="Wrap" MaxWidth="560"
                                            Text="A profile says what counts as distracting while you focus (sites and apps to block). Start with the example, which blocks common time-wasters like YouTube, Reddit and social media; you can change it any time." />
                                 <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="0,4,0,0">
@@ -209,7 +209,7 @@
                                                IsVisible="{Binding Day.StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}, FallbackValue=False}" />
                                 </StackPanel>
                                 <views:QuickStartPanel DataContext="{Binding QuickStart}" ShowsOpenEnded="False" />
-                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                <WrapPanel ItemSpacing="12" LineSpacing="6">
                                     <Button Classes="quiet" Padding="14,8" AutomationProperties.Name="Other ways to start">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <TextBlock Text="Other ways to start" />
@@ -242,7 +242,7 @@
                                         </Button.Flyout>
                                     </Button>
                                     <TextBlock Classes="faint" Text="{Binding HotkeyTip}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
-                                </StackPanel>
+                                </WrapPanel>
                             </StackPanel>
                         </Panel>
                     </Panel>
@@ -297,13 +297,14 @@
                             <Border Classes="inner" DataContext="{Binding Week}" x:DataType="vm:WeekCardViewModel"
                                     IsVisible="{Binding IsVisible, FallbackValue=False}">
                                 <StackPanel Spacing="6">
-                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="6">
                                         <mi:MaterialIcon Kind="CalendarWeek" Width="18" Height="18" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                                         <TextBlock Grid.Column="1" Text="{Binding Text}" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                        <ItemsControl Grid.Column="2" ItemsSource="{Binding Choices}">
+                                        <!-- Under the title and wrapping: the main column is only about 200 px inside the card in the real window. -->
+                                        <ItemsControl Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Choices}">
                                             <ItemsControl.ItemsPanel>
                                                 <ItemsPanelTemplate>
-                                                    <StackPanel Orientation="Horizontal" Spacing="4" />
+                                                    <WrapPanel ItemSpacing="4" LineSpacing="4" />
                                                 </ItemsPanelTemplate>
                                             </ItemsControl.ItemsPanel>
                                             <ItemsControl.ItemTemplate>

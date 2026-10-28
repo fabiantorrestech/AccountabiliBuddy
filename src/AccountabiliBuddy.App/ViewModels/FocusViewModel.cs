@@ -286,14 +286,16 @@ public sealed partial class FocusViewModel : ObservableObject
         RefreshTasks();
     }
 
-    // "Focus · 1 of 3": the task in front among all of them (ProgressText is "done/total").
+    // "Focus · 2 of 3": the task in front among all of them, done ones first (ProgressText is "done/total",
+    // CurrentTaskNumber counts the open tasks only, so the done ones come before it).
     private void RefreshChip(ChecklistViewModel? checklist)
     {
         SessionState state = _sessions.State;
         string label = state.IsTest ? "Test session" : state.IsEnforcing ? "Focus" : "Break";
         string[] counts = checklist?.ProgressText.Split('/') ?? [];
-        bool hasOpenTask = counts.Length == 2 && int.TryParse(counts[0], out int done) && int.TryParse(counts[1], out int total) && done < total;
-        ChipText = hasOpenTask ? $"{label} · {int.Parse(counts[0]) + 1} of {counts[1]}" : label;
+        bool hasCurrentTask = checklist is { CurrentTaskNumber: > 0 } && counts.Length == 2
+            && int.TryParse(counts[0], out int done) && int.TryParse(counts[1], out int total) && done < total;
+        ChipText = hasCurrentTask ? $"{label} · {int.Parse(counts[0]) + checklist!.CurrentTaskNumber} of {counts[1]}" : label;
     }
 
     private void RefreshTasks()

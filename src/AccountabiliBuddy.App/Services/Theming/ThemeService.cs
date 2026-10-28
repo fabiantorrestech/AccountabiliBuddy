@@ -30,12 +30,14 @@ public sealed class ThemeService
 
         var merged = app.Resources.MergedDictionaries;
         var next = new ResourceInclude(Sources[theme]) { Source = Sources[theme] };
+
+        // Add the new one first, then drop the old: one pass, and Ab.* is never unset in between.
+        merged.Add(next);
         if (_current is not null)
         {
             merged.Remove(_current);
         }
 
-        merged.Add(next);
         _current = next;
         Current = theme;
     }

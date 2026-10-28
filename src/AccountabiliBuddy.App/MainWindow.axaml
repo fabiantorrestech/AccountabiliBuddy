@@ -95,7 +95,7 @@
                         </TabControl.Styles>
                         <!-- Same order as Pages below (MainTab). Three tiers: daily, sometimes, and the ones set once under More. -->
                         <!-- Focus mode (a session running): only Today and History, and "Show everything" below. -->
-                        <TabItem>
+                        <TabItem AutomationProperties.Name="Today">
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                     <mi:MaterialIcon Kind="CalendarToday" Width="20" Height="20" />
@@ -103,7 +103,7 @@
                                 </StackPanel>
                             </TabItem.Header>
                         </TabItem>
-                        <TabItem IsVisible="{Binding !IsFocusMode}">
+                        <TabItem IsVisible="{Binding !IsFocusMode}" AutomationProperties.Name="Profiles">
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                     <mi:MaterialIcon Kind="ShieldOutline" Width="20" Height="20" />
@@ -111,7 +111,7 @@
                                 </StackPanel>
                             </TabItem.Header>
                         </TabItem>
-                        <TabItem IsVisible="{Binding !IsFocusMode}">
+                        <TabItem IsVisible="{Binding !IsFocusMode}" AutomationProperties.Name="Day plan">
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                     <mi:MaterialIcon Kind="CalendarClock" Width="20" Height="20" />
@@ -119,7 +119,7 @@
                                 </StackPanel>
                             </TabItem.Header>
                         </TabItem>
-                        <TabItem IsVisible="{Binding !IsFocusMode}">
+                        <TabItem IsVisible="{Binding !IsFocusMode}" AutomationProperties.Name="Calendar">
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                     <mi:MaterialIcon Kind="CalendarMonth" Width="20" Height="20" />
@@ -127,7 +127,7 @@
                                 </StackPanel>
                             </TabItem.Header>
                         </TabItem>
-                        <TabItem Margin="0,10,0,0">
+                        <TabItem Margin="0,10,0,0" AutomationProperties.Name="History">
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                     <mi:MaterialIcon Kind="ChartLine" Width="20" Height="20" />
@@ -135,7 +135,7 @@
                                 </StackPanel>
                             </TabItem.Header>
                         </TabItem>
-                        <TabItem IsVisible="{Binding !IsFocusMode}">
+                        <TabItem IsVisible="{Binding !IsFocusMode}" AutomationProperties.Name="Notebook">
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                     <mi:MaterialIcon Kind="NotebookOutline" Width="20" Height="20" />
@@ -143,7 +143,7 @@
                                 </StackPanel>
                             </TabItem.Header>
                         </TabItem>
-                        <TabItem IsVisible="{Binding !IsFocusMode}">
+                        <TabItem IsVisible="{Binding !IsFocusMode}" AutomationProperties.Name="Devices">
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                     <mi:MaterialIcon Kind="Devices" Width="20" Height="20" />
@@ -152,7 +152,7 @@
                             </TabItem.Header>
                         </TabItem>
                         <!-- No page of its own: selecting it unfolds the four under it (the view model puts the selection back). -->
-                        <TabItem Margin="0,10,0,0" IsVisible="{Binding !IsFocusMode}">
+                        <TabItem Margin="0,10,0,0" IsVisible="{Binding !IsFocusMode}" AutomationProperties.Name="More">
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                     <mi:MaterialIcon Kind="DotsHorizontal" Width="20" Height="20" />
@@ -160,7 +160,7 @@
                                 </StackPanel>
                             </TabItem.Header>
                         </TabItem>
-                        <TabItem Classes="under" IsVisible="{Binding ShowsMoreItems}">
+                        <TabItem Classes="under" IsVisible="{Binding ShowsMoreItems}" AutomationProperties.Name="Setup">
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                     <mi:MaterialIcon Kind="Wrench" Width="16" Height="16" />
@@ -168,7 +168,7 @@
                                 </StackPanel>
                             </TabItem.Header>
                         </TabItem>
-                        <TabItem Classes="under" IsVisible="{Binding ShowsMoreItems}">
+                        <TabItem Classes="under" IsVisible="{Binding ShowsMoreItems}" AutomationProperties.Name="Integrations">
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                     <mi:MaterialIcon Kind="Puzzle" Width="16" Height="16" />
@@ -176,7 +176,7 @@
                                 </StackPanel>
                             </TabItem.Header>
                         </TabItem>
-                        <TabItem Classes="under" IsVisible="{Binding ShowsMoreItems}">
+                        <TabItem Classes="under" IsVisible="{Binding ShowsMoreItems}" AutomationProperties.Name="Settings">
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                     <mi:MaterialIcon Kind="Cog" Width="16" Height="16" />
@@ -184,7 +184,7 @@
                                 </StackPanel>
                             </TabItem.Header>
                         </TabItem>
-                        <TabItem Classes="under" IsVisible="{Binding ShowsMoreItems}">
+                        <TabItem Classes="under" IsVisible="{Binding ShowsMoreItems}" AutomationProperties.Name="About">
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                     <mi:MaterialIcon Kind="InformationOutline" Width="16" Height="16" />
@@ -192,7 +192,7 @@
                                 </StackPanel>
                             </TabItem.Header>
                         </TabItem>
-                        <TabItem IsVisible="{Binding ShowDevTools}">
+                        <TabItem IsVisible="{Binding ShowDevTools}" AutomationProperties.Name="Activity (dev)">
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                     <mi:MaterialIcon Kind="Bug" Width="20" Height="20" />
