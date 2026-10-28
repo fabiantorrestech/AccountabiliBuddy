@@ -340,6 +340,18 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
 
     private void ReadNow()
     {
+        try
+        {
+            ReadAndPublish();
+        }
+        catch (Exception)
+        {
+            // Never let an exception cross a window procedure or a WinEvent callback: the next event reads again.
+        }
+    }
+
+    private void ReadAndPublish()
+    {
         IReadOnlyList<TaskbarInfo> taskbars = ReadTaskbars();
         ForegroundScreenState foreground = ReadForeground();
         bool changed;
@@ -639,9 +651,9 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
                 using Process process = Process.GetProcessById((int)processId);
                 _lastProcessName = process.ProcessName;
             }
-            catch (ArgumentException)
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
             {
-                _lastProcessName = null; // Exited meanwhile.
+                _lastProcessName = null; // Exited meanwhile, or not ours to read.
             }
 
             _lastProcessId = processId;

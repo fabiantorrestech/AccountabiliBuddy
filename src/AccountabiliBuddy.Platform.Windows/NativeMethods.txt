@@ -162,7 +162,7 @@ GetDpiForMonitor
 SHQueryUserNotificationState
 QUERY_USER_NOTIFICATION_STATE
 EVENT_OBJECT_LOCATIONCHANGE
-OBJID_WINDOW
+OBJECT_IDENTIFIER
 // Taskbar contents: where the app icons end and the tray starts (UI Automation)
 CUIAutomation
 IUIAutomation
@@ -177,7 +177,7 @@ SetWindowsHookEx
 UnhookWindowsHookEx
 CallNextHookEx
 KBDLLHOOKSTRUCT
-WH_KEYBOARD_LL
+WINDOWS_HOOK_ID
 WM_KEYDOWN
 WM_KEYUP
 WM_SYSKEYDOWN

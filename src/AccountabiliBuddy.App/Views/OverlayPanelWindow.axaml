@@ -208,7 +208,16 @@
                     <mi:MaterialIcon Kind="Waveform" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Model.TrackText}" FontSize="13" Foreground="{DynamicResource Ab.Ink}" TextTrimming="CharacterEllipsis" />
-                        <Slider Minimum="0" Maximum="100" Value="{Binding Model.Noise.Volume}" MinHeight="0" Margin="0,-2,0,-6" />
+                        <Slider Minimum="0" Maximum="100" Value="{Binding Model.Noise.Volume}" MinHeight="0" Margin="0,-2,0,-6">
+                            <Slider.Resources>
+                                <SolidColorBrush x:Key="SliderTrackValueFill" Color="{DynamicResource Ab.InkColor}" />
+                                <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="{DynamicResource Ab.InkColor}" />
+                                <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="{DynamicResource Ab.InkColor}" />
+                                <SolidColorBrush x:Key="SliderThumbBackground" Color="{DynamicResource Ab.InkColor}" />
+                                <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="{DynamicResource Ab.InkColor}" />
+                                <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="{DynamicResource Ab.InkColor}" />
+                            </Slider.Resources>
+                        </Slider>
                     </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                         <Button Classes="foot" Command="{Binding Model.Noise.ToggleLockCommand}" ToolTip.Tip="{Binding Model.Noise.LockTip}" AutomationProperties.Name="Headphone lock"><mi:MaterialIcon Kind="{Binding Model.Noise.LockIcon}" Width="14" Height="14" /></Button>

@@ -70,14 +70,14 @@ public static class SetupFeatures
             IsSetUp: () => appearance.HasPickedTheme,
             Step: ViewModels.AssistantStep.Appearance),
         new SetupFeature(
-            "overlay.taskbar", "0.1.115",
+            "overlay.taskbar", "0.1.116",
             "Overlay: docked over the taskbar",
             "The on-screen timer sits over the taskbar next to the tray, follows the taskbar when it hides or moves, and shows a corner clock over full-screen apps. Pick where it lives, its size and what it shows in Settings.",
             IsRelevant: () => true,
             IsSetUp: () => overlay.HasChosenPlacement,
             Step: ViewModels.AssistantStep.OverlayTaskbar),
         new SetupFeature(
-            "panel.ctrlalt", "0.1.115",
+            "panel.ctrlalt", "0.1.116",
             "Ctrl+Alt panel: Done, Pause and your tasks from anywhere",
             "Hold Ctrl+Alt (or press Ctrl+Alt+Space) and a panel rises from the overlay with Done, Pause, +10 min, this session's tasks, the sound and shortcuts.",
             IsRelevant: () => true,
