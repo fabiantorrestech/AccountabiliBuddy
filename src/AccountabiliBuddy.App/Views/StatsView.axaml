@@ -320,7 +320,7 @@
                         <Border Width="16" Height="3" CornerRadius="2" Background="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
                         <TextBlock Classes="muted" Text="Deep work, daily avg" FontSize="12" />
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding Secondary, Converter={x:Static ObjectConverters.IsNotNull}}">
                         <Line StartPoint="0,1" EndPoint="16,1" Stroke="{DynamicResource Ab.Drift}" StrokeThickness="1.5" StrokeDashArray="2,3" VerticalAlignment="Center" />
                         <TextBlock Classes="muted" Text="Drift" FontSize="12" />
                     </StackPanel>

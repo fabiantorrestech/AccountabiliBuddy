@@ -565,6 +565,8 @@ public sealed partial class StatsViewModel : ObservableObject
             return;
         }
 
+        // The empty text depends on the data (e.g. activity history turned off), not only on the view.
+        OnPropertyChanged(nameof(EmptyText));
         StatsLookups lookups = Lookups();
         (DateOnly from, DateOnly to) = StatsFormat.Bounds(Range, _data.Today);
         RangeText = Range == StatsRange.Day ? SelectedDay.ToString("ddd, MMM d", CultureInfo.CurrentCulture) : StatsFormat.DatesText(from, to);
