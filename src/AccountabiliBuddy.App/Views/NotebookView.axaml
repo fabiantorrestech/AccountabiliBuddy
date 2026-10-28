@@ -3,55 +3,52 @@
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              x:Class="AccountabiliBuddy.App.Views.NotebookView"
              x:DataType="vm:NotebookViewModel">
-    <!-- Everything written down, so it can leave your head: come-backs, notes, unfinished and done tasks. -->
-    <ScrollViewer>
-        <StackPanel Margin="16" Spacing="12" MaxWidth="820" HorizontalAlignment="Center">
-            <TextBlock Text="Notebook" FontSize="24" FontWeight="SemiBold" />
-            <TextBlock Text="Parked ideas, notes from sessions and tasks, newest first. Written down means you can stop holding it."
-                       Opacity="0.75" TextWrapping="Wrap" />
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBox Text="{Binding Search}" Width="260" PlaceholderText="Search" AutomationProperties.Name="Search the notebook" />
-                <ComboBox ItemsSource="{x:Static vm:NotebookViewModel.Filters}" SelectedItem="{Binding Filter}" MinWidth="160" />
-            </StackPanel>
-            <TextBlock Text="{Binding SummaryText}" Opacity="0.6" FontSize="12" />
-            <TextBlock Text="Nothing here yet." Opacity="0.6" IsVisible="{Binding IsEmpty}" />
-
-            <ItemsControl ItemsSource="{Binding Items}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:NotebookItemViewModel">
-                        <Border Padding="12,8" Margin="0,0,0,6" CornerRadius="8" Background="#12808080" BorderBrush="#26808080" BorderThickness="1"
-                                Classes.sub="{Binding IsSubtask}">
-                            <Border.Styles>
-                                <Style Selector="Border.sub">
-                                    <Setter Property="Margin" Value="28,-2,0,6" />
-                                </Style>
-                            </Border.Styles>
-                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
-                                <CheckBox Command="{Binding Tick}" IsVisible="{Binding CanTick}" ToolTip.Tip="Done: tick it off" VerticalAlignment="Top" />
-                                <StackPanel Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding IsNotEditing}" />
-                                    <TextBox Text="{Binding EditText}" IsVisible="{Binding IsEditing}">
-                                        <TextBox.KeyBindings>
-                                            <KeyBinding Gesture="Enter" Command="{Binding SaveCommand}" />
-                                            <KeyBinding Gesture="Escape" Command="{Binding CancelCommand}" />
-                                        </TextBox.KeyBindings>
-                                    </TextBox>
-                                    <TextBlock Text="{Binding WhenText}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
-                                </StackPanel>
-                                <TextBlock Grid.Column="2" Text="{Binding Kind}" FontSize="11" Opacity="0.55" VerticalAlignment="Top" />
-                                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2" IsVisible="{Binding CanEdit}" VerticalAlignment="Top">
-                                    <Button Content="✎" Command="{Binding EditCommand}" IsVisible="{Binding IsNotEditing}" ToolTip.Tip="Edit"
-                                            Background="Transparent" Padding="6,0" />
-                                    <Button Content="✓" Command="{Binding SaveCommand}" IsVisible="{Binding IsEditing}" ToolTip.Tip="Keep the change"
-                                            Background="Transparent" Padding="6,0" />
-                                    <Button Content="✕" Command="{Binding DeleteCommand}" ToolTip.Tip="{Binding DeleteTip}"
-                                            Background="Transparent" Padding="6,0" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+    <!-- The Archive (the Notebook, restyled for the Tasks page): everything written down, so it can leave your head: come-backs,
+         session notes, unfinished and done tasks, newest first, with its own filter and search. It sits in the page's scroll. -->
+    <StackPanel Margin="4,2,4,8" Spacing="10">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBox Text="{Binding Search}" Width="240" PlaceholderText="Search the Archive" AutomationProperties.Name="Search the Archive" />
+            <ComboBox ItemsSource="{x:Static vm:NotebookViewModel.Filters}" SelectedItem="{Binding Filter}" MinWidth="160" AutomationProperties.Name="Archive filter" />
         </StackPanel>
-    </ScrollViewer>
+        <TextBlock Classes="muted" Text="Parked ideas, notes from sessions and tasks, newest first. Written down means you can stop holding it."
+                   FontSize="13" TextWrapping="Wrap" />
+        <TextBlock Classes="muted" Text="Nothing here yet." IsVisible="{Binding IsEmpty}" />
+
+        <ItemsControl ItemsSource="{Binding Items}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:NotebookItemViewModel">
+                    <Border Padding="14,10" Margin="0,0,0,6" CornerRadius="14" Background="{DynamicResource Ab.Surface2}"
+                            Classes.sub="{Binding IsSubtask}">
+                        <Border.Styles>
+                            <Style Selector="Border.sub">
+                                <Setter Property="Margin" Value="28,-2,0,6" />
+                            </Style>
+                        </Border.Styles>
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                            <CheckBox Command="{Binding Tick}" IsVisible="{Binding CanTick}" ToolTip.Tip="Done: tick it off" VerticalAlignment="Top" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding IsNotEditing}" />
+                                <TextBox Text="{Binding EditText}" IsVisible="{Binding IsEditing}">
+                                    <TextBox.KeyBindings>
+                                        <KeyBinding Gesture="Enter" Command="{Binding SaveCommand}" />
+                                        <KeyBinding Gesture="Escape" Command="{Binding CancelCommand}" />
+                                    </TextBox.KeyBindings>
+                                </TextBox>
+                                <TextBlock Classes="muted" Text="{Binding WhenText}" FontSize="12" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="2" Classes="faint" Text="{Binding Kind}" FontSize="12" VerticalAlignment="Top" />
+                            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2" IsVisible="{Binding CanEdit}" VerticalAlignment="Top">
+                                <Button Classes="quiet" Content="✎" Command="{Binding EditCommand}" IsVisible="{Binding IsNotEditing}" ToolTip.Tip="Edit"
+                                        Padding="6,0" />
+                                <Button Classes="quiet" Content="✓" Command="{Binding SaveCommand}" IsVisible="{Binding IsEditing}" ToolTip.Tip="Keep the change"
+                                        Padding="6,0" />
+                                <Button Classes="quiet" Content="✕" Command="{Binding DeleteCommand}" ToolTip.Tip="{Binding DeleteTip}"
+                                        Padding="6,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
 </UserControl>

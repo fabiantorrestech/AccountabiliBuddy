@@ -114,6 +114,7 @@ public partial class App : Application
     private DeepWorkHistoryViewModel? _deepWorkHistory;
     private ShutdownService? _shutdown;
     private ComebackStore? _comebacks;
+    private LaterStore? _later;
     private AccountabiliBuddy.App.Services.Beeminder.BeeminderService? _beeminder;
     private SessionNotesStore? _sessionNotes;
     private CaptureService? _capture;
@@ -429,6 +430,12 @@ public partial class App : Application
         _comebacks.LoadBlocking();
         // A task can be parked as a come-back, and a come-back brought into the checklist.
         sessionTasks.Comebacks = _comebacks;
+        // The Later list (ADR 50): "Move to Later" puts a task there; kept encrypted and shared like the next session's tasks.
+        _later = new LaterStore(documents, new DpapiDataProtector(), time);
+        _later.LoadBlocking();
+        sessionTasks.Later = _later;
+        // "Put in plan": a part's own start, from the day plan as it is now (else the time it was planned with).
+        sessionTasks.PlannedStartOf = slot => PlannedPartStart(slot);
         // Notes kept in Focus mode (redesign phase 5): this computer only, sealed.
         _sessionNotes = new SessionNotesStore(documents, new DpapiDataProtector(), time);
         _sessionNotes.LoadBlocking();
@@ -583,7 +590,7 @@ public partial class App : Application
         syncCoordinator.Gaps = sessionGaps;
         // Guided sessions (ADR 24): the checklist goes to other devices in this PC's sync file, each task
         // with its category's name and colour.
-        syncCoordinator.TasksOf = start => sessionTasks.ForSession(start) is { HasTasks: true } checklist ? sessionTasks.Labelled(checklist) : null;
+        syncCoordinator.TasksOf = start => sessionTasks.ForSession(start) is { HasTasks: true } checklist ? sessionTasks.LabelledForSync(checklist) : null;
         sessionTasks.Changed += (_, _) =>
         {
             syncCoordinator.NotifyHistoryChanged();
@@ -596,6 +603,9 @@ public partial class App : Application
         syncCoordinator.Parked = _comebacks.ForSync;
         syncCoordinator.MergeNextTasks = sessionTasks.MergeNextTasksAsync;
         syncCoordinator.MergeParked = _comebacks.MergeAsync;
+        // ADR 50: the Later list goes the same way.
+        syncCoordinator.Later = _later.ForSync;
+        syncCoordinator.MergeLater = _later.MergeAsync;
         // A fixed lunch doesn't start by itself while another PC runs a session (its file says so).
         _lunch!.OtherPcSessionRunning = () => AccountabiliBuddy.App.Services.Sync.OtherPcSessions.IsRunning(receivedDevices.Devices, time.GetUtcNow());
         // Beeminder (ADR 43): only the derived summary goes in this PC's sync file; removing the token removes it.
@@ -1042,7 +1052,7 @@ public partial class App : Application
             Environment.GetEnvironmentVariable(DevToolsVariable) == "1",
             _configuration.LoadError)
         {
-            Notebook = notebook,
+            Tasks = new TasksViewModel(sessionTasks, _later!, _comebacks!, notebook, sessionViewModel, _configuration!, time),
             DayBar = _dayBar,
             Search = new SearchViewModel(SearchDataAsync),
             Devices = devices,
@@ -1140,15 +1150,16 @@ public partial class App : Application
 
         // The migration assistant: features added since the last version that aren't set up yet.
         var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
-            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme), BackupService.AppVersion);
+            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks), BackupService.AppVersion);
         setupFeatures.LoadBlocking();
         _setupFeatures = setupFeatures;
         coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();
         appTheme.Changed += (_, _) => setupFeatures.Refresh();
+        sessionTasks.Changed += (_, _) => setupFeatures.Refresh();
         syncSettings.Changed += (_, _) => setupFeatures.Refresh();
         _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
         sessionViewModel.WhatsNew = new WhatsNewCardViewModel(setupFeatures, ShowWhatsNew);
-        sessionViewModel.NextUp = new NextUpViewModel(_configuration, time, sessionViewModel.Day);
+        sessionViewModel.NextUp = new NextUpViewModel(_configuration, time, sessionViewModel.Day, sessionTasks);
         sessionViewModel.SeenWhilePlanning = new SeenWhilePlanningViewModel(_planFirst!, displayNames.NameFor);
         sessionViewModel.MoreToday = new MoreTodayViewModel(sessionViewModel);
         mainViewModel.Settings.Updates.OpenWhatsNew = ShowWhatsNew;
@@ -2149,6 +2160,16 @@ public partial class App : Application
         {
             _windowAttention?.Flash(handle.Handle);
         }
+    }
+
+    // ADR 50: where the day part a task was planned for starts now (the plan may have been edited since); the time it was planned
+    // with when the part is gone.
+    private DateTime PlannedPartStart(PlannedSlot slot)
+    {
+        var day = new LocalWindow(slot.Date.AddDays(-1).ToDateTime(TimeOnly.MinValue), slot.Date.AddDays(2).ToDateTime(TimeOnly.MinValue));
+        PlannedPart? part = _configuration!.Current.DayPlan.PartsIn(day)
+            .FirstOrDefault(planned => planned.Part.Id == slot.PartId && DateOnly.FromDateTime(planned.Window.Start) == slot.Date);
+        return part?.Window.Start ?? slot.StartsAt;
     }
 
     private static bool OpenInBrowser(Uri uri)

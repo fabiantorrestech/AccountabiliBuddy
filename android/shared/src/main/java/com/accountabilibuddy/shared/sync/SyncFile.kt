@@ -74,6 +74,11 @@ data class SyncFile(
      * [nextTasks]. [comebacks] stays for older phones: the open ones only.
      */
     val parked: List<SyncParked>? = null,
+    /**
+     * The Later list with its tombstones (ADR 50), merged item by item like [nextTasks]; null from a QR file or an app that
+     * predates it. Optional in the JSON, so older apps ignore it.
+     */
+    val later: List<SyncLaterItem>? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1

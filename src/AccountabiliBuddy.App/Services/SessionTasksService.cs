@@ -15,7 +15,9 @@ namespace AccountabiliBuddy.App.Services;
 /// ("session.tasks", "session.taskHistory", "session.categories"), like notes on added sessions. The draft is the next
 /// session's task list, which the user's devices share through the sealed sync files (ADR 48): it is kept apart as items
 /// with edit times and tombstones ("session.nextTasks", DPAPI-encrypted) that <see cref="MergeNextTasksAsync"/> merges.
-/// The running session's checklist is never merged: it belongs to this PC. Use from the UI thread only.
+/// The running session's checklist is never merged: it belongs to this PC. A task also has an optional estimate, note and
+/// planned day part (ADR 50) that travel with it, and "Move to Later" hands it to the <see cref="LaterStore"/>. Use from the
+/// UI thread only.
 /// </summary>
 public sealed class SessionTasksService : IDisposable
 {
@@ -37,6 +39,7 @@ public sealed class SessionTasksService : IDisposable
     private const string CategoriesKey = "session.categories";
     private const string OverLimitKey = "session.overLimit";
     private const string NextTasksKey = "session.nextTasks";
+    private const string MovedToLaterKey = "session.movedToLater";
 
     // Two positions closer than this are renumbered (halving a gap again and again runs out of precision).
     private const double MinPositionGap = 1e-9;
@@ -55,6 +58,10 @@ public sealed class SessionTasksService : IDisposable
     // The shared next-session list (ADR 48), tombstones included; the draft shows its live items.
     private List<SyncNextTask> _nextTasks = [];
 
+    // Tasks of ended sessions that were moved to Later: the session's record stays as it was, and they're left out of
+    // "Unfinished from past sessions". Only ids and when (no text); kept as long as history is.
+    private List<MovedEntry> _movedToLater = [];
+
     public SessionTasksService(SqliteJsonDocumentStore store, IDataProtector protector, SessionController sessions, TimeProvider time)
     {
         _store = store;
@@ -63,6 +70,7 @@ public sealed class SessionTasksService : IDisposable
         _time = time;
         _wasActive = sessions.State.IsActive;
         _sessions.StateChanged += OnStateChanged;
+        _sessions.Ticked += OnTicked;
     }
 
     /// <summary>The draft (no <see cref="SessionChecklist.SessionStart"/>) or the running session's checklist.</summary>
@@ -82,6 +90,31 @@ public sealed class SessionTasksService : IDisposable
     /// checklist hides ⚑).
     /// </summary>
     public ComebackStore? Comebacks { get; set; }
+
+    /// <summary>
+    /// The Later list (ADR 50) a task is moved to and brought back from; set once the store exists. Its changes raise
+    /// <see cref="Changed"/>, so pages redraw and the sync file is written again. Null: no Later list.
+    /// </summary>
+    public LaterStore? Later
+    {
+        get => _later;
+        set
+        {
+            _later = value;
+            if (value is not null)
+            {
+                value.Changed += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
+            }
+        }
+    }
+
+    private LaterStore? _later;
+
+    /// <summary>
+    /// Where a planned day part starts (the plan's own time for that part, else the time it was planned with), as a local
+    /// wall-clock time; set by the app, which knows the plan. Null: the time the task was planned with.
+    /// </summary>
+    public Func<PlannedSlot, DateTime>? PlannedStartOf { get; set; }
 
     /// <summary>True while the checklist belongs to a running session.</summary>
     public bool IsLive => Current.SessionStart is not null && _sessions.State.IsActive;
@@ -142,6 +175,7 @@ public sealed class SessionTasksService : IDisposable
             _overLimit = OpenOverLimit(overLimit?.Data) ?? [];
             StoredCategories? nextTasks = Task.Run(() => _store.LoadAsync<StoredCategories>(NextTasksKey)).GetAwaiter().GetResult();
             _nextTasks = OpenNextTasks(nextTasks?.Data) ?? [];
+            _movedToLater = Task.Run(() => _store.LoadAsync<List<MovedEntry>>(MovedToLaterKey)).GetAwaiter().GetResult() ?? [];
             if (Current.SessionStart is null)
             {
                 LoadSharedDraftBlocking(firstTime: nextTasks is null);
@@ -263,6 +297,11 @@ public sealed class SessionTasksService : IDisposable
             return RemoteTaskResult.NotValid("The task needs a title and each step a text of up to 500 characters (30 steps at most).");
         }
 
+        if (DetailsInvalid(request))
+        {
+            return RemoteTaskResult.NotValid("An estimate is 0 to 1440 minutes and a note up to 4000 characters.");
+        }
+
         if (id != Guid.Empty && Current.Tasks.Any(task => task.Id == id))
         {
             return RemoteTaskResult.Applied();
@@ -282,7 +321,7 @@ public sealed class SessionTasksService : IDisposable
         }
 
         Guid? categoryId = await ResolveRemoteCategoryAsync(request);
-        await SetAsync(Current.AddWithId(id, title, categoryId, steps));
+        await SetAsync(Current.AddWithId(id, title, categoryId, steps, request.EstimateMinutes, request.Note));
         return RemoteTaskResult.Applied();
     }
 
@@ -304,13 +343,30 @@ public sealed class SessionTasksService : IDisposable
             return RemoteTaskResult.NotValid("A title and each step need a text of up to 500 characters (30 steps at most).");
         }
 
+        if (DetailsInvalid(request))
+        {
+            return RemoteTaskResult.NotValid("An estimate is 0 to 1440 minutes and a note up to 4000 characters.");
+        }
+
         if (Current.Tasks.All(task => task.Id != id))
         {
             return RemoteTaskResult.Refused("That task is no longer on this session's list.");
         }
 
         IReadOnlyList<SessionStepEdit>? steps = request.Steps?.Select(step => new SessionStepEdit(step.Id, step.Title)).ToList();
-        await SetAsync(Current.Edit(id, request.Title, steps));
+        SessionChecklist edited = Current.Edit(id, request.Title, steps);
+        // ADR 50: an estimate or a note changes nothing that loosens a rule, so it is allowed like a rename (null keeps, 0 or blank clears).
+        if (request.EstimateMinutes is int estimate)
+        {
+            edited = edited.SetEstimate(id, estimate);
+        }
+
+        if (request.Note is not null)
+        {
+            edited = edited.SetNote(id, request.Note);
+        }
+
+        await SetAsync(edited);
         return RemoteTaskResult.Applied();
     }
 
@@ -354,6 +410,12 @@ public sealed class SessionTasksService : IDisposable
         }
 
         return null;
+    }
+
+    private static bool DetailsInvalid(SyncTaskRequest request)
+    {
+        return request.EstimateMinutes is < 0 or > SessionChecklist.MaxEstimateMinutes
+            || (request.Note is not null && request.Note.Length > SessionChecklist.MaxNoteLength);
     }
 
     private static bool StepsInvalid(IReadOnlyList<SyncTaskStep>? steps)
@@ -449,6 +511,15 @@ public sealed class SessionTasksService : IDisposable
         return checklist.Labelled(_categories);
     }
 
+    /// <summary>
+    /// The checklist's tasks as the session records in this PC's sync file carry them (ADR 24): with their category, but
+    /// without the note, the estimate or the planned part (ADR 50), which travel only in the shared lists.
+    /// </summary>
+    public IReadOnlyList<SessionTask> LabelledForSync(SessionChecklist checklist)
+    {
+        return checklist.Labelled(_categories).Select(task => task with { EstimateMinutes = null, Note = null, PlannedFor = null }).ToList();
+    }
+
     public Task RemoveAsync(Guid id)
     {
         return SetAsync(Current.Remove(id));
@@ -511,6 +582,155 @@ public sealed class SessionTasksService : IDisposable
         await AddAsync(comeback.Text, null);
         await Comebacks.TickAsync(comebackId);
         return true;
+    }
+
+    /// <summary>
+    /// The estimate of a task of the checklist in minutes (null clears it). Allowed while a session runs: it loosens nothing
+    /// (ADR 50).
+    /// </summary>
+    public Task SetEstimateAsync(Guid id, int? minutes)
+    {
+        return SetAsync(Current.SetEstimate(id, minutes));
+    }
+
+    /// <summary>The note of a task of the checklist (null or blank clears it); allowed while a session runs, like a rename. Never logged.</summary>
+    public Task SetNoteAsync(Guid id, string? note)
+    {
+        return SetAsync(Current.SetNote(id, note));
+    }
+
+    /// <summary>"Put in plan": the day part a task of the checklist is planned for (null: not planned).</summary>
+    public Task SetPlannedForAsync(Guid id, PlannedSlot? slot)
+    {
+        return SetAsync(Current.SetPlannedFor(id, slot));
+    }
+
+    /// <summary>
+    /// "Move to Later": an open task of the checklist goes to the Later list with its steps, category, estimate and note
+    /// (and <paramref name="dueOn"/>), a new item with a new id. During a session it counts as taken off open
+    /// (<see cref="SessionChecklist.DroppedOpen"/>, ADR 25), like parking it. A done task, or an unknown one, stays.
+    /// </summary>
+    /// <returns>The id of the new Later item; null when nothing moved.</returns>
+    public async Task<Guid?> MoveToLaterAsync(Guid taskId, DateOnly? dueOn = null)
+    {
+        SessionTask? task = Labelled(Current).FirstOrDefault(candidate => candidate.Id == taskId);
+        if (Later is null || task is null || task.IsDone)
+        {
+            return null;
+        }
+
+        IReadOnlyList<SessionSubtask> openSteps = task.Subtasks.Where(step => !step.IsDone).ToList();
+        SyncLaterItem? item = await Later.AddAsync(task.Title, openSteps, task.Category, task.CategoryColor, task.EstimateMinutes, task.Note, dueOn, task.PlannedFor);
+        await SetAsync(Current.Parked(taskId));
+        return item?.Id;
+    }
+
+    /// <summary>
+    /// "Move to this session": a Later item becomes a task at the end of the checklist and leaves the Later list. Refused
+    /// (with the reason) when the checklist already holds <see cref="TaskAllowance"/> tasks, as adding one is: a 4th task is
+    /// never added this way. The new task's id when it moved.
+    /// </summary>
+    public async Task<(Guid? TaskId, string? Error)> MoveFromLaterAsync(Guid laterId)
+    {
+        SyncLaterItem? item = Later?.Items.FirstOrDefault(candidate => candidate.Id == laterId);
+        if (Later is null || item is null)
+        {
+            return (null, "That item is no longer on the Later list.");
+        }
+
+        if (!_sessions.State.IsTest && Current.Tasks.Count >= TaskAllowance)
+        {
+            return (null, $"This session already has {TaskAllowance} tasks.");
+        }
+
+        Guid? categoryId = item.Category is string name
+            ? await ResolveRemoteCategoryAsync(new SyncTaskRequest(Category: name, CategoryColor: item.CategoryColor))
+            : null;
+        var task = new SessionTask(
+            Guid.NewGuid(), item.Title, null, item.Subtasks ?? [], categoryId, EstimateMinutes: item.EstimateMinutes, Note: item.Note);
+        await Later.DeleteAsync(laterId);
+        await SetAsync(Current.AddTask(task));
+        return (task.Id, null);
+    }
+
+    /// <summary>The open tasks of ended sessions (newest session first), for the Tasks page's "Unfinished from past sessions".</summary>
+    public IReadOnlyList<PastTask> PastUnfinished()
+    {
+        HashSet<Guid> moved = _movedToLater.Select(entry => entry.Id).ToHashSet();
+        return _history
+            .Where(checklist => checklist.SessionStart is not null)
+            .OrderByDescending(checklist => checklist.SessionStart)
+            .SelectMany(checklist => checklist.Tasks.Where(task => !task.IsDone && !moved.Contains(task.Id)).Select(task => new PastTask(task, checklist.SessionStart!.Value)))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Offers unfinished tasks of ended sessions to the Later list (nothing moves on its own): each becomes a Later item with
+    /// its open steps, category, estimate and note. The session's record stays as it was; the task is remembered as moved,
+    /// so it is no longer listed under "Unfinished from past sessions".
+    /// </summary>
+    /// <returns>How many moved.</returns>
+    public async Task<int> MovePastToLaterAsync(IReadOnlySet<Guid> taskIds)
+    {
+        if (Later is null)
+        {
+            return 0;
+        }
+
+        int moved = 0;
+        foreach (PastTask past in PastUnfinished().Where(candidate => taskIds.Contains(candidate.Task.Id)))
+        {
+            SessionTask task = past.Task;
+            IReadOnlyList<SessionSubtask> openSteps = task.Subtasks.Where(step => !step.IsDone).ToList();
+            // Remembered before the Later item is added, so the page that redraws on its change already leaves the task out.
+            _movedToLater.Add(new MovedEntry(task.Id, _time.GetUtcNow()));
+            if (await Later.AddAsync(task.Title, openSteps, task.Category, task.CategoryColor, task.EstimateMinutes, task.Note, null) is not null)
+            {
+                moved++;
+            }
+            else
+            {
+                _movedToLater.RemoveAt(_movedToLater.Count - 1);
+            }
+        }
+
+        if (moved > 0)
+        {
+            DateTimeOffset keptFrom = _time.GetUtcNow() - HistoryKept;
+            _movedToLater = _movedToLater.Where(entry => entry.At >= keptFrom).ToList();
+            await _store.SaveAsync(MovedToLaterKey, _movedToLater);
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+
+        return moved;
+    }
+
+    /// <summary>
+    /// The titles of open tasks planned for the day part <paramref name="partId"/> on <paramref name="date"/> ("Put in plan"),
+    /// for Today's Next up: the draft or running checklist, the next session's list and the Later list.
+    /// </summary>
+    public IReadOnlyList<string> PlannedTitles(DateOnly date, Guid partId)
+    {
+        bool Planned(PlannedSlot? slot) => slot is not null && slot.Date == date && slot.PartId == partId;
+
+        var titles = new Dictionary<Guid, string>();
+        // A running session's tasks are never "planned" (Put in plan is for the next session's list and Later).
+        foreach (SessionTask task in Current.Tasks.Where(task => Current.SessionStart is null && !task.IsDone && Planned(task.PlannedFor)))
+        {
+            titles[task.Id] = task.Title;
+        }
+
+        foreach (SyncNextTask task in _nextTasks.Where(task => task.DeletedAt is null && Planned(task.PlannedFor)))
+        {
+            titles.TryAdd(task.Id, task.Title);
+        }
+
+        foreach (SyncLaterItem item in Later?.Items.Where(item => Planned(item.PlannedFor)) ?? [])
+        {
+            titles.TryAdd(item.Id, item.Title);
+        }
+
+        return titles.Values.ToList();
     }
 
     public async Task ToggleAsync(Guid id)
@@ -578,6 +798,107 @@ public sealed class SessionTasksService : IDisposable
     public void Dispose()
     {
         _sessions.StateChanged -= OnStateChanged;
+        _sessions.Ticked -= OnTicked;
+    }
+
+    // ADR 50, "Put in plan": no timer of its own. The session engine's tick is checked at most every 20 seconds, and only
+    // while some task is planned.
+    private void OnTicked(object? sender, EventArgs e)
+    {
+        DateTimeOffset now = _time.GetUtcNow();
+        if (_releasingPlanned || now < _nextPlannedCheck)
+        {
+            return;
+        }
+
+        _nextPlannedCheck = now.AddSeconds(20);
+        if (HasPlannedTasks())
+        {
+            _ = ReleasePlannedAsync();
+        }
+    }
+
+    private bool _releasingPlanned;
+    private DateTimeOffset _nextPlannedCheck;
+
+    private bool HasPlannedTasks()
+    {
+        return (Later?.Items.Any(item => item.PlannedFor is not null) ?? false)
+            || _nextTasks.Any(task => task.DeletedAt is null && task.PlannedFor is not null);
+    }
+
+    private DateTime PlannedStart(PlannedSlot slot)
+    {
+        return PlannedStartOf?.Invoke(slot) ?? slot.StartsAt;
+    }
+
+    /// <summary>
+    /// When a task's planned day part has started (ADR 50): a Later item moves to the end of the next session's list, a task
+    /// already on that list just stops being "planned". The running checklist is never touched, so this can't add a task to
+    /// a session that runs; the list is the one another device may add to meanwhile (ADR 48).
+    /// </summary>
+    private async Task ReleasePlannedAsync()
+    {
+        _releasingPlanned = true;
+        try
+        {
+            DateTimeOffset now = _time.GetUtcNow();
+            DateTime localNow = TimeZoneInfo.ConvertTime(now, _sessions.TimeProvider.LocalTimeZone).DateTime;
+            bool changed = false;
+            List<SyncNextTask> items = _nextTasks.ToList();
+            var released = new List<Guid>();
+            foreach (SyncLaterItem item in (Later?.Items ?? []).Where(item => item.PlannedFor is PlannedSlot slot && PlannedStart(slot) <= localNow).ToList())
+            {
+                // The task keeps the Later item's id, so two PCs releasing the same item make the same task and the merge keeps one.
+                // An id already on the list (a release that was interrupted before the Later item was deleted) isn't added again.
+                if (items.All(task => task.Id != item.Id))
+                {
+                    double last = items.Where(task => task.DeletedAt is null && task.Category == item.Category).Select(task => task.Position).DefaultIfEmpty(0).Max();
+                    items.Add(new SyncNextTask(
+                        item.Id, item.Title, null, item.Category, item.CategoryColor, item.Subtasks, now, null,
+                        SharedListMerge.PositionBetween(last, null), item.EstimateMinutes, item.Note));
+                }
+
+                released.Add(item.Id);
+                changed = true;
+            }
+
+            for (int index = 0; index < items.Count; index++)
+            {
+                SyncNextTask task = items[index];
+                if (task.DeletedAt is null && task.PlannedFor is PlannedSlot slot && PlannedStart(slot) <= localNow)
+                {
+                    items[index] = task with { PlannedFor = null, EditedAt = SharedListMerge.NextStamp(now, task) };
+                    changed = true;
+                }
+            }
+
+            if (!changed)
+            {
+                return;
+            }
+
+            // The list is assigned before anything is awaited, so a merge or an edit that lands meanwhile builds on it.
+            _nextTasks = Pruned(items, now);
+            await SaveNextTasksAsync();
+            foreach (Guid id in released)
+            {
+                await Later!.DeleteAsync(id);
+            }
+
+            if (Current.SessionStart is null)
+            {
+                await ShowSharedDraftAsync();
+            }
+            else
+            {
+                Changed?.Invoke(this, EventArgs.Empty);
+            }
+        }
+        finally
+        {
+            _releasingPlanned = false;
+        }
     }
 
     private void OnStateChanged(object? sender, SessionState state)
@@ -703,10 +1024,28 @@ public sealed class SessionTasksService : IDisposable
     /// removes a task (<see cref="SharedListMerge"/>). The draft shows the result; a running session's checklist is not
     /// touched (it belongs to this PC), the result shows when it ends. Task names are never logged.
     /// </summary>
+    /// <param name="knowsDetails">
+    /// The file's writer knows ADR 50's fields (its file carries a <c>later</c> list, empty or not). When it doesn't (an older
+    /// phone), a task that comes without an estimate, note or planned part gets them from this device's copy of the same
+    /// task before merging: such a writer can't clear them, so it never means "removed".
+    /// </param>
     /// <returns>True when this device's list changed.</returns>
-    public async Task<bool> MergeNextTasksAsync(IReadOnlyList<SyncNextTask> incoming)
+    public async Task<bool> MergeNextTasksAsync(IReadOnlyList<SyncNextTask> incoming, bool knowsDetails = true)
     {
         DateTimeOffset now = _time.GetUtcNow();
+        if (!knowsDetails)
+        {
+            Dictionary<Guid, SyncNextTask> held = _nextTasks.Where(task => task.DeletedAt is null).ToDictionary(task => task.Id);
+            incoming = incoming.Select(task => task.DeletedAt is null && held.TryGetValue(task.Id, out SyncNextTask? own)
+                ? task with
+                {
+                    EstimateMinutes = task.EstimateMinutes ?? own.EstimateMinutes,
+                    Note = task.Note ?? own.Note,
+                    PlannedFor = task.PlannedFor ?? own.PlannedFor,
+                }
+                : task).ToList();
+        }
+
         List<SyncNextTask> merged = SharedListMerge.Merge(_nextTasks, incoming, now);
         bool changed = !merged.SequenceEqual(SharedListMerge.Merge(_nextTasks, [], now), new NextTaskComparer());
         List<SyncNextTask> result = TombstoneConsumed(merged, now, out bool tombstoned);
@@ -780,7 +1119,8 @@ public sealed class SessionTasksService : IDisposable
             .OrderBy(task => task.Position)
             .Select(task => new SessionTask(
                 task.Id, task.Title ?? string.Empty, task.DoneAt, task.Subtasks ?? [],
-                task.Category is string name ? _categories.FirstOrDefault(category => string.Equals(category.Name, name, StringComparison.OrdinalIgnoreCase))?.Id : null))
+                task.Category is string name ? _categories.FirstOrDefault(category => string.Equals(category.Name, name, StringComparison.OrdinalIgnoreCase))?.Id : null,
+                EstimateMinutes: task.EstimateMinutes, Note: task.Note, PlannedFor: task.PlannedFor))
             .ToList();
         return new SessionChecklist(null, false, tasks, tasks.Any(task => !task.IsDone && task.Id == currentId) ? currentId : null);
     }
@@ -859,6 +1199,9 @@ public sealed class SessionTasksService : IDisposable
                 && string.Equals(live.Category, task.Category, StringComparison.Ordinal)
                 && string.Equals(live.CategoryColor, task.CategoryColor, StringComparison.OrdinalIgnoreCase)
                 && (live.Subtasks ?? []).SequenceEqual(task.Subtasks)
+                && live.EstimateMinutes == task.EstimateMinutes
+                && string.Equals(live.Note, task.Note, StringComparison.Ordinal)
+                && live.PlannedFor == task.PlannedFor
                 && live.Position == position;
             if (same)
             {
@@ -867,7 +1210,7 @@ public sealed class SessionTasksService : IDisposable
 
             items[task.Id] = new SyncNextTask(
                 task.Id, task.Title, task.DoneAt, task.Category, task.CategoryColor, task.Subtasks.Count > 0 ? task.Subtasks : null,
-                SharedListMerge.NextStamp(now, held), null, position);
+                SharedListMerge.NextStamp(now, held), null, position, task.EstimateMinutes, task.Note, task.PlannedFor);
             changed = true;
         }
 
@@ -1109,6 +1452,15 @@ public sealed class SessionTasksService : IDisposable
     private sealed record StoredHistory(string Data);
 
     private sealed record StoredCategories(string Data);
+
+    // A past task moved to Later: its id and when (no text).
+    private sealed record MovedEntry(Guid Id, DateTimeOffset At);
+
+    /// <summary>True once the user has used ADR 50's task details: an estimate, a note, a plan, or the Later list (the setup check).</summary>
+    public bool UsesTaskDetails => (Later?.Items.Count ?? 0) > 0
+        || _nextTasks.Any(task => task.DeletedAt is null && (task.EstimateMinutes is not null || task.Note is not null || task.PlannedFor is not null))
+        || Current.Tasks.Any(task => task.EstimateMinutes is not null || task.Note is not null || task.PlannedFor is not null)
+        || _history.Any(checklist => checklist.Tasks.Any(task => task.EstimateMinutes is not null || task.Note is not null));
 
     // A task added past the limit: the session it belongs to (null while still on the draft), when, and the typed reason.
     private sealed record OverLimitEntry(DateTimeOffset? SessionStart, DateTimeOffset At, string Reason);

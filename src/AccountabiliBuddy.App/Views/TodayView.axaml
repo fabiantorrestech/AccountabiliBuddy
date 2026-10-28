@@ -450,7 +450,10 @@
                                     <!-- A fixed 76 time column; both texts share a line height so their baselines sit together. -->
                                     <Grid ColumnDefinitions="76,*" Margin="0,3">
                                         <TextBlock Classes="muted numeral nextTime" Text="{Binding TimeText}" FontSize="13" LineHeight="21" VerticalAlignment="Top" Margin="0,2,0,0" />
-                                        <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="15" LineHeight="21" TextWrapping="Wrap" />
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{Binding Title}" FontSize="15" LineHeight="21" TextWrapping="Wrap" />
+                                            <TextBlock Classes="muted" Text="{Binding PlannedText}" IsVisible="{Binding HasPlanned}" FontSize="13" TextWrapping="Wrap" />
+                                        </StackPanel>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

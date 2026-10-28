@@ -157,6 +157,6 @@ public sealed partial class NotebookViewModel : ObservableObject
     private string When(DateTimeOffset time)
     {
         DateTime local = TimeZoneInfo.ConvertTime(time, _time.LocalTimeZone).DateTime;
-        return $"{local.ToString("ddd", CultureInfo.CurrentCulture)} {local:M/d} {local:t}";
+        return $"{local.ToString("ddd", CultureInfo.CurrentCulture)} {local:M/d} {local.ToString("h:mm tt", CultureInfo.InvariantCulture)}";
     }
 }

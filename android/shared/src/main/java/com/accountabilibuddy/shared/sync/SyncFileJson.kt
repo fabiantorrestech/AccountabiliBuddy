@@ -187,6 +187,7 @@ object SyncFileJson {
         // Optional (ADR 48): the shared lists with their tombstones; older apps ignore them.
         file.nextTasks?.let { put("nextTasks", writeNextTasks(it)) }
         file.parked?.let { put("parked", writeParked(it)) }
+        file.later?.let { put("later", writeLater(it)) }
         file.lunch?.let { lunch ->
             put("lunch", buildJsonObject {
                 put("start", writeTime(lunch.start))
@@ -342,6 +343,7 @@ object SyncFileJson {
             readPlacement(json["placement"]),
             readNextTasks(json["nextTasks"]),
             readParked(json["parked"]),
+            readLater(json["later"]),
         )
     }
 
@@ -357,6 +359,9 @@ object SyncFileJson {
             put("editedAt", writeTime(task.editedAt))
             task.deletedAt?.let { put("deletedAt", writeTime(it)) }
             put("position", task.position)
+            task.estimateMinutes?.let { put("estimateMinutes", it) }
+            task.note?.let { put("note", it) }
+            task.plannedFor?.let { put("plannedFor", writePlannedFor(it)) }
         }
     })
 
@@ -376,9 +381,66 @@ object SyncFileJson {
                     item.requiredTime("editedAt"),
                     item.optionalTime("deletedAt"),
                     item.position(),
+                    item.optionalInt("estimateMinutes"),
+                    item.optionalString("note"),
+                    readPlannedFor(item["plannedFor"]),
                 )
             }.getOrNull()
         }
+    }
+
+    /** The Later list as the sync file carries it (ADR 50), in the PC's shape (camelCase, nulls left out, tombstones with no text). */
+    fun writeLater(list: List<SyncLaterItem>): JsonArray = JsonArray(list.map { item ->
+        buildJsonObject {
+            put("id", item.id)
+            put("title", item.title)
+            item.subtasks?.let { put("subtasks", SessionTaskItem.write(it, ::writeTime)) }
+            item.category?.let { put("category", it) }
+            item.categoryColor?.let { put("categoryColor", it) }
+            item.estimateMinutes?.let { put("estimateMinutes", it) }
+            item.note?.let { put("note", it) }
+            item.dueOn?.let { put("dueOn", it) }
+            put("editedAt", writeTime(item.editedAt))
+            item.deletedAt?.let { put("deletedAt", writeTime(it)) }
+            put("position", item.position)
+            item.plannedFor?.let { put("plannedFor", writePlannedFor(it)) }
+        }
+    })
+
+    /** An optional list; an entry that can't be read is left out rather than failing the file. */
+    fun readLater(value: JsonElement?): List<SyncLaterItem>? {
+        val array = value as? JsonArray ?: return null
+        return array.mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            runCatching {
+                SyncLaterItem(
+                    item.requiredId("id"),
+                    item.optionalString("title") ?: "",
+                    (item["subtasks"] as? JsonArray)?.let { steps -> SessionTaskItem.read(steps).filter { it.id != null } },
+                    item.optionalString("category"),
+                    item.optionalString("categoryColor"),
+                    item.optionalInt("estimateMinutes"),
+                    item.optionalString("note"),
+                    item.optionalString("dueOn"),
+                    item.requiredTime("editedAt"),
+                    item.optionalTime("deletedAt"),
+                    item.position(),
+                    readPlannedFor(item["plannedFor"]),
+                )
+            }.getOrNull()
+        }
+    }
+
+    // The day part a task is planned for (ADR 50): kept as the PC wrote it, so it comes back out unchanged. Not an object with all three texts: none.
+    private fun writePlannedFor(slot: TaskPlannedFor): JsonObject = buildJsonObject {
+        put("date", slot.date)
+        put("partId", slot.partId)
+        put("start", slot.start)
+    }
+
+    private fun readPlannedFor(value: JsonElement?): TaskPlannedFor? {
+        val json = value as? JsonObject ?: return null
+        return runCatching { TaskPlannedFor(json.requiredString("date"), json.requiredString("partId"), json.requiredString("start")) }.getOrNull()
     }
 
     /** The come-backs as the sync file carries them (ADR 48). */
@@ -642,6 +704,9 @@ object SyncFileJson {
     }
 
     private fun JsonObject.requiredTime(name: String): Instant = readTime(requiredString(name))
+
+    // A whole number, or none when it is missing, null or not a number (an optional extra the PC may send).
+    private fun JsonObject.optionalInt(name: String): Int? = (this[name] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.intOrNull
 
     private fun JsonObject.optionalTime(name: String): Instant? = optionalString(name)?.let(::readTime)
 
