@@ -292,7 +292,8 @@ class CompanionApp : Application() {
         // ADR 48: the next session's tasks and the come-backs are shared lists; this phone's go out in its file, other devices' merge in.
         sync.nextTasks = { sharedLists.nextTasksForSync() }
         sync.parked = { sharedLists.parkedForSync() }
-        sync.onSharedLists = { nextTasks, parked -> sharedLists.receive(nextTasks, parked) }
+        sync.later = { sharedLists.laterForSync() }
+        sync.onSharedLists = { nextTasks, parked, later -> sharedLists.receive(nextTasks, parked, later) }
         sharedLists.onChanged = {
             relaySoon()
             appScope.launch {

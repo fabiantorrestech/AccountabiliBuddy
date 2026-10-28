@@ -5,6 +5,7 @@ import com.accountabilibuddy.shared.TokenVault
 import com.accountabilibuddy.shared.sync.SessionTaskItem
 import com.accountabilibuddy.shared.sync.SharedListMerge
 import com.accountabilibuddy.shared.sync.SyncFileJson
+import com.accountabilibuddy.shared.sync.SyncLaterItem
 import com.accountabilibuddy.shared.sync.SyncNextTask
 import com.accountabilibuddy.shared.sync.SyncParked
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,11 +21,14 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 /**
- * The lists the user's devices share (ADR 48): the next session's tasks and the come-backs (the parked thoughts), each
- * item with its edit time and, once deleted, a tombstone kept 30 days. The lists go in this phone's sync file and other
+ * The lists the user's devices share (ADR 48, 50): the next session's tasks, the come-backs (the parked thoughts) and the
+ * Later list, each item with its edit time and, once deleted, a tombstone kept 30 days. The lists go in this phone's sync file and other
  * devices' lists merge in item by item ([SharedListMerge], the same function the PC runs). Kept in the app's private
  * prefs, sealed with a key in the Android Keystore ([TokenVault]), never logged: task and thought text is only in
- * sealed files and sealed here. The running session's checklist is not one of these lists; it belongs to its PC.
+ * sealed files and sealed here, and so is a task's note (ADR 50). The running session's checklist is not one of these
+ * lists; it belongs to its PC. The phone has no screen for a task's estimate, note or planned part, or for the Later list
+ * yet: an edit here (a tick, a new title, a step) changes only the fields it names (the items are copied, never rebuilt),
+ * so the newer item it stamps still carries them to the PC; the Later list is merged and passed on as it came.
  *
  * A change reads the clock once, and each item it touches is stamped with [SharedListMerge.nextStamp] (that time, or one
  * tick past the item's own newest time), so it always outranks what it changed. A task's position only means something
@@ -52,6 +56,13 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         return all.nextTasks.filter { it.deletedAt?.isAfter(keptFrom) ?: true }
     }
 
+    /** The Later list for this phone's sync file (ADR 50): its items and the tombstones of the last 30 days. */
+    @Synchronized
+    fun laterForSync(): List<SyncLaterItem> {
+        val keptFrom = now().minus(SharedListMerge.TOMBSTONES_KEPT)
+        return all.later.filter { it.deletedAt?.isAfter(keptFrom) ?: true }
+    }
+
     /** The come-backs for this phone's sync file: the open and recently ticked ones, and the tombstones of the last 30 days. */
     @Synchronized
     fun parkedForSync(): List<SyncParked> {
@@ -66,15 +77,19 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
      * @return True when a list changed.
      */
     @Synchronized
-    fun receive(nextTasks: List<SyncNextTask>?, parked: List<SyncParked>?): Boolean {
+    fun receive(nextTasks: List<SyncNextTask>?, parked: List<SyncParked>?, later: List<SyncLaterItem>? = null): Boolean {
         val time = now()
         val mergedTasks = nextTasks?.let { SharedListMerge.merge(all.nextTasks, it, time) } ?: all.nextTasks
         val mergedParked = parked?.let { SharedListMerge.merge(all.parked, it, time) } ?: all.parked
-        if (mergedTasks == SharedListMerge.merge(all.nextTasks, emptyList(), time) && mergedParked == SharedListMerge.merge(all.parked, emptyList(), time)) {
+        val mergedLater = later?.let { SharedListMerge.merge(all.later, it, time) } ?: all.later
+        if (mergedTasks == SharedListMerge.merge(all.nextTasks, emptyList(), time) &&
+            mergedParked == SharedListMerge.merge(all.parked, emptyList(), time) &&
+            mergedLater == SharedListMerge.merge(all.later, emptyList(), time)
+        ) {
             return false
         }
 
-        save(Lists(mergedTasks, mergedParked), time)
+        save(Lists(mergedTasks, mergedParked, mergedLater), time)
         return true
     }
 
@@ -230,6 +245,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         all = Lists(
             lists.nextTasks.filter { it.deletedAt?.isAfter(tombstonesFrom) ?: true }.sortedBy { it.position },
             lists.parked.filter { item -> item.deletedAt?.isAfter(tombstonesFrom) ?: item.doneAt?.isAfter(doneFrom) ?: true }.sortedBy { it.position },
+            lists.later.filter { it.deletedAt?.isAfter(tombstonesFrom) ?: true }.sortedBy { it.position },
         )
         prefs.edit().putString(KEY, TokenVault.seal(write(all).toString(), ALIAS)).apply()
         _nextTasks.value = liveNextTasks()
@@ -245,19 +261,21 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     private fun write(lists: Lists): JsonObject = buildJsonObject {
         put("nextTasks", SyncFileJson.writeNextTasks(lists.nextTasks))
         put("parked", SyncFileJson.writeParked(lists.parked))
+        put("later", SyncFileJson.writeLater(lists.later))
     }
 
     // Empty when nothing is stored or it can't be opened (the key goes with the app's data).
     private fun read(): Lists {
         val json = prefs.getString(KEY, null)?.let { TokenVault.open(it, ALIAS) }
-            ?.let { runCatching { Json.parseToJsonElement(it) as JsonObject }.getOrNull() } ?: return Lists(emptyList(), emptyList())
+            ?.let { runCatching { Json.parseToJsonElement(it) as JsonObject }.getOrNull() } ?: return Lists(emptyList(), emptyList(), emptyList())
         return Lists(
             SyncFileJson.readNextTasks(json["nextTasks"] as? JsonArray).orEmpty(),
             SyncFileJson.readParked(json["parked"] as? JsonArray).orEmpty(),
+            SyncFileJson.readLater(json["later"] as? JsonArray).orEmpty(),
         )
     }
 
-    private data class Lists(val nextTasks: List<SyncNextTask>, val parked: List<SyncParked>)
+    private data class Lists(val nextTasks: List<SyncNextTask>, val parked: List<SyncParked>, val later: List<SyncLaterItem>)
 
     companion object {
         private const val KEY = "lists"
