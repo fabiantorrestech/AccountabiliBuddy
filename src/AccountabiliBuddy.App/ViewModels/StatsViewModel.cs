@@ -45,6 +45,7 @@ public sealed partial class StatsViewModel : ObservableObject
     private readonly DispatcherTimer _refreshSoon;
     private StatsData? _data;
     private int _refreshNumber;
+    private bool _isShown;
 
     /// <param name="loadRecords">This PC's sessions between two times, newest first, with marked distracted stretches applied.</param>
     public StatsViewModel(
@@ -104,27 +105,38 @@ public sealed partial class StatsViewModel : ObservableObject
         _refreshSoon.Tick += (_, _) =>
         {
             _refreshSoon.Stop();
-            _ = RefreshAsync();
+            RequestRefresh();
         };
         recorder.LogChanged += (_, _) => _refreshSoon.Start();
-        received.Changed += (_, _) => _ = RefreshAsync();
-        omitted.Changed += (_, _) => _ = RefreshAsync();
-        deleted.Changed += (_, _) => _ = RefreshAsync();
-        goal.Changed += (_, _) => _ = RefreshAsync();
-        configuration.Changed += (_, _) => _ = RefreshAsync();
-        sleep.Changed += (_, _) => _ = RefreshAsync();
-        sleep.PhoneAlarmChanged += (_, _) => _ = RefreshAsync();
-        details.AddedSessionsChanged += (_, _) => _ = RefreshAsync();
+        received.Changed += (_, _) => RequestRefresh();
+        omitted.Changed += (_, _) => RequestRefresh();
+        deleted.Changed += (_, _) => RequestRefresh();
+        goal.Changed += (_, _) => RequestRefresh();
+        configuration.Changed += (_, _) => RequestRefresh();
+        sleep.Changed += (_, _) => RequestRefresh();
+        sleep.PhoneAlarmChanged += (_, _) => RequestRefresh();
+        details.AddedSessionsChanged += (_, _) => RequestRefresh();
         // A form of the Day details opening (e.g. from a click on the day bar) opens the fold that holds it.
         details.PropertyChanged += (_, e) =>
         {
+            // The fold changed its own day (saving an added session on another day shows that day): the column follows.
+            if (e.PropertyName == nameof(HistoryViewModel.SelectedDay) && details.SelectedDay is DateTime shown
+                && DateOnly.FromDateTime(shown) != SelectedDay && DateOnly.FromDateTime(shown) <= Today)
+            {
+                SelectedDay = DateOnly.FromDateTime(shown);
+                RebuildDay();
+                if (Range == StatsRange.Day)
+                {
+                    RebuildView();
+                }
+            }
+
             if ((e.PropertyName == nameof(HistoryViewModel.IsAddFormOpen) && details.IsAddFormOpen)
                 || (e.PropertyName == nameof(HistoryViewModel.IsGapFormOpen) && details.IsGapFormOpen))
             {
                 IsDetailsOpen = true;
             }
         };
-        _ = RefreshAsync();
     }
 
     /// <summary>History's own lists and forms, shown in the "Day details" fold.</summary>
@@ -244,8 +256,26 @@ public sealed partial class StatsViewModel : ObservableObject
 
     private DateOnly Today => DateOnly.FromDateTime(_time.GetLocalNow().DateTime);
 
-    /// <summary>The page was shown: read again, so a session running now is in it.</summary>
-    public Task ShownAsync() => RefreshAsync();
+    /// <summary>
+    /// The page was shown or left. While it is left nothing is read; showing it reads again, so a session running now is in it.
+    /// </summary>
+    public void SetShown(bool shown)
+    {
+        _isShown = shown;
+        if (shown)
+        {
+            _ = RefreshAsync();
+        }
+    }
+
+    // A change while the page is hidden is read when it is shown.
+    private void RequestRefresh()
+    {
+        if (_isShown)
+        {
+            _ = RefreshAsync();
+        }
+    }
 
     [RelayCommand]
     private void SelectView(StatsViewKind kind)

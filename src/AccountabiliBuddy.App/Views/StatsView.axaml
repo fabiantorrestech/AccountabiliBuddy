@@ -160,6 +160,13 @@
             <Setter Property="Grid.Column" Value="1" />
         </Style>
 
+        <Style Selector="Grid.mainGrid">
+            <Setter Property="Margin" Value="36,30,32,24" />
+        </Style>
+        <Style Selector="controls|StatsBarChart.chart">
+            <Setter Property="MinHeight" Value="170" />
+        </Style>
+
         <!-- At 900 wide the title shrinks, four cards make two rows and Intensity's cards go under its grid; the 330 column stays. -->
         <ContainerQuery Name="StatsPage" Query="max-width:980">
             <Style Selector="TextBlock.pageTitle">
@@ -187,6 +194,12 @@
                 <Setter Property="Grid.Column" Value="0" />
                 <Setter Property="Grid.Row" Value="1" />
                 <Setter Property="Grid.ColumnSpan" Value="2" />
+            </Style>
+            <Style Selector="Grid.mainGrid">
+                <Setter Property="Margin" Value="24,22,20,16" />
+            </Style>
+            <Style Selector="controls|StatsBarChart.chart">
+                <Setter Property="MinHeight" Value="120" />
             </Style>
             <Style Selector="Button.segment">
                 <Setter Property="Padding" Value="12,8" />
@@ -228,7 +241,7 @@
                     <TextBlock Grid.Column="1" Classes="muted" Text="{Binding BigNote}" FontSize="14" TextWrapping="Wrap" VerticalAlignment="Bottom" Margin="0,0,0,10" />
                 </Grid>
                 <controls:StatsBarChart Grid.Row="1" IsVisible="{Binding HasBars}" Bars="{Binding Bars}" GoalFraction="{Binding GoalFraction}"
-                                        GoalText="{Binding GoalText}" MinHeight="170"
+                                        GoalText="{Binding GoalText}" Classes="chart"
                                         MetBrush="{DynamicResource Ab.Met}" AccentBrush="{DynamicResource Ab.Accent}" PlanBrush="{DynamicResource Ab.Plan}"
                                         DriftBrush="{DynamicResource Ab.Drift}" LabelBrush="{DynamicResource Ab.Muted}" TodayLabelBrush="{DynamicResource Ab.Ink}"
                                         GoalBrush="{DynamicResource Ab.Muted}"
@@ -331,7 +344,7 @@
     <Grid x:Name="Page" Container.Name="StatsPage" Container.Sizing="Width" ColumnDefinitions="*,Auto">
         <!-- The main card. -->
         <Border Classes="card" Padding="0" ClipToBounds="True" MinWidth="360">
-            <Grid RowDefinitions="Auto,Auto,*" Margin="36,30,32,24">
+            <Grid Classes="mainGrid" RowDefinitions="Auto,Auto,*" >
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                     <StackPanel VerticalAlignment="Center" Spacing="2">
                         <TextBlock Classes="display pageTitle" Text="Stats" />
@@ -356,7 +369,7 @@
                 </Grid>
 
                 <!-- The views as chips; the row scrolls sideways when it doesn't fit. -->
-                <ScrollViewer Grid.Row="1" Margin="0,18,0,0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <ScrollViewer Grid.Row="1" Margin="0,18,0,0" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
                     <ItemsControl ItemsSource="{Binding Chips}" Margin="0,0,0,6">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>

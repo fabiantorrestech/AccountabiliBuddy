@@ -116,10 +116,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     partial void OnSelectedTabChanged(int oldValue, int newValue)
     {
         ShowsTimeline = MainTabs.ShowsTimelineStrip((MainTab)newValue);
-        if (newValue == StatsTab)
-        {
-            _ = Stats?.ShownAsync();
-        }
+        Stats?.SetShown(newValue == StatsTab);
 
         OnPropertyChanged(nameof(IsTodaySelected));
         OnPropertyChanged(nameof(IsTasksSelected));
