@@ -17,6 +17,11 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
     private ProfileEditorViewModel(FocusProfile profile, ProfileOverlay overlay)
     {
         Rules.CollectionChanged += OnRulesChanged;
+        UnlockOptions.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(SummaryText));
+            OnPropertyChanged(nameof(HasUnlockOptions));
+        };
         Id = profile.Id;
         Name = profile.Name;
         GraceSeconds = ((int)profile.UnknownGracePeriod.TotalSeconds).ToString();
@@ -36,6 +41,20 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
     }
 
     public Guid Id { get; }
+
+    public bool HasRules => Rules.Count > 0;
+
+    public bool HasUnlockOptions => UnlockOptions.Count > 0;
+
+    /// <summary>The Muted line under the name in the Guards list: "12 rules · 2 unlock options".</summary>
+    public string SummaryText
+    {
+        get
+        {
+            string rules = Rules.Count == 1 ? "1 rule" : $"{Rules.Count} rules";
+            return UnlockOptions.Count == 0 ? rules : $"{rules} · {(UnlockOptions.Count == 1 ? "1 unlock option" : $"{UnlockOptions.Count} unlock options")}";
+        }
+    }
 
     [ObservableProperty]
     public partial string Name { get; set; }
@@ -327,6 +346,8 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
         }
 
         ApplyFilter();
+        OnPropertyChanged(nameof(SummaryText));
+        OnPropertyChanged(nameof(HasRules));
     }
 
     private void OnRulePropertyChanged(object? sender, PropertyChangedEventArgs e)

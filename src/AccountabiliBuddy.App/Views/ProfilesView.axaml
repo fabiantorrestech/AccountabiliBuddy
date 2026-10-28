@@ -2,75 +2,100 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
-             xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.ProfilesView"
              x:DataType="vm:ProfilesViewModel">
-    <DockPanel Margin="12">
-        <Border DockPanel.Dock="Top" IsVisible="{Binding IsLocked}" Background="{DynamicResource Ab.Surface2}"
-                Padding="12,8" Margin="0,0,0,12" CornerRadius="6">
-            <TextBlock Text="Profiles are locked while a focus session is running." />
-        </Border>
-        <views:PendingChangesBanner DockPanel.Dock="Top" DataContext="{Binding PendingChanges}" Margin="0,0,0,12" />
+    <!-- Guards: the profiles as a list on the left (name, a Muted summary, "this device") and the chosen profile's settings and rules as
+         token rows on the right (they stack on a narrow page). Everything the old Profiles page did is here, unchanged: add, example,
+         delete, save, revert, the rule filters, copy and move, the unlock options. While a session runs the editor is view-only, and
+         the shell above shows the resting banner and the looser-changes queue. -->
+    <UserControl.Styles>
+        <Style Selector="ListBox.profileList">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="6,0,6,6" />
+        </Style>
+        <Style Selector="ListBox.profileList > ListBoxItem">
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="ListBox.profileList > ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox.profileList > ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="ListBox.profileList > ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="ListBox.profileList > ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="ListBox.profileList > ListBoxItem:selected:focus /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Border.thisDevice">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="8,2" />
+        </Style>
+    </UserControl.Styles>
 
-        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
-            <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" />
-            <Button Content="Revert" Command="{Binding RevertCommand}" />
-            <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Margin="8,0,0,0" TextWrapping="Wrap" />
-        </StackPanel>
-
-        <!-- The profile list sits above the editor so both use the whole width (the page is narrow inside Settings). -->
-        <Grid RowDefinitions="Auto,16,*">
-            <DockPanel Grid.Row="0">
-                <WrapPanel DockPanel.Dock="Bottom" ItemSpacing="6" LineSpacing="6" Margin="0,8,0,0">
-                    <Button Content="Add profile" Command="{Binding AddProfileCommand}" />
-                    <Button Content="Add example profile" Command="{Binding AddExampleProfileCommand}" />
-                    <Button Content="Delete profile" Command="{Binding DeleteProfileCommand}" />
-                </WrapPanel>
-                <ScrollViewer MaxHeight="220">
-                    <StackPanel Spacing="4">
-                        <!-- Grouped by device once a phone or tablet is linked: this PC first, then each linked device. -->
-                        <Button IsVisible="{Binding HasLinkedDevices}" Command="{Binding ToggleThisDeviceCommand}"
-                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Background="Transparent" Padding="4,6">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <mi:MaterialIcon Kind="Monitor" Width="18" Height="18" VerticalAlignment="Center" />
-                                    <TextBlock FontWeight="SemiBold" TextWrapping="Wrap">
-                                        <Run Text="{Binding ThisDeviceArrow}" />
-                                        <Run Text="{Binding ThisDeviceTitle}" />
-                                    </TextBlock>
+    <StackPanel Spacing="12">
+        <Grid x:Name="Layout" ColumnDefinitions="250,*" RowDefinitions="Auto,Auto" ColumnSpacing="14" RowSpacing="12">
+            <!-- The profiles. -->
+            <StackPanel x:Name="ListColumn" Spacing="8" VerticalAlignment="Top">
+                <Border Classes="sPanel">
+                    <StackPanel Margin="0,0,0,6">
+                        <!-- This PC's profiles. Grouped by device (collapsible) once a phone or tablet is linked. -->
+                        <Button Command="{Binding ToggleThisDeviceCommand}" Classes="quiet" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                Padding="14,12" CornerRadius="0" IsHitTestVisible="{Binding HasLinkedDevices}" IsTabStop="{Binding HasLinkedDevices}" AutomationProperties.Name="This PC's profiles">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                <mi:MaterialIcon Kind="Laptop" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="{Binding ThisDeviceTitle}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Border Classes="thisDevice" VerticalAlignment="Center">
+                                            <TextBlock Classes="sHint" Text="this device" />
+                                        </Border>
+                                        <TextBlock Classes="sHint" Text="{Binding ThisDeviceDetail}" IsVisible="{Binding HasLinkedDevices}" VerticalAlignment="Center"
+                                                   TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
                                 </StackPanel>
-                                <TextBlock Text="{Binding ThisDeviceDetail}" Opacity="0.7" FontSize="12" TextWrapping="Wrap" />
-                            </StackPanel>
+                            </Grid>
                         </Button>
-                        <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" IsVisible="{Binding ShowsProfileList}"
-                                 Margin="{Binding HasLinkedDevices, Converter={x:Static vm:IndentConverter.Instance}}">
+                        <ListBox Classes="profileList" ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}"
+                                 IsVisible="{Binding ShowsProfileList}" ScrollViewer.VerticalScrollBarVisibility="Disabled">
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="vm:ProfileEditorViewModel">
-                                    <TextBlock Text="{Binding Name}" />
+                                    <StackPanel Spacing="1">
+                                        <TextBlock Classes="sTitle" Text="{Binding Name}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Classes="sHint" Text="{Binding SummaryText}" />
+                                    </StackPanel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
+                        <!-- Phones and tablets: their profiles, display only. -->
                         <ItemsControl ItemsSource="{Binding LinkedDevices}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:DeviceProfilesRowViewModel">
                                     <StackPanel>
-                                        <Button Command="{Binding ToggleCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                                Background="Transparent" Padding="4,6">
-                                            <StackPanel>
-                                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                                    <mi:MaterialIcon Kind="{Binding Icon}" Width="18" Height="18" VerticalAlignment="Center" />
-                                                    <TextBlock FontWeight="SemiBold" TextWrapping="Wrap">
-                                                        <Run Text="{Binding Arrow}" />
-                                                        <Run Text="{Binding Name}" />
-                                                    </TextBlock>
+                                        <Border BorderBrush="{DynamicResource Ab.Line}" BorderThickness="0,1,0,0" />
+                                        <Button Command="{Binding ToggleCommand}" Classes="quiet" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                Padding="14,12" CornerRadius="0">
+                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                                <mi:MaterialIcon Kind="{Binding Icon}" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Classes="sTitle" Text="{Binding Name}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Classes="sHint" Text="{Binding Detail}" />
                                                 </StackPanel>
-                                                <TextBlock Text="{Binding Detail}" Opacity="0.7" FontSize="12" TextWrapping="Wrap" />
-                                            </StackPanel>
+                                                <TextBlock Grid.Column="2" Classes="sHint" Text="{Binding Arrow}" VerticalAlignment="Center" />
+                                            </Grid>
                                         </Button>
-                                        <ItemsControl ItemsSource="{Binding ProfileNames}" IsVisible="{Binding IsExpanded}" Margin="20,0,0,6">
+                                        <ItemsControl ItemsSource="{Binding ProfileNames}" IsVisible="{Binding IsExpanded}" Margin="42,0,14,10">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="x:String">
-                                                    <TextBlock Text="{Binding}" Opacity="0.75" Margin="0,2" TextWrapping="Wrap" />
+                                                    <TextBlock Classes="sHint" Text="{Binding}" Margin="0,2" />
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
@@ -79,134 +104,168 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </StackPanel>
-                </ScrollViewer>
-            </DockPanel>
+                </Border>
+                <WrapPanel ItemSpacing="6" LineSpacing="6">
+                    <Button Content="Add profile" Command="{Binding AddProfileCommand}" />
+                    <Button Content="Add example profile" Command="{Binding AddExampleProfileCommand}" />
+                    <Button Content="Delete profile" Command="{Binding DeleteProfileCommand}" />
+                </WrapPanel>
+            </StackPanel>
 
-            <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled">
-                <ContentControl Content="{Binding SelectedProfile}" IsEnabled="{Binding !IsLocked}">
-                    <ContentControl.ContentTemplate>
-                        <DataTemplate x:DataType="vm:ProfileEditorViewModel">
-                            <StackPanel Spacing="12">
-                                <WrapPanel ItemSpacing="16" LineSpacing="8">
-                                    <StackPanel Spacing="4">
-                                        <TextBlock Text="Name" FontWeight="SemiBold" />
-                                        <TextBox Text="{Binding Name}" Width="260" />
+            <!-- The chosen profile. -->
+            <ContentControl x:Name="DetailColumn" Grid.Column="1" Content="{Binding SelectedProfile}" IsEnabled="{Binding !IsLocked}" VerticalAlignment="Top">
+                <ContentControl.ContentTemplate>
+                    <DataTemplate x:DataType="vm:ProfileEditorViewModel">
+                        <StackPanel Spacing="12">
+                            <Border Classes="sPanel">
+                                <StackPanel Margin="0,0,0,-1">
+                                    <Border Classes="sRow">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                            <TextBlock Classes="sTitle" Text="Name" VerticalAlignment="Center" />
+                                            <TextBox Grid.Column="1" Text="{Binding Name}" Width="220" AutomationProperties.Name="Profile name" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Classes="sRow">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                            <TextBlock Classes="sTitle" Text="Ask about unknown apps after (seconds)" VerticalAlignment="Center" />
+                                            <TextBox Grid.Column="1" Text="{Binding GraceSeconds}" Width="90" AutomationProperties.Name="Seconds before asking about unknown apps" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Classes="sRow">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Classes="sTitle" Text="Ask about websites with no rule" />
+                                                <TextBlock Classes="sHint"
+                                                           Text="Even when the browser app is allowed. Otherwise allowing a browser allows every site you haven't blocked." />
+                                            </StackPanel>
+                                            <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding AskAboutUnlistedSites}" VerticalAlignment="Center"
+                                                      AutomationProperties.Name="Ask about websites with no rule" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Classes="sRow">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Classes="sTitle" Text="Pre-tick this profile for exemptions" />
+                                                <TextBlock Classes="sHint"
+                                                           Text="When the &quot;Is this on track?&quot; prompt adds an exemption during another profile's session, it is allowed here too (this computer only)." />
+                                            </StackPanel>
+                                            <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding PreTickForExemptions}" VerticalAlignment="Center"
+                                                      AutomationProperties.Name="Pre-tick this profile for exemptions" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Classes="sRow">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Classes="sTitle" Text="On-screen timer during this profile's sessions" />
+                                                <TextBlock Classes="sHint" Text="Use default follows Settings › Alerts &amp; on-screen › On-screen timer." />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                <ComboBox ItemsSource="{x:Static vm:TimerChoice.Names}" SelectedIndex="{Binding TimerChoiceIndex}" MinWidth="130" />
+                                                <ComboBox ItemsSource="{Binding TimerColors}" SelectedItem="{Binding TimerColor}"
+                                                          IsVisible="{Binding HasOwnTimer}" MinWidth="150" ToolTip.Tip="Timer colour">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:TimerColorOption">
+                                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                <Border Width="14" Height="14" CornerRadius="3" Background="{Binding Swatch}"
+                                                                        BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" />
+                                                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Cold Turkey blocks this profile expects (this computer only). -->
+                            <StackPanel Spacing="6" IsVisible="{Binding HasColdTurkeyBlocks}">
+                                <TextBlock Classes="sGroup" Text="Cold Turkey blocks this profile expects to be on" />
+                                <Border Classes="sPanel" Padding="18,14">
+                                    <StackPanel Spacing="8">
+                                        <ItemsControl ItemsSource="{Binding ColdTurkeyBlocks}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:ExpectedBlockOption">
+                                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsExpected}" Margin="0,0,16,4" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Classes="sHint"
+                                                   Text="This computer only. During this profile's focus you're told when one of them is off; nothing is changed in Cold Turkey." />
                                     </StackPanel>
-                                    <StackPanel Spacing="4">
-                                        <TextBlock Text="Ask about unknown apps after (seconds)" FontWeight="SemiBold" />
-                                        <TextBox Text="{Binding GraceSeconds}" Width="120" HorizontalAlignment="Left" />
-                                    </StackPanel>
-                                </WrapPanel>
+                                </Border>
+                            </StackPanel>
 
-                                <CheckBox IsChecked="{Binding AskAboutUnlistedSites}">
-                                    <TextBlock TextWrapping="Wrap"
-                                               Text="Ask about websites with no rule, even when the browser app is allowed (otherwise allowing a browser allows every site you haven't blocked)" />
-                                </CheckBox>
+                            <!-- Rules. -->
+                            <TextBlock Classes="sGroup" Text="Rules" />
+                            <TextBlock Classes="sHint" Margin="4,-6,0,0"
+                                       Text="When several match, Channel beats Url beats WindowTitle beats ProcessName, a longer pattern beats a shorter one, and Block wins a tie. OcrText rules are only checked when nothing else matched. ProcessName is without .exe (e.g. chrome). Domain matching (Url only) includes subdomains." />
 
-                                <CheckBox IsChecked="{Binding PreTickForExemptions}">
-                                    <TextBlock TextWrapping="Wrap"
-                                               Text="Pre-tick this profile when the &quot;Is this on track?&quot; prompt adds an exemption during another profile's session, so it's allowed here too (this computer only)" />
-                                </CheckBox>
-
-                                <WrapPanel ItemSpacing="12" LineSpacing="6">
-                                    <TextBlock Text="On-screen timer during this profile's sessions" VerticalAlignment="Center" />
-                                    <ComboBox ItemsSource="{x:Static vm:TimerChoice.Names}" SelectedIndex="{Binding TimerChoiceIndex}"
-                                              MinWidth="130" ToolTip.Tip="Use default follows Settings › Alerts &amp; on-screen › On-screen timer" />
-                                    <ComboBox ItemsSource="{Binding TimerColors}" SelectedItem="{Binding TimerColor}"
-                                              IsVisible="{Binding HasOwnTimer}" MinWidth="170" ToolTip.Tip="Timer colour">
+                            <!-- Ticked rules go to another profile or a new one (copied, or moved out of this one). -->
+                            <Border IsVisible="{Binding HasSelectedRules}" Background="{DynamicResource Ab.Surface2}" CornerRadius="{DynamicResource Ab.PanelRadius}" Padding="14,10">
+                                <WrapPanel ItemSpacing="8" LineSpacing="6">
+                                    <TextBlock Text="{Binding SelectionText}" VerticalAlignment="Center" FontWeight="SemiBold" />
+                                    <TextBlock Text="· to" VerticalAlignment="Center" Classes="muted" />
+                                    <ComboBox MinWidth="180" ItemsSource="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).PortTargets}"
+                                              SelectedItem="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).SelectedPortTarget}">
                                         <ComboBox.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:TimerColorOption">
-                                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                                    <Border Width="14" Height="14" CornerRadius="3" Background="{Binding Swatch}"
-                                                            BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" />
-                                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-                                                </StackPanel>
+                                            <DataTemplate x:DataType="vm:PortTargetOption">
+                                                <TextBlock Text="{Binding Label}" />
                                             </DataTemplate>
                                         </ComboBox.ItemTemplate>
                                     </ComboBox>
+                                    <Button Content="Copy" Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).CopySelectedRulesCommand}"
+                                            ToolTip.Tip="Copy the ticked rules there; this profile keeps them" />
+                                    <Button Content="Move" Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).MoveSelectedRulesCommand}"
+                                            ToolTip.Tip="Move the ticked rules there; they leave this profile" />
                                 </WrapPanel>
-
-                                <StackPanel Spacing="4" IsVisible="{Binding HasColdTurkeyBlocks}">
-                                    <TextBlock Text="Cold Turkey blocks this profile expects to be on" FontWeight="SemiBold" />
-                                    <ItemsControl ItemsSource="{Binding ColdTurkeyBlocks}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <WrapPanel />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:ExpectedBlockOption">
-                                                <CheckBox Content="{Binding Name}" IsChecked="{Binding IsExpected}" Margin="0,0,16,0" />
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                    <TextBlock Opacity="0.6" FontSize="12" TextWrapping="Wrap"
-                                               Text="This computer only. During this profile's focus you're told when one of them is off; nothing is changed in Cold Turkey." />
-                                </StackPanel>
-
-                                <TextBlock TextWrapping="Wrap" Opacity="0.75"
-                                           Text="Rules: when several match, Channel beats Url beats WindowTitle beats ProcessName, a longer pattern beats a shorter one, and Block wins a tie. OcrText rules are only checked when nothing else matched. ProcessName is without .exe (e.g. chrome). Domain matching (Url only) includes subdomains." />
-
-                                <!-- Ticked rules go to another profile or a new one (copied, or moved out of this one). -->
-                                <Border IsVisible="{Binding HasSelectedRules}" Background="{DynamicResource Ab.Surface2}" CornerRadius="6" Padding="8,6" Margin="0,4,0,0">
+                            </Border>
+                            <!-- "New profile…": start from this profile's settings or brand new. -->
+                            <Border IsVisible="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).IsAskingNewProfileStart}" Classes="sInfo">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).NewProfilePrompt}" TextWrapping="Wrap" />
                                     <WrapPanel ItemSpacing="8" LineSpacing="6">
-                                        <TextBlock Text="{Binding SelectionText}" VerticalAlignment="Center" FontWeight="SemiBold" />
-                                        <TextBlock Text="· to" VerticalAlignment="Center" Opacity="0.75" />
-                                        <ComboBox MinWidth="180" ItemsSource="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).PortTargets}"
-                                                  SelectedItem="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).SelectedPortTarget}">
-                                            <ComboBox.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:PortTargetOption">
-                                                    <TextBlock Text="{Binding Label}" />
-                                                </DataTemplate>
-                                            </ComboBox.ItemTemplate>
-                                        </ComboBox>
-                                        <Button Content="Copy" Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).CopySelectedRulesCommand}"
-                                                ToolTip.Tip="Copy the ticked rules there; this profile keeps them" />
-                                        <Button Content="Move" Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).MoveSelectedRulesCommand}"
-                                                ToolTip.Tip="Move the ticked rules there; they leave this profile" />
+                                        <Button Content="From this profile's settings"
+                                                Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).StartNewProfileFromSettingsCommand}" />
+                                        <Button Content="Brand new" Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).StartNewProfileBrandNewCommand}" />
+                                        <Button Content="Cancel" Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).CancelNewProfileCommand}" />
                                     </WrapPanel>
-                                </Border>
-                                <!-- "New profile…": start from this profile's settings or brand new. -->
-                                <Border IsVisible="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).IsAskingNewProfileStart}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1"
-                                        CornerRadius="6" Padding="10,8">
-                                    <StackPanel Spacing="8">
-                                        <TextBlock Text="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).NewProfilePrompt}" TextWrapping="Wrap" />
-                                        <WrapPanel ItemSpacing="8" LineSpacing="6">
-                                            <Button Classes="accent" Content="From this profile's settings"
-                                                    Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).StartNewProfileFromSettingsCommand}" />
-                                            <Button Content="Brand new" Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).StartNewProfileBrandNewCommand}" />
-                                            <Button Content="Cancel" Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).CancelNewProfileCommand}" />
-                                        </WrapPanel>
-                                    </StackPanel>
-                                </Border>
+                                </StackPanel>
+                            </Border>
 
-                                <!-- Search and filters (the numbers stay each rule's place in the whole list). -->
-                                <WrapPanel ItemSpacing="8" LineSpacing="6" Margin="0,4,0,0">
-                                    <CheckBox IsChecked="{Binding AllRulesSelected}" Content="Select all shown" VerticalAlignment="Center"
-                                              ToolTip.Tip="Select all shown (to copy or move them to another profile)" AutomationProperties.Name="Select all rules" />
-                                    <TextBox Text="{Binding RuleSearch}" Width="240" PlaceholderText="Search rules (pattern or note)"
-                                             AutomationProperties.Name="Search rules" />
-                                    <TextBlock Text="Match on" VerticalAlignment="Center" Opacity="0.75" />
-                                    <ComboBox ItemsSource="{x:Static vm:ProfileEditorViewModel.TargetFilters}" SelectedItem="{Binding TargetFilter}" MinWidth="130" />
-                                    <TextBlock Text="Verdict" VerticalAlignment="Center" Opacity="0.75" />
-                                    <ComboBox ItemsSource="{x:Static vm:ProfileEditorViewModel.VerdictFilters}" SelectedItem="{Binding VerdictFilter}" MinWidth="100" />
-                                    <TextBlock Text="{Binding FilterText}" VerticalAlignment="Center" Opacity="0.75" />
-                                </WrapPanel>
+                            <!-- Search and filters (the numbers stay each rule's place in the whole list). -->
+                            <WrapPanel ItemSpacing="8" LineSpacing="6">
+                                <CheckBox IsChecked="{Binding AllRulesSelected}" Content="Select all shown" VerticalAlignment="Center"
+                                          ToolTip.Tip="Select all shown (to copy or move them to another profile)" AutomationProperties.Name="Select all rules" />
+                                <TextBox Text="{Binding RuleSearch}" Width="220" PlaceholderText="Search rules (pattern or note)" AutomationProperties.Name="Search rules" />
+                                <TextBlock Text="Match on" VerticalAlignment="Center" Classes="muted" />
+                                <ComboBox ItemsSource="{x:Static vm:ProfileEditorViewModel.TargetFilters}" SelectedItem="{Binding TargetFilter}" MinWidth="130" />
+                                <TextBlock Text="Verdict" VerticalAlignment="Center" Classes="muted" />
+                                <ComboBox ItemsSource="{x:Static vm:ProfileEditorViewModel.VerdictFilters}" SelectedItem="{Binding VerdictFilter}" MinWidth="100" />
+                                <TextBlock Text="{Binding FilterText}" VerticalAlignment="Center" Classes="muted" />
+                            </WrapPanel>
 
-                                <ItemsControl ItemsSource="{Binding Rules}" Margin="0,4,0,0">
+                            <Border Classes="sPanel" IsVisible="{Binding HasRules}">
+                                <ItemsControl ItemsSource="{Binding Rules}" Margin="0,0,0,-1">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:RuleEditorViewModel">
                                             <!-- Line 1: the match (target, how, verdict); line 2: the pattern and a note. -->
-                                            <Border IsVisible="{Binding IsShown}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="0,0,0,1" Padding="0,0,0,8" Margin="0,0,0,8">
-                                                <StackPanel Spacing="4">
+                                            <Border Classes="sRow" IsVisible="{Binding IsShown}" Padding="14,10">
+                                                <StackPanel Spacing="6">
                                                     <WrapPanel ItemSpacing="6" LineSpacing="4">
                                                         <CheckBox IsChecked="{Binding IsSelected}" MinWidth="0" Padding="0" VerticalAlignment="Center"
                                                                   ToolTip.Tip="Tick to copy or move it to another profile" AutomationProperties.Name="{Binding Pattern}" />
-                                                        <TextBlock Text="{Binding Number}" Opacity="0.6" VerticalAlignment="Center" MinWidth="24" />
+                                                        <TextBlock Text="{Binding Number}" Classes="faint" VerticalAlignment="Center" MinWidth="24" />
                                                         <ComboBox Width="140" ItemsSource="{x:Static vm:RuleEditorViewModel.Targets}" SelectedItem="{Binding Target}" />
                                                         <ComboBox Width="110" ItemsSource="{x:Static vm:RuleEditorViewModel.Kinds}" SelectedItem="{Binding Kind}" />
                                                         <ComboBox Width="96" ItemsSource="{x:Static vm:RuleEditorViewModel.Verdicts}" SelectedItem="{Binding Verdict}" />
-                                                        <Button Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove rule" />
+                                                        <Button Content="✕" Classes="quiet" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove rule" />
                                                     </WrapPanel>
                                                     <Grid ColumnDefinitions="2*,*" ColumnSpacing="6">
                                                         <TextBox Text="{Binding Pattern}" PlaceholderText="e.g. youtube.com/shorts" />
@@ -217,31 +276,46 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                            </Border>
+                            <Button Content="Add rule" Command="{Binding AddRuleCommand}" HorizontalAlignment="Left" />
 
-                                <Button Content="Add rule" Command="{Binding AddRuleCommand}" />
-
-                                <TextBlock Text="Unlock options" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,0" />
-                                <TextBlock TextWrapping="Wrap" Opacity="0.75"
-                                           Text="Ways to lift this profile's blocks (Today → Unlock). You wait the time shown and give a reason; then the session ends until it relocks (midnight by default, see Settings). Can't be changed during focus." />
-                                <ItemsControl ItemsSource="{Binding UnlockOptions}">
+                            <!-- Unlock options. -->
+                            <TextBlock Classes="sGroup" Text="Unlock options" />
+                            <TextBlock Classes="sHint" Margin="4,-6,0,0"
+                                       Text="Ways to lift this profile's blocks (Today → Unlock). You wait the time shown and give a reason; then the session ends until it relocks (midnight by default, see below). Can't be changed during focus." />
+                            <Border Classes="sPanel" IsVisible="{Binding HasUnlockOptions}">
+                                <ItemsControl ItemsSource="{Binding UnlockOptions}" Margin="0,0,0,-1">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:UnlockOptionEditorViewModel">
-                                            <WrapPanel ItemSpacing="8" LineSpacing="4" Margin="0,2">
-                                                <TextBox Text="{Binding Name}" Width="220" PlaceholderText="e.g. Off day" />
-                                                <TextBlock Text="wait" VerticalAlignment="Center" />
-                                                <TextBox Text="{Binding WaitMinutes}" Width="72" />
-                                                <TextBlock Text="minutes" VerticalAlignment="Center" />
-                                                <Button Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove unlock option" />
-                                            </WrapPanel>
+                                            <Border Classes="sRow" Padding="14,10">
+                                                <WrapPanel ItemSpacing="8" LineSpacing="4">
+                                                    <TextBox Text="{Binding Name}" Width="200" PlaceholderText="e.g. Off day" />
+                                                    <TextBlock Text="wait" VerticalAlignment="Center" Classes="muted" />
+                                                    <TextBox Text="{Binding WaitMinutes}" Width="72" />
+                                                    <TextBlock Text="minutes" VerticalAlignment="Center" Classes="muted" />
+                                                    <Button Content="✕" Classes="quiet" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove unlock option" />
+                                                </WrapPanel>
+                                            </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                                <Button Content="Add unlock option" Command="{Binding AddUnlockOptionCommand}" />
-                            </StackPanel>
-                        </DataTemplate>
-                    </ContentControl.ContentTemplate>
-                </ContentControl>
-            </ScrollViewer>
+                            </Border>
+                            <Button Content="Add unlock option" Command="{Binding AddUnlockOptionCommand}" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ContentControl.ContentTemplate>
+            </ContentControl>
         </Grid>
-    </DockPanel>
+
+        <!-- Save and Revert for the profiles (a separate save from the Settings bar above, as before). -->
+        <Border Classes="sPanel" Padding="18,12">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <TextBlock Text="{Binding StatusMessage}" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Content="Revert" Command="{Binding RevertCommand}" />
+                    <Button Content="Save" Command="{Binding SaveCommand}" Classes="primary" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </StackPanel>
 </UserControl>
