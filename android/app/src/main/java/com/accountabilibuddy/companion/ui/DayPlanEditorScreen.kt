@@ -73,7 +73,7 @@ fun DayPlanEditorScreen(
             Button(onClick = { onSave() }, enabled = draft.changed) { Text("Save") }
         }
         Text(
-            "Saved changes go to ${pcName ?: "the PC"}, which checks them like its own Day plan tab; during a focus session there they wait until it ends.",
+            "Saved changes go to ${pcName ?: "the PC"}, which checks them like its own Plan page; during a focus session there they wait until it ends.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp),

@@ -206,6 +206,12 @@ public partial class MainWindow : Window
         search.OpenRequested += (_, target) =>
         {
             navigator.Open(target);
+            // Words inside the Plan page's sheets: open the sheet that holds them, then the reveal below finds them on screen.
+            if (target.Control is Control found && Pages.Children[(int)MainTab.Plan] is PlanView plan)
+            {
+                plan.OpenSheetContaining(found);
+            }
+
             // Data results have no control: the page's own matches show once it's laid out.
             Dispatcher.UIThread.Post(Highlights.RecountNow, DispatcherPriority.Background);
         };

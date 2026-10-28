@@ -53,7 +53,8 @@ public sealed class PlanHelperDismissals
         }
     }
 
-    public bool IsDismissed(string key) => _dismissed.ContainsKey(key);
+    /// <summary>True when the key was dismissed within the kept days (an older dismissal no longer counts, even before it is pruned).</summary>
+    public bool IsDismissed(string key) => _dismissed.TryGetValue(key, out DateOnly on) && on >= _today().AddDays(-KeptDays);
 
     public async Task DismissAsync(string key)
     {

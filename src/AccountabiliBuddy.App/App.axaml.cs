@@ -1069,6 +1069,7 @@ public partial class App : Application
             Devices = devices,
         };
         planViewModel.OpenDpAssistant = mainViewModel.OpenDpAssistantCommand;
+        planViewModel.WorkHoursGuardOn = () => _workHours?.Settings.On == true;
         planViewModel.ShowToday = () => mainViewModel.SelectedTab = MainWindowViewModel.TodayTab;
         exceptionsViewModel.OpenConnections = () =>
         {

@@ -40,7 +40,7 @@ public static class BlockSiteStorageReader
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         string[] notes = distinct.Count == 0
             ? new[] { $"{name}: no blocked sites are saved on this PC (BlockSite may keep them in its account). Paste them instead." }
-            : new[] { $"{name}: schedules aren't imported; plan your day in the Day plan tab." };
+            : new[] { $"{name}: schedules aren't imported; plan your day on the Plan page." };
         return new ImportedBlockList(ImportSource.BlockSite, name, distinct, Array.Empty<string>(), Array.Empty<WeekRange>(), null, notes);
     }
 

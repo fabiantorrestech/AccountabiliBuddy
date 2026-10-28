@@ -11,7 +11,7 @@ namespace AccountabiliBuddy.Core.Engine;
 /// <item>A coming day's calendar covers at least half of its work: offer to move the day's biggest work part, whole, into the
 /// largest free stretch of the waking day (a one-off day for that date), or only say so when nothing is free.</item>
 /// <item>Today's goal no longer fits in the work time left (after the day's calendar): say so; no plan edit.</item>
-/// <item>A day of next week follows no day type: say so; the app opens Change a day.</item>
+/// <item>The days of next week that follow no day type: say so; the app opens Change a day on the first.</item>
 /// </list>
 /// Moving is never applied here: <see cref="PlanSuggestion.Edit"/> is a proposal the app puts through the normal day plan
 /// edit path, with its lock during a session and its wait.
@@ -58,7 +58,7 @@ public static class PlanHelper
             }
         }
 
-        if (FirstDayWithoutType(plan, today) is PlanSuggestion missing)
+        if (DaysWithoutType(plan, today) is PlanSuggestion missing)
         {
             suggestions.Add(missing);
         }
@@ -138,9 +138,11 @@ public static class PlanHelper
             return null;
         }
 
+        // The longest part; of equal ones, the one the calendar covers most (the other is already free).
         PlannedPart? biggest = work
             .Where(part => !part.Part.CrossesMidnight && !part.Part.IsFlexible)
             .OrderByDescending(part => Length(part.Window))
+            .ThenByDescending(part => Length(part.Window) - Length(DayTimeline.Subtract([part.Window], busy)))
             .FirstOrDefault();
         if (biggest is null)
         {
@@ -209,20 +211,27 @@ public static class PlanHelper
         return oneWindowPiece ? stored with { WorkWindow = new WorkWindow(start, end) } : null;
     }
 
-    // Rule 3: the first day of next week whose weekday follows no day type and has no plan of its own.
-    private static PlanSuggestion? FirstDayWithoutType(DayPlan plan, DateOnly today)
+    // Rule 3: the days of next week whose weekday follows no day type and that have no plan of their own, all in one sentence.
+    private static PlanSuggestion? DaysWithoutType(DayPlan plan, DateOnly today)
     {
         DateOnly monday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7)).AddDays(7);
-        for (int offset = 0; offset < 7; offset++)
+        List<DateOnly> missing = Enumerable.Range(0, 7)
+            .Select(offset => monday.AddDays(offset))
+            .Where(date => plan.Cycle.TemplateIdFor(date) is null && plan.OneOffDays.All(day => day.Date != date))
+            .ToList();
+        if (missing.Count == 0)
         {
-            DateOnly date = monday.AddDays(offset);
-            if (plan.Cycle.TemplateIdFor(date) is null && plan.OneOffDays.All(day => day.Date != date))
-            {
-                return new PlanSuggestion(PlanSuggestionKind.NoDayType, date, $"Next {date.DayOfWeek} has no day type yet.");
-            }
+            return null;
         }
 
-        return null;
+        if (missing.Count == 1)
+        {
+            return new PlanSuggestion(PlanSuggestionKind.NoDayType, missing[0], $"Next {missing[0].DayOfWeek} has no day type yet.");
+        }
+
+        string names = string.Join(", ", missing.Take(missing.Count - 1).Select(date => date.DayOfWeek.ToString()[..3]));
+        return new PlanSuggestion(PlanSuggestionKind.NoDayType, missing[0],
+            $"{names} and {missing[^1].DayOfWeek.ToString()[..3]} next week have no day type yet.");
     }
 
     // The Watch parts the guards see in the range (work, not Comms: those are mail and chat, not deep work).

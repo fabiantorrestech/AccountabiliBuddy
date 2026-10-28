@@ -43,6 +43,19 @@ public static class PlanTimelineBuilder
             .ToList();
 
         var rows = new List<PlanTimelineRowViewModel>();
+
+        // All-day events head the day.
+        foreach (CalendarEntry entry in entries.Where(entry => entry.Event.IsAllDay))
+        {
+            rows.Add(new PlanTimelineRowViewModel(open)
+            {
+                TimeText = "All day",
+                Title = entry.Event.Title,
+                SubText = "Calendar",
+                IsEvent = true,
+            });
+        }
+
         List<PlannedPart>? group = null;
         var trailing = new List<PlannedPart>();
         bool goalShown = false;

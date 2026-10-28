@@ -489,7 +489,7 @@
                     <TextBlock Classes="body" Text="• Start a session from Today, or press Ctrl+Alt+F anywhere." />
                     <TextBlock Classes="body" IsVisible="{Binding IsQuick}"
                                Text="• Your first session learns: it asks about nothing new, and at its end you sort what you used on Today." />
-                    <TextBlock Classes="body" Text="• Your day plan is in Plan; a day planned differently is in its Calendar section." />
+                    <TextBlock Classes="body" Text="• Your day plan is in Plan; a day planned differently is in Plan › Change a day." />
                     <TextBlock Classes="body" IsVisible="{Binding IsQuick}"
                                Text="• Imports from other blockers and browser extensions: Settings › Setup → Full setup." />
                     <TextBlock Classes="body" IsVisible="{Binding !IsQuick}" Text="• Run this assistant again any time from Settings › Setup." />

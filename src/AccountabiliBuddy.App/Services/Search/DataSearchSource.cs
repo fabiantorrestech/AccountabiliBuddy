@@ -59,7 +59,8 @@ public static class DataSearchSource
         var planTab = new SearchTarget(SearchTabs.Plan);
         foreach (DayCategory category in plan.Categories)
         {
-            entries.Add(new SearchEntry($"{category.Name} ({category.Behavior})", "Plan › Categories", SearchKinds.Plan, planTab));
+            // -1: open the Day types sheet without changing its selected type.
+            entries.Add(new SearchEntry($"{category.Name} ({category.Behavior})", "Plan › Day types › Categories", SearchKinds.Plan, planTab with { PlanTemplate = -1 }));
         }
 
         for (int index = 0; index < plan.Templates.Count; index++)

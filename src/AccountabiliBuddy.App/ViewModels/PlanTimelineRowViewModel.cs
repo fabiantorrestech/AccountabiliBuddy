@@ -28,6 +28,9 @@ public sealed partial class PlanTimelineRowViewModel
     /// <summary>The plan part that stands for this row, so its editor can open on it; null for a part the editor doesn't list (a Budget day's window).</summary>
     public Guid? PartId { get; init; }
 
+    /// <summary>An all-day calendar event listed at the top of the day; it opens the month view.</summary>
+    public bool IsEvent { get; init; }
+
     [RelayCommand]
     private void Open() => _open(this);
 }

@@ -81,6 +81,9 @@ public sealed partial class PlanViewModel : ObservableObject
     /// <summary>Opens the Setup DP Assistant (locked during a session like the editors); set by the app.</summary>
     public ICommand? OpenDpAssistant { get; set; }
 
+    /// <summary>True when this computer's work-hours guard is on (ADR 28), so a change that frees today's work hours waits; set by the app.</summary>
+    public Func<bool> WorkHoursGuardOn { get; set; } = () => false;
+
     /// <summary>Opens the Today page ("Start" on a goal that doesn't fit); set by the app.</summary>
     public Action? ShowToday { get; set; }
 
@@ -180,10 +183,23 @@ public sealed partial class PlanViewModel : ObservableObject
     /// <summary>Refreshes what depends on the clock (the "Now" line moves); the page calls it each minute while it is on screen.</summary>
     public void Tick()
     {
-        if (SelectedDate == Today)
+        if (Today != _refreshedOn)
         {
             Refresh();
         }
+        else if (SelectedDate == Today)
+        {
+            Rows = BuildRows();
+        }
+    }
+
+    // The day the page last refreshed for: a tick in a new day refreshes everything, otherwise only today's rows (the Now line).
+    private DateOnly _refreshedOn;
+
+    private IReadOnlyList<PlanTimelineRowViewModel> BuildRows()
+    {
+        return PlanTimelineBuilder.Build(
+            _configuration.Editing.DayPlan, SelectedDate, LocalNow, _calendars.EventsOn(SelectedDate), _focusedOn(SelectedDate), _goal(), _nightFallback, OpenPart);
     }
 
     [RelayCommand]
@@ -262,6 +278,12 @@ public sealed partial class PlanViewModel : ObservableObject
     // any other in the day type it follows (where the note says that changes every such day).
     private void OpenPart(PlanTimelineRowViewModel row)
     {
+        if (row.IsEvent)
+        {
+            OpenChangeADay(SelectedDate);
+            return;
+        }
+
         DayPlan plan = _configuration.Editing.DayPlan;
         if (plan.OneOffDays.Any(day => day.Date == SelectedDate))
         {
@@ -299,9 +321,13 @@ public sealed partial class PlanViewModel : ObservableObject
 
         IsLocked = _sessions.IsEnforcing;
         HasUnsavedPlan = DayPlan.HasUnsavedChanges;
+        // ADR 28: a change waits only when it frees today's work hours and the work-hours guard is on; otherwise it applies at once.
         RuleText = IsLocked
             ? "Locked while a focus session you started runs."
-            : $"A change that frees today's work hours waits {(int)_configuration.Current.Locks.LooseningDelay.TotalMinutes} min; any other applies at once.";
+            : WorkHoursGuardOn()
+                ? $"A change that frees today's work hours waits {(int)_configuration.Current.Locks.LooseningDelay.TotalMinutes} min; any other applies at once."
+                : "Changes apply at once.";
+        _refreshedOn = today;
         CanGoToToday = SelectedDate != today;
         OnlyThisDayText = $"Change only {SelectedDate:ddd MMM d}";
 
@@ -315,8 +341,7 @@ public sealed partial class PlanViewModel : ObservableObject
                 date, date.DayOfWeek.ToString()[..3], ShortTypeName(plan, date), date == today, date == SelectedDate, picked => SelectDateCommand.Execute(picked)));
         }
 
-        Rows = PlanTimelineBuilder.Build(
-            plan, SelectedDate, now, _calendars.EventsOn(SelectedDate), _focusedOn(SelectedDate), _goal(), _nightFallback, OpenPart);
+        Rows = BuildRows();
 
         RefreshDayTypes(plan);
         RefreshOneOffDays(plan, today);
@@ -347,7 +372,10 @@ public sealed partial class PlanViewModel : ObservableObject
         OneOffDays.Clear();
         foreach (OneOffDay day in coming.Take(MostOneOffDays))
         {
-            string kind = day.Template.Mode == DayMode.Free ? "Free day" : plan.IsWorkday(day.Date) ? "Workday" : "Off day";
+            // The day type's name: the one the date would follow, else what the day is.
+            string kind = plan.Cycle.TemplateIdFor(day.Date) is Guid followed && plan.Templates.FirstOrDefault(template => template.Id == followed) is PlanTemplate usual
+                ? usual.Name
+                : day.Template.Mode == DayMode.Free ? "Free day" : plan.IsWorkday(day.Date) ? "Workday" : "Off day";
             string text = string.IsNullOrWhiteSpace(day.Note) ? kind : $"{day.Note.Trim()} · {kind}";
             OneOffDays.Add(new PlanOneOffRowViewModel(day.Date, day.Date.ToString("MMM d", CultureInfo.CurrentCulture), text, picked => OpenOneOffDayCommand.Execute(picked)));
         }
@@ -384,12 +412,16 @@ public sealed partial class PlanViewModel : ObservableObject
     private async Task ActAsync(PlanSuggestionViewModel row)
     {
         PlanSuggestion suggestion = row.Suggestion;
-        await _dismissals.MarkUsedAsync();
         switch (suggestion.Kind)
         {
             case PlanSuggestionKind.MoveWork when suggestion.Edit is PlanEdit edit:
-                await MoveAsync(suggestion, edit);
-                break;
+                // A refused move doesn't count as using the helper.
+                if (await MoveAsync(suggestion, edit))
+                {
+                    await _dismissals.MarkUsedAsync();
+                }
+
+                return;
             case PlanSuggestionKind.MoveWork:
                 SelectDate(suggestion.Date);
                 break;
@@ -400,33 +432,36 @@ public sealed partial class PlanViewModel : ObservableObject
                 OpenChangeADay(suggestion.Date);
                 break;
         }
+
+        await _dismissals.MarkUsedAsync();
     }
 
     // "Move it": the same edit path as a manual one. Refused while a session the user started runs; otherwise saved through the
     // configuration, which waits when the change frees today's work hours (it never does for a coming day, but the path is the same).
-    private async Task MoveAsync(PlanSuggestion suggestion, PlanEdit edit)
+    private async Task<bool> MoveAsync(PlanSuggestion suggestion, PlanEdit edit)
     {
         if (_sessions.IsEnforcing)
         {
             HelperMessage = "Not moved: the day plan is locked while a focus session you started runs.";
-            return;
+            return false;
         }
 
         if (_configuration.IsReadOnly)
         {
             HelperMessage = "Not moved: settings are read-only (see banner).";
-            return;
+            return false;
         }
 
         if (DayPlanValidator.Validate(edit.ApplyTo(_configuration.Editing.DayPlan)) is string problem)
         {
             HelperMessage = $"Not moved: {problem}";
-            return;
+            return false;
         }
 
         await _configuration.UpdateAsync(document => document with { DayPlan = edit.ApplyTo(document.DayPlan) });
         HelperMessage = _configuration.DayPlanWaitText ?? $"Moved: {suggestion.Date.DayOfWeek} has its own plan now, with the work in its new place.";
         Refresh();
+        return true;
     }
 
     private async Task LeaveAsync(PlanSuggestionViewModel row)
