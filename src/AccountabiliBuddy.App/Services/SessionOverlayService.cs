@@ -53,6 +53,9 @@ public sealed class SessionOverlayService : IDisposable
     private DateTimeOffset _lastShownAt = DateTimeOffset.MinValue;
     private (bool On, bool Hidden) _lastStatus;
     private bool _started;
+
+    // The keyboard hook is installed only while hold-to-peek is on and the tile is on screen.
+    private bool _hookOn;
     private bool _disposed;
 
     public SessionOverlayService(
@@ -171,7 +174,7 @@ public sealed class SessionOverlayService : IDisposable
             }
 
             // A fresh hook at each session start or end: Windows drops one that was too slow once, silently.
-            if (_settings.Current.HoldToPeek)
+            if (_hookOn)
             {
                 _ctrlAlt.SetListening(true);
             }
@@ -179,11 +182,7 @@ public sealed class SessionOverlayService : IDisposable
             Update();
         };
         _sessions.Ticked += (_, _) => Update();
-        _settings.Changed += (_, _) =>
-        {
-            _ctrlAlt.SetListening(_settings.Current.HoldToPeek);
-            Update();
-        };
+        _settings.Changed += (_, _) => Update();
         _configuration.Changed += (_, _) => Update();
         _day.PropertyChanged += (_, e) =>
         {
@@ -194,7 +193,6 @@ public sealed class SessionOverlayService : IDisposable
         };
         _geometry.Changed += (_, _) => Dispatcher.UIThread.Post(Update);
         _ctrlAlt.HeldChanged += (_, held) => Dispatcher.UIThread.Post(() => OnCtrlAlt(held));
-        _ctrlAlt.SetListening(_settings.Current.HoldToPeek);
         _panelKeys.Pressed += (_, chord) => Dispatcher.UIThread.Post(() => _panelModel?.HandleKey(chord.Key == "Plus" ? "+" : chord.Key == "Minus" ? "-" : chord.Key));
         _stickyHotkey.Pressed += (_, _) => Dispatcher.UIThread.Post(() => OpenPanel(sticky: true));
         _stickyHotkey.TryRegister(new HotkeyChord(HotkeyModifiers.Ctrl | HotkeyModifiers.Alt, "Space"), out string? error);
@@ -315,6 +313,7 @@ public sealed class SessionOverlayService : IDisposable
         _peekTimer.Stop();
         _wakeTimer.Stop();
         _clockTimer.Stop();
+        _hookOn = false;
         _ctrlAlt.SetListening(false);
         _stickyHotkey.Unregister();
         _panelKeys.Unregister();
@@ -449,11 +448,22 @@ public sealed class SessionOverlayService : IDisposable
         }
 
         Show();
+        SyncHook();
         (bool, bool) status = (IsOnForSession, IsHiddenForSession);
         if (status != _lastStatus)
         {
             _lastStatus = status;
             Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private void SyncHook()
+    {
+        bool want = _settings.Current.HoldToPeek && _tile is { IsVisible: true };
+        if (want != _hookOn)
+        {
+            _hookOn = want;
+            _ctrlAlt.SetListening(want);
         }
     }
 
