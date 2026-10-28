@@ -12,16 +12,33 @@
             <Setter Property="VerticalContentAlignment" Value="Stretch" />
             <Setter Property="Padding" Value="6,4" />
             <Setter Property="Margin" Value="2" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Background" Value="#0F808080" />
-            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Height" Value="76" />
+        </Style>
+        <!-- A day cell: Surface2; a day with its own plan in the info colour; the selected day outlined in ink. -->
+        <Style Selector="Button.day /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="BorderThickness" Value="1.5" />
             <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.day:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.day.adjusted /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.InfoBg}" />
+        </Style>
+        <Style Selector="Button.day.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.day.today TextBlock.number">
+            <Setter Property="FontWeight" Value="Bold" />
         </Style>
     </UserControl.Styles>
     <UserControl.Resources>
         <!-- Like a calendar's agenda: one row per part in time order, tinted in its category's colour. -->
         <DataTemplate x:Key="AgendaRowTemplate" x:DataType="vm:AgendaRow">
-            <Border Background="{Binding Tint}" CornerRadius="6" Margin="0,2" ClipToBounds="True">
+            <Border Background="{Binding Tint}" CornerRadius="8" Margin="0,2" ClipToBounds="True">
                 <Grid ColumnDefinitions="4,*">
                     <Border Background="{Binding Brush}" />
                     <StackPanel Grid.Column="1" Margin="10,5,8,6" Spacing="1">
@@ -33,19 +50,22 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <DockPanel Margin="12">
+    <!-- The Plan page's "Change a day" sheet: the month with its events, one date's own plan and the one-off days. The calendar links and
+         Google sign-in are in Settings > Connections. -->
+    <DockPanel Margin="30,6,24,24">
         <views:PendingChangesBanner DockPanel.Dock="Top" DataContext="{Binding PendingChanges}" Margin="0,0,0,12" />
-        <TextBlock DockPanel.Dock="Top" Opacity="0.75" TextWrapping="Wrap" Margin="0,0,0,8"
+        <TextBlock DockPanel.Dock="Top" Classes="muted" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,10"
                    Text="Single dates planned differently from your day plan: a day off, a half day. Pick a date, then Plan this day differently; it starts from that day's default day plan and applies as soon as it's saved." />
-        <Border DockPanel.Dock="Top" IsVisible="{Binding IsLocked}" Background="#33F59E0B" Padding="12,8" Margin="0,0,0,12" CornerRadius="6">
-            <TextBlock Text="One-off days are locked while a focus session you started is running." />
+        <Border DockPanel.Dock="Top" IsVisible="{Binding IsLocked}" Background="{DynamicResource Ab.Surface2}" BorderBrush="{DynamicResource Ab.Waiting}"
+                BorderThickness="3,0,0,0" Padding="14,10" Margin="0,0,0,12" CornerRadius="6">
+            <TextBlock Text="One-off days are locked while a focus session you started is running." TextWrapping="Wrap" />
         </Border>
 
         <Grid ColumnDefinitions="*,16,320">
             <DockPanel Grid.Column="0">
                 <!-- The one-off day being edited, under the calendar where the bar has room. -->
-                <Border DockPanel.Dock="Bottom" IsVisible="{Binding IsEditingOneOff}" Padding="12" Margin="0,12,0,0" CornerRadius="6"
-                        Background="#0F808080">
+                <Border x:Name="OneOffEditorHost" DockPanel.Dock="Bottom" IsVisible="{Binding IsEditingOneOff}" Padding="14" Margin="0,12,0,0" CornerRadius="12"
+                        Background="{DynamicResource Ab.Surface2}">
                     <StackPanel Spacing="8">
                         <TextBlock Text="{Binding EditingDateTitle}" FontSize="16" FontWeight="SemiBold" />
                         <TextBlock Text="A part that crosses midnight (Sleep) is the night before this day; its piece at the right end of the bar starts the evening before."
@@ -59,19 +79,19 @@
                         </ContentControl>
                         <TextBox Text="{Binding OneOffNote}" PlaceholderText="Note (optional), e.g. dentist, half day" />
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Save" Classes="accent" Command="{Binding SaveOneOffDayCommand}" />
+                            <Button Content="Save" Classes="primary" Padding="22,9" Command="{Binding SaveOneOffDayCommand}" />
                             <Button Content="Cancel" Command="{Binding CancelOneOffDayCommand}" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
-                <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,*" Margin="0,0,0,6">
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="0,0,0,6">
                     <Button Grid.Column="0" Content="◀" Command="{Binding PreviousMonthCommand}" ToolTip.Tip="Previous month" />
                     <Button Grid.Column="1" Content="Today" Command="{Binding GoToTodayCommand}" Margin="6,0" />
                     <Button Grid.Column="2" Content="▶" Command="{Binding NextMonthCommand}" ToolTip.Tip="Next month" />
                     <TextBlock Grid.Column="3" Text="{Binding MonthTitle}" FontSize="18" FontWeight="SemiBold"
-                               VerticalAlignment="Center" Margin="12,0,0,0" />
-                    <Button Grid.Column="3" Content="Refresh calendars" HorizontalAlignment="Right"
-                            Command="{Binding RefreshCalendarsCommand}"
+                               VerticalAlignment="Center" Margin="12,0,8,0" TextTrimming="CharacterEllipsis" />
+                    <Button Grid.Column="4" Content="Refresh calendars" HorizontalAlignment="Right"
+                            Command="{Binding Feeds.RefreshCalendarsCommand}"
                             ToolTip.Tip="Fetch every event of every connected calendar now, hidden ones included" />
                 </Grid>
                 <ItemsControl DockPanel.Dock="Top" ItemsSource="{x:Static vm:ExceptionsViewModel.WeekdayHeaders}">
@@ -86,7 +106,7 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-                <ItemsControl ItemsSource="{Binding Days}">
+                <ItemsControl ItemsSource="{Binding Days}" VerticalAlignment="Top">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <UniformGrid Columns="7" Rows="6" />
@@ -98,20 +118,6 @@
                                     Classes.adjusted="{Binding IsAdjusted}" Opacity="{Binding Opacity}"
                                     Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).SelectDayCommand}"
                                     CommandParameter="{Binding}">
-                                <Button.Styles>
-                                    <!-- A day planned differently from its default: lighter, in the one-off colour. -->
-                                    <Style Selector="Button.adjusted">
-                                        <Setter Property="Background" Value="#402A9D8F" />
-                                    </Style>
-                                    <Style Selector="Button.selected">
-                                        <Setter Property="BorderBrush" Value="#2A9D8F" />
-                                        <Setter Property="Background" Value="#262A9D8F" />
-                                    </Style>
-                                    <Style Selector="Button.today TextBlock.number">
-                                        <Setter Property="FontWeight" Value="Bold" />
-                                        <Setter Property="Foreground" Value="#2A9D8F" />
-                                    </Style>
-                                </Button.Styles>
                                 <StackPanel Spacing="1">
                                     <TextBlock Classes="number" Text="{Binding DayNumber}" FontSize="13" />
                                     <ItemsControl ItemsSource="{Binding Lines}">
@@ -136,64 +142,17 @@
 
             <ScrollViewer Grid.Column="2">
                 <StackPanel Spacing="10" Margin="0,0,14,0">
-                    <Expander Header="Calendars" HorizontalAlignment="Stretch">
-                        <StackPanel Spacing="10">
-                            <ItemsControl ItemsSource="{Binding CalendarSources}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:CalendarSourceRowViewModel">
-                                        <StackPanel Margin="0,0,0,10" Spacing="2">
-                                            <Grid ColumnDefinitions="*,Auto">
-                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
-                                                           VerticalAlignment="Center" ToolTip.Tip="{Binding Name}" />
-                                                <Button Grid.Column="1" Content="{Binding RemoveLabel}" IsVisible="{Binding CanRemove}"
-                                                        FontSize="12" Padding="6,2"
-                                                        Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).RemoveSourceCommand}"
-                                                        CommandParameter="{Binding}" />
-                                            </Grid>
-                                            <TextBlock Text="{Binding StatusText}" FontSize="11" Opacity="0.75" TextWrapping="Wrap"
-                                                       Classes.error="{Binding HasError}">
-                                                <TextBlock.Styles>
-                                                    <Style Selector="TextBlock.error">
-                                                        <Setter Property="Foreground" Value="#E76F51" />
-                                                        <Setter Property="Opacity" Value="1" />
-                                                    </Style>
-                                                </TextBlock.Styles>
-                                            </TextBlock>
-                                            <ItemsControl ItemsSource="{Binding Calendars}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate x:DataType="vm:CalendarRowViewModel">
-                                                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,1">
-                                                            <CheckBox IsChecked="{Binding IsVisible}" ToolTip.Tip="Show on the calendar"
-                                                                      AutomationProperties.Name="{Binding Name, StringFormat='Show {0}'}" />
-                                                            <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center"
-                                                                       TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" />
-                                                            <Button Grid.Column="2" Width="22" Height="22" Padding="0" CornerRadius="11"
-                                                                    Background="{Binding Brush}" ToolTip.Tip="Change colour"
-                                                                    Command="{Binding NextColorCommand}" />
-                                                        </Grid>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <TextBlock Text="Add an iCal link" FontWeight="SemiBold" />
-                            <TextBlock FontSize="11" Opacity="0.75" TextWrapping="Wrap"
-                                       Text="Google: calendar Settings → Integrate calendar → Secret address in iCal format. One link per calendar. Outlook, iCloud and Nextcloud have the same kind of link. The address is stored encrypted." />
-                            <TextBox Text="{Binding NewLinkAddress}" PasswordChar="•" PlaceholderText="https://… or webcal://…"
-                                     AutomationProperties.Name="iCal address" />
-                            <TextBox Text="{Binding NewLinkGroup}" PlaceholderText="Group name (optional), e.g. Work account"
-                                     AutomationProperties.Name="Group name" />
-                            <Button Content="Add link" Command="{Binding AddLinkCommand}" />
-
-                            <Button Content="Connect a Google account…" Command="{Binding ConnectGoogleCommand}" Margin="0,6,0,0"
-                                    ToolTip.Tip="Add one Google account at a time (press again for another). Lists all calendars of the account; changes show up within about 30 seconds. Needs your Google client ID in Settings." />
-                            <TextBlock Text="{Binding CalendarMessage}" TextWrapping="Wrap" FontSize="12"
-                                       IsVisible="{Binding CalendarMessage, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                        </StackPanel>
-                    </Expander>
+                    <!-- Calendar links and Google sign-in moved to Settings > Connections. -->
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                                   Text="Calendar links and Google sign-in are in Settings › Connections." />
+                        <Button Classes="quiet" Command="{Binding OpenCalendarSettingsCommand}" HorizontalAlignment="Left" Padding="0,4"
+                                AutomationProperties.Name="Open Settings Connections">
+                            <TextBlock Text="Open Connections" TextDecorations="Underline" />
+                        </Button>
+                        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="{Binding Feeds.CalendarMessage}"
+                                   IsVisible="{Binding Feeds.CalendarMessage, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    </StackPanel>
 
                     <TextBlock Text="{Binding SelectedDateTitle}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
 
@@ -241,10 +200,10 @@
 
                     <TextBlock Text="This day's plan" FontWeight="SemiBold" Margin="0,6,0,0" />
                     <!-- At a glance: adjusted (in the one-off colour, like the calendar) or the default plan. -->
-                    <Border CornerRadius="6" Padding="8,4" HorizontalAlignment="Left" Background="#402A9D8F" IsVisible="{Binding SelectedIsAdjusted}">
+                    <Border CornerRadius="8" Padding="10,5" HorizontalAlignment="Left" Background="{DynamicResource Ab.InfoBg}" IsVisible="{Binding SelectedIsAdjusted}">
                         <TextBlock Text="{Binding SelectedDayPlanText}" FontWeight="SemiBold" />
                     </Border>
-                    <Border CornerRadius="6" Padding="8,4" HorizontalAlignment="Left" Background="#1F808080" IsVisible="{Binding !SelectedIsAdjusted}">
+                    <Border CornerRadius="8" Padding="10,5" HorizontalAlignment="Left" Background="{DynamicResource Ab.Surface2}" IsVisible="{Binding !SelectedIsAdjusted}">
                         <TextBlock Text="{Binding SelectedDayPlanText}" Opacity="0.85" />
                     </Border>
                     <TextBlock Text="Nothing planned." Opacity="0.6" IsVisible="{Binding !SelectedDayAgenda.Count}" />

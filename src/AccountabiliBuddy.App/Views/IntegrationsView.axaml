@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.IntegrationsView"
              x:DataType="vm:IntegrationsViewModel">
     <UserControl.Styles>
@@ -69,6 +70,17 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Calendars: the links and Google accounts the Plan page's month view shows (they were in the Calendar tab). -->
+            <Border Classes="card" DataContext="{Binding CalendarFeeds}" x:DataType="vm:CalendarFeedsViewModel"
+                    IsVisible="{Binding $parent[UserControl].((vm:IntegrationsViewModel)DataContext).CalendarFeeds, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Calendars" Classes="title" />
+                    <TextBlock Classes="muted"
+                               Text="Read-only calendars (iCal links and Google accounts) plus this app's own. Their events show on the Plan page's month view, Change a day. Nothing is ever written to them." />
+                    <views:CalendarFeedsView />
                 </StackPanel>
             </Border>
 

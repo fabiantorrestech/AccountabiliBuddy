@@ -40,7 +40,7 @@
             <Button Content="Emergency unlock…" Command="{Binding ToggleUnlockCommand}" Classes="link" Opacity="0.6" FontSize="11" HorizontalAlignment="Left" />
             <StackPanel Spacing="8" IsVisible="{Binding ShowsUnlock}">
                 <TextBlock TextWrapping="Wrap" FontSize="12" Opacity="0.8"
-                           Text="Only when you truly need this computer right now. It lifts Pre-Work until this part ends and is kept with its reason. Need it unguarded at set times? Schedule an off day in Plan › Calendar instead." />
+                           Text="Only when you truly need this computer right now. It lifts Pre-Work until this part ends and is kept with its reason. Need it unguarded at set times? Schedule an off day in Plan › Change a day instead." />
                 <TextBlock Text="{Binding UnlocksText}" FontSize="12" Foreground="#F4A261" />
                 <TextBox Text="{Binding Reason}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60"
                          PlaceholderText="Why, right now? (at least 40 characters)" />

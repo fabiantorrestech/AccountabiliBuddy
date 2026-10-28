@@ -10,7 +10,7 @@ public static class SetupFeatures
 {
     public static IReadOnlyList<SetupFeature> All(ColdTurkeyKeysService keys, ColdTurkeyService coldTurkey, Sync.SyncSettingsService sync,
         ConfigurationService configuration, StartNudgeService startNudge, DpAssistantService dpAssistant, Theming.AppTheme appearance,
-        SessionTasksService tasks) => new[]
+        SessionTasksService tasks, PlanHelperDismissals planHelper) => new[]
     {
         new SetupFeature(
             "coldturkey.keys", "0.1.106",
@@ -55,6 +55,13 @@ public static class SetupFeatures
             IsRelevant: () => true,
             IsSetUp: () => tasks.UsesTaskDetails,
             Step: ViewModels.AssistantStep.Tasks),
+        new SetupFeature(
+            "plan.helper", "0.1.114",
+            "Plan helper: suggestions on the Plan page",
+            "Tells you when a coming day's calendar covers most of its work, when today's goal no longer fits the work time left, or when a day next week has no day type, and can move the work for you the way you would by hand.",
+            IsRelevant: () => true,
+            IsSetUp: () => planHelper.HasUsed,
+            Step: ViewModels.AssistantStep.PlanHelper),
         new SetupFeature(
             "appearance.themes", "0.1.114",
             "Appearance: three themes, light and dark on a schedule",

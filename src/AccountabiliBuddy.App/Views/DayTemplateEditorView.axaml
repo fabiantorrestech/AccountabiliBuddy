@@ -4,6 +4,19 @@
              xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.DayTemplateEditorView"
              x:DataType="vm:PlanTemplateEditorViewModel">
+    <UserControl.Resources>
+        <!-- The timeline expander reads in Surface2 and Ink, not Fluent's near-black header. -->
+        <SolidColorBrush x:Key="ExpanderHeaderBackground" Color="{DynamicResource Ab.Surface2Color}" />
+        <SolidColorBrush x:Key="ExpanderHeaderBackgroundPointerOver" Color="{DynamicResource Ab.LineColor}" />
+        <SolidColorBrush x:Key="ExpanderHeaderBackgroundPressed" Color="{DynamicResource Ab.LineColor}" />
+        <SolidColorBrush x:Key="ExpanderHeaderBackgroundDisabled" Color="{DynamicResource Ab.Surface2Color}" />
+        <SolidColorBrush x:Key="ExpanderHeaderBorderBrushDisabled" Color="Transparent" />
+        <SolidColorBrush x:Key="ExpanderHeaderBorderBrush" Color="Transparent" />
+        <SolidColorBrush x:Key="ExpanderHeaderBorderBrushPointerOver" Color="Transparent" />
+        <SolidColorBrush x:Key="ExpanderHeaderBorderBrushPressed" Color="Transparent" />
+        <SolidColorBrush x:Key="ExpanderContentBackground" Color="Transparent" />
+        <SolidColorBrush x:Key="ExpanderContentBorderBrush" Color="Transparent" />
+    </UserControl.Resources>
     <!-- One named day type (ADR 47): its name and mode, then what the mode needs: a work window or the timeline, a
          budget with its non-productive windows, or nothing. -->
     <StackPanel Spacing="10">
@@ -42,7 +55,7 @@
         <TextBlock IsVisible="{Binding Editor.IsFree}" TextWrapping="Wrap" Opacity="0.75"
                    Text="No guard on this day: no work-hours guard, Pre-Work or work nudge." />
 
-        <TextBlock Text="{Binding Editor.Error}" IsVisible="{Binding Editor.HasError}" Foreground="#DC2626" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding Editor.Error}" IsVisible="{Binding Editor.HasError}" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap" />
 
         <Expander Header="{Binding Editor.PartsTitle}" IsExpanded="{Binding Editor.ShowPartsEditor, Mode=OneWay}"
                   HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">

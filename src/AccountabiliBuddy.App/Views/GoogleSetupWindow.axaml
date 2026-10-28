@@ -58,7 +58,7 @@
                     <!-- Every Google Cloud page: the wrong account in the corner sends the project to another Google account. -->
                     <Border IsVisible="{Binding HasPage}" Padding="12,10" CornerRadius="8" Background="#33EAB308" BorderBrush="#99EAB308" BorderThickness="1">
                         <TextBlock TextWrapping="Wrap"
-                                   Text="⚠ On each page, check the account picture in the top right is the same Google account: the one that owns this project. It can be any Google account you own. The account whose calendar you want is chosen later, when you sign in at the end or in Plan › Calendar, and can be a different one." />
+                                   Text="⚠ On each page, check the account picture in the top right is the same Google account: the one that owns this project. It can be any Google account you own. The account whose calendar you want is chosen later, when you sign in at the end or in Settings › Connections, and can be a different one." />
                     </Border>
 
                     <ItemsControl ItemsSource="{Binding Instructions}">

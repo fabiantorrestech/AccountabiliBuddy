@@ -274,6 +274,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     /// <summary>The Tasks page; set by the app.</summary>
     public TasksViewModel? Tasks { get; init; }
 
+    /// <summary>The Plan page; set by the app.</summary>
+    public PlanViewModel? Plan { get; init; }
+
     /// <summary>
     /// The top-right refresh: syncs now by every method that's on, reads calendars again and reloads the day bar and
     /// History. Returns what to say ("Up to date · 4:05 PM" or what failed). Set by the app.
