@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
              xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.FocusView"
              x:DataType="vm:FocusViewModel">
@@ -44,6 +45,21 @@
             <Setter Property="FontSize" Value="32" />
             <Setter Property="LineHeight" Value="42" />
         </Style>
+        <!-- The time-left ring at the timer's right (about its cap height). Accent on Surface2; a break uses the sleep colour and the
+             last 2 minutes of focus go ink. It scales with the timer (both sit in one Viewbox). -->
+        <Style Selector="controls|ProgressRing.timeRing">
+            <Setter Property="Width" Value="96" />
+            <Setter Property="Height" Value="96" />
+            <Setter Property="Thickness" Value="8" />
+            <Setter Property="TrackBrush" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="ArcBrush" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="controls|ProgressRing.timeRing.break">
+            <Setter Property="ArcBrush" Value="{DynamicResource Ab.Sleep}" />
+        </Style>
+        <Style Selector="controls|ProgressRing.timeRing.wrapUp">
+            <Setter Property="ArcBrush" Value="{DynamicResource Ab.Ink}" />
+        </Style>
         <Style Selector="StackPanel.column">
             <Setter Property="Spacing" Value="16" />
         </Style>
@@ -69,6 +85,11 @@
             <Style Selector="TextBlock.timer">
                 <Setter Property="FontSize" Value="96" />
                 <Setter Property="LineHeight" Value="104" />
+            </Style>
+            <Style Selector="controls|ProgressRing.timeRing">
+                <Setter Property="Width" Value="76" />
+                <Setter Property="Height" Value="76" />
+                <Setter Property="Thickness" Value="7" />
             </Style>
             <!-- The action rows are a wrapping group of buttons and a tail (what comes next, the length): on a narrow page the tail goes under. -->
             <Style Selector="Button.pill">
@@ -141,10 +162,15 @@
                     <TextBlock Grid.Column="1" Classes="muted" Text="{Binding SessionLineText}" FontSize="14" VerticalAlignment="Center"
                                TextTrimming="CharacterEllipsis" />
                 </Grid>
-                <!-- Scales down instead of clipping when the window is narrow. -->
+                <!-- Scales down instead of clipping when the window is narrow; the ring at the timer's right scales with it. -->
                 <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left" Margin="0,-4">
-                    <TextBlock Classes="numeral timer" Text="{Binding TimeLeftText}" LetterSpacing="-4"
-                               AutomationProperties.Name="Time left" />
+                    <StackPanel Orientation="Horizontal" Spacing="28">
+                        <TextBlock Classes="numeral timer" Text="{Binding TimeLeftText}" LetterSpacing="-4"
+                                   AutomationProperties.Name="Time left" />
+                        <controls:ProgressRing Classes="timeRing" Classes.break="{Binding TimeRingIsBreak}" Classes.wrapUp="{Binding TimeRingIsWrapUp}"
+                                               Value="{Binding TimeLeftFraction}" VerticalAlignment="Center" IsVisible="{Binding ShowsTimeRing}"
+                                               AutomationProperties.Name="Share of this phase left" />
+                    </StackPanel>
                 </Viewbox>
                 <TextBlock Classes="display taskTitle" TextWrapping="Wrap" Text="{Binding TitleText}" />
                 <ItemsControl ItemsSource="{Binding Checklist.CurrentTask.Subtasks}" MaxWidth="520" HorizontalAlignment="Left"

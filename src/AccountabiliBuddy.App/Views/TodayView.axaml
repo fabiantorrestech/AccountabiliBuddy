@@ -107,6 +107,12 @@
         <Style Selector="mi|MaterialIcon.quiet">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
         </Style>
+        <Style Selector="controls|ProgressRing.goalRing">
+            <Setter Property="ArcBrush" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="controls|ProgressRing.goalRing.running">
+            <Setter Property="ArcBrush" Value="{DynamicResource Ab.Ink}" />
+        </Style>
     </UserControl.Styles>
     <ScrollViewer x:Name="PageScroll" HorizontalScrollBarVisibility="Disabled">
         <Grid ColumnDefinitions="*,338" ColumnSpacing="14" Margin="0,0,6,0" MinHeight="{Binding Viewport.Height, ElementName=PageScroll}"
@@ -397,8 +403,10 @@
                         IsVisible="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).Goal, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
                     <StackPanel Spacing="12">
                         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                            <controls:ProgressRing Width="56" Height="56" Thickness="8" Value="{Binding Fraction}"
-                                                   TrackBrush="{DynamicResource Ab.Surface2}" ArcBrush="{DynamicResource Ab.Accent}" />
+                            <!-- Ink while a session runs: the time-left ring beside the timer is then the screen's progress accent. -->
+                            <controls:ProgressRing Classes="goalRing" Classes.running="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).Focus.IsRunningPhase, FallbackValue=False}"
+                                                   Width="56" Height="56" Thickness="8" Value="{Binding Fraction}"
+                                                   TrackBrush="{DynamicResource Ab.Surface2}" />
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock Classes="display" Text="{Binding FocusedText}" FontSize="22" />
                                 <TextBlock Classes="muted" Text="{Binding OfGoalText}" FontSize="13" TextWrapping="Wrap" />

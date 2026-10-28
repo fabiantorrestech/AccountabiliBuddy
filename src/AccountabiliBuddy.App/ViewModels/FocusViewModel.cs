@@ -21,6 +21,9 @@ public sealed partial class FocusViewModel : ObservableObject
     // What "+10 min" adds to the running focus phase.
     private static readonly TimeSpan ExtendBy = TimeSpan.FromMinutes(10);
 
+    // The time-left ring turns ink (wrapping up) once this little of the phase is left.
+    private static readonly TimeSpan RingWrapUpTime = TimeSpan.FromMinutes(2);
+
     /// <param name="checklist">The running session's checklist (Live), shared with the rest of the Today page.</param>
     /// <param name="day">Today's bar, for the focus so far; null without one.</param>
     /// <param name="endSession">The app's end flow (wait and reason when the session needs them).</param>
@@ -119,6 +122,7 @@ public sealed partial class FocusViewModel : ObservableObject
         IsPlanning = _planFirst is { IsPlanning: true };
         InPlanningStage = _planFirst is { InStage: true };
         IsLearning = _planFirst is { IsLearning: true };
+        IsRunningPhase = IsActive && !IsPlanning;
         CanReady = InPlanningStage;
         RefreshTickHint();
         PlanningText = !IsPlanning ? string.Empty
@@ -156,6 +160,26 @@ public sealed partial class FocusViewModel : ObservableObject
     /// <summary>"41:12" left, or the time in for a session with no set end; frozen while away.</summary>
     [ObservableProperty]
     public partial string TimeLeftText { get; set; }
+
+    /// <summary>A session runs past its planning (focus, break, away): the page is in its running state.</summary>
+    [ObservableProperty]
+    public partial bool IsRunningPhase { get; set; }
+
+    /// <summary>The time-left ring shows beside the timer: running, and the phase has an end to count down to.</summary>
+    [ObservableProperty]
+    public partial bool ShowsTimeRing { get; set; }
+
+    /// <summary>The share of this phase still to go, 1 down to 0 (frozen while away); redrawn on the session's own tick.</summary>
+    [ObservableProperty]
+    public partial double TimeLeftFraction { get; set; }
+
+    /// <summary>The ring is in a break: it uses the sleep colour instead of the accent.</summary>
+    [ObservableProperty]
+    public partial bool TimeRingIsBreak { get; set; }
+
+    /// <summary>The last 2 minutes of a focus phase: the ring goes ink (wrapping up).</summary>
+    [ObservableProperty]
+    public partial bool TimeRingIsWrapUp { get; set; }
 
     /// <summary>"left · Coding · until 1:17 PM", "Break · until 1:22 PM" or "so far · Coding · since 9:00 AM".</summary>
     [ObservableProperty]
@@ -293,6 +317,8 @@ public sealed partial class FocusViewModel : ObservableObject
             StepAwayText = "Step away";
             FocusLengthText = string.Empty;
             ShowsExtend = CanExtend = false;
+            IsRunningPhase = ShowsTimeRing = TimeRingIsBreak = TimeRingIsWrapUp = false;
+            TimeLeftFraction = 0;
             RefreshTickHint();
             RefreshTasks();
             return;
@@ -324,6 +350,7 @@ public sealed partial class FocusViewModel : ObservableObject
             PhaseText = $"so far · {who} · since {TimeZoneInfo.ConvertTime(since, zone):t}";
         }
 
+        RefreshTimeRing(state, clock);
         FocusLengthText = state.IsPlanning && state.FocusLengthAfterPlanning is TimeSpan focusLength
             ? SessionStatusFormatter.FormatDuration(focusLength)
             : string.Empty;
@@ -342,6 +369,25 @@ public sealed partial class FocusViewModel : ObservableObject
         FocusedTodayText = _day?.SummaryText ?? string.Empty;
         PhoneText = PhoneLine?.Invoke() ?? string.Empty;
         RefreshTasks();
+    }
+
+    // The ring beside the timer (running only, a phase with an end): the share of the phase left. Work on the time already read
+    // for the countdown, so it redraws on the session's tick and nothing else.
+    private void RefreshTimeRing(SessionState state, DateTimeOffset clock)
+    {
+        IsRunningPhase = IsActive && !IsPlanning && !state.IsPlanning;
+        if (!IsRunningPhase || state.PhaseEndsAt is not DateTimeOffset end || state.PhaseStartedAt is not DateTimeOffset start || end <= start)
+        {
+            ShowsTimeRing = TimeRingIsBreak = TimeRingIsWrapUp = false;
+            TimeLeftFraction = 0;
+            return;
+        }
+
+        TimeSpan left = end - clock;
+        ShowsTimeRing = true;
+        TimeLeftFraction = Math.Clamp(left / (end - start), 0, 1);
+        TimeRingIsBreak = !state.IsEnforcing;
+        TimeRingIsWrapUp = !TimeRingIsBreak && left <= RingWrapUpTime;
     }
 
     // "Focus · 2 of 3": the task in front among all of them, done ones first (ProgressText is "done/total",
