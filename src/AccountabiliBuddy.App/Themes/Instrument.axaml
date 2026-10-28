@@ -54,8 +54,8 @@
             <Color x:Key="SystemBaseMediumColor">#5B636B</Color>
             <Color x:Key="SystemBaseMediumLowColor">#8E969E</Color>
             <Color x:Key="SystemBaseLowColor">#E6E9EB</Color>
-            <BoxShadows x:Key="Ab.FocusRing">0 0 0 2 #0F766E</BoxShadows>
-            <BoxShadows x:Key="Ab.FocusRingOnAccent">0 0 0 2 #15181B</BoxShadows>
+            <BoxShadows x:Key="Ab.FocusRing">inset 0 0 0 2 #0F766E</BoxShadows>
+            <BoxShadows x:Key="Ab.FocusRingOnAccent">inset 0 0 0 2 #15181B</BoxShadows>
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
             <Color x:Key="Ab.BgColor">#111315</Color>
@@ -109,8 +109,8 @@
             <Color x:Key="SystemBaseMediumColor">#8E969E</Color>
             <Color x:Key="SystemBaseMediumLowColor">#5A626A</Color>
             <Color x:Key="SystemBaseLowColor">#202428</Color>
-            <BoxShadows x:Key="Ab.FocusRing">0 0 0 2 #5EEAD4</BoxShadows>
-            <BoxShadows x:Key="Ab.FocusRingOnAccent">0 0 0 2 #E8EAEC</BoxShadows>
+            <BoxShadows x:Key="Ab.FocusRing">inset 0 0 0 2 #5EEAD4</BoxShadows>
+            <BoxShadows x:Key="Ab.FocusRingOnAccent">inset 0 0 0 2 #E8EAEC</BoxShadows>
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 
