@@ -160,7 +160,8 @@ public sealed class StatsBarChart : Control
             {
                 double height = Math.Clamp(bar.Fraction, 0, 1) * plot;
                 height = height > 0 ? Math.Max(height, 3) : 2;
-                IBrush? brush = BrushOf(bar.Kind);
+                // A day with nothing is a thin mark in the quiet colour, whatever the series' own colour.
+                IBrush? brush = bar.Fraction > 0 ? BrushOf(bar.Kind) : PlanBrush;
                 if (brush is not null)
                 {
                     double radius = Math.Min(BarRadius, Math.Min(width / 2, height));

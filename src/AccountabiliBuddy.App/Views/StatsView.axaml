@@ -1,15 +1,469 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:views="using:AccountabiliBuddy.App.Views"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
              x:Class="AccountabiliBuddy.App.Views.StatsView"
-             x:DataType="vm:HistoryViewModel">
-    <!-- The Stats page: a title, then History, unchanged until the page is rebuilt (design 5p). The day bar strip sits above
-         the page, in the window. -->
-    <Border Classes="card" Padding="0" ClipToBounds="True">
-        <DockPanel>
-            <TextBlock DockPanel.Dock="Top" Classes="display" Text="Stats" FontSize="34" Margin="36,30,28,4" />
-            <views:HistoryView />
-        </DockPanel>
-    </Border>
+             x:DataType="vm:StatsViewModel">
+    <!-- The Stats page (design 5p, 19a to 19c): a main card with the title and range, a Day / Week / Month / Year segment, a chip row of views
+         and the shown view; a 330 column with the selected day (strip, tiles, list) and the "Day details" fold that holds History.
+         The accent is progress only: today's bar and the Focus graph line. -->
+    <UserControl.Styles>
+        <!-- The range segment: Surface2 track, the selected segment Ink on the page ground. -->
+        <Style Selector="Button.segment">
+            <Setter Property="Padding" Value="18,9" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="14" />
+        </Style>
+        <Style Selector="Button.segment /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <Style Selector="Button.segment:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.segment:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.segment.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Bg}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.segment.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Bg}" />
+        </Style>
+        <Style Selector="Button.segment.selected:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Bg}" />
+        </Style>
+
+        <!-- The view chips: Surface2, the selected one Ink with the page ground's colour as its text. -->
+        <Style Selector="Button.chip">
+            <Setter Property="Padding" Value="15,9" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="14" />
+        </Style>
+        <Style Selector="Button.chip /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <Style Selector="Button.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.chip:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.chip.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Bg}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.chip.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Bg}" />
+        </Style>
+        <Style Selector="Button.chip.selected:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Bg}" />
+        </Style>
+
+        <!-- A Surface2 card under a chart; a link card also opens its view. -->
+        <Style Selector="Border.statCard">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="Padding" Value="18,16" />
+        </Style>
+        <Style Selector="Button.statCard">
+            <Setter Property="Padding" Value="18,16" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.statCard /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="18" />
+        </Style>
+        <Style Selector="Button.statCard:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.statCard:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+        </Style>
+
+        <Style Selector="Border.tile">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="Padding" Value="16,14" />
+        </Style>
+        <Style Selector="TextBlock.pageTitle">
+            <Setter Property="FontSize" Value="34" />
+        </Style>
+        <Style Selector="TextBlock.bigNumber">
+            <Setter Property="FontSize" Value="52" />
+        </Style>
+        <Style Selector="TextBlock.cardValue">
+            <Setter Property="FontSize" Value="28" />
+        </Style>
+        <Style Selector="UniformGrid.heatCards TextBlock.cardValue">
+            <Setter Property="FontSize" Value="22" />
+        </Style>
+        <Style Selector="TextBlock.cardValue.long">
+            <Setter Property="FontSize" Value="18" />
+        </Style>
+        <Style Selector="UniformGrid.heatCards TextBlock.cardValue.long">
+            <Setter Property="FontSize" Value="18" />
+        </Style>
+        <Style Selector="UniformGrid.cards">
+            <Setter Property="Rows" Value="1" />
+        </Style>
+        <Style Selector="UniformGrid.heatCards">
+            <Setter Property="Rows" Value="1" />
+        </Style>
+        <Style Selector="Ellipse.dot">
+            <Setter Property="Fill" Value="{DynamicResource Ab.Met}" />
+        </Style>
+        <Style Selector="Ellipse.dot.drift">
+            <Setter Property="Fill" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+        <!-- The fold's header and the day's arrows: quiet, no box. -->
+        <Style Selector="Button.fold">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.fold /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <!-- Cards of a view with no chart sit right under the number. -->
+        <Style Selector="ItemsControl.noBars">
+            <Setter Property="Grid.Row" Value="1" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+        <!-- Intensity: the cards sit right of the grid. -->
+        <Style Selector="StackPanel.sideCards">
+            <Setter Property="Width" Value="250" />
+            <Setter Property="Margin" Value="28,0,0,0" />
+            <Setter Property="Grid.Column" Value="1" />
+        </Style>
+
+        <!-- At 900 wide the title shrinks, four cards make two rows and Intensity's cards go under its grid; the 330 column stays. -->
+        <ContainerQuery Name="StatsPage" Query="max-width:980">
+            <Style Selector="TextBlock.pageTitle">
+                <Setter Property="FontSize" Value="28" />
+            </Style>
+            <Style Selector="TextBlock.bigNumber">
+                <Setter Property="FontSize" Value="44" />
+            </Style>
+            <Style Selector="TextBlock.cardValue">
+                <Setter Property="FontSize" Value="24" />
+            </Style>
+            <Style Selector="UniformGrid.heatCards">
+                <Setter Property="Rows" Value="0" />
+                <Setter Property="Columns" Value="2" />
+            </Style>
+            <Style Selector="Border.statCard">
+                <Setter Property="Padding" Value="14,12" />
+            </Style>
+            <Style Selector="Button.statCard">
+                <Setter Property="Padding" Value="14,12" />
+            </Style>
+            <Style Selector="StackPanel.sideCards">
+                <Setter Property="Width" Value="NaN" />
+                <Setter Property="Margin" Value="0,18,0,0" />
+                <Setter Property="Grid.Column" Value="0" />
+                <Setter Property="Grid.Row" Value="1" />
+                <Setter Property="Grid.ColumnSpan" Value="2" />
+            </Style>
+            <Style Selector="Button.segment">
+                <Setter Property="Padding" Value="12,8" />
+            </Style>
+            <Style Selector="Button.chip">
+                <Setter Property="Padding" Value="14,8" />
+            </Style>
+        </ContainerQuery>
+    </UserControl.Styles>
+
+    <UserControl.Resources>
+        <!-- A card: title, value, Muted line. -->
+        <DataTemplate x:Key="CardBody" x:DataType="vm:StatsCard">
+            <StackPanel Spacing="3" Margin="0">
+                <TextBlock Classes="muted" Text="{Binding Title}" FontSize="13" TextWrapping="Wrap" />
+                <TextBlock Classes="numeral cardValue" Classes.long="{Binding IsLong}" Text="{Binding Value}" TextWrapping="Wrap" />
+                <TextBlock Classes="muted" Text="{Binding Detail}" FontSize="12" TextWrapping="Wrap" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- One card of a row; a card that names a view also opens it. -->
+        <DataTemplate x:Key="CardItem" x:DataType="vm:StatsCard">
+            <Panel Margin="0,0,10,10">
+                <Button Classes="statCard" IsVisible="{Binding IsLink}" AutomationProperties.Name="{Binding Title}"
+                        Command="{Binding $parent[views:StatsView].((vm:StatsViewModel)DataContext).SelectViewCommand}" CommandParameter="{Binding Opens}">
+                    <ContentControl Content="{Binding}" ContentTemplate="{StaticResource CardBody}" />
+                </Button>
+                <Border Classes="statCard" IsVisible="{Binding !IsLink}">
+                    <ContentControl Content="{Binding}" ContentTemplate="{StaticResource CardBody}" />
+                </Border>
+            </Panel>
+        </DataTemplate>
+
+        <!-- Overview, Drift, Phone, Sleep: the big number, the bar chart, the cards. -->
+        <DataTemplate x:Key="BarPanel" x:DataType="vm:StatsBarPanel">
+            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                    <TextBlock Classes="numeral bigNumber" Text="{Binding BigText}" />
+                    <TextBlock Grid.Column="1" Classes="muted" Text="{Binding BigNote}" FontSize="14" TextWrapping="Wrap" VerticalAlignment="Bottom" Margin="0,0,0,10" />
+                </Grid>
+                <controls:StatsBarChart Grid.Row="1" IsVisible="{Binding HasBars}" Bars="{Binding Bars}" GoalFraction="{Binding GoalFraction}"
+                                        GoalText="{Binding GoalText}" MinHeight="170"
+                                        MetBrush="{DynamicResource Ab.Met}" AccentBrush="{DynamicResource Ab.Accent}" PlanBrush="{DynamicResource Ab.Plan}"
+                                        DriftBrush="{DynamicResource Ab.Drift}" LabelBrush="{DynamicResource Ab.Muted}" TodayLabelBrush="{DynamicResource Ab.Ink}"
+                                        GoalBrush="{DynamicResource Ab.Muted}"
+                                        BarCommand="{Binding $parent[views:StatsView].((vm:StatsViewModel)DataContext).SelectDayCommand}" />
+                <ItemsControl Grid.Row="2" Classes.noBars="{Binding !HasBars}" ItemsSource="{Binding Cards}" ItemTemplate="{StaticResource CardItem}"
+                              IsVisible="{Binding HasCards}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Classes="cards" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Consistency: the four cards over the day grid. -->
+        <DataTemplate x:Key="ConsistencyPanel" x:DataType="vm:StatsHeatPanel">
+            <StackPanel Spacing="8">
+                <ItemsControl ItemsSource="{Binding Cards}" ItemTemplate="{StaticResource CardItem}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Classes="heatCards" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+                <controls:HeatmapControl Cells="{Binding Cells}" RowCount="{Binding Rows}" ColumnCount="{Binding Columns}" RowLabels="{Binding RowLabels}"
+                                         ColumnLabels="{Binding ColumnLabels}" MaxCellSize="30" CellGap="4" Margin="0,10,0,0"
+                                         EmptyBrush="{DynamicResource Ab.Surface2}" AccentBrush="{DynamicResource Ab.Accent}" LabelBrush="{DynamicResource Ab.Muted}"
+                                         CellCommand="{Binding $parent[views:StatsView].((vm:StatsViewModel)DataContext).OpenDayCommand}" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                    <TextBlock Classes="muted" Text="{Binding Note}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <controls:HeatLegend Grid.Column="1" EmptyBrush="{DynamicResource Ab.Surface2}" AccentBrush="{DynamicResource Ab.Accent}"
+                                         LabelBrush="{DynamicResource Ab.Muted}" VerticalAlignment="Top" />
+                </Grid>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Intensity: the weekday-by-hour grid with its three cards beside it (under it when narrow) and the plan-helper line. -->
+        <DataTemplate x:Key="IntensityPanel" x:DataType="vm:StatsHeatPanel">
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                <StackPanel Spacing="12">
+                    <controls:HeatmapControl Cells="{Binding Cells}" RowCount="{Binding Rows}" ColumnCount="{Binding Columns}" RowLabels="{Binding RowLabels}"
+                                             ColumnLabels="{Binding ColumnLabels}" MaxCellSize="30" CellGap="5"
+                                             EmptyBrush="{DynamicResource Ab.Surface2}" AccentBrush="{DynamicResource Ab.Accent}" LabelBrush="{DynamicResource Ab.Muted}" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                        <TextBlock Classes="muted" Text="{Binding Note}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <controls:HeatLegend Grid.Column="1" EmptyBrush="{DynamicResource Ab.Surface2}" AccentBrush="{DynamicResource Ab.Accent}"
+                                             LabelBrush="{DynamicResource Ab.Muted}" VerticalAlignment="Top" />
+                    </Grid>
+                </StackPanel>
+                <StackPanel Classes="sideCards" Spacing="10">
+                    <ItemsControl ItemsSource="{Binding Cards}" ItemTemplate="{StaticResource CardItem}" IsVisible="{Binding HasCards}" />
+                    <Border BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="18" Padding="18,14" IsVisible="{Binding HasHelperLine}">
+                        <TextBlock Classes="muted" Text="{Binding HelperLine}" FontSize="14" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Ink}" />
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Focus graph: the cards over the line chart and its key. -->
+        <DataTemplate x:Key="TrendPanel" x:DataType="vm:StatsTrendPanel">
+            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+                <ItemsControl ItemsSource="{Binding Cards}" ItemTemplate="{StaticResource CardItem}" IsVisible="{Binding HasCards}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Classes="cards" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+                <controls:TrendChart Grid.Row="1" Main="{Binding Main}" Secondary="{Binding Secondary}" Labels="{Binding Labels}" Tips="{Binding Tips}"
+                                     Maximum="{Binding Maximum}" Goal="{Binding Goal}" GoalText="{Binding GoalText}" MinHeight="190"
+                                     LineBrush="{DynamicResource Ab.Accent}" SecondaryBrush="{DynamicResource Ab.Drift}" GoalBrush="{DynamicResource Ab.Muted}"
+                                     LabelBrush="{DynamicResource Ab.Muted}" DotBrush="{DynamicResource Ab.Ink}" />
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="20">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Border Width="16" Height="3" CornerRadius="2" Background="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                        <TextBlock Classes="muted" Text="Deep work, daily avg" FontSize="12" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Line StartPoint="0,1" EndPoint="16,1" Stroke="{DynamicResource Ab.Drift}" StrokeThickness="1.5" StrokeDashArray="2,3" VerticalAlignment="Center" />
+                        <TextBlock Classes="muted" Text="Drift" FontSize="12" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+        <!-- One line of the day's list. -->
+        <DataTemplate x:Key="DayRow" x:DataType="vm:StatsDayRow">
+            <Border BorderBrush="{DynamicResource Ab.Line}" BorderThickness="0,1,0,0" Padding="0,12">
+                <Grid ColumnDefinitions="76,16,*,Auto">
+                    <TextBlock Classes="muted" Text="{Binding TimeText}" FontSize="13" VerticalAlignment="Center" />
+                    <Ellipse Grid.Column="1" Classes="dot" Classes.drift="{Binding IsDrift}" Width="8" Height="8" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                    <TextBlock Grid.Column="2" Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="3" Classes="muted" Text="{Binding RightText}" FontSize="13" VerticalAlignment="Center" Margin="8,0,0,0" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid x:Name="Page" Container.Name="StatsPage" Container.Sizing="Width" ColumnDefinitions="*,Auto">
+        <!-- The main card. -->
+        <Border Classes="card" Padding="0" ClipToBounds="True" MinWidth="360">
+            <Grid RowDefinitions="Auto,Auto,*" Margin="36,30,32,24">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Classes="display pageTitle" Text="Stats" />
+                        <TextBlock Classes="muted" Text="{Binding Subtitle}" FontSize="14" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Border Grid.Column="1" Background="{DynamicResource Ab.Surface2}" CornerRadius="999" Padding="4" VerticalAlignment="Top" IsVisible="{Binding ShowsRange}">
+                        <ItemsControl ItemsSource="{Binding RangeOptions}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:StatsRangeOptionViewModel">
+                                    <Button Classes="segment" Classes.selected="{Binding IsSelected}" IsVisible="{Binding IsShown}" Content="{Binding Text}"
+                                            AutomationProperties.Name="{Binding Text}"
+                                            Command="{Binding $parent[views:StatsView].((vm:StatsViewModel)DataContext).SelectRangeCommand}" CommandParameter="{Binding Range}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+                </Grid>
+
+                <!-- The views as chips; the row scrolls sideways when it doesn't fit. -->
+                <ScrollViewer Grid.Row="1" Margin="0,18,0,0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Chips}" Margin="0,0,0,6">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="8" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:StatsChipViewModel">
+                                <Button Classes="chip" Classes.selected="{Binding IsSelected}" IsVisible="{Binding IsShown}" Content="{Binding Text}"
+                                        AutomationProperties.Name="{Binding Text}"
+                                        Command="{Binding $parent[views:StatsView].((vm:StatsViewModel)DataContext).SelectViewCommand}" CommandParameter="{Binding Kind}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <ScrollViewer x:Name="ViewScroll" Grid.Row="2" Margin="0,18,0,0" VerticalScrollBarVisibility="Auto">
+                    <Panel>
+                        <ContentControl Content="{Binding Overview}" ContentTemplate="{StaticResource BarPanel}" IsVisible="{Binding ShowsOverview}" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+                        <ContentControl Content="{Binding Consistency}" ContentTemplate="{StaticResource ConsistencyPanel}" IsVisible="{Binding ShowsConsistency}" HorizontalContentAlignment="Stretch" VerticalAlignment="Top" />
+                        <ContentControl Content="{Binding Intensity}" ContentTemplate="{StaticResource IntensityPanel}" IsVisible="{Binding ShowsIntensity}" HorizontalContentAlignment="Stretch" VerticalAlignment="Top" />
+                        <ContentControl Content="{Binding Trend}" ContentTemplate="{StaticResource TrendPanel}" IsVisible="{Binding ShowsFocusGraph}" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+                        <ContentControl Content="{Binding DriftPanel}" ContentTemplate="{StaticResource BarPanel}" IsVisible="{Binding ShowsDrift}" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+                        <ContentControl Content="{Binding SleepPanel}" ContentTemplate="{StaticResource BarPanel}" IsVisible="{Binding ShowsSleep}" VerticalAlignment="Top" HorizontalContentAlignment="Stretch" />
+                        <ContentControl Content="{Binding PhonePanel}" ContentTemplate="{StaticResource BarPanel}" IsVisible="{Binding ShowsPhone}" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+                        <TextBlock Classes="muted" Text="{Binding EmptyText}" IsVisible="{Binding ShowsEmpty}" FontSize="15" TextWrapping="Wrap" Margin="0,40,0,0" HorizontalAlignment="Center" />
+                    </Panel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- The right column, 330: the selected day, then the Day details fold. -->
+        <ScrollViewer Grid.Column="1" Width="330" Margin="14,0,0,0" VerticalScrollBarVisibility="Auto" IsVisible="{Binding ShowsDayColumn}">
+            <StackPanel Spacing="14">
+                <Border Classes="card" Padding="22,20">
+                    <StackPanel Spacing="12">
+                        <Grid ColumnDefinitions="*,Auto,Auto">
+                            <TextBlock Classes="display" Text="{Binding DayTitle}" FontSize="17" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            <Button Grid.Column="1" Classes="quiet" Padding="6" Command="{Binding PreviousDayCommand}" IsEnabled="{Binding CanGoPrevious}" ToolTip.Tip="Day before"
+                                    AutomationProperties.Name="Day before">
+                                <mi:MaterialIcon Kind="ChevronLeft" Width="20" Height="20" Foreground="{DynamicResource Ab.Muted}" />
+                            </Button>
+                            <Button Grid.Column="2" Classes="quiet" Padding="6" Command="{Binding NextDayCommand}" IsEnabled="{Binding CanGoNext}" ToolTip.Tip="Day after"
+                                    AutomationProperties.Name="Day after">
+                                <mi:MaterialIcon Kind="ChevronRight" Width="20" Height="20" Foreground="{DynamicResource Ab.Muted}" />
+                            </Button>
+                        </Grid>
+
+                        <StackPanel Spacing="12" DataContext="{Binding Day}" x:DataType="vm:StatsDayPanel" IsVisible="{Binding $self.DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <controls:DayStripControl Spans="{Binding Spans}" TrackBrush="{DynamicResource Ab.Surface2}" FocusBrush="{DynamicResource Ab.Met}"
+                                                      DriftBrush="{DynamicResource Ab.Drift}" SleepBrush="{DynamicResource Ab.Sleep}" LabelBrush="{DynamicResource Ab.Muted}" />
+                            <StackPanel Orientation="Horizontal" Spacing="16">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Ellipse Width="8" Height="8" Fill="{DynamicResource Ab.Met}" VerticalAlignment="Center" />
+                                    <TextBlock Classes="muted" Text="Focus" FontSize="12" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Ellipse Width="8" Height="8" Fill="{DynamicResource Ab.Drift}" VerticalAlignment="Center" />
+                                    <TextBlock Classes="muted" Text="Drift" FontSize="12" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Ellipse Width="8" Height="8" Fill="{DynamicResource Ab.Sleep}" VerticalAlignment="Center" />
+                                    <TextBlock Classes="muted" Text="Sleep" FontSize="12" />
+                                </StackPanel>
+                            </StackPanel>
+                            <UniformGrid Rows="1" Margin="0,4,0,0">
+                                <Border Classes="tile" Margin="0,0,5,0">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Classes="muted" Text="Deep work" FontSize="13" />
+                                        <TextBlock Classes="numeral" Text="{Binding DeepWork}" FontSize="24" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Ellipse Width="7" Height="7" Fill="{DynamicResource Ab.Met}" VerticalAlignment="Center" IsVisible="{Binding GoalMet}" />
+                                            <TextBlock Classes="muted" Text="{Binding DeepWorkNote}" FontSize="12" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                                <Border Classes="tile" Margin="5,0,0,0" IsVisible="{Binding HasPhone}">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Classes="muted" Text="Phone" FontSize="13" />
+                                        <TextBlock Classes="numeral" Text="{Binding PhoneValue}" FontSize="24" />
+                                        <TextBlock Classes="muted" Text="{Binding PhoneNote}" FontSize="12" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
+                            <StackPanel Margin="0,4,0,0">
+                                <ItemsControl ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource DayRow}" />
+                                <TextBlock Classes="muted" Text="Nothing was counted on this day." FontSize="13" IsVisible="{Binding !HasRows}" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Every History detail: the day's apps and sites, sessions, Add a past session, gaps, deleted rows, the week review, the device filter. -->
+                <Border Classes="card" Padding="22,18">
+                    <StackPanel Spacing="0">
+                        <Button Classes="fold" Command="{Binding ToggleDetailsCommand}" AutomationProperties.Name="Day details"
+                                ToolTip.Tip="Top distractions, apps and sites, sessions, adding a past session, gaps and deleted time">
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                                <TextBlock Classes="display" Text="Day details" FontSize="17" VerticalAlignment="Center" />
+                                <mi:MaterialIcon Grid.Column="1" Kind="ChevronDown" Width="20" Height="20" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !IsDetailsOpen}" />
+                                <mi:MaterialIcon Grid.Column="1" Kind="ChevronUp" Width="20" Height="20" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding IsDetailsOpen}" />
+                            </Grid>
+                        </Button>
+                        <views:HistoryView x:Name="DetailsView" DataContext="{Binding Details}" IsVisible="{Binding $parent[views:StatsView].((vm:StatsViewModel)DataContext).IsDetailsOpen}" Margin="0,16,0,0" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
 </UserControl>

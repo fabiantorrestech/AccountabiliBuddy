@@ -111,7 +111,6 @@ public partial class App : Application
     private AccountabiliBuddy.App.Services.Sync.PhonePickups? _phonePickups;
     private AccountabiliBuddy.App.Services.Sync.PhonePlacementService? _phonePlacement;
     private DeepWorkService? _deepWork;
-    private DeepWorkHistoryViewModel? _deepWorkHistory;
     private ShutdownService? _shutdown;
     private ComebackStore? _comebacks;
     private LaterStore? _later;
@@ -922,22 +921,6 @@ public partial class App : Application
                 presenter.ShowNotice("Work's done for today", "A one-minute wrap-up is waiting on Today: come-backs, open tasks, tomorrow's first task.");
             }
         };
-        _deepWorkHistory = new DeepWorkHistoryViewModel(
-            async (from, to) => sessionGaps.Apply(SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(from, to))),
-            () => AccountabiliBuddy.App.Services.Sync.ReceivedSessions.Closed(receivedDevices.Devices),
-            omittedSessions.IsOmitted,
-            goal,
-            time,
-            () => _sessions!.State.IsRealSession);
-        _sessions.StateChanged += (_, state) =>
-        {
-            if (!state.IsActive)
-            {
-                _ = _deepWorkHistory.RefreshAsync();
-            }
-        };
-        receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(() => _ = _deepWorkHistory.RefreshAsync());
-        _ = _deepWorkHistory.RefreshAsync();
         // Earned time (design K): today's goal met across the user's devices opens this computer's work hours.
         _workHours!.Goal = () => _deepWork?.UnlockProgress;
         // Counted focus per date for the day plan's Budget days: one source for every guard that reads the work windows (ADR 47).
@@ -1019,19 +1002,25 @@ public partial class App : Application
             _configuration, _sessions, calendars, dayPlanViewModel, exceptionsViewModel, planHelperDismissals,
             () => TimeSpan.FromMinutes(goal.Current.DailyMinutes), countedFocus, nightFallback);
         _deepWork.Changed += (_, _) => Dispatcher.UIThread.Post(planViewModel.NotifyFocusChanged);
+        var historyViewModel = new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time,
+            _programPaths, desktopShell, isSessionRunning: () => _sessions!.State.IsRealSession)
+        {
+            ReviewService = _sessionReview,
+            Gaps = sessionGaps,
+            NotesBetween = _sessionNotes.Between,
+        };
+        // The Stats page (design 5p, 19a to 19c): the same history, added up as views; History itself is its "Day details".
+        var statsViewModel = new StatsViewModel(
+            historyViewModel, activityLog, _recorder,
+            async (from, to) => sessionGaps.Apply(SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(from, to))),
+            receivedDevices, omittedSessions, deletedUsage, displayNames, goal, _configuration, sleepSettings, _phonePickups!, documents, time,
+            () => _sessions!.State.IsRealSession);
         var mainViewModel = new MainWindowViewModel(
             sessionViewModel,
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, receivedDevices, exemptionDefaults),
             dayPlanViewModel,
             exceptionsViewModel,
-            new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time,
-                _programPaths, desktopShell, isSessionRunning: () => _sessions!.State.IsRealSession)
-            {
-                ReviewService = _sessionReview,
-                Gaps = sessionGaps,
-                DeepWork = _deepWorkHistory,
-                NotesBetween = _sessionNotes.Between,
-            },
+            historyViewModel,
             setupViewModel,
             new IntegrationsViewModel(new ColdTurkeyDetector(), new WindowsOtherBlockerDetector(), sightings, _configuration, _sessions) { Beeminder = beeminderViewModel, CalendarFeeds = calendarFeeds },
             new SettingsViewModel(
@@ -1064,6 +1053,7 @@ public partial class App : Application
         {
             Tasks = new TasksViewModel(sessionTasks, _later!, _comebacks!, notebook, sessionViewModel, _configuration!, time),
             Plan = planViewModel,
+            Stats = statsViewModel,
             DayBar = _dayBar,
             Search = new SearchViewModel(SearchDataAsync),
             Devices = devices,

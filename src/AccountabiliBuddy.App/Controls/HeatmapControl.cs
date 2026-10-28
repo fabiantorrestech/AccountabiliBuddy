@@ -176,9 +176,9 @@ public sealed class HeatmapControl : Control
 
                 var text = new FormattedText(label, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, LabelTypeface, 12, LabelBrush);
                 double x = left + column * (cell + CellGap);
-                if (x < lastRight + 6)
+                if (x < lastRight + 6 || x + text.Width > Bounds.Width)
                 {
-                    continue; // Too close to the label before it.
+                    continue; // Too close to the label before it, or past the edge.
                 }
 
                 context.DrawText(text, new Point(x, 0));

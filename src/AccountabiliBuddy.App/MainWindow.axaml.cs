@@ -212,6 +212,12 @@ public partial class MainWindow : Window
                 plan.OpenSheetContaining(found);
             }
 
+            // Words inside Stats' Day details: open the fold that holds them.
+            if (target.Control is Control inDetails && Pages.Children[(int)MainTab.Stats] is StatsView stats)
+            {
+                stats.OpenFoldHolding(inDetails);
+            }
+
             // Data results have no control: the page's own matches show once it's laid out.
             Dispatcher.UIThread.Post(Highlights.RecountNow, DispatcherPriority.Background);
         };

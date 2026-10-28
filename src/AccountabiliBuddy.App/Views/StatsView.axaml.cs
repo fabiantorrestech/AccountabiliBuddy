@@ -1,12 +1,26 @@
+using AccountabiliBuddy.App.ViewModels;
 using Avalonia.Controls;
+using Avalonia.LogicalTree;
 
 namespace AccountabiliBuddy.App.Views;
 
-/// <summary>The Stats page; for now it holds History under a page title.</summary>
+/// <summary>The Stats page: the chosen view and range, the selected day and the "Day details" fold that holds History.</summary>
 public partial class StatsView : UserControl
 {
     public StatsView()
     {
         InitializeComponent();
+    }
+
+    /// <summary>
+    /// A search result lies in the Day details (their words are indexed while the fold is shut): opens the fold, so the result
+    /// can be brought into view and highlighted.
+    /// </summary>
+    public void OpenFoldHolding(Control control)
+    {
+        if (DataContext is StatsViewModel viewModel && (control == DetailsView || control.GetLogicalAncestors().Contains(DetailsView)))
+        {
+            viewModel.IsDetailsOpen = true;
+        }
     }
 }
