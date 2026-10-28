@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0049](0049-themes-from-token-dictionaries-with-bundled-fonts-and-local-sunset.md) | Themes from token dictionaries, with bundled fonts and a local sunset | Accepted | — |
 | [0048](0048-share-tasks-and-come-backs-across-devices.md) | Share tasks and come-backs across devices | Accepted | — |
 | [0047](0047-day-plan-modes.md) | Day plan modes | Accepted | — |
 | [0046](0046-add-a-self-hosted-sealed-relay.md) | Add a self-hosted sealed relay | Accepted | — |
