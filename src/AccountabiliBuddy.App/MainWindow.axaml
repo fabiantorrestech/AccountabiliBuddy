@@ -154,8 +154,8 @@
                         chrome:WindowDecorationProperties.ElementRole="User"
                         IsVisible="{Binding SyncLight.IsVisible, FallbackValue=False}" AutomationProperties.Name="Sync status"
                         ToolTip.Tip="Sync status: hover or click for each device">
-                    <Button.Flyout>
-                        <Flyout Placement="BottomEdgeAlignedRight" ShowMode="Transient" FlyoutPresenterClasses="syncPopover">
+                    <FlyoutBase.AttachedFlyout>
+                        <Flyout Placement="BottomEdgeAlignedRight" ShowMode="Standard" FlyoutPresenterClasses="syncPopover">
                             <StackPanel x:Name="SyncPopover" Spacing="10" x:DataType="vm:MainWindowViewModel">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Panel Width="7" Height="7" VerticalAlignment="Center">
@@ -189,7 +189,7 @@
                                 </WrapPanel>
                             </StackPanel>
                         </Flyout>
-                    </Button.Flyout>
+                    </FlyoutBase.AttachedFlyout>
                     <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
                         <Panel Width="7" Height="7" VerticalAlignment="Center">
                             <Ellipse Classes="syncDot" Width="7" Height="7" Classes.sleep="{Binding SyncLight.IsSeveralBehind}"
