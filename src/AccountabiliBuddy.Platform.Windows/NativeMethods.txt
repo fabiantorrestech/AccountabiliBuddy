@@ -171,3 +171,17 @@ IUIAutomationElementArray
 TreeScope
 UIA_CONTROLTYPE_ID
 PostQuitMessage
+
+// Ctrl+Alt hold detection for the overlay panel: a low-level keyboard hook (event-driven, no polling)
+SetWindowsHookEx
+UnhookWindowsHookEx
+CallNextHookEx
+KBDLLHOOKSTRUCT
+WH_KEYBOARD_LL
+WM_KEYDOWN
+WM_KEYUP
+WM_SYSKEYDOWN
+WM_SYSKEYUP
+GetModuleHandle
+IUIAutomationInvokePattern
+UIA_PATTERN_ID

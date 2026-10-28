@@ -19,25 +19,47 @@ public sealed class OverlaySettingsService
 
     public event EventHandler<OverlaySettings>? Changed;
 
+    /// <summary>The saved settings already name a placement (the user chose one, or saved the overlay settings since ADR 51); false until then.</summary>
+    public bool HasChosenPlacement { get; private set; }
+
     public void LoadBlocking()
     {
         try
         {
             OverlaySettings? loaded = Task.Run(() => _store.LoadAsync<OverlaySettings>(DocumentKey)).GetAwaiter().GetResult();
+            HasChosenPlacement = loaded?.Placement is not null;
             Current = loaded is null
                 ? OverlaySettings.Default
-                : WithDefaultTimer(loaded with
+                : WithPlacement(WithDefaultTimer(loaded with
                 {
                     Opacity = Math.Clamp(loaded.Opacity, OverlaySettings.MinOpacity, 1),
                     TimelineOpacity = Math.Clamp(loaded.TimelineOpacity, OverlaySettings.MinOpacity, 1),
                     TimelineHeldOpacity = Math.Clamp(loaded.TimelineHeldOpacity, OverlaySettings.MinOpacity, 1),
                     Profiles = loaded.Profiles ?? OverlaySettings.Default.Profiles,
-                });
+                }));
         }
         catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
         {
             Current = OverlaySettings.Default;
         }
+    }
+
+    /// <summary>
+    /// Settings saved before the taskbar overlay (ADR 51) have no placement: the old bottom-left corner becomes the floating bottom left,
+    /// a bottom-right corner the user had dragged away from becomes the floating bottom right, and everyone else (the default corner, the
+    /// top corners, which collided with tabs and title buttons) gets the new default, over the taskbar. The old position is dropped.
+    /// </summary>
+    private static OverlaySettings WithPlacement(OverlaySettings settings)
+    {
+        if (settings.Placement is not null)
+        {
+            return settings;
+        }
+
+        OverlayPlacement placement = settings.Corner == OverlayCorner.BottomLeft ? OverlayPlacement.FloatBottomLeft
+            : settings.Corner == OverlayCorner.BottomRight && settings.X is not null ? OverlayPlacement.FloatBottomRight
+            : OverlayPlacement.OverTaskbar;
+        return settings with { Placement = placement, X = null, Y = null };
     }
 
     /// <summary>
@@ -63,6 +85,7 @@ public sealed class OverlaySettingsService
     /// </summary>
     public Task SaveLookAsync(Func<OverlaySettings, OverlaySettings> change)
     {
+        HasChosenPlacement = true;
         return SaveAsync(Normalized(change(Current)));
     }
 

@@ -12,6 +12,14 @@ public sealed partial class DriftOverlayViewModel : ObservableObject
     private Action? _primary;
     private Action? _secondary;
 
+    /// <summary>"This isn't QS - Default." (the session's task or profile).</summary>
+    [ObservableProperty]
+    public partial string Title { get; set; } = string.Empty;
+
+    /// <summary>The third step of the ladder, as the progress line names it ("3 · Close tab").</summary>
+    [ObservableProperty]
+    public partial string NextStepText { get; set; } = "3 · Next step";
+
     [ObservableProperty]
     public partial string Target { get; set; } = string.Empty;
 

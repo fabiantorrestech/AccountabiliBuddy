@@ -16,6 +16,12 @@ public interface ITaskbarGeometry
     /// <summary>Raised after any of the above changed. May be raised on a background thread.</summary>
     event EventHandler? Changed;
 
+    /// <summary>Clicks Windows' own "show hidden icons" button (the overlay's ⌃ when it covers the tray). Runs in the background; does nothing when it can't be found.</summary>
+    void InvokeTrayOverflow();
+
+    /// <summary>Clicks Windows' own clock (the overlay's clock when it covers the tray): the calendar flyout opens. Runs in the background.</summary>
+    void InvokeClock();
+
     /// <summary>Reads everything again now; <see cref="Changed"/> follows when something differs.</summary>
     void Refresh();
 }

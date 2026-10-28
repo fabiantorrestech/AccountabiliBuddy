@@ -29,7 +29,7 @@ internal sealed class TaskbarContentProbe
     };
 
     /// <returns>Where the app icons end (x, physical pixels) and where the tray starts; each null when it could not be read.</returns>
-    public (int? AppsEnd, int? TrayStart) Probe(HWND taskbar, PixelBox bounds)
+    public (int? AppsStart, int? AppsEnd, int? TrayStart) Probe(HWND taskbar, PixelBox bounds)
     {
         var automation = (IUIAutomation)new CUIAutomation();
         IUIAutomationElement root = automation.ElementFromHandle(taskbar);
@@ -66,6 +66,7 @@ internal sealed class TaskbarContentProbe
         // Only buttons left of the tray count as app icons (the classic taskbar's tray buttons sit inside its notification area).
         IEnumerable<(int Left, int Right)> apps = trayStart is int tray ? buttons.Where(button => button.Right <= tray + 2) : buttons;
         int? appsEnd = apps.Any() ? apps.Max(button => button.Right) : null;
-        return (appsEnd, trayStart);
+        int? appsStart = apps.Any() ? apps.Min(button => button.Left) : null;
+        return (appsStart, appsEnd, trayStart);
     }
 }

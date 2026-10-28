@@ -58,7 +58,7 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
     private long _lastProbeTick;
     private volatile bool _needsProbe;
     private ProbeKey? _probeKey;
-    private (int? AppsEnd, int? TrayStart) _probeResult;
+    private (int? AppsStart, int? AppsEnd, int? TrayStart) _probeResult;
     private uint _lastProcessId;
     private string? _lastProcessName;
     private IReadOnlyList<TaskbarInfo> _taskbars = [];
@@ -100,6 +100,28 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
     public void Refresh()
     {
         RequestRead();
+    }
+
+    public void InvokeTrayOverflow()
+    {
+        Task.Run(() => TryInvoke(["NotificationChevron"], [], ["hidden icons", "Notification Chevron"]));
+    }
+
+    public void InvokeClock()
+    {
+        Task.Run(() => TryInvoke(["ClockButton"], ["TrayClockWClass"], []));
+    }
+
+    private static void TryInvoke(string[] ids, string[] classes, string[] names)
+    {
+        try
+        {
+            TaskbarInvoker.Invoke(ids, classes, names);
+        }
+        catch (Exception)
+        {
+            // Explorer is busy or restarting; the click is lost, nothing else.
+        }
     }
 
     public void Dispose()
@@ -392,16 +414,18 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
 
         PixelBox? tray = null;
         PixelBox? free = null;
+        PixelBox? leftFree = null;
+        bool leftAligned = true;
         if (shown && edge is TaskbarEdge.Bottom or TaskbarEdge.Top)
         {
-            (tray, free) = FindFreeArea(taskbar, bounds, edge);
+            (tray, free, leftFree, leftAligned) = FindFreeArea(taskbar, bounds, edge);
         }
 
-        return new TaskbarInfo(monitor.Id, isPrimary, monitor.Bounds, monitor.WorkArea, monitor.Scale, edge, bounds, autoHide, shown, free, tray);
+        return new TaskbarInfo(monitor.Id, isPrimary, monitor.Bounds, monitor.WorkArea, monitor.Scale, edge, bounds, autoHide, shown, free, tray, leftFree, leftAligned);
     }
 
     /// <summary>The tray's box and the free stretch between the icons and the tray, or nulls where they could not be read.</summary>
-    private (PixelBox? Tray, PixelBox? Free) FindFreeArea(HWND taskbar, PixelBox bounds, TaskbarEdge edge)
+    private (PixelBox? Tray, PixelBox? Free, PixelBox? LeftFree, bool LeftAligned) FindFreeArea(HWND taskbar, PixelBox bounds, TaskbarEdge edge)
     {
         var key = new ProbeKey((nint)taskbar.Value, bounds);
         if (_probeKey != key || _needsProbe)
@@ -409,13 +433,16 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
             StartProbe(taskbar, bounds, key);
         }
 
-        (int? appsEnd, int? trayStart) = key == _probeKey ? _probeResult : (null, null);
+        (int? appsStart, int? appsEnd, int? trayStart) = key == _probeKey ? _probeResult : (null, null, null);
         PixelBox? tray = trayStart is int start ? new PixelBox(start, bounds.Top, bounds.Right, bounds.Bottom) : TrayNotifyBox(taskbar, bounds);
         trayStart ??= tray?.Left;
         PixelBox? free = appsEnd is int end && trayStart is int tail && tail - end > 0
             ? new PixelBox(end, bounds.Top, tail, bounds.Bottom)
             : null;
-        return (tray, free);
+        PixelBox? leftFree = appsStart is int first && first - bounds.Left > bounds.Width * 0.08
+            ? new PixelBox(bounds.Left, bounds.Top, first, bounds.Bottom)
+            : null;
+        return (tray, free, leftFree, leftFree is null);
     }
 
     private void StartProbe(HWND taskbar, PixelBox bounds, ProbeKey key)
@@ -430,7 +457,7 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
         nint handle = (nint)taskbar.Value;
         Task.Run(() =>
         {
-            (int? AppsEnd, int? TrayStart) result = (null, null);
+            (int? AppsStart, int? AppsEnd, int? TrayStart) result = (null, null, null);
             try
             {
                 result = _probe.Probe(new HWND(handle), bounds);
@@ -571,12 +598,7 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
             return ForegroundScreenState.None;
         }
 
-        var style = (WINDOW_STYLE)PInvoke.GetWindowLong(window, WINDOW_LONG_PTR_INDEX.GWL_STYLE);
-        if ((style & WINDOW_STYLE.WS_CAPTION) == WINDOW_STYLE.WS_CAPTION || !PInvoke.GetWindowRect(window, out RECT rect))
-        {
-            return ForegroundScreenState.None;
-        }
-
+        string className = ClassNameOf(window);
         HMONITOR monitor = PInvoke.MonitorFromWindow(window, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST);
         var info = new MONITORINFOEXW();
         info.monitorInfo.cbSize = (uint)sizeof(MONITORINFOEXW);
@@ -585,17 +607,24 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
             return ForegroundScreenState.None;
         }
 
+        var style = (WINDOW_STYLE)PInvoke.GetWindowLong(window, WINDOW_LONG_PTR_INDEX.GWL_STYLE);
+        string monitorId = info.szDevice.ToString();
+        if ((style & WINDOW_STYLE.WS_CAPTION) == WINDOW_STYLE.WS_CAPTION || !PInvoke.GetWindowRect(window, out RECT rect))
+        {
+            return new ForegroundScreenState(false, false, monitorId, processName, className);
+        }
+
         RECT screen = info.monitorInfo.rcMonitor;
         bool covers = rect.left <= screen.left && rect.top <= screen.top && rect.right >= screen.right && rect.bottom >= screen.bottom;
         if (!covers)
         {
-            return ForegroundScreenState.None;
+            return new ForegroundScreenState(false, false, monitorId, processName, className);
         }
 
         // Windows' own "running a full-screen game" state: Direct3D exclusive mode, where the taskbar is not over it.
         bool game = PInvoke.SHQueryUserNotificationState(out QUERY_USER_NOTIFICATION_STATE state).Succeeded
                     && state == QUERY_USER_NOTIFICATION_STATE.QUNS_RUNNING_D3D_FULL_SCREEN;
-        return new ForegroundScreenState(true, game, info.szDevice.ToString(), processName);
+        return new ForegroundScreenState(true, game, monitorId, processName, className);
     }
 
     private string? ProcessNameOf(uint processId)
