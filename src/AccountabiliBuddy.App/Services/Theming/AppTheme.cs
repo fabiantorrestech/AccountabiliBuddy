@@ -303,7 +303,11 @@ public sealed class AppTheme : IDisposable
                 LightDarkMode.System => ThemeVariant.Default,
                 _ => _isDark ? ThemeVariant.Dark : ThemeVariant.Light,
             };
-            app.Resources["Ab.IsQuietColour"] = IsQuietColour;
+            // Only when it changed: any write raises an app-wide resources-changed pass.
+            if (!app.Resources.TryGetValue("Ab.IsQuietColour", out object? quiet) || quiet is not bool current || current != IsQuietColour)
+            {
+                app.Resources["Ab.IsQuietColour"] = IsQuietColour;
+            }
         }
 
         Summary = AppearanceSummary.Build(Theme, Mode, DarkAt, LightAt, Place is not null, _plan, now);

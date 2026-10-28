@@ -6,8 +6,8 @@ using Avalonia.Platform;
 namespace AccountabiliBuddy.App.Services.Theming;
 
 /// <summary>
-/// Searches the bundled city list in memory (ADR 49). The list loads on the first search and is let go with
-/// <see cref="Release"/> when the picker closes. Matches the start of the name first, then anywhere in it, ignoring case and
+/// Searches the bundled city list in memory (ADR 49). The list loads (off the UI thread) on the first search and
+/// is let go with <see cref="Release"/> when the picker closes. Matches the start of the name first, then anywhere in it, ignoring case and
 /// accents; the list is largest cities first, so bigger cities come first within each group.
 /// </summary>
 public sealed class CityIndex
@@ -16,9 +16,10 @@ public sealed class CityIndex
 
     private static readonly Uri ListUri = new("avares://AccountabiliBuddy.App/Assets/Data/cities.tsv");
 
-    private List<Entry>? _entries;
+    private Task<List<Entry>>? _loading;
 
-    public IReadOnlyList<City> Search(string query)
+    /// <summary>Finds cities for <paramref name="query"/>; the first call reads and folds the list on a worker thread.</summary>
+    public async Task<IReadOnlyList<City>> SearchAsync(string query)
     {
         string wanted = Fold(query.Trim());
         if (wanted.Length == 0)
@@ -26,7 +27,12 @@ public sealed class CityIndex
             return [];
         }
 
-        List<Entry> entries = _entries ??= Load();
+        List<Entry> entries = await (_loading ??= Task.Run(Load));
+        return Match(entries, wanted);
+    }
+
+    private static List<City> Match(List<Entry> entries, string wanted)
+    {
         var results = new List<City>(MaxResults);
         foreach (Entry entry in entries)
         {
@@ -56,7 +62,7 @@ public sealed class CityIndex
     }
 
     /// <summary>Lets the list go; the next search loads it again.</summary>
-    public void Release() => _entries = null;
+    public void Release() => _loading = null;
 
     private static List<Entry> Load()
     {

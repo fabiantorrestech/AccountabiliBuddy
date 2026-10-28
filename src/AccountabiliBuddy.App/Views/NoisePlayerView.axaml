@@ -17,6 +17,10 @@
         <Style Selector="Button.locked">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Met}" />
         </Style>
+        <Style Selector="TextBlock.track">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <!-- After the base style above, so the notice colour wins. -->
         <Style Selector="TextBlock.notice">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Waiting}" />
             <Setter Property="Opacity" Value="1" />
@@ -26,7 +30,7 @@
         <StackPanel Spacing="4">
             <!-- The name (its own name for it, if renamed) with a pencil; the folder is chosen in Settings. -->
             <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding !IsRenaming}">
-                <TextBlock Foreground="{DynamicResource Ab.Ink}" Text="{Binding TrackText}" ToolTip.Tip="{Binding TrackText}" FontSize="12" Opacity="0.85"
+                <TextBlock Classes="track" Text="{Binding TrackText}" ToolTip.Tip="{Binding TrackText}" FontSize="12" Opacity="0.85"
                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Classes.notice="{Binding HasNotice}" />
                 <Button Grid.Column="1" Classes="icon" Content="&#xE70F;" Command="{Binding StartRenameCommand}" IsVisible="{Binding HasFiles}"
                         ToolTip.Tip="Rename (only how it's shown here)" Padding="6,2" FontSize="12" />

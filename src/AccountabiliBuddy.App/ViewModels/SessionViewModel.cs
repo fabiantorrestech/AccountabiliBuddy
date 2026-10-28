@@ -93,7 +93,11 @@ public sealed partial class SessionViewModel : ObservableObject
 
     /// <summary>The shutdown card after the day's last work part (redesign phase 5); null hides it.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsShutdown))]
     public partial ShutdownCardViewModel? Shutdown { get; set; }
+
+    /// <summary>The shutdown card takes the main card's place, unless a session runs (started from a hotkey, the tray or the popup).</summary>
+    public bool ShowsShutdown => Shutdown is not null && !IsSessionActive;
 
     /// <summary>Today's deep work against the daily goal (redesign phase 4); null hides the card.</summary>
     public GoalCardViewModel? Goal { get; set; }
@@ -156,7 +160,7 @@ public sealed partial class SessionViewModel : ObservableObject
     public partial bool HasNoProfiles { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsStart), nameof(ShowsWelcome))]
+    [NotifyPropertyChangedFor(nameof(ShowsStart), nameof(ShowsWelcome), nameof(ShowsShutdown))]
     [NotifyCanExecuteChangedFor(nameof(EndSessionCommand))]
     public partial bool IsSessionActive { get; set; }
 
