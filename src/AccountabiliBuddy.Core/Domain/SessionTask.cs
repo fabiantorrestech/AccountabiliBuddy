@@ -10,6 +10,12 @@ namespace AccountabiliBuddy.Core.Domain;
 /// null in the running checklist, which goes by <paramref name="CategoryId"/>.
 /// </param>
 /// <param name="CategoryColor">Its category's colour, "#RRGGBB", alongside <paramref name="Category"/>.</param>
+/// <param name="EstimateMinutes">How long the user expects it to take (ADR 50); null = no estimate.</param>
+/// <param name="Note">
+/// The user's private note on it (ADR 50): sealed wherever it is stored, never logged, sent only inside the sealed sync
+/// files to the user's own devices; null = none.
+/// </param>
+/// <param name="PlannedFor">The day part it was put in the plan for ("Put in plan", ADR 50); null = not planned.</param>
 public sealed record SessionTask(
     Guid Id,
     string Title,
@@ -17,7 +23,10 @@ public sealed record SessionTask(
     IReadOnlyList<SessionSubtask> Subtasks,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? CategoryId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Category = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CategoryColor = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CategoryColor = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? EstimateMinutes = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Note = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlannedSlot? PlannedFor = null)
 {
     public bool IsDone => DoneAt is not null;
 }

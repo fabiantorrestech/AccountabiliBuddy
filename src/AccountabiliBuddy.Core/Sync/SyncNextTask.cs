@@ -12,6 +12,9 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="Category">The category's name; null for none.</param>
 /// <param name="CategoryColor">The category's colour, "#RRGGBB".</param>
 /// <param name="Subtasks">Its steps in order; null for none.</param>
+/// <param name="EstimateMinutes">The user's estimate in minutes (ADR 50); null for none.</param>
+/// <param name="Note">The user's private note (ADR 50): sealed in the files and in the stores, never logged, never on the watch; null for none.</param>
+/// <param name="PlannedFor">The day part it was put in the plan for (ADR 50); null for none.</param>
 public sealed record SyncNextTask(
     Guid Id,
     string Title,
@@ -21,13 +24,17 @@ public sealed record SyncNextTask(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SessionSubtask>? Subtasks,
     DateTimeOffset EditedAt,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt,
-    double Position) : ISharedItem
+    double Position,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? EstimateMinutes = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Note = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlannedSlot? PlannedFor = null) : ISharedItem
 {
     [JsonIgnore]
     public string TieBreak => string.Join(
         "\u0001",
         Title, DoneAt?.UtcTicks.ToString() ?? string.Empty, Category ?? string.Empty, CategoryColor ?? string.Empty,
-        string.Join("\u0002", (Subtasks ?? []).Select(step => $"{step.Id:D}\u0003{step.Title}\u0003{step.DoneAt?.UtcTicks}")));
+        string.Join("\u0002", (Subtasks ?? []).Select(step => $"{step.Id:D}\u0003{step.Title}\u0003{step.DoneAt?.UtcTicks}")),
+        EstimateMinutes?.ToString() ?? string.Empty, Note ?? string.Empty, PlannedFor?.TieText ?? string.Empty);
 
     public ISharedItem WithStamps(DateTimeOffset editedAt, DateTimeOffset? deletedAt)
     {
@@ -37,6 +44,6 @@ public sealed record SyncNextTask(
     /// <summary>The task as a tombstone: its text is gone, and it is deleted at <paramref name="at"/>.</summary>
     public SyncNextTask Deleted(DateTimeOffset at)
     {
-        return this with { Title = string.Empty, DoneAt = null, Category = null, CategoryColor = null, Subtasks = null, EditedAt = at, DeletedAt = at };
+        return this with { Title = string.Empty, DoneAt = null, Category = null, CategoryColor = null, Subtasks = null, EstimateMinutes = null, Note = null, PlannedFor = null, EditedAt = at, DeletedAt = at };
     }
 }

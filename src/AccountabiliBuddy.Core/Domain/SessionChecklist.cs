@@ -21,6 +21,12 @@ public sealed record SessionChecklist(
     /// <summary>How long a session runs before a finished checklist may end it at once (ADR 25).</summary>
     public static readonly TimeSpan EndAtOnceAfter = TimeSpan.FromMinutes(10);
 
+    /// <summary>The longest estimate a task takes (a day); a longer one is held to it.</summary>
+    public const int MaxEstimateMinutes = 24 * 60;
+
+    /// <summary>The longest note a task keeps; a longer one is cut.</summary>
+    public const int MaxNoteLength = 4000;
+
     public static SessionChecklist Empty { get; } = new(null, false, []);
 
     public bool HasTasks => Tasks.Count > 0;
@@ -95,7 +101,8 @@ public sealed record SessionChecklist(
     /// used anywhere in the checklist) in <paramref name="categoryId"/>, with open steps <paramref name="steps"/>. A blank
     /// title adds nothing.
     /// </summary>
-    public SessionChecklist AddWithId(Guid id, string title, Guid? categoryId, IReadOnlyList<string>? steps = null)
+    public SessionChecklist AddWithId(
+        Guid id, string title, Guid? categoryId, IReadOnlyList<string>? steps = null, int? estimateMinutes = null, string? note = null)
     {
         string trimmed = title.Trim();
         if (trimmed.Length == 0)
@@ -110,7 +117,59 @@ public sealed record SessionChecklist(
             .Where(step => step.Length > 0)
             .Select(step => new SessionSubtask(Guid.NewGuid(), step, null))
             .ToList();
-        return this with { Tasks = [.. Tasks, new SessionTask(taskId, trimmed, null, subtasks, categoryId)] };
+        return this with { Tasks = [.. Tasks, new SessionTask(taskId, trimmed, null, subtasks, categoryId, EstimateMinutes: CleanEstimate(estimateMinutes), Note: CleanNote(note))] };
+    }
+
+    /// <summary>
+    /// <paramref name="task"/> at the end of the list (a task brought back from Later): its own estimate, note and steps, and
+    /// a fresh id when it has none or one already in the checklist has it. A blank title adds nothing.
+    /// </summary>
+    public SessionChecklist AddTask(SessionTask task)
+    {
+        if (task.Title.Trim().Length == 0)
+        {
+            return this;
+        }
+
+        var used = Tasks.SelectMany(other => other.Subtasks.Select(subtask => subtask.Id).Prepend(other.Id)).ToHashSet();
+        Guid id = task.Id != Guid.Empty && !used.Contains(task.Id) ? task.Id : Guid.NewGuid();
+        return this with { Tasks = [.. Tasks, task with { Id = id, Title = task.Title.Trim(), DoneAt = null }] };
+    }
+
+    /// <summary>The estimate of the task <paramref name="id"/> in minutes (null or 0 clears it; held to <see cref="MaxEstimateMinutes"/>).</summary>
+    public SessionChecklist SetEstimate(Guid id, int? minutes)
+    {
+        return WithTask(id, task => task with { EstimateMinutes = CleanEstimate(minutes) });
+    }
+
+    /// <summary>The note of the task <paramref name="id"/> (null or blank clears it; cut to <see cref="MaxNoteLength"/>).</summary>
+    public SessionChecklist SetNote(Guid id, string? note)
+    {
+        return WithTask(id, task => task with { Note = CleanNote(note) });
+    }
+
+    /// <summary>The day part the task <paramref name="id"/> is put in the plan for (null: not planned).</summary>
+    public SessionChecklist SetPlannedFor(Guid id, PlannedSlot? slot)
+    {
+        return WithTask(id, task => task with { PlannedFor = slot });
+    }
+
+    /// <summary>An estimate as it is kept: null for none or less than a minute, else at most <see cref="MaxEstimateMinutes"/>.</summary>
+    public static int? CleanEstimate(int? minutes)
+    {
+        return minutes is int value && value > 0 ? Math.Min(value, MaxEstimateMinutes) : null;
+    }
+
+    /// <summary>A note as it is kept: trimmed, null when blank, cut to <see cref="MaxNoteLength"/>.</summary>
+    public static string? CleanNote(string? note)
+    {
+        string trimmed = (note ?? string.Empty).Trim();
+        if (trimmed.Length == 0)
+        {
+            return null;
+        }
+
+        return trimmed.Length > MaxNoteLength ? trimmed[..MaxNoteLength] : trimmed;
     }
 
     /// <summary>

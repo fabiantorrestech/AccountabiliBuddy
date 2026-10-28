@@ -19,6 +19,7 @@ public sealed partial class TaskRowViewModel : ChecklistRowViewModel
         : base(task.Id, task.Title, task.IsDone, shown is { Subtask: null } && shown.Task.Id == task.Id, tasks)
     {
         DoneText = doneText;
+        EstimateMinutes = task.EstimateMinutes;
         NewSubtaskTitle = string.Empty;
         foreach (SessionSubtask subtask in task.Subtasks)
         {
@@ -52,13 +53,20 @@ public sealed partial class TaskRowViewModel : ChecklistRowViewModel
 
     public bool HasSubtasks => Subtasks.Count > 0;
 
-    /// <summary>"3 steps" (or "1 step") on Today's numbered row; empty with none.</summary>
-    public string StepsText => Subtasks.Count switch
+    /// <summary>Its estimate in minutes (ADR 50); null for none.</summary>
+    public int? EstimateMinutes { get; }
+
+    /// <summary>"3 steps" (or "1 step") with " · 50 min" when it has an estimate, on Today's numbered row; empty with neither.</summary>
+    public string StepsText => string.Join(" · ", new[]
     {
-        0 => string.Empty,
-        1 => "1 step",
-        int count => $"{count} steps",
-    };
+        Subtasks.Count switch
+        {
+            0 => string.Empty,
+            1 => "1 step",
+            int count => $"{count} steps",
+        },
+        EstimateMinutes is int minutes ? EstimateText.Of(minutes) : string.Empty,
+    }.Where(part => part.Length > 0));
 
     /// <summary>A category besides "No category" exists, so its picker shows in the row's flyout.</summary>
     public bool HasCategoryChoices => CategoryChoices.Count > 1;

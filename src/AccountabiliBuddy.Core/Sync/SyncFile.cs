@@ -33,6 +33,10 @@ namespace AccountabiliBuddy.Core.Sync;
 /// The come-backs, the user's parked thoughts, open and recently ticked, with their tombstones (ADR 48); null as
 /// <paramref name="NextTasks"/>. <see cref="Comebacks"/> stays for older phones: the open ones only.
 /// </param>
+/// <param name="Later">
+/// The Later list with its tombstones (ADR 50), merged item by item like <paramref name="NextTasks"/>; null from a QR file
+/// or an app that predates it, which then take no part in it.
+/// </param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
@@ -62,7 +66,8 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncNoise? Noise = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncPlacement? Placement = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncNextTask>? NextTasks = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncParked>? Parked = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncParked>? Parked = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncLaterItem>? Later = null)
 {
     public const int CurrentFormatVersion = 1;
 }

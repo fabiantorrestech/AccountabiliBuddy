@@ -254,8 +254,8 @@ public sealed class SyncCoordinator
                 // ADR 42: always, read-only, for the phone's start picker (the profiles document travels only once edited).
                 ProfileOptions = profiles.Select(profile => new SyncProfileOption(profile.Id, profile.Name)).ToList(),
                 DefaultProfileId = CountUpProfileId?.Invoke(), Noise = noise,
-                // ADR 48: the shared lists, each with its tombstones; sealed like everything in the file.
-                NextTasks = NextTasks?.Invoke(), Parked = Parked?.Invoke() };
+                // ADR 48, 50: the shared lists, each with its tombstones; sealed like everything in the file.
+                NextTasks = NextTasks?.Invoke(), Parked = Parked?.Invoke(), Later = Later?.Invoke() };
     }
 
     /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
@@ -285,6 +285,9 @@ public sealed class SyncCoordinator
     /// <summary>The come-backs with their tombstones for this PC's sync file (ADR 48); set by the app.</summary>
     public Func<IReadOnlyList<SyncParked>?>? Parked { get; set; }
 
+    /// <summary>The Later list with its tombstones for this PC's sync file (ADR 50); set by the app.</summary>
+    public Func<IReadOnlyList<SyncLaterItem>?>? Later { get; set; }
+
     /// <summary>
     /// Merges another device's next-session list into this PC's (ADR 48); true when it changed. A merge that changed it
     /// raises the store's own change event, which writes this PC's file again; set by the app.
@@ -293,6 +296,9 @@ public sealed class SyncCoordinator
 
     /// <summary>Merges another device's come-backs into this PC's (ADR 48); true when they changed; set by the app.</summary>
     public Func<IReadOnlyList<SyncParked>, Task<bool>>? MergeParked { get; set; }
+
+    /// <summary>Merges another device's Later list into this PC's (ADR 50); true when it changed; set by the app.</summary>
+    public Func<IReadOnlyList<SyncLaterItem>, Task<bool>>? MergeLater { get; set; }
 
     // The running session for the phone's countdown (ADR 26); old scheduled blocks don't count.
     private SyncRunning? RunningNow(IReadOnlyList<FocusProfile> profiles)
@@ -381,7 +387,7 @@ public sealed class SyncCoordinator
 
         // The shared lists (ADR 48) are merged into this PC's own, encrypted stores below; the copy kept of the sender's file
         // doesn't hold them, so their text isn't kept a second time, in the clear (the sealed bytes it passes on are sealed).
-        await _received.AcceptAsync(file with { NextTasks = null, Parked = null }, method, sealedBytes);
+        await _received.AcceptAsync(file with { NextTasks = null, Parked = null, Later = null }, method, sealedBytes);
         if (file.DayPlan is SyncDayPlan plan)
         {
             await ConsiderPlanAsync(plan, sender.DeviceId, sender.Name);
@@ -394,7 +400,7 @@ public sealed class SyncCoordinator
 
     private static readonly TimeSpan FutureWrittenAtLimit = TimeSpan.FromSeconds(60);
 
-    // ADR 48: the next session's tasks and the come-backs merge item by item on every accepted file, whatever carried it.
+    // ADR 48, 50: the next session's tasks, the come-backs and the Later list merge item by item on every accepted file, whatever carried it.
     // A file without them (a QR file, an older app) leaves this PC's lists alone.
     // A file written more than a minute ahead of this PC's clock (the sender's clock runs fast) is not taken for its lists; a
     // later file from it, once the clocks agree, is. Item times past 2 minutes ahead are clamped by the merge itself.
@@ -414,6 +420,11 @@ public sealed class SyncCoordinator
         {
             await MergeParked(CleanParked(parked));
         }
+
+        if (file.Later is { } later && MergeLater is not null)
+        {
+            await MergeLater(CleanLater(later));
+        }
     }
 
     // A sealed file is trusted for its key, not its shape: an item that is null, or a title, text or step list that is null
@@ -427,6 +438,18 @@ public sealed class SyncCoordinator
             {
                 Title = task.Title ?? string.Empty,
                 Subtasks = task.Subtasks?.OfType<SessionSubtask>().Select(step => step with { Title = step.Title ?? string.Empty }).ToList(),
+            })
+            .ToList();
+    }
+
+    private static List<SyncLaterItem> CleanLater(IEnumerable<SyncLaterItem?> items)
+    {
+        return items
+            .OfType<SyncLaterItem>()
+            .Select(item => item with
+            {
+                Title = item.Title ?? string.Empty,
+                Subtasks = item.Subtasks?.OfType<SessionSubtask>().Select(step => step with { Title = step.Title ?? string.Empty }).ToList(),
             })
             .ToList();
     }
