@@ -11,22 +11,7 @@
     <!-- The Settings list's content for Your day, Sleep, Focus sessions, Alerts &amp; on-screen, Appearance and App &amp; data
          (the shell, SettingsShellView, holds the list, the Save bar and the rows that are pages of their own). One row's
          cards show at a time; Rows[i] is the list's row, and its SearchArea names let search open it. -->
-    <UserControl.Styles>
-        <!-- Each group of settings is a panel sunk into the page card (rows of a label, a Muted line and the control). -->
-        <Style Selector="Border.card">
-            <Setter Property="Background" Value="{DynamicResource Ab.Bg}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
-            <Setter Property="BorderThickness" Value="{DynamicResource Ab.CardBorderThickness}" />
-            <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
-            <Setter Property="Padding" Value="20,16" />
-        </Style>
-        <Style Selector="TextBlock.sectionTitle">
-            <Setter Property="FontSize" Value="15" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
-            <Setter Property="Margin" Value="0,0,0,2" />
-        </Style>
-    </UserControl.Styles>
+    <!-- The pages are panels of rows (Themes/AbStyles.axaml: sPanel, sRow, sTitle, sHint, sGroup, CheckBox.sw). -->
     <ScrollViewer x:Name="SectionsScroller">
         <StackPanel Margin="0,0,16,24" Spacing="12" MaxWidth="760" HorizontalAlignment="Left">
             <!-- Your day: each group of settings is a panel of rows (a title, a Muted line, the control on the right). -->
@@ -1152,53 +1137,70 @@
                 </StackPanel>
             </StackPanel>
 
-            <StackPanel Spacing="16" IsVisible="{Binding Rows[8].IsSelected}"
+            <!-- App & data -->
+            <StackPanel Spacing="12" IsVisible="{Binding Rows[8].IsSelected}"
                         search:SearchArea.Name="App &amp; data" search:SearchArea.SettingsGroup="8">
-                <Border Classes="card" search:SearchArea.Name="Computer type">
-                <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="Laptop" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Text="Computer type" Classes="sectionTitle" />
-                    </StackPanel>
-                    <TextBlock Text="{Binding ComputerTypeText}" />
-                    <TextBlock Text="Applying a type sets its starting switches again (privacy, escalation, sharing, update checks). Profiles and the day plan stay as they are."
-                               Classes="sHint" TextWrapping="Wrap" />
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <ComboBox SelectedIndex="{Binding ComputerTypeIndex}" MinWidth="200">
-                            <ComboBoxItem Content="Personal computer" />
-                            <ComboBoxItem Content="Work computer" />
-                            <ComboBoxItem Content="Local only" />
-                        </ComboBox>
-                        <Button Content="Apply a type again" Command="{Binding ApplyComputerTypeCommand}" />
-                    </StackPanel>
+                <StackPanel Spacing="6" search:SearchArea.Name="Computer type">
+                    <TextBlock Classes="sGroup" Text="Computer type" />
+                    <Border Classes="sPanel">
+                        <StackPanel Margin="0,0,0,-1" IsEnabled="{Binding !IsLocked}">
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="sTitle" Text="{Binding ComputerTypeText}" />
+                                        <TextBlock Classes="sHint"
+                                                   Text="Applying a type sets its starting switches again (privacy, escalation, sharing, update checks). Profiles and the day plan stay as they are." />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <ComboBox SelectedIndex="{Binding ComputerTypeIndex}" MinWidth="170">
+                                            <ComboBoxItem Content="Personal computer" />
+                                            <ComboBoxItem Content="Work computer" />
+                                            <ComboBoxItem Content="Local only" />
+                                        </ComboBox>
+                                        <Button Content="Apply a type again" Command="{Binding ApplyComputerTypeCommand}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-                </Border>
-                <Border Classes="card" search:SearchArea.Name="Backup">
-                <StackPanel Spacing="6">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="BackupRestore" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Text="Backup" Classes="sectionTitle" />
-                    </StackPanel>
-                    <TextBlock Text="Save your profiles, settings, calendars and history to a file, or restore them from one, e.g. on a new PC."
-                               Classes="sHint" TextWrapping="Wrap" />
-                    <views:BackupPanel DataContext="{Binding Backup}" />
+
+                <StackPanel Spacing="6" search:SearchArea.Name="Backup">
+                    <TextBlock Classes="sGroup" Text="Backup" />
+                    <Border Classes="sPanel" Padding="18,14">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="Save your profiles, settings, calendars and history to a file, or restore them from one, e.g. on a new PC." Classes="sHint" />
+                            <views:BackupPanel DataContext="{Binding Backup}" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-                </Border>
-                <Border Classes="card" search:SearchArea.Name="Data">
-                <StackPanel Spacing="4">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="DatabaseOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Text="Data" Classes="sectionTitle" />
-                    </StackPanel>
-                    <TextBlock Text="Everything is stored only on this computer:" Classes="sHint" />
-                    <SelectableTextBlock Text="{Binding DatabasePath}" />
-                    <!-- Off: History keeps only times, apps, sites and their sections (ADR 22, the Work computer type). -->
-                    <CheckBox Classes="sw" IsChecked="{Binding KeepTitlesAndAddresses}" Margin="0,6,0,0"
-                              ><TextBlock Text="Keep window titles, full addresses and screen text in History (encrypted). Off: only times, apps, sites and their sections" TextWrapping="Wrap" /></CheckBox>
-                    <TextBlock Text="{Binding VersionText}" Classes="sHint" Margin="0,6,0,0" />
+
+                <StackPanel Spacing="6" search:SearchArea.Name="Data">
+                    <TextBlock Classes="sGroup" Text="Data" />
+                    <Border Classes="sPanel">
+                        <StackPanel Margin="0,0,0,-1">
+                            <Border Classes="sRow">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Everything is stored only on this computer:" />
+                                    <SelectableTextBlock Text="{Binding DatabasePath}" FontSize="13" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                            <!-- Off: History keeps only times, apps, sites and their sections (ADR 22, the Work computer type). -->
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Keep window titles, full addresses and screen text in History (encrypted). Off: only times, apps, sites and their sections" VerticalAlignment="Center" />
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding KeepTitlesAndAddresses}" VerticalAlignment="Center"
+                                              AutomationProperties.Name="Keep window titles, full addresses and screen text in History" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <TextBlock Text="{Binding VersionText}" Classes="sHint" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-                </Border>
             </StackPanel>
+
 
         </StackPanel>
     </ScrollViewer>
