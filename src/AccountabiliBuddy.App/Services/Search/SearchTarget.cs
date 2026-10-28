@@ -7,10 +7,12 @@ namespace AccountabiliBuddy.App.Services.Search;
 /// <param name="SettingsGroup">The Settings row to switch to (a <see cref="AccountabiliBuddy.App.ViewModels.SettingsSection"/> index).</param>
 /// <param name="Control">The control the text was found in, to bring into view (an app word).</param>
 /// <param name="PlanTemplate">The Day plan's inner tab: 0 = Workdays, 1 = Off-Days.</param>
+/// <param name="Flyout">For words inside a flyout (<see cref="SearchArea.IndexesFlyoutProperty"/>): the flyout to open on <paramref name="Control"/>.</param>
 public sealed record SearchTarget(
     int Tab,
     Guid? ProfileId = null,
     DateOnly? Date = null,
     int? SettingsGroup = null,
     object? Control = null,
-    int? PlanTemplate = null);
+    int? PlanTemplate = null,
+    object? Flyout = null);

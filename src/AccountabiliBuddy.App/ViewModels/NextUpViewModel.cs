@@ -7,14 +7,14 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// Today's "Next up" card: the next two parts of today's plan that haven't ended (sleep left out). Read-only; it reads
+/// Today's "Next up" card: the next three parts of today's plan that haven't ended (sleep left out). Read-only; it reads
 /// the plan again when it changes and when the day bar's status line changes (the bar redraws every 30 seconds, so the
 /// list moves on when a part's time passes). It reads the plan the
 /// way the day bar does (counted focus and the night fallback), so Budget days match the bar.
 /// </summary>
 public sealed partial class NextUpViewModel : ObservableObject
 {
-    private const int MaxRows = 2;
+    private const int MaxRows = 3;
 
     private readonly ConfigurationService _configuration;
     private readonly TimeProvider _time;

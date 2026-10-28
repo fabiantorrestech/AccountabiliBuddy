@@ -972,6 +972,7 @@ public partial class App : Application
             _sessions, _configuration, _stepAway, sessionViewModel.Tasks, _dayBar, () => _endFlow.TryEndSessionAsync(VisibleMainWindow()))
         {
             PlanFirst = _planFirst,
+            TimerToggle = sessionViewModel.TimerToggle,
             PhoneLine = () => sessionTasks.Current.SessionStart is DateTimeOffset started ? _phonePickups!.Describe(started) : null,
         };
         // The away card ("Back to <task>?", a side task's length): the task in front, the end-early flow, the session's chime.
@@ -1148,6 +1149,7 @@ public partial class App : Application
         _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
         sessionViewModel.WhatsNew = new WhatsNewCardViewModel(setupFeatures, ShowWhatsNew);
         sessionViewModel.NextUp = new NextUpViewModel(_configuration, time, sessionViewModel.Day);
+        sessionViewModel.SeenWhilePlanning = new SeenWhilePlanningViewModel(_planFirst!, displayNames.NameFor);
         sessionViewModel.MoreToday = new MoreTodayViewModel(sessionViewModel);
         mainViewModel.Settings.Updates.OpenWhatsNew = ShowWhatsNew;
         mainViewModel.Settings.Updates.ShowEmergencyRelease = () => ShowColdTurkeyKey(ColdTurkeyKeyMode.Emergency);

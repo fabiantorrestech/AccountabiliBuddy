@@ -128,10 +128,24 @@ public sealed partial class GoalCardViewModel : ObservableObject
         Percent = _deepWork.Progress.Fraction * 100;
         Fraction = _deepWork.Progress.Fraction;
         FocusedText = GoalProgress.Duration(_deepWork.Progress.Focused);
-        OfGoalText = $"of {GoalProgress.Duration(_deepWork.Progress.Goal)} today";
+        OfGoalText = OfGoal(_deepWork.Progress);
         IsMet = _deepWork.Progress.Met;
         RefreshPhone();
         RefreshPace();
+    }
+
+    // "of 2h today · 50 min to go"; once the goal is met, just "of 2h today".
+    private static string OfGoal(GoalProgress progress)
+    {
+        string text = $"of {GoalProgress.Duration(progress.Goal)} today";
+        if (progress.Met)
+        {
+            return text;
+        }
+
+        TimeSpan left = progress.Goal - progress.Focused;
+        string toGo = left.TotalMinutes < 60 ? $"{(int)Math.Ceiling(left.TotalMinutes)} min" : GoalProgress.Duration(left);
+        return $"{text} · {toGo} to go";
     }
 
     /// <summary>Reads the Budget pace line again (a minute passed, or the plan or the focus changed).</summary>

@@ -18,6 +18,9 @@ public sealed partial class FocusViewModel : ObservableObject
     private readonly DayBarViewModel? _day;
     private readonly Func<Task> _endSession;
 
+    // What "+10 min" adds to the running focus phase.
+    private static readonly TimeSpan ExtendBy = TimeSpan.FromMinutes(10);
+
     /// <param name="checklist">The running session's checklist (Live), shared with the rest of the Today page.</param>
     /// <param name="day">Today's bar, for the focus so far; null without one.</param>
     /// <param name="endSession">The app's end flow (wait and reason when the session needs them).</param>
@@ -89,13 +92,21 @@ public sealed partial class FocusViewModel : ObservableObject
     [ObservableProperty]
     public partial bool CanReady { get; set; }
 
-    /// <summary>E.g. "Planning · 4:12 left · new sites are asked about after".</summary>
+    /// <summary>A fresh install's first session: it learns instead of planning, so ticking a task doesn't begin anything.</summary>
+    [ObservableProperty]
+    public partial bool IsLearning { get; set; }
+
+    /// <summary>"or tick the first task to begin": in the planning stage while nobody is away (ticking the first task ends planning like "I'm ready").</summary>
+    [ObservableProperty]
+    public partial bool ShowsTickHint { get; set; }
+
+    /// <summary>E.g. "5:40 left to plan · nothing will nag you yet".</summary>
     [ObservableProperty]
     public partial string PlanningText { get; set; } = string.Empty;
 
-    /// <summary>The part of the planning stage still to go, 0 to 100 (empty once its time is up).</summary>
+    /// <summary>The numeral at the planning row's right in the planning stage: the focus length that follows it ("50:00"); empty with no set end.</summary>
     [ObservableProperty]
-    public partial double PlanningLeftPercent { get; set; }
+    public partial string FocusLengthText { get; set; } = string.Empty;
 
     [RelayCommand]
     private void Ready()
@@ -107,28 +118,26 @@ public sealed partial class FocusViewModel : ObservableObject
     {
         IsPlanning = _planFirst is { IsPlanning: true };
         InPlanningStage = _planFirst is { InStage: true };
-        bool learning = _planFirst is { IsLearning: true };
+        IsLearning = _planFirst is { IsLearning: true };
         CanReady = InPlanningStage;
+        RefreshTickHint();
         PlanningText = !IsPlanning ? string.Empty
-            : learning ? "First session: nothing new is asked · sort what you used on Today at the end"
-            : _planFirst!.IsTimeUp ? "Planning time is up · Start when you are ready · new sites are asked about after"
-            : $"Planning · {_planFirst.LeftText} left · new sites are asked about after";
-        PlanningLeftPercent = InPlanningStage ? PlanningLeft(_sessions.State, _sessions.Now) * 100 : 0;
+            : IsLearning ? "First session · nothing new is asked; sort what you used at the end"
+            : _planFirst!.IsTimeUp ? "Planning time is up · start when you're ready"
+            : $"{_planFirst.LeftText} left to plan · nothing will nag you yet";
     }
 
-    // The planning stage's own bar: what is left of the stage's start-to-end span.
-    private static double PlanningLeft(SessionState state, DateTimeOffset now)
+    // Ticking the first task ends planning like "I'm ready", which the engine refuses while away; so the hint waits for them to be back.
+    private void RefreshTickHint()
     {
-        if (state.PhaseStartedAt is not DateTimeOffset start || state.PhaseEndsAt is not DateTimeOffset end || end <= start)
-        {
-            return 0;
-        }
-
-        return Math.Clamp((end - state.CountdownTime(now)) / (end - start), 0, 1);
+        ShowsTickHint = InPlanningStage && !_sessions.State.IsAway;
     }
 
     /// <summary>The running session's checklist; null when the app doesn't offer guided sessions.</summary>
     public ChecklistViewModel? Checklist { get; }
+
+    /// <summary>Hide or show the on-screen timer: an item in the ⋯ menu (set by the app); null hides it.</summary>
+    public TimerToggleViewModel? TimerToggle { get; set; }
 
     /// <summary>The capture line (redesign phase 5): a note for this session, or a come-back with ⚑ or "!"; null hides it.</summary>
     public CaptureBoxViewModel? Capture { get; set; }
@@ -178,6 +187,19 @@ public sealed partial class FocusViewModel : ObservableObject
     [ObservableProperty]
     public partial string CurrentTaskText { get; set; }
 
+    /// <summary>The running card's title: the task in front, or the profile's name when the session has no tasks.</summary>
+    [ObservableProperty]
+    public partial string TitleText { get; set; } = string.Empty;
+
+    /// <summary>"+10 min" shows: only while it can work (a timed manual focus phase, not away); hidden in a break, a side task, away, Pomodoro and "No set end".</summary>
+    [ObservableProperty]
+    public partial bool ShowsExtend { get; set; }
+
+    /// <summary>"+10 min" works right now (the same as <see cref="ShowsExtend"/>; kept as the command's guard).</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ExtendFocusCommand))]
+    public partial bool CanExtend { get; set; }
+
     [ObservableProperty]
     public partial string CurrentSubtaskText { get; set; }
 
@@ -211,6 +233,26 @@ public sealed partial class FocusViewModel : ObservableObject
         _stepAway?.Toggle();
         Refresh();
     }
+
+    /// <summary>"+10 min": the running timed focus phase ends 10 minutes later, at once (the stricter direction; see the engine's ExtendFocus).</summary>
+    [RelayCommand(CanExecute = nameof(CanExtend))]
+    private void ExtendFocus()
+    {
+        // A guard: the button is hidden when this can't work, but the last second of a phase or the 12 h ceiling can still refuse it.
+        if (!_sessions.ExtendFocus(ExtendBy))
+        {
+            ExtendMessage = "Can't add time now";
+            _extendMessageAt = _sessions.Now;
+        }
+
+        Refresh();
+    }
+
+    /// <summary>A short muted line after a refused "+10 min"; empty otherwise.</summary>
+    [ObservableProperty]
+    public partial string ExtendMessage { get; set; } = string.Empty;
+
+    private DateTimeOffset _extendMessageAt;
 
     /// <summary>Someone at the desk or a call: the other flavour of Step away.</summary>
     [RelayCommand]
@@ -249,6 +291,9 @@ public sealed partial class FocusViewModel : ObservableObject
             IsAway = false;
             IsSideTask = IsPlainAway = false;
             StepAwayText = "Step away";
+            FocusLengthText = string.Empty;
+            ShowsExtend = CanExtend = false;
+            RefreshTickHint();
             RefreshTasks();
             return;
         }
@@ -259,9 +304,12 @@ public sealed partial class FocusViewModel : ObservableObject
         string who = state.IsTest ? "Test session" : state.IsPlanning ? $"Planning · {profile}" : state.IsEnforcing ? profile : "Break";
         TimeZoneInfo zone = _sessions.TimeProvider.LocalTimeZone;
         string what = state.IsTest ? "Test session" : state.IsPlanning ? $"Planning · {profile}" : state.IsEnforcing ? $"{profile} profile" : "Break";
-        SessionLineText = state.PhaseEndsAt is DateTimeOffset phaseEnd
-            ? $"{what} · ends {TimeZoneInfo.ConvertTime(phaseEnd, zone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}"
-            : $"{what} · since {TimeZoneInfo.ConvertTime(state.PhaseStartedAt ?? now, zone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}";
+        string awayText = _stepAway?.AwayText ?? string.Empty;
+        SessionLineText = state.IsAway && awayText.Length > 0
+            ? $"{awayText} · {profile} profile"
+            : state.PhaseEndsAt is DateTimeOffset phaseEnd
+                ? $"{what} · ends {TimeZoneInfo.ConvertTime(phaseEnd, zone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}"
+                : $"{what} · since {TimeZoneInfo.ConvertTime(state.PhaseStartedAt ?? now, zone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}";
         if (state.PhaseEndsAt is DateTimeOffset end)
         {
             TimeLeftText = SessionStatusFormatter.FormatDuration(end - clock);
@@ -276,10 +324,20 @@ public sealed partial class FocusViewModel : ObservableObject
             PhaseText = $"so far · {who} · since {TimeZoneInfo.ConvertTime(since, zone):t}";
         }
 
+        FocusLengthText = state.IsPlanning && state.FocusLengthAfterPlanning is TimeSpan focusLength
+            ? SessionStatusFormatter.FormatDuration(focusLength)
+            : string.Empty;
+        ShowsExtend = CanExtend = state.CanExtendFocus;
+        if (ExtendMessage.Length > 0 && now - _extendMessageAt > TimeSpan.FromSeconds(4))
+        {
+            ExtendMessage = string.Empty;
+        }
+        RefreshTickHint();
+
         IsAway = state.IsAway;
         IsSideTask = state.Away == AwayKind.SideTask;
         IsPlainAway = state.IsAway && !IsSideTask;
-        AwayText = _stepAway?.AwayText ?? string.Empty;
+        AwayText = awayText;
         StepAwayText = state.IsAway ? "I'm back" : "Step away";
         FocusedTodayText = _day?.SummaryText ?? string.Empty;
         PhoneText = PhoneLine?.Invoke() ?? string.Empty;
@@ -291,9 +349,13 @@ public sealed partial class FocusViewModel : ObservableObject
     private void RefreshChip(ChecklistViewModel? checklist)
     {
         SessionState state = _sessions.State;
-        string label = state.IsTest ? "Test session" : state.IsEnforcing ? "Focus" : "Break";
+        string label = state.IsTest ? "Test session"
+            : state.Away == AwayKind.SideTask ? "Side task"
+            : state.Away == AwayKind.Interrupted ? "Interrupted"
+            : state.IsAway ? "Stepped away"
+            : state.IsEnforcing ? "Focus" : "Break";
         string[] counts = checklist?.ProgressText.Split('/') ?? [];
-        bool hasCurrentTask = checklist is { CurrentTaskNumber: > 0 } && counts.Length == 2
+        bool hasCurrentTask = label == "Focus" && checklist is { CurrentTaskNumber: > 0 } && counts.Length == 2
             && int.TryParse(counts[0], out int done) && int.TryParse(counts[1], out int total) && done < total;
         ChipText = hasCurrentTask ? $"{label} · {int.Parse(counts[0]) + checklist!.CurrentTaskNumber} of {counts[1]}" : label;
     }
@@ -305,6 +367,9 @@ public sealed partial class FocusViewModel : ObservableObject
             ? $"{checklist.CurrentTaskNumber}. {checklist.CurrentTaskText}"
             : checklist?.CurrentTaskText ?? string.Empty;
         CurrentSubtaskText = checklist?.CurrentSubtaskText ?? string.Empty;
+        TitleText = checklist is { HasTasks: true } && checklist.CurrentTaskText.Length > 0
+            ? checklist.CurrentTaskText
+            : (ProfileOptions.NameOf(_configuration.Current.Profiles, _sessions.State.ProfileId) ?? "Focus");
         NowText = checklist is { HasTasks: true } ? $"Now · {checklist.ProgressText.Replace("/", " of ")} done" : string.Empty;
         RefreshChip(checklist);
         OnPropertyChanged(nameof(HasTasks));

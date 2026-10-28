@@ -96,7 +96,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
     /// <summary>The shutdown card after the day's last work part (redesign phase 5); null hides it.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsShutdown))]
+    [NotifyPropertyChangedFor(nameof(ShowsShutdown), nameof(CardState))]
     public partial ShutdownCardViewModel? Shutdown { get; set; }
 
     /// <summary>The shutdown card takes the main card's place, unless a session runs (started from a hotkey, the tray or the popup).</summary>
@@ -116,16 +116,90 @@ public sealed partial class SessionViewModel : ObservableObject
     public partial SessionReviewViewModel? Review { get; set; }
 
     /// <summary>Focus mode: what the page shows while a session runs (set by the app).</summary>
-    public FocusViewModel? Focus { get; set; }
+    public FocusViewModel? Focus
+    {
+        get => _focus;
+        set
+        {
+            if (_focus is not null)
+            {
+                _focus.PropertyChanged -= OnFocusPropertyChanged;
+            }
+
+            _focus = value;
+            if (_focus is not null)
+            {
+                _focus.PropertyChanged += OnFocusPropertyChanged;
+            }
+
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CardState));
+        }
+    }
+
+    private FocusViewModel? _focus;
+
+    /// <summary>What the main card shows now; the page scrolls back to its top when it changes.</summary>
+    public TodayCardState CardState => ShowsShutdown ? TodayCardState.Shutdown
+        : ShowsWelcome ? TodayCardState.Welcome
+        : !IsSessionActive ? TodayCardState.Idle
+        : Focus is { IsPlanning: true } ? TodayCardState.Planning
+        : TodayCardState.Running;
+
+    private void OnFocusPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(FocusViewModel.IsPlanning))
+        {
+            OnPropertyChanged(nameof(CardState));
+        }
+    }
 
     /// <summary>Hide or show the on-screen timer for the running session.</summary>
     public TimerToggleViewModel? TimerToggle { get; init; }
 
     /// <summary>Today's plan, for the "next scheduled" line.</summary>
-    public DayBarViewModel? Day { get; init; }
+    public DayBarViewModel? Day
+    {
+        get => _day;
+        init
+        {
+            _day = value;
+            if (_day is not null)
+            {
+                _day.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(DayBarViewModel.StatusText))
+                    {
+                        OnPropertyChanged(nameof(IdleNextText));
+                    }
+                };
+            }
+        }
+    }
+
+    private readonly DayBarViewModel? _day;
+
+    /// <summary>The line under "Nothing running.": the next block as the day bar's status says it, e.g. "Deep work at 3:00 PM."; empty without one.</summary>
+    public string IdleNextText
+    {
+        get
+        {
+            string text = Day?.StatusText ?? string.Empty;
+            const string next = "Next: ";
+            if (text.StartsWith(next, StringComparison.Ordinal))
+            {
+                text = text[next.Length..];
+            }
+
+            return text.Length == 0 || text.EndsWith('.') ? text : text + ".";
+        }
+    }
 
     /// <summary>Today's "Next up" card: the next two plan parts (set by the app).</summary>
     public NextUpViewModel? NextUp { get; set; }
+
+    /// <summary>"Seen while planning": the sites and apps with no rule noticed during the planning stage (set by the app).</summary>
+    public SeenWhilePlanningViewModel? SeenWhilePlanning { get; set; }
 
     /// <summary>The count on the "More today" fold's header (set by the app, after the cards inside are).</summary>
     public MoreTodayViewModel? MoreToday { get; set; }
@@ -159,11 +233,11 @@ public sealed partial class SessionViewModel : ObservableObject
     public partial string? ErrorMessage { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsStart), nameof(ShowsWelcome))]
+    [NotifyPropertyChangedFor(nameof(ShowsStart), nameof(ShowsWelcome), nameof(CardState))]
     public partial bool HasNoProfiles { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsStart), nameof(ShowsWelcome), nameof(ShowsShutdown))]
+    [NotifyPropertyChangedFor(nameof(ShowsStart), nameof(ShowsWelcome), nameof(ShowsShutdown), nameof(CardState))]
     [NotifyCanExecuteChangedFor(nameof(EndSessionCommand))]
     public partial bool IsSessionActive { get; set; }
 

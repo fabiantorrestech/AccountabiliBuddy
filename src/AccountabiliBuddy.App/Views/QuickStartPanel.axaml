@@ -2,9 +2,14 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:views="using:AccountabiliBuddy.App.Views"
+             xmlns:search="using:AccountabiliBuddy.App.Services.Search"
              x:Class="AccountabiliBuddy.App.Views.QuickStartPanel"
              x:DataType="vm:QuickSessionViewModel">
     <UserControl.Styles>
+        <!-- In Today's flyout the options are all there is: no fold header over them (the flyout opens them). -->
+        <Style Selector="Expander.flat /template/ ToggleButton#ExpanderHeader">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
         <!-- Length presets: outlined, the chosen one filled and in bold ink (accent stays on Start). -->
         <Style Selector="Button.preset /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
@@ -31,11 +36,11 @@
          session. Used by the quick-session popup and the Today tab (which folds No set end under "Other ways to start"). -->
     <StackPanel Spacing="16">
         <!-- Guided sessions: what this session is for, as tasks with subtasks (optional). -->
-        <Panel IsVisible="{Binding Checklist, Converter={x:Static ObjectConverters.IsNotNull}}">
-            <views:ChecklistView DataContext="{Binding Checklist}" />
+        <Panel IsVisible="{Binding Checklist, Converter={x:Static ObjectConverters.IsNotNull}}" search:SearchArea.Skip="True">
+            <views:ChecklistView DataContext="{Binding Checklist}" IsVisible="{Binding $parent[views:QuickStartPanel].ShowsTasks}" />
         </Panel>
 
-        <WrapPanel ItemSpacing="8" LineSpacing="8">
+        <WrapPanel ItemSpacing="8" LineSpacing="8" IsVisible="{Binding $parent[views:QuickStartPanel].ShowsStartRow}" search:SearchArea.Skip="True">
             <Button Classes="primary" Content="{Binding StartLabel}" Command="{Binding StartCommand}"
                     CornerRadius="999" Padding="30,16" FontSize="16" FontWeight="SemiBold"
                     HorizontalContentAlignment="Center" AutomationProperties.Name="Start" />
@@ -58,7 +63,11 @@
                     ToolTip.Tip="Starts the profile picked under More options with no set end and no countdown. The on-screen bar fills each hour and glows every 30 minutes with how long you've been at it; hold Ctrl+Alt to see it any time." />
         </WrapPanel>
 
-        <Expander Header="More options: profile, length, break" HorizontalAlignment="Stretch" IsExpanded="{Binding ShowsOptions}">
+        <Expander HorizontalAlignment="Stretch" IsExpanded="{Binding ShowsOptions}"
+                  Classes.flat="{Binding $parent[views:QuickStartPanel].IsOptionsOnly}">
+            <Expander.Header>
+                <TextBlock Text="More options: profile, length, break" search:SearchArea.Skip="True" />
+            </Expander.Header>
             <StackPanel Spacing="16" Margin="0,8,0,0">
                 <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding HasProfiles}">
                     <TextBlock Classes="muted" Text="Profile" VerticalAlignment="Center" Margin="0,0,12,0" />

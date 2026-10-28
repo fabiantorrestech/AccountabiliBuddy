@@ -52,6 +52,20 @@ public sealed partial class TaskRowViewModel : ChecklistRowViewModel
 
     public bool HasSubtasks => Subtasks.Count > 0;
 
+    /// <summary>"3 steps" (or "1 step") on Today's numbered row; empty with none.</summary>
+    public string StepsText => Subtasks.Count switch
+    {
+        0 => string.Empty,
+        1 => "1 step",
+        int count => $"{count} steps",
+    };
+
+    /// <summary>A category besides "No category" exists, so its picker shows in the row's flyout.</summary>
+    public bool HasCategoryChoices => CategoryChoices.Count > 1;
+
+    /// <summary>⚑ is offered: where the come-backs exist.</summary>
+    public bool CanPark => Tasks.Comebacks is not null;
+
     /// <summary>Its category; null = no category.</summary>
     public Guid? CategoryId { get; }
 

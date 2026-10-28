@@ -93,6 +93,9 @@ public static class SessionHistoryBuilder
                 case SessionEventKind.SideTaskExtended:
                     continue; // Only its reason matters, and that stays encrypted; it neither opens nor closes a session.
 
+                case SessionEventKind.FocusExtended:
+                    continue; // The session simply ran longer: its end comes from the Completed/Ended event; it neither opens nor closes one.
+
                 case SessionEventKind.Interrupted:
                     interruptedAt = sessionEvent.At;
                     continue;

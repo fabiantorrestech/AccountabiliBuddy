@@ -75,6 +75,9 @@ public sealed class SessionController : IDisposable
     /// <summary>Raised when the user adds time to a side task, with the reason they gave (for the activity log).</summary>
     public event EventHandler<SideTaskExtension>? SideTaskExtended;
 
+    /// <summary>Raised with the new state when "+10 min" lengthened the running focus phase (for the activity log).</summary>
+    public event EventHandler<SessionState>? FocusExtended;
+
     /// <summary>Raised at launch when a session saved before the app stopped was put back (before catching up).</summary>
     public event EventHandler<SessionResume>? SessionResumed;
 
@@ -191,6 +194,22 @@ public sealed class SessionController : IDisposable
         }
 
         SideTaskExtended?.Invoke(this, new SideTaskExtension(_engine.State, reason));
+        return true;
+    }
+
+    /// <summary>
+    /// "+10 min": the running timed manual focus phase gets <paramref name="extra"/> more, at once (the stricter direction; see
+    /// <see cref="SessionEngine.ExtendFocus"/>). Every view reads the new end from the session's state.
+    /// </summary>
+    /// <returns>False when it was refused (planning, a break, away, Pomodoro, no set end, a test session).</returns>
+    public bool ExtendFocus(TimeSpan extra)
+    {
+        if (!_engine.ExtendFocus(extra))
+        {
+            return false;
+        }
+
+        FocusExtended?.Invoke(this, _engine.State);
         return true;
     }
 

@@ -57,6 +57,7 @@ public sealed class ActivityRecorder : IDisposable
         _sessions.SessionEnded += OnSessionEnded;
         _sessions.SessionResumed += OnSessionResumed;
         _sessions.SideTaskExtended += OnSideTaskExtended;
+        _sessions.FocusExtended += OnFocusExtended;
         _privacy.Changed += OnPrivacyChanged;
 
         _pruneTimer = new DispatcherTimer { Interval = PruneInterval };
@@ -152,6 +153,7 @@ public sealed class ActivityRecorder : IDisposable
         _sessions.SessionEnded -= OnSessionEnded;
         _sessions.SessionResumed -= OnSessionResumed;
         _sessions.SideTaskExtended -= OnSideTaskExtended;
+        _sessions.FocusExtended -= OnFocusExtended;
         _privacy.Changed -= OnPrivacyChanged;
 
         // Keep what was on screen up to now; give the disk a moment, but never hang the exit.
@@ -228,6 +230,17 @@ public sealed class ActivityRecorder : IDisposable
         {
             var extended = new SessionEvent(
                 _timeProvider.GetUtcNow(), SessionEventKind.SideTaskExtended, extension.State.Mode, extension.State.ProfileId, Reason: extension.Reason);
+            Enqueue(() => _log.RecordSessionEventAsync(extended));
+        }
+    }
+
+    // "+10 min": no text of the user's is involved (the engine refuses a test session, which leaves no events anyway).
+    private void OnFocusExtended(object? sender, SessionState state)
+    {
+        if (IsEnabled && !state.IsTest)
+        {
+            var extended = new SessionEvent(
+                _timeProvider.GetUtcNow(), SessionEventKind.FocusExtended, state.Mode, state.ProfileId, PlannedEnd: state.PhaseEndsAt);
             Enqueue(() => _log.RecordSessionEventAsync(extended));
         }
     }

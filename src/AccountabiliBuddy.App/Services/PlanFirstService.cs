@@ -124,6 +124,9 @@ public sealed class PlanFirstService : IDisposable
     /// <summary>Raised when <see cref="Card"/> opens or closes, and when an unanswered one is due again (the app shows or raises the window).</summary>
     public event EventHandler? CardChanged;
 
+    /// <summary>Raised when <see cref="HeldUnknowns"/> gains an item or is emptied (a session beginning), for Today's "Seen while planning" card.</summary>
+    public event EventHandler? HeldUnknownsChanged;
+
     /// <summary>Raised once when planning ends (the session may have ended too).</summary>
     public event EventHandler? Ended;
 
@@ -142,6 +145,7 @@ public sealed class PlanFirstService : IDisposable
         if (IsPlanning && _heldSubjects.Add(EnforcementEngine.ClassificationSubject(snapshot)))
         {
             _held.Add(snapshot);
+            HeldUnknownsChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -290,8 +294,14 @@ public sealed class PlanFirstService : IDisposable
 
     private void Begin(bool learning)
     {
+        bool hadHeld = _held.Count > 0;
         _held.Clear();
         _heldSubjects.Clear();
+        if (hadHeld)
+        {
+            HeldUnknownsChanged?.Invoke(this, EventArgs.Empty);
+        }
+
         _endedAt = null;
         _extensions = 0;
         _chimedFor = -1;

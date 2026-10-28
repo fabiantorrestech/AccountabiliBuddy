@@ -52,10 +52,6 @@ public sealed partial class TimersViewModel : ObservableObject
     [ObservableProperty]
     public partial decimal? CustomMinutes { get; set; }
 
-    /// <summary>The alarm form, folded until "Add alarm".</summary>
-    [ObservableProperty]
-    public partial bool IsAddingAlarm { get; set; }
-
     [ObservableProperty]
     public partial string NewAlarmName { get; set; }
 
@@ -85,12 +81,6 @@ public sealed partial class TimersViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ToggleAddAlarm()
-    {
-        IsAddingAlarm = !IsAddingAlarm;
-    }
-
-    [RelayCommand]
     private async Task AddAlarmAsync()
     {
         if (NewAlarmTime is not TimeSpan time)
@@ -100,7 +90,6 @@ public sealed partial class TimersViewModel : ObservableObject
 
         List<DayOfWeek> days = NewAlarmDays.Where(day => day.IsOn).Select(day => day.Day).ToList();
         string name = NewAlarmName;
-        IsAddingAlarm = false;
         NewAlarmName = string.Empty;
         NewAlarmDays = DayToggleViewModel.Week();
         await _timers.AddAlarmAsync(name, TimeOnly.FromTimeSpan(time), days);
