@@ -138,7 +138,7 @@
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style Selector="TextBlock.big">
-            <Setter Property="FontSize" Value="19" />
+            <Setter Property="FontSize" Value="17" />
         </Style>
     </UserControl.Styles>
 
@@ -176,25 +176,25 @@
             <Border Classes="section">
                 <StackPanel Spacing="2">
                     <TextBlock Text="Focus time" Classes="muted" FontSize="12" />
-                    <TextBlock Text="{Binding FocusTimeText}" Classes="big numeral" />
+                    <TextBlock Text="{Binding FocusTimeText}" Classes="big numeral" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
             <Border Classes="section">
                 <StackPanel Spacing="2">
                     <TextBlock Text="On track" Classes="muted" FontSize="12" />
-                    <TextBlock Text="{Binding OnTrackText}" Classes="big numeral" Foreground="{DynamicResource Ab.Met}" />
+                    <TextBlock Text="{Binding OnTrackText}" Classes="big numeral" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Met}" />
                 </StackPanel>
             </Border>
             <Border Classes="section">
                 <StackPanel Spacing="2">
                     <TextBlock Text="Distracted" Classes="muted" FontSize="12" />
-                    <TextBlock Text="{Binding DistractedText}" Classes="big numeral" Foreground="{DynamicResource Ab.Waiting}" />
+                    <TextBlock Text="{Binding DistractedText}" Classes="big numeral" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Waiting}" />
                 </StackPanel>
             </Border>
             <Border Classes="section">
                 <StackPanel Spacing="2">
                     <TextBlock Text="Not classified" Classes="muted" FontSize="12" />
-                    <TextBlock Text="{Binding UnknownText}" Classes="big numeral" />
+                    <TextBlock Text="{Binding UnknownText}" Classes="big numeral" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
         </UniformGrid>
