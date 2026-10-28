@@ -23,6 +23,23 @@ public static class DeepWork
         DateTimeOffset now,
         TimeZoneInfo zone)
     {
+        return DaysIn(Windows(records, others, isOmitted, sessionRunning, now, zone), from, to);
+    }
+
+    /// <summary>
+    /// The stretches of counted focus across the user's devices as local wall-clock windows, earliest first, time two devices
+    /// both had in focus counted once (the Stats page draws its day strip and intensity grid from these).
+    /// </summary>
+    /// <param name="records">This PC's sessions, newest first (<see cref="SessionHistoryBuilder.Build"/>).</param>
+    /// <param name="others">The other devices' sessions (ADR 22); one without an end runs until <paramref name="now"/>.</param>
+    public static IReadOnlyList<LocalWindow> Windows(
+        IReadOnlyList<SessionRecord> records,
+        IEnumerable<SyncSession> others,
+        Func<DateTimeOffset, bool> isOmitted,
+        bool sessionRunning,
+        DateTimeOffset now,
+        TimeZoneInfo zone)
+    {
         var windows = new List<LocalWindow>();
         foreach ((SessionRecord record, DateTimeOffset end, bool _) in FocusDayBuilder.CountedRecords(records, isOmitted, sessionRunning, now))
         {
@@ -42,7 +59,12 @@ public static class DeepWork
             }
         }
 
-        IReadOnlyList<LocalWindow> focused = DayTimeline.Union(windows);
+        return DayTimeline.Union(windows);
+    }
+
+    /// <summary>Each date from <paramref name="from"/> to <paramref name="to"/> with the part of <paramref name="focused"/> inside it.</summary>
+    public static IReadOnlyList<DeepWorkDay> DaysIn(IReadOnlyList<LocalWindow> focused, DateOnly from, DateOnly to)
+    {
         var days = new List<DeepWorkDay>();
         for (DateOnly date = from; date <= to; date = date.AddDays(1))
         {
