@@ -117,6 +117,12 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Today's plan, for the "next scheduled" line.</summary>
     public DayBarViewModel? Day { get; init; }
 
+    /// <summary>Today's "Next up" card: the next two plan parts (set by the app).</summary>
+    public NextUpViewModel? NextUp { get; set; }
+
+    /// <summary>The count on the "More today" fold's header (set by the app, after the cards inside are).</summary>
+    public MoreTodayViewModel? MoreToday { get; set; }
+
     /// <summary>Which Cold Turkey blocks are on.</summary>
     public ColdTurkeyStatusViewModel? ColdTurkey { get; init; }
 

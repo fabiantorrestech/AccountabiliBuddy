@@ -74,7 +74,7 @@
         <Style Selector="Border.dropLine">
             <Setter Property="Height" Value="2" />
             <Setter Property="CornerRadius" Value="1" />
-            <Setter Property="Background" Value="#2A9D8F" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Ink}" />
             <Setter Property="IsHitTestVisible" Value="False" />
         </Style>
     </UserControl.Styles>
@@ -264,7 +264,7 @@
             <StackPanel Spacing="6">
                 <TextBlock Text="{Binding OverLimitText}" TextWrapping="Wrap" FontWeight="SemiBold" />
                 <TextBox Text="{Binding OverLimitReason}" PlaceholderText="Or add it anyway: why? (10+ characters, stays on this PC)" />
-                <TextBlock Text="{Binding OverLimitError}" Foreground="#E5484D" TextWrapping="Wrap"
+                <TextBlock Text="{Binding OverLimitError}" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap"
                            IsVisible="{Binding OverLimitError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 <StackPanel Orientation="Horizontal" Spacing="6">
                     <Button Classes="small" Content="Park it" Command="{Binding ParkHeldTaskCommand}" />

@@ -5,57 +5,58 @@
              x:Class="AccountabiliBuddy.App.Views.TimersCardView"
              x:DataType="vm:TimersViewModel">
     <!-- Timers and alarms (V1, this PC only): named, editable, several at once. When one is up the on-screen window glows,
-         the time-up chime plays and a small window asks Dismiss / +1 min (alarms: Snooze 9 min). -->
-    <Border Padding="16" CornerRadius="10" Background="#1A38BDF8" BorderBrush="#5538BDF8" BorderThickness="1">
-        <StackPanel Spacing="10">
+         the time-up chime plays and a small window asks Dismiss / +1 min (alarms: Snooze 9 min). It sits in Today's side
+         column (330 wide), so each row is two lines: what it is, then its buttons. -->
+    <Border Classes="card">
+        <StackPanel Spacing="12">
             <StackPanel Orientation="Horizontal" Spacing="8">
-                <mi:MaterialIcon Kind="Timer" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
-                <TextBlock Text="Timers &amp; alarms" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <mi:MaterialIcon Kind="Timer" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                <TextBlock Classes="section" Text="Timers &amp; alarms" VerticalAlignment="Center" />
             </StackPanel>
 
             <!-- A new timer: a name if you like, then a preset or any length. It starts at once. -->
             <WrapPanel ItemSpacing="6" LineSpacing="6">
-                <TextBox Text="{Binding NewTimerName}" PlaceholderText="Name (Timer)" Width="150" />
+                <TextBox Text="{Binding NewTimerName}" PlaceholderText="Name (Timer)" Width="130" />
                 <Button Content="5 min" Command="{Binding StartPresetCommand}" CommandParameter="5" />
                 <Button Content="10 min" Command="{Binding StartPresetCommand}" CommandParameter="10" />
                 <Button Content="15 min" Command="{Binding StartPresetCommand}" CommandParameter="15" />
                 <Button Content="25 min" Command="{Binding StartPresetCommand}" CommandParameter="25" />
-                <NumericUpDown Value="{Binding CustomMinutes}" Minimum="1" Maximum="1440" Increment="5" FormatString="0" Width="120"
+                <NumericUpDown Value="{Binding CustomMinutes}" Minimum="1" Maximum="1440" Increment="5" FormatString="0" Width="110"
                                ToolTip.Tip="Minutes" />
-                <Button Content="Start" Command="{Binding StartCustomCommand}" Classes="accent" ToolTip.Tip="Start a timer for these minutes" />
+                <Button Content="Start" Command="{Binding StartCustomCommand}" ToolTip.Tip="Start a timer for these minutes" />
             </WrapPanel>
 
             <ItemsControl ItemsSource="{Binding Timers}" IsVisible="{Binding HasTimers}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:TimerRowViewModel">
-                        <StackPanel Margin="0,2" Spacing="4">
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                                <mi:MaterialIcon Kind="Timer" Width="16" Height="16" VerticalAlignment="Center" Opacity="0.7" />
+                        <StackPanel Margin="0,4" Spacing="4">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                <mi:MaterialIcon Kind="Timer" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{Binding TimeText}" FontSize="12" Opacity="0.75" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
-                                    <Button Command="{Binding PauseResumeCommand}" ToolTip.Tip="{Binding PauseTip}" Padding="8,4">
-                                        <mi:MaterialIcon Kind="{Binding PauseIcon}" Width="16" Height="16" />
-                                    </Button>
-                                    <Button Content="+1 min" Command="{Binding AddMinuteCommand}" ToolTip.Tip="A minute more" />
-                                    <Button Command="{Binding ResetCommand}" ToolTip.Tip="Back to its whole length, paused" Padding="8,4">
-                                        <mi:MaterialIcon Kind="Restore" Width="16" Height="16" />
-                                    </Button>
-                                    <Button Content="✎" Command="{Binding EditCommand}" ToolTip.Tip="Rename or change its length" Padding="8,2" />
-                                    <Button Command="{Binding DeleteCommand}" ToolTip.Tip="Delete" Padding="8,4">
-                                        <mi:MaterialIcon Kind="DeleteOutline" Width="16" Height="16" />
-                                    </Button>
+                                    <TextBlock Classes="muted numeral" Text="{Binding TimeText}" FontSize="12" />
                                 </StackPanel>
                             </Grid>
-                            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsEditing}" Margin="24,0,0,0">
-                                <TextBox Text="{Binding EditName}" PlaceholderText="Timer" Width="150" />
-                                <NumericUpDown Value="{Binding EditMinutes}" Minimum="1" Maximum="1440" Increment="1" FormatString="0" Width="120" />
-                                <TextBlock Text="minutes" VerticalAlignment="Center" />
-                                <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" />
-                                <Button Content="Cancel" Command="{Binding CancelCommand}" />
+                            <StackPanel Orientation="Horizontal" Spacing="4" Margin="24,0,0,0">
+                                <Button Command="{Binding PauseResumeCommand}" ToolTip.Tip="{Binding PauseTip}" Padding="8,4">
+                                    <mi:MaterialIcon Kind="{Binding PauseIcon}" Width="16" Height="16" />
+                                </Button>
+                                <Button Content="+1 min" Command="{Binding AddMinuteCommand}" ToolTip.Tip="A minute more" />
+                                <Button Command="{Binding ResetCommand}" ToolTip.Tip="Back to its whole length, paused" Padding="8,4">
+                                    <mi:MaterialIcon Kind="Restore" Width="16" Height="16" />
+                                </Button>
+                                <Button Content="✎" Command="{Binding EditCommand}" ToolTip.Tip="Rename or change its length" Padding="8,2" />
+                                <Button Command="{Binding DeleteCommand}" ToolTip.Tip="Delete" Padding="8,4">
+                                    <mi:MaterialIcon Kind="DeleteOutline" Width="16" Height="16" />
+                                </Button>
                             </StackPanel>
+                            <WrapPanel ItemSpacing="8" LineSpacing="6" IsVisible="{Binding IsEditing}" Margin="24,0,0,0">
+                                <TextBox Text="{Binding EditName}" PlaceholderText="Timer" Width="130" />
+                                <NumericUpDown Value="{Binding EditMinutes}" Minimum="1" Maximum="1440" Increment="1" FormatString="0" Width="110" />
+                                <TextBlock Text="minutes" VerticalAlignment="Center" />
+                                <Button Content="Save" Command="{Binding SaveCommand}" />
+                                <Button Content="Cancel" Command="{Binding CancelCommand}" />
+                            </WrapPanel>
                         </StackPanel>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
@@ -64,44 +65,44 @@
             <ItemsControl ItemsSource="{Binding Alarms}" IsVisible="{Binding HasAlarms}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:AlarmRowViewModel">
-                        <StackPanel Margin="0,2" Spacing="4">
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                                <mi:MaterialIcon Kind="Alarm" Width="16" Height="16" VerticalAlignment="Center" Opacity="0.7" />
+                        <StackPanel Margin="0,4" Spacing="4">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                <mi:MaterialIcon Kind="Alarm" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                     <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
                                         <Run Text="{Binding TimeText}" />
                                         <Run Text=" · " />
                                         <Run Text="{Binding Name}" />
                                     </TextBlock>
-                                    <TextBlock Text="{Binding DaysText}" FontSize="12" Opacity="0.75" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
-                                    <ToggleSwitch IsChecked="{Binding IsOn}" OnContent="" OffContent="" ToolTip.Tip="On or off" VerticalAlignment="Center" />
-                                    <Button Content="✎" Command="{Binding EditCommand}" ToolTip.Tip="Change its name, time or days" Padding="8,2" />
-                                    <Button Command="{Binding DeleteCommand}" ToolTip.Tip="Delete" Padding="8,4">
-                                        <mi:MaterialIcon Kind="DeleteOutline" Width="16" Height="16" />
-                                    </Button>
+                                    <TextBlock Classes="muted" Text="{Binding DaysText}" FontSize="12" />
                                 </StackPanel>
                             </Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="4" Margin="24,0,0,0">
+                                <ToggleSwitch IsChecked="{Binding IsOn}" OnContent="" OffContent="" ToolTip.Tip="On or off" VerticalAlignment="Center" />
+                                <Button Content="✎" Command="{Binding EditCommand}" ToolTip.Tip="Change its name, time or days" Padding="8,2" />
+                                <Button Command="{Binding DeleteCommand}" ToolTip.Tip="Delete" Padding="8,4">
+                                    <mi:MaterialIcon Kind="DeleteOutline" Width="16" Height="16" />
+                                </Button>
+                            </StackPanel>
                             <StackPanel Spacing="6" IsVisible="{Binding IsEditing}" Margin="24,0,0,0">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBox Text="{Binding EditName}" PlaceholderText="Alarm" Width="150" />
+                                <WrapPanel ItemSpacing="8" LineSpacing="6">
+                                    <TextBox Text="{Binding EditName}" PlaceholderText="Alarm" Width="130" />
                                     <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding EditTime}" MinuteIncrement="1" />
-                                </StackPanel>
+                                </WrapPanel>
                                 <ItemsControl ItemsSource="{Binding EditDays}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
-                                            <StackPanel Orientation="Horizontal" Spacing="4" />
+                                            <WrapPanel ItemSpacing="4" LineSpacing="4" />
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:DayToggleViewModel">
-                                            <ToggleButton Content="{Binding Label}" IsChecked="{Binding IsOn}" Padding="8,2" />
+                                            <ToggleButton Classes="choice" Content="{Binding Label}" IsChecked="{Binding IsOn}" Padding="8,2" />
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" />
+                                    <Button Content="Save" Command="{Binding SaveCommand}" />
                                     <Button Content="Cancel" Command="{Binding CancelCommand}" />
                                 </StackPanel>
                             </StackPanel>
@@ -117,26 +118,26 @@
                 </StackPanel>
             </Button>
             <StackPanel Spacing="6" IsVisible="{Binding IsAddingAlarm}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBox Text="{Binding NewAlarmName}" PlaceholderText="Name (Alarm)" Width="150" />
+                <WrapPanel ItemSpacing="8" LineSpacing="6">
+                    <TextBox Text="{Binding NewAlarmName}" PlaceholderText="Name (Alarm)" Width="130" />
                     <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding NewAlarmTime}" MinuteIncrement="1" />
-                </StackPanel>
+                </WrapPanel>
                 <ItemsControl ItemsSource="{Binding NewAlarmDays}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" Spacing="4" />
+                            <WrapPanel ItemSpacing="4" LineSpacing="4" />
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:DayToggleViewModel">
-                            <ToggleButton Content="{Binding Label}" IsChecked="{Binding IsOn}" Padding="8,2" />
+                            <ToggleButton Classes="choice" Content="{Binding Label}" IsChecked="{Binding IsOn}" Padding="8,2" />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-                <TextBlock Text="No days ticked: it rings once. It rings while this PC is awake (it doesn't wake a sleeping PC)."
-                           FontSize="12" Opacity="0.6" TextWrapping="Wrap" />
+                <TextBlock Classes="faint" Text="No days ticked: it rings once. It rings while this PC is awake (it doesn't wake a sleeping PC)."
+                           FontSize="12" TextWrapping="Wrap" />
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Content="Add alarm" Command="{Binding AddAlarmCommand}" Classes="accent" />
+                    <Button Content="Add alarm" Command="{Binding AddAlarmCommand}" />
                     <Button Content="Cancel" Command="{Binding ToggleAddAlarmCommand}" />
                 </StackPanel>
             </StackPanel>

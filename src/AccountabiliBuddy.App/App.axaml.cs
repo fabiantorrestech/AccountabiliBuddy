@@ -1147,6 +1147,8 @@ public partial class App : Application
         syncSettings.Changed += (_, _) => setupFeatures.Refresh();
         _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
         sessionViewModel.WhatsNew = new WhatsNewCardViewModel(setupFeatures, ShowWhatsNew);
+        sessionViewModel.NextUp = new NextUpViewModel(_configuration, time, sessionViewModel.Day);
+        sessionViewModel.MoreToday = new MoreTodayViewModel(sessionViewModel);
         mainViewModel.Settings.Updates.OpenWhatsNew = ShowWhatsNew;
         mainViewModel.Settings.Updates.ShowEmergencyRelease = () => ShowColdTurkeyKey(ColdTurkeyKeyMode.Emergency);
         mainViewModel.Settings.Updates.ShowNewSpareKey = () => ShowColdTurkeyKey(ColdTurkeyKeyMode.NewKey);

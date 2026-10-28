@@ -63,6 +63,18 @@ public sealed partial class GoalCardViewModel : ObservableObject
     [ObservableProperty]
     public partial double Percent { get; set; }
 
+    /// <summary>0 to 1, for the ring on Today.</summary>
+    [ObservableProperty]
+    public partial double Fraction { get; set; }
+
+    /// <summary>The ring's big number, e.g. "1h 10m".</summary>
+    [ObservableProperty]
+    public partial string FocusedText { get; set; } = string.Empty;
+
+    /// <summary>The line under it, e.g. "of 2h today".</summary>
+    [ObservableProperty]
+    public partial string OfGoalText { get; set; } = string.Empty;
+
     [ObservableProperty]
     public partial bool IsMet { get; set; }
 
@@ -114,6 +126,9 @@ public sealed partial class GoalCardViewModel : ObservableObject
     {
         Text = _deepWork.Progress.Text;
         Percent = _deepWork.Progress.Fraction * 100;
+        Fraction = _deepWork.Progress.Fraction;
+        FocusedText = GoalProgress.Duration(_deepWork.Progress.Focused);
+        OfGoalText = $"of {GoalProgress.Duration(_deepWork.Progress.Goal)} today";
         IsMet = _deepWork.Progress.Met;
         RefreshPhone();
         RefreshPace();
