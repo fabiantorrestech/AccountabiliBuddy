@@ -25,16 +25,19 @@
             <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
         </Style>
         <Style Selector="ListBox.segmented > ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
-            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style Selector="ListBox.segmented > ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
-            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style Selector="ListBox.segmented > ListBoxItem:selected:focus /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
-            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
     </UserControl.Styles>
 
@@ -68,7 +71,7 @@
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBox Text="{Binding LatitudeText}" PlaceholderText="Latitude, e.g. 51.50" Width="170" />
                         <TextBox Text="{Binding LongitudeText}" PlaceholderText="Longitude, e.g. -0.12" Width="170" />
-                        <Button Content="Use this place" Command="{Binding UseTypedPlaceCommand}" Classes="primary" />
+                        <Button Content="Use this place" Command="{Binding UseTypedPlaceCommand}" />
                     </StackPanel>
                     <TextBlock Classes="muted" TextWrapping="Wrap" Text="{Binding TypedMessage}"
                                IsVisible="{Binding TypedMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />

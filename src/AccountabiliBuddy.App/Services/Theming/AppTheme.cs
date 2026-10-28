@@ -3,6 +3,7 @@ using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
+using AccountabiliBuddy.Platform.Windows.Security;
 using Avalonia;
 using Avalonia.Styling;
 using Avalonia.Threading;
@@ -117,7 +118,9 @@ public sealed class AppTheme : IDisposable
                     LocationAccess.Unavailable => Place is null
                         ? "Windows couldn't work out a location, so the set times are used. It tries again tomorrow."
                         : "Windows couldn't work out a location today, so the last place it gave is used.",
-                    _ => Place is null ? "Waiting for Windows location; the set times are used until it answers." : null,
+                    _ when Place is not null => null,
+                    _ when _askedOn == Today() => "Windows location is read once a day and today's read is used up, so the set times are used. It is read again tomorrow.",
+                    _ => "Waiting for Windows location; the set times are used until it answers.",
                 };
             }
 
@@ -184,7 +187,10 @@ public sealed class AppTheme : IDisposable
         return CommitAsync();
     }
 
-    /// <summary>Another place source drops the old place (it belonged to the old source); Windows is then read at once.</summary>
+    /// <summary>
+    /// Another place source. The stored place stays in use until a new one is set or it is forgotten; Windows location is
+    /// still read at most once a day, so choosing it again on a day it was already asked for waits until tomorrow.
+    /// </summary>
     public async Task SetSourceAsync(LocationSource source)
     {
         if (source == Source)
@@ -193,8 +199,6 @@ public sealed class AppTheme : IDisposable
         }
 
         Source = source;
-        ClearPlace();
-        _askedOn = null;
         await CommitAsync();
         await ReadWindowsLocationIfDueAsync();
     }
@@ -310,7 +314,7 @@ public sealed class AppTheme : IDisposable
     // fails; a failed read keeps the place already stored.
     private async Task ReadWindowsLocationIfDueAsync()
     {
-        if (_readingLocation || Mode != LightDarkMode.Sunset || Source != LocationSource.Windows)
+        if (_disposed || _readingLocation || Mode != LightDarkMode.Sunset || Source != LocationSource.Windows)
         {
             return;
         }
@@ -382,26 +386,25 @@ public sealed class AppTheme : IDisposable
 
     private async Task SaveAsync()
     {
-        string? protectedPlace = Place is GeoPoint place
-            ? Convert.ToBase64String(_protector.Protect(JsonSerializer.Serialize(new StoredPlace(place.Latitude, place.Longitude, _cityId, _placeLabel))))
-            : null;
-        var stored = new StoredAppearance
-        {
-            Choice = (int)Mode,
-            Theme = HasPickedTheme ? Theme.ToString() : null,
-            DarkAt = DarkAt,
-            LightAt = LightAt,
-            LocationSource = (int)Source,
-            ProtectedLocation = protectedPlace,
-            LocationAskedOn = _askedOn,
-            Colour = (int)Colour,
-        };
-
         try
         {
+            string? protectedPlace = Place is GeoPoint place
+                ? Convert.ToBase64String(_protector.Protect(JsonSerializer.Serialize(new StoredPlace(place.Latitude, place.Longitude, _cityId, _placeLabel))))
+                : null;
+            var stored = new StoredAppearance
+            {
+                Choice = (int)Mode,
+                Theme = HasPickedTheme ? Theme.ToString() : null,
+                DarkAt = DarkAt,
+                LightAt = LightAt,
+                LocationSource = (int)Source,
+                ProtectedLocation = protectedPlace,
+                LocationAskedOn = _askedOn,
+                Colour = (int)Colour,
+            };
             await _store.SaveAsync(DocumentKey, stored);
         }
-        catch (SqliteException)
+        catch (Exception ex) when (ex is SqliteException or CryptographicFailureException)
         {
             // Applies for now; written with the next change.
         }
@@ -411,7 +414,12 @@ public sealed class AppTheme : IDisposable
 
     private void OnClockChanged(object? sender, TimeSpan offset) => Dispatcher.UIThread.Post(Refresh);
 
-    private void OnTimeChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(Refresh);
+    private void OnTimeChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
+    {
+        // A changed time zone or daylight-saving rule: the zone's cached offsets may be stale.
+        TimeZoneInfo.ClearCachedData();
+        Refresh();
+    });
 
     private void OnPowerModeChanged(object? sender, Microsoft.Win32.PowerModeChangedEventArgs e)
     {
