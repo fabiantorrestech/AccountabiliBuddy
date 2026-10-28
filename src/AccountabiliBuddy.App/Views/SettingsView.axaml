@@ -456,390 +456,589 @@
                 </Border>
             </StackPanel>
 
-            <StackPanel Spacing="16" IsVisible="{Binding Rows[2].IsSelected}"
+            <!-- Focus sessions -->
+            <StackPanel Spacing="12" IsVisible="{Binding Rows[2].IsSelected}"
                         search:SearchArea.Name="Focus sessions" search:SearchArea.SettingsGroup="2">
-                <Border Classes="card" search:SearchArea.Name="Quick session shortcut">
-                <StackPanel Spacing="6">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="KeyboardOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Text="Quick session shortcut" Classes="sectionTitle" />
-                    </StackPanel>
-                    <TextBlock Text="Click the box and press the keys you want (at least one of Ctrl, Alt or Win, plus a letter, number, F-key or Space)."
-                               Classes="sHint" TextWrapping="Wrap" />
-                    <controls:HotkeyBox Text="{Binding HotkeyText}" Width="220" HorizontalAlignment="Left" />
-                    <TextBlock Text="{Binding HotkeyStatus}" TextWrapping="Wrap" />
-                    <TextBlock Text="Quick Start with Default" FontWeight="SemiBold" Margin="0,8,0,0" />
-                    <TextBlock Text="The big &quot;Quick Start with Default&quot; button (quick session and Today) starts this profile for the length chosen there (the remembered one from a phone or watch), and the on-screen bar counts down. The &quot;No set end&quot; button below Start runs the profile picked under More options until you end it, and the bar counts up."
-                               Classes="sHint" TextWrapping="Wrap" />
-                    <ComboBox ItemsSource="{Binding CountUpChoices}" SelectedItem="{Binding SelectedCountUp}" MinWidth="300" />
+                <StackPanel Spacing="6" search:SearchArea.Name="Quick session shortcut">
+                    <TextBlock Classes="sGroup" Text="Starting" />
+                    <Border Classes="sPanel">
+                        <StackPanel Margin="0,0,0,-1">
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="sTitle" Text="Quick session shortcut" />
+                                        <TextBlock Classes="sHint" Text="Click the box and press the keys you want (at least one of Ctrl, Alt or Win, plus a letter, number, F-key or Space)." />
+                                        <TextBlock Text="{Binding HotkeyStatus}" Classes="sHint" />
+                                    </StackPanel>
+                                    <controls:HotkeyBox Grid.Column="1" Text="{Binding HotkeyText}" Width="200" VerticalAlignment="Top" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="sTitle" Text="Quick Start with Default" />
+                                        <TextBlock Classes="sHint"
+                                                   Text="The big &quot;Quick Start with Default&quot; button (quick session and Today) starts this profile for the length chosen there (the remembered one from a phone or watch), and the on-screen bar counts down. The &quot;No set end&quot; button below Start runs the profile picked under More options until you end it, and the bar counts up." />
+                                    </StackPanel>
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding CountUpChoices}" SelectedItem="{Binding SelectedCountUp}" MinWidth="240" VerticalAlignment="Top" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-                </Border>
-                <Border Classes="card" search:SearchArea.Name="Step away" IsVisible="{Binding HasStepAway}">
-                <StackPanel Spacing="6">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="Walk" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Text="Step away" Classes="sectionTitle" />
-                    </StackPanel>
-                    <TextBlock Text="A bathroom break or someone at your desk: the countdown pauses until you say you're back. The first key or mouse movement asks if you are back to your task; Back on track resumes, Still away asks again in 2 minutes. It never shortens a wait. Also in the tray and the on-screen window (hold Ctrl+Alt)."
-                               Classes="sHint" TextWrapping="Wrap" />
-                    <controls:HotkeyBox Text="{Binding StepAwayHotkey}" Width="220" HorizontalAlignment="Left" />
-                    <TextBlock Text="{Binding StepAwayStatus}" TextWrapping="Wrap" />
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <CheckBox Classes="sw" Content="Step away by itself after" IsChecked="{Binding StepAwayAutoIdle}" />
-                        <NumericUpDown Value="{Binding StepAwayIdleMinutes}" Minimum="1" Maximum="60" Increment="1" FormatString="0"
-                                       Width="110" IsEnabled="{Binding StepAwayAutoIdle}" />
-                        <TextBlock Text="minutes with no input" VerticalAlignment="Center" />
-                    </StackPanel>
-                    <TextBlock Text="The idle minutes before it starts still count as focus." Classes="sHint" TextWrapping="Wrap" />
+
+                <StackPanel Spacing="6" search:SearchArea.Name="Step away" IsVisible="{Binding HasStepAway}">
+                    <TextBlock Classes="sGroup" Text="Step away" />
+                    <Border Classes="sPanel">
+                        <StackPanel Margin="0,0,0,-1">
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="sTitle" Text="Step away shortcut" />
+                                        <TextBlock Classes="sHint"
+                                                   Text="A bathroom break or someone at your desk: the countdown pauses until you say you're back. The first key or mouse movement asks if you are back to your task; Back on track resumes, Still away asks again in 2 minutes. It never shortens a wait. Also in the tray and the on-screen window (hold Ctrl+Alt)." />
+                                        <TextBlock Text="{Binding StepAwayStatus}" Classes="sHint" />
+                                    </StackPanel>
+                                    <controls:HotkeyBox Grid.Column="1" Text="{Binding StepAwayHotkey}" Width="200" VerticalAlignment="Top" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="sTitle" Text="Step away by itself after" />
+                                        <TextBlock Classes="sHint" Text="The idle minutes before it starts still count as focus." />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <NumericUpDown Value="{Binding StepAwayIdleMinutes}" Minimum="1" Maximum="60" Increment="1" FormatString="0"
+                                                       Width="110" IsEnabled="{Binding StepAwayAutoIdle}" />
+                                        <TextBlock Text="minutes with no input" VerticalAlignment="Center" Classes="muted" />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding StepAwayAutoIdle}" VerticalAlignment="Center" AutomationProperties.Name="Step away by itself after" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-                </Border>
-                <Border Classes="card" search:SearchArea.Name="Hyperfocus reminder" IsVisible="{Binding HasHyperfocus}">
-                <StackPanel Spacing="6" DataContext="{Binding Hyperfocus}" x:DataType="vm:HyperfocusViewModel">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="Brain" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Text="Hyperfocus reminder" Classes="sectionTitle" />
-                    </StackPanel>
-                    <TextBlock Text="One quiet reminder after a long stretch of focus with no break: water, stand, eat. Coming back from Step away starts the stretch over."
-                               Classes="sHint" TextWrapping="Wrap" />
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <CheckBox Classes="sw" Content="Remind me after" IsChecked="{Binding IsOn}" />
-                        <NumericUpDown Value="{Binding IntervalMinutes}" Minimum="15" Maximum="240" Increment="15" FormatString="0"
-                                       Width="110" IsEnabled="{Binding IsOn}" />
-                        <TextBlock Text="minutes of unbroken focus" VerticalAlignment="Center" />
-                    </StackPanel>
-                    <TextBlock Text="During these profiles:" Classes="sHint" />
-                    <ItemsControl ItemsSource="{Binding Profiles}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:HyperfocusProfileRowViewModel">
-                                <CheckBox Classes="sw" IsChecked="{Binding Reminds}" Content="{Binding Name}" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="Save reminder" Command="{Binding SaveCommand}" />
-                        <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Classes="sHint" />
-                    </StackPanel>
+
+                <StackPanel Spacing="6" search:SearchArea.Name="Hyperfocus reminder" IsVisible="{Binding HasHyperfocus}">
+                    <TextBlock Classes="sGroup" Text="Hyperfocus reminder" />
+                    <Border Classes="sPanel" DataContext="{Binding Hyperfocus}" x:DataType="vm:HyperfocusViewModel">
+                        <StackPanel Margin="0,0,0,-1">
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="sTitle" Text="Remind me after" />
+                                        <TextBlock Classes="sHint" Text="One quiet reminder after a long stretch of focus with no break: water, stand, eat. Coming back from Step away starts the stretch over." />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <NumericUpDown Value="{Binding IntervalMinutes}" Minimum="15" Maximum="240" Increment="15" FormatString="0"
+                                                       Width="110" IsEnabled="{Binding IsOn}" />
+                                        <TextBlock Text="minutes of unbroken focus" VerticalAlignment="Center" Classes="muted" />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding IsOn}" VerticalAlignment="Center" AutomationProperties.Name="Remind me after" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="During these profiles:" Classes="sTitle" />
+                                    <ItemsControl ItemsSource="{Binding Profiles}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:HyperfocusProfileRowViewModel">
+                                                <CheckBox Classes="sw" IsChecked="{Binding Reminds}" Content="{Binding Name}" Margin="0,3" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                            <Border Classes="sRow">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Save reminder" Command="{Binding SaveCommand}" />
+                                    <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Classes="sHint" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-                </Border>
-                <Border Classes="card" search:SearchArea.Name="Pomodoro defaults">
-                <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="TimerOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Text="Pomodoro defaults" Classes="sectionTitle" />
-                    </StackPanel>
-                    <Grid ColumnDefinitions="240,120" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6">
-                        <TextBlock Grid.Row="0" Text="Focus (minutes)" VerticalAlignment="Center" />
-                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding FocusMinutes}" />
-                        <TextBlock Grid.Row="1" Text="Short break (minutes)" VerticalAlignment="Center" />
-                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ShortBreakMinutes}" />
-                        <TextBlock Grid.Row="2" Text="Long break (minutes)" VerticalAlignment="Center" />
-                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding LongBreakMinutes}" />
-                        <TextBlock Grid.Row="3" Text="Long break every N cycles" VerticalAlignment="Center" />
-                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding CyclesBeforeLongBreak}" />
-                    </Grid>
+
+                <StackPanel Spacing="6" search:SearchArea.Name="Pomodoro defaults">
+                    <TextBlock Classes="sGroup" Text="Pomodoro defaults" />
+                    <Border Classes="sPanel">
+                        <StackPanel Margin="0,0,0,-1" IsEnabled="{Binding !IsLocked}">
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Focus (minutes)" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding FocusMinutes}" Width="90" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Short break (minutes)" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding ShortBreakMinutes}" Width="90" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Long break (minutes)" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding LongBreakMinutes}" Width="90" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Long break every N cycles" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding CyclesBeforeLongBreak}" Width="90" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-                </Border>
-                <Border Classes="card" search:SearchArea.Name="Escalation">
-                <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="AlertOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Text="Escalation (seconds of continuous distraction)" Classes="sectionTitle" />
-                    </StackPanel>
-                    <Grid ColumnDefinitions="240,120" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
-                        <TextBlock Grid.Row="0" Text="Notification after" VerticalAlignment="Center" />
-                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding NudgeSeconds}" />
-                        <TextBlock Grid.Row="1" Text="Screen overlay after" VerticalAlignment="Center" />
-                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding OverlaySeconds}" />
-                        <TextBlock Grid.Row="2" Text="Minimize / block after" VerticalAlignment="Center" />
-                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding EnforceSeconds}" />
-                    </Grid>
-                    <!-- The computer types' "notice and overlay only" (ADR 22), e.g. on a work computer. -->
-                    <CheckBox Classes="sw" IsChecked="{Binding NoticeAndOverlayOnly}"
-                              ><TextBlock Text="Notice and overlay only: never minimize a window or redirect a tab (e.g. on a work computer)" TextWrapping="Wrap" /></CheckBox>
+
+                <StackPanel Spacing="6" search:SearchArea.Name="Escalation">
+                    <TextBlock Classes="sGroup" Text="Escalation (seconds of continuous distraction)" />
+                    <Border Classes="sPanel">
+                        <StackPanel Margin="0,0,0,-1" IsEnabled="{Binding !IsLocked}">
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Notification after" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding NudgeSeconds}" Width="90" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Screen overlay after" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding OverlaySeconds}" Width="90" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Minimize / block after" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding EnforceSeconds}" Width="90" />
+                                </Grid>
+                            </Border>
+                            <!-- The computer types' "notice and overlay only" (ADR 22), e.g. on a work computer. -->
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Notice and overlay only: never minimize a window or redirect a tab (e.g. on a work computer)" VerticalAlignment="Center" />
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding NoticeAndOverlayOnly}" VerticalAlignment="Center"
+                                              AutomationProperties.Name="Notice and overlay only" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-                </Border>
-                <Border Classes="card" search:SearchArea.Name="Ending a focus session early">
-                <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="ExitRun" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Text="Ending a focus session early" Classes="sectionTitle" />
-                    </StackPanel>
-                    <Grid ColumnDefinitions="240,120" RowDefinitions="Auto,Auto" RowSpacing="6">
-                        <TextBlock Grid.Row="0" Text="Wait before you can end (seconds)" VerticalAlignment="Center" />
-                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding BypassWaitSeconds}" />
-                        <TextBlock Grid.Row="1" Text="Minimum reason length (characters)" VerticalAlignment="Center" />
-                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding MinReasonLength}" />
-                    </Grid>
+
+                <StackPanel Spacing="6" search:SearchArea.Name="Ending a focus session early">
+                    <TextBlock Classes="sGroup" Text="Ending a focus session early" />
+                    <Border Classes="sPanel">
+                        <StackPanel Margin="0,0,0,-1" IsEnabled="{Binding !IsLocked}">
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Wait before you can end (seconds)" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding BypassWaitSeconds}" Width="90" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Minimum reason length (characters)" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding MinReasonLength}" Width="90" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-                </Border>
-                <Border Classes="card" search:SearchArea.Name="Looser changes">
-                <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="TimerSand" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Text="Looser changes" Classes="sectionTitle" />
-                    </StackPanel>
-                    <Grid ColumnDefinitions="240,120">
-                        <TextBlock Text="Wait before they apply (minutes)" VerticalAlignment="Center" />
-                        <TextBox Grid.Column="1" Text="{Binding LooseningDelayMinutes}" />
-                    </Grid>
-                    <TextBlock Classes="sHint" TextWrapping="Wrap"
-                               Text="Removing a block rule, adding an allow rule or an unlock option, or lowering any wait counts down this long first, and never takes effect during a session. Stricter changes apply at once. Shortening this wait counts down too." />
+
+                <StackPanel Spacing="6" search:SearchArea.Name="Looser changes">
+                    <TextBlock Classes="sGroup" Text="Looser changes" />
+                    <Border Classes="sPanel">
+                        <StackPanel Margin="0,0,0,-1" IsEnabled="{Binding !IsLocked}">
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="sTitle" Text="Wait before they apply (minutes)" />
+                                        <TextBlock Classes="sHint"
+                                                   Text="Removing a block rule, adding an allow rule or an unlock option, or lowering any wait counts down this long first, and never takes effect during a session. Stricter changes apply at once. Shortening this wait counts down too." />
+                                    </StackPanel>
+                                    <TextBox Grid.Column="1" Text="{Binding LooseningDelayMinutes}" Width="90" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-                </Border>
             </StackPanel>
 
-            <StackPanel Spacing="16" IsVisible="{Binding Rows[4].IsSelected}"
+            <!-- Alerts & on-screen -->
+            <StackPanel Spacing="12" IsVisible="{Binding Rows[4].IsSelected}"
                         search:SearchArea.Name="Alerts &amp; on-screen" search:SearchArea.SettingsGroup="4">
-                <Border Classes="card" search:SearchArea.Name="Animations" IsVisible="{Binding HasMotion}">
-                <StackPanel Spacing="6" DataContext="{Binding Motion}" x:DataType="vm:MotionViewModel">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="Animation" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Text="Animations" Classes="sectionTitle" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBlock Text="Speed" VerticalAlignment="Center" />
-                        <ComboBox ItemsSource="{x:Static vm:MotionViewModel.SpeedNames}" SelectedIndex="{Binding SpeedIndex}" MinWidth="140" />
-                    </StackPanel>
-                    <TextBlock Classes="sHint" TextWrapping="Wrap"
-                               Text="Pages fade and slide in when you open a page, cards ease their colour and progress bars glide. Off shows every change at once." />
-                </StackPanel>
-                </Border>
-                <Border Classes="card" search:SearchArea.Name="Sounds when time is up">
-                <StackPanel Spacing="6">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="BellRingOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Text="Sounds when time is up" Classes="sectionTitle" />
-                    </StackPanel>
-                    <TextBlock Text="Played when focus or a break runs out (not when you end a session yourself), also while the on-screen window is hidden. Can be saved during focus too."
-                               Classes="sHint" TextWrapping="Wrap" />
-                    <Grid ColumnDefinitions="240,Auto,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="8">
-                        <TextBlock Grid.Row="0" Text="When focus is up (break or end)" VerticalAlignment="Center" />
-                        <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding SoundChoices}" SelectedItem="{Binding FocusEndSound}" MinWidth="220">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="services:SoundChoice">
-                                    <TextBlock Text="{Binding Name}" />
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                        <Button Grid.Row="0" Grid.Column="2" Content="Test" Command="{Binding TestFocusEndSoundCommand}" />
-                        <TextBlock Grid.Row="1" Text="When a break is up" VerticalAlignment="Center" />
-                        <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding SoundChoices}" SelectedItem="{Binding BreakEndSound}" MinWidth="220">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="services:SoundChoice">
-                                    <TextBlock Text="{Binding Name}" />
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                        <Button Grid.Row="1" Grid.Column="2" Content="Test" Command="{Binding TestBreakEndSoundCommand}" />
-                        <TextBlock Grid.Row="2" Text="Volume (built-in chimes)" VerticalAlignment="Center" />
-                        <StackPanel Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
-                            <Slider Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding SoundVolume}" Width="200" />
-                            <TextBlock Text="{Binding SoundVolume, StringFormat={}{0:0}%}" VerticalAlignment="Center" />
+                <StackPanel Spacing="6" search:SearchArea.Name="Animations" IsVisible="{Binding HasMotion}">
+                    <TextBlock Classes="sGroup" Text="Animations" />
+                    <Border Classes="sPanel" DataContext="{Binding Motion}" x:DataType="vm:MotionViewModel">
+                        <StackPanel Margin="0,0,0,-1">
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="sTitle" Text="Speed" />
+                                        <TextBlock Classes="sHint" Text="Pages fade and slide in when you open a page, cards ease their colour and progress bars glide. Off shows every change at once." />
+                                    </StackPanel>
+                                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:MotionViewModel.SpeedNames}" SelectedIndex="{Binding SpeedIndex}" MinWidth="140" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
                         </StackPanel>
-                    </Grid>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="Add a .wav file…" Command="{Binding AddSoundFileCommand}" />
-                        <TextBlock Text="{Binding SoundStatus}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                    </StackPanel>
-                </StackPanel>
-                </Border>
-                <Border Classes="card" search:SearchArea.Name="Noise player">
-                <StackPanel Spacing="6" IsVisible="{Binding HasNoisePlayer}">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="MusicNote" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Text="Noise player" Classes="sectionTitle" />
-                    </StackPanel>
-                    <TextBlock Text="The player on Today (under Timers &amp; lunch) plays the sound files of this folder in name order (mp3, wav, m4a, aac, flac, wma). Folder changes apply at once."
-                               Classes="sHint" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding NoiseFolderText}" TextWrapping="Wrap" />
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="Choose folder…" Command="{Binding ChooseNoiseFolderCommand}" />
-                        <Button Content="Use Music\Noise" Command="{Binding UseMusicNoiseFolderCommand}" />
-                        <Button Content="Look for new files" Command="{Binding RescanNoiseFolderCommand}" />
-                    </StackPanel>
-                    <TextBlock Text="Shortcuts work anywhere: click a box and press the keys (Ctrl, Alt or Win plus a letter, number, F-key, Space, an arrow or Page Up/Down); Backspace clears it."
-                               Classes="sHint" TextWrapping="Wrap" Margin="0,6,0,0" />
-                    <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="6">
-                        <TextBlock Text="Play / pause" VerticalAlignment="Center" />
-                        <controls:HotkeyBox Grid.Column="1" Text="{Binding NoisePlayPauseKey}" Width="220" />
-                        <TextBlock Grid.Row="1" Text="Volume up 10%" VerticalAlignment="Center" />
-                        <controls:HotkeyBox Grid.Row="1" Grid.Column="1" Text="{Binding NoiseVolumeUpKey}" Width="220" />
-                        <TextBlock Grid.Row="2" Text="Volume down 10%" VerticalAlignment="Center" />
-                        <controls:HotkeyBox Grid.Row="2" Grid.Column="1" Text="{Binding NoiseVolumeDownKey}" Width="220" />
-                    </Grid>
-                    <CheckBox Classes="sw" IsChecked="{Binding NoiseMediaKeys}" ><TextBlock Text="The keyboard's media keys and Windows' media pop-up also control the noise" TextWrapping="Wrap" /></CheckBox>
-                    <CheckBox Classes="sw" Content="Stop when headphones disconnect" IsChecked="{Binding NoiseStopsWhenHeadphonesGo}" Margin="0,6,0,0" />
-                    <TextBlock Text="Pauses the noise when any headphones go, wired or Bluetooth, so it never carries on through the speakers. Applies at once. The lock on the player goes further: it won't play at all without headphones."
-                               Classes="sHint" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding NoiseKeysStatus}" TextWrapping="Wrap"
-                               IsVisible="{Binding NoiseKeysStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                </StackPanel>
-                </Border>
-                <Border Classes="card" search:SearchArea.Name="Play when headphones connect" IsVisible="{Binding HasHeadphones}">
-                <StackPanel Spacing="6" DataContext="{Binding Headphones}" x:DataType="vm:HeadphoneSettingsViewModel">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="Headphones" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Text="Play when headphones connect" Classes="sectionTitle" />
-                    </StackPanel>
-                    <TextBlock Text="The noise player starts its last file when these headphones connect, any time of day, and pauses when they disconnect. Changes apply at once."
-                               Classes="sHint" TextWrapping="Wrap" />
-                    <Border Background="{DynamicResource Ab.Surface2}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="10" Padding="10,6">
-                        <TextBlock Text="Tip: it really helps to have a dedicated pair of work/focus headphones, so putting them on means focus and it doesn't get in the way of your normal headphones."
-                                   TextWrapping="Wrap" />
                     </Border>
-                    <CheckBox Classes="sw" IsChecked="{Binding Wired}" ><TextBlock Text="Wired headphones or a headset (USB always works; a headphone jack only if your sound driver reports it)" TextWrapping="Wrap" /></CheckBox>
-                    <CheckBox Classes="sw" IsChecked="{Binding Bluetooth}" Content="These Bluetooth headphones:" />
-                    <StackPanel Margin="28,0,0,0" Spacing="4" IsVisible="{Binding Bluetooth}">
-                        <ItemsControl ItemsSource="{Binding Devices}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:HeadphoneChoiceViewModel">
-                                    <CheckBox Classes="sw" IsChecked="{Binding IsChosen}" Content="{Binding Name}" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <TextBlock Text="{Binding Status}" Classes="sHint" TextWrapping="Wrap"
-                                   IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                        <Button Content="Look again" Command="{Binding RefreshDevicesCommand}" HorizontalAlignment="Left" />
-                    </StackPanel>
-                    <CheckBox Classes="sw" IsChecked="{Binding OnlyAtTimes}" Content="Only at certain times" Margin="0,6,0,0" />
-                    <StackPanel Margin="28,0,0,0" Spacing="6" IsVisible="{Binding OnlyAtTimes}">
-                        <TextBlock Text="It starts by itself only when any ticked option matches the time the headphones connect. The player's lock still applies."
-                                   Classes="sHint" TextWrapping="Wrap" />
-                        <CheckBox Classes="sw" IsChecked="{Binding DuringPlanWindow}" ><TextBlock Text="During a day plan window of these categories:" TextWrapping="Wrap" /></CheckBox>
-                        <ItemsControl ItemsSource="{Binding Categories}" Margin="28,0,0,0" IsVisible="{Binding DuringPlanWindow}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:HeadphoneOptionViewModel">
-                                    <CheckBox Classes="sw" IsChecked="{Binding IsChosen}" Content="{Binding Label}" Margin="0,0,12,0" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <CheckBox Classes="sw" IsChecked="{Binding OnDaysAndHours}" Content="On these days and hours:" />
-                        <StackPanel Margin="28,0,0,0" Spacing="6" IsVisible="{Binding OnDaysAndHours}">
-                            <ItemsControl ItemsSource="{Binding Days}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:HeadphoneOptionViewModel">
-                                        <ToggleButton IsChecked="{Binding IsChosen}" Content="{Binding Label}" Margin="0,0,4,4" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TimePicker SelectedTime="{Binding StartTime}" MinuteIncrement="15" ClockIdentifier="12HourClock" />
-                                <TextBlock Text="to" VerticalAlignment="Center" />
-                                <TimePicker SelectedTime="{Binding EndTime}" MinuteIncrement="15" ClockIdentifier="12HourClock" />
+                </StackPanel>
+
+                <StackPanel Spacing="6" search:SearchArea.Name="Sounds when time is up">
+                    <TextBlock Classes="sGroup" Text="Sounds when time is up" />
+                    <Border Classes="sPanel">
+                        <StackPanel Margin="0,0,0,-1">
+                            <Border Classes="sRow">
+                                <TextBlock Classes="sHint" Text="Played when focus or a break runs out (not when you end a session yourself), also while the on-screen window is hidden. Can be saved during focus too." />
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                    <TextBlock Classes="sTitle" Text="When focus is up (break or end)" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding SoundChoices}" SelectedItem="{Binding FocusEndSound}" MinWidth="220">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="services:SoundChoice">
+                                                <TextBlock Text="{Binding Name}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <Button Grid.Column="2" Content="Test" Command="{Binding TestFocusEndSoundCommand}" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                    <TextBlock Classes="sTitle" Text="When a break is up" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding SoundChoices}" SelectedItem="{Binding BreakEndSound}" MinWidth="220">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="services:SoundChoice">
+                                                <TextBlock Text="{Binding Name}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <Button Grid.Column="2" Content="Test" Command="{Binding TestBreakEndSoundCommand}" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Volume (built-in chimes)" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <Slider Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding SoundVolume}" Width="200" />
+                                        <TextBlock Text="{Binding SoundVolume, StringFormat={}{0:0}%}" VerticalAlignment="Center" MinWidth="40" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Add a .wav file…" Command="{Binding AddSoundFileCommand}" />
+                                    <TextBlock Text="{Binding SoundStatus}" VerticalAlignment="Center" TextWrapping="Wrap" Classes="sHint" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Spacing="6" search:SearchArea.Name="Noise player" IsVisible="{Binding HasNoisePlayer}">
+                    <TextBlock Classes="sGroup" Text="Noise player" />
+                    <Border Classes="sPanel">
+                        <StackPanel Margin="0,0,0,-1">
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="sTitle" Text="Folder" />
+                                        <TextBlock Classes="sHint"
+                                                   Text="The player on Today (under Timers &amp; lunch) plays the sound files of this folder in name order (mp3, wav, m4a, aac, flac, wma). Folder changes apply at once." />
+                                        <TextBlock Text="{Binding NoiseFolderText}" TextWrapping="Wrap" FontSize="13" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Vertical" Spacing="6" VerticalAlignment="Top">
+                                        <Button Content="Choose folder…" Command="{Binding ChooseNoiseFolderCommand}" HorizontalAlignment="Stretch" />
+                                        <Button Content="Use Music\Noise" Command="{Binding UseMusicNoiseFolderCommand}" HorizontalAlignment="Stretch" />
+                                        <Button Content="Look for new files" Command="{Binding RescanNoiseFolderCommand}" HorizontalAlignment="Stretch" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <TextBlock Classes="sHint"
+                                           Text="Shortcuts work anywhere: click a box and press the keys (Ctrl, Alt or Win plus a letter, number, F-key, Space, an arrow or Page Up/Down); Backspace clears it." />
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Play / pause" VerticalAlignment="Center" />
+                                    <controls:HotkeyBox Grid.Column="1" Text="{Binding NoisePlayPauseKey}" Width="200" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Volume up 10%" VerticalAlignment="Center" />
+                                    <controls:HotkeyBox Grid.Column="1" Text="{Binding NoiseVolumeUpKey}" Width="200" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Volume down 10%" VerticalAlignment="Center" />
+                                    <controls:HotkeyBox Grid.Column="1" Text="{Binding NoiseVolumeDownKey}" Width="200" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow" IsVisible="{Binding NoiseKeysStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                <TextBlock Text="{Binding NoiseKeysStatus}" TextWrapping="Wrap" Classes="sHint" />
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="The keyboard's media keys and Windows' media pop-up also control the noise" VerticalAlignment="Center" />
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding NoiseMediaKeys}" VerticalAlignment="Center" AutomationProperties.Name="Media keys control the noise" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="sTitle" Text="Stop when headphones disconnect" />
+                                        <TextBlock Classes="sHint"
+                                                   Text="Pauses the noise when any headphones go, wired or Bluetooth, so it never carries on through the speakers. Applies at once. The lock on the player goes further: it won't play at all without headphones." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding NoiseStopsWhenHeadphonesGo}" VerticalAlignment="Center" AutomationProperties.Name="Stop when headphones disconnect" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Spacing="6" search:SearchArea.Name="Play when headphones connect" IsVisible="{Binding HasHeadphones}">
+                    <TextBlock Classes="sGroup" Text="Play when headphones connect" />
+                    <Border Classes="sPanel" DataContext="{Binding Headphones}" x:DataType="vm:HeadphoneSettingsViewModel">
+                        <StackPanel Margin="0,0,0,-1">
+                            <Border Classes="sRow">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Classes="sHint" Text="The noise player starts its last file when these headphones connect, any time of day, and pauses when they disconnect. Changes apply at once." />
+                                    <TextBlock Classes="sHint" Text="Tip: it really helps to have a dedicated pair of work/focus headphones, so putting them on means focus and it doesn't get in the way of your normal headphones." />
+                                </StackPanel>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Wired headphones or a headset (USB always works; a headphone jack only if your sound driver reports it)" VerticalAlignment="Center" />
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding Wired}" VerticalAlignment="Center" AutomationProperties.Name="Wired headphones" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <StackPanel Spacing="6">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                        <TextBlock Classes="sTitle" Text="These Bluetooth headphones:" VerticalAlignment="Center" />
+                                        <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding Bluetooth}" VerticalAlignment="Center" AutomationProperties.Name="These Bluetooth headphones" />
+                                    </Grid>
+                                    <StackPanel Spacing="4" IsVisible="{Binding Bluetooth}">
+                                        <ItemsControl ItemsSource="{Binding Devices}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:HeadphoneChoiceViewModel">
+                                                    <CheckBox Classes="sw" IsChecked="{Binding IsChosen}" Content="{Binding Name}" Margin="0,3" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Text="{Binding Status}" Classes="sHint"
+                                                   IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                        <Button Content="Look again" Command="{Binding RefreshDevicesCommand}" HorizontalAlignment="Left" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Only at certain times" VerticalAlignment="Center" />
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding OnlyAtTimes}" VerticalAlignment="Center" AutomationProperties.Name="Only at certain times" />
+                                </Grid>
+                            </Border>
+                            <StackPanel IsVisible="{Binding OnlyAtTimes}">
+                                <Border Classes="sRow">
+                                    <TextBlock Classes="sHint" Text="It starts by itself only when any ticked option matches the time the headphones connect. The player's lock still applies." />
+                                </Border>
+                                <Border Classes="sRow">
+                                    <StackPanel Spacing="6">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                            <TextBlock Classes="sTitle" Text="During a day plan window of these categories:" VerticalAlignment="Center" />
+                                            <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding DuringPlanWindow}" VerticalAlignment="Center" AutomationProperties.Name="During a day plan window" />
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{Binding Categories}" IsVisible="{Binding DuringPlanWindow}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:HeadphoneOptionViewModel">
+                                                    <CheckBox Classes="sw" IsChecked="{Binding IsChosen}" Content="{Binding Label}" Margin="0,0,16,4" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                                <Border Classes="sRow">
+                                    <StackPanel Spacing="6">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                            <TextBlock Classes="sTitle" Text="On these days and hours:" VerticalAlignment="Center" />
+                                            <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding OnDaysAndHours}" VerticalAlignment="Center" AutomationProperties.Name="On these days and hours" />
+                                        </Grid>
+                                        <StackPanel Spacing="6" IsVisible="{Binding OnDaysAndHours}">
+                                            <ItemsControl ItemsSource="{Binding Days}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:HeadphoneOptionViewModel">
+                                                        <ToggleButton IsChecked="{Binding IsChosen}" Content="{Binding Label}" Margin="0,0,4,4" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TimePicker SelectedTime="{Binding StartTime}" MinuteIncrement="15" ClockIdentifier="12HourClock" />
+                                                <TextBlock Text="to" VerticalAlignment="Center" />
+                                                <TimePicker SelectedTime="{Binding EndTime}" MinuteIncrement="15" ClockIdentifier="12HourClock" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                                <Border Classes="sRow" IsVisible="{Binding ScheduleHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                    <TextBlock Text="{Binding ScheduleHint}" Foreground="{DynamicResource Ab.Waiting}" TextWrapping="Wrap" />
+                                </Border>
                             </StackPanel>
                         </StackPanel>
-                        <TextBlock Text="{Binding ScheduleHint}" Foreground="{DynamicResource Ab.Waiting}" TextWrapping="Wrap"
-                                   IsVisible="{Binding ScheduleHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                    </StackPanel>
+                    </Border>
                 </StackPanel>
-                </Border>
-                <Border Classes="card" search:SearchArea.Name="On-screen timer">
-                <StackPanel Spacing="6">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="ClockOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Text="On-screen timer" Classes="sectionTitle" />
-                    </StackPanel>
-                    <TextBlock Text="Shows how much of the session is left, on top of other windows, for the profiles chosen below (also set in each profile in Settings › Guards). Clicks go through it; hold Ctrl+Alt to see the details and drag to move it. Can be saved during focus too."
-                               Classes="sHint" TextWrapping="Wrap" />
-                    <Grid ColumnDefinitions="240,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="6">
-                        <TextBlock Grid.Row="0" Text="Look" VerticalAlignment="Center" />
-                        <TextBlock Grid.Row="5" Text="At rest" VerticalAlignment="Center" />
-                        <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerColourModes}"
-                                  SelectedIndex="{Binding TimerColourIndex}" MinWidth="200" />
-                        <TextBlock Grid.Row="4" Text="Corner (bottom corners stay above the taskbar)" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerCornerNames}"
-                                  SelectedIndex="{Binding TimerCornerIndex}" MinWidth="200" />
-                        <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerStyleNames}"
-                                  SelectedIndex="{Binding TimerStyleIndex}" MinWidth="200" />
-                        <TextBlock Grid.Row="1" Text="Size" VerticalAlignment="Center" />
-                        <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerSizeNames}"
-                                  SelectedIndex="{Binding TimerSizeIndex}" MinWidth="200" />
-                        <TextBlock Grid.Row="3" Text="Marks (split the bar or ring into equal parts)" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerMarkNames}"
-                                  SelectedIndex="{Binding TimerMarksIndex}" MinWidth="200" />
-                        <TextBlock Grid.Row="2" Text="Opacity" VerticalAlignment="Center" />
-                        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                            <Slider Minimum="20" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
-                                    Value="{Binding TimerOpacityPercent}" Width="200" />
-                            <TextBlock Text="{Binding TimerOpacityPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Grid>
-                    <CheckBox Classes="sw" IsChecked="{Binding TimerWrapUpColor}" ><TextBlock Text="Turn amber in the last 5 minutes of focus" TextWrapping="Wrap" /></CheckBox>
-                    <CheckBox Classes="sw" IsChecked="{Binding TimerPulseAtMarks}" Content="Brighten softly once when passing a mark" />
-                    <CheckBox Classes="sw" IsChecked="{Binding TimerHideInFullscreen}" ><TextBlock Text="Hide while a fullscreen app is in front (videos, presentations, games)" TextWrapping="Wrap" /></CheckBox>
-                    <CheckBox Classes="sw" IsChecked="{Binding TimerFillUp}" ><TextBlock Text="Fill up as time passes (instead of counting down from a full bar)" TextWrapping="Wrap" /></CheckBox>
-                    <CheckBox Classes="sw" IsChecked="{Binding TimerQuietMarks}"
-                              ><TextBlock Text="Quiet at rest dulls the timeline's red too (drift marks, now line), 3 seconds after Ctrl+Alt is let go" TextWrapping="Wrap" /></CheckBox>
-                    <CheckBox Classes="sw" IsChecked="{Binding TaskOnlyWithCtrlAlt}" ><TextBlock Text="Hide the current task unless Ctrl+Alt is held" TextWrapping="Wrap" /></CheckBox>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBlock Text="Opacity while Ctrl+Alt is held (background and all)" VerticalAlignment="Center" />
-                        <Slider Minimum="20" Maximum="100" Value="{Binding HeldOpacityPercent}" Width="200" />
-                        <TextBlock Text="{Binding HeldOpacityPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" />
-                    </StackPanel>
-                    <Grid ColumnDefinitions="240,Auto" ColumnSpacing="8">
-                        <CheckBox Classes="sw" IsChecked="{Binding MoveForMaximizedApps}" VerticalAlignment="Center">
-                            <TextBlock Text="Move in from the corner while a maximized app is in front (keeps its buttons and bars clickable)" TextWrapping="Wrap" />
-                        </CheckBox>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" IsEnabled="{Binding MoveForMaximizedApps}" VerticalAlignment="Center">
-                            <NumericUpDown Value="{Binding MaximizedAppDrop}" Minimum="0" Maximum="600" Increment="10" FormatString="0" MinWidth="140" />
-                            <TextBlock Text="{Binding VerticalLabel}" VerticalAlignment="Center" Classes="sHint" />
-                            <TextBlock Text="(default)" VerticalAlignment="Center" Classes="sHint" />
-                        </StackPanel>
-                    </Grid>
-                    <StackPanel Spacing="4" IsEnabled="{Binding MoveForMaximizedApps}" Margin="0,2,0,4">
-                        <TextBlock Text="Per app: maximize the app, hold Ctrl+Alt and drag the timer where it should sit (away from the corner, and sideways past a side panel if needed); that spot is kept for the app."
-                                   Classes="sHint" TextWrapping="Wrap" FontSize="12" />
-                        <ItemsControl ItemsSource="{Binding AppDrops}" IsVisible="{Binding HasAppDrops}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:AppDropRowViewModel">
-                                    <Grid ColumnDefinitions="160,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="6" Margin="0,2">
-                                        <TextBlock Text="{Binding App}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                        <NumericUpDown Grid.Column="1" Value="{Binding Drop}" Minimum="0" Maximum="600" Increment="10" FormatString="0" MinWidth="120" />
-                                        <TextBlock Grid.Column="2" Text="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).VerticalLabel}" VerticalAlignment="Center" Classes="sHint" />
-                                        <NumericUpDown Grid.Column="3" Value="{Binding Shift}" Minimum="0" Maximum="2000" Increment="10" FormatString="0" MinWidth="120" />
-                                        <TextBlock Grid.Column="4" Text="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).SidewaysLabel}" VerticalAlignment="Center" Classes="sHint" />
-                                        <Button Grid.Column="5" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Use the default for this app" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                    <Grid ColumnDefinitions="240,Auto">
-                        <TextBlock Text="Hide button (hold Ctrl+Alt) hides it for (seconds)" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        <NumericUpDown Grid.Column="1" Value="{Binding QuickHideSeconds}" Minimum="3" Maximum="600" Increment="5"
-                                       FormatString="0" MinWidth="200" />
-                    </Grid>
-                    <TextBlock Text="Show it for these profiles" FontWeight="SemiBold" Margin="0,6,0,0" />
-                    <Grid ColumnDefinitions="240,Auto" Margin="0,2">
-                        <CheckBox Classes="sw" IsChecked="{Binding DefaultTimerOn}" VerticalAlignment="Center" ><TextBlock Text="Default (on for profiles set to Use default)" TextWrapping="Wrap" /></CheckBox>
-                        <ComboBox Grid.Column="1" ItemsSource="{Binding DefaultTimerColors}" SelectedItem="{Binding DefaultTimerColor}"
-                                  IsEnabled="{Binding DefaultTimerOn}" MinWidth="200" ToolTip.Tip="Default timer colour">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="vm:TimerColorOption">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <Border Width="14" Height="14" CornerRadius="3" Background="{Binding Swatch}"
-                                                BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" />
-                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+
+                <StackPanel Spacing="6" search:SearchArea.Name="On-screen timer">
+                    <TextBlock Classes="sGroup" Text="On-screen timer" />
+                    <Border Classes="sPanel">
+                        <StackPanel Margin="0,0,0,-1">
+                            <Border Classes="sRow">
+                                <TextBlock Classes="sHint"
+                                           Text="Shows how much of the session is left, on top of other windows, for the profiles chosen below (also set in each profile in Settings › Guards). Clicks go through it; hold Ctrl+Alt to see the details and drag to move it. Can be saved during focus too." />
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Look" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerStyleNames}" SelectedIndex="{Binding TimerStyleIndex}" MinWidth="200" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Size" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerSizeNames}" SelectedIndex="{Binding TimerSizeIndex}" MinWidth="200" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Opacity" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <Slider Minimum="20" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding TimerOpacityPercent}" Width="200" />
+                                        <TextBlock Text="{Binding TimerOpacityPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" MinWidth="40" />
                                     </StackPanel>
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                    </Grid>
-                    <ItemsControl ItemsSource="{Binding TimerProfiles}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:ProfileTimerViewModel">
-                                <Grid ColumnDefinitions="240,Auto,Auto" ColumnSpacing="8" Margin="0,2">
-                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:TimerChoice.Names}" SelectedIndex="{Binding TimerChoiceIndex}"
-                                              MinWidth="130" />
-                                    <ComboBox Grid.Column="2" ItemsSource="{Binding TimerColors}" SelectedItem="{Binding TimerColor}"
-                                              IsVisible="{Binding HasOwnTimer}" MinWidth="170" ToolTip.Tip="Timer colour">
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Marks (split the bar or ring into equal parts)" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerMarkNames}" SelectedIndex="{Binding TimerMarksIndex}" MinWidth="200" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Corner (bottom corners stay above the taskbar)" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerCornerNames}" SelectedIndex="{Binding TimerCornerIndex}" MinWidth="200" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="At rest" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerColourModes}" SelectedIndex="{Binding TimerColourIndex}" MinWidth="200" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Turn amber in the last 5 minutes of focus" VerticalAlignment="Center" />
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding TimerWrapUpColor}" VerticalAlignment="Center" AutomationProperties.Name="Turn amber in the last 5 minutes of focus" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Brighten softly once when passing a mark" VerticalAlignment="Center" />
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding TimerPulseAtMarks}" VerticalAlignment="Center" AutomationProperties.Name="Brighten softly once when passing a mark" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Hide while a fullscreen app is in front (videos, presentations, games)" VerticalAlignment="Center" />
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding TimerHideInFullscreen}" VerticalAlignment="Center" AutomationProperties.Name="Hide while a fullscreen app is in front" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Fill up as time passes (instead of counting down from a full bar)" VerticalAlignment="Center" />
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding TimerFillUp}" VerticalAlignment="Center" AutomationProperties.Name="Fill up as time passes" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Quiet at rest dulls the timeline's red too (drift marks, now line), 3 seconds after Ctrl+Alt is let go" VerticalAlignment="Center" />
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding TimerQuietMarks}" VerticalAlignment="Center" AutomationProperties.Name="Quiet at rest dulls the timeline's red too" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Hide the current task unless Ctrl+Alt is held" VerticalAlignment="Center" />
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding TaskOnlyWithCtrlAlt}" VerticalAlignment="Center" AutomationProperties.Name="Hide the current task unless Ctrl+Alt is held" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Opacity while Ctrl+Alt is held (background and all)" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <Slider Minimum="20" Maximum="100" Value="{Binding HeldOpacityPercent}" Width="200" />
+                                        <TextBlock Text="{Binding HeldOpacityPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" MinWidth="40" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                                        <TextBlock Classes="sTitle" Text="Move in from the corner while a maximized app is in front (keeps its buttons and bars clickable)" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" IsEnabled="{Binding MoveForMaximizedApps}" VerticalAlignment="Center">
+                                            <NumericUpDown Value="{Binding MaximizedAppDrop}" Minimum="0" Maximum="600" Increment="10" FormatString="0" MinWidth="140" />
+                                            <TextBlock Text="{Binding VerticalLabel}" VerticalAlignment="Center" Classes="sHint" />
+                                            <TextBlock Text="(default)" VerticalAlignment="Center" Classes="sHint" />
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding MoveForMaximizedApps}" VerticalAlignment="Center"
+                                                  AutomationProperties.Name="Move in from the corner while a maximized app is in front" />
+                                    </Grid>
+                                    <StackPanel Spacing="4" IsEnabled="{Binding MoveForMaximizedApps}">
+                                        <TextBlock Text="Per app: maximize the app, hold Ctrl+Alt and drag the timer where it should sit (away from the corner, and sideways past a side panel if needed); that spot is kept for the app."
+                                                   Classes="sHint" />
+                                        <ItemsControl ItemsSource="{Binding AppDrops}" IsVisible="{Binding HasAppDrops}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:AppDropRowViewModel">
+                                                    <Grid ColumnDefinitions="160,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="6" Margin="0,2">
+                                                        <TextBlock Text="{Binding App}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                        <NumericUpDown Grid.Column="1" Value="{Binding Drop}" Minimum="0" Maximum="600" Increment="10" FormatString="0" MinWidth="120" />
+                                                        <TextBlock Grid.Column="2" Text="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).VerticalLabel}" VerticalAlignment="Center" Classes="sHint" />
+                                                        <NumericUpDown Grid.Column="3" Value="{Binding Shift}" Minimum="0" Maximum="2000" Increment="10" FormatString="0" MinWidth="120" />
+                                                        <TextBlock Grid.Column="4" Text="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).SidewaysLabel}" VerticalAlignment="Center" Classes="sHint" />
+                                                        <Button Grid.Column="5" Content="✕" Classes="quiet" Command="{Binding RemoveCommand}" ToolTip.Tip="Use the default for this app" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Hide button (hold Ctrl+Alt) hides it for (seconds)" VerticalAlignment="Center" />
+                                    <NumericUpDown Grid.Column="1" Value="{Binding QuickHideSeconds}" Minimum="3" Maximum="600" Increment="5" FormatString="0" MinWidth="200" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Classes="sGroup" Text="Show it for these profiles" />
+                    <Border Classes="sPanel">
+                        <StackPanel Margin="0,0,0,-1">
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                                    <TextBlock Classes="sTitle" Text="Default (on for profiles set to Use default)" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding DefaultTimerColors}" SelectedItem="{Binding DefaultTimerColor}"
+                                              IsEnabled="{Binding DefaultTimerOn}" MinWidth="170" ToolTip.Tip="Default timer colour">
                                         <ComboBox.ItemTemplate>
                                             <DataTemplate x:DataType="vm:TimerColorOption">
                                                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -850,49 +1049,98 @@
                                             </DataTemplate>
                                         </ComboBox.ItemTemplate>
                                     </ComboBox>
+                                    <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding DefaultTimerOn}" VerticalAlignment="Center" AutomationProperties.Name="Default timer on" />
                                 </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                            </Border>
+                            <ItemsControl ItemsSource="{Binding TimerProfiles}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ProfileTimerViewModel">
+                                        <Border Classes="sRow" Padding="18,10">
+                                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                                <TextBlock Classes="sTitle" Text="{Binding Name}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" VerticalAlignment="Center" />
+                                                <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:TimerChoice.Names}" SelectedIndex="{Binding TimerChoiceIndex}" MinWidth="130" />
+                                                <ComboBox Grid.Column="2" ItemsSource="{Binding TimerColors}" SelectedItem="{Binding TimerColor}"
+                                                          IsVisible="{Binding HasOwnTimer}" MinWidth="170" ToolTip.Tip="Timer colour">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:TimerColorOption">
+                                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                <Border Width="14" Height="14" CornerRadius="3" Background="{Binding Swatch}"
+                                                                        BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" />
+                                                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-                </Border>
-                <Border Classes="card" search:SearchArea.Name="On-screen timeline">
-                <StackPanel Spacing="6">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="Timeline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Text="On-screen timeline" Classes="sectionTitle" />
-                    </StackPanel>
-                    <TextBlock Text="A small copy of the day bar in the same spot as the timer: your blocks, the focus sessions you started and a red line at now, with the next block under it. It shows on days with blocks; hold Ctrl+Alt for how much you focused."
-                               Classes="sHint" TextWrapping="Wrap" />
-                    <CheckBox Classes="sw" IsChecked="{Binding ShowTimeline}" ><TextBlock Text="Show the timeline on days with focus blocks" TextWrapping="Wrap" /></CheckBox>
-                    <StackPanel Spacing="6" IsEnabled="{Binding ShowTimeline}">
-                        <TextBlock Text="While the session timer shows" />
-                        <RadioButton GroupName="timelineInFocus" IsChecked="{Binding !TimelineStaysInFocus}" Content="Swap: the timer takes the timeline's place until the session ends" />
-                        <RadioButton GroupName="timelineInFocus" IsChecked="{Binding TimelineStaysInFocus}" Content="Show both: timeline on top, timer under it" />
-                        <CheckBox Classes="sw" IsChecked="{Binding TimelineShowsTime}" Content="Show the current time" />
-                        <TextBlock Text="While no session runs (in a session the timer's opacity applies)" Margin="0,4,0,0" />
-                        <Grid ColumnDefinitions="240,Auto" RowDefinitions="Auto,Auto" RowSpacing="6">
-                            <TextBlock Grid.Row="0" Text="Opacity" VerticalAlignment="Center" />
-                            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                                <Slider Minimum="20" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
-                                        Value="{Binding TimelineOpacityPercent}" Width="200" />
-                                <TextBlock Text="{Binding TimelineOpacityPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" />
+
+                <StackPanel Spacing="6" search:SearchArea.Name="On-screen timeline">
+                    <TextBlock Classes="sGroup" Text="On-screen timeline" />
+                    <Border Classes="sPanel">
+                        <StackPanel Margin="0,0,0,-1">
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="sTitle" Text="Show the timeline on days with focus blocks" />
+                                        <TextBlock Classes="sHint"
+                                                   Text="A small copy of the day bar in the same spot as the timer: your blocks, the focus sessions you started and a red line at now, with the next block under it. It shows on days with blocks; hold Ctrl+Alt for how much you focused." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding ShowTimeline}" VerticalAlignment="Center" AutomationProperties.Name="Show the timeline on days with focus blocks" />
+                                </Grid>
+                            </Border>
+                            <StackPanel IsEnabled="{Binding ShowTimeline}">
+                                <Border Classes="sRow">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Classes="sTitle" Text="While the session timer shows" />
+                                        <RadioButton GroupName="timelineInFocus" IsChecked="{Binding !TimelineStaysInFocus}" Content="Swap: the timer takes the timeline's place until the session ends" />
+                                        <RadioButton GroupName="timelineInFocus" IsChecked="{Binding TimelineStaysInFocus}" Content="Show both: timeline on top, timer under it" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Classes="sRow">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                        <TextBlock Classes="sTitle" Text="Show the current time" VerticalAlignment="Center" />
+                                        <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding TimelineShowsTime}" VerticalAlignment="Center" AutomationProperties.Name="Show the current time" />
+                                    </Grid>
+                                </Border>
+                                <Border Classes="sRow">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                        <StackPanel Spacing="2" VerticalAlignment="Center">
+                                            <TextBlock Classes="sTitle" Text="Opacity" />
+                                            <TextBlock Classes="sHint" Text="While no session runs (in a session the timer's opacity applies)" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                            <Slider Minimum="20" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding TimelineOpacityPercent}" Width="200" />
+                                            <TextBlock Text="{Binding TimelineOpacityPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" MinWidth="40" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                <Border Classes="sRow">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                        <TextBlock Classes="sTitle" Text="Opacity while Ctrl+Alt is held" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                            <Slider Minimum="20" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding TimelineHeldOpacityPercent}" Width="200" />
+                                            <TextBlock Text="{Binding TimelineHeldOpacityPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" MinWidth="40" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
                             </StackPanel>
-                            <TextBlock Grid.Row="1" Text="Opacity while Ctrl+Alt is held" VerticalAlignment="Center" TextWrapping="Wrap" />
-                            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                                <Slider Minimum="20" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
-                                        Value="{Binding TimelineHeldOpacityPercent}" Width="200" />
-                                <TextBlock Text="{Binding TimelineHeldOpacityPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Grid>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="Reset position" Command="{Binding ResetTimerPositionCommand}" />
-                        <TextBlock Text="{Binding TimerStatus}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                    </StackPanel>
+                            <Border Classes="sRow">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Reset position" Command="{Binding ResetTimerPositionCommand}" />
+                                    <TextBlock Text="{Binding TimerStatus}" VerticalAlignment="Center" TextWrapping="Wrap" Classes="sHint" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-                </Border>
-                <!-- Slot for the on-screen overlay settings page (design 15c, built with the overlay): it shows under the page's own cards. -->
+
+                <!-- Slot for the on-screen overlay settings page (design 15c, built with the overlay): it shows under the page's own settings. -->
                 <ContentControl x:Name="OverlaySettingsSlot" search:SearchArea.Name="On-screen overlay" />
             </StackPanel>
 
