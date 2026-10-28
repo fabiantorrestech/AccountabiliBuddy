@@ -109,13 +109,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public const int StatsTab = (int)MainTab.Stats;
     public const int SettingsTab = (int)MainTab.Settings;
 
-    /// <summary>The day bar shows above the page only on Stats (Today has its own under "More today").</summary>
-    [ObservableProperty]
-    public partial bool ShowsTimeline { get; set; } = MainTabs.ShowsTimelineStrip(MainTab.Today);
-
     partial void OnSelectedTabChanged(int oldValue, int newValue)
     {
-        ShowsTimeline = MainTabs.ShowsTimelineStrip((MainTab)newValue);
+        Stats?.SetTabSelected(newValue == StatsTab);
+
         OnPropertyChanged(nameof(IsTodaySelected));
         OnPropertyChanged(nameof(IsTasksSelected));
         OnPropertyChanged(nameof(IsPlanSelected));
@@ -276,6 +273,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     /// <summary>The Plan page; set by the app.</summary>
     public PlanViewModel? Plan { get; init; }
+
+    /// <summary>The Stats page (History's details are in its "Day details" fold); set by the app.</summary>
+    public StatsViewModel? Stats { get; init; }
 
     /// <summary>
     /// The top-right refresh: syncs now by every method that's on, reads calendars again and reloads the day bar and

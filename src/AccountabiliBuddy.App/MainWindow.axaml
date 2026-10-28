@@ -285,70 +285,6 @@
                 </Grid>
 
                 <DockPanel Grid.Column="1">
-                    <!-- The day bar's strip, on Stats (Today carries its own copy under "More today"). -->
-                    <Border x:Name="TimelineHost" DockPanel.Dock="Top" IsVisible="{Binding ShowsTimeline}" Background="{DynamicResource Ab.Bg}" Margin="0,0,20,0">
-                        <Border DataContext="{Binding DayBar}" x:DataType="vm:DayBarViewModel"
-                                IsVisible="{Binding IsVisible, FallbackValue=False}" Padding="12,14,16,4">
-                            <StackPanel Spacing="6">
-                                <!-- The day's numbers are in the legend under the bar. -->
-                                <Grid ColumnDefinitions="Auto,*">
-                                    <TextBlock Text="{Binding DateText}" FontWeight="SemiBold" Margin="0,0,10,0" />
-                                    <TextBlock Grid.Column="1" Text="{Binding StatusText}" Opacity="0.85" TextTrimming="CharacterEllipsis" />
-                                </Grid>
-                                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsSleep}">
-                                    <Ellipse Width="8" Height="8" Fill="{Binding SleepBrush}" VerticalAlignment="Center" />
-                                    <TextBlock Text="{Binding SleepText}" Opacity="0.85" />
-                                </StackPanel>
-                                <controls:DayBarControl Layout="{Binding Layout}" OpenProfileCommand="{Binding OpenProfileCommand}" OpenDayPlanCommand="{Binding OpenDayPlanCommand}"
-                                                        AddSessionCommand="{Binding AddSessionCommand}" />
-                                <!-- Under the bar, lined up with its row labels: planned work by kind in its colours, and the focus so far,
-                                     on a faint panel (the negative margin keeps the columns under the row labels). -->
-                                <Border Background="{DynamicResource Ab.Surface2}" CornerRadius="6" Padding="6,4" Margin="-6,0">
-                                    <Border.IsVisible>
-                                        <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                                            <Binding Path="ShowsPlanTotals" />
-                                            <Binding Path="ShowsFocusTotal" />
-                                        </MultiBinding>
-                                    </Border.IsVisible>
-                                <Grid ColumnDefinitions="84,*" RowDefinitions="Auto,Auto">
-                                    <TextBlock Text="Plan" FontSize="11" Opacity="0.75" VerticalAlignment="Center" IsVisible="{Binding ShowsPlanTotals}" />
-                                    <ItemsControl Grid.Column="1" ItemsSource="{Binding PlanTotals}" IsVisible="{Binding ShowsPlanTotals}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <WrapPanel />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:PlanTotal">
-                                                <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,1,16,1">
-                                                    <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" />
-                                                    <TextBlock Text="{Binding Text}" FontSize="12" Opacity="0.85" />
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                    <TextBlock Grid.Row="1" Text="Focus" FontSize="11" Opacity="0.75" VerticalAlignment="Center" IsVisible="{Binding ShowsFocusTotal}" />
-                                    <ItemsControl Grid.Row="1" Grid.Column="1" ItemsSource="{Binding FocusTotals}" IsVisible="{Binding ShowsFocusTotal}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <WrapPanel />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:PlanTotal">
-                                                <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,1,16,1">
-                                                    <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" />
-                                                    <TextBlock Text="{Binding Text}" FontSize="12" Opacity="0.85" />
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </Grid>
-                                </Border>
-                            </StackPanel>
-                        </Border>
-                    </Border>
-
                     <!-- The pages sit side by side; switching only shows or hides them. A TabControl takes a page out of the window
                          and puts it back on every switch, which rebuilds every control on it (hundreds of ms on Profiles or Settings);
                          a hidden page costs nothing. Same order as MainTab. -->
@@ -357,7 +293,7 @@
                             <views:TodayView DataContext="{Binding Session}" />
                             <views:TasksView DataContext="{Binding Tasks}" IsVisible="False" />
                             <views:PlanView DataContext="{Binding Plan}" IsVisible="False" />
-                            <views:StatsView DataContext="{Binding History}" IsVisible="False" />
+                            <views:StatsView DataContext="{Binding Stats}" IsVisible="False" />
                             <views:SettingsShellView IsVisible="False" />
                             <views:ActivityView DataContext="{Binding Activity}" IsVisible="False" />
                         </Panel>

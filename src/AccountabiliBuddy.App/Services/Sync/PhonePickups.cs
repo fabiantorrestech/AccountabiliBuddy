@@ -39,6 +39,17 @@ public sealed class PhonePickups
             .MaxBy(entry => entry.CountedUntil);
     }
 
+    /// <summary>The phone's newest count for each of this PC's sessions that started in [<paramref name="from"/>, <paramref name="to"/>), by start.</summary>
+    public IReadOnlyList<SyncPickup> Between(DateTimeOffset from, DateTimeOffset to)
+    {
+        return Entries()
+            .GroupBy(entry => entry.SessionStart)
+            .Select(group => group.MaxBy(entry => entry.CountedUntil)!)
+            .Where(entry => entry.SessionStart >= from && entry.SessionStart < to)
+            .OrderBy(entry => entry.SessionStart)
+            .ToList();
+    }
+
     /// <summary>E.g. "Phone: not picked up · down 34m" or "Phone: picked up 2× · longest down 18m"; null when nothing came.</summary>
     public string? Describe(DateTimeOffset sessionStart)
     {

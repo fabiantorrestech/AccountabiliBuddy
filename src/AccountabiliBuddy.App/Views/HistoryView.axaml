@@ -2,10 +2,22 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:views="using:AccountabiliBuddy.App.Views"
-             xmlns:controls="using:AccountabiliBuddy.App.Controls"
              x:Class="AccountabiliBuddy.App.Views.HistoryView"
              x:DataType="vm:HistoryViewModel">
+    <!-- The Day details fold of the Stats page: everything History showed, in one narrow column in tokens (Surface2 sections, no tinted cards).
+         The period, the device filter and Refresh, the week review, the day's totals, top distractions, most used apps and sites with their
+         ⋯ menus, and the sessions with Add a past session, distracted time and the omit / edit / delete actions. -->
     <UserControl.Resources>
+        <!-- The period and device radios in Ink, not the accent (the accent is progress on this page). -->
+        <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedFill" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedFillPointerOver" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedFillPressed" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedStroke" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedStrokePointerOver" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedStrokePressed" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="RadioButtonCheckGlyphFill" Color="{DynamicResource Ab.BgColor}" />
+        <SolidColorBrush x:Key="RadioButtonCheckGlyphFillPointerOver" Color="{DynamicResource Ab.BgColor}" />
+        <SolidColorBrush x:Key="RadioButtonCheckGlyphFillPressed" Color="{DynamicResource Ab.BgColor}" />
         <!-- One app or site: icon, name, time, a ⋯ menu (rename, hide, delete), and its bar. -->
         <DataTemplate x:Key="UsageRow" x:DataType="vm:UsageRowViewModel">
             <Grid ColumnDefinitions="26,*" Margin="0,0,0,8">
@@ -21,11 +33,11 @@
                     <Grid ColumnDefinitions="*,Auto,Auto" IsVisible="{Binding !IsEditing}">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{Binding RealNameHint}" Opacity="0.5" FontSize="11" VerticalAlignment="Center"
+                            <TextBlock Classes="faint" Text="{Binding RealNameHint}" FontSize="11" VerticalAlignment="Center"
                                        TextTrimming="CharacterEllipsis" />
                         </StackPanel>
-                        <Button Grid.Column="1" Content="⋯" ToolTip.Tip="Show, rename, hide or delete"
-                                Background="Transparent" Padding="6,0" Margin="4,0" FontSize="14" Opacity="0.7">
+                        <Button Grid.Column="1" Classes="quiet" Content="⋯" ToolTip.Tip="Show, rename, hide or delete"
+                                Padding="6,0" Margin="4,0" FontSize="14" MinHeight="0">
                             <Button.Flyout>
                                 <MenuFlyout Placement="BottomEdgeAlignedRight">
                                     <MenuItem Header="Show in File Explorer" Command="{Binding ShowInExplorerCommand}" IsVisible="{Binding CanShowFile}" />
@@ -38,21 +50,21 @@
                                 </MenuFlyout>
                             </Button.Flyout>
                         </Button>
-                        <TextBlock Grid.Column="2" Text="{Binding TimeText}" Opacity="0.8" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="2" Classes="muted" Text="{Binding TimeText}" VerticalAlignment="Center" />
                     </Grid>
-                    <TextBlock Text="{Binding FileNotFoundText}" IsVisible="{Binding ShowsFileNotFound}" FontSize="11" Opacity="0.75"
+                    <TextBlock Classes="muted" Text="{Binding FileNotFoundText}" IsVisible="{Binding ShowsFileNotFound}" FontSize="11"
                                TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding IsEditing}">
-                        <TextBox Text="{Binding EditText}" Width="170" />
-                        <Button Content="Save" Command="{Binding SaveRenameCommand}" Classes="accent" />
+                        <TextBox Text="{Binding EditText}" Width="130" />
+                        <Button Content="Save" Command="{Binding SaveRenameCommand}" />
                         <Button Content="Reset" Command="{Binding ResetNameCommand}" ToolTip.Tip="Back to the real name" />
-                        <Button Content="✕" Command="{Binding CancelRenameCommand}" ToolTip.Tip="Cancel" />
+                        <Button Classes="quiet" Content="✕" Command="{Binding CancelRenameCommand}" ToolTip.Tip="Cancel" />
                     </StackPanel>
-                    <Border IsVisible="{Binding IsConfirmingDelete}" Background="#22E5484D" CornerRadius="6" Padding="8,6">
+                    <Border IsVisible="{Binding IsConfirmingDelete}" Background="{DynamicResource Ab.Surface}" CornerRadius="10" Padding="10,8">
                         <StackPanel Spacing="6">
                             <TextBlock Text="{Binding DeleteQuestion}" TextWrapping="Wrap" FontSize="12" />
                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                <Button Content="Delete" Command="{Binding ConfirmDeleteCommand}" Background="#B91C1C" Foreground="White" />
+                                <Button Content="Delete" Command="{Binding ConfirmDeleteCommand}" Foreground="{DynamicResource Ab.Drift}" />
                                 <Button Content="Cancel" Command="{Binding CancelDeleteCommand}" />
                             </StackPanel>
                         </StackPanel>
@@ -67,7 +79,7 @@
         <DataTemplate x:Key="SiteRow" x:DataType="vm:UsageRowViewModel">
             <StackPanel>
                 <ContentControl Content="{Binding}" ContentTemplate="{StaticResource UsageRow}" />
-                <Border BorderBrush="#33808080" BorderThickness="1,0,0,0" Margin="8,-4,0,8" Padding="12,0,0,0"
+                <Border BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1,0,0,0" Margin="8,-4,0,8" Padding="12,0,0,0"
                         IsVisible="{Binding HasSites}">
                     <StackPanel>
                         <ItemsControl ItemsSource="{Binding ShownSites}">
@@ -77,8 +89,8 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <Button Content="{Binding SitesToggleText}" Command="{Binding ToggleSitesCommand}" IsVisible="{Binding HasMoreSites}"
-                                Background="Transparent" Padding="0,0,0,4" FontSize="12" Opacity="0.75" />
+                        <Button Classes="quiet" Content="{Binding SitesToggleText}" Command="{Binding ToggleSitesCommand}" IsVisible="{Binding HasMoreSites}"
+                                HorizontalAlignment="Left" Padding="6,2" FontSize="12" />
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -90,7 +102,7 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="x:String">
                         <Grid ColumnDefinitions="*,Auto" Margin="0,2">
-                            <TextBlock Text="{Binding}" Opacity="0.75" VerticalAlignment="Center" />
+                            <TextBlock Classes="muted" Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                             <Button Grid.Column="1" Content="Show again" FontSize="12" Padding="8,2"
                                     Command="{Binding $parent[ItemsControl].((vm:HiddenListViewModel)DataContext).ShowAgainCommand}"
                                     CommandParameter="{Binding}" />
@@ -102,332 +114,291 @@
     </UserControl.Resources>
 
     <UserControl.Styles>
+        <Style Selector="ProgressBar">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
         <Style Selector="ProgressBar.distraction">
-            <Setter Property="Foreground" Value="#E0A030" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Waiting}" />
         </Style>
-        <!-- A focus session added by hand (ADR 20): a lighter, striped teal row. -->
-        <Style Selector="Grid.added">
-            <Setter Property="Background">
-                <LinearGradientBrush StartPoint="0,0" EndPoint="10,10" SpreadMethod="Repeat">
-                    <GradientStop Offset="0" Color="#2214B8A6" />
-                    <GradientStop Offset="0.5" Color="#2214B8A6" />
-                    <GradientStop Offset="0.5" Color="#0A14B8A6" />
-                    <GradientStop Offset="1" Color="#0A14B8A6" />
-                </LinearGradientBrush>
-            </Setter>
+        <!-- A section of the fold: Surface2, radius as the cards under the charts. -->
+        <Style Selector="Border.section">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Padding" Value="16,14" />
         </Style>
-        <Style Selector="Border.card">
-            <Setter Property="Background" Value="#1A808080" />
-            <Setter Property="BorderBrush" Value="#33808080" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="16,12" />
+        <!-- A session added by hand (ADR 20): a stripe down its left edge instead of a tinted row. -->
+        <Style Selector="Border.added">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="BorderThickness" Value="2,0,0,0" />
+            <Setter Property="Padding" Value="8,0,0,0" />
         </Style>
         <Style Selector="TextBlock.title">
-            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontSize" Value="15" />
             <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
-        <Style Selector="TextBlock.muted">
-            <Setter Property="Opacity" Value="0.7" />
-            <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
         <Style Selector="TextBlock.big">
-            <Setter Property="FontSize" Value="22" />
-            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="17" />
         </Style>
     </UserControl.Styles>
 
-    <ScrollViewer>
-        <StackPanel Margin="16" Spacing="14" MaxWidth="900" HorizontalAlignment="Left">
-            <!-- Deep work against the daily goal, day by day (redesign phase 4). -->
-            <Border Padding="16,12" CornerRadius="10" Background="#1A2A9D8F" BorderBrush="#552A9D8F" BorderThickness="1"
-                    DataContext="{Binding DeepWork}" x:DataType="vm:DeepWorkHistoryViewModel"
-                    IsVisible="{Binding $parent[UserControl].((vm:HistoryViewModel)DataContext).DeepWork, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
-                <StackPanel Spacing="8">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="Deep work" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <ToggleButton Grid.Column="1" Content="30 days" IsChecked="{Binding ShowsMonth}" />
-                    </Grid>
-                    <controls:DeepWorkChart Bars="{Binding Bars}" GoalLine="{Binding GoalLine}" Height="140" />
-                    <TextBlock Text="{Binding SummaryText}" Opacity="0.85" TextWrapping="Wrap" />
-                    <TextBlock Text="Bars: focus in sessions on any of your devices · dashed line: your daily goal · teal: goal met" FontSize="11" Opacity="0.6" />
-                </StackPanel>
-            </Border>
+    <StackPanel Spacing="14">
+        <!-- Which period the fold shows, the device filter (ADR 22: shows once another device's part is here) and Refresh. -->
+        <WrapPanel ItemSpacing="10" LineSpacing="6">
+            <RadioButton Content="This day" IsChecked="{Binding ShowDay}" GroupName="period" />
+            <RadioButton Content="Last 7 days" IsChecked="{Binding ShowWeek}" GroupName="period" />
+            <RadioButton Content="All devices" IsChecked="{Binding ShowAllDevices}" GroupName="devices" IsVisible="{Binding HasReceivedDevices}"
+                         ToolTip.Tip="This PC's sessions and the ones your other devices counted" />
+            <RadioButton Content="This PC" IsChecked="{Binding ShowThisPcOnly}" GroupName="devices" IsVisible="{Binding HasReceivedDevices}"
+                         ToolTip.Tip="Only the sessions counted on this PC" />
+            <Button Classes="quiet" Content="Refresh" Command="{Binding RefreshCommand}" />
+        </WrapPanel>
+        <TextBlock Classes="muted" Text="{Binding PeriodLabel}" FontSize="13" TextWrapping="Wrap" />
 
-            <!-- New this week: sites and apps used in focus with no rule, turned into rules here. -->
-            <StackPanel Spacing="8">
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <Button Content="Review new this week" Command="{Binding ReviewWeekCommand}" />
-                    <TextBlock Text="{Binding WeekReviewNote}" Opacity="0.75" VerticalAlignment="Center" TextWrapping="Wrap"
-                               IsVisible="{Binding WeekReviewNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                </StackPanel>
-                <Panel IsVisible="{Binding WeekReview, Converter={x:Static ObjectConverters.IsNotNull}}">
-                    <views:SessionReviewView DataContext="{Binding WeekReview}" />
-                </Panel>
-            </StackPanel>
-            <Border IsVisible="{Binding IsLoggingOff}" Background="#33F59E0B" Padding="12,8" CornerRadius="6">
-                <TextBlock Text="Activity history is turned off, so nothing new is being recorded. Turn it on in Setup." TextWrapping="Wrap" />
-            </Border>
-            <TextBlock Text="{Binding ErrorText}" Foreground="#E76F51" TextWrapping="Wrap"
-                       IsVisible="{Binding ErrorText, Converter={x:Static ObjectConverters.IsNotNull}}" />
-
-            <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                    <RadioButton Content="Today" IsChecked="{Binding ShowToday}" GroupName="period" />
-                    <RadioButton Content="Last 7 days" IsChecked="{Binding ShowWeek}" GroupName="period" />
-                    <RadioButton Content="Day" IsChecked="{Binding ShowDay}" GroupName="period" />
-                    <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding ShowDay}">
-                        <Button Content="◀" Command="{Binding PreviousDayCommand}" ToolTip.Tip="Day before" Padding="8,4" />
-                        <CalendarDatePicker SelectedDate="{Binding SelectedDay}" DisplayDateStart="{Binding FirstDay}"
-                                            DisplayDateEnd="{Binding LastDay}" SelectedDateFormat="Long" MinWidth="200" />
-                        <Button Content="▶" Command="{Binding NextDayCommand}" ToolTip.Tip="Day after" Padding="8,4" />
-                    </StackPanel>
-                    <TextBlock Text="{Binding PeriodLabel}" Classes="muted" VerticalAlignment="Center" Margin="8,0,0,0"
-                               IsVisible="{Binding !ShowDay}" />
-                </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12">
-                    <!-- The running log across devices (ADR 22): shows once another device's part is here. -->
-                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasReceivedDevices}" VerticalAlignment="Center">
-                        <RadioButton Content="All devices" IsChecked="{Binding ShowAllDevices}" GroupName="devices"
-                                     ToolTip.Tip="This PC's sessions and the ones your other devices counted" />
-                        <RadioButton Content="This PC" IsChecked="{Binding ShowThisPcOnly}" GroupName="devices"
-                                     ToolTip.Tip="Only the sessions counted on this PC" />
-                    </StackPanel>
-                    <Button Content="Refresh" Command="{Binding RefreshCommand}" />
-                </StackPanel>
-            </Grid>
-
-            <!-- Totals during focus -->
-            <UniformGrid Rows="1" Columns="4">
-                <Border Classes="card" Margin="0,0,8,0">
-                    <StackPanel Spacing="2">
-                        <TextBlock Text="Focus time" Classes="muted" />
-                        <TextBlock Text="{Binding FocusTimeText}" Classes="big" />
-                    </StackPanel>
-                </Border>
-                <Border Classes="card" Margin="0,0,8,0">
-                    <StackPanel Spacing="2">
-                        <TextBlock Text="On track" Classes="muted" />
-                        <TextBlock Text="{Binding OnTrackText}" Classes="big" Foreground="#2A9D8F" />
-                    </StackPanel>
-                </Border>
-                <Border Classes="card" Margin="0,0,8,0">
-                    <StackPanel Spacing="2">
-                        <TextBlock Text="Distracted" Classes="muted" />
-                        <TextBlock Text="{Binding DistractedText}" Classes="big" Foreground="#E0A030" />
-                    </StackPanel>
-                </Border>
-                <Border Classes="card">
-                    <StackPanel Spacing="2">
-                        <TextBlock Text="Not classified" Classes="muted" />
-                        <TextBlock Text="{Binding UnknownText}" Classes="big" />
-                    </StackPanel>
-                </Border>
-            </UniformGrid>
-            <TextBlock Classes="muted" FontSize="12"
-                       Text="Totals cover focus phases only and are counted per monitor. Activities appear once they end; idle time (5+ min without keyboard or mouse) is not counted." />
-
-            <!-- Top lists -->
-            <Grid ColumnDefinitions="*,16,*">
-                <Border Classes="card">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="Top distractions during focus" Classes="title" />
-                        <TextBlock Text="None. Nice." Classes="muted" IsVisible="{Binding HasNoDistractions}" />
-                        <ItemsControl ItemsSource="{Binding TopDistractions}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:UsageRowViewModel">
-                                    <ContentControl Content="{Binding}" ContentTemplate="{StaticResource SiteRow}" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="{Binding DistractionsToggleText}" Command="{Binding ToggleAllDistractionsCommand}"
-                                    IsVisible="{Binding HasMoreDistractions}" />
-                            <Button DataContext="{Binding HiddenDistractions}" x:DataType="vm:HiddenListViewModel"
-                                    Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" IsVisible="{Binding HasAny}"
-                                    ToolTip.Tip="Hidden from this list" />
-                        </StackPanel>
-                        <ContentControl Content="{Binding HiddenDistractions}" ContentTemplate="{StaticResource HiddenList}" />
-                    </StackPanel>
-                </Border>
-                <Border Grid.Column="2" Classes="card">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="Most used apps and sites" Classes="title" />
-                        <TextBlock Text="Nothing recorded yet." Classes="muted" IsVisible="{Binding HasNoUsage}" />
-                        <ItemsControl ItemsSource="{Binding TopOverall}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:UsageRowViewModel">
-                                    <StackPanel>
-                                        <ContentControl Content="{Binding}" ContentTemplate="{StaticResource UsageRow}" />
-                                        <!-- A browser's sites, indented under it: the top few, then "+N more sites". -->
-                                        <Border BorderBrush="#33808080" BorderThickness="1,0,0,0" Margin="8,-4,0,8" Padding="12,0,0,0"
-                                                IsVisible="{Binding HasSites}">
-                                            <StackPanel>
-                                                <ItemsControl ItemsSource="{Binding ShownSites}">
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate x:DataType="vm:UsageRowViewModel">
-                                                            <ContentControl Content="{Binding}" ContentTemplate="{StaticResource SiteRow}" FontSize="13" />
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
-                                                <Button Content="{Binding SitesToggleText}" Command="{Binding ToggleSitesCommand}" IsVisible="{Binding HasMoreSites}"
-                                                        Background="Transparent" Padding="0,0,0,4" FontSize="12" Opacity="0.75" />
-                                            </StackPanel>
-                                        </Border>
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="{Binding OverallToggleText}" Command="{Binding ToggleAllOverallCommand}"
-                                    IsVisible="{Binding HasMoreOverall}" />
-                            <Button DataContext="{Binding HiddenOverall}" x:DataType="vm:HiddenListViewModel"
-                                    Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" IsVisible="{Binding HasAny}"
-                                    ToolTip.Tip="Hidden from this list" />
-                            <Button Content="{Binding DeletedToggleText}" Command="{Binding ToggleDeletedCommand}" IsVisible="{Binding HasDeleted}"
-                                    ToolTip.Tip="Time deleted in this period" />
-                        </StackPanel>
-                        <ContentControl Content="{Binding HiddenOverall}" ContentTemplate="{StaticResource HiddenList}" />
-                        <ItemsControl ItemsSource="{Binding DeletedRows}" IsVisible="{Binding ShowDeleted}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:DeletedRowViewModel">
-                                    <Grid ColumnDefinitions="*,Auto" Margin="0,2">
-                                        <TextBlock Text="{Binding Text}" Opacity="0.75" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                        <Button Grid.Column="1" Content="Restore" FontSize="12" Padding="8,2"
-                                                Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).RestoreCommand}"
-                                                CommandParameter="{Binding}" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </Border>
-            </Grid>
-
-            <!-- Sessions -->
-            <Border Classes="card">
-                <StackPanel Spacing="8">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="Sessions" Classes="title" />
-                        <Button Grid.Column="1" Content="Add a past session…" Command="{Binding OpenAddFormCommand}"
-                                IsVisible="{Binding !IsAddFormOpen}" Padding="10,3" />
-                    </Grid>
-
-                    <!-- A focus session done away from the app, added by hand (ADR 20); it counts like a recorded one. -->
-                    <Border x:Name="AddForm" IsVisible="{Binding IsAddFormOpen}" Background="#0F808080" BorderBrush="#26808080" BorderThickness="1"
-                            CornerRadius="8" Padding="14,12">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="{Binding FormTitle}" FontWeight="SemiBold" FontSize="15" />
-                            <WrapPanel>
-                                <StackPanel Spacing="2" Margin="0,0,12,6">
-                                    <TextBlock Text="Date" FontSize="12" Opacity="0.75" />
-                                    <DatePicker SelectedDate="{Binding FormDate}" />
-                                </StackPanel>
-                                <StackPanel Spacing="2" Margin="0,0,12,6">
-                                    <TextBlock Text="Start" FontSize="12" Opacity="0.75" />
-                                    <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding FormStart}" MinuteIncrement="5" />
-                                </StackPanel>
-                                <StackPanel Spacing="2" Margin="0,0,12,6">
-                                    <TextBlock Text="End (before the start = the next day)" FontSize="12" Opacity="0.75" />
-                                    <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding FormEnd}" MinuteIncrement="5" />
-                                </StackPanel>
-                            </WrapPanel>
-                            <TextBox Text="{Binding FormNote}" Watermark="Note (optional), e.g. Read the design doc at the library" />
-                            <TextBlock Text="{Binding FormError}" IsVisible="{Binding HasFormError}" Foreground="#E5484D" TextWrapping="Wrap" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Save" Command="{Binding SaveAddedCommand}" Classes="accent" />
-                                <Button Content="Cancel" Command="{Binding CancelAddedCommand}" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Distracted time marked by hand on a past session: out of focus, counted as distracted. -->
-                    <Border IsVisible="{Binding IsGapFormOpen}" Background="#0F808080" BorderBrush="#26808080" BorderThickness="1"
-                            CornerRadius="8" Padding="14,12">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="{Binding GapFormTitle}" FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap" />
-                            <TextBlock Text="Mark the stretches you were distracted. They come out of focus time and count as distracted; the session itself stays as recorded, so removing one gives the time back."
-                                       Classes="muted" TextWrapping="Wrap" />
-                            <ItemsControl ItemsSource="{Binding GapRows}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:GapRowViewModel">
-                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
-                                            <TextBlock Text="From" VerticalAlignment="Center" />
-                                            <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding From}" MinuteIncrement="1" />
-                                            <TextBlock Text="to" VerticalAlignment="Center" />
-                                            <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding To}" MinuteIncrement="1" />
-                                            <Button Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this stretch" Padding="8,2" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <Button Content="+ Add a stretch" Command="{Binding AddGapRowCommand}" Padding="8,2" />
-                            <TextBlock Text="{Binding GapFormError}" IsVisible="{Binding HasGapFormError}" Foreground="#E5484D" TextWrapping="Wrap" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Save" Command="{Binding SaveGapsCommand}" Classes="accent" />
-                                <Button Content="Cancel" Command="{Binding CancelGapsCommand}" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <TextBlock Text="No sessions in this period." Classes="muted" IsVisible="{Binding HasNoSessions}" />
-                    <ItemsControl ItemsSource="{Binding Sessions}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:SessionRowViewModel">
-                                <Grid ColumnDefinitions="130,*,90,200,Auto" Margin="0,4" Opacity="{Binding RowOpacity}"
-                                      Classes.added="{Binding IsAdded}">
-                                    <TextBlock Text="{Binding WhenText}" Opacity="0.8" />
-                                    <StackPanel Grid.Column="1" Spacing="2">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                            <!-- Counted on another device (ADR 22). -->
-                                            <Border IsVisible="{Binding IsReceived}" Background="#330369A1" CornerRadius="8" Padding="7,1"
-                                                    VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding DeviceName}" FontSize="11" />
-                                            </Border>
-                                        </StackPanel>
-                                        <TextBlock Text="{Binding ReasonText}" IsVisible="{Binding HasReason}"
-                                                   FontSize="12" Opacity="0.7" TextWrapping="Wrap" FontStyle="Italic" />
-                                        <TextBlock Text="{Binding NotesText}" IsVisible="{Binding HasNotes}"
-                                                   FontSize="12" Opacity="0.8" TextWrapping="Wrap" />
-                                        <Button Content="Distracted time…" IsVisible="{Binding CanMarkDistracted}" HorizontalAlignment="Left"
-                                                Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).OpenGapsCommand}"
-                                                CommandParameter="{Binding}" Padding="6,1" FontSize="11" Background="Transparent" Opacity="0.75"
-                                                ToolTip.Tip="Mark stretches of this session you were distracted (out of focus time)" />
-                                    </StackPanel>
-                                    <TextBlock Grid.Column="2" Text="{Binding LengthText}" HorizontalAlignment="Right" />
-                                    <TextBlock Grid.Column="3" Text="{Binding OutcomeText}" HorizontalAlignment="Right" Opacity="0.8"
-                                               TextWrapping="Wrap" TextAlignment="Right" />
-                                    <Button Grid.Column="4" Content="{Binding MarkButtonText}" ToolTip.Tip="{Binding MarkButtonTip}"
-                                            Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).ToggleOmittedCommand}"
-                                            CommandParameter="{Binding}" Margin="12,0,0,0" Padding="8,2" FontSize="12"
-                                            VerticalAlignment="Center" IsVisible="{Binding ShowsMarkButton}" />
-                                    <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0" IsVisible="{Binding ShowsAddedButtons}"
-                                                VerticalAlignment="Center">
-                                        <Button Content="Edit" Padding="8,2" FontSize="12"
-                                                Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).EditAddedCommand}"
-                                                CommandParameter="{Binding}" />
-                                        <Button Content="Delete" Padding="8,2" FontSize="12"
-                                                Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).AskDeleteAddedCommand}"
-                                                CommandParameter="{Binding}" />
-                                    </StackPanel>
-                                    <!-- Delete asks first: the session and its note can't be brought back. -->
-                                    <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0" IsVisible="{Binding ConfirmingDelete}"
-                                                VerticalAlignment="Center">
-                                        <TextBlock Text="Delete it and its note?" FontSize="12" VerticalAlignment="Center" />
-                                        <Button Content="Delete" Padding="8,2" FontSize="12"
-                                                Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).DeleteAddedCommand}"
-                                                CommandParameter="{Binding}" />
-                                        <Button Content="Keep" Padding="8,2" FontSize="12"
-                                                Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).KeepAddedCommand}"
-                                                CommandParameter="{Binding}" />
-                                    </StackPanel>
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Border>
+        <!-- New this week: sites and apps used in focus with no rule, turned into rules here. -->
+        <StackPanel Spacing="8">
+            <Button Classes="quiet" Content="Review new this week" Command="{Binding ReviewWeekCommand}" HorizontalAlignment="Left" />
+            <TextBlock Classes="muted" Text="{Binding WeekReviewNote}" TextWrapping="Wrap"
+                       IsVisible="{Binding WeekReviewNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            <Panel IsVisible="{Binding WeekReview, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <views:SessionReviewView DataContext="{Binding WeekReview}" />
+            </Panel>
         </StackPanel>
-    </ScrollViewer>
+        <Border IsVisible="{Binding IsLoggingOff}" Background="{DynamicResource Ab.InfoBg}" Padding="12,8" CornerRadius="10">
+            <TextBlock Foreground="{DynamicResource Ab.InfoInk}" TextWrapping="Wrap"
+                       Text="Activity history is turned off, so nothing new is being recorded. Turn it on in Settings › Setup." />
+        </Border>
+        <TextBlock Text="{Binding ErrorText}" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap"
+                   IsVisible="{Binding ErrorText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+        <!-- Totals during focus -->
+        <UniformGrid Columns="2" RowSpacing="8" ColumnSpacing="8">
+            <Border Classes="section">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="Focus time" Classes="muted" FontSize="12" />
+                    <TextBlock Text="{Binding FocusTimeText}" Classes="big numeral" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+            <Border Classes="section">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="On track" Classes="muted" FontSize="12" />
+                    <TextBlock Text="{Binding OnTrackText}" Classes="big numeral" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Met}" />
+                </StackPanel>
+            </Border>
+            <Border Classes="section">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="Distracted" Classes="muted" FontSize="12" />
+                    <TextBlock Text="{Binding DistractedText}" Classes="big numeral" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Waiting}" />
+                </StackPanel>
+            </Border>
+            <Border Classes="section">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="Not classified" Classes="muted" FontSize="12" />
+                    <TextBlock Text="{Binding UnknownText}" Classes="big numeral" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </UniformGrid>
+        <TextBlock Classes="muted" FontSize="12"
+                   Text="Totals cover focus phases only and are counted per monitor. Activities appear once they end; idle time (5+ min without keyboard or mouse) is not counted." />
+
+        <!-- Top lists -->
+        <Border Classes="section">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Top distractions during focus" Classes="title" />
+                <TextBlock Text="None. Nice." Classes="muted" IsVisible="{Binding HasNoDistractions}" />
+                <ItemsControl ItemsSource="{Binding TopDistractions}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:UsageRowViewModel">
+                            <ContentControl Content="{Binding}" ContentTemplate="{StaticResource SiteRow}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <WrapPanel ItemSpacing="8" LineSpacing="6">
+                    <Button Content="{Binding DistractionsToggleText}" Command="{Binding ToggleAllDistractionsCommand}"
+                            IsVisible="{Binding HasMoreDistractions}" />
+                    <Button DataContext="{Binding HiddenDistractions}" x:DataType="vm:HiddenListViewModel"
+                            Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" IsVisible="{Binding HasAny}"
+                            ToolTip.Tip="Hidden from this list" />
+                </WrapPanel>
+                <ContentControl Content="{Binding HiddenDistractions}" ContentTemplate="{StaticResource HiddenList}" />
+            </StackPanel>
+        </Border>
+        <Border Classes="section">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Most used apps and sites" Classes="title" />
+                <TextBlock Text="Nothing recorded yet." Classes="muted" IsVisible="{Binding HasNoUsage}" />
+                <ItemsControl ItemsSource="{Binding TopOverall}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:UsageRowViewModel">
+                            <StackPanel>
+                                <ContentControl Content="{Binding}" ContentTemplate="{StaticResource UsageRow}" />
+                                <!-- A browser's sites, indented under it: the top few, then "+N more sites". -->
+                                <Border BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1,0,0,0" Margin="8,-4,0,8" Padding="12,0,0,0"
+                                        IsVisible="{Binding HasSites}">
+                                    <StackPanel>
+                                        <ItemsControl ItemsSource="{Binding ShownSites}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:UsageRowViewModel">
+                                                    <ContentControl Content="{Binding}" ContentTemplate="{StaticResource SiteRow}" FontSize="13" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Button Classes="quiet" Content="{Binding SitesToggleText}" Command="{Binding ToggleSitesCommand}" IsVisible="{Binding HasMoreSites}"
+                                                HorizontalAlignment="Left" Padding="6,2" FontSize="12" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <WrapPanel ItemSpacing="8" LineSpacing="6">
+                    <Button Content="{Binding OverallToggleText}" Command="{Binding ToggleAllOverallCommand}"
+                            IsVisible="{Binding HasMoreOverall}" />
+                    <Button DataContext="{Binding HiddenOverall}" x:DataType="vm:HiddenListViewModel"
+                            Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" IsVisible="{Binding HasAny}"
+                            ToolTip.Tip="Hidden from this list" />
+                    <Button Content="{Binding DeletedToggleText}" Command="{Binding ToggleDeletedCommand}" IsVisible="{Binding HasDeleted}"
+                            ToolTip.Tip="Time deleted in this period" />
+                </WrapPanel>
+                <ContentControl Content="{Binding HiddenOverall}" ContentTemplate="{StaticResource HiddenList}" />
+                <ItemsControl ItemsSource="{Binding DeletedRows}" IsVisible="{Binding ShowDeleted}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:DeletedRowViewModel">
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                                <TextBlock Classes="muted" Text="{Binding Text}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <Button Grid.Column="1" Content="Restore" FontSize="12" Padding="8,2" Margin="8,0,0,0"
+                                        Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).RestoreCommand}"
+                                        CommandParameter="{Binding}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <!-- Sessions -->
+        <Border Classes="section">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="Sessions" Classes="title" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Content="Add a past session…" Command="{Binding OpenAddFormCommand}"
+                            IsVisible="{Binding !IsAddFormOpen}" Padding="10,4" FontSize="13" />
+                </Grid>
+
+                <!-- A focus session done away from the app, added by hand (ADR 20); it counts like a recorded one. -->
+                <Border x:Name="AddForm" IsVisible="{Binding IsAddFormOpen}" Background="{DynamicResource Ab.Surface}" CornerRadius="12" Padding="14,12">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="{Binding FormTitle}" Classes="title" TextWrapping="Wrap" />
+                        <WrapPanel>
+                            <StackPanel Spacing="2" Margin="0,0,12,6">
+                                <TextBlock Text="Date" FontSize="12" Classes="muted" />
+                                <DatePicker SelectedDate="{Binding FormDate}" />
+                            </StackPanel>
+                            <StackPanel Spacing="2" Margin="0,0,12,6">
+                                <TextBlock Text="Start" FontSize="12" Classes="muted" />
+                                <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding FormStart}" MinuteIncrement="5" />
+                            </StackPanel>
+                            <StackPanel Spacing="2" Margin="0,0,12,6">
+                                <TextBlock Text="End (before the start = the next day)" FontSize="12" Classes="muted" TextWrapping="Wrap" MaxWidth="220" />
+                                <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding FormEnd}" MinuteIncrement="5" />
+                            </StackPanel>
+                        </WrapPanel>
+                        <TextBox Text="{Binding FormNote}" PlaceholderText="Note (optional), e.g. Read the design doc at the library" />
+                        <TextBlock Text="{Binding FormError}" IsVisible="{Binding HasFormError}" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Save" Command="{Binding SaveAddedCommand}" />
+                            <Button Content="Cancel" Command="{Binding CancelAddedCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Distracted time marked by hand on a past session: out of focus, counted as distracted. -->
+                <Border IsVisible="{Binding IsGapFormOpen}" Background="{DynamicResource Ab.Surface}" CornerRadius="12" Padding="14,12">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="{Binding GapFormTitle}" Classes="title" TextWrapping="Wrap" />
+                        <TextBlock Text="Mark the stretches you were distracted. They come out of focus time and count as distracted; the session itself stays as recorded, so removing one gives the time back."
+                                   Classes="muted" TextWrapping="Wrap" />
+                        <ItemsControl ItemsSource="{Binding GapRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:GapRowViewModel">
+                                    <WrapPanel Margin="0,0,0,6" ItemSpacing="8" LineSpacing="4">
+                                        <TextBlock Text="From" VerticalAlignment="Center" />
+                                        <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding From}" MinuteIncrement="1" />
+                                        <TextBlock Text="to" VerticalAlignment="Center" />
+                                        <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding To}" MinuteIncrement="1" />
+                                        <Button Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this stretch" Padding="8,2" />
+                                    </WrapPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Content="+ Add a stretch" Command="{Binding AddGapRowCommand}" Padding="8,2" HorizontalAlignment="Left" />
+                        <TextBlock Text="{Binding GapFormError}" IsVisible="{Binding HasGapFormError}" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Save" Command="{Binding SaveGapsCommand}" />
+                            <Button Content="Cancel" Command="{Binding CancelGapsCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="No sessions in this period." Classes="muted" IsVisible="{Binding HasNoSessions}" />
+                <ItemsControl ItemsSource="{Binding Sessions}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SessionRowViewModel">
+                            <Border Classes.added="{Binding IsAdded}" Opacity="{Binding RowOpacity}" Margin="0,6">
+                                <StackPanel Spacing="4">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="2">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                <!-- Counted on another device (ADR 22). -->
+                                                <Border IsVisible="{Binding IsReceived}" Background="{DynamicResource Ab.Surface}" CornerRadius="8" Padding="7,1"
+                                                        VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding DeviceName}" FontSize="11" />
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Classes="muted" Text="{Binding WhenText}" FontSize="12" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Classes="numeral" Text="{Binding LengthText}" VerticalAlignment="Top" Margin="8,0,0,0" />
+                                    </Grid>
+                                    <TextBlock Classes="muted" Text="{Binding OutcomeText}" FontSize="12" TextWrapping="Wrap" />
+                                    <TextBlock Classes="muted" Text="{Binding ReasonText}" IsVisible="{Binding HasReason}"
+                                               FontSize="12" TextWrapping="Wrap" FontStyle="Italic" />
+                                    <TextBlock Text="{Binding NotesText}" IsVisible="{Binding HasNotes}"
+                                               FontSize="12" TextWrapping="Wrap" />
+                                    <WrapPanel ItemSpacing="6" LineSpacing="4">
+                                        <Button Classes="quiet" Content="Distracted time…" IsVisible="{Binding CanMarkDistracted}"
+                                                Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).OpenGapsCommand}"
+                                                CommandParameter="{Binding}" Padding="6,1" FontSize="12"
+                                                ToolTip.Tip="Mark stretches of this session you were distracted (out of focus time)" />
+                                        <Button Content="{Binding MarkButtonText}" ToolTip.Tip="{Binding MarkButtonTip}"
+                                                Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).ToggleOmittedCommand}"
+                                                CommandParameter="{Binding}" Padding="8,2" FontSize="12"
+                                                VerticalAlignment="Center" IsVisible="{Binding ShowsMarkButton}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding ShowsAddedButtons}" VerticalAlignment="Center">
+                                            <Button Content="Edit" Padding="8,2" FontSize="12"
+                                                    Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).EditAddedCommand}"
+                                                    CommandParameter="{Binding}" />
+                                            <Button Content="Delete" Padding="8,2" FontSize="12"
+                                                    Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).AskDeleteAddedCommand}"
+                                                    CommandParameter="{Binding}" />
+                                        </StackPanel>
+                                        <!-- Delete asks first: the session and its note can't be brought back. -->
+                                        <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding ConfirmingDelete}" VerticalAlignment="Center">
+                                            <TextBlock Text="Delete it and its note?" FontSize="12" VerticalAlignment="Center" />
+                                            <Button Content="Delete" Padding="8,2" FontSize="12" Foreground="{DynamicResource Ab.Drift}"
+                                                    Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).DeleteAddedCommand}"
+                                                    CommandParameter="{Binding}" />
+                                            <Button Content="Keep" Padding="8,2" FontSize="12"
+                                                    Command="{Binding $parent[ItemsControl].((vm:HistoryViewModel)DataContext).KeepAddedCommand}"
+                                                    CommandParameter="{Binding}" />
+                                        </StackPanel>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+    </StackPanel>
 </UserControl>
