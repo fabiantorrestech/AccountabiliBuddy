@@ -37,12 +37,31 @@ public sealed unsafe class Win32CtrlAltWatcher : ICtrlAltWatcher, IDisposable
 
     public event EventHandler<bool>? HeldChanged;
 
+    public void Resync()
+    {
+        _requests.Enqueue(() =>
+        {
+            if (!_hook.IsNull)
+            {
+                Set((PInvoke.GetAsyncKeyState((int)VIRTUAL_KEY.VK_CONTROL) & 0x8000) != 0, (PInvoke.GetAsyncKeyState((int)VIRTUAL_KEY.VK_MENU) & 0x8000) != 0);
+            }
+        });
+        PInvoke.PostThreadMessage(_threadId, PInvoke.WM_APP, default, default);
+    }
+
+    /// <remarks>Listening again installs a fresh hook: Windows removes a hook that answered too slowly once, without telling us.</remarks>
     public void SetListening(bool listening)
     {
         _requests.Enqueue(() =>
         {
-            if (listening && _hook.IsNull)
+            if (listening)
             {
+                if (!_hook.IsNull)
+                {
+                    PInvoke.UnhookWindowsHookEx(_hook);
+                    _hook = default;
+                }
+
                 _ctrl = (PInvoke.GetAsyncKeyState((int)VIRTUAL_KEY.VK_CONTROL) & 0x8000) != 0;
                 _alt = (PInvoke.GetAsyncKeyState((int)VIRTUAL_KEY.VK_MENU) & 0x8000) != 0;
                 _hook = PInvoke.SetWindowsHookEx(WINDOWS_HOOK_ID.WH_KEYBOARD_LL, HookProcedure, HINSTANCE.Null, 0);

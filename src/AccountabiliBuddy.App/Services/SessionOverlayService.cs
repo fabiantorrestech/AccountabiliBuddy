@@ -37,6 +37,10 @@ public sealed class SessionOverlayService : IDisposable
     private readonly DispatcherTimer _wakeTimer = new();
     private readonly DispatcherTimer _clockTimer = new();
 
+    // While a peek is open, a missed key-up (Ctrl+Alt+Del, a lock screen, an elevated window) would leave it open: once a second the real key
+    // state is looked at, only for as long as the peek lasts.
+    private readonly DispatcherTimer _peekGuard = new() { Interval = TimeSpan.FromSeconds(1) };
+
     private TaskbarOverlayWindow? _tile;
     private OverlayPanelWindow? _panel;
     private OverlayPanelViewModel? _panelModel;
@@ -84,6 +88,13 @@ public sealed class SessionOverlayService : IDisposable
         _peekTimer.Tick += (_, _) =>
         {
             _peekTimer.Stop();
+            if (!_control.AreDragKeysHeld())
+            {
+                // The hook thinks Ctrl+Alt is down but the keyboard says no: a key-up was missed.
+                _ctrlAlt.Resync();
+                return;
+            }
+
             if (_ctrlAlt.IsHeld && _settings.Current.HoldToPeek)
             {
                 OpenPanel(sticky: false);
@@ -95,6 +106,18 @@ public sealed class SessionOverlayService : IDisposable
             Update();
         };
         _clockTimer.Tick += (_, _) => Update();
+        _peekGuard.Tick += (_, _) =>
+        {
+            if (_panel is not { IsSticky: false } || !_control.AreDragKeysHeld())
+            {
+                _peekGuard.Stop();
+                if (_panel is { IsSticky: false })
+                {
+                    ClosePanel();
+                    _ctrlAlt.Resync();
+                }
+            }
+        };
     }
 
     /// <summary>What the overlay and its panel ask the app to do and ask it about; set by the app before <see cref="Start"/>.</summary>
@@ -145,6 +168,12 @@ public sealed class SessionOverlayService : IDisposable
             if (!state.IsActive)
             {
                 IsHiddenForSession = false;
+            }
+
+            // A fresh hook at each session start or end: Windows drops one that was too slow once, silently.
+            if (_settings.Current.HoldToPeek)
+            {
+                _ctrlAlt.SetListening(true);
             }
 
             Update();
@@ -371,10 +400,19 @@ public sealed class SessionOverlayService : IDisposable
         }
 
         _panel.Present(tile.Box, tile.Target, sticky);
+        if (sticky)
+        {
+            _peekGuard.Stop();
+        }
+        else
+        {
+            _peekGuard.Start();
+        }
     }
 
     private void ClosePanel()
     {
+        _peekGuard.Stop();
         _panel?.Close();
         _panel = null;
     }

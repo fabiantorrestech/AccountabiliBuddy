@@ -12,6 +12,9 @@ public interface ICtrlAltWatcher
     /// <summary>Raised with the new state when it changes. Raised on the watcher's own thread.</summary>
     event EventHandler<bool>? HeldChanged;
 
+    /// <summary>Reads Ctrl and Alt from the keyboard state again, for when a key-up was missed (the secure desktop, a lock screen, an elevated window in front).</summary>
+    void Resync();
+
     /// <summary>Starts or stops listening (no hook is installed while the peek is off).</summary>
     void SetListening(bool listening);
 }
