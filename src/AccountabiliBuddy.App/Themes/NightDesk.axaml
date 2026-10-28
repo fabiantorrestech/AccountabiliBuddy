@@ -1,0 +1,118 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Night Desk - Calm: blue-black ground, sand accent, no card borders, Manrope display. Same keys in all three theme files (ADR 49). Colours are Ab.<Name>Color, brushes Ab.<Name>. -->
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+            <Color x:Key="Ab.BgColor">#EEF1F5</Color>
+            <Color x:Key="Ab.SurfaceColor">#FFFFFF</Color>
+            <Color x:Key="Ab.Surface2Color">#E3E7EE</Color>
+            <Color x:Key="Ab.LineColor">#E3E7EE</Color>
+            <Color x:Key="Ab.InkColor">#1A2233</Color>
+            <Color x:Key="Ab.MutedColor">#5E6B80</Color>
+            <Color x:Key="Ab.FaintColor">#8A96A8</Color>
+            <Color x:Key="Ab.AccentColor">#8C6D45</Color>
+            <Color x:Key="Ab.OnAccentColor">#FFFFFF</Color>
+            <Color x:Key="Ab.AccentSoftColor">#EFE9DF</Color>
+            <Color x:Key="Ab.InfoBgColor">#E8EBF3</Color>
+            <Color x:Key="Ab.InfoInkColor">#2E3757</Color>
+            <Color x:Key="Ab.SleepColor">#5865A8</Color>
+            <Color x:Key="Ab.MetColor">#3F7A5A</Color>
+            <Color x:Key="Ab.WaitingColor">#5865A8</Color>
+            <Color x:Key="Ab.DriftColor">#B5523F</Color>
+            <Color x:Key="Ab.PlanColor">#CDD4DF</Color>
+            <Color x:Key="Ab.UpcomingColor">#B9C2D0</Color>
+            <SolidColorBrush x:Key="Ab.Bg" Color="{DynamicResource Ab.BgColor}" />
+            <SolidColorBrush x:Key="Ab.Surface" Color="{DynamicResource Ab.SurfaceColor}" />
+            <SolidColorBrush x:Key="Ab.Surface2" Color="{DynamicResource Ab.Surface2Color}" />
+            <SolidColorBrush x:Key="Ab.Line" Color="{DynamicResource Ab.LineColor}" />
+            <SolidColorBrush x:Key="Ab.Ink" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="Ab.Muted" Color="{DynamicResource Ab.MutedColor}" />
+            <SolidColorBrush x:Key="Ab.Faint" Color="{DynamicResource Ab.FaintColor}" />
+            <SolidColorBrush x:Key="Ab.Accent" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="Ab.OnAccent" Color="{DynamicResource Ab.OnAccentColor}" />
+            <SolidColorBrush x:Key="Ab.AccentSoft" Color="{DynamicResource Ab.AccentSoftColor}" />
+            <SolidColorBrush x:Key="Ab.InfoBg" Color="{DynamicResource Ab.InfoBgColor}" />
+            <SolidColorBrush x:Key="Ab.InfoInk" Color="{DynamicResource Ab.InfoInkColor}" />
+            <SolidColorBrush x:Key="Ab.Sleep" Color="{DynamicResource Ab.SleepColor}" />
+            <SolidColorBrush x:Key="Ab.Met" Color="{DynamicResource Ab.MetColor}" />
+            <SolidColorBrush x:Key="Ab.Waiting" Color="{DynamicResource Ab.WaitingColor}" />
+            <SolidColorBrush x:Key="Ab.Drift" Color="{DynamicResource Ab.DriftColor}" />
+            <SolidColorBrush x:Key="Ab.Plan" Color="{DynamicResource Ab.PlanColor}" />
+            <SolidColorBrush x:Key="Ab.Upcoming" Color="{DynamicResource Ab.UpcomingColor}" />
+            <!-- FluentTheme colour keys, so Fluent controls follow the theme (see FluentOverrides.axaml). -->
+            <Color x:Key="SystemAccentColor">#8C6D45</Color>
+            <Color x:Key="SystemAccentColorLight1">#8C6D45</Color>
+            <Color x:Key="SystemAccentColorLight2">#8C6D45</Color>
+            <Color x:Key="SystemAccentColorLight3">#8C6D45</Color>
+            <Color x:Key="SystemAccentColorDark1">#8C6D45</Color>
+            <Color x:Key="SystemAccentColorDark2">#8C6D45</Color>
+            <Color x:Key="SystemAccentColorDark3">#8C6D45</Color>
+            <Color x:Key="SystemRegionColor">#EEF1F5</Color>
+            <Color x:Key="SystemAltHighColor">#FFFFFF</Color>
+            <Color x:Key="SystemBaseHighColor">#1A2233</Color>
+            <Color x:Key="SystemBaseMediumHighColor">#1A2233</Color>
+            <Color x:Key="SystemBaseMediumColor">#5E6B80</Color>
+            <Color x:Key="SystemBaseMediumLowColor">#8A96A8</Color>
+            <Color x:Key="SystemBaseLowColor">#E3E7EE</Color>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+            <Color x:Key="Ab.BgColor">#10141C</Color>
+            <Color x:Key="Ab.SurfaceColor">#171C27</Color>
+            <Color x:Key="Ab.Surface2Color">#1F2532</Color>
+            <Color x:Key="Ab.LineColor">#283040</Color>
+            <Color x:Key="Ab.InkColor">#DCE1EA</Color>
+            <Color x:Key="Ab.MutedColor">#8C95A8</Color>
+            <Color x:Key="Ab.FaintColor">#5A6378</Color>
+            <Color x:Key="Ab.AccentColor">#D2B98F</Color>
+            <Color x:Key="Ab.OnAccentColor">#241B0E</Color>
+            <Color x:Key="Ab.AccentSoftColor">#2A2822</Color>
+            <Color x:Key="Ab.InfoBgColor">#1B2134</Color>
+            <Color x:Key="Ab.InfoInkColor">#B7C0DE</Color>
+            <Color x:Key="Ab.SleepColor">#A7B2D6</Color>
+            <Color x:Key="Ab.MetColor">#8FBFA6</Color>
+            <Color x:Key="Ab.WaitingColor">#A7B2D6</Color>
+            <Color x:Key="Ab.DriftColor">#D99A8E</Color>
+            <Color x:Key="Ab.PlanColor">#343C52</Color>
+            <Color x:Key="Ab.UpcomingColor">#46506A</Color>
+            <SolidColorBrush x:Key="Ab.Bg" Color="{DynamicResource Ab.BgColor}" />
+            <SolidColorBrush x:Key="Ab.Surface" Color="{DynamicResource Ab.SurfaceColor}" />
+            <SolidColorBrush x:Key="Ab.Surface2" Color="{DynamicResource Ab.Surface2Color}" />
+            <SolidColorBrush x:Key="Ab.Line" Color="{DynamicResource Ab.LineColor}" />
+            <SolidColorBrush x:Key="Ab.Ink" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="Ab.Muted" Color="{DynamicResource Ab.MutedColor}" />
+            <SolidColorBrush x:Key="Ab.Faint" Color="{DynamicResource Ab.FaintColor}" />
+            <SolidColorBrush x:Key="Ab.Accent" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="Ab.OnAccent" Color="{DynamicResource Ab.OnAccentColor}" />
+            <SolidColorBrush x:Key="Ab.AccentSoft" Color="{DynamicResource Ab.AccentSoftColor}" />
+            <SolidColorBrush x:Key="Ab.InfoBg" Color="{DynamicResource Ab.InfoBgColor}" />
+            <SolidColorBrush x:Key="Ab.InfoInk" Color="{DynamicResource Ab.InfoInkColor}" />
+            <SolidColorBrush x:Key="Ab.Sleep" Color="{DynamicResource Ab.SleepColor}" />
+            <SolidColorBrush x:Key="Ab.Met" Color="{DynamicResource Ab.MetColor}" />
+            <SolidColorBrush x:Key="Ab.Waiting" Color="{DynamicResource Ab.WaitingColor}" />
+            <SolidColorBrush x:Key="Ab.Drift" Color="{DynamicResource Ab.DriftColor}" />
+            <SolidColorBrush x:Key="Ab.Plan" Color="{DynamicResource Ab.PlanColor}" />
+            <SolidColorBrush x:Key="Ab.Upcoming" Color="{DynamicResource Ab.UpcomingColor}" />
+            <!-- FluentTheme colour keys, so Fluent controls follow the theme (see FluentOverrides.axaml). -->
+            <Color x:Key="SystemAccentColor">#D2B98F</Color>
+            <Color x:Key="SystemAccentColorLight1">#D2B98F</Color>
+            <Color x:Key="SystemAccentColorLight2">#D2B98F</Color>
+            <Color x:Key="SystemAccentColorLight3">#D2B98F</Color>
+            <Color x:Key="SystemAccentColorDark1">#D2B98F</Color>
+            <Color x:Key="SystemAccentColorDark2">#D2B98F</Color>
+            <Color x:Key="SystemAccentColorDark3">#D2B98F</Color>
+            <Color x:Key="SystemRegionColor">#10141C</Color>
+            <Color x:Key="SystemAltHighColor">#171C27</Color>
+            <Color x:Key="SystemBaseHighColor">#DCE1EA</Color>
+            <Color x:Key="SystemBaseMediumHighColor">#DCE1EA</Color>
+            <Color x:Key="SystemBaseMediumColor">#8C95A8</Color>
+            <Color x:Key="SystemBaseMediumLowColor">#5A6378</Color>
+            <Color x:Key="SystemBaseLowColor">#1F2532</Color>
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+
+    <FontFamily x:Key="Ab.DisplayFont">avares://AccountabiliBuddy.App/Assets/Fonts/Manrope#Manrope</FontFamily>
+    <FontFamily x:Key="Ab.NumeralFont">avares://AccountabiliBuddy.App/Assets/Fonts/Manrope#Manrope</FontFamily>
+    <CornerRadius x:Key="Ab.CardRadius">28</CornerRadius>
+    <Thickness x:Key="Ab.CardBorderThickness">0</Thickness>
+    <x:Double x:Key="Ab.DisplayLetterSpacing">-0.5</x:Double>
+</ResourceDictionary>

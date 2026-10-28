@@ -1,6 +1,7 @@
 using AccountabiliBuddy.App.DevTools;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.App.Services.Search;
+using AccountabiliBuddy.App.Services.Theming;
 using AccountabiliBuddy.App.Services.Backup;
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.App.Views;
@@ -57,6 +58,7 @@ public partial class App : Application
     private SessionEndFlow? _endFlow;
     private SessionCheckpointService? _checkpoints;
     private ClockAnchorService? _clockAnchors;
+    private ThemeService? _themes;
     private WatchedBrowsersService? _watchedBrowsers;
     private UnlockService? _unlocks;
     private SessionOverlayService? _sessionOverlay;
@@ -451,6 +453,9 @@ public partial class App : Application
         // Animations at the chosen speed, or none (Settings → On screen & sound).
         _motion = new Motion(documents);
         _motion.LoadBlocking();
+        // The look (ADR 49): Instrument until the Appearance settings choose another. Light or dark stays with AppTheme.
+        _themes = new ThemeService();
+        _themes.Apply(ThemeName.Instrument);
         var appTheme = new AppTheme(documents);
         appTheme.LoadBlocking();
         _motion.Apply();

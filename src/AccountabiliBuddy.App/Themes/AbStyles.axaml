@@ -1,0 +1,90 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Shared styles over the Ab.* tokens (ADR 49). Flat: no gradients, no drop shadows. -->
+
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        <Setter Property="BorderThickness" Value="{DynamicResource Ab.CardBorderThickness}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource Ab.CardRadius}" />
+        <Setter Property="Padding" Value="22" />
+    </Style>
+
+    <!-- Fluent's button template paints the background on the ContentPresenter in every state, so each state is set there. -->
+    <Style Selector="Button.primary">
+        <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="Button.primary /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        <Setter Property="Opacity" Value="0.92" />
+    </Style>
+    <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        <Setter Property="Opacity" Value="0.8" />
+    </Style>
+    <Style Selector="Button.primary:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        <Setter Property="Opacity" Value="0.4" />
+    </Style>
+
+    <Style Selector="Button.quiet">
+        <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="Button.quiet /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.quiet:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+    </Style>
+    <Style Selector="Button.quiet:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+    </Style>
+
+    <Style Selector="TextBlock.display">
+        <Setter Property="FontFamily" Value="{DynamicResource Ab.DisplayFont}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="LetterSpacing" Value="{DynamicResource Ab.DisplayLetterSpacing}" />
+    </Style>
+    <Style Selector="TextBlock.numeral">
+        <Setter Property="FontFamily" Value="{DynamicResource Ab.NumeralFont}" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="FontFeatures" Value="+tnum" />
+    </Style>
+    <Style Selector="TextBlock.section">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+    </Style>
+    <Style Selector="TextBlock.muted">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+    </Style>
+    <Style Selector="TextBlock.faint">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+    </Style>
+
+    <!-- Keyboard focus: a 2px accent ring. -->
+    <Style Selector="Button:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+        <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="ToggleButton:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+        <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="ToggleSwitch:focus-visible /template/ Border#SwitchKnobBounds">
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+        <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+        <Setter Property="BorderThickness" Value="2" />
+    </Style>
+</Styles>
