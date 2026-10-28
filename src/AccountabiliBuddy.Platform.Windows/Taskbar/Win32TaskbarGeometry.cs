@@ -35,6 +35,9 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
     // The window in front is looked at again at most this often for new icons (a probe takes UI Automation round trips).
     private static readonly TimeSpan ProbeGap = TimeSpan.FromMilliseconds(400);
 
+    // A new window in front only re-reads the taskbar this often: an app may have added an icon, but a read costs a walk over Explorer's tree.
+    private static readonly TimeSpan ForegroundProbeGap = TimeSpan.FromSeconds(2);
+
     // The desktop and the taskbar cover the screen too but are not full screen apps.
     private static readonly HashSet<string> ShellClasses = new(StringComparer.Ordinal) { "Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd" };
 
@@ -431,7 +434,7 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
         ProbeReading? reading = _reading;
         if (reading?.Key != key || _needsProbe)
         {
-            StartProbe(taskbar, bounds, key);
+            StartProbe(taskbar, bounds, key, urgent: reading?.Key != key);
         }
 
         (int? appsStart, int? appsEnd, int? trayStart) = reading?.Key == key ? reading.Result : (null, null, null);
@@ -446,9 +449,9 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
         return (tray, free, leftFree, leftFree is null);
     }
 
-    private void StartProbe(HWND taskbar, PixelBox bounds, ProbeKey key)
+    private void StartProbe(HWND taskbar, PixelBox bounds, ProbeKey key, bool urgent)
     {
-        if (Environment.TickCount64 - _lastProbeTick < ProbeGap.TotalMilliseconds || Interlocked.Exchange(ref _probing, 1) == 1)
+        if (Environment.TickCount64 - _lastProbeTick < (urgent ? ProbeGap : ForegroundProbeGap).TotalMilliseconds || Interlocked.Exchange(ref _probing, 1) == 1)
         {
             return;
         }

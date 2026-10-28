@@ -31,33 +31,26 @@ internal sealed class TaskbarContentProbe
     /// <returns>Where the app icons end (x, physical pixels) and where the tray starts; each null when it could not be read.</returns>
     public (int? AppsStart, int? AppsEnd, int? TrayStart) Probe(HWND taskbar, PixelBox bounds)
     {
-        var automation = (IUIAutomation)new CUIAutomation();
-        IUIAutomationElement root = automation.ElementFromHandle(taskbar);
-        IUIAutomationCondition all = automation.CreateTrueCondition();
-        IUIAutomationElementArray items = root.FindAll(TreeScope.TreeScope_Descendants, all);
-        int count = items.Length;
+        List<UiaTaskbarReader.Item> items = UiaTaskbarReader.Read(taskbar);
 
         var buttons = new List<(int Left, int Right)>();
         int? trayStart = null;
-        for (int index = 0; index < count; index++)
+        foreach (UiaTaskbarReader.Item item in items)
         {
-            IUIAutomationElement element = items.GetElement(index);
-            RECT rect = element.CurrentBoundingRectangle;
+            RECT rect = item.Rect;
             if (rect.right <= rect.left || rect.bottom <= rect.top || rect.top < bounds.Top - 2 || rect.bottom > bounds.Bottom + 2
                 || rect.left < bounds.Left - 2 || rect.right > bounds.Right + 2 || rect.right - rect.left > bounds.Width / 2)
             {
                 continue;
             }
 
-            string classText = element.CurrentClassName.ToString() ?? string.Empty;
-            string idText = element.CurrentAutomationId.ToString() ?? string.Empty;
-            if (classText.StartsWith("SystemTray", StringComparison.Ordinal) || TrayIds.Contains(idText))
+            if (item.ClassName.StartsWith("SystemTray", StringComparison.Ordinal) || TrayIds.Contains(item.AutomationId))
             {
                 trayStart = trayStart is int known ? Math.Min(known, rect.left) : rect.left;
                 continue;
             }
 
-            if (ButtonTypes.Contains((int)element.CurrentControlType))
+            if (ButtonTypes.Contains((int)item.ControlType))
             {
                 buttons.Add((rect.left, rect.right));
             }

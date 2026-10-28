@@ -185,3 +185,5 @@ WM_SYSKEYUP
 GetModuleHandle
 IUIAutomationInvokePattern
 UIA_PATTERN_ID
+UIA_PROPERTY_ID
+IUIAutomationCacheRequest
