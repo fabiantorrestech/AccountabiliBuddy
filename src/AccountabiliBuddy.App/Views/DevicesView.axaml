@@ -403,14 +403,14 @@
             <TextBlock Classes="sGroup" Text="Sync light" />
             <Border Classes="sPanel">
                 <Border Classes="sRow" BorderThickness="0">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                        <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <StackPanel Spacing="10">
+                        <StackPanel Spacing="2">
                             <TextBlock Classes="sTitle" Text="Show the sync light in the title bar" />
                             <TextBlock Classes="sHint" Text="The dot and device icons next to the sync button. The sync button itself always stays." />
                         </StackPanel>
-                        <ListBox Grid.Column="1" Classes="segmented" ItemsSource="{x:Static vm:DevicesViewModel.SyncLightNames}"
-                                 SelectedIndex="{Binding SyncLightIndex}" VerticalAlignment="Center" AutomationProperties.Name="Sync light" />
-                    </Grid>
+                        <ListBox Classes="segmented" ItemsSource="{x:Static vm:DevicesViewModel.SyncLightNames}"
+                                 SelectedIndex="{Binding SyncLightIndex}" AutomationProperties.Name="Sync light" />
+                    </StackPanel>
                 </Border>
             </Border>
 
