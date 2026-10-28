@@ -106,7 +106,8 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable
 
     public bool ShowsMoveToSession => Kind is TaskRowKind.Later or TaskRowKind.ComeBack;
 
-    public bool ShowsPlan => Kind is TaskRowKind.Session or TaskRowKind.Later && !_snapshot.IsDone;
+    // Put in plan is for the next session's tasks and Later; a running session's task can't be planned for later.
+    public bool ShowsPlan => (Kind == TaskRowKind.Later || Kind == TaskRowKind.Session && !_owner.IsSessionLive) && !_snapshot.IsDone;
 
     public bool ShowsDelete => Kind is TaskRowKind.Later or TaskRowKind.ComeBack;
 

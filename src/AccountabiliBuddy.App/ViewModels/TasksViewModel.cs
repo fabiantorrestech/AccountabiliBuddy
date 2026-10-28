@@ -467,7 +467,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
                 Capitalised(DayLabel(day.Key, DateOnly.FromDateTime(now))),
                 day.Select(part =>
                 {
-                    var slot = new PlannedSlot(day.Key, part.Part.Id, TimeOnly.FromDateTime(part.Window.Start));
+                    var slot = PlannedSlot.At(day.Key, part.Part.Id, TimeOnly.FromDateTime(part.Window.Start));
                     return new PlanPartChoiceViewModel($"{Clock(part.Window.Start)} · {part.Name}", slot == current, () => pick(slot));
                 }).ToList()))
             .ToList();

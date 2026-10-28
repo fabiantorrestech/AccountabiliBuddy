@@ -293,7 +293,7 @@ class CompanionApp : Application() {
         sync.nextTasks = { sharedLists.nextTasksForSync() }
         sync.parked = { sharedLists.parkedForSync() }
         sync.later = { sharedLists.laterForSync() }
-        sync.onSharedLists = { nextTasks, parked, later -> sharedLists.receive(nextTasks, parked, later) }
+        sync.onSharedLists = { nextTasks, parked, later, knowsDetails -> sharedLists.receive(nextTasks, parked, later, knowsDetails) }
         sharedLists.onChanged = {
             relaySoon()
             appScope.launch {

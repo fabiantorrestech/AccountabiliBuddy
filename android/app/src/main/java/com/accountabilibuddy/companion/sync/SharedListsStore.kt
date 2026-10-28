@@ -74,12 +74,28 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
      * Takes other devices' lists in (a list a file doesn't carry is left alone). Item by item the newest edit wins and
      * a newer tombstone removes an item.
      *
+     * When [knowsDetails] is false (the file has no `later` list, so its writer predates ADR 50's fields and can't clear
+     * them), a task that comes without an estimate, note or planned part takes them from this phone's copy of the same
+     * task before merging.
+     *
      * @return True when a list changed.
      */
     @Synchronized
-    fun receive(nextTasks: List<SyncNextTask>?, parked: List<SyncParked>?, later: List<SyncLaterItem>? = null): Boolean {
+    fun receive(nextTasks: List<SyncNextTask>?, parked: List<SyncParked>?, later: List<SyncLaterItem>? = null, knowsDetails: Boolean = true): Boolean {
         val time = now()
-        val mergedTasks = nextTasks?.let { SharedListMerge.merge(all.nextTasks, it, time) } ?: all.nextTasks
+        val incoming = if (knowsDetails) nextTasks else nextTasks?.map { task ->
+            val own = all.nextTasks.firstOrNull { it.id == task.id && it.deletedAt == null }
+            if (task.deletedAt != null || own == null) {
+                task
+            } else {
+                task.copy(
+                    estimateMinutes = task.estimateMinutes ?: own.estimateMinutes,
+                    note = task.note ?: own.note,
+                    plannedFor = task.plannedFor ?: own.plannedFor,
+                )
+            }
+        }
+        val mergedTasks = incoming?.let { SharedListMerge.merge(all.nextTasks, it, time) } ?: all.nextTasks
         val mergedParked = parked?.let { SharedListMerge.merge(all.parked, it, time) } ?: all.parked
         val mergedLater = later?.let { SharedListMerge.merge(all.later, it, time) } ?: all.later
         if (mergedTasks == SharedListMerge.merge(all.nextTasks, emptyList(), time) &&

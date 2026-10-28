@@ -12,6 +12,12 @@ namespace AccountabiliBuddy.Core.Domain;
 /// <param name="Start">The part's start as it was chosen, local wall-clock time.</param>
 public sealed record PlannedSlot(DateOnly Date, Guid PartId, TimeOnly Start)
 {
+    /// <summary>A slot with the start cut to whole seconds, the form both devices write and compare.</summary>
+    public static PlannedSlot At(DateOnly date, Guid partId, TimeOnly start)
+    {
+        return new PlannedSlot(date, partId, new TimeOnly(start.Hour, start.Minute, start.Second));
+    }
+
     /// <summary>The moment the part starts, as a local wall-clock time.</summary>
     [JsonIgnore]
     public DateTime StartsAt => Date.ToDateTime(Start);

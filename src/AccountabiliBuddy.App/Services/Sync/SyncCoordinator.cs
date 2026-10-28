@@ -292,7 +292,7 @@ public sealed class SyncCoordinator
     /// Merges another device's next-session list into this PC's (ADR 48); true when it changed. A merge that changed it
     /// raises the store's own change event, which writes this PC's file again; set by the app.
     /// </summary>
-    public Func<IReadOnlyList<SyncNextTask>, Task<bool>>? MergeNextTasks { get; set; }
+    public Func<IReadOnlyList<SyncNextTask>, bool, Task<bool>>? MergeNextTasks { get; set; }
 
     /// <summary>Merges another device's come-backs into this PC's (ADR 48); true when they changed; set by the app.</summary>
     public Func<IReadOnlyList<SyncParked>, Task<bool>>? MergeParked { get; set; }
@@ -413,7 +413,9 @@ public sealed class SyncCoordinator
 
         if (file.NextTasks is { } nextTasks && MergeNextTasks is not null)
         {
-            await MergeNextTasks(CleanNextTasks(nextTasks));
+            // A file with a "later" list (even an empty one) comes from a writer that knows ADR 50's fields; one without comes
+            // from an older app, whose tasks inherit what this PC holds for them.
+            await MergeNextTasks(CleanNextTasks(nextTasks), file.Later is not null);
         }
 
         if (file.Parked is { } parked && MergeParked is not null)

@@ -381,6 +381,14 @@
                     <CheckBox IsChecked="{Binding IsStartOfDayOn}" Content="Ask me at the start of my workday" />
                 </StackPanel>
 
+                <!-- ADR 50: the Tasks page's new fields -->
+                <StackPanel IsVisible="{Binding IsTasks}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="The Tasks page now lets every task carry an estimate (25, 50, 90 minutes or your own) and a private note, keeps a Later list for what isn't for this session, and can put a task in the plan for a coming part of your day: it joins the next session when that part starts." />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="To try it, finish here and open Tasks: pick a task, set its estimate, write a note, or press Move to Later or Put in plan. Notes stay on your devices, sealed, and sync only between them. Moving a task to Later during a focus session counts as taking it off, so it can't end the session early." />
+                </StackPanel>
+
                 <!-- ADR 49: the look, a theme and light or dark -->
                 <StackPanel IsVisible="{Binding IsAppearance}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
                     <TextBlock Classes="body" TextWrapping="Wrap"

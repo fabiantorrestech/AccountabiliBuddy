@@ -113,7 +113,8 @@ class SyncCoordinator(
         List<com.accountabilibuddy.shared.sync.SyncNextTask>?,
         List<com.accountabilibuddy.shared.sync.SyncParked>?,
         List<com.accountabilibuddy.shared.sync.SyncLaterItem>?,
-    ) -> Unit = { _, _, _ -> }
+        Boolean,
+    ) -> Unit = { _, _, _, _ -> }
 
     /** What the user did here for a PC, waiting for its ack (ADR 26); set by the app. */
     var actions: () -> List<com.accountabilibuddy.shared.sync.SyncAction> = { emptyList() }
@@ -192,7 +193,8 @@ class SyncCoordinator(
         store.save(outcome.devices)
         // Not from a device whose clock runs more than a minute ahead; a later file from it, once the clocks agree, is taken.
         if ((file.nextTasks != null || file.parked != null || file.later != null) && !file.device.writtenAt.isAfter(now().plusSeconds(60))) {
-            onSharedLists(file.nextTasks, file.parked, file.later)
+            // A file with a "later" list (even empty) comes from a writer that knows ADR 50's fields; one without, from an older app.
+            onSharedLists(file.nextTasks, file.parked, file.later, file.later != null)
         }
 
         if (held == null || file.device.writtenAt > held.file.device.writtenAt) {

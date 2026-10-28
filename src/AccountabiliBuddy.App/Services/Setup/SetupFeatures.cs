@@ -9,7 +9,8 @@ namespace AccountabiliBuddy.App.Services.Setup;
 public static class SetupFeatures
 {
     public static IReadOnlyList<SetupFeature> All(ColdTurkeyKeysService keys, ColdTurkeyService coldTurkey, Sync.SyncSettingsService sync,
-        ConfigurationService configuration, StartNudgeService startNudge, DpAssistantService dpAssistant, Theming.AppTheme appearance) => new[]
+        ConfigurationService configuration, StartNudgeService startNudge, DpAssistantService dpAssistant, Theming.AppTheme appearance,
+        SessionTasksService tasks) => new[]
     {
         new SetupFeature(
             "coldturkey.keys", "0.1.106",
@@ -47,6 +48,13 @@ public static class SetupFeatures
             IsRelevant: () => true,
             IsSetUp: () => dpAssistant.HasRun,
             Step: ViewModels.AssistantStep.DpAssistant),
+        new SetupFeature(
+            "tasks.details", "0.1.114",
+            "Tasks: estimates, notes, a Later list, Put in plan",
+            "Give a task an estimate and a private note, move it to Later, or put it in the plan for a coming part of your day, all on the Tasks page. Notes stay sealed and sync only between your devices.",
+            IsRelevant: () => true,
+            IsSetUp: () => tasks.UsesTaskDetails,
+            Step: ViewModels.AssistantStep.Tasks),
         new SetupFeature(
             "appearance.themes", "0.1.114",
             "Appearance: three themes, light and dark on a schedule",

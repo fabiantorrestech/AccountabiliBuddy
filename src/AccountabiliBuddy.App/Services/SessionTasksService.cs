@@ -39,6 +39,7 @@ public sealed class SessionTasksService : IDisposable
     private const string CategoriesKey = "session.categories";
     private const string OverLimitKey = "session.overLimit";
     private const string NextTasksKey = "session.nextTasks";
+    private const string MovedToLaterKey = "session.movedToLater";
 
     // Two positions closer than this are renumbered (halving a gap again and again runs out of precision).
     private const double MinPositionGap = 1e-9;
@@ -56,6 +57,10 @@ public sealed class SessionTasksService : IDisposable
 
     // The shared next-session list (ADR 48), tombstones included; the draft shows its live items.
     private List<SyncNextTask> _nextTasks = [];
+
+    // Tasks of ended sessions that were moved to Later: the session's record stays as it was, and they're left out of
+    // "Unfinished from past sessions". Only ids and when (no text); kept as long as history is.
+    private List<MovedEntry> _movedToLater = [];
 
     public SessionTasksService(SqliteJsonDocumentStore store, IDataProtector protector, SessionController sessions, TimeProvider time)
     {
@@ -170,6 +175,7 @@ public sealed class SessionTasksService : IDisposable
             _overLimit = OpenOverLimit(overLimit?.Data) ?? [];
             StoredCategories? nextTasks = Task.Run(() => _store.LoadAsync<StoredCategories>(NextTasksKey)).GetAwaiter().GetResult();
             _nextTasks = OpenNextTasks(nextTasks?.Data) ?? [];
+            _movedToLater = Task.Run(() => _store.LoadAsync<List<MovedEntry>>(MovedToLaterKey)).GetAwaiter().GetResult() ?? [];
             if (Current.SessionStart is null)
             {
                 LoadSharedDraftBlocking(firstTime: nextTasks is null);
@@ -650,16 +656,18 @@ public sealed class SessionTasksService : IDisposable
     /// <summary>The open tasks of ended sessions (newest session first), for the Tasks page's "Unfinished from past sessions".</summary>
     public IReadOnlyList<PastTask> PastUnfinished()
     {
+        HashSet<Guid> moved = _movedToLater.Select(entry => entry.Id).ToHashSet();
         return _history
             .Where(checklist => checklist.SessionStart is not null)
             .OrderByDescending(checklist => checklist.SessionStart)
-            .SelectMany(checklist => checklist.Tasks.Where(task => !task.IsDone).Select(task => new PastTask(task, checklist.SessionStart!.Value)))
+            .SelectMany(checklist => checklist.Tasks.Where(task => !task.IsDone && !moved.Contains(task.Id)).Select(task => new PastTask(task, checklist.SessionStart!.Value)))
             .ToList();
     }
 
     /// <summary>
     /// Offers unfinished tasks of ended sessions to the Later list (nothing moves on its own): each becomes a Later item with
-    /// its open steps, category, estimate and note, and leaves the session's record, so it is listed once.
+    /// its open steps, category, estimate and note. The session's record stays as it was; the task is remembered as moved,
+    /// so it is no longer listed under "Unfinished from past sessions".
     /// </summary>
     /// <returns>How many moved.</returns>
     public async Task<int> MovePastToLaterAsync(IReadOnlySet<Guid> taskIds)
@@ -674,16 +682,23 @@ public sealed class SessionTasksService : IDisposable
         {
             SessionTask task = past.Task;
             IReadOnlyList<SessionSubtask> openSteps = task.Subtasks.Where(step => !step.IsDone).ToList();
+            // Remembered before the Later item is added, so the page that redraws on its change already leaves the task out.
+            _movedToLater.Add(new MovedEntry(task.Id, _time.GetUtcNow()));
             if (await Later.AddAsync(task.Title, openSteps, task.Category, task.CategoryColor, task.EstimateMinutes, task.Note, null) is not null)
             {
                 moved++;
+            }
+            else
+            {
+                _movedToLater.RemoveAt(_movedToLater.Count - 1);
             }
         }
 
         if (moved > 0)
         {
-            _history = _history.Select(checklist => checklist with { Tasks = checklist.Tasks.Where(task => task.IsDone || !taskIds.Contains(task.Id)).ToList() }).ToList();
-            await _store.SaveAsync(HistoryKey, _history.Select(item => new StoredHistory(Seal(item))).ToList());
+            DateTimeOffset keptFrom = _time.GetUtcNow() - HistoryKept;
+            _movedToLater = _movedToLater.Where(entry => entry.At >= keptFrom).ToList();
+            await _store.SaveAsync(MovedToLaterKey, _movedToLater);
             Changed?.Invoke(this, EventArgs.Empty);
         }
 
@@ -699,7 +714,8 @@ public sealed class SessionTasksService : IDisposable
         bool Planned(PlannedSlot? slot) => slot is not null && slot.Date == date && slot.PartId == partId;
 
         var titles = new Dictionary<Guid, string>();
-        foreach (SessionTask task in Current.Tasks.Where(task => !task.IsDone && Planned(task.PlannedFor)))
+        // A running session's tasks are never "planned" (Put in plan is for the next session's list and Later).
+        foreach (SessionTask task in Current.Tasks.Where(task => Current.SessionStart is null && !task.IsDone && Planned(task.PlannedFor)))
         {
             titles[task.Id] = task.Title;
         }
@@ -830,13 +846,20 @@ public sealed class SessionTasksService : IDisposable
             DateTime localNow = TimeZoneInfo.ConvertTime(now, _sessions.TimeProvider.LocalTimeZone).DateTime;
             bool changed = false;
             List<SyncNextTask> items = _nextTasks.ToList();
+            var released = new List<Guid>();
             foreach (SyncLaterItem item in (Later?.Items ?? []).Where(item => item.PlannedFor is PlannedSlot slot && PlannedStart(slot) <= localNow).ToList())
             {
-                double last = items.Where(task => task.DeletedAt is null && task.Category == item.Category).Select(task => task.Position).DefaultIfEmpty(0).Max();
-                items.Add(new SyncNextTask(
-                    Guid.NewGuid(), item.Title, null, item.Category, item.CategoryColor, item.Subtasks, now, null,
-                    SharedListMerge.PositionBetween(last, null), item.EstimateMinutes, item.Note));
-                await Later!.DeleteAsync(item.Id);
+                // The task keeps the Later item's id, so two PCs releasing the same item make the same task and the merge keeps one.
+                // An id already on the list (a release that was interrupted before the Later item was deleted) isn't added again.
+                if (items.All(task => task.Id != item.Id))
+                {
+                    double last = items.Where(task => task.DeletedAt is null && task.Category == item.Category).Select(task => task.Position).DefaultIfEmpty(0).Max();
+                    items.Add(new SyncNextTask(
+                        item.Id, item.Title, null, item.Category, item.CategoryColor, item.Subtasks, now, null,
+                        SharedListMerge.PositionBetween(last, null), item.EstimateMinutes, item.Note));
+                }
+
+                released.Add(item.Id);
                 changed = true;
             }
 
@@ -855,8 +878,14 @@ public sealed class SessionTasksService : IDisposable
                 return;
             }
 
+            // The list is assigned before anything is awaited, so a merge or an edit that lands meanwhile builds on it.
             _nextTasks = Pruned(items, now);
             await SaveNextTasksAsync();
+            foreach (Guid id in released)
+            {
+                await Later!.DeleteAsync(id);
+            }
+
             if (Current.SessionStart is null)
             {
                 await ShowSharedDraftAsync();
@@ -995,10 +1024,28 @@ public sealed class SessionTasksService : IDisposable
     /// removes a task (<see cref="SharedListMerge"/>). The draft shows the result; a running session's checklist is not
     /// touched (it belongs to this PC), the result shows when it ends. Task names are never logged.
     /// </summary>
+    /// <param name="knowsDetails">
+    /// The file's writer knows ADR 50's fields (its file carries a <c>later</c> list, empty or not). When it doesn't (an older
+    /// phone), a task that comes without an estimate, note or planned part gets them from this device's copy of the same
+    /// task before merging: such a writer can't clear them, so it never means "removed".
+    /// </param>
     /// <returns>True when this device's list changed.</returns>
-    public async Task<bool> MergeNextTasksAsync(IReadOnlyList<SyncNextTask> incoming)
+    public async Task<bool> MergeNextTasksAsync(IReadOnlyList<SyncNextTask> incoming, bool knowsDetails = true)
     {
         DateTimeOffset now = _time.GetUtcNow();
+        if (!knowsDetails)
+        {
+            Dictionary<Guid, SyncNextTask> held = _nextTasks.Where(task => task.DeletedAt is null).ToDictionary(task => task.Id);
+            incoming = incoming.Select(task => task.DeletedAt is null && held.TryGetValue(task.Id, out SyncNextTask? own)
+                ? task with
+                {
+                    EstimateMinutes = task.EstimateMinutes ?? own.EstimateMinutes,
+                    Note = task.Note ?? own.Note,
+                    PlannedFor = task.PlannedFor ?? own.PlannedFor,
+                }
+                : task).ToList();
+        }
+
         List<SyncNextTask> merged = SharedListMerge.Merge(_nextTasks, incoming, now);
         bool changed = !merged.SequenceEqual(SharedListMerge.Merge(_nextTasks, [], now), new NextTaskComparer());
         List<SyncNextTask> result = TombstoneConsumed(merged, now, out bool tombstoned);
@@ -1405,6 +1452,15 @@ public sealed class SessionTasksService : IDisposable
     private sealed record StoredHistory(string Data);
 
     private sealed record StoredCategories(string Data);
+
+    // A past task moved to Later: its id and when (no text).
+    private sealed record MovedEntry(Guid Id, DateTimeOffset At);
+
+    /// <summary>True once the user has used ADR 50's task details: an estimate, a note, a plan, or the Later list (the setup check).</summary>
+    public bool UsesTaskDetails => (Later?.Items.Count ?? 0) > 0
+        || _nextTasks.Any(task => task.DeletedAt is null && (task.EstimateMinutes is not null || task.Note is not null || task.PlannedFor is not null))
+        || Current.Tasks.Any(task => task.EstimateMinutes is not null || task.Note is not null || task.PlannedFor is not null)
+        || _history.Any(checklist => checklist.Tasks.Any(task => task.EstimateMinutes is not null || task.Note is not null));
 
     // A task added past the limit: the session it belongs to (null while still on the draft), when, and the typed reason.
     private sealed record OverLimitEntry(DateTimeOffset? SessionStart, DateTimeOffset At, string Reason);
