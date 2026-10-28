@@ -12,45 +12,46 @@
          (the shell, SettingsShellView, holds the list, the Save bar and the rows that are pages of their own). One row's
          cards show at a time; Rows[i] is the list's row, and its SearchArea names let search open it. -->
     <UserControl.Styles>
-        <!-- Each section is a card sunk into the page card. -->
+        <!-- Each group of settings is a panel sunk into the page card (rows of a label, a Muted line and the control). -->
         <Style Selector="Border.card">
             <Setter Property="Background" Value="{DynamicResource Ab.Bg}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="{DynamicResource Ab.CardRadius}" />
-            <Setter Property="Padding" Value="18,16" />
+            <Setter Property="BorderThickness" Value="{DynamicResource Ab.CardBorderThickness}" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
+            <Setter Property="Padding" Value="20,16" />
         </Style>
         <Style Selector="TextBlock.sectionTitle">
-            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontSize" Value="15" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="Margin" Value="0,0,0,2" />
         </Style>
     </UserControl.Styles>
     <ScrollViewer x:Name="SectionsScroller">
-        <StackPanel Margin="0,0,16,24" Spacing="16" MaxWidth="760" HorizontalAlignment="Left">
+        <StackPanel Margin="0,0,16,24" Spacing="12" MaxWidth="760" HorizontalAlignment="Left">
             <StackPanel Spacing="16" IsVisible="{Binding Rows[0].IsSelected}"
                         search:SearchArea.Name="Your day" search:SearchArea.SettingsGroup="0">
                 <Border Classes="card" search:SearchArea.Name="Steer me to start" IsVisible="{Binding HasStartNudge}">
                 <StackPanel Spacing="6" DataContext="{Binding StartNudge}" x:DataType="vm:StartNudgeViewModel">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="CompassOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="CompassOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Steer me to start" Classes="sectionTitle" />
                     </StackPanel>
-                    <CheckBox IsChecked="{Binding IsOn}" Content="During work parts with no session, open Today with the task box ready when I arrive" />
-                    <CheckBox IsChecked="{Binding IsAssistantOn}" IsEnabled="{Binding IsOn}" Margin="28,0,0,0"
-                              Content="On my first arrival of a workday, ask how many hours I hope to get done, what's first, then start (start-of-day assistant)" />
+                    <CheckBox Classes="sw" IsChecked="{Binding IsOn}" ><TextBlock Text="During work parts with no session, open Today with the task box ready when I arrive" TextWrapping="Wrap" /></CheckBox>
+                    <CheckBox Classes="sw" IsChecked="{Binding IsAssistantOn}" IsEnabled="{Binding IsOn}" Margin="28,0,0,0"
+                              ><TextBlock Text="On my first arrival of a workday, ask how many hours I hope to get done, what's first, then start (start-of-day assistant)" TextWrapping="Wrap" /></CheckBox>
                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="28,0,0,0">
                         <TextBlock Text="Ask again every" VerticalAlignment="Center" />
                         <ComboBox ItemsSource="{x:Static vm:StartNudgeViewModel.RepeatNames}" SelectedIndex="{Binding RepeatIndex}" MinWidth="140" />
                     </StackPanel>
-                    <TextBlock Opacity="0.75" TextWrapping="Wrap"
+                    <TextBlock Classes="sHint" TextWrapping="Wrap"
                                Text="It starts when you arrive: your first input in a work part, or after 10 minutes away. 5 minutes later with still no session, a card in front of everything asks you to start, or to say why not now (kept sealed on this computer for 14 days), and comes back until a session starts. Never during a session, a calendar event, a day off or once today's goal is met. The first arrival of a workday (before work starts too, never on a free day) opens the start-of-day assistant in front of everything instead, once a day: your hours for today (raising applies at once, lowering waits like any looser change), up to 3 first tasks, then Start with your remembered length. Not now works the same: a reason, then it asks again." />
                 </StackPanel>
                 </Border>
                 <Border Classes="card" search:SearchArea.Name="Lunch length on workdays" IsVisible="{Binding HasLunch}">
                 <StackPanel Spacing="6" DataContext="{Binding Lunch}" x:DataType="vm:LunchSettingsViewModel">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="SilverwareForkKnife" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="SilverwareForkKnife" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Lunch length on workdays" Classes="sectionTitle" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -58,9 +59,9 @@
                                        Maximum="{x:Static vm:LunchSettingsViewModel.MaxMinutes}" Increment="{x:Static vm:LunchSettingsViewModel.StepMinutes}"
                                        FormatString="0" Width="110" />
                         <TextBlock Text="minutes" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding LengthText, StringFormat='({0})'}" VerticalAlignment="Center" Opacity="0.75" />
+                        <TextBlock Text="{Binding LengthText, StringFormat='({0})'}" VerticalAlignment="Center" Classes="sHint" />
                     </StackPanel>
-                    <TextBlock Opacity="0.75" TextWrapping="Wrap"
+                    <TextBlock Classes="sHint" TextWrapping="Wrap"
                                Text="Start lunch on Today (or your phone) on any workday; it lasts this long, and +5 / −5 min change it while you're on it, on every device. A lunch part in your day plan is only when you usually take it: it gives the reminder time and shows on the day bar." />
                 </StackPanel>
                 </Border>
@@ -68,14 +69,14 @@
                 <Border Classes="card" search:SearchArea.Name="Work hours on this computer" IsVisible="{Binding HasWorkHours}">
                 <StackPanel Spacing="8" DataContext="{Binding WorkHours}" x:DataType="vm:WorkHoursViewModel">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="BriefcaseOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="BriefcaseOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Work hours on this computer" Classes="sectionTitle" />
                     </StackPanel>
                     <TextBlock Text="For a personal computer next to your work one: during your day plan's work parts, the apps below are minimized at once (Claude Code, terminals and editors by default). Calls, mail and the browser stay open. It also holds during a session you start here. Reaching for one of them after a pause asks what you were about to do. Stopping for today waits like ending a session early; while it's on, a day plan change that frees today's work hours waits too."
-                               Opacity="0.75" TextWrapping="Wrap" />
+                               Classes="sHint" TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" FontWeight="SemiBold" />
-                        <Button Content="Turn on" Command="{Binding TurnOnCommand}" IsVisible="{Binding !IsOn}" Classes="accent" />
+                        <Button Content="Turn on" Command="{Binding TurnOnCommand}" IsVisible="{Binding !IsOn}" />
                         <Button Content="Turn off" Command="{Binding TurnOffCommand}" IsVisible="{Binding IsOn}" />
                         <Button Content="Stop for today…" Command="{Binding BeginStopCommand}" IsVisible="{Binding HasWorkLeftToday}" />
                     </StackPanel>
@@ -87,33 +88,33 @@
                             <Button Content="Cancel" Command="{Binding CancelStopCommand}" />
                         </StackPanel>
                     </StackPanel>
-                    <TextBlock Text="Apps that wait (process names, comma separated)" FontSize="12" Opacity="0.75" />
+                    <TextBlock Text="Apps that wait (process names, comma separated)" FontSize="12" Classes="sHint" />
                     <TextBox Text="{Binding AppsText}" TextWrapping="Wrap" AcceptsReturn="False" />
                     <Button Content="Save apps" Command="{Binding SaveAppsCommand}" HorizontalAlignment="Left" />
                     <!-- Lights out (design K, opt-in): only while work hours are kept here. -->
                     <StackPanel Spacing="4" Margin="0,8,0,0"
                                 DataContext="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).LightsOut}" x:DataType="vm:LightsOutViewModel"
                                 IsVisible="{Binding CanUse, FallbackValue=False}">
-                        <CheckBox IsChecked="{Binding IsOn}" Content="Lights out: lock this computer when a work part starts and after 3 idle minutes during work hours" />
-                        <CheckBox IsChecked="{Binding UsesSleep}" Content="Sleep instead of locking (stronger; downloads pause)" Margin="28,0,0,0" IsVisible="{Binding IsOn}" />
+                        <CheckBox Classes="sw" IsChecked="{Binding IsOn}" ><TextBlock Text="Lights out: lock this computer when a work part starts and after 3 idle minutes during work hours" TextWrapping="Wrap" /></CheckBox>
+                        <CheckBox Classes="sw" IsChecked="{Binding UsesSleep}" Margin="28,0,0,0" IsVisible="{Binding IsOn}" ><TextBlock Text="Sleep instead of locking (stronger; downloads pause)" TextWrapping="Wrap" /></CheckBox>
                         <TextBlock Text="Never while a session runs here, during a calendar event, on a day off or once today's goal is met. Waking lands on the gate."
-                                   Opacity="0.75" TextWrapping="Wrap" />
+                                   Classes="sHint" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Waiting}"
                                    IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     </StackPanel>
-                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Opacity="0.85"
+                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Classes="sHint"
                                IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 </StackPanel>
                 </Border>
                 <Border Classes="card" search:SearchArea.Name="Day bar">
                 <StackPanel Spacing="6">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="ChartTimelineVariant" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="ChartTimelineVariant" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Day bar" Classes="sectionTitle" />
                     </StackPanel>
                     <TextBlock Text="The bar above the Stats page: rows for your calendar, your day plan, the focus sessions you started (with red drift marks) and Cold Turkey's blocks, with a red line at now. The on-screen timeline uses the same rows. Can be saved during focus too."
-                               Opacity="0.75" TextWrapping="Wrap" />
-                    <CheckBox IsChecked="{Binding ShowDayBar}" Content="Show the day bar" />
+                               Classes="sHint" TextWrapping="Wrap" />
+                    <CheckBox Classes="sw" IsChecked="{Binding ShowDayBar}" Content="Show the day bar" />
                     <RadioButton GroupName="dayRange" IsChecked="{Binding !DayBarFullDay}" Content="Fit to my day (grows when a block falls outside it; with sleep mode on, wake time to bedtime)" />
                     <RadioButton GroupName="dayRange" IsChecked="{Binding DayBarFullDay}" Content="Always the whole 24 hours" />
                     <Grid ColumnDefinitions="240,Auto" RowDefinitions="Auto,Auto" RowSpacing="6" IsEnabled="{Binding !DayBarFullDay}">
@@ -128,7 +129,7 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:TimelineRowSettingViewModel">
                                 <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,1">
-                                    <CheckBox IsChecked="{Binding Shown}" Content="{Binding Name}" Width="320" />
+                                    <CheckBox Classes="sw" IsChecked="{Binding Shown}" Content="{Binding Name}" Width="320" />
                                     <Button Content="↑" Command="{Binding MoveUpCommand}" Padding="10,2" ToolTip.Tip="Move up" />
                                     <Button Content="↓" Command="{Binding MoveDownCommand}" Padding="10,2" ToolTip.Tip="Move down" />
                                 </StackPanel>
@@ -138,40 +139,40 @@
 
                     <TextBlock Text="Calendars on the timeline" FontWeight="SemiBold" Margin="0,8,0,0" />
                     <TextBlock Text="No calendars to show yet: add them in Settings › Connections (hidden calendars aren't listed)."
-                               IsVisible="{Binding !HasTimelineCalendars}" Opacity="0.75" TextWrapping="Wrap" />
+                               IsVisible="{Binding !HasTimelineCalendars}" Classes="sHint" TextWrapping="Wrap" />
                     <ItemsControl ItemsSource="{Binding TimelineCalendars}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:TimelineCalendarViewModel">
                                 <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,1">
                                     <Ellipse Width="10" Height="10" Fill="{Binding ColorBrush}" VerticalAlignment="Center" />
-                                    <CheckBox IsChecked="{Binding OnTimeline}" Content="{Binding Name}" />
-                                    <TextBlock Text="{Binding SourceName}" Opacity="0.6" VerticalAlignment="Center" />
+                                    <CheckBox Classes="sw" IsChecked="{Binding OnTimeline}" Content="{Binding Name}" />
+                                    <TextBlock Text="{Binding SourceName}" Classes="faint" VerticalAlignment="Center" />
                                 </StackPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <CheckBox IsChecked="{Binding ShowColdTurkeyOnTimeline}" Content="Show Cold Turkey's blocks on the Blockers row" Margin="0,4,0,0" />
+                    <CheckBox Classes="sw" IsChecked="{Binding ShowColdTurkeyOnTimeline}" Margin="0,4,0,0" ><TextBlock Text="Show Cold Turkey's blocks on the Blockers row" TextWrapping="Wrap" /></CheckBox>
 
                 </StackPanel>
                 </Border>
                 <Border Classes="card" search:SearchArea.Name="Calendars">
                 <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="CalendarMonthOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="CalendarMonthOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Calendars" Classes="sectionTitle" />
                     </StackPanel>
                     <Grid ColumnDefinitions="240,120">
                         <TextBlock Text="Check iCal links every (minutes)" VerticalAlignment="Center" />
                         <TextBox Grid.Column="1" Text="{Binding CalendarRefreshMinutes}" />
                     </Grid>
-                    <TextBlock Opacity="0.75" TextWrapping="Wrap"
+                    <TextBlock Classes="sHint" TextWrapping="Wrap"
                                Text="5 minutes or more. Links are also checked when you press Refresh calendars and when the window opens. Google accounts check for changes every 30 seconds." />
                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
                         <TextBlock Text="Google client (for Connect a Google account)" VerticalAlignment="Center" />
                         <Button Content="Set up Google step by step…" Command="{Binding OpenGoogleGuideCommand}" />
                     </StackPanel>
-                    <StackPanel Spacing="2" Opacity="0.75">
+                    <StackPanel Spacing="2" TextElement.Foreground="{DynamicResource Ab.Muted}">
                         <TextBlock TextWrapping="Wrap" Text="In your own Google Cloud project:" />
                         <TextBlock TextWrapping="Wrap" Text="1. Turn on the Google Calendar API (and the Google Drive API for Drive sync)." />
                         <TextBlock TextWrapping="Wrap" Text="2. Set up the OAuth consent screen and add yourself as a test user." />
@@ -192,8 +193,8 @@
                 <Border Classes="card">
                 <StackPanel Spacing="6">
                     <TextBlock Text="Your bedtime and wake time. The day bar runs from wake time to bedtime and shades the night; staying up past bedtime shades the lost sleep red. From when going to bed would give your sleep goal, a line on screen counts down the sleep you'll get if you go now, with your wake time (green down to an hour under the goal, yellow down to three hours under, red below), and a reminder pops up two hours before bedtime. Hold Ctrl+Alt over the on-screen window to change tonight's wake time. The times are the Sleep parts of your day plan. Can be changed during focus too, except turning sleep mode off: that waits like other looser changes and is refused during focus."
-                               Opacity="0.75" TextWrapping="Wrap" />
-                    <CheckBox IsChecked="{Binding SleepEnabled}" Content="Use sleep mode" />
+                               Classes="sHint" TextWrapping="Wrap" />
+                    <CheckBox Classes="sw" IsChecked="{Binding SleepEnabled}" Content="Use sleep mode" />
                     <StackPanel Orientation="Horizontal" Spacing="12" Margin="28,0,0,0" IsVisible="{Binding HasSleepPendingOff}">
                         <TextBlock Text="{Binding SleepPendingOffText}" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Waiting}" />
                         <Button Content="Cancel" Command="{Binding CancelSleepOffCommand}" />
@@ -209,12 +210,12 @@
                         </ComboBox>
                     </StackPanel>
                     <TextBlock Text="My phone's alarm wins over a one-night change (changing tomorrow's wake then asks first). This PC's alarm rings at the night's wake time with Stop and Snooze 9 min; it can only wake you if the PC is on or Windows can wake it."
-                               Opacity="0.75" TextWrapping="Wrap" Margin="28,0,0,0" />
+                               Classes="sHint" TextWrapping="Wrap" Margin="28,0,0,0" />
                     <TextBlock Text="{Binding PcAlarmNote}" IsVisible="{Binding PcAlarmNote, Converter={x:Static ObjectConverters.IsNotNull}}"
                                Foreground="{DynamicResource Ab.Waiting}" TextWrapping="Wrap" Margin="28,0,0,0" />
                     <!-- ADR 38: the bedtime reminders, shared with the phone. -->
                     <StackPanel Spacing="6" DataContext="{Binding Reminders}" x:DataType="vm:BedtimeRemindersViewModel">
-                        <CheckBox IsChecked="{Binding On}" Content="Bedtime reminders (shared with your phone; each says where it rings)" />
+                        <CheckBox Classes="sw" IsChecked="{Binding On}" ><TextBlock Text="Bedtime reminders (shared with your phone; each says where it rings)" TextWrapping="Wrap" /></CheckBox>
                         <ItemsControl ItemsSource="{Binding Rows}" IsVisible="{Binding On}" Margin="28,0,0,0">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:BedtimeReminderRowViewModel">
@@ -227,11 +228,11 @@
                                             </ComboBox.ItemTemplate>
                                         </ComboBox>
                                         <TextBlock Text="before bedtime" VerticalAlignment="Center" Margin="0,0,12,0" />
-                                        <CheckBox IsChecked="{Binding Alarm}" Content="Rings" Margin="0,0,12,0" />
-                                        <CheckBox IsChecked="{Binding Phone}" Content="Phone" Margin="0,0,8,0" />
-                                        <CheckBox IsChecked="{Binding Watch}" Content="Watch" Margin="0,0,8,0" />
-                                        <CheckBox IsChecked="{Binding AllPcs}" Content="All PCs" Margin="0,0,8,0" />
-                                        <CheckBox IsChecked="{Binding ThisPc}" Content="This PC" IsVisible="{Binding HasThisPc}" Margin="0,0,8,0" />
+                                        <CheckBox Classes="sw" IsChecked="{Binding Alarm}" Content="Rings" Margin="0,0,12,0" />
+                                        <CheckBox Classes="sw" IsChecked="{Binding Phone}" Content="Phone" Margin="0,0,8,0" />
+                                        <CheckBox Classes="sw" IsChecked="{Binding Watch}" Content="Watch" Margin="0,0,8,0" />
+                                        <CheckBox Classes="sw" IsChecked="{Binding AllPcs}" Content="All PCs" Margin="0,0,8,0" />
+                                        <CheckBox Classes="sw" IsChecked="{Binding ThisPc}" Content="This PC" IsVisible="{Binding HasThisPc}" Margin="0,0,8,0" />
                                         <Button Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this reminder" />
                                     </WrapPanel>
                                 </DataTemplate>
@@ -242,17 +243,17 @@
                             <Button Content="Reset to the 3 defaults" Command="{Binding ResetCommand}" />
                         </StackPanel>
                         <TextBlock Text="0 min = at bedtime. A reminder that rings has Dismiss and Snooze 5 min; dismissing it on one device stops it on the others. Sound and volume for the phone are set on the phone."
-                                   Opacity="0.75" TextWrapping="Wrap" Margin="28,0,0,0" />
+                                   Classes="sHint" TextWrapping="Wrap" Margin="28,0,0,0" />
                     </StackPanel>
                     <!-- ADR 34: the phone learns a smart bedtime; the PC takes its time in bed before waking. -->
-                    <CheckBox IsChecked="{Binding UsePhoneBedtime}"
-                              Content="Use my phone's smart bedtime (it learns from your measured sleep and moves bedtime earlier as you earn it)" />
-                    <TextBlock Text="{Binding PhoneBedtimeText}" Opacity="0.75" TextWrapping="Wrap" Margin="28,0,0,0" />
+                    <CheckBox Classes="sw" IsChecked="{Binding UsePhoneBedtime}"
+                              ><TextBlock Text="Use my phone's smart bedtime (it learns from your measured sleep and moves bedtime earlier as you earn it)" TextWrapping="Wrap" /></CheckBox>
+                    <TextBlock Text="{Binding PhoneBedtimeText}" Classes="sHint" TextWrapping="Wrap" Margin="28,0,0,0" />
                     <!-- ADR 34, 35: the smart bedtime's switches and limits, shared with the phone, which alone measures sleep. -->
                     <StackPanel Spacing="6" Margin="28,0,0,0" IsEnabled="{Binding CanUseSmartBedtime}">
-                        <TextBlock Text="{Binding SmartBedtimeHint}" Opacity="0.75" TextWrapping="Wrap" />
-                        <CheckBox IsChecked="{Binding SmartWorkdays}" Content="Smart bedtime for Workdays (nights before a workday)" />
-                        <CheckBox IsChecked="{Binding SmartOffDays}" Content="Smart bedtime for Off-Days" />
+                        <TextBlock Text="{Binding SmartBedtimeHint}" Classes="sHint" TextWrapping="Wrap" />
+                        <CheckBox Classes="sw" IsChecked="{Binding SmartWorkdays}" ><TextBlock Text="Smart bedtime for Workdays (nights before a workday)" TextWrapping="Wrap" /></CheckBox>
+                        <CheckBox Classes="sw" IsChecked="{Binding SmartOffDays}" Content="Smart bedtime for Off-Days" />
                         <StackPanel Orientation="Horizontal" Spacing="12">
                             <TextBlock Text="Minimum sleep" VerticalAlignment="Center" Width="212" />
                             <ComboBox ItemsSource="{Binding SmartMinChoices}" SelectedItem="{Binding SmartMin}" MinWidth="120">
@@ -287,14 +288,14 @@
                         </StackPanel>
                         <Grid ColumnDefinitions="240,Auto" RowDefinitions="Auto,Auto" RowSpacing="6" ColumnSpacing="12">
                             <TextBlock Text="Nights before workdays" VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="1" Text="{Binding WeeknightSleepText}" Opacity="0.8" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding WeeknightSleepText}" Classes="sHint" VerticalAlignment="Center" />
                             <TextBlock Grid.Row="1" Text="Other nights" VerticalAlignment="Center" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding WeekendSleepText}" Opacity="0.8" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding WeekendSleepText}" Classes="sHint" VerticalAlignment="Center" />
                         </Grid>
                         <Button Content="Edit sleep times in the Day plan" Command="{Binding EditSleepTimesCommand}" />
                     </StackPanel>
                     <StackPanel Spacing="4" Margin="0,4,0,0">
-                        <TextBlock Text="Real sleep from a Fitbit or Pixel Watch (coming next): prepare your Google project now." Opacity="0.75" TextWrapping="Wrap" />
+                        <TextBlock Text="Real sleep from a Fitbit or Pixel Watch (coming next): prepare your Google project now." Classes="sHint" TextWrapping="Wrap" />
                         <Button Content="Set up sleep tracking with Google…" Command="{Binding OpenSleepGuideCommand}" />
                     </StackPanel>
 
@@ -307,70 +308,70 @@
                 <Border Classes="card" search:SearchArea.Name="Quick session shortcut">
                 <StackPanel Spacing="6">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="KeyboardOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="KeyboardOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Quick session shortcut" Classes="sectionTitle" />
                     </StackPanel>
                     <TextBlock Text="Click the box and press the keys you want (at least one of Ctrl, Alt or Win, plus a letter, number, F-key or Space)."
-                               Opacity="0.75" TextWrapping="Wrap" />
+                               Classes="sHint" TextWrapping="Wrap" />
                     <controls:HotkeyBox Text="{Binding HotkeyText}" Width="220" HorizontalAlignment="Left" />
                     <TextBlock Text="{Binding HotkeyStatus}" TextWrapping="Wrap" />
                     <TextBlock Text="Quick Start with Default" FontWeight="SemiBold" Margin="0,8,0,0" />
                     <TextBlock Text="The big &quot;Quick Start with Default&quot; button (quick session and Today) starts this profile for the length chosen there (the remembered one from a phone or watch), and the on-screen bar counts down. The &quot;No set end&quot; button below Start runs the profile picked under More options until you end it, and the bar counts up."
-                               Opacity="0.75" TextWrapping="Wrap" />
+                               Classes="sHint" TextWrapping="Wrap" />
                     <ComboBox ItemsSource="{Binding CountUpChoices}" SelectedItem="{Binding SelectedCountUp}" MinWidth="300" />
                 </StackPanel>
                 </Border>
                 <Border Classes="card" search:SearchArea.Name="Step away" IsVisible="{Binding HasStepAway}">
                 <StackPanel Spacing="6">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="Walk" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="Walk" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Step away" Classes="sectionTitle" />
                     </StackPanel>
                     <TextBlock Text="A bathroom break or someone at your desk: the countdown pauses until you say you're back. The first key or mouse movement asks if you are back to your task; Back on track resumes, Still away asks again in 2 minutes. It never shortens a wait. Also in the tray and the on-screen window (hold Ctrl+Alt)."
-                               Opacity="0.75" TextWrapping="Wrap" />
+                               Classes="sHint" TextWrapping="Wrap" />
                     <controls:HotkeyBox Text="{Binding StepAwayHotkey}" Width="220" HorizontalAlignment="Left" />
                     <TextBlock Text="{Binding StepAwayStatus}" TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <CheckBox Content="Step away by itself after" IsChecked="{Binding StepAwayAutoIdle}" />
+                        <CheckBox Classes="sw" Content="Step away by itself after" IsChecked="{Binding StepAwayAutoIdle}" />
                         <NumericUpDown Value="{Binding StepAwayIdleMinutes}" Minimum="1" Maximum="60" Increment="1" FormatString="0"
                                        Width="110" IsEnabled="{Binding StepAwayAutoIdle}" />
                         <TextBlock Text="minutes with no input" VerticalAlignment="Center" />
                     </StackPanel>
-                    <TextBlock Text="The idle minutes before it starts still count as focus." Opacity="0.75" TextWrapping="Wrap" />
+                    <TextBlock Text="The idle minutes before it starts still count as focus." Classes="sHint" TextWrapping="Wrap" />
                 </StackPanel>
                 </Border>
                 <Border Classes="card" search:SearchArea.Name="Hyperfocus reminder" IsVisible="{Binding HasHyperfocus}">
                 <StackPanel Spacing="6" DataContext="{Binding Hyperfocus}" x:DataType="vm:HyperfocusViewModel">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="Brain" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="Brain" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Hyperfocus reminder" Classes="sectionTitle" />
                     </StackPanel>
                     <TextBlock Text="One quiet reminder after a long stretch of focus with no break: water, stand, eat. Coming back from Step away starts the stretch over."
-                               Opacity="0.75" TextWrapping="Wrap" />
+                               Classes="sHint" TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <CheckBox Content="Remind me after" IsChecked="{Binding IsOn}" />
+                        <CheckBox Classes="sw" Content="Remind me after" IsChecked="{Binding IsOn}" />
                         <NumericUpDown Value="{Binding IntervalMinutes}" Minimum="15" Maximum="240" Increment="15" FormatString="0"
                                        Width="110" IsEnabled="{Binding IsOn}" />
                         <TextBlock Text="minutes of unbroken focus" VerticalAlignment="Center" />
                     </StackPanel>
-                    <TextBlock Text="During these profiles:" Opacity="0.75" />
+                    <TextBlock Text="During these profiles:" Classes="sHint" />
                     <ItemsControl ItemsSource="{Binding Profiles}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:HyperfocusProfileRowViewModel">
-                                <CheckBox IsChecked="{Binding Reminds}" Content="{Binding Name}" />
+                                <CheckBox Classes="sw" IsChecked="{Binding Reminds}" Content="{Binding Name}" />
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Content="Save reminder" Command="{Binding SaveCommand}" />
-                        <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Opacity="0.75" />
+                        <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Classes="sHint" />
                     </StackPanel>
                 </StackPanel>
                 </Border>
                 <Border Classes="card" search:SearchArea.Name="Pomodoro defaults">
                 <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="TimerOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="TimerOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Pomodoro defaults" Classes="sectionTitle" />
                     </StackPanel>
                     <Grid ColumnDefinitions="240,120" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6">
@@ -388,7 +389,7 @@
                 <Border Classes="card" search:SearchArea.Name="Escalation">
                 <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="AlertOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="AlertOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Escalation (seconds of continuous distraction)" Classes="sectionTitle" />
                     </StackPanel>
                     <Grid ColumnDefinitions="240,120" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
@@ -400,14 +401,14 @@
                         <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding EnforceSeconds}" />
                     </Grid>
                     <!-- The computer types' "notice and overlay only" (ADR 22), e.g. on a work computer. -->
-                    <CheckBox IsChecked="{Binding NoticeAndOverlayOnly}"
-                              Content="Notice and overlay only: never minimize a window or redirect a tab (e.g. on a work computer)" />
+                    <CheckBox Classes="sw" IsChecked="{Binding NoticeAndOverlayOnly}"
+                              ><TextBlock Text="Notice and overlay only: never minimize a window or redirect a tab (e.g. on a work computer)" TextWrapping="Wrap" /></CheckBox>
                 </StackPanel>
                 </Border>
                 <Border Classes="card" search:SearchArea.Name="Ending a focus session early">
                 <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="ExitRun" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="ExitRun" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Ending a focus session early" Classes="sectionTitle" />
                     </StackPanel>
                     <Grid ColumnDefinitions="240,120" RowDefinitions="Auto,Auto" RowSpacing="6">
@@ -421,14 +422,14 @@
                 <Border Classes="card" search:SearchArea.Name="Looser changes">
                 <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="TimerSand" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="TimerSand" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Looser changes" Classes="sectionTitle" />
                     </StackPanel>
                     <Grid ColumnDefinitions="240,120">
                         <TextBlock Text="Wait before they apply (minutes)" VerticalAlignment="Center" />
                         <TextBox Grid.Column="1" Text="{Binding LooseningDelayMinutes}" />
                     </Grid>
-                    <TextBlock Opacity="0.75" TextWrapping="Wrap"
+                    <TextBlock Classes="sHint" TextWrapping="Wrap"
                                Text="Removing a block rule, adding an allow rule or an unlock option, or lowering any wait counts down this long first, and never takes effect during a session. Stricter changes apply at once. Shortening this wait counts down too." />
                 </StackPanel>
                 </Border>
@@ -439,25 +440,25 @@
                 <Border Classes="card" search:SearchArea.Name="Animations" IsVisible="{Binding HasMotion}">
                 <StackPanel Spacing="6" DataContext="{Binding Motion}" x:DataType="vm:MotionViewModel">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="Animation" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="Animation" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Animations" Classes="sectionTitle" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock Text="Speed" VerticalAlignment="Center" />
                         <ComboBox ItemsSource="{x:Static vm:MotionViewModel.SpeedNames}" SelectedIndex="{Binding SpeedIndex}" MinWidth="140" />
                     </StackPanel>
-                    <TextBlock Opacity="0.75" TextWrapping="Wrap"
+                    <TextBlock Classes="sHint" TextWrapping="Wrap"
                                Text="Pages fade and slide in when you open a page, cards ease their colour and progress bars glide. Off shows every change at once." />
                 </StackPanel>
                 </Border>
                 <Border Classes="card" search:SearchArea.Name="Sounds when time is up">
                 <StackPanel Spacing="6">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="BellRingOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="BellRingOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Sounds when time is up" Classes="sectionTitle" />
                     </StackPanel>
                     <TextBlock Text="Played when focus or a break runs out (not when you end a session yourself), also while the on-screen window is hidden. Can be saved during focus too."
-                               Opacity="0.75" TextWrapping="Wrap" />
+                               Classes="sHint" TextWrapping="Wrap" />
                     <Grid ColumnDefinitions="240,Auto,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="8">
                         <TextBlock Grid.Row="0" Text="When focus is up (break or end)" VerticalAlignment="Center" />
                         <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding SoundChoices}" SelectedItem="{Binding FocusEndSound}" MinWidth="220">
@@ -492,11 +493,11 @@
                 <Border Classes="card" search:SearchArea.Name="Noise player">
                 <StackPanel Spacing="6" IsVisible="{Binding HasNoisePlayer}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="MusicNote" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="MusicNote" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Noise player" Classes="sectionTitle" />
                     </StackPanel>
                     <TextBlock Text="The player on Today (under Timers &amp; lunch) plays the sound files of this folder in name order (mp3, wav, m4a, aac, flac, wma). Folder changes apply at once."
-                               Opacity="0.75" TextWrapping="Wrap" />
+                               Classes="sHint" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding NoiseFolderText}" TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Content="Choose folder…" Command="{Binding ChooseNoiseFolderCommand}" />
@@ -504,7 +505,7 @@
                         <Button Content="Look for new files" Command="{Binding RescanNoiseFolderCommand}" />
                     </StackPanel>
                     <TextBlock Text="Shortcuts work anywhere: click a box and press the keys (Ctrl, Alt or Win plus a letter, number, F-key, Space, an arrow or Page Up/Down); Backspace clears it."
-                               Opacity="0.75" TextWrapping="Wrap" Margin="0,6,0,0" />
+                               Classes="sHint" TextWrapping="Wrap" Margin="0,6,0,0" />
                     <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="6">
                         <TextBlock Text="Play / pause" VerticalAlignment="Center" />
                         <controls:HotkeyBox Grid.Column="1" Text="{Binding NoisePlayPauseKey}" Width="220" />
@@ -513,10 +514,10 @@
                         <TextBlock Grid.Row="2" Text="Volume down 10%" VerticalAlignment="Center" />
                         <controls:HotkeyBox Grid.Row="2" Grid.Column="1" Text="{Binding NoiseVolumeDownKey}" Width="220" />
                     </Grid>
-                    <CheckBox Content="The keyboard's media keys and Windows' media pop-up also control the noise" IsChecked="{Binding NoiseMediaKeys}" />
-                    <CheckBox Content="Stop when headphones disconnect" IsChecked="{Binding NoiseStopsWhenHeadphonesGo}" Margin="0,6,0,0" />
+                    <CheckBox Classes="sw" IsChecked="{Binding NoiseMediaKeys}" ><TextBlock Text="The keyboard's media keys and Windows' media pop-up also control the noise" TextWrapping="Wrap" /></CheckBox>
+                    <CheckBox Classes="sw" Content="Stop when headphones disconnect" IsChecked="{Binding NoiseStopsWhenHeadphonesGo}" Margin="0,6,0,0" />
                     <TextBlock Text="Pauses the noise when any headphones go, wired or Bluetooth, so it never carries on through the speakers. Applies at once. The lock on the player goes further: it won't play at all without headphones."
-                               Opacity="0.75" TextWrapping="Wrap" />
+                               Classes="sHint" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding NoiseKeysStatus}" TextWrapping="Wrap"
                                IsVisible="{Binding NoiseKeysStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 </StackPanel>
@@ -524,45 +525,45 @@
                 <Border Classes="card" search:SearchArea.Name="Play when headphones connect" IsVisible="{Binding HasHeadphones}">
                 <StackPanel Spacing="6" DataContext="{Binding Headphones}" x:DataType="vm:HeadphoneSettingsViewModel">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="Headphones" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="Headphones" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Play when headphones connect" Classes="sectionTitle" />
                     </StackPanel>
                     <TextBlock Text="The noise player starts its last file when these headphones connect, any time of day, and pauses when they disconnect. Changes apply at once."
-                               Opacity="0.75" TextWrapping="Wrap" />
+                               Classes="sHint" TextWrapping="Wrap" />
                     <Border Background="{DynamicResource Ab.Surface2}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="10" Padding="10,6">
                         <TextBlock Text="Tip: it really helps to have a dedicated pair of work/focus headphones, so putting them on means focus and it doesn't get in the way of your normal headphones."
                                    TextWrapping="Wrap" />
                     </Border>
-                    <CheckBox IsChecked="{Binding Wired}" Content="Wired headphones or a headset (USB always works; a headphone jack only if your sound driver reports it)" />
-                    <CheckBox IsChecked="{Binding Bluetooth}" Content="These Bluetooth headphones:" />
+                    <CheckBox Classes="sw" IsChecked="{Binding Wired}" ><TextBlock Text="Wired headphones or a headset (USB always works; a headphone jack only if your sound driver reports it)" TextWrapping="Wrap" /></CheckBox>
+                    <CheckBox Classes="sw" IsChecked="{Binding Bluetooth}" Content="These Bluetooth headphones:" />
                     <StackPanel Margin="28,0,0,0" Spacing="4" IsVisible="{Binding Bluetooth}">
                         <ItemsControl ItemsSource="{Binding Devices}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:HeadphoneChoiceViewModel">
-                                    <CheckBox IsChecked="{Binding IsChosen}" Content="{Binding Name}" />
+                                    <CheckBox Classes="sw" IsChecked="{Binding IsChosen}" Content="{Binding Name}" />
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <TextBlock Text="{Binding Status}" Opacity="0.75" TextWrapping="Wrap"
+                        <TextBlock Text="{Binding Status}" Classes="sHint" TextWrapping="Wrap"
                                    IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                         <Button Content="Look again" Command="{Binding RefreshDevicesCommand}" HorizontalAlignment="Left" />
                     </StackPanel>
-                    <CheckBox IsChecked="{Binding OnlyAtTimes}" Content="Only at certain times" Margin="0,6,0,0" />
+                    <CheckBox Classes="sw" IsChecked="{Binding OnlyAtTimes}" Content="Only at certain times" Margin="0,6,0,0" />
                     <StackPanel Margin="28,0,0,0" Spacing="6" IsVisible="{Binding OnlyAtTimes}">
                         <TextBlock Text="It starts by itself only when any ticked option matches the time the headphones connect. The player's lock still applies."
-                                   Opacity="0.75" TextWrapping="Wrap" />
-                        <CheckBox IsChecked="{Binding DuringPlanWindow}" Content="During a day plan window of these categories:" />
+                                   Classes="sHint" TextWrapping="Wrap" />
+                        <CheckBox Classes="sw" IsChecked="{Binding DuringPlanWindow}" ><TextBlock Text="During a day plan window of these categories:" TextWrapping="Wrap" /></CheckBox>
                         <ItemsControl ItemsSource="{Binding Categories}" Margin="28,0,0,0" IsVisible="{Binding DuringPlanWindow}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:HeadphoneOptionViewModel">
-                                    <CheckBox IsChecked="{Binding IsChosen}" Content="{Binding Label}" Margin="0,0,12,0" />
+                                    <CheckBox Classes="sw" IsChecked="{Binding IsChosen}" Content="{Binding Label}" Margin="0,0,12,0" />
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <CheckBox IsChecked="{Binding OnDaysAndHours}" Content="On these days and hours:" />
+                        <CheckBox Classes="sw" IsChecked="{Binding OnDaysAndHours}" Content="On these days and hours:" />
                         <StackPanel Margin="28,0,0,0" Spacing="6" IsVisible="{Binding OnDaysAndHours}">
                             <ItemsControl ItemsSource="{Binding Days}">
                                 <ItemsControl.ItemsPanel>
@@ -588,11 +589,11 @@
                 <Border Classes="card" search:SearchArea.Name="On-screen timer">
                 <StackPanel Spacing="6">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="ClockOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="ClockOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="On-screen timer" Classes="sectionTitle" />
                     </StackPanel>
                     <TextBlock Text="Shows how much of the session is left, on top of other windows, for the profiles chosen below (also set in each profile in Settings › Guards). Clicks go through it; hold Ctrl+Alt to see the details and drag to move it. Can be saved during focus too."
-                               Opacity="0.75" TextWrapping="Wrap" />
+                               Classes="sHint" TextWrapping="Wrap" />
                     <Grid ColumnDefinitions="240,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="6">
                         <TextBlock Grid.Row="0" Text="Look" VerticalAlignment="Center" />
                         <TextBlock Grid.Row="5" Text="At rest" VerticalAlignment="Center" />
@@ -616,40 +617,40 @@
                             <TextBlock Text="{Binding TimerOpacityPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Grid>
-                    <CheckBox IsChecked="{Binding TimerWrapUpColor}" Content="Turn amber in the last 5 minutes of focus" />
-                    <CheckBox IsChecked="{Binding TimerPulseAtMarks}" Content="Brighten softly once when passing a mark" />
-                    <CheckBox IsChecked="{Binding TimerHideInFullscreen}" Content="Hide while a fullscreen app is in front (videos, presentations, games)" />
-                    <CheckBox IsChecked="{Binding TimerFillUp}" Content="Fill up as time passes (instead of counting down from a full bar)" />
-                    <CheckBox IsChecked="{Binding TimerQuietMarks}"
-                              Content="Quiet at rest dulls the timeline's red too (drift marks, now line), 3 seconds after Ctrl+Alt is let go" />
-                    <CheckBox IsChecked="{Binding TaskOnlyWithCtrlAlt}" Content="Hide the current task unless Ctrl+Alt is held" />
+                    <CheckBox Classes="sw" IsChecked="{Binding TimerWrapUpColor}" ><TextBlock Text="Turn amber in the last 5 minutes of focus" TextWrapping="Wrap" /></CheckBox>
+                    <CheckBox Classes="sw" IsChecked="{Binding TimerPulseAtMarks}" Content="Brighten softly once when passing a mark" />
+                    <CheckBox Classes="sw" IsChecked="{Binding TimerHideInFullscreen}" ><TextBlock Text="Hide while a fullscreen app is in front (videos, presentations, games)" TextWrapping="Wrap" /></CheckBox>
+                    <CheckBox Classes="sw" IsChecked="{Binding TimerFillUp}" ><TextBlock Text="Fill up as time passes (instead of counting down from a full bar)" TextWrapping="Wrap" /></CheckBox>
+                    <CheckBox Classes="sw" IsChecked="{Binding TimerQuietMarks}"
+                              ><TextBlock Text="Quiet at rest dulls the timeline's red too (drift marks, now line), 3 seconds after Ctrl+Alt is let go" TextWrapping="Wrap" /></CheckBox>
+                    <CheckBox Classes="sw" IsChecked="{Binding TaskOnlyWithCtrlAlt}" ><TextBlock Text="Hide the current task unless Ctrl+Alt is held" TextWrapping="Wrap" /></CheckBox>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock Text="Opacity while Ctrl+Alt is held (background and all)" VerticalAlignment="Center" />
                         <Slider Minimum="20" Maximum="100" Value="{Binding HeldOpacityPercent}" Width="200" />
                         <TextBlock Text="{Binding HeldOpacityPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" />
                     </StackPanel>
                     <Grid ColumnDefinitions="240,Auto" ColumnSpacing="8">
-                        <CheckBox IsChecked="{Binding MoveForMaximizedApps}" VerticalAlignment="Center">
+                        <CheckBox Classes="sw" IsChecked="{Binding MoveForMaximizedApps}" VerticalAlignment="Center">
                             <TextBlock Text="Move in from the corner while a maximized app is in front (keeps its buttons and bars clickable)" TextWrapping="Wrap" />
                         </CheckBox>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" IsEnabled="{Binding MoveForMaximizedApps}" VerticalAlignment="Center">
                             <NumericUpDown Value="{Binding MaximizedAppDrop}" Minimum="0" Maximum="600" Increment="10" FormatString="0" MinWidth="140" />
-                            <TextBlock Text="{Binding VerticalLabel}" VerticalAlignment="Center" Opacity="0.75" />
-                            <TextBlock Text="(default)" VerticalAlignment="Center" Opacity="0.75" />
+                            <TextBlock Text="{Binding VerticalLabel}" VerticalAlignment="Center" Classes="sHint" />
+                            <TextBlock Text="(default)" VerticalAlignment="Center" Classes="sHint" />
                         </StackPanel>
                     </Grid>
                     <StackPanel Spacing="4" IsEnabled="{Binding MoveForMaximizedApps}" Margin="0,2,0,4">
                         <TextBlock Text="Per app: maximize the app, hold Ctrl+Alt and drag the timer where it should sit (away from the corner, and sideways past a side panel if needed); that spot is kept for the app."
-                                   Opacity="0.75" TextWrapping="Wrap" FontSize="12" />
+                                   Classes="sHint" TextWrapping="Wrap" FontSize="12" />
                         <ItemsControl ItemsSource="{Binding AppDrops}" IsVisible="{Binding HasAppDrops}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:AppDropRowViewModel">
                                     <Grid ColumnDefinitions="160,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="6" Margin="0,2">
                                         <TextBlock Text="{Binding App}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                         <NumericUpDown Grid.Column="1" Value="{Binding Drop}" Minimum="0" Maximum="600" Increment="10" FormatString="0" MinWidth="120" />
-                                        <TextBlock Grid.Column="2" Text="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).VerticalLabel}" VerticalAlignment="Center" Opacity="0.75" />
+                                        <TextBlock Grid.Column="2" Text="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).VerticalLabel}" VerticalAlignment="Center" Classes="sHint" />
                                         <NumericUpDown Grid.Column="3" Value="{Binding Shift}" Minimum="0" Maximum="2000" Increment="10" FormatString="0" MinWidth="120" />
-                                        <TextBlock Grid.Column="4" Text="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).SidewaysLabel}" VerticalAlignment="Center" Opacity="0.75" />
+                                        <TextBlock Grid.Column="4" Text="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).SidewaysLabel}" VerticalAlignment="Center" Classes="sHint" />
                                         <Button Grid.Column="5" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Use the default for this app" />
                                     </Grid>
                                 </DataTemplate>
@@ -663,7 +664,7 @@
                     </Grid>
                     <TextBlock Text="Show it for these profiles" FontWeight="SemiBold" Margin="0,6,0,0" />
                     <Grid ColumnDefinitions="240,Auto" Margin="0,2">
-                        <CheckBox IsChecked="{Binding DefaultTimerOn}" Content="Default (on for profiles set to Use default)" VerticalAlignment="Center" />
+                        <CheckBox Classes="sw" IsChecked="{Binding DefaultTimerOn}" VerticalAlignment="Center" ><TextBlock Text="Default (on for profiles set to Use default)" TextWrapping="Wrap" /></CheckBox>
                         <ComboBox Grid.Column="1" ItemsSource="{Binding DefaultTimerColors}" SelectedItem="{Binding DefaultTimerColor}"
                                   IsEnabled="{Binding DefaultTimerOn}" MinWidth="200" ToolTip.Tip="Default timer colour">
                             <ComboBox.ItemTemplate>
@@ -705,17 +706,17 @@
                 <Border Classes="card" search:SearchArea.Name="On-screen timeline">
                 <StackPanel Spacing="6">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="Timeline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="Timeline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="On-screen timeline" Classes="sectionTitle" />
                     </StackPanel>
                     <TextBlock Text="A small copy of the day bar in the same spot as the timer: your blocks, the focus sessions you started and a red line at now, with the next block under it. It shows on days with blocks; hold Ctrl+Alt for how much you focused."
-                               Opacity="0.75" TextWrapping="Wrap" />
-                    <CheckBox IsChecked="{Binding ShowTimeline}" Content="Show the timeline on days with focus blocks" />
+                               Classes="sHint" TextWrapping="Wrap" />
+                    <CheckBox Classes="sw" IsChecked="{Binding ShowTimeline}" ><TextBlock Text="Show the timeline on days with focus blocks" TextWrapping="Wrap" /></CheckBox>
                     <StackPanel Spacing="6" IsEnabled="{Binding ShowTimeline}">
                         <TextBlock Text="While the session timer shows" />
                         <RadioButton GroupName="timelineInFocus" IsChecked="{Binding !TimelineStaysInFocus}" Content="Swap: the timer takes the timeline's place until the session ends" />
                         <RadioButton GroupName="timelineInFocus" IsChecked="{Binding TimelineStaysInFocus}" Content="Show both: timeline on top, timer under it" />
-                        <CheckBox IsChecked="{Binding TimelineShowsTime}" Content="Show the current time" />
+                        <CheckBox Classes="sw" IsChecked="{Binding TimelineShowsTime}" Content="Show the current time" />
                         <TextBlock Text="While no session runs (in a session the timer's opacity applies)" Margin="0,4,0,0" />
                         <Grid ColumnDefinitions="240,Auto" RowDefinitions="Auto,Auto" RowSpacing="6">
                             <TextBlock Grid.Row="0" Text="Opacity" VerticalAlignment="Center" />
@@ -742,11 +743,10 @@
 
             <StackPanel Spacing="16" IsVisible="{Binding Rows[7].IsSelected}"
                         search:SearchArea.Name="Appearance" search:SearchArea.SettingsGroup="7">
-                <Border Classes="card" IsVisible="{Binding HasAppearance}">
-                <StackPanel Spacing="6" DataContext="{Binding Appearance}" x:DataType="vm:AppearanceViewModel">
+                <StackPanel DataContext="{Binding Appearance}" x:DataType="vm:AppearanceViewModel"
+                            IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).HasAppearance}">
                     <views:AppearanceView />
                 </StackPanel>
-                </Border>
             </StackPanel>
 
             <StackPanel Spacing="16" IsVisible="{Binding Rows[8].IsSelected}"
@@ -754,12 +754,12 @@
                 <Border Classes="card" search:SearchArea.Name="Computer type">
                 <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="Laptop" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="Laptop" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Computer type" Classes="sectionTitle" />
                     </StackPanel>
                     <TextBlock Text="{Binding ComputerTypeText}" />
                     <TextBlock Text="Applying a type sets its starting switches again (privacy, escalation, sharing, update checks). Profiles and the day plan stay as they are."
-                               Opacity="0.75" TextWrapping="Wrap" />
+                               Classes="sHint" TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <ComboBox SelectedIndex="{Binding ComputerTypeIndex}" MinWidth="200">
                             <ComboBoxItem Content="Personal computer" />
@@ -773,26 +773,26 @@
                 <Border Classes="card" search:SearchArea.Name="Backup">
                 <StackPanel Spacing="6">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="BackupRestore" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="BackupRestore" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Backup" Classes="sectionTitle" />
                     </StackPanel>
                     <TextBlock Text="Save your profiles, settings, calendars and history to a file, or restore them from one, e.g. on a new PC."
-                               Opacity="0.75" TextWrapping="Wrap" />
+                               Classes="sHint" TextWrapping="Wrap" />
                     <views:BackupPanel DataContext="{Binding Backup}" />
                 </StackPanel>
                 </Border>
                 <Border Classes="card" search:SearchArea.Name="Data">
                 <StackPanel Spacing="4">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <mi:MaterialIcon Kind="DatabaseOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
+                        <mi:MaterialIcon Kind="DatabaseOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Text="Data" Classes="sectionTitle" />
                     </StackPanel>
-                    <TextBlock Text="Everything is stored only on this computer:" Opacity="0.75" />
+                    <TextBlock Text="Everything is stored only on this computer:" Classes="sHint" />
                     <SelectableTextBlock Text="{Binding DatabasePath}" />
                     <!-- Off: History keeps only times, apps, sites and their sections (ADR 22, the Work computer type). -->
-                    <CheckBox IsChecked="{Binding KeepTitlesAndAddresses}" Margin="0,6,0,0"
-                              Content="Keep window titles, full addresses and screen text in History (encrypted). Off: only times, apps, sites and their sections" />
-                    <TextBlock Text="{Binding VersionText}" Opacity="0.75" Margin="0,6,0,0" />
+                    <CheckBox Classes="sw" IsChecked="{Binding KeepTitlesAndAddresses}" Margin="0,6,0,0"
+                              ><TextBlock Text="Keep window titles, full addresses and screen text in History (encrypted). Off: only times, apps, sites and their sections" TextWrapping="Wrap" /></CheckBox>
+                    <TextBlock Text="{Binding VersionText}" Classes="sHint" Margin="0,6,0,0" />
                 </StackPanel>
                 </Border>
             </StackPanel>

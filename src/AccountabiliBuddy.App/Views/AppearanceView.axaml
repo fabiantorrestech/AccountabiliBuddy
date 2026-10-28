@@ -6,107 +6,86 @@
              x:Class="AccountabiliBuddy.App.Views.AppearanceView"
              x:DataType="vm:AppearanceViewModel">
     <!-- ADR 49: theme, light or dark, the set times or place for sunset, and colour. Everything applies and saves at once.
-         Compact (the migration assistant) leaves out the place and the colour. -->
-    <UserControl.Styles>
-        <Style Selector="ListBox.segmented">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="ItemsPanel">
-                <ItemsPanelTemplate>
-                    <WrapPanel />
-                </ItemsPanelTemplate>
-            </Setter>
-        </Style>
-        <Style Selector="ListBox.segmented > ListBoxItem">
-            <Setter Property="Padding" Value="14,7" />
-            <Setter Property="Margin" Value="0,0,6,6" />
-            <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
-        </Style>
-        <Style Selector="ListBox.segmented > ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
-        <Style Selector="ListBox.segmented > ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
-        <Style Selector="ListBox.segmented > ListBoxItem:selected:focus /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
-    </UserControl.Styles>
-
-    <StackPanel Spacing="8">
-        <TextBlock Text="Theme" Classes="muted" />
-        <ListBox Classes="segmented" ItemsSource="{x:Static vm:AppearanceViewModel.ThemeNames}" SelectedIndex="{Binding ThemeIndex}" />
-
-        <TextBlock Text="Light or dark" Classes="muted" Margin="0,6,0,0" />
-        <ListBox Classes="segmented" ItemsSource="{x:Static vm:AppearanceViewModel.ModeNames}" SelectedIndex="{Binding ModeIndex}" />
-
-        <!-- At a set time (and the stand-in for After sunset until a place is known) -->
-        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowsSetTimes}">
-            <TextBlock Text="Dark at" VerticalAlignment="Center" />
-            <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding DarkAtTime}" MinuteIncrement="15" MinWidth="0" Width="196" />
-            <TextBlock Text="Light at" VerticalAlignment="Center" Margin="8,0,0,0" />
-            <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding LightAtTime}" MinuteIncrement="15" MinWidth="0" Width="196" />
-        </StackPanel>
-
-        <!-- After sunset: where the place comes from -->
-        <StackPanel Spacing="8" IsVisible="{Binding IsSunsetMode}">
-            <TextBlock Classes="muted" TextWrapping="Wrap" IsVisible="{Binding #Root.IsCompact}"
-                       Text="After sunset needs a place. It reads Windows location once a day; to type a place or pick a city instead, open Settings › Appearance." />
-            <StackPanel Spacing="8" IsVisible="{Binding !#Root.IsCompact}">
-                <TextBlock Text="Where is sunset worked out for?" Classes="muted" />
-                <ListBox Classes="segmented" ItemsSource="{x:Static vm:AppearanceViewModel.SourceNames}" SelectedIndex="{Binding SourceIndex}" />
-
-                <TextBlock Classes="muted" TextWrapping="Wrap" IsVisible="{Binding IsWindowsSource}"
-                           Text="Windows location is asked for at coarse accuracy at most once a day, only while After sunset is on. The app makes no connection of its own for it." />
-
-                <StackPanel Spacing="6" IsVisible="{Binding IsTypedSource}">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBox Text="{Binding LatitudeText}" PlaceholderText="Latitude, e.g. 51.50" Width="170" />
-                        <TextBox Text="{Binding LongitudeText}" PlaceholderText="Longitude, e.g. -0.12" Width="170" />
-                        <Button Content="Use this place" Command="{Binding UseTypedPlaceCommand}" />
+         Compact (the migration assistant) leaves out the place and the colour. The segments are Themes/AbStyles.axaml's ListBox.segmented. -->
+    <StackPanel Spacing="12">
+        <Border Classes="sPanel">
+            <StackPanel Margin="0,0,0,-1">
+                <Border Classes="sRow">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Theme" Classes="sTitle" />
+                        <ListBox Classes="segmented" ItemsSource="{x:Static vm:AppearanceViewModel.ThemeNames}" SelectedIndex="{Binding ThemeIndex}" AutomationProperties.Name="Theme" />
                     </StackPanel>
-                    <TextBlock Classes="muted" TextWrapping="Wrap" Text="{Binding TypedMessage}"
-                               IsVisible="{Binding TypedMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                </StackPanel>
+                </Border>
 
-                <StackPanel Spacing="6" IsVisible="{Binding IsCitySource}">
-                    <TextBox Text="{Binding CityQuery}" PlaceholderText="Search for a city" MaxWidth="360" HorizontalAlignment="Left" />
-                    <ListBox ItemsSource="{Binding CityResults}" SelectedItem="{Binding SelectedCity}" MaxHeight="220" MaxWidth="360" HorizontalAlignment="Left"
-                             IsVisible="{Binding HasCityResults}">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="theming:City">
-                                <TextBlock Text="{Binding Display}" />
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </StackPanel>
+                <Border Classes="sRow">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Light or dark" Classes="sTitle" />
+                        <ListBox Classes="segmented" ItemsSource="{x:Static vm:AppearanceViewModel.ModeNames}" SelectedIndex="{Binding ModeIndex}" AutomationProperties.Name="Light or dark" />
 
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{Binding PlaceText}" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" />
-                    <Button Content="Forget my location" Command="{Binding ForgetPlaceCommand}" IsEnabled="{Binding HasPlace}" />
-                </StackPanel>
-                <TextBlock Classes="muted" TextWrapping="Wrap" Text="The place is stored encrypted on this PC. It is never synced, logged or sent anywhere, and Forget my location clears it." />
+                        <!-- At a set time (and the stand-in for After sunset until a place is known) -->
+                        <WrapPanel ItemSpacing="8" LineSpacing="6" IsVisible="{Binding ShowsSetTimes}">
+                            <TextBlock Text="Dark at" VerticalAlignment="Center" />
+                            <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding DarkAtTime}" MinuteIncrement="15" MinWidth="0" Width="196" />
+                            <TextBlock Text="Light at" VerticalAlignment="Center" Margin="8,0,0,0" />
+                            <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding LightAtTime}" MinuteIncrement="15" MinWidth="0" Width="196" />
+                        </WrapPanel>
+
+                        <!-- After sunset: where the place comes from -->
+                        <StackPanel Spacing="8" IsVisible="{Binding IsSunsetMode}">
+                            <TextBlock Classes="sHint" IsVisible="{Binding #Root.IsCompact}"
+                                       Text="After sunset needs a place. It reads Windows location once a day; to type a place or pick a city instead, open Settings › Appearance." />
+                            <StackPanel Spacing="8" IsVisible="{Binding !#Root.IsCompact}">
+                                <TextBlock Text="Where is sunset worked out for?" Classes="sHint" />
+                                <ListBox Classes="segmented" ItemsSource="{x:Static vm:AppearanceViewModel.SourceNames}" SelectedIndex="{Binding SourceIndex}" AutomationProperties.Name="Where sunset is worked out" />
+
+                                <TextBlock Classes="sHint" IsVisible="{Binding IsWindowsSource}"
+                                           Text="Windows location is asked for at coarse accuracy at most once a day, only while After sunset is on. The app makes no connection of its own for it." />
+
+                                <StackPanel Spacing="6" IsVisible="{Binding IsTypedSource}">
+                                    <WrapPanel ItemSpacing="8" LineSpacing="6">
+                                        <TextBox Text="{Binding LatitudeText}" PlaceholderText="Latitude, e.g. 51.50" Width="170" />
+                                        <TextBox Text="{Binding LongitudeText}" PlaceholderText="Longitude, e.g. -0.12" Width="170" />
+                                        <Button Content="Use this place" Command="{Binding UseTypedPlaceCommand}" />
+                                    </WrapPanel>
+                                    <TextBlock Classes="sHint" Text="{Binding TypedMessage}"
+                                               IsVisible="{Binding TypedMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                </StackPanel>
+
+                                <StackPanel Spacing="6" IsVisible="{Binding IsCitySource}">
+                                    <TextBox Text="{Binding CityQuery}" PlaceholderText="Search for a city" MaxWidth="360" HorizontalAlignment="Left" />
+                                    <ListBox ItemsSource="{Binding CityResults}" SelectedItem="{Binding SelectedCity}" MaxHeight="220" MaxWidth="360" HorizontalAlignment="Left"
+                                             IsVisible="{Binding HasCityResults}">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="theming:City">
+                                                <TextBlock Text="{Binding Display}" />
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+
+                                <WrapPanel ItemSpacing="8" LineSpacing="6">
+                                    <TextBlock Text="{Binding PlaceText}" VerticalAlignment="Center" Classes="sHint" />
+                                    <Button Content="Forget my location" Command="{Binding ForgetPlaceCommand}" IsEnabled="{Binding HasPlace}" />
+                                </WrapPanel>
+                                <TextBlock Classes="sHint" Text="The place is stored encrypted on this PC. It is never synced, logged or sent anywhere, and Forget my location clears it." />
+                            </StackPanel>
+                            <TextBlock TextWrapping="Wrap" Text="{Binding LocationNote}" IsVisible="{Binding HasLocationNote}" />
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding Summary}" Classes="sHint" />
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="sRow" IsVisible="{Binding !#Root.IsCompact}">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Colour" Classes="sTitle" />
+                        <ListBox Classes="segmented" ItemsSource="{x:Static vm:AppearanceViewModel.ColourNames}" SelectedIndex="{Binding ColourIndex}" AutomationProperties.Name="Colour" />
+                        <TextBlock Classes="sHint" Text="Quiet keeps colour for progress and the one main button. Everything else stays ink." />
+                    </StackPanel>
+                </Border>
             </StackPanel>
-            <TextBlock TextWrapping="Wrap" Text="{Binding LocationNote}" IsVisible="{Binding HasLocationNote}" />
-        </StackPanel>
-
-        <StackPanel Spacing="8" IsVisible="{Binding !#Root.IsCompact}">
-            <TextBlock Text="Colour" Classes="muted" Margin="0,6,0,0" />
-            <ListBox Classes="segmented" ItemsSource="{x:Static vm:AppearanceViewModel.ColourNames}" SelectedIndex="{Binding ColourIndex}" />
-            <TextBlock Classes="muted" TextWrapping="Wrap"
-                       Text="Quiet keeps colour for progress and the one main button. Everything else stays ink." />
-        </StackPanel>
-
-        <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,6,0,0" />
-        <TextBlock Classes="muted" TextWrapping="Wrap"
-                   Text="The on-screen window stays dark on purpose so it reads over anything." IsVisible="{Binding !#Root.IsCompact}" />
+        </Border>
+        <TextBlock Classes="sHint" Margin="4,0,0,0" IsVisible="{Binding !#Root.IsCompact}"
+                   Text="The on-screen window stays dark on purpose so it reads over anything." />
     </StackPanel>
 </UserControl>
