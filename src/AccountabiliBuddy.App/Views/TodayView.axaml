@@ -111,7 +111,7 @@
                     <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource Ab.InfoInk}" TextWrapping="Wrap" />
                 </Border>
 
-                <Border Grid.Row="1" Classes="card" Padding="48,40">
+                <Border Grid.Row="1" Classes="card" Padding="48,32">
                     <Panel>
 
                         <!-- The shutdown card (redesign phase 5): once after the day's last work part. It takes the card's place. -->
@@ -181,7 +181,7 @@
                             <StackPanel Spacing="14" IsVisible="{Binding ShowsWelcome}">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <mi:MaterialIcon Kind="HandWave" Width="24" Height="24" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                    <TextBlock Classes="display" Text="Welcome! Let's set up your first focus profile" FontSize="32"
+                                    <TextBlock Classes="display" Text="Welcome! Let's set up your first focus profile" FontSize="32" LineHeight="40" Padding="0,0,0,10" Margin="0,0,0,-10"
                                                TextWrapping="Wrap" VerticalAlignment="Center" />
                                 </StackPanel>
                                 <TextBlock Classes="muted" TextWrapping="Wrap" MaxWidth="560"
@@ -203,7 +203,7 @@
                             <!-- Idle: the start card. Tasks, Start, Quick Start with Default, and the other ways folded away. -->
                             <StackPanel Spacing="22" IsVisible="{Binding ShowsStart}">
                                 <StackPanel Spacing="6">
-                                    <TextBlock Classes="display" Text="Nothing running." FontSize="40" TextWrapping="Wrap" />
+                                    <TextBlock Classes="display" Text="Nothing running." FontSize="40" LineHeight="50" Padding="0,0,0,10" Margin="0,0,0,-10" TextWrapping="Wrap" />
                                     <!-- The day bar's status line: "Next: Deep work at 3:00 PM", or what is on now. -->
                                     <TextBlock Classes="muted" FontSize="14" TextWrapping="Wrap" Text="{Binding Day.StatusText}"
                                                IsVisible="{Binding Day.StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}, FallbackValue=False}" />

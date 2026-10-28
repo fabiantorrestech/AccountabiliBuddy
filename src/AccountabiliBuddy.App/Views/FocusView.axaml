@@ -30,17 +30,17 @@
             <Setter Property="MinHeight" Value="4" />
         </Style>
     </UserControl.Styles>
-    <StackPanel Spacing="16">
+    <StackPanel Spacing="12">
 
         <!-- Planning: the session's first minutes are for the plan; "I'm ready" ends them. -->
-        <StackPanel Spacing="22" IsVisible="{Binding IsPlanning}">
+        <StackPanel Spacing="14" IsVisible="{Binding IsPlanning}">
             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                 <Border Classes="chip plan">
                     <TextBlock Text="Plan first" FontSize="13" FontWeight="SemiBold" />
                 </Border>
                 <TextBlock Grid.Column="1" Classes="muted" Text="{Binding PlanningText}" FontSize="14" VerticalAlignment="Center" TextWrapping="Wrap" />
             </Grid>
-            <TextBlock Classes="display" FontSize="40" TextWrapping="Wrap" Text="What are the three things this session is for?" />
+            <TextBlock Classes="display" FontSize="40" LineHeight="50" Padding="0,0,0,10" Margin="0,0,0,-10" TextWrapping="Wrap" Text="What are the three things this session is for?" />
             <ProgressBar Classes="planning" Minimum="0" Maximum="100" Value="{Binding PlanningLeftPercent}" IsVisible="{Binding InPlanningStage}" />
             <views:PlanningTip />
             <Panel IsVisible="{Binding Checklist, Converter={x:Static ObjectConverters.IsNotNull}}">
@@ -49,7 +49,7 @@
         </StackPanel>
 
         <!-- Running: the line, the timer, the task in front and its steps. -->
-        <StackPanel Spacing="16" IsVisible="{Binding !IsPlanning}">
+        <StackPanel Spacing="12" IsVisible="{Binding !IsPlanning}">
             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                 <Border Classes="chip">
                     <TextBlock Text="{Binding ChipText}" FontSize="13" FontWeight="SemiBold" />
@@ -58,8 +58,8 @@
                            TextTrimming="CharacterEllipsis" />
             </Grid>
             <!-- Scales down instead of clipping when the window is narrow. -->
-            <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left">
-                <TextBlock Classes="numeral" Text="{Binding TimeLeftText}" FontSize="120" LetterSpacing="-4"
+            <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left" Margin="0,-4">
+                <TextBlock Classes="numeral" Text="{Binding TimeLeftText}" FontSize="120" LineHeight="128" LetterSpacing="-4"
                            AutomationProperties.Name="Time left" />
             </Viewbox>
             <!-- Stepped away or on a side task: the countdown is paused until "I'm back" or "Back on track". -->
@@ -70,7 +70,7 @@
                 </StackPanel>
             </Border>
             <StackPanel Spacing="4" IsVisible="{Binding HasTasks}">
-                <TextBlock Classes="display" FontSize="32" TextWrapping="Wrap" Text="{Binding Checklist.CurrentTaskText}" />
+                <TextBlock Classes="display" FontSize="32" LineHeight="40" Padding="0,0,0,10" Margin="0,0,0,-10" TextWrapping="Wrap" Text="{Binding Checklist.CurrentTaskText}" />
                 <TextBlock Classes="muted" Text="{Binding CurrentSubtaskText, StringFormat='↳ {0}'}" FontSize="14" TextWrapping="Wrap">
                     <TextBlock.IsVisible>
                         <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -93,7 +93,7 @@
         </StackPanel>
 
         <!-- The actions: Done ticks the task in front (the next comes up), Pause is Step away, ⋯ holds the rest. -->
-        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="8" Margin="0,8,0,0">
+        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="8" Margin="0,4,0,0">
             <Button Classes="primary pill" Content="I'm ready" Command="{Binding ReadyCommand}" IsVisible="{Binding CanReady}" />
             <Button Grid.Column="1" Classes="primary pill" Content="Done" Command="{Binding Checklist.TickCurrentTaskCommand}"
                     AutomationProperties.Name="Done: tick the task in front">
@@ -141,7 +141,8 @@
                IsVisible="{Binding $parent[UserControl].((vm:FocusViewModel)DataContext).Capture, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
             <StackPanel Spacing="6">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                    <TextBox Text="{Binding Text}" PlaceholderText="A thought? Type it, Enter keeps it for later">
+                    <TextBox Text="{Binding Text}" PlaceholderText="A thought? Type it, Enter keeps it for later"
+                             ToolTip.Tip="Enter keeps a note for this session's review · ⚑ or a leading ! parks it under Come back to">
                         <TextBox.KeyBindings>
                             <KeyBinding Gesture="Enter" Command="{Binding SaveCommand}" />
                         </TextBox.KeyBindings>
@@ -151,8 +152,6 @@
                 </Grid>
                 <TextBlock Classes="muted" Text="{Binding Message}" FontSize="12"
                            IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                <TextBlock Classes="faint" FontSize="12" TextWrapping="Wrap"
-                           Text="Enter keeps a note for this session's review · ⚑ or a leading ! parks it under Come back to" />
             </StackPanel>
         </Panel>
 
