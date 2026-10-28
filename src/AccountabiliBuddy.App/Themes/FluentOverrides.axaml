@@ -24,6 +24,25 @@
             <SolidColorBrush x:Key="TextControlBackground" Color="{DynamicResource Ab.SurfaceColor}" />
             <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{DynamicResource Ab.SurfaceColor}" />
             <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{DynamicResource Ab.SurfaceColor}" />
+            <!-- ToggleSwitch: Surface2 track, an ink fill when on (never the accent), the knob muted off and page-ground on. -->
+            <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="{DynamicResource Ab.Surface2Color}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOffPointerOver" Color="{DynamicResource Ab.Surface2Color}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOffPressed" Color="{DynamicResource Ab.Surface2Color}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOff" Color="{DynamicResource Ab.LineColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOffPointerOver" Color="{DynamicResource Ab.FaintColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOffPressed" Color="{DynamicResource Ab.FaintColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOff" Color="{DynamicResource Ab.MutedColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPointerOver" Color="{DynamicResource Ab.MutedColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPressed" Color="{DynamicResource Ab.MutedColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="{DynamicResource Ab.BgColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="{DynamicResource Ab.BgColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="{DynamicResource Ab.BgColor}" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
             <SolidColorBrush x:Key="SystemRegionBrush" Color="{DynamicResource Ab.BgColor}" />
@@ -44,6 +63,25 @@
             <SolidColorBrush x:Key="TextControlBackground" Color="{DynamicResource Ab.SurfaceColor}" />
             <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{DynamicResource Ab.SurfaceColor}" />
             <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{DynamicResource Ab.SurfaceColor}" />
+            <!-- ToggleSwitch: Surface2 track, an ink fill when on (never the accent), the knob muted off and page-ground on. -->
+            <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="{DynamicResource Ab.Surface2Color}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOffPointerOver" Color="{DynamicResource Ab.Surface2Color}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOffPressed" Color="{DynamicResource Ab.Surface2Color}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOff" Color="{DynamicResource Ab.LineColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOffPointerOver" Color="{DynamicResource Ab.FaintColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOffPressed" Color="{DynamicResource Ab.FaintColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOff" Color="{DynamicResource Ab.MutedColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPointerOver" Color="{DynamicResource Ab.MutedColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPressed" Color="{DynamicResource Ab.MutedColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="{DynamicResource Ab.BgColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="{DynamicResource Ab.BgColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="{DynamicResource Ab.BgColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

@@ -146,8 +146,14 @@ public sealed partial class SettingsViewModel : ObservableObject
         GoogleClientId = calendars.Settings.GoogleClientId ?? string.Empty;
         GoogleClientSecret = string.Empty;
 
-        _sessions.StateChanged += (_, _) => IsLocked = _sessions.IsEnforcing;
+        _sessions.StateChanged += (_, _) =>
+        {
+            IsLocked = _sessions.IsEnforcing;
+            RefreshRestingText();
+        };
+        _sessions.FocusExtended += (_, _) => RefreshRestingText();
         IsLocked = _sessions.IsEnforcing;
+        RefreshRestingText();
         _configuration.PendingCancelled += (_, _) =>
         {
             LoadFromConfiguration();
@@ -925,17 +931,17 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The Settings list's rows in <see cref="SettingsSection"/> order; the one at <see cref="SelectedRowIndex"/> shows on the right.</summary>
     public IReadOnlyList<SettingsRowViewModel> Rows { get; } = new[]
     {
-        new SettingsRowViewModel(SettingsSection.YourDay, "Your day", Material.Icons.MaterialIconKind.WeatherSunny),
-        new SettingsRowViewModel(SettingsSection.Sleep, "Sleep", Material.Icons.MaterialIconKind.WeatherNight),
-        new SettingsRowViewModel(SettingsSection.FocusSessions, "Focus sessions", Material.Icons.MaterialIconKind.TimerOutline),
-        new SettingsRowViewModel(SettingsSection.Guards, "Guards", Material.Icons.MaterialIconKind.ShieldOutline),
-        new SettingsRowViewModel(SettingsSection.AlertsAndOnScreen, "Alerts & on-screen", Material.Icons.MaterialIconKind.BellOutline),
-        new SettingsRowViewModel(SettingsSection.DevicesAndSync, "Devices & sync", Material.Icons.MaterialIconKind.Devices),
-        new SettingsRowViewModel(SettingsSection.Connections, "Connections", Material.Icons.MaterialIconKind.PuzzleOutline),
-        new SettingsRowViewModel(SettingsSection.Appearance, "Appearance", Material.Icons.MaterialIconKind.PaletteOutline),
-        new SettingsRowViewModel(SettingsSection.AppAndData, "App & data", Material.Icons.MaterialIconKind.DatabaseOutline, gapBefore: true),
-        new SettingsRowViewModel(SettingsSection.Setup, "Setup", Material.Icons.MaterialIconKind.Wrench),
-        new SettingsRowViewModel(SettingsSection.About, "About", Material.Icons.MaterialIconKind.InformationOutline),
+        new SettingsRowViewModel(SettingsSection.YourDay, "Your day", Material.Icons.MaterialIconKind.WeatherSunny, "How your day starts, lunch, the day bar and where your calendars come from."),
+        new SettingsRowViewModel(SettingsSection.Sleep, "Sleep", Material.Icons.MaterialIconKind.WeatherNight, "Bedtime, wake time and the reminders before bed."),
+        new SettingsRowViewModel(SettingsSection.FocusSessions, "Focus sessions", Material.Icons.MaterialIconKind.TimerOutline, "Starting, stepping away, Pomodoro, escalation and ending early."),
+        new SettingsRowViewModel(SettingsSection.Guards, "Guards", Material.Icons.MaterialIconKind.ShieldOutline, "Profiles and what each one allows, unlocks and Cold Turkey."),
+        new SettingsRowViewModel(SettingsSection.AlertsAndOnScreen, "Alerts & on-screen", Material.Icons.MaterialIconKind.BellOutline, "Sounds, the noise player, headphones and what shows on screen."),
+        new SettingsRowViewModel(SettingsSection.DevicesAndSync, "Devices & sync", Material.Icons.MaterialIconKind.Devices, "Everything stays on your devices and your own Google Drive."),
+        new SettingsRowViewModel(SettingsSection.Connections, "Connections", Material.Icons.MaterialIconKind.PuzzleOutline, "Calendars, Beeminder and the other blockers you use."),
+        new SettingsRowViewModel(SettingsSection.Appearance, "Appearance", Material.Icons.MaterialIconKind.PaletteOutline, "Theme, light or dark, and how much colour."),
+        new SettingsRowViewModel(SettingsSection.AppAndData, "App & data", Material.Icons.MaterialIconKind.DatabaseOutline, "Computer type, backups and where your data lives.", gapBefore: true),
+        new SettingsRowViewModel(SettingsSection.Setup, "Setup", Material.Icons.MaterialIconKind.Wrench, "Everything AccountabiliBuddy is allowed to do on this computer."),
+        new SettingsRowViewModel(SettingsSection.About, "About", Material.Icons.MaterialIconKind.InformationOutline, "Version, updates and what this is for."),
     };
 
     /// <summary>Which row shows; switching rows changes no setting.</summary>
@@ -1020,8 +1026,24 @@ public sealed partial class SettingsViewModel : ObservableObject
         SettingsSection.YourDay, SettingsSection.FocusSessions, SettingsSection.Guards, SettingsSection.AppAndData,
     ];
 
-    /// <summary>The "locked while a focus session is running" banner: only on a row that holds a locked setting.</summary>
-    public bool ShowsLockedBanner => IsLocked && SelectedRowIndex >= 0 && Array.IndexOf(LockedRows, (SettingsSection)SelectedRowIndex) >= 0;
+    /// <summary>"Resting while you focus. Changes open again at 4:05 PM." (or when the session ends, for one with no set end); read by the resting banner.</summary>
+    [ObservableProperty]
+    public partial string RestingBannerText { get; set; } = string.Empty;
+
+    private void RefreshRestingText()
+    {
+        SessionState state = _sessions.State;
+        DateTimeOffset? end = state.Mode == SessionMode.Manual ? state.FocusEndsAt(_sessions.Now) : null;
+        RestingBannerText = end is DateTimeOffset at
+            ? $"Resting while you focus. Changes open again at {TimeZoneInfo.ConvertTime(at, _sessions.TimeProvider.LocalTimeZone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}."
+            : "Resting while you focus. Changes open again when the session ends.";
+    }
+
+    /// <summary>The "resting while you focus" banner: only on a row that holds a locked setting.</summary>
+    // Devices & sync (its switches and Leave) and Setup (revoking and deleting) rest too, but keep no lock in the list.
+    private static readonly SettingsSection[] BannerRows = [.. LockedRows, SettingsSection.DevicesAndSync, SettingsSection.Setup];
+
+    public bool ShowsLockedBanner => IsLocked && SelectedRowIndex >= 0 && Array.IndexOf(BannerRows, (SettingsSection)SelectedRowIndex) >= 0;
 
     partial void OnIsLockedChanged(bool value)
     {

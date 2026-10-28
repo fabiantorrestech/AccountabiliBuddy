@@ -33,6 +33,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ShowDevTools = showDevTools;
         LoadError = loadError;
         session.OpenProfilesRequested += (_, _) => OpenSettings(SettingsSection.Guards);
+        integrations.ShowDevicesAndSync = () => OpenSettings(SettingsSection.DevicesAndSync);
         session.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(SessionViewModel.IsSessionActive))
@@ -157,6 +158,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private void OpenDevicesAndSync()
     {
         OpenSettings(SettingsSection.DevicesAndSync);
+    }
+
+    [RelayCommand]
+    private void OpenConnections()
+    {
+        OpenSettings(SettingsSection.Connections);
     }
 
     /// <summary>The search flyout under the title bar is open (Ctrl+F or the magnifier); Esc closes it.</summary>

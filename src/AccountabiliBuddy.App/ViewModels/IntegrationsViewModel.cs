@@ -101,6 +101,12 @@ public sealed partial class IntegrationsViewModel : ObservableObject
     /// <summary>The connected calendars (iCal links, Google accounts), moved here from the Calendar tab; set by the app.</summary>
     public CalendarFeedsViewModel? CalendarFeeds { get; set; }
 
+    /// <summary>Opens Settings › Devices &amp; sync, where the own relay is set up; set by the main window's view model.</summary>
+    public Action? ShowDevicesAndSync { get; set; }
+
+    [RelayCommand]
+    private void OpenDevicesAndSync() => ShowDevicesAndSync?.Invoke();
+
     /// <summary>Get a new spare key for the Cold Turkey keys the app holds (ADR 41); set by the app.</summary>
     public Action? ShowNewSpareKey { get; set; }
 

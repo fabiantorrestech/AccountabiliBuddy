@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:AccountabiliBuddy.App.Controls">
     <!-- Shared styles over the Ab.* tokens (ADR 49). Flat: no gradients, no drop shadows. -->
 
     <Style Selector="Border.card">
@@ -79,6 +80,139 @@
     </Style>
     <Style Selector="TextBlock.faint">
         <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+    </Style>
+
+    <!-- Settings pages (design 5q): a sunk panel of rows, each row a label + Muted line + a control on the right, hairlines between them. -->
+    <Style Selector="Border.sPanel">
+        <Setter Property="Background" Value="{DynamicResource Ab.Bg}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        <Setter Property="BorderThickness" Value="{DynamicResource Ab.CardBorderThickness}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
+        <Setter Property="ClipToBounds" Value="True" />
+    </Style>
+    <!-- Rows carry their own bottom hairline; the panel's content sits at Margin="0,0,0,-1" so the last one is clipped away. -->
+    <Style Selector="Border.sRow">
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="Padding" Value="18,14" />
+    </Style>
+    <Style Selector="Border.sInfo">
+        <Setter Property="Background" Value="{DynamicResource Ab.InfoBg}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
+        <Setter Property="Padding" Value="18,14" />
+    </Style>
+    <Style Selector="Border.sInfo TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.InfoInk}" />
+    </Style>
+    <Style Selector="TextBlock.sTitle">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.sHint">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.sGroup">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        <Setter Property="Margin" Value="4,10,0,0" />
+    </Style>
+    <!-- A round icon button and a soft pill button for a page's header actions. -->
+    <Style Selector="Button.sRound">
+        <Setter Property="Width" Value="44" />
+        <Setter Property="Height" Value="44" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="CornerRadius" Value="22" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.sSoft">
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Padding" Value="20,11" />
+        <Setter Property="FontSize" Value="14" />
+    </Style>
+
+    <!-- A segmented choice (Appearance, the sync light): a Surface2 track; the chosen segment sits on the page ground in ink. -->
+    <Style Selector="ListBox.segmented">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Padding" Value="3" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="controls:NoBringIntoView.Suppress" Value="True" />
+        <Setter Property="ItemsPanel">
+            <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="2" />
+            </ItemsPanelTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="ListBox.segmented > ListBoxItem">
+        <Setter Property="Padding" Value="16,7" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+    </Style>
+    <Style Selector="ListBox.segmented > ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.segmented > ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+    </Style>
+    <Style Selector="ListBox.segmented > ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Bg}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="ListBox.segmented > ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Bg}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="ListBox.segmented > ListBoxItem:selected:focus /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Bg}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- A check box drawn as a switch (Settings pages): Surface2 track, an ink fill when on, never the accent. -->
+    <Style Selector="CheckBox.sw">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="MinHeight" Value="26" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid ColumnDefinitions="Auto,*" Background="Transparent">
+                    <Border x:Name="SwTrack" Width="38" Height="22" CornerRadius="11" VerticalAlignment="Top" Margin="0,2,0,0"
+                            Background="{DynamicResource Ab.Surface2}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1">
+                        <Ellipse x:Name="SwKnob" Width="14" Height="14" HorizontalAlignment="Left" Margin="3,0,0,0" Fill="{DynamicResource Ab.Muted}" />
+                    </Border>
+                    <ContentPresenter x:Name="PART_ContentPresenter" Grid.Column="1" Margin="12,2,0,0" VerticalAlignment="Center"
+                                      Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      Foreground="{TemplateBinding Foreground}" RecognizesAccessKey="True" />
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="CheckBox.sw:checked /template/ Border#SwTrack">
+        <Setter Property="Background" Value="{DynamicResource Ab.Ink}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Ink}" />
+    </Style>
+    <Style Selector="CheckBox.sw:checked /template/ Ellipse#SwKnob">
+        <Setter Property="HorizontalAlignment" Value="Right" />
+        <Setter Property="Margin" Value="0,0,3,0" />
+        <Setter Property="Fill" Value="{DynamicResource Ab.Bg}" />
+    </Style>
+    <Style Selector="CheckBox.sw:pointerover /template/ Border#SwTrack">
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Faint}" />
+    </Style>
+    <Style Selector="CheckBox.sw:focus-visible /template/ Border#SwTrack">
+        <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
+    </Style>
+    <Style Selector="CheckBox.sw:disabled">
+        <Setter Property="Opacity" Value="0.5" />
     </Style>
 
     <!-- Keyboard focus: a 2px ring drawn as a zero-blur box shadow outside the control, so nothing shifts when it appears.

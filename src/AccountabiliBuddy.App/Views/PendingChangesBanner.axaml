@@ -1,11 +1,15 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              x:Class="AccountabiliBuddy.App.Views.PendingChangesBanner"
              x:DataType="vm:PendingChangesViewModel">
-    <Border IsVisible="{Binding HasPending}" Background="#332A9D8F" Padding="12,8" CornerRadius="6">
-        <Grid ColumnDefinitions="*,Auto">
-            <StackPanel Spacing="4">
+    <!-- The looser-changes queue (hard rules: stricter changes apply at once, looser ones wait): what is waiting, when it applies, and Cancel.
+         No "apply now". Info colours, never the accent. -->
+    <Border Classes="sInfo" IsVisible="{Binding HasPending}">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+            <mi:MaterialIcon Kind="TimerSand" Width="20" Height="20" VerticalAlignment="Top" Foreground="{DynamicResource Ab.InfoInk}" />
+            <StackPanel Grid.Column="1" Spacing="4">
                 <TextBlock Text="{Binding Headline}" FontWeight="SemiBold" TextWrapping="Wrap" />
                 <ItemsControl ItemsSource="{Binding Changes}">
                     <ItemsControl.ItemTemplate>
@@ -14,11 +18,11 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-                <TextBlock Opacity="0.75" TextWrapping="Wrap"
+                <TextBlock Text="{Binding AppliesText}" FontSize="12" TextWrapping="Wrap" />
+                <TextBlock FontSize="12" TextWrapping="Wrap"
                            Text="Stricter changes already apply. The editors below show your saved changes; until then the old values are enforced." />
             </StackPanel>
-            <Button Grid.Column="1" Content="Cancel looser changes" Command="{Binding CancelCommand}"
-                    VerticalAlignment="Top" Margin="12,0,0,0" />
+            <Button Grid.Column="2" Content="Cancel looser changes" Command="{Binding CancelCommand}" VerticalAlignment="Top" />
         </Grid>
     </Border>
 </UserControl>

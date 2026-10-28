@@ -117,6 +117,7 @@
     <FontFamily x:Key="Ab.DisplayFont">avares://AccountabiliBuddy.App/Assets/Fonts/Manrope#Manrope</FontFamily>
     <FontFamily x:Key="Ab.NumeralFont">avares://AccountabiliBuddy.App/Assets/Fonts/Manrope#Manrope</FontFamily>
     <CornerRadius x:Key="Ab.CardRadius">28</CornerRadius>
+    <CornerRadius x:Key="Ab.PanelRadius">24</CornerRadius>
     <Thickness x:Key="Ab.CardBorderThickness">0</Thickness>
     <x:Double x:Key="Ab.DisplayLetterSpacing">-0.5</x:Double>
     <FontWeight x:Key="Ab.NumeralWeight">SemiBold</FontWeight>

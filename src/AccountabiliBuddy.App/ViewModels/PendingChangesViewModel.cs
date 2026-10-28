@@ -36,6 +36,10 @@ public sealed partial class PendingChangesViewModel : ObservableObject
     [ObservableProperty]
     public partial IReadOnlyList<string> Changes { get; set; }
 
+    /// <summary>"Applies at 1:48 PM · cancel any time before": the clock time the wait ends (or the session's end, when that is later).</summary>
+    [ObservableProperty]
+    public partial string AppliesText { get; set; } = string.Empty;
+
     [RelayCommand]
     private void Cancel()
     {
@@ -61,6 +65,10 @@ public sealed partial class PendingChangesViewModel : ObservableObject
         Headline = remaining > TimeSpan.Zero
             ? $"Looser changes take effect in {Format(remaining)}" + (sessionRunning ? ", or when this session ends if later:" : ":")
             : "Looser changes take effect when this session ends:";
+        string readyAt = TimeZoneInfo.ConvertTime(pending.ReadyAt, _sessions.TimeProvider.LocalTimeZone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture);
+        AppliesText = remaining > TimeSpan.Zero
+            ? $"Applies at {readyAt}" + (sessionRunning ? ", or when this session ends if later" : string.Empty) + " · cancel any time before"
+            : "Applies when this session ends · cancel any time before";
     }
 
     private static string Format(TimeSpan remaining)
