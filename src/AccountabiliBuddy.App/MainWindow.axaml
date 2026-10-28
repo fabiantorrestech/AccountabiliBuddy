@@ -210,8 +210,9 @@
                         </ItemsControl>
                     </StackPanel>
                 </Button>
-                <!-- Sync now and reload everything, for a manual check that all is in step (Ctrl+R). -->
-                <Border Grid.Column="2" Width="1" Height="16" Background="{DynamicResource Ab.Line}" VerticalAlignment="Center"
+                <!-- Sync now and reload everything, for a manual check that all is in step (Ctrl+R). The divider sits at the left edge of the
+                     button's own cell; centred, it drew a line through the icon. -->
+                <Border Grid.Column="2" Width="1" Height="16" Background="{DynamicResource Ab.Line}" HorizontalAlignment="Left" VerticalAlignment="Center"
                         IsVisible="{Binding SyncLight.IsVisible, FallbackValue=False}" />
                 <Button Grid.Column="2" Classes="quiet titleIcon" Width="44" Command="{Binding RefreshNowCommand}" ToolTip.Tip="{Binding RefreshTip}"
                         chrome:WindowDecorationProperties.ElementRole="User"
