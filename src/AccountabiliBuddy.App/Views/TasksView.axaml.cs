@@ -10,7 +10,8 @@ namespace AccountabiliBuddy.App.Views;
 
 /// <summary>
 /// The Tasks page. Code-behind: dragging a This-session row by its handle, Esc in the search box, the search box taking the
-/// keyboard when it opens, and keeping a title or note typed in the detail card when the box loses the keyboard.
+/// keyboard when it opens, keeping a title or note typed in the detail card when the box loses the keyboard, filling a ⋯ menu when
+/// it opens, and putting the keyboard in the detail card's title or step box when a menu asks for it.
 /// </summary>
 public partial class TasksView : UserControl
 {
@@ -35,12 +36,57 @@ public partial class TasksView : UserControl
         if (_subscribed is not null)
         {
             _subscribed.PropertyChanged -= OnPagePropertyChanged;
+            _subscribed.FocusRequested -= OnFocusRequested;
         }
 
         _subscribed = DataContext as TasksViewModel;
         if (_subscribed is not null)
         {
             _subscribed.PropertyChanged += OnPagePropertyChanged;
+            _subscribed.FocusRequested += OnFocusRequested;
+        }
+    }
+
+    // A row's menu said Rename or Add subtask: the detail card shows that task, and its title or step box takes the keyboard.
+    private void OnFocusRequested(object? sender, string target)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            string name = target == "step" ? "DetailStepBox" : "DetailTitleBox";
+            TextBox? box = this.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(candidate => candidate.Name == name);
+            if (box is null)
+            {
+                return;
+            }
+
+            box.Focus();
+            if (target == "title")
+            {
+                box.SelectAll();
+            }
+        }, DispatcherPriority.Background);
+    }
+
+    // A ⋯ button: the menu is built from the row it belongs to each time it opens.
+    private void OnMoreClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button button)
+        {
+            TaskMenus.Show(button);
+            e.Handled = true;
+        }
+    }
+
+    // A step's inline box (rename, a step after it) takes the keyboard as it opens.
+    private void OnInlineBoxPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == IsVisibleProperty && sender is TextBox { IsVisible: true } box)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                box.Focus();
+                box.SelectAll();
+            });
         }
     }
 

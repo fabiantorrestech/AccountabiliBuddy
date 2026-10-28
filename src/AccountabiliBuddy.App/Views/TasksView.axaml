@@ -85,6 +85,11 @@
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
 
+        <!-- A category's tasks are set in under its header. -->
+        <Style Selector="ItemsControl.indented">
+            <Setter Property="Margin" Value="16,0,0,0" />
+        </Style>
+
         <Style Selector="Border.dragHandle">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Cursor" Value="SizeNorthSouth" />
@@ -193,25 +198,34 @@
         </ContainerQuery>
     </UserControl.Styles>
 
-    <!-- One row of any list: its drag handle (This session), number or check box, the title with its Muted line, "Now". -->
     <UserControl.DataTemplates>
+        <!-- One row of any list: the category's 3px edge, the number (This session), a check box, the title with its Muted line, "Now",
+             the ⋯ menu and the drag handle (This session). The category is never a fill. -->
         <DataTemplate x:DataType="vm:TaskListRowViewModel">
             <StackPanel Spacing="0">
                 <Border Classes="dropLine" IsVisible="{Binding ShowsLineAbove}" Margin="8,0" />
                 <Panel Classes="listItem">
                     <Button Classes="listRow" Classes.selected="{Binding IsSelected}" Command="{Binding SelectCommand}"
                             AutomationProperties.Name="{Binding Title}">
-                        <Grid ColumnDefinitions="30,*,Auto,Auto" ColumnSpacing="6" Margin="12,9,8,9">
-                            <TextBlock Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Center"
-                                       IsVisible="{Binding IsNumbered}" />
-                            <CheckBox IsChecked="False" Command="{Binding TickCommand}" IsVisible="{Binding HasTick}" MinWidth="0" Padding="0"
-                                      VerticalAlignment="Center" AutomationProperties.Name="Done" ToolTip.Tip="Done: tick it off" />
-                            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                        <Grid ColumnDefinitions="3,Auto,*,Auto,Auto,Auto" ColumnSpacing="8" Margin="0,0,6,0">
+                            <Border Width="3" CornerRadius="2" Margin="0,10" Background="{Binding CategoryBrush}" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" Margin="4,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Center" MinWidth="16"
+                                           IsVisible="{Binding IsNumbered}" />
+                                <CheckBox IsChecked="{Binding IsTicked, Mode=OneWay}" Command="{Binding ToggleCommand}" IsVisible="{Binding HasToggle}"
+                                          MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="Done"
+                                          ToolTip.Tip="Tick it off (untick to open it again)" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center" Margin="0,9">
                                 <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Ink}" />
                                 <TextBlock Classes="muted" Text="{Binding SubText}" FontSize="13" TextWrapping="Wrap" IsVisible="{Binding HasSubText}" />
                             </StackPanel>
-                            <TextBlock Grid.Column="2" Classes="muted" Text="Now" FontSize="13" VerticalAlignment="Center" IsVisible="{Binding IsNow}" />
-                            <Border Grid.Column="3" Classes="dragHandle" IsVisible="{Binding CanDrag}" ToolTip.Tip="Drag to reorder"
+                            <TextBlock Grid.Column="3" Classes="muted" Text="Now" FontSize="13" VerticalAlignment="Center" IsVisible="{Binding IsNow}" />
+                            <Button Grid.Column="4" Classes="quiet" Padding="6" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                                    AutomationProperties.Name="More actions" ToolTip.Tip="Rename, label, move, add a subtask, delete" Click="OnMoreClick">
+                                <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
+                            </Button>
+                            <Border Grid.Column="5" Classes="dragHandle" IsVisible="{Binding CanDrag}" ToolTip.Tip="Drag to reorder"
                                     AutomationProperties.Name="Drag to reorder"
                                     PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
                                     PointerCaptureLost="OnHandleCaptureLost">
@@ -221,6 +235,18 @@
                     </Button>
                 </Panel>
                 <Border Classes="dropLine" IsVisible="{Binding ShowsLineBelow}" Margin="8,0" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- A category's tasks: its colour dot and name (Muted 12, SemiBold), then the tasks set in about 16. "No category" is last and has
+             no header when it is the only group. -->
+        <DataTemplate x:DataType="vm:TaskGroupViewModel">
+            <StackPanel Spacing="2" Margin="0,2,0,0">
+                <StackPanel Orientation="Horizontal" Spacing="7" Margin="6,6,0,2" IsVisible="{Binding ShowsHeader}">
+                    <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" IsVisible="{Binding HasCategory}" />
+                    <TextBlock Classes="muted" Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" />
+                </StackPanel>
+                <ItemsControl ItemsSource="{Binding Rows}" Classes.indented="{Binding ShowsHeader}" />
             </StackPanel>
         </DataTemplate>
     </UserControl.DataTemplates>
@@ -281,6 +307,50 @@
                     </Grid>
                 </Border>
 
+                <!-- The Undo bar after a delete (10 seconds); the item stays in Archive > Recently deleted. -->
+                <views:UndoBarView DockPanel.Dock="Bottom" DataContext="{Binding Undo}" Margin="36,6,28,16" />
+
+                <!-- Why something was not done. -->
+                <Border DockPanel.Dock="Top" Margin="36,0,28,8" Padding="16,10,8,10" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
+                        IsVisible="{Binding HasNotice}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Classes="muted" Text="{Binding Notice}" FontSize="14" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Classes="quiet" Content="✕" Command="{Binding DismissNoticeCommand}" Padding="8,2" AutomationProperties.Name="Dismiss" />
+                    </Grid>
+                </Border>
+
+                <!-- "Add to Today" at three tasks: nothing is added until this is answered. -->
+                <Border DockPanel.Dock="Top" Margin="36,0,28,8" Padding="18,14" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
+                        IsVisible="{Binding HasPending}">
+                    <ContentControl Content="{Binding Pending}">
+                        <ContentControl.DataTemplates>
+                            <DataTemplate x:DataType="vm:PendingMoveViewModel">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="{Binding TitleText}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    <TextBox Text="{Binding Reason}" PlaceholderText="Why? (10+ characters, stays on this PC)" AutomationProperties.Name="Why add it anyway" />
+                                    <TextBlock Text="{Binding Error}" Foreground="{DynamicResource Ab.Drift}" FontSize="13" TextWrapping="Wrap" IsVisible="{Binding HasError}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Content="Add anyway" Command="{Binding AddAnywayCommand}" />
+                                        <Button Classes="quiet" Content="Leave it where it is" Command="{Binding CancelCommand}" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" IsVisible="{Binding CanSwap}">
+                                        <TextBlock Classes="muted" Text="Or put it in place of one of today's tasks (that one goes to Come back to):" FontSize="13" TextWrapping="Wrap" />
+                                        <ItemsControl ItemsSource="{Binding SwapChoices}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:PendingMoveViewModel+SwapChoice">
+                                                    <Button Classes="quiet" Command="{Binding SwapCommand}" HorizontalAlignment="Left" Padding="10,6">
+                                                        <TextBlock Text="{Binding Title}" FontSize="14" TextTrimming="CharacterEllipsis" MaxWidth="360" />
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ContentControl.DataTemplates>
+                    </ContentControl>
+                </Border>
+
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="28,6,24,28" Spacing="4">
 
@@ -289,7 +359,7 @@
                             <TextBlock Classes="section" Text="This session" />
                             <TextBlock Grid.Column="1" Classes="faint" Text="drag to reorder" FontSize="12" IsVisible="{Binding HasSessionRows}" />
                         </Grid>
-                        <ItemsControl x:Name="SessionList" ItemsSource="{Binding SessionRows}" IsVisible="{Binding HasSessionRows}" />
+                        <ItemsControl x:Name="SessionList" ItemsSource="{Binding SessionGroups}" IsVisible="{Binding HasSessionRows}" />
                         <TextBlock Classes="muted" Text="Nothing for this session yet. Add a task above." Margin="12,4" FontSize="14"
                                    IsVisible="{Binding !HasSessionRows}" />
 
@@ -307,7 +377,7 @@
                                            IsVisible="{Binding HasLaterNextDue}" />
                             </Grid>
                         </Button>
-                        <ItemsControl ItemsSource="{Binding LaterRows}" IsVisible="{Binding ShowsLaterRows}" />
+                        <ItemsControl ItemsSource="{Binding LaterGroups}" IsVisible="{Binding ShowsLaterRows}" />
 
                         <!-- Done today: folded. -->
                         <Button Classes="groupHeader" Command="{Binding ToggleDoneCommand}" AutomationProperties.Name="Done today">
@@ -317,7 +387,7 @@
                                 <TextBlock Classes="muted" Text="{Binding DoneHeader}" FontSize="14" />
                             </StackPanel>
                         </Button>
-                        <ItemsControl ItemsSource="{Binding DoneRows}" IsVisible="{Binding ShowsDoneRows}" />
+                        <ItemsControl ItemsSource="{Binding DoneGroups}" IsVisible="{Binding ShowsDoneRows}" />
 
                         <!-- Unfinished from past sessions: offered to Later, never moved on their own. -->
                         <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasUnfinished}">
@@ -331,22 +401,7 @@
                             <Button Grid.Column="1" Classes="quiet" Padding="10,4" Command="{Binding MoveAllUnfinishedToLaterCommand}" FontSize="13"
                                     Content="Move all to Later" ToolTip.Tip="Nothing moves on its own: this puts every task listed here on the Later list" />
                         </Grid>
-                        <ItemsControl ItemsSource="{Binding UnfinishedRows}" IsVisible="{Binding ShowsUnfinishedRows}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:PastTaskRowViewModel">
-                                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="30,4,8,4">
-                                        <StackPanel Spacing="1" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Title}" FontSize="15" TextWrapping="Wrap" />
-                                            <TextBlock Classes="muted" Text="{Binding WhenText}" FontSize="13" />
-                                        </StackPanel>
-                                        <Button Grid.Column="1" Classes="quiet" Padding="10,4" FontSize="13" Content="Later" Command="{Binding MoveToLaterCommand}"
-                                                ToolTip.Tip="Move this to the Later list" />
-                                        <Button Grid.Column="2" Classes="quiet" Padding="10,4" FontSize="13" Content="✕" Command="{Binding DeleteCommand}"
-                                                ToolTip.Tip="Delete it from the session's record" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding UnfinishedGroups}" IsVisible="{Binding ShowsUnfinishedRows}" />
 
                         <!-- The Archive: the Notebook (come-backs, session notes, unfinished and done tasks), with its filters and search. -->
                         <Button Classes="groupHeader" Command="{Binding ToggleArchiveCommand}" AutomationProperties.Name="Archive">
@@ -382,10 +437,11 @@
                                             IsVisible="{Binding ShowsStart}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                                             Padding="24,14" AutomationProperties.Name="Start with this" />
                                     <WrapPanel ItemSpacing="4" LineSpacing="4" HorizontalAlignment="Center">
+                                        <Button Classes="quiet" Padding="14,8" Content="Add to Today" Command="{Binding AddToTodayCommand}"
+                                                IsVisible="{Binding ShowsMoveToSession}" FontSize="15" AutomationProperties.Name="Add to Today"
+                                                ToolTip.Tip="Put it on today's list (a done one comes back open, as a copy)" />
                                         <Button Classes="quiet" Padding="14,8" Content="Move to Later" Command="{Binding MoveToLaterCommand}" IsVisible="{Binding ShowsMoveToLater}"
                                                 FontSize="15" />
-                                        <Button Classes="quiet" Padding="14,8" Content="Move to this session" Command="{Binding MoveToSessionCommand}"
-                                                IsVisible="{Binding ShowsMoveToSession}" FontSize="15" />
                                         <Button Classes="quiet" Padding="14,8" Content="Put in plan" IsVisible="{Binding ShowsPlan}" FontSize="15"
                                                 AutomationProperties.Name="Put in plan">
                                             <Button.Flyout>
@@ -425,14 +481,14 @@
                                             </Button.Flyout>
                                         </Button>
                                         <Button Classes="quiet" Padding="14,8" Content="Delete" Command="{Binding DeleteCommand}" IsVisible="{Binding ShowsDelete}" FontSize="15"
-                                                ToolTip.Tip="Delete it (it goes from your other devices too)" />
+                                                ToolTip.Tip="Delete it (it goes from your other devices too; Undo and Archive > Recently deleted bring it back)" />
                                     </WrapPanel>
                                 </StackPanel>
 
                                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                                     <StackPanel Classes="detailBody" Spacing="14">
                                         <TextBlock Classes="muted" Text="{Binding KindText}" FontSize="13" />
-                                        <TextBox Classes="titleEntry" Text="{Binding Title}" IsReadOnly="{Binding !CanEdit}" AutomationProperties.Name="Title"
+                                        <TextBox Classes="titleEntry" Name="DetailTitleBox" Text="{Binding Title}" IsReadOnly="{Binding !CanEditTitle}" AutomationProperties.Name="Title"
                                                  LostFocus="OnDetailTitleLostFocus">
                                             <TextBox.KeyBindings>
                                                 <KeyBinding Gesture="Enter" Command="{Binding CommitTitleCommand}" />
@@ -449,20 +505,41 @@
                                             <ItemsControl ItemsSource="{Binding Steps}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="vm:TaskStepViewModel">
-                                                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
-                                                            <CheckBox IsChecked="{Binding IsDone, Mode=OneWay}" Command="{Binding ToggleCommand}" IsEnabled="{Binding CanEdit}"
-                                                                      MinWidth="0" Padding="8,0,0,0" AutomationProperties.Name="{Binding Title}">
-                                                                <TextBlock Text="{Binding Title}" FontSize="15" TextWrapping="Wrap" Classes.stepDone="{Binding IsDone}" />
-                                                            </CheckBox>
-                                                            <Button Grid.Column="2" Classes="quiet" Padding="8,2" Content="✕" Command="{Binding RemoveCommand}" IsVisible="{Binding CanEdit}"
-                                                                    ToolTip.Tip="Remove this step" FontSize="13" />
-                                                        </Grid>
+                                                        <StackPanel Spacing="2" Margin="0,2">
+                                                            <Grid ColumnDefinitions="*,Auto">
+                                                                <CheckBox IsChecked="{Binding IsDone, Mode=OneWay}" Command="{Binding ToggleCommand}" IsEnabled="{Binding CanEdit}"
+                                                                          IsVisible="{Binding IsNotEditing}" MinWidth="0" Padding="8,0,0,0" AutomationProperties.Name="{Binding Title}">
+                                                                    <TextBlock Text="{Binding Title}" FontSize="15" TextWrapping="Wrap" Classes.stepDone="{Binding IsDone}" />
+                                                                </CheckBox>
+                                                                <TextBox Classes="rowEntry" Text="{Binding EditText}" IsVisible="{Binding IsEditing}" FontSize="15"
+                                                                         PropertyChanged="OnInlineBoxPropertyChanged" AutomationProperties.Name="Step name">
+                                                                    <TextBox.KeyBindings>
+                                                                        <KeyBinding Gesture="Enter" Command="{Binding SaveEditCommand}" />
+                                                                        <KeyBinding Gesture="Escape" Command="{Binding CancelEditCommand}" />
+                                                                    </TextBox.KeyBindings>
+                                                                </TextBox>
+                                                                <Button Grid.Column="1" Classes="quiet" Padding="6,2" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                                                                        AutomationProperties.Name="More actions for this step" ToolTip.Tip="Rename, add a step after, delete" Click="OnMoreClick">
+                                                                    <mi:MaterialIcon Kind="DotsHorizontal" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" />
+                                                                </Button>
+                                                            </Grid>
+                                                            <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsAddingAfter}" Margin="30,0,0,0">
+                                                                <mi:MaterialIcon Kind="Plus" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                                <TextBox Grid.Column="1" Classes="rowEntry" FontSize="15" Text="{Binding NewAfterText}" PlaceholderText="A step after this one"
+                                                                         PropertyChanged="OnInlineBoxPropertyChanged" AutomationProperties.Name="New step after this one">
+                                                                    <TextBox.KeyBindings>
+                                                                        <KeyBinding Gesture="Enter" Command="{Binding SaveAddAfterCommand}" />
+                                                                        <KeyBinding Gesture="Escape" Command="{Binding CancelAddAfterCommand}" />
+                                                                    </TextBox.KeyBindings>
+                                                                </TextBox>
+                                                            </Grid>
+                                                        </StackPanel>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
-                                            <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding CanEdit}" Margin="4,2,0,0">
+                                            <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding CanAddStep}" Margin="4,2,0,0">
                                                 <mi:MaterialIcon Kind="Plus" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                                <TextBox Grid.Column="1" Classes="rowEntry" FontSize="15" Text="{Binding NewStepText}" PlaceholderText="Add a step"
+                                                <TextBox Grid.Column="1" Name="DetailStepBox" Classes="rowEntry" FontSize="15" Text="{Binding NewStepText}" PlaceholderText="Add a step"
                                                          AutomationProperties.Name="Add a step">
                                                     <TextBox.KeyBindings>
                                                         <KeyBinding Gesture="Enter" Command="{Binding AddStepCommand}" />

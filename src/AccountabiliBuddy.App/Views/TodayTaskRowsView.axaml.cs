@@ -70,6 +70,46 @@ public partial class TodayTaskRowsView : UserControl
         }
     }
 
+    // A row's ⋯ menu (or a step's) is built when it opens. Rename and Add subtask open the row's own editor.
+    private void OnRowMoreClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button)
+        {
+            return;
+        }
+
+        TaskMenus.Show(button, entry =>
+        {
+            if (button.DataContext is TaskRowViewModel row)
+            {
+                OpenRowEditor(button, row, entry.ViewAction == "addStep");
+            }
+        });
+        e.Handled = true;
+    }
+
+    // The row's flyout opens (its name box, its steps and "Add a step"); for "Add subtask" the keyboard goes to the new step's box.
+    private void OpenRowEditor(Control target, TaskRowViewModel row, bool toNewStep)
+    {
+        Button? button = target.FindAncestorOfType<Button>();
+        if (button?.Flyout is not Flyout flyout)
+        {
+            return;
+        }
+
+        flyout.ShowAt(button);
+        if (toNewStep)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                TextBox? box = flyout.Content is Visual content
+                    ? content.GetSelfAndVisualDescendants().OfType<TextBox>().FirstOrDefault(candidate => AutomationProperties.GetName(candidate) == "New step")
+                    : null;
+                box?.Focus();
+            }, DispatcherPriority.Loaded);
+        }
+    }
+
     // The row's flyout: its name box starts with the task's own name, and what is done inside it (a step added, a move, a
     // category) is noticed, so it can come back once the rows are rebuilt.
     private void OnEditFlyoutOpened(object? sender, EventArgs e)

@@ -11,8 +11,11 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>
 /// The Tasks page (design 5x): the next session's tasks (or the running checklist), come-backs, the Later list (ADR 50), what
 /// was done today, the tasks past sessions left open, and the Archive (the Notebook), with one detail card for whatever is
-/// selected. Every list reads its store again when one changes. Nothing here loosens a rule of a running session: a task can
-/// leave it only as "taken off open" (ADR 25), and a 4th task is never added to it.
+/// selected. Every list reads its store again when one changes; tasks are grouped under their category (Muted header with its
+/// colour dot, tasks set in, "No category" last). Every row has a check box and a ⋯ menu (delete, move, label, add subtask,
+/// rename); a delete leaves an Undo bar and a place in Archive › Recently deleted. Nothing here loosens a rule of a running
+/// session: a task can leave it only as "taken off open" (ADR 25), a 4th task is never added without the reason "Add anyway"
+/// asks for, and nothing ends or shortens a session.
 /// </summary>
 public sealed partial class TasksViewModel : ObservableObject, IDisposable
 {
@@ -28,6 +31,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     private TaskRowKey? _selectedKey;
     private Guid? _categoryFilterId;
     private bool _refreshing;
+    private List<Guid> _unfinishedIds = [];
+    private int _sessionRowCount;
+    private int _doneRowCount;
 
     public TasksViewModel(
         SessionTasksService tasks, LaterStore later, ComebackStore comebacks, NotebookViewModel archive, SessionViewModel session,
@@ -40,7 +46,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         _session = session;
         _configuration = configuration;
         _time = time;
-        CountsText = LaterHeader = LaterNextDueText = DoneHeader = UnfinishedHeader = AddPlaceholder = SearchText = NewTaskText = string.Empty;
+        Undo = new UndoBarViewModel(tasks);
+        CountsText = LaterHeader = LaterNextDueText = DoneHeader = UnfinishedHeader = AddPlaceholder = SearchText = NewTaskText = Notice = string.Empty;
         _tasks.Changed += OnStoreChanged;
         _comebacks.Changed += OnStoreChanged;
         _session.PropertyChanged += OnSessionPropertyChanged;
@@ -49,21 +56,26 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             _session.Focus.PropertyChanged += OnFocusPropertyChanged;
         }
 
+        Archive.Host = this;
+        Archive.Refresh();
         Refresh();
     }
 
     /// <summary>The Notebook, restyled as the Archive row at the bottom.</summary>
     public NotebookViewModel Archive { get; }
 
-    public ObservableCollection<TaskListRowViewModel> SessionRows { get; } = new();
+    /// <summary>The bar after a delete: "Deleted “…” · Undo".</summary>
+    public UndoBarViewModel Undo { get; }
+
+    public ObservableCollection<TaskGroupViewModel> SessionGroups { get; } = new();
 
     public ObservableCollection<TaskListRowViewModel> ComeBackRows { get; } = new();
 
-    public ObservableCollection<TaskListRowViewModel> LaterRows { get; } = new();
+    public ObservableCollection<TaskGroupViewModel> LaterGroups { get; } = new();
 
-    public ObservableCollection<TaskListRowViewModel> DoneRows { get; } = new();
+    public ObservableCollection<TaskGroupViewModel> DoneGroups { get; } = new();
 
-    public ObservableCollection<PastTaskRowViewModel> UnfinishedRows { get; } = new();
+    public ObservableCollection<TaskGroupViewModel> UnfinishedGroups { get; } = new();
 
     /// <summary>The category filter: All, then each category.</summary>
     [ObservableProperty]
@@ -115,17 +127,31 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(HasDetail))]
     public partial TaskDetailViewModel? Detail { get; set; }
 
+    /// <summary>Why something was not done, e.g. "That task is no longer there."</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNotice))]
+    public partial string Notice { get; set; }
+
+    public bool HasNotice => Notice.Length > 0;
+
+    /// <summary>"Add to Today" at three tasks: asking before anything is added.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPending))]
+    public partial PendingMoveViewModel? Pending { get; set; }
+
+    public bool HasPending => Pending is not null;
+
     public bool HasDetail => Detail is not null;
 
-    public bool HasSessionRows => SessionRows.Count > 0;
+    public bool HasSessionRows => _sessionRowCount > 0;
 
     public bool HasComeBackRows => ComeBackRows.Count > 0;
 
     public bool HasLater => _later.Items.Count > 0;
 
-    public bool HasDone => DoneRows.Count > 0;
+    public bool HasDone => _doneRowCount > 0;
 
-    public bool HasUnfinished => UnfinishedRows.Count > 0;
+    public bool HasUnfinished => _unfinishedIds.Count > 0;
 
     public bool HasLaterNextDue => LaterNextDueText.Length > 0;
 
@@ -145,6 +171,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     /// <summary>"Start with this" can start now: no session runs and Today's Start is ready.</summary>
     public bool CanStartSession => !_tasks.IsLive && _session.QuickStart.StartCommand.CanExecute(null);
+
+    /// <summary>The view should put the keyboard in a box of the detail card: "title" or "step".</summary>
+    public event EventHandler<string>? FocusRequested;
 
     partial void OnIsLaterOpenChanged(bool value) => OnPropertyChanged(nameof(ShowsLaterRows));
 
@@ -175,6 +204,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             _session.Focus.PropertyChanged -= OnFocusPropertyChanged;
         }
 
+        Undo.Dispose();
         Detail?.Dispose();
     }
 
@@ -199,6 +229,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     private void ToggleArchive() => IsArchiveOpen = !IsArchiveOpen;
+
+    [RelayCommand]
+    private void DismissNotice() => Notice = string.Empty;
 
     /// <summary>
     /// The add row's Enter: a task of this session while it has fewer than three (the filter's category if one is chosen),
@@ -233,7 +266,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task MoveAllUnfinishedToLaterAsync()
     {
-        IReadOnlySet<Guid> ids = UnfinishedRows.Select(row => row.Id).ToHashSet();
+        IReadOnlySet<Guid> ids = _unfinishedIds.ToHashSet();
         if (ids.Count > 0)
         {
             await _tasks.MovePastToLaterAsync(ids);
@@ -262,7 +295,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         return _tasks.MoveToAsync(id, targetId, after);
     }
 
-    // ---- What the detail card does (it calls these) ----
+    // ---- What the detail card and the menus do ----
 
     internal Task RenameAsync(TaskRowKey key, string title)
     {
@@ -271,7 +304,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             TaskRowKind.Session => _tasks.RenameAsync(key.Id, title),
             TaskRowKind.Later => EditLaterAsync(key.Id, item => item with { Title = title }),
             TaskRowKind.ComeBack => _comebacks.EditAsync(key.Id, title),
-            _ => Task.CompletedTask,
+            _ => _tasks.IsInChecklist(key.Id) ? _tasks.RenameAsync(key.Id, title) : _tasks.EditHistoryAsync(key.Id, title),
         };
     }
 
@@ -311,6 +344,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         {
             TaskRowKind.Session => _tasks.AddAsync(title, key.Id),
             TaskRowKind.Later => EditLaterAsync(key.Id, item => item with { Subtasks = [.. item.Subtasks ?? [], new SessionSubtask(Guid.NewGuid(), title, null)] }),
+            TaskRowKind.Done or TaskRowKind.Past => _tasks.IsInChecklist(key.Id) ? _tasks.AddAsync(title, key.Id) : _tasks.AddHistoryStepAsync(key.Id, title),
             _ => Task.CompletedTask,
         };
     }
@@ -333,13 +367,41 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     {
         return key.Kind switch
         {
-            TaskRowKind.Session => _tasks.RemoveAsync(stepId),
             TaskRowKind.Later => EditLaterAsync(key.Id, item => item with
             {
                 Subtasks = (item.Subtasks ?? []).Where(step => step.Id != stepId).ToList() is { Count: > 0 } kept ? kept : null,
             }),
-            _ => Task.CompletedTask,
+            _ => _tasks.IsInChecklist(stepId) ? _tasks.RemoveAsync(stepId) : _tasks.EditHistoryAsync(stepId, null),
         };
+    }
+
+    internal Task RenameStepAsync(TaskRowKey key, Guid stepId, string title)
+    {
+        return key.Kind switch
+        {
+            TaskRowKind.Later => EditLaterAsync(key.Id, item => item with
+            {
+                Subtasks = (item.Subtasks ?? []).Select(step => step.Id == stepId ? step with { Title = title } : step).ToList(),
+            }),
+            _ => _tasks.IsInChecklist(stepId) ? _tasks.RenameAsync(stepId, title) : _tasks.EditHistoryAsync(stepId, title),
+        };
+    }
+
+    internal Task AddStepAfterAsync(TaskRowKey key, Guid stepId, string title)
+    {
+        return key.Kind switch
+        {
+            TaskRowKind.Later => EditLaterAsync(key.Id, item => item with { Subtasks = InsertAfter(item.Subtasks ?? [], stepId, new SessionSubtask(Guid.NewGuid(), title, null)) }),
+            _ => _tasks.IsInChecklist(stepId) ? _tasks.AddSubtaskAfterAsync(stepId, title) : _tasks.AddHistoryStepAsync(key.Id, title, stepId),
+        };
+    }
+
+    private static List<SessionSubtask> InsertAfter(IReadOnlyList<SessionSubtask> steps, Guid stepId, SessionSubtask added)
+    {
+        List<SessionSubtask> list = steps.ToList();
+        int at = list.FindIndex(step => step.Id == stepId);
+        list.Insert(at < 0 ? list.Count : at + 1, added);
+        return list;
     }
 
     internal Task EditLaterAsync(Guid id, Func<SyncLaterItem, SyncLaterItem> change)
@@ -347,59 +409,109 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         return _later.EditAsync(id, change);
     }
 
-    /// <summary>"Move to Later": the task leaves this session (counted as taken off open while it runs) and shows on the Later list.</summary>
+    /// <summary>Puts a task in a category (null: none), wherever it is.</summary>
+    internal Task SetCategoryAsync(TaskRowKey key, Guid? categoryId)
+    {
+        TaskCategory? category = _tasks.Categories.FirstOrDefault(item => item.Id == categoryId);
+        return key.Kind switch
+        {
+            TaskRowKind.Later => EditLaterAsync(key.Id, item => item with { Category = category?.Name, CategoryColor = category?.Color }),
+            TaskRowKind.ComeBack => Task.CompletedTask,
+            _ => _tasks.IsInChecklist(key.Id) ? _tasks.SetCategoryAsync(key.Id, categoryId) : _tasks.SetHistoryCategoryAsync(key.Id, categoryId),
+        };
+    }
+
+    /// <summary>"Move to Later": the task leaves this session (counted as taken off open while it runs) and shows on the Later list. A done or past one is copied.</summary>
     internal async Task MoveToLaterAsync(TaskRowKey key)
     {
-        if (key.Kind == TaskRowKind.Session)
+        Guid? laterId = key.Kind switch
         {
-            Guid? laterId = await _tasks.MoveToLaterAsync(key.Id);
-            if (laterId is Guid id)
-            {
-                IsLaterOpen = true;
-                Select(new TaskRowKey(TaskRowKind.Later, id));
-            }
-        }
-        else if (key.Kind == TaskRowKind.ComeBack && _comebacks.All.FirstOrDefault(item => item.Id == key.Id) is Comeback comeback)
+            TaskRowKind.Session => await _tasks.MoveToLaterAsync(key.Id),
+            TaskRowKind.ComeBack => await _tasks.MoveComebackToLaterAsync(key.Id),
+            TaskRowKind.Done or TaskRowKind.Past => await _tasks.MoveHistoryTaskToLaterAsync(key.Id),
+            _ => null,
+        };
+        if (laterId is Guid id)
         {
-            SyncLaterItem? added = await _later.AddAsync(comeback.Text, null, null, null, null, null, null);
-            await _comebacks.DeleteAsync(key.Id);
-            if (added is not null)
-            {
-                IsLaterOpen = true;
-                Select(new TaskRowKey(TaskRowKind.Later, added.Id));
-            }
+            IsLaterOpen = true;
+            Select(new TaskRowKey(TaskRowKind.Later, id));
         }
     }
 
-    /// <summary>"Move to this session": a Later item or a come-back becomes a task of this session, unless it already holds its limit.</summary>
-    internal async Task MoveToSessionAsync(TaskRowKey key)
+    /// <summary>"Come back to": the task is parked as a come-back (it leaves this session as taken off open, or is copied if it is done).</summary>
+    internal async Task MoveToComebackAsync(TaskRowKey key)
     {
-        if (SessionIsFull)
+        switch (key.Kind)
         {
-            Detail?.SetMessage($"This session already has {_tasks.TaskAllowance} tasks.");
-            return;
+            case TaskRowKind.Session:
+                await _tasks.ParkAsync(key.Id);
+                break;
+            case TaskRowKind.Later:
+                await _tasks.MoveLaterToComebackAsync(key.Id);
+                break;
+            case TaskRowKind.Done or TaskRowKind.Past:
+                await _tasks.ParkHistoryTaskAsync(key.Id);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// "Add to Today": a Later item, a come-back or a done / unfinished task becomes a task of today's list: the next session's
+    /// while none runs, the running checklist (planning or focus) while one does. It comes in open (a done one as a copy with a
+    /// new id; the record keeps the done one). At three tasks nothing is added until the card asks: add it anyway with a reason,
+    /// or swap it for one of today's open tasks.
+    /// </summary>
+    internal async Task AddToTodayAsync(TaskRowKey key)
+    {
+        Notice = string.Empty;
+        await RunAddToTodayAsync(key, null);
+    }
+
+    private async Task<AddToTodayResult> RunAddToTodayAsync(TaskRowKey key, string? reason)
+    {
+        (AddToTodayResult result, Guid? taskId) = key.Kind switch
+        {
+            TaskRowKind.Later => await _tasks.MoveFromLaterAsync(key.Id, reason),
+            TaskRowKind.ComeBack => await _tasks.AddComebackToTodayAsync(key.Id, reason),
+            TaskRowKind.Done or TaskRowKind.Past => await _tasks.AddHistoryTaskToTodayAsync(key.Id, reason),
+            _ => (AddToTodayResult.NothingToAdd, null),
+        };
+        switch (result)
+        {
+            case AddToTodayResult.Added:
+                Pending = null;
+                if (taskId is Guid id)
+                {
+                    Select(new TaskRowKey(TaskRowKind.Session, id));
+                }
+
+                break;
+            case AddToTodayResult.AtLimit:
+                Pending = BuildPending(key);
+                break;
+            case AddToTodayResult.NothingToAdd:
+                Notice = "That task is no longer there.";
+                break;
         }
 
-        if (key.Kind == TaskRowKind.Later)
-        {
-            (Guid? taskId, string? error) = await _tasks.MoveFromLaterAsync(key.Id);
-            if (taskId is Guid id)
+        return result;
+    }
+
+    private PendingMoveViewModel BuildPending(TaskRowKey key)
+    {
+        string title = Read(key)?.Title ?? "this task";
+        List<(Guid, string)> choices = _tasks.Current.Tasks.Where(task => !task.IsDone).Select(task => (task.Id, task.Title)).ToList();
+        return new PendingMoveViewModel(
+            $"Today already has {_tasks.Current.Tasks.Count} tasks. Add “{title}” anyway?",
+            _tasks.Comebacks is not null,
+            choices,
+            reason => RunAddToTodayAsync(key, reason),
+            async parkedId =>
             {
-                Select(new TaskRowKey(TaskRowKind.Session, id));
-            }
-            else
-            {
-                Detail?.SetMessage(error ?? string.Empty);
-            }
-        }
-        else if (key.Kind == TaskRowKind.ComeBack && await _tasks.AddFromComebackAsync(key.Id))
-        {
-            Guid? added = _tasks.Current.Tasks.LastOrDefault()?.Id;
-            if (added is Guid id)
-            {
-                Select(new TaskRowKey(TaskRowKind.Session, id));
-            }
-        }
+                await _tasks.ParkAsync(parkedId);
+                await RunAddToTodayAsync(key, null);
+            },
+            () => Pending = null);
     }
 
     /// <summary>
@@ -416,10 +528,14 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         Guid taskId = key.Id;
         if (key.Kind == TaskRowKind.Later)
         {
-            (Guid? movedId, string? error) = await _tasks.MoveFromLaterAsync(key.Id);
+            (AddToTodayResult result, Guid? movedId) = await _tasks.MoveFromLaterAsync(key.Id);
             if (movedId is not Guid id)
             {
-                Detail?.SetMessage(error ?? string.Empty);
+                if (result == AddToTodayResult.AtLimit)
+                {
+                    Pending = BuildPending(key);
+                }
+
                 return;
             }
 
@@ -438,19 +554,144 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
     }
 
-    internal async Task DeleteAsync(TaskRowKey key)
+    /// <summary>Deletes a task, Later item or come-back: it leaves the list, an Undo bar shows, and Archive › Recently deleted keeps it for 30 days.</summary>
+    internal Task DeleteAsync(TaskRowKey key)
     {
-        if (key.Kind == TaskRowKind.Later)
+        return key.Kind switch
         {
-            await _later.DeleteAsync(key.Id);
-        }
-        else if (key.Kind == TaskRowKind.ComeBack)
-        {
-            await _comebacks.DeleteAsync(key.Id);
-        }
+            TaskRowKind.Later => _tasks.DeleteLaterAsync(key.Id),
+            TaskRowKind.ComeBack => _tasks.DeleteComebackAsync(key.Id),
+            TaskRowKind.Session => _tasks.RemoveAsync(key.Id),
+            _ => _tasks.IsInChecklist(key.Id) ? _tasks.RemoveAsync(key.Id) : _tasks.EditHistoryAsync(key.Id, null),
+        };
     }
 
     internal Task TickComeBackAsync(Guid id) => _comebacks.TickAsync(id);
+
+    // ---- The ⋯ menu ----
+
+    /// <summary>
+    /// The entries of a task's ⋯ menu: Rename, Add subtask, Label (a category or none), Move to… (only the moves that make sense
+    /// for that row) and Delete. <paramref name="rename"/> and <paramref name="addStep"/> say how the place the row is shown
+    /// edits in place (the Archive); without them the detail card's boxes take the keyboard.
+    /// </summary>
+    internal IReadOnlyList<TaskMenuEntry> MenuFor(TaskRowKey key, Action? rename = null, Action? addStep = null)
+    {
+        var entries = new List<TaskMenuEntry>
+        {
+            TaskMenuEntry.Do("Rename", rename ?? (() => BeginDetailEdit(key, "title"))),
+        };
+        if (key.Kind != TaskRowKind.ComeBack)
+        {
+            entries.Add(TaskMenuEntry.Do("Add subtask", addStep ?? (() => BeginDetailEdit(key, "step"))));
+            entries.Add(TaskMenuEntry.Group("Label", LabelEntries(key)));
+        }
+
+        List<TaskMenuEntry> moves = MoveEntries(key);
+        if (moves.Count > 0)
+        {
+            entries.Add(TaskMenuEntry.Group("Move to…", moves));
+        }
+
+        entries.Add(TaskMenuEntry.Separator);
+        entries.Add(TaskMenuEntry.Async("Delete", () => DeleteAsync(key)));
+        return entries;
+    }
+
+    private void BeginDetailEdit(TaskRowKey key, string target)
+    {
+        Select(key);
+        FocusRequested?.Invoke(this, target);
+    }
+
+    private List<TaskMenuEntry> MoveEntries(TaskRowKey key)
+    {
+        var moves = new List<TaskMenuEntry>();
+        bool isOpenSessionTask = key.Kind == TaskRowKind.Session;
+        bool isOpenComeBack = key.Kind == TaskRowKind.ComeBack && _comebacks.Open.Any(item => item.Id == key.Id);
+        if (key.Kind is TaskRowKind.Later or TaskRowKind.Done or TaskRowKind.Past || isOpenComeBack)
+        {
+            moves.Add(TaskMenuEntry.Async("Add to Today", () => AddToTodayAsync(key)));
+        }
+
+        if (key.Kind != TaskRowKind.Later)
+        {
+            moves.Add(TaskMenuEntry.Async("Later", () => MoveToLaterAsync(key)));
+        }
+
+        if (key.Kind != TaskRowKind.ComeBack)
+        {
+            moves.Add(TaskMenuEntry.Async("Come back to", () => MoveToComebackAsync(key)));
+        }
+
+        // Put in plan is for the next session's tasks and Later; a running session's task can't be planned for later.
+        if (key.Kind == TaskRowKind.Later || isOpenSessionTask && !_tasks.IsLive)
+        {
+            moves.Add(TaskMenuEntry.Group("Put in plan", PlanEntries(key)));
+        }
+
+        return moves;
+    }
+
+    private List<TaskMenuEntry> PlanEntries(TaskRowKey key)
+    {
+        PlannedSlot? current = Read(key)?.PlannedFor;
+        var entries = new List<TaskMenuEntry>();
+        foreach (PlanDayChoiceViewModel day in BuildPlanDays(current, slot => SetPlannedForAsync(key, slot)))
+        {
+            entries.Add(TaskMenuEntry.Group(day.Label, day.Parts.Select(part => new TaskMenuEntry(part.Text, part.PickCommand, IsChecked: part.IsSelected)).ToList()));
+        }
+
+        if (entries.Count == 0)
+        {
+            entries.Add(new TaskMenuEntry("Nothing in the plan for the coming week"));
+        }
+
+        if (current is not null)
+        {
+            entries.Add(TaskMenuEntry.Separator);
+            entries.Add(TaskMenuEntry.Async("Not in the plan", () => SetPlannedForAsync(key, null)));
+        }
+
+        return entries;
+    }
+
+    private List<TaskMenuEntry> LabelEntries(TaskRowKey key)
+    {
+        string? current = CategoryNameOf(key);
+        var entries = new List<TaskMenuEntry>();
+        foreach (TaskCategory category in _tasks.Categories)
+        {
+            Guid id = category.Id;
+            entries.Add(new TaskMenuEntry(
+                category.Name,
+                new AsyncRelayCommand(() => SetCategoryAsync(key, id)),
+                IsChecked: string.Equals(current, category.Name, StringComparison.OrdinalIgnoreCase),
+                Dot: TaskCategoryBrushes.Of(category.Color)));
+        }
+
+        entries.Add(new TaskMenuEntry("No category", new AsyncRelayCommand(() => SetCategoryAsync(key, null)), IsChecked: current is null));
+        if (_tasks.Categories.Count == 0)
+        {
+            entries.Add(new TaskMenuEntry("Add categories with the tag button on Today"));
+        }
+
+        return entries;
+    }
+
+    private string? CategoryNameOf(TaskRowKey key)
+    {
+        switch (key.Kind)
+        {
+            case TaskRowKind.Later:
+                return _later.Items.FirstOrDefault(item => item.Id == key.Id)?.Category;
+            case TaskRowKind.ComeBack:
+                return null;
+            default:
+                SessionTask? task = FindTask(key.Id);
+                return task is null ? null : task.Category ?? _tasks.Categories.FirstOrDefault(category => category.Id == task.CategoryId)?.Name;
+        }
+    }
 
     // ---- Put in plan ----
 
@@ -559,8 +800,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         string search = SearchText.Trim();
         DateOnly today = DateOnly.FromDateTime(LocalNow());
 
-        // This session: the open tasks, numbered as the session runs them (the numbers don't change with a filter).
-        SessionRows.Clear();
+        // This session: the open tasks, numbered as the session runs them (the numbers don't change with a filter), under their categories.
+        var sessionRows = new List<TaskListRowViewModel>();
         List<SessionTask> open = current.Tasks.Where(task => !task.IsDone).ToList();
         int total = open.Count;
         for (int index = 0; index < open.Count; index++)
@@ -571,12 +812,14 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
                 continue;
             }
 
-            SessionRows.Add(new TaskListRowViewModel(
-                new TaskRowKey(TaskRowKind.Session, task.Id), task.Title, SessionLine(task), SelectRow, index + 1, task.Id == runningId)
-            {
-                CategoryId = task.CategoryId,
-            });
+            TaskCategory? category = _tasks.Categories.FirstOrDefault(item => item.Id == task.CategoryId);
+            sessionRows.Add(MakeRow(
+                new TaskRowKey(TaskRowKind.Session, task.Id), task.Title, SessionLine(task), category?.Name, category?.Color,
+                number: index + 1, isNow: task.Id == runningId, categoryId: task.CategoryId, toggle: () => _tasks.SetTickedAsync(task.Id, true)));
         }
+
+        _sessionRowCount = sessionRows.Count;
+        Replace(SessionGroups, Group(sessionRows));
 
         // Come back to: open come-backs; they have no category, so a category filter leaves them out.
         ComeBackRows.Clear();
@@ -585,38 +828,55 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             foreach (Comeback comeback in _comebacks.Open.Where(item => Matches(search, item.Text, null, [])))
             {
                 Guid id = comeback.Id;
-                ComeBackRows.Add(new TaskListRowViewModel(
-                    new TaskRowKey(TaskRowKind.ComeBack, id), comeback.Text, $"Parked {When(comeback.CreatedAt, today)}", SelectRow, tick: () => _comebacks.TickAsync(id)));
+                ComeBackRows.Add(MakeRow(
+                    new TaskRowKey(TaskRowKind.ComeBack, id), comeback.Text, $"Parked {When(comeback.CreatedAt, today)}", null, null,
+                    toggle: () => _comebacks.TickAsync(id)));
             }
         }
 
         // Later: every item, shown when its group is open (or while searching).
-        LaterRows.Clear();
+        var laterRows = new List<TaskListRowViewModel>();
         IReadOnlyList<SyncLaterItem> laterItems = _later.Items;
         foreach (SyncLaterItem item in laterItems.Where(item => InFilter(null, item.Category) && Matches(search, item.Title, item.Note, (item.Subtasks ?? []).Select(step => step.Title))))
         {
-            LaterRows.Add(new TaskListRowViewModel(new TaskRowKey(TaskRowKind.Later, item.Id), item.Title, LaterLine(item, today), SelectRow) { CategoryName = item.Category });
+            Guid id = item.Id;
+            laterRows.Add(MakeRow(
+                new TaskRowKey(TaskRowKind.Later, id), item.Title, LaterLine(item, today), item.Category, item.CategoryColor,
+                toggle: () => _tasks.CompleteLaterAsync(id)));
         }
 
-        // Done today: ticked tasks of the running checklist, and of sessions that ended today.
-        DoneRows.Clear();
+        Replace(LaterGroups, Group(laterRows));
+
+        // Done today: ticked tasks of the running checklist, and of sessions that ended today (and Later tasks ticked off).
+        var doneRows = new List<TaskListRowViewModel>();
         foreach (SessionTask task in DoneToday(today).Where(task => InFilter(task.CategoryId, task.Category) && Matches(search, task.Title, task.Note, task.Subtasks.Select(step => step.Title))))
         {
-            DoneRows.Add(new TaskListRowViewModel(
-                new TaskRowKey(TaskRowKind.Done, task.Id), task.Title, $"Done {Clock(Local(task.DoneAt!.Value))}", SelectRow));
+            Guid id = task.Id;
+            TaskCategory? category = _tasks.Categories.FirstOrDefault(item => item.Id == task.CategoryId);
+            doneRows.Add(MakeRow(
+                new TaskRowKey(TaskRowKind.Done, id), task.Title, $"Done {Clock(Local(task.DoneAt!.Value))}", task.Category ?? category?.Name,
+                task.CategoryColor ?? category?.Color, categoryId: task.CategoryId, isTicked: true, toggle: () => _tasks.SetTickedAsync(id, false)));
         }
 
-        // Unfinished from past sessions: offered to Later, never moved on their own.
-        UnfinishedRows.Clear();
+        _doneRowCount = DoneToday(today).Count();
+        Replace(DoneGroups, Group(doneRows));
+
+        // Unfinished from past sessions: offered to Later or Today, never moved on their own.
+        var pastRows = new List<TaskListRowViewModel>();
         DateTimeOffset from = _time.GetUtcNow() - PastShown;
-        foreach (PastTask past in _tasks.PastUnfinished().Where(past => past.SessionStart >= from && Matches(search, past.Task.Title, past.Task.Note, [])))
+        List<PastTask> past = _tasks.PastUnfinished().Where(item => item.SessionStart >= from).ToList();
+        _unfinishedIds = past.Select(item => item.Task.Id).ToList();
+        foreach (PastTask item in past.Where(item => InFilter(item.Task.CategoryId, item.Task.Category) && Matches(search, item.Task.Title, item.Task.Note, [])))
         {
-            Guid id = past.Task.Id;
-            UnfinishedRows.Add(new PastTaskRowViewModel(
-                id, past.Task.Title, $"Session of {When(past.SessionStart, today)}",
-                () => _tasks.MovePastToLaterAsync(new HashSet<Guid> { id }),
-                () => _tasks.EditHistoryAsync(id, null)));
+            Guid id = item.Task.Id;
+            TaskCategory? category = _tasks.Categories.FirstOrDefault(c => c.Id == item.Task.CategoryId);
+            pastRows.Add(MakeRow(
+                new TaskRowKey(TaskRowKind.Past, id), item.Task.Title, $"Session of {When(item.SessionStart, today)}",
+                item.Task.Category ?? category?.Name, item.Task.CategoryColor ?? category?.Color, categoryId: item.Task.CategoryId,
+                toggle: () => _tasks.SetTickedAsync(id, true)));
         }
+
+        Replace(UnfinishedGroups, Group(pastRows));
 
         int comeBacks = _comebacks.Open.Count;
         string estimate = EstimateText.Total(open.Select(task => task.EstimateMinutes));
@@ -630,8 +890,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         LaterHeader = $"Later · {laterItems.Count}";
         SyncLaterItem? nextDue = laterItems.Where(item => item.DueOn is not null).OrderBy(item => item.DueOn).FirstOrDefault();
         LaterNextDueText = nextDue?.DueOn is DateOnly due ? $"Next due: {nextDue.Title}, {DayLabel(due, today)}" : string.Empty;
-        DoneHeader = $"Done today · {DoneToday(today).Count()}";
-        UnfinishedHeader = $"Unfinished from past sessions · {_tasks.PastUnfinished().Count(past => past.SessionStart >= from)}";
+        DoneHeader = $"Done today · {_doneRowCount}";
+        UnfinishedHeader = $"Unfinished from past sessions · {_unfinishedIds.Count}";
         AddPlaceholder = SessionIsFull
             ? "This session is full: Enter adds it to Later"
             : "Add a task · Ctrl+Alt+N from anywhere";
@@ -647,13 +907,69 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanStartSession));
     }
 
+    private TaskListRowViewModel MakeRow(
+        TaskRowKey key, string title, string subText, string? categoryName, string? categoryColor, int number = 0, bool isNow = false,
+        bool isTicked = false, Guid? categoryId = null, Func<Task>? toggle = null)
+    {
+        return new TaskListRowViewModel(key, title, subText, SelectRow, number, isNow, toggle, isTicked, () => MenuFor(key))
+        {
+            CategoryId = categoryId,
+            CategoryName = categoryName,
+            CategoryColor = categoryColor,
+            CategoryBrush = TaskCategoryBrushes.Of(categoryColor),
+        };
+    }
+
+    private static void Replace(ObservableCollection<TaskGroupViewModel> target, IReadOnlyList<TaskGroupViewModel> groups)
+    {
+        target.Clear();
+        foreach (TaskGroupViewModel group in groups)
+        {
+            target.Add(group);
+        }
+    }
+
+    // The rows under their category: the categories in their order (a name this device doesn't have yet follows them), "No
+    // category" last. A list with no category in it has no header; otherwise every group has one.
+    private IReadOnlyList<TaskGroupViewModel> Group(IReadOnlyList<TaskListRowViewModel> rows)
+    {
+        if (rows.Count == 0)
+        {
+            return [];
+        }
+
+        IReadOnlyList<TaskCategory> categories = _tasks.Categories;
+        int Rank(string name)
+        {
+            if (name.Length == 0)
+            {
+                return int.MaxValue;
+            }
+
+            int at = categories.ToList().FindIndex(category => string.Equals(category.Name, name, StringComparison.OrdinalIgnoreCase));
+            return at >= 0 ? at : categories.Count;
+        }
+
+        List<IGrouping<string, TaskListRowViewModel>> groups = rows
+            .GroupBy(row => row.CategoryName?.Trim() ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(group => Rank(group.Key))
+            .ToList();
+        bool showsHeader = !(groups.Count == 1 && groups[0].Key.Length == 0);
+        return groups.Select(group =>
+        {
+            string? color = group.Select(row => row.CategoryColor).FirstOrDefault(value => value is not null);
+            return new TaskGroupViewModel(
+                group.Key.Length == 0 ? "No category" : group.Key, TaskCategoryBrushes.Of(color), group.Key.Length > 0, showsHeader, group.ToList());
+        }).ToList();
+    }
+
     // The detail card follows the selected key; nothing selected (or gone) falls back to the first task of the session.
     private void ShowSelected()
     {
         TaskSnapshot? snapshot = _selectedKey is TaskRowKey key ? Read(key) : null;
-        if (snapshot is null && SessionRows.Count > 0)
+        if (snapshot is null && SessionGroups.Count > 0)
         {
-            _selectedKey = SessionRows[0].Key;
+            _selectedKey = SessionGroups[0].Rows[0].Key;
             snapshot = Read(_selectedKey.Value);
         }
 
@@ -676,7 +992,10 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
         TaskRowKey? selected = Detail?.Key;
         _selectedKey = selected ?? _selectedKey;
-        foreach (TaskListRowViewModel row in SessionRows.Concat(ComeBackRows).Concat(LaterRows).Concat(DoneRows))
+        IEnumerable<TaskListRowViewModel> rows = SessionGroups.Concat(LaterGroups).Concat(DoneGroups).Concat(UnfinishedGroups)
+            .SelectMany(group => group.Rows)
+            .Concat(ComeBackRows);
+        foreach (TaskListRowViewModel row in rows)
         {
             row.IsSelected = selected == row.Key;
         }
@@ -728,12 +1047,28 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
             default:
             {
-                SessionTask? task = DoneToday(DateOnly.FromDateTime(LocalNow())).FirstOrDefault(candidate => candidate.Id == key.Id);
-                return task is null
-                    ? null
-                    : new TaskSnapshot(key, "Done today", task.Title, task.Subtasks, task.EstimateMinutes, task.Note, null, null, false, true, null);
+                // Done today, or left open by an ended session: shown, not edited (its title, steps and category change from the menu).
+                SessionTask? task = FindTask(key.Id);
+                if (task is null)
+                {
+                    return null;
+                }
+
+                if (!task.IsDone && current.Tasks.Any(candidate => candidate.Id == key.Id))
+                {
+                    return Read(new TaskRowKey(TaskRowKind.Session, key.Id)); // Unticked on the list: it is a task of this session again.
+                }
+
+                string kind = task.IsDone ? "Done today" : "Left open";
+                return new TaskSnapshot(key, kind, task.Title, task.Subtasks, task.EstimateMinutes, task.Note, null, null, false, true, null);
             }
         }
+    }
+
+    // A task of the draft or running checklist, or of an ended session's record.
+    private SessionTask? FindTask(Guid id)
+    {
+        return _tasks.Current.Tasks.FirstOrDefault(task => task.Id == id) ?? _tasks.HistoryTaskOf(id);
     }
 
     private IEnumerable<SessionTask> DoneToday(DateOnly today)
@@ -779,7 +1114,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             return true;
         }
 
-        if (categoryId is not null)
+        if (categoryId is not null && categoryName is null)
         {
             return categoryId == chosen;
         }

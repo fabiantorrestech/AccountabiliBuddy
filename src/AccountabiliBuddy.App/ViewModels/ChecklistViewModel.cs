@@ -43,6 +43,11 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
 
     public ChecklistMode Mode { get; }
 
+    private UndoBarViewModel? _undo;
+
+    /// <summary>The bar after a delete, "Deleted “…” · Undo" (made when a view first asks for it).</summary>
+    public UndoBarViewModel Undo => _undo ??= new UndoBarViewModel(_tasks);
+
     public bool IsDraft => Mode == ChecklistMode.Draft;
 
     public bool IsCompact => Mode == ChecklistMode.Compact;
@@ -202,6 +207,7 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _tasks.Changed -= OnChanged;
+        _undo?.Dispose();
     }
 
     /// <summary>

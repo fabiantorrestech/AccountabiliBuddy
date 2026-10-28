@@ -1,26 +1,33 @@
 using System.Windows.Input;
+using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// One row of the Tasks page's lists (This session, Come back to, Later, Done today): a title with a Muted line under it.
-/// A click selects it for the detail card. This session's rows are numbered and can be dragged; a come-back has a check box.
+/// One row of the Tasks page's lists (This session, Come back to, Later, Done today, Unfinished from past sessions): a check
+/// box, a title with a Muted line under it and a ⋯ menu. A click selects it for the detail card. This session's rows are
+/// numbered and can be dragged. The category shows only as a 3px edge at the row's left, never as a fill.
 /// </summary>
-public sealed partial class TaskListRowViewModel : ObservableObject
+public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSource
 {
+    private readonly Func<IReadOnlyList<TaskMenuEntry>>? _menu;
+
     public TaskListRowViewModel(
         TaskRowKey key, string title, string subText, Action<TaskListRowViewModel> select, int number = 0, bool isNow = false,
-        Func<Task>? tick = null)
+        Func<Task>? toggle = null, bool isTicked = false, Func<IReadOnlyList<TaskMenuEntry>>? menu = null)
     {
         Key = key;
         Title = title;
         SubText = subText;
         Number = number;
         IsNow = isNow;
+        IsTicked = isTicked;
+        _menu = menu;
         SelectCommand = new RelayCommand(() => select(this));
-        TickCommand = tick is null ? null : new AsyncRelayCommand(tick);
+        ToggleCommand = toggle is null ? null : new AsyncRelayCommand(toggle);
+        CategoryBrush = Brushes.Transparent;
     }
 
     public TaskRowKey Key { get; }
@@ -51,15 +58,24 @@ public sealed partial class TaskListRowViewModel : ObservableObject
 
     public bool IsDone => Kind == TaskRowKind.Done;
 
-    /// <summary>The category filter reads these.</summary>
+    /// <summary>The category filter and the groups read these.</summary>
     public Guid? CategoryId { get; init; }
 
     public string? CategoryName { get; init; }
 
-    /// <summary>The come-back's check box; null for every other row.</summary>
-    public ICommand? TickCommand { get; }
+    /// <summary>The category's colour, "#RRGGBB".</summary>
+    public string? CategoryColor { get; init; }
 
-    public bool HasTick => TickCommand is not null;
+    /// <summary>The 3px edge at the row's left: the category's colour; transparent with none.</summary>
+    public IBrush CategoryBrush { get; init; }
+
+    /// <summary>The check box is ticked: a task that is done.</summary>
+    public bool IsTicked { get; }
+
+    /// <summary>Ticks or unticks it (the check box); the rules are Today's.</summary>
+    public ICommand? ToggleCommand { get; }
+
+    public bool HasToggle => ToggleCommand is not null;
 
     public ICommand SelectCommand { get; }
 
@@ -74,4 +90,9 @@ public sealed partial class TaskListRowViewModel : ObservableObject
     public bool ShowsLineAbove => DropMark < 0;
 
     public bool ShowsLineBelow => DropMark > 0;
+
+    public IReadOnlyList<TaskMenuEntry> BuildMenu()
+    {
+        return _menu?.Invoke() ?? [];
+    }
 }

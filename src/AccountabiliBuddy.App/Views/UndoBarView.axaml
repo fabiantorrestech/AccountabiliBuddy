@@ -1,0 +1,16 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.UndoBarView"
+             x:DataType="vm:UndoBarViewModel">
+    <!-- The quiet bar after a delete: "Deleted “Draft Q4…” · Undo", for 10 seconds. Ink on Surface2; no accent. -->
+    <Border IsVisible="{Binding IsVisible}" Background="{DynamicResource Ab.Surface2}" CornerRadius="22" Padding="18,8,10,8" HorizontalAlignment="Left">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Classes="muted" Text="{Binding Text}" FontSize="14" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="360" />
+            <Button Classes="quiet" Content="Undo" Command="{Binding UndoCommand}" Padding="12,6" FontSize="14" FontWeight="SemiBold"
+                    Foreground="{DynamicResource Ab.Ink}" AutomationProperties.Name="Undo" />
+            <TextBlock Classes="muted" Text="{Binding Message}" FontSize="13" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="260"
+                       IsVisible="{Binding HasMessage}" />
+        </StackPanel>
+    </Border>
+</UserControl>

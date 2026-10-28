@@ -433,6 +433,10 @@ public partial class App : Application
         _later = new LaterStore(documents, new DpapiDataProtector(), time);
         _later.LoadBlocking();
         sessionTasks.Later = _later;
+        // Recently deleted (ADR 50): what the user deletes stays 30 days on this computer only, sealed, so Undo and Restore can bring it back.
+        var recentlyDeleted = new RecentlyDeletedStore(documents, new DpapiDataProtector(), time);
+        recentlyDeleted.LoadBlocking();
+        sessionTasks.Deleted = recentlyDeleted;
         // "Put in plan": a part's own start, from the day plan as it is now (else the time it was planned with).
         sessionTasks.PlannedStartOf = slot => PlannedPartStart(slot);
         // Notes kept in Focus mode (redesign phase 5): this computer only, sealed.

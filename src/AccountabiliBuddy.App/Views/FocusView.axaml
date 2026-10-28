@@ -168,7 +168,7 @@
                         <TextBlock Classes="numeral timer" Text="{Binding TimeLeftText}" LetterSpacing="-4"
                                    AutomationProperties.Name="Time left" />
                         <controls:ProgressRing Classes="timeRing" Classes.break="{Binding TimeRingIsBreak}" Classes.wrapUp="{Binding TimeRingIsWrapUp}"
-                                               Value="{Binding TimeLeftFraction}" VerticalAlignment="Center" IsVisible="{Binding ShowsTimeRing}"
+                                               Value="{Binding TimeLeftFraction}" VerticalAlignment="Center" Margin="0,18,0,0" IsVisible="{Binding ShowsTimeRing}"
                                                AutomationProperties.Name="Share of this phase left" />
                     </StackPanel>
                 </Viewbox>

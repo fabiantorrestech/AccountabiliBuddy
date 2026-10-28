@@ -19,7 +19,7 @@ namespace AccountabiliBuddy.App.Services;
 /// planned day part (ADR 50) that travel with it, and "Move to Later" hands it to the <see cref="LaterStore"/>. Use from the
 /// UI thread only.
 /// </summary>
-public sealed class SessionTasksService : IDisposable
+public sealed partial class SessionTasksService : IDisposable
 {
     public const string AllDoneReason = "All tasks done";
 
@@ -520,9 +520,14 @@ public sealed class SessionTasksService : IDisposable
         return checklist.Labelled(_categories).Select(task => task with { EstimateMinutes = null, Note = null, PlannedFor = null }).ToList();
     }
 
-    public Task RemoveAsync(Guid id)
+    /// <summary>
+    /// Takes a task or step off the checklist. What it held is kept in Recently deleted (this PC only, sealed) so Undo can bring
+    /// it back; an open task taken off while the session runs counts in <see cref="SessionChecklist.DroppedOpen"/> (ADR 25).
+    /// </summary>
+    public async Task RemoveAsync(Guid id)
     {
-        return SetAsync(Current.Remove(id));
+        await RecordCurrentDeletionAsync(id);
+        await SetAsync(Current.Remove(id));
     }
 
     public Task RenameAsync(Guid id, string title)
@@ -623,34 +628,6 @@ public sealed class SessionTasksService : IDisposable
         SyncLaterItem? item = await Later.AddAsync(task.Title, openSteps, task.Category, task.CategoryColor, task.EstimateMinutes, task.Note, dueOn, task.PlannedFor);
         await SetAsync(Current.Parked(taskId));
         return item?.Id;
-    }
-
-    /// <summary>
-    /// "Move to this session": a Later item becomes a task at the end of the checklist and leaves the Later list. Refused
-    /// (with the reason) when the checklist already holds <see cref="TaskAllowance"/> tasks, as adding one is: a 4th task is
-    /// never added this way. The new task's id when it moved.
-    /// </summary>
-    public async Task<(Guid? TaskId, string? Error)> MoveFromLaterAsync(Guid laterId)
-    {
-        SyncLaterItem? item = Later?.Items.FirstOrDefault(candidate => candidate.Id == laterId);
-        if (Later is null || item is null)
-        {
-            return (null, "That item is no longer on the Later list.");
-        }
-
-        if (!_sessions.State.IsTest && Current.Tasks.Count >= TaskAllowance)
-        {
-            return (null, $"This session already has {TaskAllowance} tasks.");
-        }
-
-        Guid? categoryId = item.Category is string name
-            ? await ResolveRemoteCategoryAsync(new SyncTaskRequest(Category: name, CategoryColor: item.CategoryColor))
-            : null;
-        var task = new SessionTask(
-            Guid.NewGuid(), item.Title, null, item.Subtasks ?? [], categoryId, EstimateMinutes: item.EstimateMinutes, Note: item.Note);
-        await Later.DeleteAsync(laterId);
-        await SetAsync(Current.AddTask(task));
-        return (task.Id, null);
     }
 
     /// <summary>The open tasks of ended sessions (newest session first), for the Tasks page's "Unfinished from past sessions".</summary>
@@ -952,6 +929,11 @@ public sealed class SessionTasksService : IDisposable
     /// </summary>
     public async Task EditHistoryAsync(Guid id, string? title)
     {
+        if (title is null)
+        {
+            await RecordHistoryDeletionAsync(id);
+        }
+
         static SessionTask Apply(SessionTask task, Guid id, string? title) => task with
         {
             Subtasks = task.Subtasks
@@ -978,7 +960,7 @@ public sealed class SessionTasksService : IDisposable
             DateTimeOffset cutoff = _time.GetUtcNow() - HistoryKept;
             // History keeps each task's category name and colour as they were, so deleting a category later loses nothing.
             SessionChecklist labelled = Current with { Tasks = Labelled(Current) };
-            _history = [.. _history.Where(item => item.SessionStart is DateTimeOffset start && start >= cutoff), labelled];
+            _history = [.. _history.Where(item => KeptInHistory(item, cutoff)), labelled];
             await _store.SaveAsync(HistoryKey, _history.Select(item => new StoredHistory(Seal(item))).ToList());
         }
 

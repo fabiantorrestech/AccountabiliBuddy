@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:local="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.TodayTaskRowsView"
              x:DataType="vm:ChecklistViewModel">
     <!-- The session's tasks as Today shows them (planning, idle and the running "All tasks" fold): numbered Surface2 rows, then the
@@ -73,6 +74,9 @@
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="BoxShadow" Value="none" />
         </Style>
+        <Style Selector="ItemsControl.indented">
+            <Setter Property="Margin" Value="16,0,0,0" />
+        </Style>
         <Style Selector="Button.small">
             <Setter Property="Padding" Value="6,0" />
             <Setter Property="MinHeight" Value="22" />
@@ -100,133 +104,170 @@
     </UserControl.Resources>
     <StackPanel Spacing="8">
 
-        <!-- The open tasks, numbered in the order they run. -->
-        <ItemsControl ItemsSource="{Binding OpenTasks}">
+        <!-- The open tasks, numbered in the order they run, under their category (colour dot and name, tasks set in; "No category" last,
+             with no header while no task has a category). -->
+        <ItemsControl ItemsSource="{Binding OpenGroups}">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                     <StackPanel Spacing="8" />
                 </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:TaskRowViewModel">
-                    <Panel Classes="taskItem">
-                        <Button Classes="taskRow" AutomationProperties.Name="{Binding Title}" ToolTip.Tip="Click to rename it, add steps or move it">
-                            <Grid Classes="row" ColumnDefinitions="Auto,32,*,Auto,Auto" ColumnSpacing="4" Margin="8,0,20,0" MinHeight="52">
-                                <Border Classes="dragHandle" ToolTip.Tip="Drag to move" AutomationProperties.Name="Drag to move"
-                                        PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
-                                        PointerCaptureLost="OnHandleCaptureLost">
-                                    <TextBlock Text="⠿" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                                </Border>
-                                <TextBlock Grid.Column="1" Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="2" Text="{Binding Title}" FontSize="16" FontWeight="Normal" TextWrapping="Wrap" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource Ab.Ink}" />
-                                <TextBlock Grid.Column="3" Classes="muted" Text="{Binding StepsText}" FontSize="13" VerticalAlignment="Center" Margin="12,0,0,0" />
-                                <!-- Live mode only (planning, running): ticking the first task during planning begins the focus, like "I'm ready". -->
-                                <CheckBox Grid.Column="4" IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="12,0,0,0" VerticalAlignment="Center"
-                                          AutomationProperties.Name="Done"
-                                          IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanTick}" />
-                            </Grid>
-                            <Button.Flyout>
-                                <Flyout Placement="BottomEdgeAlignedLeft" Opened="OnEditFlyoutOpened" Closed="OnEditFlyoutClosed">
-                                    <StackPanel Spacing="10" Width="360">
-                                        <TextBox Text="{Binding EditTitle}" PlaceholderText="Task" AutomationProperties.Name="Task name" KeyDown="OnNameKeyDown">
-                                            <TextBox.KeyBindings>
-                                                <KeyBinding Gesture="Enter" Command="{Binding SaveEditCommand}" />
-                                            </TextBox.KeyBindings>
-                                        </TextBox>
+                <DataTemplate x:DataType="vm:ChecklistGroupViewModel">
+                    <StackPanel Spacing="6">
+                        <StackPanel Orientation="Horizontal" Spacing="7" Margin="6,2,0,0" IsVisible="{Binding ShowsHeader}">
+                            <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" IsVisible="{Binding HasCategory}" />
+                            <TextBlock Classes="muted" Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" />
+                        </StackPanel>
+                        <ItemsControl ItemsSource="{Binding Tasks}" Classes.indented="{Binding ShowsHeader}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="8" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TaskRowViewModel">
+                                <Panel Classes="taskItem">
+                                    <Button Classes="taskRow" AutomationProperties.Name="{Binding Title}" ToolTip.Tip="Click to rename it, add steps or move it">
+                                        <Grid Classes="row" ColumnDefinitions="Auto,32,*,Auto,Auto,Auto" ColumnSpacing="4" Margin="8,0,10,0" MinHeight="52">
+                                            <Border Classes="dragHandle" ToolTip.Tip="Drag to move" AutomationProperties.Name="Drag to move"
+                                                    PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
+                                                    PointerCaptureLost="OnHandleCaptureLost">
+                                                <TextBlock Text="⠿" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                            </Border>
+                                            <TextBlock Grid.Column="1" Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="2" Text="{Binding Title}" FontSize="16" FontWeight="Normal" TextWrapping="Wrap" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource Ab.Ink}" />
+                                            <TextBlock Grid.Column="3" Classes="muted" Text="{Binding StepsText}" FontSize="13" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                            <!-- Live mode only (planning, running): ticking the first task during planning begins the focus, like "I'm ready". -->
+                                            <CheckBox Grid.Column="4" IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="12,0,0,0" VerticalAlignment="Center"
+                                                      AutomationProperties.Name="Done"
+                                                      IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanTick}" />
+                                            <Button Grid.Column="5" Classes="small" Padding="6,0" Margin="4,0,0,0" VerticalAlignment="Center" AutomationProperties.Name="More actions"
+                                                    ToolTip.Tip="Rename, label, move, add a subtask, delete" Click="OnRowMoreClick">
+                                                <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
+                                            </Button>
+                                        </Grid>
+                                        <Button.Flyout>
+                                            <Flyout Placement="BottomEdgeAlignedLeft" Opened="OnEditFlyoutOpened" Closed="OnEditFlyoutClosed">
+                                                <StackPanel Spacing="10" Width="360">
+                                                    <TextBox Text="{Binding EditTitle}" PlaceholderText="Task" AutomationProperties.Name="Task name" KeyDown="OnNameKeyDown">
+                                                        <TextBox.KeyBindings>
+                                                            <KeyBinding Gesture="Enter" Command="{Binding SaveEditCommand}" />
+                                                        </TextBox.KeyBindings>
+                                                    </TextBox>
 
-                                        <StackPanel Spacing="4">
-                                            <TextBlock Classes="section" Text="Steps" />
-                                            <ItemsControl ItemsSource="{Binding Subtasks}" IsVisible="{Binding HasSubtasks}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate x:DataType="vm:SubtaskRowViewModel">
-                                                        <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,1">
-                                                            <Button Classes="small" Command="{Binding BeginEditCommand}" IsVisible="{Binding !IsEditing}"
-                                                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" AutomationProperties.Name="{Binding Title}"
-                                                                    ToolTip.Tip="Click to rename this step">
-                                                                <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
-                                                            </Button>
-                                                            <TextBox Classes="taskEntry" Text="{Binding EditTitle}" IsVisible="{Binding IsEditing}"
-                                                                     PropertyChanged="OnRenameBoxPropertyChanged" LostFocus="OnRenameBoxLostFocus">
-                                                                <TextBox.KeyBindings>
-                                                                    <KeyBinding Gesture="Enter" Command="{Binding SaveEditCommand}" />
-                                                                    <KeyBinding Gesture="Escape" Command="{Binding CancelEditCommand}" />
-                                                                </TextBox.KeyBindings>
-                                                            </TextBox>
-                                                            <Button Grid.Column="1" Classes="small" Content="↑" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up" />
-                                                            <Button Grid.Column="2" Classes="small" Content="↓" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down" />
-                                                            <Button Grid.Column="3" Classes="small" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this step" />
-                                                        </Grid>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                            <TextBox Text="{Binding NewSubtaskTitle}" PlaceholderText="Add a step (Enter)" AutomationProperties.Name="New step"
-                                                     KeyDown="OnNewStepKeyDown" />
-                                        </StackPanel>
+                                                    <StackPanel Spacing="4">
+                                                        <TextBlock Classes="section" Text="Steps" />
+                                                        <ItemsControl ItemsSource="{Binding Subtasks}" IsVisible="{Binding HasSubtasks}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="vm:SubtaskRowViewModel">
+                                                                    <StackPanel Spacing="2">
+                                                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="0,1">
+                                                                        <Button Classes="small" Command="{Binding BeginEditCommand}" IsVisible="{Binding !IsEditing}"
+                                                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" AutomationProperties.Name="{Binding Title}"
+                                                                                ToolTip.Tip="Click to rename this step">
+                                                                            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                                                                        </Button>
+                                                                        <TextBox Classes="taskEntry" Text="{Binding EditTitle}" IsVisible="{Binding IsEditing}"
+                                                                                 PropertyChanged="OnRenameBoxPropertyChanged" LostFocus="OnRenameBoxLostFocus">
+                                                                            <TextBox.KeyBindings>
+                                                                                <KeyBinding Gesture="Enter" Command="{Binding SaveEditCommand}" />
+                                                                                <KeyBinding Gesture="Escape" Command="{Binding CancelEditCommand}" />
+                                                                            </TextBox.KeyBindings>
+                                                                        </TextBox>
+                                                                        <Button Grid.Column="1" Classes="small" Content="↑" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up" />
+                                                                        <Button Grid.Column="2" Classes="small" Content="↓" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down" />
+                                                                        <Button Grid.Column="3" Classes="small" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this step" />
+                                                                        <Button Grid.Column="4" Classes="small" Padding="6,0" AutomationProperties.Name="More actions for this step"
+                                                                                ToolTip.Tip="Rename, add a step after, delete" Click="OnRowMoreClick">
+                                                                            <mi:MaterialIcon Kind="DotsHorizontal" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" />
+                                                                        </Button>
+                                                                    </Grid>
+                                                                    <TextBox Classes="taskEntry" Text="{Binding NewAfterTitle}" IsVisible="{Binding IsAddingAfter}" PlaceholderText="A step after this one (Enter)"
+                                                                             AutomationProperties.Name="New step after this one" PropertyChanged="OnRenameBoxPropertyChanged">
+                                                                        <TextBox.KeyBindings>
+                                                                            <KeyBinding Gesture="Enter" Command="{Binding SaveAddAfterCommand}" />
+                                                                            <KeyBinding Gesture="Escape" Command="{Binding CancelAddAfterCommand}" />
+                                                                        </TextBox.KeyBindings>
+                                                                    </TextBox>
+                                                                    </StackPanel>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                        <TextBox Text="{Binding NewSubtaskTitle}" PlaceholderText="Add a step (Enter)" AutomationProperties.Name="New step"
+                                                                 KeyDown="OnNewStepKeyDown" />
+                                                    </StackPanel>
 
-                                        <StackPanel Spacing="4" IsVisible="{Binding HasCategoryChoices}">
-                                            <TextBlock Classes="section" Text="Category" />
-                                            <ItemsControl ItemsSource="{Binding CategoryChoices}">
-                                                <ItemsControl.ItemsPanel>
-                                                    <ItemsPanelTemplate>
-                                                        <WrapPanel ItemSpacing="4" LineSpacing="4" />
-                                                    </ItemsPanelTemplate>
-                                                </ItemsControl.ItemsPanel>
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate x:DataType="vm:TaskCategoryChoiceViewModel">
-                                                        <Button Classes="quiet" Command="{Binding PickCommand}" Padding="8,4">
-                                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                                <Ellipse Width="10" Height="10" Fill="{Binding Brush}" Stroke="#80808080" StrokeThickness="1" VerticalAlignment="Center" />
-                                                                <TextBlock Text="{Binding Name}" FontSize="13" VerticalAlignment="Center" />
-                                                                <TextBlock Text="✓" FontSize="13" IsVisible="{Binding IsSelected}" VerticalAlignment="Center" />
+                                                    <StackPanel Spacing="4" IsVisible="{Binding HasCategoryChoices}">
+                                                        <TextBlock Classes="section" Text="Category" />
+                                                        <ItemsControl ItemsSource="{Binding CategoryChoices}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel ItemSpacing="4" LineSpacing="4" />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="vm:TaskCategoryChoiceViewModel">
+                                                                    <Button Classes="quiet" Command="{Binding PickCommand}" Padding="8,4">
+                                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                            <Ellipse Width="10" Height="10" Fill="{Binding Brush}" Stroke="#80808080" StrokeThickness="1" VerticalAlignment="Center" />
+                                                                            <TextBlock Text="{Binding Name}" FontSize="13" VerticalAlignment="Center" />
+                                                                            <TextBlock Text="✓" FontSize="13" IsVisible="{Binding IsSelected}" VerticalAlignment="Center" />
+                                                                        </StackPanel>
+                                                                    </Button>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+
+                                                    <WrapPanel ItemSpacing="4" LineSpacing="4">
+                                                        <Button Classes="quiet" Command="{Binding MoveUpCommand}" Padding="8,4" ToolTip.Tip="Move this task up">
+                                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                <mi:MaterialIcon Kind="ArrowUp" Width="16" Height="16" />
+                                                                <TextBlock Text="Up" FontSize="13" VerticalAlignment="Center" />
                                                             </StackPanel>
                                                         </Button>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-
-                                        <WrapPanel ItemSpacing="4" LineSpacing="4">
-                                            <Button Classes="quiet" Command="{Binding MoveUpCommand}" Padding="8,4" ToolTip.Tip="Move this task up">
-                                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <mi:MaterialIcon Kind="ArrowUp" Width="16" Height="16" />
-                                                    <TextBlock Text="Up" FontSize="13" VerticalAlignment="Center" />
+                                                        <Button Classes="quiet" Command="{Binding MoveDownCommand}" Padding="8,4" ToolTip.Tip="Move this task down">
+                                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                <mi:MaterialIcon Kind="ArrowDown" Width="16" Height="16" />
+                                                                <TextBlock Text="Down" FontSize="13" VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                        <Button Classes="quiet" Command="{Binding PickCommand}" Padding="8,4"
+                                                                ToolTip.Tip="Show this on the on-screen bar (do it again: back to the first open task)">
+                                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                <mi:MaterialIcon Kind="PinOutline" Width="16" Height="16" />
+                                                                <TextBlock Text="Show on bar" FontSize="13" VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                        <Button Classes="quiet" Command="{Binding ParkCommand}" IsVisible="{Binding CanPark}" Padding="8,4"
+                                                                ToolTip.Tip="Park: it leaves the checklist and waits under Come back to" AutomationProperties.Name="Park">
+                                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                <mi:MaterialIcon Kind="FlagOutline" Width="16" Height="16" />
+                                                                <TextBlock Text="Park" FontSize="13" VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                        <Button Classes="quiet" Command="{Binding RemoveCommand}" Padding="8,4" ToolTip.Tip="Remove this task" AutomationProperties.Name="Remove">
+                                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                <mi:MaterialIcon Kind="DeleteOutline" Width="16" Height="16" />
+                                                                <TextBlock Text="Remove" FontSize="13" VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </WrapPanel>
                                                 </StackPanel>
-                                            </Button>
-                                            <Button Classes="quiet" Command="{Binding MoveDownCommand}" Padding="8,4" ToolTip.Tip="Move this task down">
-                                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <mi:MaterialIcon Kind="ArrowDown" Width="16" Height="16" />
-                                                    <TextBlock Text="Down" FontSize="13" VerticalAlignment="Center" />
-                                                </StackPanel>
-                                            </Button>
-                                            <Button Classes="quiet" Command="{Binding PickCommand}" Padding="8,4"
-                                                    ToolTip.Tip="Show this on the on-screen bar (do it again: back to the first open task)">
-                                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <mi:MaterialIcon Kind="PinOutline" Width="16" Height="16" />
-                                                    <TextBlock Text="Show on bar" FontSize="13" VerticalAlignment="Center" />
-                                                </StackPanel>
-                                            </Button>
-                                            <Button Classes="quiet" Command="{Binding ParkCommand}" IsVisible="{Binding CanPark}" Padding="8,4"
-                                                    ToolTip.Tip="Park: it leaves the checklist and waits under Come back to" AutomationProperties.Name="Park">
-                                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <mi:MaterialIcon Kind="FlagOutline" Width="16" Height="16" />
-                                                    <TextBlock Text="Park" FontSize="13" VerticalAlignment="Center" />
-                                                </StackPanel>
-                                            </Button>
-                                            <Button Classes="quiet" Command="{Binding RemoveCommand}" Padding="8,4" ToolTip.Tip="Remove this task" AutomationProperties.Name="Remove">
-                                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <mi:MaterialIcon Kind="DeleteOutline" Width="16" Height="16" />
-                                                    <TextBlock Text="Remove" FontSize="13" VerticalAlignment="Center" />
-                                                </StackPanel>
-                                            </Button>
-                                        </WrapPanel>
-                                    </StackPanel>
-                                </Flyout>
-                            </Button.Flyout>
-                        </Button>
-                        <Border Classes="dropLine" VerticalAlignment="Top" IsVisible="{Binding IsDropAbove}" />
-                        <Border Classes="dropLine" VerticalAlignment="Bottom" IsVisible="{Binding IsDropBelow}" />
-                    </Panel>
+                                            </Flyout>
+                                        </Button.Flyout>
+                                    </Button>
+                                    <!-- The category shows as a 3px edge at the row's left, never as a fill. -->
+                                    <Border HorizontalAlignment="Left" Width="3" CornerRadius="2" Margin="0,14" IsHitTestVisible="False" Background="{Binding CategoryBrush}" />
+                                    <Border Classes="dropLine" VerticalAlignment="Top" IsVisible="{Binding IsDropAbove}" />
+                                    <Border Classes="dropLine" VerticalAlignment="Bottom" IsVisible="{Binding IsDropBelow}" />
+                                </Panel>
+                            </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
@@ -308,6 +349,9 @@
                 </TextBox>
             </StackPanel>
         </Border>
+
+        <!-- After a delete: "Deleted “…” · Undo" for 10 seconds (the task also waits in Archive > Recently deleted). -->
+        <local:UndoBarView DataContext="{Binding Undo}" />
 
         <!-- Ticked tasks, folded. -->
         <Expander Header="{Binding DoneHeader}" IsVisible="{Binding HasDone}" IsExpanded="False" HorizontalAlignment="Stretch" Padding="8,4">
