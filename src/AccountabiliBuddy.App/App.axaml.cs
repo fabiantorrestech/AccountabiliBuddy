@@ -831,7 +831,16 @@ public partial class App : Application
         }
 
         // The Devices tab (ADR 22): the group and the sharing methods.
-        var devices = new DevicesViewModel(syncIdentity, syncSettings, receivedDevices, syncCoordinator, _sessions, time);
+        // The sync light's setting and which batteries show where (both this PC only, documents "syncLight" and "batteryVisibility").
+        var syncLightSetting = new SyncLightSettingService(documents);
+        syncLightSetting.LoadBlocking();
+        var batteryVisibility = new BatteryVisibilityService(documents);
+        batteryVisibility.LoadBlocking();
+        var devices = new DevicesViewModel(syncIdentity, syncSettings, receivedDevices, syncCoordinator, _sessions, time)
+        {
+            SyncLightSetting = syncLightSetting,
+            Batteries = batteryVisibility,
+        };
         var sessionViewModel = new SessionViewModel(
             _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks), _quickSession)
         {

@@ -117,6 +117,7 @@
     <FontFamily x:Key="Ab.DisplayFont">avares://AccountabiliBuddy.App/Assets/Fonts/Newsreader#Newsreader 16pt</FontFamily>
     <FontFamily x:Key="Ab.NumeralFont">avares://AccountabiliBuddy.App/Assets/Fonts/Newsreader#Newsreader 16pt</FontFamily>
     <CornerRadius x:Key="Ab.CardRadius">18</CornerRadius>
+    <CornerRadius x:Key="Ab.PanelRadius">14</CornerRadius>
     <Thickness x:Key="Ab.CardBorderThickness">1</Thickness>
     <x:Double x:Key="Ab.DisplayLetterSpacing">0</x:Double>
     <FontWeight x:Key="Ab.NumeralWeight">Normal</FontWeight>

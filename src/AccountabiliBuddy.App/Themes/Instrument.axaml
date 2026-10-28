@@ -117,6 +117,7 @@
     <FontFamily x:Key="Ab.DisplayFont">Segoe UI Variable Display, Segoe UI</FontFamily>
     <FontFamily x:Key="Ab.NumeralFont">avares://AccountabiliBuddy.App/Assets/Fonts/IBMPlexMono#IBM Plex Mono, Consolas</FontFamily>
     <CornerRadius x:Key="Ab.CardRadius">14</CornerRadius>
+    <CornerRadius x:Key="Ab.PanelRadius">10</CornerRadius>
     <Thickness x:Key="Ab.CardBorderThickness">1</Thickness>
     <x:Double x:Key="Ab.DisplayLetterSpacing">0</x:Double>
     <FontWeight x:Key="Ab.NumeralWeight">Medium</FontWeight>

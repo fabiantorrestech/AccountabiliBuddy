@@ -5,154 +5,195 @@
              xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.IntegrationsView"
              x:DataType="vm:IntegrationsViewModel">
-    <UserControl.Styles>
-        <Style Selector="Border.card">
-            <Setter Property="Background" Value="#1A808080" />
-            <Setter Property="BorderBrush" Value="#33808080" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="16,12" />
-        </Style>
-        <Style Selector="TextBlock.title">
-            <Setter Property="FontSize" Value="16" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
-        <Style Selector="TextBlock.muted">
-            <Setter Property="Opacity" Value="0.75" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-        </Style>
-    </UserControl.Styles>
-
-    <ScrollViewer>
-        <StackPanel Margin="16" Spacing="12" MaxWidth="760" HorizontalAlignment="Left">
-            <TextBlock Classes="muted"
-                       Text="Use AccountabiliBuddy alongside other blockers. Nothing here changes the other apps." />
-
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBlock Text="Add rules to profile" VerticalAlignment="Center" />
-                <ComboBox ItemsSource="{Binding ProfileOptions}" SelectedItem="{Binding SelectedProfile}" MinWidth="220" />
-            </StackPanel>
+    <!-- Connections: Cold Turkey and the other blockers, the calendar feeds and Google sign-in, Beeminder, a list to import. Nothing here
+         changes the other apps. Rows of a title, a Muted line and the control on the right, as the rest of Settings. -->
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="0,0,16,24" Spacing="12">
+            <Border Classes="sPanel">
+                <StackPanel Margin="0,0,0,-1">
+                    <Border Classes="sRow">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Classes="sTitle" Text="Add imported rules to profile" />
+                                <TextBlock Classes="sHint" Text="Where a block seen in Cold Turkey, or an imported list, goes." />
+                            </StackPanel>
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding ProfileOptions}" SelectedItem="{Binding SelectedProfile}" MinWidth="200" VerticalAlignment="Center"
+                                      AutomationProperties.Name="Add rules to profile" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Border>
 
             <!-- Cold Turkey -->
-            <Border Classes="card">
-                <StackPanel Spacing="8">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel Spacing="2">
-                            <TextBlock Text="Cold Turkey Blocker" Classes="title" />
-                            <TextBlock Text="{Binding ColdTurkeySummary}" />
+            <TextBlock Classes="sGroup" Text="Cold Turkey Blocker" />
+            <Border Classes="sPanel">
+                <StackPanel Margin="0,0,0,-1">
+                    <Border Classes="sRow">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Classes="sTitle" Text="{Binding ColdTurkeySummary}" />
+                                <TextBlock Text="{Binding ColdTurkeyDetails}" Classes="sHint" IsVisible="{Binding IsColdTurkeyInstalled}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                                <Button Content="Check again" Command="{Binding DetectColdTurkeyCommand}" />
+                                <!-- ADR 41: lost the spare key? A new one takes a reason and a 10-minute wait, and releases nothing. -->
+                                <Button Content="Get a new spare key…" Command="{Binding NewSpareKeyCommand}" IsVisible="{Binding IsColdTurkeyInstalled}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="sRow">
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="sTitle" Text="Sites Cold Turkey was seen blocking" />
+                            <TextBlock Classes="sHint"
+                                       Text="Noted when Cold Turkey's block page shows up in a browser with the AccountabiliBuddy extension (see Setup)." />
+                            <TextBlock Text="Nothing seen yet." Classes="sHint" IsVisible="{Binding HasNoSightings}" />
+                            <TextBlock Text="{Binding SightingsNote}" Classes="sHint"
+                                       IsVisible="{Binding SightingsNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <ItemsControl ItemsSource="{Binding Sightings}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:SightingRowViewModel">
+                                        <Grid ColumnDefinitions="*,Auto" Margin="0,4">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Site}" />
+                                                <TextBlock Text="{Binding Details}" Classes="sHint" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                                <Button Content="Block in profile" Command="{Binding AddCommand}" />
+                                                <Button Content="Forget" Command="{Binding ForgetCommand}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
-                        <Button Grid.Column="1" Content="Check again" Command="{Binding DetectColdTurkeyCommand}" VerticalAlignment="Top" />
-                    </Grid>
-                    <TextBlock Text="{Binding ColdTurkeyDetails}" Classes="muted" IsVisible="{Binding IsColdTurkeyInstalled}" />
-                    <!-- ADR 41: lost the spare key? A new one takes a reason and a 10-minute wait, and releases nothing. -->
-                    <Button Content="Get a new spare key…" Command="{Binding NewSpareKeyCommand}" HorizontalAlignment="Left"
-                            IsVisible="{Binding IsColdTurkeyInstalled}" />
-
-                    <TextBlock Text="Sites Cold Turkey was seen blocking" FontWeight="SemiBold" Margin="0,6,0,0" />
-                    <TextBlock Classes="muted"
-                               Text="Noted when Cold Turkey's block page shows up in a browser with the AccountabiliBuddy extension (see Setup)." />
-                    <TextBlock Text="Nothing seen yet." Classes="muted" IsVisible="{Binding HasNoSightings}" />
-                    <TextBlock Text="{Binding SightingsNote}" Classes="muted"
-                               IsVisible="{Binding SightingsNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                    <ItemsControl ItemsSource="{Binding Sightings}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:SightingRowViewModel">
-                                <Grid ColumnDefinitions="*,Auto" Margin="0,2">
-                                    <StackPanel>
-                                        <TextBlock Text="{Binding Site}" />
-                                        <TextBlock Text="{Binding Details}" FontSize="12" Opacity="0.7" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                                        <Button Content="Block in profile" Command="{Binding AddCommand}" />
-                                        <Button Content="Forget" Command="{Binding ForgetCommand}" />
-                                    </StackPanel>
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    </Border>
                 </StackPanel>
             </Border>
 
-            <!-- Calendars: the links and Google accounts the Plan page's month view shows (they were in the Calendar tab). -->
-            <Border Classes="card" DataContext="{Binding CalendarFeeds}" x:DataType="vm:CalendarFeedsViewModel"
-                    IsVisible="{Binding $parent[UserControl].((vm:IntegrationsViewModel)DataContext).CalendarFeeds, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="Calendars" Classes="title" />
-                    <TextBlock Classes="muted"
-                               Text="Read-only calendars (iCal links and Google accounts) plus this app's own. Their events show on the Plan page's month view, Change a day. Nothing is ever written to them." />
-                    <views:CalendarFeedsView />
-                </StackPanel>
-            </Border>
+            <!-- Calendars: the links and Google accounts the Plan page's month view shows. -->
+            <StackPanel Spacing="6" DataContext="{Binding CalendarFeeds}" x:DataType="vm:CalendarFeedsViewModel"
+                        IsVisible="{Binding $parent[UserControl].((vm:IntegrationsViewModel)DataContext).CalendarFeeds, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
+                <TextBlock Classes="sGroup" Text="Calendars" />
+                <Border Classes="sPanel">
+                    <StackPanel>
+                        <Border Classes="sRow">
+                            <TextBlock Classes="sHint"
+                                       Text="Read-only calendars (iCal links and Google accounts) plus this app's own. Their events show on the Plan page's month view, Change a day. Nothing is ever written to them." />
+                        </Border>
+                        <views:CalendarFeedsView />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
 
             <!-- Beeminder (ADR 43): read only, with the user's personal auth token. -->
-            <Border Classes="card" DataContext="{Binding Beeminder}" x:DataType="vm:BeeminderViewModel"
-                    IsVisible="{Binding $parent[UserControl].((vm:IntegrationsViewModel)DataContext).Beeminder, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="Beeminder" Classes="title" />
-                    <TextBlock Classes="muted"
-                               Text="Shows your Beeminder goals on Today (and on your phone's Today through this PC's sync file): what each needs, safe days and the deadline. Read only: nothing is ever sent to Beeminder. Get your personal auth token at beeminder.com/api/v1/auth_token.json while signed in, and paste the token (the text after &quot;auth_token&quot;) here. It's kept encrypted on this PC." />
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBox Text="{Binding TokenText}" PasswordChar="•" Width="320"
-                                 PlaceholderText="{Binding TokenPlaceholder}" />
-                        <Button Content="Save and test" Command="{Binding SaveCommand}" Classes="accent" />
+            <StackPanel Spacing="6" DataContext="{Binding Beeminder}" x:DataType="vm:BeeminderViewModel"
+                        IsVisible="{Binding $parent[UserControl].((vm:IntegrationsViewModel)DataContext).Beeminder, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
+                <TextBlock Classes="sGroup" Text="Beeminder" />
+                <Border Classes="sPanel">
+                    <StackPanel Margin="0,0,0,-1">
+                        <Border Classes="sRow">
+                            <TextBlock Classes="sHint"
+                                       Text="Shows your Beeminder goals on Today (and on your phone's Today through this PC's sync file): what each needs, safe days and the deadline. Read only: nothing is ever sent to Beeminder. Get your personal auth token at beeminder.com/api/v1/auth_token.json while signed in, and paste the token (the text after &quot;auth_token&quot;) here. It's kept encrypted on this PC." />
+                        </Border>
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Classes="sTitle" Text="Auth token" />
+                                    <TextBlock Classes="sHint" Text="Signed in to Beeminder, the page shows your personal auth token at once: copy the text after &quot;auth_token&quot;." />
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="Get my token (opens beeminder.com)" Click="OnGetBeeminderToken" VerticalAlignment="Top" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <TextBox Text="{Binding TokenText}" PasswordChar="•" PlaceholderText="{Binding TokenPlaceholder}" />
+                                <Button Grid.Column="1" Content="Save and test" Command="{Binding SaveCommand}" Classes="primary" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow" IsVisible="{Binding HasToken}">
+                            <WrapPanel ItemSpacing="8" LineSpacing="6">
+                                <Button Content="Test" Command="{Binding TestCommand}" />
+                                <Button Command="{Binding RefreshGoalsCommand}" ToolTip.Tip="{Binding RefreshTip}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <mi:MaterialIcon Kind="Refresh" Width="16" Height="16" />
+                                        <TextBlock Text="{Binding RefreshLabel}" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Content="Remove token" Command="{Binding RemoveCommand}" />
+                                <TextBlock Text="{Binding Status}" Classes="sHint" VerticalAlignment="Center" />
+                            </WrapPanel>
+                        </Border>
+                        <Border Classes="sRow" IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+                        </Border>
                     </StackPanel>
-                    <Button Content="Get my token (opens beeminder.com)" Click="OnGetBeeminderToken"
-                            ToolTip.Tip="Signed in to Beeminder, the page shows your personal auth token at once: copy the text after &quot;auth_token&quot;." />
-                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasToken}">
-                        <Button Content="Test" Command="{Binding TestCommand}" />
-                        <Button Command="{Binding RefreshGoalsCommand}" ToolTip.Tip="{Binding RefreshTip}">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <mi:MaterialIcon Kind="Refresh" Width="16" Height="16" />
-                                <TextBlock Text="{Binding RefreshLabel}" />
+                </Border>
+            </StackPanel>
+
+            <!-- The relay is set up with the other ways to sync. -->
+            <TextBlock Classes="sGroup" Text="Own relay" />
+            <Border Classes="sPanel">
+                <StackPanel Margin="0,0,0,-1">
+                    <Border Classes="sRow">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Classes="sTitle" Text="Your own sealed relay" />
+                                <TextBlock Classes="sHint" Text="A small relay you run, or one this PC runs for you, carries your sync files. Its address, pin and the relay on this PC are in Devices &amp; sync." />
                             </StackPanel>
-                        </Button>
-                        <Button Content="Remove token" Command="{Binding RemoveCommand}" />
-                        <TextBlock Text="{Binding Status}" Classes="muted" VerticalAlignment="Center" />
-                    </StackPanel>
-                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap"
-                               IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            <Button Grid.Column="1" Content="Open Devices &amp; sync" Command="{Binding OpenDevicesAndSyncCommand}" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
                 </StackPanel>
             </Border>
 
             <!-- Other blockers: status only -->
-            <Border Classes="card">
-                <StackPanel Spacing="8">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel Spacing="2">
-                            <TextBlock Text="Other blockers" Classes="title" />
-                            <TextBlock Classes="muted"
-                                       Text="Freedom and PluckEye, if installed. AccountabiliBuddy only notices them: their lists aren't read and their blocks aren't changed. Copy a list from one and use Import a list below." />
-                        </StackPanel>
-                        <Button Grid.Column="1" Content="Check again" Command="{Binding DetectOtherBlockersCommand}" VerticalAlignment="Top" />
-                    </Grid>
-                    <TextBlock Text="None found on this PC." Classes="muted" IsVisible="{Binding HasNoOtherBlockers}" />
-                    <ItemsControl ItemsSource="{Binding OtherBlockers}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="x:String">
-                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,2" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+            <TextBlock Classes="sGroup" Text="Other blockers" />
+            <Border Classes="sPanel">
+                <StackPanel Margin="0,0,0,-1">
+                    <Border Classes="sRow">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                            <StackPanel Spacing="4" VerticalAlignment="Center">
+                                <TextBlock Classes="sHint"
+                                           Text="Freedom and PluckEye, if installed. AccountabiliBuddy only notices them: their lists aren't read and their blocks aren't changed. Copy a list from one and use Import a list below." />
+                                <TextBlock Text="None found on this PC." Classes="sHint" IsVisible="{Binding HasNoOtherBlockers}" />
+                                <ItemsControl ItemsSource="{Binding OtherBlockers}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String">
+                                            <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,2" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Check again" Command="{Binding DetectOtherBlockersCommand}" VerticalAlignment="Top" />
+                        </Grid>
+                    </Border>
                 </StackPanel>
             </Border>
 
             <!-- Import -->
-            <Border Classes="card">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="Import a list" Classes="title" />
-                    <TextBlock Classes="muted"
-                               Text="Paste a list from Cold Turkey, LeechBlock, BlockSite or anywhere else: one site, address or app per line (e.g. reddit.com, *.tiktok.com, youtube.com/shorts, Discord.exe). Lines starting with # are ignored." />
-                    <TextBox Text="{Binding ImportText}" AcceptsReturn="True" TextWrapping="NoWrap"
-                             MinHeight="120" MaxHeight="260" FontFamily="Consolas,monospace" />
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <RadioButton Content="Block these" IsChecked="{Binding !ImportAsAllow}" GroupName="importVerdict" />
-                        <RadioButton Content="Allow these (exceptions)" IsChecked="{Binding ImportAsAllow}" GroupName="importVerdict" />
-                        <Button Content="Import" Command="{Binding ImportCommand}" Classes="accent" />
-                    </StackPanel>
+            <TextBlock Classes="sGroup" Text="Import a list" />
+            <Border Classes="sPanel">
+                <StackPanel Margin="0,0,0,-1">
+                    <Border Classes="sRow">
+                        <TextBlock Classes="sHint"
+                                   Text="Paste a list from Cold Turkey, LeechBlock, BlockSite or anywhere else: one site, address or app per line (e.g. reddit.com, *.tiktok.com, youtube.com/shorts, Discord.exe). Lines starting with # are ignored." />
+                    </Border>
+                    <Border Classes="sRow">
+                        <TextBox Text="{Binding ImportText}" AcceptsReturn="True" TextWrapping="NoWrap" MinHeight="120" MaxHeight="260" FontFamily="Consolas,monospace" />
+                    </Border>
+                    <Border Classes="sRow">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                            <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                                <RadioButton Content="Block these" IsChecked="{Binding !ImportAsAllow}" GroupName="importVerdict" />
+                                <RadioButton Content="Allow these (exceptions)" IsChecked="{Binding ImportAsAllow}" GroupName="importVerdict" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Import" Command="{Binding ImportCommand}" />
+                        </Grid>
+                    </Border>
                 </StackPanel>
             </Border>
 
-            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" Margin="4,0,0,0" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

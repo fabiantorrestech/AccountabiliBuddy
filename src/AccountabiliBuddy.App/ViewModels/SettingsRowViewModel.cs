@@ -6,11 +6,12 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>One row in the Settings list (e.g. "Sleep"); one row's content shows at a time.</summary>
 public sealed partial class SettingsRowViewModel : ObservableObject
 {
-    public SettingsRowViewModel(SettingsSection section, string name, MaterialIconKind icon, bool gapBefore = false)
+    public SettingsRowViewModel(SettingsSection section, string name, MaterialIconKind icon, string summary, bool gapBefore = false)
     {
         Section = section;
         Name = name;
         Icon = icon;
+        Summary = summary;
         GapBefore = gapBefore;
     }
 
@@ -22,6 +23,9 @@ public sealed partial class SettingsRowViewModel : ObservableObject
     public string Name { get; }
 
     public MaterialIconKind Icon { get; }
+
+    /// <summary>The Muted line under the page's title.</summary>
+    public string Summary { get; }
 
     /// <summary>A little air above it: the rows under the gap are App &amp; data, Setup and About.</summary>
     public bool GapBefore { get; }
