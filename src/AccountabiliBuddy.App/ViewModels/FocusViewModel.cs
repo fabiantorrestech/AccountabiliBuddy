@@ -191,11 +191,11 @@ public sealed partial class FocusViewModel : ObservableObject
     [ObservableProperty]
     public partial string TitleText { get; set; } = string.Empty;
 
-    /// <summary>"+10 min" is offered: a timed manual session that isn't a test (Pomodoro and "No set end" never show it).</summary>
+    /// <summary>"+10 min" shows: only while it can work (a timed manual focus phase, not away); hidden in a break, a side task, away, Pomodoro and "No set end".</summary>
     [ObservableProperty]
     public partial bool ShowsExtend { get; set; }
 
-    /// <summary>"+10 min" works right now (not while away; never in planning or a break).</summary>
+    /// <summary>"+10 min" works right now (the same as <see cref="ShowsExtend"/>; kept as the command's guard).</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ExtendFocusCommand))]
     public partial bool CanExtend { get; set; }
@@ -238,9 +238,21 @@ public sealed partial class FocusViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanExtend))]
     private void ExtendFocus()
     {
-        _sessions.ExtendFocus(ExtendBy);
+        // A guard: the button is hidden when this can't work, but the last second of a phase or the 12 h ceiling can still refuse it.
+        if (!_sessions.ExtendFocus(ExtendBy))
+        {
+            ExtendMessage = "Can't add time now";
+            _extendMessageAt = _sessions.Now;
+        }
+
         Refresh();
     }
+
+    /// <summary>A short muted line after a refused "+10 min"; empty otherwise.</summary>
+    [ObservableProperty]
+    public partial string ExtendMessage { get; set; } = string.Empty;
+
+    private DateTimeOffset _extendMessageAt;
 
     /// <summary>Someone at the desk or a call: the other flavour of Step away.</summary>
     [RelayCommand]
@@ -315,8 +327,11 @@ public sealed partial class FocusViewModel : ObservableObject
         FocusLengthText = state.IsPlanning && state.FocusLengthAfterPlanning is TimeSpan focusLength
             ? SessionStatusFormatter.FormatDuration(focusLength)
             : string.Empty;
-        ShowsExtend = state.OffersExtendFocus;
-        CanExtend = state.CanExtendFocus;
+        ShowsExtend = CanExtend = state.CanExtendFocus;
+        if (ExtendMessage.Length > 0 && now - _extendMessageAt > TimeSpan.FromSeconds(4))
+        {
+            ExtendMessage = string.Empty;
+        }
         RefreshTickHint();
 
         IsAway = state.IsAway;

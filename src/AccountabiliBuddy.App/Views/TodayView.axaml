@@ -40,6 +40,15 @@
         <SolidColorBrush x:Key="ExpanderContentBorderBrush" Color="Transparent" />
     </UserControl.Resources>
     <UserControl.Styles>
+        <!-- The main card's padding (40 / 48); tighter on a narrow page so its action row stays in view at 900x560. -->
+        <Style Selector="Border.mainCard">
+            <Setter Property="Padding" Value="48,40" />
+        </Style>
+        <ContainerQuery Name="TodayPage" Query="max-width:940">
+            <Style Selector="Border.mainCard">
+                <Setter Property="Padding" Value="28,20" />
+            </Style>
+        </ContainerQuery>
         <!-- A come-back's ✎ and "Add to tasks": small and flat, like the checklist's row buttons. -->
         <Style Selector="Button.comebackAction">
             <Setter Property="Padding" Value="6,0" />
@@ -112,7 +121,7 @@
                     <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource Ab.InfoInk}" TextWrapping="Wrap" />
                 </Border>
 
-                <Border Grid.Row="1" Classes="card" Padding="48,40">
+                <Border Grid.Row="1" Classes="card mainCard">
                     <Panel>
 
                         <!-- The shutdown card (redesign phase 5): once after the day's last work part. It takes the card's place. -->

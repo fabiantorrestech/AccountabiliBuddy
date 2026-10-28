@@ -14,10 +14,13 @@ namespace AccountabiliBuddy.App.ViewModels;
 public sealed partial class SeenWhilePlanningViewModel : ObservableObject
 {
     private readonly PlanFirstService _planFirst;
+    private readonly Func<string, string> _nameFor;
 
-    public SeenWhilePlanningViewModel(PlanFirstService planFirst)
+    /// <param name="nameFor">The name to show for an app or site: the one History shows (the user's own name for it), else the real one.</param>
+    public SeenWhilePlanningViewModel(PlanFirstService planFirst, Func<string, string> nameFor)
     {
         _planFirst = planFirst;
+        _nameFor = nameFor;
         Subjects = [];
         Summary = string.Empty;
         _planFirst.HeldUnknownsChanged += (_, _) => Refresh();
@@ -40,7 +43,7 @@ public sealed partial class SeenWhilePlanningViewModel : ObservableObject
     {
         // The list is read again each second while planning (Changed), but only replaced when it differs, so the chips don't rebuild.
         IReadOnlyList<ActivitySnapshot> held = _planFirst.InStage ? _planFirst.HeldUnknowns : [];
-        List<string> subjects = held.Select(EnforcementEngine.ClassificationSubject).ToList();
+        List<string> subjects = held.Select(snapshot => _nameFor(EnforcementEngine.ClassificationSubject(snapshot))).ToList();
         if (!subjects.SequenceEqual(Subjects))
         {
             Subjects = subjects;

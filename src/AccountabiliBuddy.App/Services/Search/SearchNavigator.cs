@@ -63,7 +63,7 @@ public sealed class SearchNavigator
         }
 
         // Words inside a flyout: it opens on the button that holds it, once the page is showing.
-        if (target.Flyout is FlyoutBase flyout && target.Control is Control owner)
+        if (target.Flyout is FlyoutBase flyout && target.Control is Control { IsEffectivelyVisible: true } owner)
         {
             Dispatcher.UIThread.Post(() => flyout.ShowAt(owner), DispatcherPriority.Background);
         }

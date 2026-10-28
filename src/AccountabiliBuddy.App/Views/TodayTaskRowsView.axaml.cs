@@ -96,6 +96,15 @@ public partial class TodayTaskRowsView : UserControl
         }
     }
 
+    // Escape in the name box: the rename is dropped (the flyout closes by itself, and what is left to save is nothing).
+    private void OnNameKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && sender is TextBox { DataContext: TaskRowViewModel row })
+        {
+            row.CancelEditCommand.Execute(null);
+        }
+    }
+
     // Enter in a row's "Add a step" box: adds the step, and the flyout comes back once the rows are rebuilt.
     private void OnNewStepKeyDown(object? sender, KeyEventArgs e)
     {

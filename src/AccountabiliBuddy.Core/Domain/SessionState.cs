@@ -70,9 +70,6 @@ public sealed record SessionState(
     /// </summary>
     public bool CanExtendFocus => IsRealSession && Mode == SessionMode.Manual && Phase == SessionPhase.Focus && !IsAway && PhaseEndsAt is not null;
 
-    /// <summary>"+10 min" is offered at all: a timed manual session that is not a test (it may still be refused for now, e.g. while away).</summary>
-    public bool OffersExtendFocus => IsRealSession && Mode == SessionMode.Manual && HasSetEnd;
-
     /// <summary>
     /// True while enforcement holds as it was (a break or an interruption with no input seen yet): nothing new is judged and
     /// nothing blocked is lifted. From the first input (<see cref="AwayAtDesk"/>) and through a side task, enforcement runs

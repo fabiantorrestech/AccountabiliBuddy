@@ -129,7 +129,7 @@
                             <Button.Flyout>
                                 <Flyout Placement="BottomEdgeAlignedLeft" Opened="OnEditFlyoutOpened" Closed="OnEditFlyoutClosed">
                                     <StackPanel Spacing="10" Width="360">
-                                        <TextBox Text="{Binding EditTitle}" PlaceholderText="Task" AutomationProperties.Name="Task name">
+                                        <TextBox Text="{Binding EditTitle}" PlaceholderText="Task" AutomationProperties.Name="Task name" KeyDown="OnNameKeyDown">
                                             <TextBox.KeyBindings>
                                                 <KeyBinding Gesture="Enter" Command="{Binding SaveEditCommand}" />
                                             </TextBox.KeyBindings>

@@ -10,6 +10,7 @@ namespace AccountabiliBuddy.App.Views;
 public partial class TodayView : UserControl
 {
     private SessionViewModel? _subscribed;
+    private TodayCardState? _shownState;
 
     public TodayView()
     {
@@ -25,6 +26,7 @@ public partial class TodayView : UserControl
         }
 
         _subscribed = DataContext as SessionViewModel;
+        _shownState = _subscribed?.CardState;
         if (_subscribed is not null)
         {
             _subscribed.PropertyChanged += OnSessionPropertyChanged;
@@ -35,8 +37,10 @@ public partial class TodayView : UserControl
     // by the old scroll offset. After layout, once the new extent is known.
     private void OnSessionPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(SessionViewModel.CardState))
+        // Only a real change of state (the property is also raised when something else changed under the same state).
+        if (e.PropertyName == nameof(SessionViewModel.CardState) && sender is SessionViewModel session && session.CardState != _shownState)
         {
+            _shownState = session.CardState;
             Dispatcher.UIThread.Post(() => PageScroll.ScrollToHome(), DispatcherPriority.Background);
         }
     }

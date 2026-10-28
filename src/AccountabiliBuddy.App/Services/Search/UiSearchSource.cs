@@ -89,12 +89,30 @@ public static class UiSearchSource
 
         if (flyout is Flyout { Content: Control content })
         {
-            foreach (Control control in new[] { content }.Concat(content.GetLogicalDescendants().OfType<Control>()))
+            foreach (Control control in ShownControls(content))
             {
                 if (TextOf(control) is string text)
                 {
                     yield return text;
                 }
+            }
+        }
+    }
+
+    /// <summary>The control and its descendants, leaving out hidden ones and the subtrees marked <see cref="SearchArea.SkipProperty"/>.</summary>
+    private static IEnumerable<Control> ShownControls(Control root)
+    {
+        if (!root.IsVisible || SearchArea.GetSkip(root))
+        {
+            yield break;
+        }
+
+        yield return root;
+        foreach (Control child in root.GetLogicalChildren().OfType<Control>())
+        {
+            foreach (Control shown in ShownControls(child))
+            {
+                yield return shown;
             }
         }
     }
