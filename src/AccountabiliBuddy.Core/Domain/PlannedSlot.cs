@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace AccountabiliBuddy.Core.Domain;
 
 /// <summary>
@@ -11,9 +13,11 @@ namespace AccountabiliBuddy.Core.Domain;
 public sealed record PlannedSlot(DateOnly Date, Guid PartId, TimeOnly Start)
 {
     /// <summary>The moment the part starts, as a local wall-clock time.</summary>
+    [JsonIgnore]
     public DateTime StartsAt => Date.ToDateTime(Start);
 
     /// <summary>The slot as one string, in the form the phone's Kotlin twin builds from the sync file's text, for a merge tie-break (never shown or logged).</summary>
+    [JsonIgnore]
     public string TieText => string.Join(
         "\u0003",
         Date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
