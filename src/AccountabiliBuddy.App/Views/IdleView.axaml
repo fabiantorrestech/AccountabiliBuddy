@@ -1,0 +1,115 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             xmlns:search="using:AccountabiliBuddy.App.Services.Search"
+             x:Class="AccountabiliBuddy.App.Views.IdleView"
+             x:DataType="vm:SessionViewModel">
+    <!-- Today's main card while nothing runs, in the card's one frame: the headline and the next block, the next session's tasks as
+         numbered rows (the add row stands in as the next number), and the action row at the bottom: Start, "Other ways to start"
+         (Quick Start with Default, Pomodoro, No set end, and the profile / length / break options in a flyout) and the length as
+         a numeral that opens the length picker. Search reads the words inside both flyouts (search:SearchArea.IndexesFlyout). -->
+    <UserControl.Styles>
+        <!-- A tail (what comes next, the length) sits at the right of its action row; the narrow page's rule below puts it under. -->
+        <Style Selector=":is(Control).tail">
+            <Setter Property="Grid.Column" Value="1" />
+            <Setter Property="Margin" Value="16,0,0,0" />
+        </Style>
+        <Style Selector="TextBlock.headline">
+            <Setter Property="FontSize" Value="34" />
+            <Setter Property="LineHeight" Value="42" />
+        </Style>
+        <ContainerQuery Name="TodayPage" Query="max-width:940">
+            <Style Selector="TextBlock.headline">
+                <Setter Property="FontSize" Value="26" />
+                <Setter Property="LineHeight" Value="34" />
+            </Style>
+            <!-- The action rows are a wrapping group of buttons and a tail (what comes next, the length): on a narrow page the tail goes under. -->
+            <Style Selector="Button.pill">
+                <Setter Property="Padding" Value="16,14" />
+            </Style>
+            <Style Selector="Button.primary.pill">
+                <Setter Property="Padding" Value="22,14" />
+            </Style>
+            <Style Selector=":is(Control).tail">
+                <Setter Property="Grid.Row" Value="1" />
+                <Setter Property="Grid.Column" Value="0" />
+                <Setter Property="Grid.ColumnSpan" Value="2" />
+                <Setter Property="HorizontalAlignment" Value="Left" />
+                <Setter Property="Margin" Value="0,10,0,0" />
+            </Style>
+        </ContainerQuery>
+    </UserControl.Styles>
+    <Grid RowDefinitions="*,Auto">
+
+        <StackPanel Spacing="22">
+            <StackPanel Spacing="4">
+                <TextBlock Classes="display headline" Text="Nothing running." Padding="0,0,0,10" Margin="0,0,0,-10" TextWrapping="Wrap" />
+                <!-- The day bar's status: "Deep work at 3:00 PM." -->
+                <TextBlock Classes="display muted" FontSize="20" TextWrapping="Wrap" Text="{Binding IdleNextText}"
+                           IsVisible="{Binding IdleNextText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+            <Panel IsVisible="{Binding QuickStart.Checklist, Converter={x:Static ObjectConverters.IsNotNull}}" MaxWidth="640" HorizontalAlignment="Left">
+                <views:TodayTaskRowsView DataContext="{Binding QuickStart.Checklist}" />
+            </Panel>
+            <TextBlock Classes="faint" Text="{Binding HotkeyTip}" FontSize="12" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- The action row, pinned to the card's bottom: Start and the other ways wrap; the length numeral is the tail. -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="0,28,0,0">
+          <WrapPanel ItemSpacing="12" LineSpacing="8" VerticalAlignment="Center">
+            <Button Classes="primary pill" Content="{Binding QuickStart.StartLabel}" Command="{Binding QuickStart.StartCommand}"
+                    AutomationProperties.Name="Start" />
+            <Button x:Name="OtherWaysButton" Classes="quiet pill" AutomationProperties.Name="Other ways to start"
+                    search:SearchArea.IndexesFlyout="True">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="Other ways to start" />
+                    <mi:MaterialIcon Kind="ChevronDown" Width="16" Height="16" VerticalAlignment="Center" />
+                </StackPanel>
+                <Button.Flyout>
+                    <MenuFlyout Placement="TopEdgeAlignedLeft">
+                        <MenuItem Header="Quick Start with Default" Command="{Binding QuickStart.QuickStartDefaultCommand}"
+                                  ToolTip.Tip="Starts your default profile (Settings) for the length shown; the on-screen bar counts down." />
+                        <MenuItem Header="Pomodoro…" Click="OnPomodoroClick" ToolTip.Tip="Focus cycles with breaks, from the Pomodoro lengths in Settings" />
+                        <MenuItem Header="No set end" Command="{Binding QuickStart.StartOpenEndedCommand}"
+                                  ToolTip.Tip="Starts the profile picked under Profile, length, break with no set end and no countdown. The on-screen bar fills each hour and glows every 30 minutes with how long you've been at it; hold Ctrl+Alt to see it any time." />
+                        <MenuItem Header="Profile, length, break…" Click="OnOptionsClick" ToolTip.Tip="The profile, the length, an optional break and a test session" />
+                    </MenuFlyout>
+                </Button.Flyout>
+                <FlyoutBase.AttachedFlyout>
+                    <Flyout Placement="TopEdgeAlignedLeft">
+                        <StackPanel Spacing="6" Width="300">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <mi:MaterialIcon Kind="TimerOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                <TextBlock Text="Pomodoro" FontWeight="SemiBold" />
+                            </StackPanel>
+                            <TextBlock Classes="muted" Text="{Binding PomodoroSummary}" FontSize="13" TextWrapping="Wrap" />
+                            <TextBlock Classes="muted" Text="Focus cycles (blank = until you stop it)" FontSize="13" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBox Text="{Binding PomodoroCycles}" Width="90" />
+                                <Button Content="Start Pomodoro" Command="{Binding StartPomodoroCommand}" />
+                            </StackPanel>
+                            <TextBlock Classes="faint" FontSize="12" TextWrapping="Wrap"
+                                       Text="Uses the profile picked under Profile, length, break. Pomodoro lengths are set in Settings." />
+                        </StackPanel>
+                    </Flyout>
+                </FlyoutBase.AttachedFlyout>
+            </Button>
+          </WrapPanel>
+
+            <!-- The length of the next session as a numeral; it opens the length picker (and the profile and break under it). -->
+            <Button x:Name="LengthButton" Classes="quiet tail" Padding="12,4" AutomationProperties.Name="Focus length"
+                    ToolTip.Tip="Choose the length of the session" search:SearchArea.IndexesFlyout="True">
+                <TextBlock Classes="numeral muted" FontSize="32" Text="{Binding QuickStart.FocusLengthNumeral}" />
+                <Button.Flyout>
+                    <Flyout Placement="TopEdgeAlignedRight" Opening="OnOptionsOpening">
+                        <Panel Width="380">
+                            <views:QuickStartPanel DataContext="{Binding QuickStart}" ShowsTasks="False" ShowsStartRow="False" IsOptionsOnly="True" />
+                        </Panel>
+                    </Flyout>
+                </Button.Flyout>
+            </Button>
+        </Grid>
+    </Grid>
+</UserControl>

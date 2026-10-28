@@ -158,7 +158,42 @@ public sealed partial class SessionViewModel : ObservableObject
     public TimerToggleViewModel? TimerToggle { get; init; }
 
     /// <summary>Today's plan, for the "next scheduled" line.</summary>
-    public DayBarViewModel? Day { get; init; }
+    public DayBarViewModel? Day
+    {
+        get => _day;
+        init
+        {
+            _day = value;
+            if (_day is not null)
+            {
+                _day.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(DayBarViewModel.StatusText))
+                    {
+                        OnPropertyChanged(nameof(IdleNextText));
+                    }
+                };
+            }
+        }
+    }
+
+    private readonly DayBarViewModel? _day;
+
+    /// <summary>The line under "Nothing running.": the next block as the day bar's status says it, e.g. "Deep work at 3:00 PM."; empty without one.</summary>
+    public string IdleNextText
+    {
+        get
+        {
+            string text = Day?.StatusText ?? string.Empty;
+            const string next = "Next: ";
+            if (text.StartsWith(next, StringComparison.Ordinal))
+            {
+                text = text[next.Length..];
+            }
+
+            return text.Length == 0 || text.EndsWith('.') ? text : text + ".";
+        }
+    }
 
     /// <summary>Today's "Next up" card: the next two plan parts (set by the app).</summary>
     public NextUpViewModel? NextUp { get; set; }

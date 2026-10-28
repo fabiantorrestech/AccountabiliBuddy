@@ -1,5 +1,6 @@
 using System.Globalization;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.LogicalTree;
 
 namespace AccountabiliBuddy.App.Services.Search;
@@ -34,9 +35,68 @@ public static class UiSearchSource
                 string kind = tab == SearchTabs.Settings ? SearchKinds.Setting : SearchKinds.App;
                 entries.Add(new SearchEntry(text, path, kind, new SearchTarget(tab, SettingsGroup: group, Control: control)));
             }
+
+            // Words in the flyouts of buttons that opt in: not on the page until opened, so read from the flyout's own content.
+            foreach (Control button in page.GetLogicalDescendants().OfType<Control>().Where(SearchArea.GetIndexesFlyout))
+            {
+                (string path, int? group) = PlaceOf(button, page, tabName);
+                string kind = tab == SearchTabs.Settings ? SearchKinds.Setting : SearchKinds.App;
+                foreach (FlyoutBase flyout in FlyoutsOf(button))
+                {
+                    foreach (string text in FlyoutTexts(flyout))
+                    {
+                        if (seen.Add((text, path)))
+                        {
+                            entries.Add(new SearchEntry(text, path, kind, new SearchTarget(tab, SettingsGroup: group, Control: button, Flyout: flyout)));
+                        }
+                    }
+                }
+            }
         }
 
         return entries;
+    }
+
+    /// <summary>The flyouts a button opens: its own and its attached one.</summary>
+    private static IEnumerable<FlyoutBase> FlyoutsOf(Control button)
+    {
+        if (button is Button { Flyout: { } own })
+        {
+            yield return own;
+        }
+
+        if (FlyoutBase.GetAttachedFlyout(button) is { } attached)
+        {
+            yield return attached;
+        }
+    }
+
+    /// <summary>The words in a flyout: a menu's item names, or the texts of its content (as a page's are read).</summary>
+    private static IEnumerable<string> FlyoutTexts(FlyoutBase flyout)
+    {
+        if (flyout is MenuFlyout menu)
+        {
+            foreach (MenuItem item in menu.Items.OfType<MenuItem>())
+            {
+                if (item.Header is string header && !string.IsNullOrWhiteSpace(header))
+                {
+                    yield return header.Trim();
+                }
+            }
+
+            yield break;
+        }
+
+        if (flyout is Flyout { Content: Control content })
+        {
+            foreach (Control control in new[] { content }.Concat(content.GetLogicalDescendants().OfType<Control>()))
+            {
+                if (TextOf(control) is string text)
+                {
+                    yield return text;
+                }
+            }
+        }
     }
 
     /// <summary>The words a control shows by itself; null for none, input boxes and plain numbers.</summary>
@@ -47,6 +107,7 @@ public static class UiSearchSource
             TextBox => null,
             TextBlock textBlock => textBlock.Text,
             ContentControl { Content: string content } => content,
+            HeaderedContentControl { Header: string header } => header,
             _ => null,
         };
         if (string.IsNullOrWhiteSpace(text))

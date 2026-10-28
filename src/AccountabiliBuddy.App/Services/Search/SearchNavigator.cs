@@ -1,3 +1,7 @@
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Threading;
+
 namespace AccountabiliBuddy.App.Services.Search;
 
 /// <summary>
@@ -56,6 +60,12 @@ public sealed class SearchNavigator
         if (target.Control is not null)
         {
             _reveal(target.Control);
+        }
+
+        // Words inside a flyout: it opens on the button that holds it, once the page is showing.
+        if (target.Flyout is FlyoutBase flyout && target.Control is Control owner)
+        {
+            Dispatcher.UIThread.Post(() => flyout.ShowAt(owner), DispatcherPriority.Background);
         }
     }
 }

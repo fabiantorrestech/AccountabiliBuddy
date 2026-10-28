@@ -161,6 +161,9 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
 
     public string FocusLabel => FormatMinutes(DisplayMinutes);
 
+    /// <summary>The length as a clock numeral, "50:00" ("1:30:00" from an hour): Today's idle row shows it, and it opens the length picker.</summary>
+    public string FocusLengthNumeral => SessionStatusFormatter.FormatDuration(TimeSpan.FromMinutes(DisplayMinutes));
+
     public string BreakLabel => $"{WholeBreakMinutes} min";
 
     public double BreakLabelOpacity => BreakEnabled ? 1.0 : 0.45;
@@ -410,6 +413,7 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
         OnPropertyChanged(nameof(IsUntilMode));
         OnPropertyChanged(nameof(SliderMinutes));
         OnPropertyChanged(nameof(FocusLabel));
+        OnPropertyChanged(nameof(FocusLengthNumeral));
         OnPropertyChanged(nameof(StartLabel));
         OnPropertyChanged(nameof(EndTimeText));
         StartCommand.NotifyCanExecuteChanged();

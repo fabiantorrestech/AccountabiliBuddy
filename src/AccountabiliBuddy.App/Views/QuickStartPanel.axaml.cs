@@ -19,6 +19,18 @@ public partial class QuickStartPanel : UserControl
     public static readonly StyledProperty<bool> ShowsOpenEndedProperty =
         AvaloniaProperty.Register<QuickStartPanel, bool>(nameof(ShowsOpenEnded), true);
 
+    /// <summary>Whether the tasks show in the panel; Today keeps them in its own numbered rows and turns this off.</summary>
+    public static readonly StyledProperty<bool> ShowsTasksProperty =
+        AvaloniaProperty.Register<QuickStartPanel, bool>(nameof(ShowsTasks), true);
+
+    /// <summary>Whether the Start and Quick Start buttons show; Today has them in its action row and turns this off.</summary>
+    public static readonly StyledProperty<bool> ShowsStartRowProperty =
+        AvaloniaProperty.Register<QuickStartPanel, bool>(nameof(ShowsStartRow), true);
+
+    /// <summary>Only the options (profile, length, break, test session), with no fold header: what Today's flyout shows.</summary>
+    public static readonly StyledProperty<bool> IsOptionsOnlyProperty =
+        AvaloniaProperty.Register<QuickStartPanel, bool>(nameof(IsOptionsOnly));
+
     private QuickSessionViewModel? _subscribed;
 
     public QuickStartPanel()
@@ -38,6 +50,24 @@ public partial class QuickStartPanel : UserControl
     {
         get => GetValue(ShowsOpenEndedProperty);
         set => SetValue(ShowsOpenEndedProperty, value);
+    }
+
+    public bool ShowsTasks
+    {
+        get => GetValue(ShowsTasksProperty);
+        set => SetValue(ShowsTasksProperty, value);
+    }
+
+    public bool ShowsStartRow
+    {
+        get => GetValue(ShowsStartRowProperty);
+        set => SetValue(ShowsStartRowProperty, value);
+    }
+
+    public bool IsOptionsOnly
+    {
+        get => GetValue(IsOptionsOnlyProperty);
+        set => SetValue(IsOptionsOnlyProperty, value);
     }
 
     /// <summary>True while the profile list is open (it opens in its own popup window).</summary>
