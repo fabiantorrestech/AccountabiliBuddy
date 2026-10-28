@@ -604,35 +604,37 @@ public sealed class SessionTasksService : IDisposable
     /// (and <paramref name="dueOn"/>), a new item with a new id. During a session it counts as taken off open
     /// (<see cref="SessionChecklist.DroppedOpen"/>, ADR 25), like parking it. A done task, or an unknown one, stays.
     /// </summary>
-    public async Task MoveToLaterAsync(Guid taskId, DateOnly? dueOn = null)
+    /// <returns>The id of the new Later item; null when nothing moved.</returns>
+    public async Task<Guid?> MoveToLaterAsync(Guid taskId, DateOnly? dueOn = null)
     {
         SessionTask? task = Labelled(Current).FirstOrDefault(candidate => candidate.Id == taskId);
         if (Later is null || task is null || task.IsDone)
         {
-            return;
+            return null;
         }
 
         IReadOnlyList<SessionSubtask> openSteps = task.Subtasks.Where(step => !step.IsDone).ToList();
-        await Later.AddAsync(task.Title, openSteps, task.Category, task.CategoryColor, task.EstimateMinutes, task.Note, dueOn, task.PlannedFor);
+        SyncLaterItem? item = await Later.AddAsync(task.Title, openSteps, task.Category, task.CategoryColor, task.EstimateMinutes, task.Note, dueOn, task.PlannedFor);
         await SetAsync(Current.Parked(taskId));
+        return item?.Id;
     }
 
     /// <summary>
     /// "Move to this session": a Later item becomes a task at the end of the checklist and leaves the Later list. Refused
     /// (with the reason) when the checklist already holds <see cref="TaskAllowance"/> tasks, as adding one is: a 4th task is
-    /// never added this way. Null when it moved.
+    /// never added this way. The new task's id when it moved.
     /// </summary>
-    public async Task<string?> MoveFromLaterAsync(Guid laterId)
+    public async Task<(Guid? TaskId, string? Error)> MoveFromLaterAsync(Guid laterId)
     {
         SyncLaterItem? item = Later?.Items.FirstOrDefault(candidate => candidate.Id == laterId);
         if (Later is null || item is null)
         {
-            return "That item is no longer on the Later list.";
+            return (null, "That item is no longer on the Later list.");
         }
 
         if (!_sessions.State.IsTest && Current.Tasks.Count >= TaskAllowance)
         {
-            return $"This session already has {TaskAllowance} tasks.";
+            return (null, $"This session already has {TaskAllowance} tasks.");
         }
 
         Guid? categoryId = item.Category is string name
@@ -642,7 +644,7 @@ public sealed class SessionTasksService : IDisposable
             Guid.NewGuid(), item.Title, null, item.Subtasks ?? [], categoryId, EstimateMinutes: item.EstimateMinutes, Note: item.Note);
         await Later.DeleteAsync(laterId);
         await SetAsync(Current.AddTask(task));
-        return null;
+        return (task.Id, null);
     }
 
     /// <summary>The open tasks of ended sessions (newest session first), for the Tasks page's "Unfinished from past sessions".</summary>

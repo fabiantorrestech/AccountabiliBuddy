@@ -271,8 +271,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public HistoryViewModel History { get; }
 
-    /// <summary>The Notebook, shown on the Tasks page; set by the app.</summary>
-    public NotebookViewModel? Notebook { get; init; }
+    /// <summary>The Tasks page; set by the app.</summary>
+    public TasksViewModel? Tasks { get; init; }
 
     /// <summary>
     /// The top-right refresh: syncs now by every method that's on, reads calendars again and reloads the day bar and
