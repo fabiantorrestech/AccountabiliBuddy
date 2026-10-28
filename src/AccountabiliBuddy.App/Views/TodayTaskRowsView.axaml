@@ -1,0 +1,331 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="AccountabiliBuddy.App.Views.TodayTaskRowsView"
+             x:DataType="vm:ChecklistViewModel">
+    <!-- The session's tasks as Today shows them (planning, idle and the running "All tasks" fold): numbered Surface2 rows, then the
+         add row standing in as the next number. A click opens the row's flyout (rename, steps, category, park, move, remove); the
+         ⠿ handle at its left drags it. Ticking the first task during planning begins the focus like "I'm ready". The same
+         commands as the checklist's own rows; the checklist itself stays in the quick-session popup and the on-screen window. -->
+    <UserControl.Styles>
+        <Style Selector="Button.taskRow">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="54" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.taskRow /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="CornerRadius" Value="20" />
+        </Style>
+        <Style Selector="Button.taskRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.taskRow:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <!-- The drag handle: shows on the row under the pointer, like the checklist's. -->
+        <Style Selector="Border.dragHandle">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Cursor" Value="SizeNorthSouth" />
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Opacity" Value="0" />
+        </Style>
+        <Style Selector="Grid.row:pointerover Border.dragHandle">
+            <Setter Property="Opacity" Value="0.6" />
+        </Style>
+        <Style Selector="Border.dropLine">
+            <Setter Property="Height" Value="2" />
+            <Setter Property="CornerRadius" Value="1" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+        <!-- The add row: an empty slot that takes the typing; the 1.5px accent border is its focus ring. -->
+        <Style Selector="Border.addRow">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="CornerRadius" Value="20" />
+            <Setter Property="MinHeight" Value="54" />
+        </Style>
+        <Style Selector="Border.addRow:focus-within">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="TextBox.rowEntry">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBox.rowEntry /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+        <Style Selector="TextBox.rowEntry:pointerover /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="TextBox.rowEntry:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+        <Style Selector="Button.small">
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="MinHeight" Value="22" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="TextBlock.stepDone">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="TextDecorations" Value="Strikethrough" />
+        </Style>
+    </UserControl.Styles>
+    <UserControl.Resources>
+        <!-- A category menu's entries (the add row's dot). -->
+        <ControlTheme x:Key="CategoryMenuItem" TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"
+                      x:DataType="vm:TaskCategoryChoiceViewModel">
+            <Setter Property="Command" Value="{Binding PickCommand}" />
+        </ControlTheme>
+        <DataTemplate x:Key="CategoryChoiceTemplate" x:DataType="vm:TaskCategoryChoiceViewModel">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Ellipse Width="10" Height="10" Fill="{Binding Brush}" Stroke="#80808080" StrokeThickness="1" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                <TextBlock Text="✓" IsVisible="{Binding IsSelected}" VerticalAlignment="Center" />
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+    <StackPanel Spacing="8">
+
+        <!-- The open tasks, numbered in the order they run. -->
+        <ItemsControl ItemsSource="{Binding OpenTasks}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Spacing="8" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:TaskRowViewModel">
+                    <Panel Classes="taskItem">
+                        <Button Classes="taskRow" AutomationProperties.Name="{Binding Title}" ToolTip.Tip="Click to rename it, add steps or move it">
+                            <Grid Classes="row" ColumnDefinitions="Auto,32,*,Auto,Auto" ColumnSpacing="4" Margin="8,0,20,0" MinHeight="52">
+                                <Border Classes="dragHandle" ToolTip.Tip="Drag to move" AutomationProperties.Name="Drag to move"
+                                        PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
+                                        PointerCaptureLost="OnHandleCaptureLost">
+                                    <TextBlock Text="⠿" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="{Binding Title}" FontSize="16" FontWeight="Normal" TextWrapping="Wrap" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource Ab.Ink}" />
+                                <TextBlock Grid.Column="3" Classes="muted" Text="{Binding StepsText}" FontSize="13" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                <!-- Live mode only (planning, running): ticking the first task during planning begins the focus, like "I'm ready". -->
+                                <CheckBox Grid.Column="4" IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="12,0,0,0" VerticalAlignment="Center"
+                                          AutomationProperties.Name="Done"
+                                          IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanTick}" />
+                            </Grid>
+                            <Button.Flyout>
+                                <Flyout Placement="BottomEdgeAlignedLeft" Opened="OnEditFlyoutOpened" Closed="OnEditFlyoutClosed">
+                                    <StackPanel Spacing="10" Width="360">
+                                        <TextBox Text="{Binding EditTitle}" PlaceholderText="Task" AutomationProperties.Name="Task name">
+                                            <TextBox.KeyBindings>
+                                                <KeyBinding Gesture="Enter" Command="{Binding SaveEditCommand}" />
+                                            </TextBox.KeyBindings>
+                                        </TextBox>
+
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Classes="section" Text="Steps" />
+                                            <ItemsControl ItemsSource="{Binding Subtasks}" IsVisible="{Binding HasSubtasks}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:SubtaskRowViewModel">
+                                                        <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,1">
+                                                            <Button Classes="small" Command="{Binding BeginEditCommand}" IsVisible="{Binding !IsEditing}"
+                                                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" AutomationProperties.Name="{Binding Title}"
+                                                                    ToolTip.Tip="Click to rename this step">
+                                                                <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                                                            </Button>
+                                                            <TextBox Classes="taskEntry" Text="{Binding EditTitle}" IsVisible="{Binding IsEditing}"
+                                                                     PropertyChanged="OnRenameBoxPropertyChanged" LostFocus="OnRenameBoxLostFocus">
+                                                                <TextBox.KeyBindings>
+                                                                    <KeyBinding Gesture="Enter" Command="{Binding SaveEditCommand}" />
+                                                                    <KeyBinding Gesture="Escape" Command="{Binding CancelEditCommand}" />
+                                                                </TextBox.KeyBindings>
+                                                            </TextBox>
+                                                            <Button Grid.Column="1" Classes="small" Content="↑" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up" />
+                                                            <Button Grid.Column="2" Classes="small" Content="↓" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down" />
+                                                            <Button Grid.Column="3" Classes="small" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this step" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <TextBox Text="{Binding NewSubtaskTitle}" PlaceholderText="Add a step (Enter)" AutomationProperties.Name="New step"
+                                                     KeyDown="OnNewStepKeyDown" />
+                                        </StackPanel>
+
+                                        <StackPanel Spacing="4" IsVisible="{Binding HasCategoryChoices}">
+                                            <TextBlock Classes="section" Text="Category" />
+                                            <ItemsControl ItemsSource="{Binding CategoryChoices}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel ItemSpacing="4" LineSpacing="4" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:TaskCategoryChoiceViewModel">
+                                                        <Button Classes="quiet" Command="{Binding PickCommand}" Padding="8,4">
+                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                <Ellipse Width="10" Height="10" Fill="{Binding Brush}" Stroke="#80808080" StrokeThickness="1" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding Name}" FontSize="13" VerticalAlignment="Center" />
+                                                                <TextBlock Text="✓" FontSize="13" IsVisible="{Binding IsSelected}" VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+
+                                        <WrapPanel ItemSpacing="4" LineSpacing="4">
+                                            <Button Classes="quiet" Command="{Binding MoveUpCommand}" Padding="8,4" ToolTip.Tip="Move this task up">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <mi:MaterialIcon Kind="ArrowUp" Width="16" Height="16" />
+                                                    <TextBlock Text="Up" FontSize="13" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Classes="quiet" Command="{Binding MoveDownCommand}" Padding="8,4" ToolTip.Tip="Move this task down">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <mi:MaterialIcon Kind="ArrowDown" Width="16" Height="16" />
+                                                    <TextBlock Text="Down" FontSize="13" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Classes="quiet" Command="{Binding PickCommand}" Padding="8,4"
+                                                    ToolTip.Tip="Show this on the on-screen bar (do it again: back to the first open task)">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <mi:MaterialIcon Kind="PinOutline" Width="16" Height="16" />
+                                                    <TextBlock Text="Show on bar" FontSize="13" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Classes="quiet" Command="{Binding ParkCommand}" IsVisible="{Binding CanPark}" Padding="8,4"
+                                                    ToolTip.Tip="Park: it leaves the checklist and waits under Come back to" AutomationProperties.Name="Park">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <mi:MaterialIcon Kind="FlagOutline" Width="16" Height="16" />
+                                                    <TextBlock Text="Park" FontSize="13" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Classes="quiet" Command="{Binding RemoveCommand}" Padding="8,4" ToolTip.Tip="Remove this task" AutomationProperties.Name="Remove">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <mi:MaterialIcon Kind="DeleteOutline" Width="16" Height="16" />
+                                                    <TextBlock Text="Remove" FontSize="13" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
+                        <Border Classes="dropLine" VerticalAlignment="Top" IsVisible="{Binding IsDropAbove}" />
+                        <Border Classes="dropLine" VerticalAlignment="Bottom" IsVisible="{Binding IsDropBelow}" />
+                    </Panel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- The next empty row: numbered like the others, an input. Enter adds it; the dot picks its category, the tag opens the categories. -->
+        <Border Classes="addRow" IsVisible="{Binding CanEdit}">
+            <Grid ColumnDefinitions="Auto,32,*,Auto,Auto" ColumnSpacing="4" Margin="8,0,12,0">
+                <Panel Width="18" />
+                <TextBlock Grid.Column="1" Classes="display muted" Text="{Binding AddRowNumber}" FontSize="16" VerticalAlignment="Center" />
+                <TextBox Grid.Column="2" x:Name="NewTaskBox" Classes="rowEntry" Text="{Binding NewTaskTitle}" PlaceholderText="{Binding AddPlaceholderText}"
+                         AutomationProperties.Name="Add a task">
+                    <TextBox.KeyBindings>
+                        <KeyBinding Gesture="Enter" Command="{Binding AddTaskCommand}" />
+                    </TextBox.KeyBindings>
+                </TextBox>
+                <Button Grid.Column="3" Classes="small" Padding="4,0" ToolTip.Tip="{Binding NewTaskCategoryTip}"
+                        AutomationProperties.Name="Category for new tasks" IsVisible="{Binding HasCategories}">
+                    <Ellipse Width="12" Height="12" Fill="{Binding NewTaskCategoryBrush}" Stroke="#80808080" StrokeThickness="1" />
+                    <Button.Flyout>
+                        <!-- Items are rebuilt each time it opens (OnNewTaskPickerOpening); a long-lived flyout whose ItemsSource is replaced kept the stale item set. -->
+                        <MenuFlyout Opening="OnNewTaskPickerOpening" ItemContainerTheme="{StaticResource CategoryMenuItem}"
+                                    ItemTemplate="{StaticResource CategoryChoiceTemplate}" />
+                    </Button.Flyout>
+                </Button>
+                <Button Grid.Column="4" Classes="small" Command="{Binding ToggleManageCategoriesCommand}"
+                        ToolTip.Tip="Categories: group tasks under names with colours (e.g. Work, Personal)" AutomationProperties.Name="Categories">
+                    <mi:MaterialIcon Kind="TagMultipleOutline" Width="16" Height="16" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- A 4th task: park it, or add it anyway with a reason (3 tasks per session). -->
+        <Border Classes="addRow" IsVisible="{Binding IsOverLimitPrompt}" Padding="16,12">
+            <StackPanel Spacing="8">
+                <TextBlock Text="{Binding OverLimitText}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                <TextBox Text="{Binding OverLimitReason}" PlaceholderText="Or add it anyway: why? (10+ characters, stays on this PC)" />
+                <TextBlock Text="{Binding OverLimitError}" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap"
+                           IsVisible="{Binding OverLimitError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Content="Park it" Command="{Binding ParkHeldTaskCommand}" />
+                    <Button Content="Add anyway" Command="{Binding AddHeldTaskAnywayCommand}" />
+                    <Button Classes="quiet" Content="Cancel" Command="{Binding CancelHeldTaskCommand}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- The categories panel: add, rename (Enter or click away), recolour (8 colours) and delete. -->
+        <Border Classes="addRow" IsVisible="{Binding IsManagingCategories}" Padding="16,12">
+            <StackPanel Spacing="4">
+                <TextBlock Text="Categories" FontWeight="SemiBold" />
+                <TextBlock Classes="faint" Text="Deleting one leaves its tasks with no category." FontSize="12" TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding CategoryRows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:TaskCategoryRowViewModel">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6" Margin="0,2">
+                                <ComboBox ItemsSource="{Binding Colors}" SelectedItem="{Binding SelectedColor}" MinWidth="0"
+                                          AutomationProperties.Name="Colour">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ColorChoice">
+                                            <Ellipse Width="14" Height="14" Fill="{Binding Brush}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <TextBox Grid.Column="1" Classes="taskEntry" Text="{Binding Name}" LostFocus="OnCategoryNameLostFocus"
+                                         AutomationProperties.Name="Category name">
+                                    <TextBox.KeyBindings>
+                                        <KeyBinding Gesture="Enter" Command="{Binding SaveNameCommand}" />
+                                    </TextBox.KeyBindings>
+                                </TextBox>
+                                <Button Grid.Column="2" Classes="small" Content="✕" Command="{Binding DeleteCommand}" ToolTip.Tip="Delete this category" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBox Classes="taskEntry" Text="{Binding NewCategoryName}" PlaceholderText="New category, e.g. Work (Enter)">
+                    <TextBox.KeyBindings>
+                        <KeyBinding Gesture="Enter" Command="{Binding AddCategoryCommand}" />
+                    </TextBox.KeyBindings>
+                </TextBox>
+            </StackPanel>
+        </Border>
+
+        <!-- Ticked tasks, folded. -->
+        <Expander Header="{Binding DoneHeader}" IsVisible="{Binding HasDone}" IsExpanded="False" HorizontalAlignment="Stretch" Padding="8,4">
+            <ItemsControl ItemsSource="{Binding DoneTasks}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:TaskRowViewModel">
+                        <Grid ColumnDefinitions="Auto,Auto,*" Margin="0,2">
+                            <CheckBox IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="0,0,8,0" VerticalAlignment="Center" />
+                            <Ellipse Grid.Column="1" Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center" Fill="{Binding CategoryBrush}"
+                                     IsVisible="{Binding HasCategory}" ToolTip.Tip="{Binding CategoryName}" />
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Classes="stepDone" Text="{Binding Title}" TextWrapping="Wrap" />
+                                <TextBlock Classes="faint" Text="{Binding DoneText}" FontSize="11" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Expander>
+    </StackPanel>
+</UserControl>

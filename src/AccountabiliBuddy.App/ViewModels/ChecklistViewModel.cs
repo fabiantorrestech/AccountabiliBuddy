@@ -61,6 +61,18 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<TaskRowViewModel> DoneTasks { get; } = new();
 
+    /// <summary>The open tasks in the order shown, flat: the numbered rows on Today (1, 2, 3...).</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<TaskRowViewModel> OpenTasks { get; set; } = [];
+
+    /// <summary>The number of the row the "Add a task" box stands in (the open tasks plus one).</summary>
+    [ObservableProperty]
+    public partial int AddRowNumber { get; set; } = 1;
+
+    /// <summary>The add row's placeholder: "Type a third, or press Enter to skip".</summary>
+    [ObservableProperty]
+    public partial string AddPlaceholderText { get; set; } = string.Empty;
+
     /// <summary>The "Categories" panel's rows (rename, recolour, delete).</summary>
     public ObservableCollection<TaskCategoryRowViewModel> CategoryRows { get; } = new();
 
@@ -363,6 +375,15 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
         List<TaskRowViewModel> openInOrder = OpenGroups.SelectMany(group => group.Tasks).Where(row => !row.IsDone).ToList();
         int currentIndex = openInOrder.FindIndex(row => row.IsCurrent || row.Subtasks.Any(subtask => subtask.IsCurrent));
         CurrentTask = currentIndex >= 0 ? openInOrder[currentIndex] : null;
+        OpenTasks = openInOrder;
+        AddRowNumber = openInOrder.Count + 1;
+        AddPlaceholderText = openInOrder.Count switch
+        {
+            0 => "Type the first one, then press Enter",
+            1 => "Type a second, or press Enter to skip",
+            2 => "Type a third, or press Enter to skip",
+            _ => "Add another (a fourth needs a reason)",
+        };
         NextTaskTitle = currentIndex >= 0 && currentIndex + 1 < openInOrder.Count ? openInOrder[currentIndex + 1].Title : string.Empty;
 
         TaskCategory? currentCategory = categories.FirstOrDefault(category => category.Id == checklist.Shown?.Task.CategoryId);

@@ -972,6 +972,7 @@ public partial class App : Application
             _sessions, _configuration, _stepAway, sessionViewModel.Tasks, _dayBar, () => _endFlow.TryEndSessionAsync(VisibleMainWindow()))
         {
             PlanFirst = _planFirst,
+            TimerToggle = sessionViewModel.TimerToggle,
             PhoneLine = () => sessionTasks.Current.SessionStart is DateTimeOffset started ? _phonePickups!.Describe(started) : null,
         };
         // The away card ("Back to <task>?", a side task's length): the task in front, the end-early flow, the session's chime.

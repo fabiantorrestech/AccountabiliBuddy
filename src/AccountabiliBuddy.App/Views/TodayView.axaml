@@ -100,7 +100,8 @@
         </Style>
     </UserControl.Styles>
     <ScrollViewer x:Name="PageScroll" HorizontalScrollBarVisibility="Disabled">
-        <Grid ColumnDefinitions="*,330" ColumnSpacing="14" Margin="0,0,6,0" MinHeight="{Binding Viewport.Height, ElementName=PageScroll}">
+        <Grid ColumnDefinitions="*,330" ColumnSpacing="14" Margin="0,0,6,0" MinHeight="{Binding Viewport.Height, ElementName=PageScroll}"
+              Container.Name="TodayPage" Container.Sizing="Width">
 
             <!-- ===== The main column: the info banner, the main card, and the fold. ===== -->
             <Grid RowDefinitions="Auto,*,Auto" RowSpacing="14">
@@ -111,7 +112,7 @@
                     <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource Ab.InfoInk}" TextWrapping="Wrap" />
                 </Border>
 
-                <Border Grid.Row="1" Classes="card" Padding="48,32">
+                <Border Grid.Row="1" Classes="card" Padding="48,40">
                     <Panel>
 
                         <!-- The shutdown card (redesign phase 5): once after the day's last work part. It takes the card's place. -->
@@ -192,13 +193,10 @@
                                 </WrapPanel>
                             </StackPanel>
 
-                            <!-- Running (and planning): Focus mode. -->
-                            <StackPanel Spacing="12" IsVisible="{Binding IsSessionActive}">
+                            <!-- Running (and planning): Focus mode, in the card's one frame. -->
+                            <Panel IsVisible="{Binding IsSessionActive}">
                                 <views:FocusView DataContext="{Binding Focus}" />
-                                <Button DataContext="{Binding TimerToggle}" x:DataType="vm:TimerToggleViewModel" Classes="quiet"
-                                        Content="{Binding ButtonText}" Command="{Binding ToggleCommand}"
-                                        IsVisible="{Binding IsVisible, FallbackValue=False}" HorizontalAlignment="Left" />
-                            </StackPanel>
+                            </Panel>
 
                             <!-- Idle: the start card. Tasks, Start, Quick Start with Default, and the other ways folded away. -->
                             <StackPanel Spacing="22" IsVisible="{Binding ShowsStart}">
