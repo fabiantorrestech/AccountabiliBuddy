@@ -6,6 +6,7 @@ using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
+using AccountabiliBuddy.Core.Sync;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -27,6 +28,8 @@ public sealed partial class StatsViewModel : ObservableObject
     private const string DocumentKey = "stats.view";
     private const int KeptDays = 90;
     private static readonly TimeSpan RefreshDelay = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan RunningRefreshDelay = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan PickupStartTolerance = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan DriftGap = TimeSpan.FromMinutes(2);
 
     private readonly IActivityLog _log;
@@ -39,6 +42,7 @@ public sealed partial class StatsViewModel : ObservableObject
     private readonly ConfigurationService _configuration;
     private readonly SleepSettingsService _sleep;
     private readonly PhonePickups _phone;
+    private readonly PrivacySettingsService _privacy;
     private readonly SqliteJsonDocumentStore _documents;
     private readonly TimeProvider _time;
     private readonly Func<bool> _isSessionRunning;
@@ -46,6 +50,8 @@ public sealed partial class StatsViewModel : ObservableObject
     private StatsData? _data;
     private int _refreshNumber;
     private bool _isShown;
+    private bool _tabSelected;
+    private bool _windowVisible = true;
 
     /// <param name="loadRecords">This PC's sessions between two times, newest first, with marked distracted stretches applied.</param>
     public StatsViewModel(
@@ -61,6 +67,7 @@ public sealed partial class StatsViewModel : ObservableObject
         ConfigurationService configuration,
         SleepSettingsService sleep,
         PhonePickups phone,
+        PrivacySettingsService privacy,
         SqliteJsonDocumentStore documents,
         TimeProvider time,
         Func<bool> isSessionRunning)
@@ -76,6 +83,7 @@ public sealed partial class StatsViewModel : ObservableObject
         _configuration = configuration;
         _sleep = sleep;
         _phone = phone;
+        _privacy = privacy;
         _documents = documents;
         _time = time;
         _isSessionRunning = isSessionRunning;
@@ -107,7 +115,8 @@ public sealed partial class StatsViewModel : ObservableObject
             _refreshSoon.Stop();
             RequestRefresh();
         };
-        recorder.LogChanged += (_, _) => _refreshSoon.Start();
+        recorder.LogChanged += (_, _) => StartRefreshTimer();
+        privacy.Changed += (_, _) => RequestRefresh();
         received.Changed += (_, _) => RequestRefresh();
         omitted.Changed += (_, _) => RequestRefresh();
         deleted.Changed += (_, _) => RequestRefresh();
@@ -134,7 +143,7 @@ public sealed partial class StatsViewModel : ObservableObject
             if ((e.PropertyName == nameof(HistoryViewModel.IsAddFormOpen) && details.IsAddFormOpen)
                 || (e.PropertyName == nameof(HistoryViewModel.IsGapFormOpen) && details.IsGapFormOpen))
             {
-                IsDetailsOpen = true;
+                ShowDetails();
             }
         };
     }
@@ -230,7 +239,7 @@ public sealed partial class StatsViewModel : ObservableObject
     {
         StatsViewKind.Sleep => "Your phone hasn't sent sleep numbers yet.",
         StatsViewKind.Phone => "No sessions with a phone count in this range.",
-        StatsViewKind.Drift => "No sessions in this range yet.",
+        StatsViewKind.Drift => _data is { LoggingOn: false } ? "Activity history is off, so drift isn't being recorded." : "No sessions in this range yet.",
         _ => "No focus sessions in this range yet. Start one on Today and this fills in.",
     };
 
@@ -256,15 +265,37 @@ public sealed partial class StatsViewModel : ObservableObject
 
     private DateOnly Today => DateOnly.FromDateTime(_time.GetLocalNow().DateTime);
 
-    /// <summary>
-    /// The page was shown or left. While it is left nothing is read; showing it reads again, so a session running now is in it.
-    /// </summary>
-    public void SetShown(bool shown)
+    /// <summary>The Stats tab was selected or left.</summary>
+    public void SetTabSelected(bool selected)
     {
+        _tabSelected = selected;
+        UpdateShown();
+    }
+
+    /// <summary>The main window was shown or hidden to the tray (the day bar pauses the same way).</summary>
+    public void SetWindowVisible(bool visible)
+    {
+        _windowVisible = visible;
+        UpdateShown();
+    }
+
+    // Nothing is read while the page can't be seen; showing it reads again, so a session running now is in it.
+    private void UpdateShown()
+    {
+        bool shown = _tabSelected && _windowVisible;
+        if (shown == _isShown)
+        {
+            return;
+        }
+
         _isShown = shown;
         if (shown)
         {
             _ = RefreshAsync();
+        }
+        else
+        {
+            _refreshSoon.Stop();
         }
     }
 
@@ -275,6 +306,36 @@ public sealed partial class StatsViewModel : ObservableObject
         {
             _ = RefreshAsync();
         }
+    }
+
+    // A burst of log writes becomes one read, spaced out while a session runs (the log changes about every few seconds then).
+    private void StartRefreshTimer()
+    {
+        if (!_isShown)
+        {
+            return;
+        }
+
+        _refreshSoon.Interval = _isSessionRunning() ? RunningRefreshDelay : RefreshDelay;
+        _refreshSoon.Start();
+    }
+
+    /// <summary>
+    /// Opens the Day details fold. The fold lives in the right column, which the full-width views leave out, so a view
+    /// without it becomes Overview first.
+    /// </summary>
+    public void ShowDetails()
+    {
+        if (!ShowsDayColumn)
+        {
+            View = StatsViewKind.Overview;
+            CoerceRange();
+            ShowPreferences();
+            RebuildView();
+            SavePreferences();
+        }
+
+        IsDetailsOpen = true;
     }
 
     [RelayCommand]
@@ -312,13 +373,20 @@ public sealed partial class StatsViewModel : ObservableObject
     {
         DateOnly first = _data?.FirstDay ?? Today.AddDays(1 - KeptDays);
         DateOnly day = date > Today ? Today : date < first ? first : date;
-        if (day == SelectedDay && Details.Period == HistoryPeriod.Day)
+        bool same = day == SelectedDay;
+        SelectedDay = day;
+        Details.SelectedDay = day.ToDateTime(TimeOnly.MinValue);
+        // The fold shows this day too, even if it was on "Last 7 days".
+        if (Details.Period != HistoryPeriod.Day)
+        {
+            Details.Period = HistoryPeriod.Day;
+        }
+
+        if (same)
         {
             return;
         }
 
-        SelectedDay = day;
-        Details.SelectedDay = day.ToDateTime(TimeOnly.MinValue);
         RebuildDay();
         if (Range == StatsRange.Day)
         {
@@ -382,13 +450,52 @@ public sealed partial class StatsViewModel : ObservableObject
             return; // A newer read is on its way.
         }
 
-        IReadOnlyList<LocalWindow> windows = DeepWork.Windows(
-            records, ReceivedSessions.Closed(_received.Devices), _omitted.IsOmitted, _isSessionRunning(), now, zone);
+        // The services are read here on the UI thread; the union, day sums and merging of 90 days run off it.
+        IReadOnlyList<SyncSession> others = ReceivedSessions.Closed(_received.Devices).ToList();
+        HashSet<DateTimeOffset> omittedStarts = records.Where(record => _omitted.IsOmitted(record.StartedAt)).Select(record => record.StartedAt).ToHashSet();
+        bool running = _isSessionRunning();
+        // A session left out of the totals leaves its pickups out too.
+        List<DateTimeOffset> leftOutStarts = records
+            .Where(record => omittedStarts.Contains(record.StartedAt) || record.Mode == SessionMode.Scheduled)
+            .Select(record => record.StartedAt).ToList();
+        IReadOnlyList<SyncPickup> pickups = _phone.Between(from, now.AddDays(1))
+            .Where(pickup => !leftOutStarts.Any(start => (start - pickup.SessionStart).Duration() <= PickupStartTolerance)).ToList();
+        IReadOnlyList<ReceivedSession> receivedSessions = ReceivedSessions.In(_received.Devices, from, now.AddDays(1));
+        SyncSmartBedtime? bedtime = PhoneBedtime.Of(_received.Devices);
+        bool phoneCounts = _phone.IsCounting;
+        bool loggingOn = _privacy.Current.ActivityLogEnabled;
+        TimeSpan goal = TimeSpan.FromMinutes(Math.Max(1, _goal.Current.DailyMinutes));
+        IReadOnlyList<SessionRecord> kept = records;
+        (IReadOnlyList<LocalWindow> windows, IReadOnlyList<DeepWorkDay> days, IReadOnlyList<DriftStretch> visits) = await Task.Run(() =>
+        {
+            IReadOnlyList<LocalWindow> focused = DeepWork.Windows(kept, others, omittedStarts.Contains, running, now, zone);
+            return (focused, DeepWork.DaysIn(focused, first, today), DriftMarks.Merge(drift, DriftGap));
+        });
+        if (number != _refreshNumber)
+        {
+            return; // A newer read is on its way.
+        }
+
+        // The first date with any history: earlier dates are "no data", never missed days.
+        IEnumerable<DateOnly> starts = windows.Select(window => DateOnly.FromDateTime(window.Start))
+            .Concat(records.Where(record => record.Mode != SessionMode.Scheduled).Select(record => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(record.StartedAt, zone).DateTime)))
+            .Concat(receivedSessions.Select(session => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(session.Start, zone).DateTime)));
+        DateOnly firstData = starts.DefaultIfEmpty(today).Min();
+        if (firstData < first)
+        {
+            firstData = first;
+        }
+
+        DateOnly? previousToday = _data?.Today;
         _data = new StatsData(
-            today, first, zone, nowLocal, TimeSpan.FromMinutes(Math.Max(1, _goal.Current.DailyMinutes)),
-            windows, DeepWork.DaysIn(windows, first, today), DriftMarks.Merge(drift, DriftGap),
-            _phone.IsCounting, _phone.Between(from, now.AddDays(1)), PhoneBedtime.Of(_received.Devices),
-            records, ReceivedSessions.In(_received.Devices, from, now.AddDays(1)));
+            today, first, firstData, loggingOn, zone, nowLocal, goal, windows, days, visits, phoneCounts, pickups, bedtime, records, receivedSessions);
+        // Past midnight with the day on "today": the column moves to the new today.
+        if (previousToday is { } before && today > before && SelectedDay == before)
+        {
+            SelectedDay = today;
+            Details.SelectedDay = today.ToDateTime(TimeOnly.MinValue);
+        }
+
         if (SelectedDay > today)
         {
             SelectedDay = today;

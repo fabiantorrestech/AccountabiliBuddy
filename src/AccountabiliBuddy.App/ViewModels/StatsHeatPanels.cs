@@ -22,10 +22,11 @@ internal static class StatsHeatPanels
             return null;
         }
 
-        // History keeps 90 days: the grid starts at the first week it has, so the cells fill the width instead of leaving a blank year.
-        if (from < data.FirstDay)
+        // The grid starts at the first week with history, so the cells fill the width instead of leaving a blank year, and a day
+        // before the first one is "no data", never a missed day.
+        if (from < data.FirstData)
         {
-            from = data.FirstDay;
+            from = data.FirstData;
         }
 
         DateOnly gridStart = StatsFormat.MondayOf(from);
@@ -62,7 +63,7 @@ internal static class StatsHeatPanels
         string note = "Rows are Mon–Sun. Brighter = more deep work that day.";
         if (range == StatsRange.Year)
         {
-            note += $" History keeps {data.Days.Count} days.";
+            note += $" History keeps {data.Today.DayNumber - data.FirstDay.DayNumber + 1} days.";
         }
 
         return new StatsHeatPanel(
@@ -78,9 +79,9 @@ internal static class StatsHeatPanels
             StatsRange.Month => to.AddDays(-55),
             _ => to.AddDays(-364),
         };
-        if (from < data.FirstDay)
+        if (from < data.FirstData)
         {
-            from = data.FirstDay;
+            from = data.FirstData;
         }
 
         IReadOnlyList<DateTime> driftStarts = data.DriftBetween(from, to)
@@ -141,7 +142,7 @@ internal static class StatsHeatPanels
             StatsRange.Month => 56,
             _ => 365,
         };
-        days = Math.Min(days, data.Today.DayNumber - data.FirstDay.DayNumber + 1);
+        days = Math.Min(days, data.Today.DayNumber - data.FirstData.DayNumber + 1);
         return (int)Math.Ceiling(days / 7.0);
     }
 

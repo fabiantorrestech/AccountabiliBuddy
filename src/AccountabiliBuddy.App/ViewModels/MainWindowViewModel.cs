@@ -109,14 +109,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public const int StatsTab = (int)MainTab.Stats;
     public const int SettingsTab = (int)MainTab.Settings;
 
-    /// <summary>The day bar's strip above the page: shown on no page (see <see cref="MainTabs.ShowsTimelineStrip"/>).</summary>
-    [ObservableProperty]
-    public partial bool ShowsTimeline { get; set; } = MainTabs.ShowsTimelineStrip(MainTab.Today);
-
     partial void OnSelectedTabChanged(int oldValue, int newValue)
     {
-        ShowsTimeline = MainTabs.ShowsTimelineStrip((MainTab)newValue);
-        Stats?.SetShown(newValue == StatsTab);
+        Stats?.SetTabSelected(newValue == StatsTab);
 
         OnPropertyChanged(nameof(IsTodaySelected));
         OnPropertyChanged(nameof(IsTasksSelected));

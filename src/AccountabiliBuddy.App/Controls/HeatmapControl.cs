@@ -53,7 +53,6 @@ public sealed class HeatmapControl : Control
     private const double RowLabelGap = 10;
     private static readonly Typeface LabelTypeface = new(FontFamily.Default);
 
-    private IBrush[]? _ramp;
     private double _labelWidth = -1;
     private Dictionary<(int Row, int Column), HeatCell> _byPlace = new();
     private (int Row, int Column) _hovered = (-1, -1);
@@ -66,8 +65,6 @@ public sealed class HeatmapControl : Control
         AffectsMeasure<HeatmapControl>(RowCountProperty, ColumnCountProperty, RowLabelsProperty, ColumnLabelsProperty, MaxCellSizeProperty, CellGapProperty);
         CellsProperty.Changed.AddClassHandler<HeatmapControl>((control, _) => control.IndexCells());
         RowLabelsProperty.Changed.AddClassHandler<HeatmapControl>((control, _) => control._labelWidth = -1);
-        EmptyBrushProperty.Changed.AddClassHandler<HeatmapControl>((control, _) => control._ramp = null);
-        AccentBrushProperty.Changed.AddClassHandler<HeatmapControl>((control, _) => control._ramp = null);
     }
 
     public IReadOnlyList<HeatCell>? Cells
@@ -153,7 +150,8 @@ public sealed class HeatmapControl : Control
         }
 
         (double left, double top, double cell) = Layout(Bounds.Width);
-        _ramp ??= HeatRamp.Brushes(EmptyBrush, AccentBrush);
+        // Made on each draw, so a theme that changes a brush in place still gets its colours (a draw is rare: data or size changes).
+        IBrush[] ramp = HeatRamp.Brushes(EmptyBrush, AccentBrush);
         double radius = cell * 0.28;
         if (RowLabels is { } rows)
         {
@@ -194,7 +192,7 @@ public sealed class HeatmapControl : Control
             }
 
             var rect = new Rect(left + cell0.Column * (cell + CellGap), top + cell0.Row * (cell + CellGap), cell, cell);
-            context.DrawRectangle(_ramp[Math.Clamp(cell0.Level, 0, _ramp.Length - 1)], null, new RoundedRect(rect, radius));
+            context.DrawRectangle(ramp[Math.Clamp(cell0.Level, 0, ramp.Length - 1)], null, new RoundedRect(rect, radius));
         }
     }
 

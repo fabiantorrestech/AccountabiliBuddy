@@ -16,13 +16,13 @@ internal static class StatsTrendPanels
 
     public static StatsTrendPanel? Trend(StatsData data, StatsLookups lookups, StatsRange range)
     {
-        return range == StatsRange.Week ? Daily(data) : Weekly(data, lookups);
+        return range == StatsRange.Week ? Daily(data, lookups) : Weekly(data, lookups);
     }
 
     private static StatsTrendPanel? Weekly(StatsData data, StatsLookups lookups)
     {
         Dictionary<DateOnly, TimeSpan> driftPerDay = DriftPerDay(data);
-        FocusTrend trend = FocusTrend.Build(data.Days, driftPerDay, lookups.IsWorkday, data.Today, Weeks);
+        FocusTrend trend = FocusTrend.Build(data.HistoryDays, driftPerDay, lookups.IsWorkday, data.Today, data.Goal, Weeks);
         if (!trend.HasData)
         {
             return null;
@@ -45,7 +45,8 @@ internal static class StatsTrendPanels
                 ? (latest - before).Duration() < TimeSpan.FromMinutes(1) ? "same as last week"
                     : latest > before ? $"up {StatsFormat.Duration(latest - before)} on last week" : $"down {StatsFormat.Duration(before - latest)} on last week"
                 : "so far this week";
-            cards.Add(new StatsCard("This week", $"{StatsFormat.HoursMinutes(latest)} / day", detail));
+            string title = trend.Latest.Start == StatsFormat.MondayOf(data.Today) ? "This week" : "Last week";
+            cards.Add(new StatsCard(title, $"{StatsFormat.HoursMinutes(latest)} / day", detail));
         }
 
         if (trend.Change is { } change)
@@ -55,47 +56,57 @@ internal static class StatsTrendPanels
             cards.Add(new StatsCard($"{trend.TrendCount}-week trend", $"{sign}{Math.Abs(change.TotalHours).ToString("0.0", CultureInfo.CurrentCulture)}h", word));
         }
 
-        if (trend.DriftAverage is { } average)
+        if (data.LoggingOn && trend.DriftAverage is { } average)
         {
             cards.Add(new StatsCard("Drift", $"{StatsFormat.Duration(average)} / day", $"average over {trend.TrendCount} weeks"));
         }
 
-        return Panel(data, main, drift, labels, tips, cards);
+        return Panel(data, main, data.LoggingOn ? drift : null, labels, tips, cards);
     }
 
-    private static StatsTrendPanel? Daily(StatsData data)
+    private static StatsTrendPanel? Daily(StatsData data, StatsLookups lookups)
     {
         Dictionary<DateOnly, TimeSpan> driftPerDay = DriftPerDay(data);
-        List<DeepWorkDay> days = data.Days.TakeLast(DailyDays).ToList();
+        List<DeepWorkDay> days = data.HistoryDays.TakeLast(DailyDays).ToList();
         if (days.All(day => day.Focused <= TimeSpan.Zero))
         {
             return null;
         }
 
-        List<double?> main = days.Select(day => (double?)day.Focused.TotalMinutes).ToList();
-        List<double?> drift = days.Select(day => (double?)driftPerDay.GetValueOrDefault(day.Date).TotalMinutes).ToList();
+        // Off days with no focus are gaps, and today isn't counted until its goal is met (as in Month and Consistency).
+        bool Counts(DeepWorkDay day) => (lookups.IsWorkday(day.Date) || day.Focused > TimeSpan.Zero)
+            && !(day.Date == data.Today && lookups.IsWorkday(day.Date) && day.Focused < data.Goal);
+        List<double?> main = days.Select(day => Counts(day) ? (double?)day.Focused.TotalMinutes : null).ToList();
+        List<double?> drift = days.Select(day => Counts(day) ? (double?)driftPerDay.GetValueOrDefault(day.Date).TotalMinutes : null).ToList();
         List<string?> labels = days.Select(day => (string?)StatsFormat.WeekdayLetter(day.Date)).ToList();
-        List<string> tips = days.Select(day =>
-            $"{day.Date.ToString("ddd, MMM d", CultureInfo.CurrentCulture)} · {StatsFormat.Duration(day.Focused)} · drift {StatsFormat.Duration(driftPerDay.GetValueOrDefault(day.Date))}").ToList();
+        List<string> tips = days.Select(day => Counts(day)
+            ? $"{day.Date.ToString("ddd, MMM d", CultureInfo.CurrentCulture)} · {StatsFormat.Duration(day.Focused)}" + (data.LoggingOn ? $" · drift {StatsFormat.Duration(driftPerDay.GetValueOrDefault(day.Date))}" : string.Empty)
+            : $"{day.Date.ToString("ddd, MMM d", CultureInfo.CurrentCulture)} · not counted").ToList();
 
-        TimeSpan average = TimeSpan.FromTicks((long)days.Average(day => day.Focused.Ticks));
-        DeepWorkDay best = days.MaxBy(day => day.Focused)!;
+        List<DeepWorkDay> counted = days.Where(Counts).ToList();
+        if (counted.Count == 0)
+        {
+            return null;
+        }
+
+        TimeSpan average = TimeSpan.FromTicks((long)counted.Average(day => day.Focused.Ticks));
+        DeepWorkDay best = counted.MaxBy(day => day.Focused)!;
         var cards = new List<StatsCard>
         {
-            new("Average", $"{StatsFormat.HoursMinutes(average)} / day", $"over the last {days.Count} days"),
+            new("Average", $"{StatsFormat.HoursMinutes(average)} / day", $"over {counted.Count} counted days"),
             new("Best day", StatsFormat.HoursMinutes(best.Focused), best.Date.ToString("ddd, MMM d", CultureInfo.CurrentCulture)),
         };
-        if (driftPerDay.Count > 0)
+        if (data.LoggingOn && driftPerDay.Count > 0)
         {
-            TimeSpan driftAverage = TimeSpan.FromTicks((long)days.Average(day => driftPerDay.GetValueOrDefault(day.Date).Ticks));
+            TimeSpan driftAverage = TimeSpan.FromTicks((long)counted.Average(day => driftPerDay.GetValueOrDefault(day.Date).Ticks));
             cards.Add(new StatsCard("Drift", $"{StatsFormat.Duration(driftAverage)} / day", "average"));
         }
 
-        return Panel(data, main, drift, labels, tips, cards);
+        return Panel(data, main, data.LoggingOn ? drift : null, labels, tips, cards);
     }
 
     private static StatsTrendPanel Panel(
-        StatsData data, List<double?> main, List<double?> drift, List<string?> labels, List<string> tips, List<StatsCard> cards)
+        StatsData data, List<double?> main, List<double?>? drift, List<string?> labels, List<string> tips, List<StatsCard> cards)
     {
         double goal = data.Goal.TotalMinutes;
         double maximum = Math.Max(goal * GoalHeadroom, main.Max() ?? 0);

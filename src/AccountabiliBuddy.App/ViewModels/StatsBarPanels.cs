@@ -23,13 +23,9 @@ internal static class StatsBarPanels
     {
         (DateOnly from, DateOnly to) = StatsFormat.Bounds(range, data.Today);
         IReadOnlyList<DeepWorkDay> past = data.DaysBetween(from, to);
-        if (past.All(day => day.Focused <= TimeSpan.Zero))
-        {
-            return null;
-        }
-
+        bool hasFocus = past.Any(day => day.Focused > TimeSpan.Zero);
         TimeSpan total = past.Aggregate(TimeSpan.Zero, (sum, day) => sum + day.Focused);
-        double scale = Math.Max(data.Goal.TotalMinutes * GoalHeadroom, past.Max(day => day.Focused.TotalMinutes));
+        double scale = Math.Max(data.Goal.TotalMinutes * GoalHeadroom, past.Select(day => day.Focused.TotalMinutes).DefaultIfEmpty(0).Max());
         var bars = new List<StatsBar>();
         for (DateOnly date = from; date <= to; date = date.AddDays(1))
         {
@@ -45,12 +41,12 @@ internal static class StatsBarPanels
         }
 
         ConsistencySummary summary = ConsistencyStats.Summarize(past, data.Goal, lookups.IsWorkday, data.Today);
-        string note = summary.WorkdaysCounted > 0
-            ? $"deep work · {summary.WorkdaysMet} of {summary.WorkdaysCounted} workdays met"
+        string note = !hasFocus ? "deep work · nothing counted yet"
+            : summary.WorkdaysCounted > 0 ? $"deep work · {summary.WorkdaysMet} of {summary.WorkdaysCounted} workdays met"
             : "deep work";
         return new StatsBarPanel(
             StatsFormat.HoursMinutes(total), note, bars, data.Goal.TotalMinutes / scale, $"goal {StatsFormat.Duration(data.Goal)}",
-            OverviewCards(data, from, to));
+            OverviewCards(data, from, to, hasFocus));
     }
 
     // One bar per hour of the selected day; a full bar is a full hour.
@@ -58,11 +54,6 @@ internal static class StatsBarPanels
     {
         DateTime start = day.ToDateTime(TimeOnly.MinValue);
         TimeSpan total = data.DayOf(day)?.Focused ?? TimeSpan.Zero;
-        if (total <= TimeSpan.Zero)
-        {
-            return null;
-        }
-
         var bars = new List<StatsBar>();
         for (int hour = 0; hour < 24; hour++)
         {
@@ -79,11 +70,11 @@ internal static class StatsBarPanels
 
         bool met = total >= data.Goal;
         string note = met ? "deep work · goal met" : $"deep work · {StatsFormat.Duration(data.Goal - total)} to go";
-        return new StatsBarPanel(StatsFormat.HoursMinutes(total), note, bars, double.NaN, null, OverviewCards(data, day, day));
+        return new StatsBarPanel(StatsFormat.HoursMinutes(total), note, bars, double.NaN, null, OverviewCards(data, day, day, total > TimeSpan.Zero));
     }
 
     // Phone, Sleep and Drift: only the ones that have something to say.
-    private static IReadOnlyList<StatsCard> OverviewCards(StatsData data, DateOnly from, DateOnly to)
+    private static IReadOnlyList<StatsCard> OverviewCards(StatsData data, DateOnly from, DateOnly to, bool hasFocus)
     {
         var cards = new List<StatsCard>();
         if (PhoneCard(data, from, to) is { } phone)
@@ -96,7 +87,12 @@ internal static class StatsBarPanels
             cards.Add(sleep);
         }
 
-        cards.Add(DriftCard(data, from, to));
+        // Drift is only a number when it was being recorded and there were sessions to drift in.
+        if (data.LoggingOn && hasFocus)
+        {
+            cards.Add(DriftCard(data, from, to));
+        }
+
         return cards;
     }
 
@@ -134,6 +130,11 @@ internal static class StatsBarPanels
 
     public static StatsBarPanel? Drift(StatsData data, StatsLookups lookups, StatsRange range)
     {
+        if (!data.LoggingOn)
+        {
+            return null;
+        }
+
         (DateOnly from, DateOnly to) = StatsFormat.Bounds(range, data.Today);
         IReadOnlyList<DeepWorkDay> past = data.DaysBetween(from, to);
         IReadOnlyList<DriftStretch> visits = data.DriftBetween(from, to);

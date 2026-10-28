@@ -54,15 +54,17 @@ public sealed class FocusTrend
         }
     }
 
-    /// <param name="days">One entry per date up to today, oldest first.</param>
+    /// <param name="days">One entry per date from the first with history up to today, oldest first.</param>
     /// <param name="driftPerDay">Drift time per date; a date missing from it has none.</param>
     /// <param name="isWorkday">Whether a date is a workday in the day plan.</param>
+    /// <param name="goal">The daily goal: today, a workday not yet at it, isn't over and isn't counted (as in <see cref="ConsistencyStats"/>).</param>
     /// <param name="weeks">How many weeks to cover, the current one last.</param>
     public static FocusTrend Build(
         IReadOnlyList<DeepWorkDay> days,
         IReadOnlyDictionary<DateOnly, TimeSpan> driftPerDay,
         Func<DateOnly, bool> isWorkday,
         DateOnly today,
+        TimeSpan goal,
         int weeks)
     {
         DateOnly thisMonday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
@@ -74,6 +76,7 @@ public sealed class FocusTrend
             List<DeepWorkDay> counted = days
                 .Where(day => day.Date >= monday && day.Date < monday.AddDays(7) && day.Date <= today && day.Date >= firstDay)
                 .Where(day => isWorkday(day.Date) || day.Focused > TimeSpan.Zero)
+                .Where(day => !(day.Date == today && isWorkday(day.Date) && day.Focused < goal))
                 .ToList();
             if (counted.Count == 0)
             {

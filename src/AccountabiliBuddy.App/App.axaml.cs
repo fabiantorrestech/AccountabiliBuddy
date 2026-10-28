@@ -1013,7 +1013,7 @@ public partial class App : Application
         var statsViewModel = new StatsViewModel(
             historyViewModel, activityLog, _recorder,
             async (from, to) => sessionGaps.Apply(SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(from, to))),
-            receivedDevices, omittedSessions, deletedUsage, displayNames, goal, _configuration, sleepSettings, _phonePickups!, documents, time,
+            receivedDevices, omittedSessions, deletedUsage, displayNames, goal, _configuration, sleepSettings, _phonePickups!, privacy, documents, time,
             () => _sessions!.State.IsRealSession);
         var mainViewModel = new MainWindowViewModel(
             sessionViewModel,
@@ -1339,10 +1339,12 @@ public partial class App : Application
         // The main window's bar redraws only while the window is open; the on-screen timeline has its own copy.
         MainWindow mainWindow = _mainWindow;
         DayBarViewModel mainDayBar = _dayBar;
+        StatsViewModel? stats = mainViewModel.Stats;
         mainWindow.PropertyChanged += (_, e) =>
         {
             if (e.Property == Visual.IsVisibleProperty)
             {
+                stats?.SetWindowVisible(mainWindow.IsVisible);
                 if (mainWindow.IsVisible)
                 {
                     mainDayBar.Resume();
@@ -1356,6 +1358,7 @@ public partial class App : Application
         if (!mainWindow.IsVisible)
         {
             mainDayBar.Pause();
+            stats?.SetWindowVisible(false);
         }
 
         PrivateWindowAccessMonitor privateAccess = _privateAccess;

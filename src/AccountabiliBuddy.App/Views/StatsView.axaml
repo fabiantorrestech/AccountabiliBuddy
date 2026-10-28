@@ -386,7 +386,7 @@
                     </ItemsControl>
                 </ScrollViewer>
 
-                <ScrollViewer x:Name="ViewScroll" Grid.Row="2" Margin="0,18,0,0" VerticalScrollBarVisibility="Auto">
+                <ScrollViewer x:Name="ViewScroll" Grid.Row="2" Margin="0,18,0,0" VerticalScrollBarVisibility="Auto" AllowAutoHide="False">
                     <Panel>
                         <ContentControl Content="{Binding Overview}" ContentTemplate="{StaticResource BarPanel}" IsVisible="{Binding ShowsOverview}" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
                         <ContentControl Content="{Binding Consistency}" ContentTemplate="{StaticResource ConsistencyPanel}" IsVisible="{Binding ShowsConsistency}" HorizontalContentAlignment="Stretch" VerticalAlignment="Top" />

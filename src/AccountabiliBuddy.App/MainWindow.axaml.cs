@@ -213,9 +213,16 @@ public partial class MainWindow : Window
             }
 
             // Words inside Stats' Day details: open the fold that holds them.
-            if (target.Control is Control inDetails && Pages.Children[(int)MainTab.Stats] is StatsView stats)
+            if (Pages.Children[(int)MainTab.Stats] is StatsView stats)
             {
-                stats.OpenFoldHolding(inDetails);
+                if (target.Control is Control inDetails)
+                {
+                    stats.OpenFoldHolding(inDetails);
+                }
+                else if (target.Tab == SearchTabs.Stats)
+                {
+                    stats.OpenDetails();
+                }
             }
 
             // Data results have no control: the page's own matches show once it's laid out.

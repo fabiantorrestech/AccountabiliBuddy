@@ -58,9 +58,6 @@ public sealed partial class HistoryViewModel : ObservableObject
     /// <summary>Builds "New this week" (set by the app).</summary>
     public SessionReviewService? ReviewService { get; set; }
 
-    /// <summary>Deep work against the daily goal over days (redesign phase 4); null hides the card.</summary>
-    public DeepWorkHistoryViewModel? DeepWork { get; set; }
-
     /// <summary>Notes kept between two times (redesign phase 5), shown under their session; null: none.</summary>
     public Func<DateTimeOffset, DateTimeOffset, IReadOnlyList<string>>? NotesBetween { get; set; }
 
