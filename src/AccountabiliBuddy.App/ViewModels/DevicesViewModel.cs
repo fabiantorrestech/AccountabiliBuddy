@@ -125,6 +125,126 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<DeviceRowViewModel> Rows { get; } = new();
 
+    /// <summary>The sync light's setting (Always, Only when something's wrong, Off); set by the app. The page's "Sync light" segment reads it.</summary>
+    public SyncLightSettingService? SyncLightSetting
+    {
+        get => _syncLightSetting;
+        init
+        {
+            _syncLightSetting = value;
+            SyncLightIndex = value is null ? 0 : (int)value.Mode;
+        }
+    }
+
+    private readonly SyncLightSettingService? _syncLightSetting;
+
+    /// <summary>"Always", "Only when something's wrong", "Off", as the segment's index.</summary>
+    public static IReadOnlyList<string> SyncLightNames { get; } = ["Always", "Only when something's wrong", "Off"];
+
+    [ObservableProperty]
+    public partial int SyncLightIndex { get; set; }
+
+    partial void OnSyncLightIndexChanged(int value)
+    {
+        if (_syncLightSetting is not null && value >= 0 && value < SyncLightNames.Count)
+        {
+            _ = _syncLightSetting.SetAsync((SyncLightMode)value);
+        }
+    }
+
+    /// <summary>Which devices' batteries show where (design 16a); set by the app.</summary>
+    public BatteryVisibilityService? Batteries
+    {
+        get => _batteries;
+        init
+        {
+            _batteries = value;
+            if (value is not null)
+            {
+                AlwaysShowBelow20 = value.Current.AlwaysShowBelow20;
+                HideWhenFull = value.Current.HideWhenFull;
+                RefreshBatteryRows();
+            }
+        }
+    }
+
+    private readonly BatteryVisibilityService? _batteries;
+
+    /// <summary>The battery matrix's rows: this PC and every device that is linked, in the order of <see cref="Rows"/>.</summary>
+    public ObservableCollection<BatteryRowViewModel> BatteryRows { get; } = new();
+
+    public bool HasBatteryRows => BatteryRows.Count > 0;
+
+    [ObservableProperty]
+    public partial bool AlwaysShowBelow20 { get; set; }
+
+    [ObservableProperty]
+    public partial bool HideWhenFull { get; set; }
+
+    partial void OnAlwaysShowBelow20Changed(bool value) => SaveBatteryOptions();
+
+    partial void OnHideWhenFullChanged(bool value) => SaveBatteryOptions();
+
+    private void SaveBatteryOptions()
+    {
+        if (_batteries is not null && (_batteries.Current.AlwaysShowBelow20 != AlwaysShowBelow20 || _batteries.Current.HideWhenFull != HideWhenFull))
+        {
+            _ = _batteries.SetOptionsAsync(AlwaysShowBelow20, HideWhenFull);
+        }
+    }
+
+    // The matrix keeps its rows while the same devices are listed, so a minute's refresh doesn't redraw boxes under the pointer.
+    private void RefreshBatteryRows()
+    {
+        if (_batteries is null)
+        {
+            return;
+        }
+
+        List<DeviceRowViewModel> devices = Rows.Where(row => row.DeviceKey is not null).ToList();
+        bool same = devices.Count == BatteryRows.Count && devices.Select(row => row.DeviceKey).SequenceEqual(BatteryRows.Select(row => row.Key));
+        if (same)
+        {
+            return;
+        }
+
+        BatteryRows.Clear();
+        foreach (DeviceRowViewModel row in devices)
+        {
+            // No device reports a battery level yet (nothing in the sync files, and a desktop PC has none), so every row reads "no battery info".
+            BatteryRows.Add(new BatteryRowViewModel(row.DeviceKey!, row.Name, row.IconKind, null, _batteries.Current.PlacesOf(row.DeviceKey!), _batteries));
+        }
+
+        OnPropertyChanged(nameof(HasBatteryRows));
+    }
+
+    /// <summary>
+    /// "Galaxy Tab hasn't synced since 10:35 AM. It catches up next time it's opened.": for the device that has gone longest without
+    /// sending (a behind device, not one that was never heard from); null when every device is in step.
+    /// </summary>
+    [ObservableProperty]
+    public partial string? StaleText { get; set; }
+
+    private string? DescribeStale(DateTimeOffset now)
+    {
+        List<DeviceRowViewModel> behind = Rows.Where(row => !row.Indented && row.State == DeviceSyncState.Behind && row.Age is not null).ToList();
+        if (behind.Count == 0)
+        {
+            return null;
+        }
+
+        DeviceRowViewModel oldest = behind.OrderByDescending(row => row.Age).First();
+        TimeZoneInfo zone = _time.LocalTimeZone;
+        DateTimeOffset since = TimeZoneInfo.ConvertTime(now - oldest.Age!.Value, zone);
+        DateTimeOffset today = TimeZoneInfo.ConvertTime(now, zone);
+        string at = since.ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture);
+        string when = since.Date == today.Date ? at : since.Date == today.Date.AddDays(-1) ? $"yesterday {at}" : $"{since:ddd} {at}";
+        string catchUp = oldest.Kind == "PC" ? "It catches up next time it's on." : "It catches up next time it's opened.";
+        return behind.Count == 1
+            ? $"{oldest.Name} hasn't synced since {when}. {catchUp}"
+            : $"{oldest.Name} and {behind.Count - 1} more haven't synced recently; {oldest.Name} since {when}. They catch up next time they're opened.";
+    }
+
     /// <summary>E.g. "Today: 5h 10m focused across 3 devices".</summary>
     [ObservableProperty]
     public partial string CombinedTodayText { get; set; }
@@ -287,7 +407,9 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
             MethodsText(OwnMethods(settings)),
             InGroup ? string.Empty : "Not linked to your other devices yet",
             InGroup ? DeviceSyncState.ThisDevice : DeviceSyncState.Unlinked,
-            InGroup ? "This PC" : "Unlinked"));
+            InGroup ? "This PC" : "Unlinked",
+            AppVersion: Services.Backup.BackupService.AppVersion,
+            DeviceKey: BatteryVisibilitySettings.ThisPcKey));
         foreach (ReceivedDevice device in _received.Devices.OrderByDescending(device => device.File.Device.WrittenAt))
         {
             SyncDeviceCard card = device.File.Device;
@@ -302,13 +424,17 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
                 $"{Ago(age)} · {MethodName(device.Method)}",
                 state,
                 state == DeviceSyncState.Behind ? $"Behind by {Duration(age - interval)}" : "Up to date",
-                Age: age < TimeSpan.Zero ? TimeSpan.Zero : age));
+                Age: age < TimeSpan.Zero ? TimeSpan.Zero : age,
+                AppVersion: card.AppVersion,
+                DeviceKey: card.DeviceId.ToString()));
             foreach (SyncCompanion companion in card.Companions ?? [])
             {
                 Rows.Add(CompanionRow(companion, card.Name, now));
             }
         }
 
+        StaleText = DescribeStale(now);
+        RefreshBatteryRows();
         RowsRefreshed?.Invoke(this, EventArgs.Empty);
         _ = UpdateTodayAsync(now);
     }
@@ -325,7 +451,8 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         if (!companion.Linked)
         {
             return new DeviceRowViewModel(companion.Name, "Watch", methods,
-                "Not found on the phone: open AccountabiliBuddy on the watch", DeviceSyncState.Unlinked, "Not found", Indented: true);
+                "Not found on the phone: open AccountabiliBuddy on the watch", DeviceSyncState.Unlinked, "Not found", Indented: true,
+                DeviceKey: CompanionKey(companion));
         }
 
         string last = companion.LastHeard is DateTimeOffset heard ? $"last update {Ago(now - heard)}" : "not heard from yet";
@@ -339,8 +466,11 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
             _ => "Linked",
         };
         TimeSpan? heardAgo = companion.LastHeard is DateTimeOffset lastHeard ? (now - lastHeard < TimeSpan.Zero ? TimeSpan.Zero : now - lastHeard) : null;
-        return new DeviceRowViewModel(companion.Name, "Watch", methods, last, state, stateText, Indented: true, Age: heardAgo);
+        return new DeviceRowViewModel(companion.Name, "Watch", methods, last, state, stateText, Indented: true, Age: heardAgo,
+            DeviceKey: CompanionKey(companion));
     }
+
+    private static string CompanionKey(SyncCompanion companion) => "companion:" + companion.Name;
 
     [RelayCommand]
     private async Task SyncNowAsync()

@@ -351,7 +351,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         init
         {
             _devices = value;
-            SyncLight = value is null ? null : new SyncLightViewModel(value);
+            SyncLight = value is null ? null : new SyncLightViewModel(value, value.SyncLightSetting);
         }
     }
 
