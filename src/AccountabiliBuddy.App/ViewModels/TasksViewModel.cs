@@ -22,6 +22,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     private readonly SessionTasksService _tasks;
     private readonly LaterStore _later;
     private readonly ComebackStore _comebacks;
+    private readonly AutoSavedTaskStore _autoSaved;
     private readonly SessionViewModel _session;
     private readonly ConfigurationService _configuration;
     private readonly TimeProvider _time;
@@ -30,19 +31,21 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     private bool _refreshing;
 
     public TasksViewModel(
-        SessionTasksService tasks, LaterStore later, ComebackStore comebacks, NotebookViewModel archive, SessionViewModel session,
-        ConfigurationService configuration, TimeProvider time)
+        SessionTasksService tasks, LaterStore later, ComebackStore comebacks, AutoSavedTaskStore autoSaved, NotebookViewModel archive,
+        SessionViewModel session, ConfigurationService configuration, TimeProvider time)
     {
         _tasks = tasks;
         _later = later;
         _comebacks = comebacks;
+        _autoSaved = autoSaved;
         Archive = archive;
         _session = session;
         _configuration = configuration;
         _time = time;
-        CountsText = LaterHeader = LaterNextDueText = DoneHeader = UnfinishedHeader = AddPlaceholder = SearchText = NewTaskText = string.Empty;
+        CountsText = LaterHeader = LaterNextDueText = DoneHeader = UnfinishedHeader = AutoSavedHeader = AddPlaceholder = SearchText = NewTaskText = string.Empty;
         _tasks.Changed += OnStoreChanged;
         _comebacks.Changed += OnStoreChanged;
+        _autoSaved.Changed += OnStoreChanged;
         _session.PropertyChanged += OnSessionPropertyChanged;
         if (_session.Focus is not null)
         {
@@ -64,6 +67,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     public ObservableCollection<TaskListRowViewModel> DoneRows { get; } = new();
 
     public ObservableCollection<PastTaskRowViewModel> UnfinishedRows { get; } = new();
+
+    /// <summary>Tomorrow's first tasks typed on a shutdown card that closed by itself; each goes 30 days after it was saved.</summary>
+    public ObservableCollection<PastTaskRowViewModel> AutoSavedRows { get; } = new();
 
     /// <summary>The category filter: All, then each category.</summary>
     [ObservableProperty]
@@ -87,6 +93,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     public partial string UnfinishedHeader { get; set; }
 
     [ObservableProperty]
+    public partial string AutoSavedHeader { get; set; }
+
+    [ObservableProperty]
     public partial string AddPlaceholder { get; set; }
 
     [ObservableProperty]
@@ -108,6 +117,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     public partial bool IsUnfinishedOpen { get; set; }
 
     [ObservableProperty]
+    public partial bool IsAutoSavedOpen { get; set; }
+
+    [ObservableProperty]
     public partial bool IsArchiveOpen { get; set; }
 
     /// <summary>The detail card's item; null shows its empty note.</summary>
@@ -127,6 +139,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     public bool HasUnfinished => UnfinishedRows.Count > 0;
 
+    public bool HasAutoSaved => AutoSavedRows.Count > 0;
+
     public bool HasLaterNextDue => LaterNextDueText.Length > 0;
 
     /// <summary>A search shows every group open, so a hit can't hide in a folded one.</summary>
@@ -137,6 +151,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     public bool ShowsDoneRows => IsDoneOpen || IsSearching;
 
     public bool ShowsUnfinishedRows => IsUnfinishedOpen || IsSearching;
+
+    public bool ShowsAutoSavedRows => IsAutoSavedOpen || IsSearching;
 
     public bool ShowsArchive => IsArchiveOpen || IsSearching;
 
@@ -152,6 +168,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     partial void OnIsUnfinishedOpenChanged(bool value) => OnPropertyChanged(nameof(ShowsUnfinishedRows));
 
+    partial void OnIsAutoSavedOpenChanged(bool value) => OnPropertyChanged(nameof(ShowsAutoSavedRows));
+
     partial void OnIsArchiveOpenChanged(bool value) => OnPropertyChanged(nameof(ShowsArchive));
 
     partial void OnSearchTextChanged(string value)
@@ -161,6 +179,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ShowsLaterRows));
         OnPropertyChanged(nameof(ShowsDoneRows));
         OnPropertyChanged(nameof(ShowsUnfinishedRows));
+        OnPropertyChanged(nameof(ShowsAutoSavedRows));
         OnPropertyChanged(nameof(ShowsArchive));
         Refresh();
     }
@@ -169,6 +188,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     {
         _tasks.Changed -= OnStoreChanged;
         _comebacks.Changed -= OnStoreChanged;
+        _autoSaved.Changed -= OnStoreChanged;
         _session.PropertyChanged -= OnSessionPropertyChanged;
         if (_session.Focus is not null)
         {
@@ -196,6 +216,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     private void ToggleUnfinished() => IsUnfinishedOpen = !IsUnfinishedOpen;
+
+    [RelayCommand]
+    private void ToggleAutoSaved() => IsAutoSavedOpen = !IsAutoSavedOpen;
 
     [RelayCommand]
     private void ToggleArchive() => IsArchiveOpen = !IsArchiveOpen;
@@ -618,6 +641,25 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
                 () => _tasks.EditHistoryAsync(id, null)));
         }
 
+        // Auto-saved: a shutdown card's tomorrow task, kept when the card closed by itself; never moved on its own.
+        AutoSavedRows.Clear();
+        IReadOnlyList<AutoSavedTask> autoSavedItems = _autoSaved.Items;
+        foreach (AutoSavedTask item in autoSavedItems.Where(item => Matches(search, item.Title, null, [])))
+        {
+            Guid id = item.Id;
+            string title = item.Title;
+            AutoSavedRows.Add(new PastTaskRowViewModel(
+                id, title, $"Saved {When(item.SavedAt, today)}",
+                async () =>
+                {
+                    if (await _later.AddAsync(title, null, null, null, null, null, null) is not null)
+                    {
+                        await _autoSaved.RemoveAsync(id);
+                    }
+                },
+                () => _autoSaved.RemoveAsync(id)));
+        }
+
         int comeBacks = _comebacks.Open.Count;
         string estimate = EstimateText.Total(open.Select(task => task.EstimateMinutes));
         CountsText = string.Join(" · ", new[]
@@ -632,6 +674,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         LaterNextDueText = nextDue?.DueOn is DateOnly due ? $"Next due: {nextDue.Title}, {DayLabel(due, today)}" : string.Empty;
         DoneHeader = $"Done today · {DoneToday(today).Count()}";
         UnfinishedHeader = $"Unfinished from past sessions · {_tasks.PastUnfinished().Count(past => past.SessionStart >= from)}";
+        AutoSavedHeader = $"Auto-saved · {autoSavedItems.Count}";
         AddPlaceholder = SessionIsFull
             ? "This session is full: Enter adds it to Later"
             : "Add a task · Ctrl+Alt+N from anywhere";
@@ -642,6 +685,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasLater));
         OnPropertyChanged(nameof(HasDone));
         OnPropertyChanged(nameof(HasUnfinished));
+        OnPropertyChanged(nameof(HasAutoSaved));
         OnPropertyChanged(nameof(HasLaterNextDue));
         OnPropertyChanged(nameof(IsSessionLive));
         OnPropertyChanged(nameof(CanStartSession));
