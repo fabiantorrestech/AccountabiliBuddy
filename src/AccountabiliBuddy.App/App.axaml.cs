@@ -920,7 +920,10 @@ public partial class App : Application
         _dayBar.PhoneFreeSessions = _phonePickups.PhoneFreeSessions;
         timelineDay.PhoneFreeSessions = _phonePickups.PhoneFreeSessions;
         // The shutdown routine (redesign phase 5): one card on Today once the day's work is over.
-        _shutdown = new ShutdownService(_sessions, _configuration, sessionTasks, _comebacks!, documents);
+        // A card left open closes by itself; its typed tomorrow's first task waits under the Tasks page's "Auto-saved" (this computer, encrypted).
+        var autoSaved = new AutoSavedTaskStore(documents, new DpapiDataProtector(), time);
+        autoSaved.LoadBlocking();
+        _shutdown = new ShutdownService(_sessions, _configuration, sessionTasks, _comebacks!, documents, autoSaved);
         _shutdown.LoadBlocking();
         _shutdown.Changed += (_, _) =>
         {
@@ -930,6 +933,7 @@ public partial class App : Application
                 presenter.ShowNotice("Work's done for today", "A one-minute wrap-up is waiting on Today: come-backs, open tasks, tomorrow's first task.");
             }
         };
+        _shutdown.AutoSaved += (_, _) => presenter.ShowNotice("Wrap-up closed", "Your tomorrow task is saved under Tasks → Auto-saved.");
         // Earned time (design K): today's goal met across the user's devices opens this computer's work hours.
         _workHours!.Goal = () => _deepWork?.UnlockProgress;
         // Counted focus per date for the day plan's Budget days: one source for every guard that reads the work windows (ADR 47).
@@ -1060,7 +1064,7 @@ public partial class App : Application
             Environment.GetEnvironmentVariable(DevToolsVariable) == "1",
             _configuration.LoadError)
         {
-            Tasks = new TasksViewModel(sessionTasks, _later!, _comebacks!, notebook, sessionViewModel, _configuration!, time),
+            Tasks = new TasksViewModel(sessionTasks, _later!, _comebacks!, autoSaved, notebook, sessionViewModel, _configuration!, time),
             Plan = planViewModel,
             Stats = statsViewModel,
             DayBar = _dayBar,
