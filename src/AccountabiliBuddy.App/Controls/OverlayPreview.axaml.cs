@@ -42,6 +42,7 @@ public partial class OverlayPreview : UserControl
 
     private OverlayPreviewViewModel? _model;
     private bool _redrawing;
+    private bool _wasVisible;
 
     static OverlayPreview()
     {
@@ -60,12 +61,18 @@ public partial class OverlayPreview : UserControl
         };
         DataContextChanged += (_, _) => Attach(DataContext as OverlayPreviewViewModel);
         AttachedToVisualTree += (_, _) => Redraw();
-        // The page was hidden while settings changed (or a theme was picked meanwhile): it gets its size again when it shows, and draws then.
-        SizeChanged += (_, e) =>
+        // The page was hidden while settings changed (or a theme was picked meanwhile): draw it again the moment it shows. A layout pass is the
+        // first place that sees an ancestor become visible; this only compares a flag, and passes only happen when something changed.
+        LayoutUpdated += (_, _) =>
         {
-            if (e.PreviousSize.Width <= 0 && e.NewSize.Width > 0)
+            bool visible = IsEffectivelyVisible;
+            if (visible != _wasVisible)
             {
-                Redraw();
+                _wasVisible = visible;
+                if (visible)
+                {
+                    Redraw();
+                }
             }
         };
     }
@@ -274,7 +281,7 @@ public partial class OverlayPreview : UserControl
         OverlaySettings settings = model.Settings;
         // A dark video frame, whatever theme the page is in.
         Scene.Children.Add(Placed(new Border { Width = ScreenWidth, Height = ScreenHeight, Background = new SolidColorBrush(Color.Parse("#0C0E11")) }, 0, 0));
-        SetCrop(MinCropWidth, anchorRight: true, atTop: true);
+        SetCrop(MinCropWidth, anchorRight: true, atTop: true, height: MinCropHeight);
         if (!settings.CornerClock || settings.CornerClockParts == CornerClockParts.None)
         {
             return;
