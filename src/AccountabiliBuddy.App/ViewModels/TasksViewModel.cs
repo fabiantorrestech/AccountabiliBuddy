@@ -517,19 +517,54 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         return result;
     }
 
+    /// <summary>"Add to Today" for an Auto-saved row: same path and three-task rule as Later's.</summary>
+    private async Task AddAutoSavedToTodayAsync(Guid id, string title)
+    {
+        Notice = string.Empty;
+        await RunAddAutoSavedAsync(id, title, null);
+    }
+
+    private async Task<AddToTodayResult> RunAddAutoSavedAsync(Guid id, string title, string? reason)
+    {
+        (AddToTodayResult result, Guid? taskId) = await _tasks.AddAutoSavedToTodayAsync(id, reason);
+        switch (result)
+        {
+            case AddToTodayResult.Added:
+                Pending = null;
+                if (taskId is Guid added)
+                {
+                    Select(new TaskRowKey(TaskRowKind.Session, added));
+                }
+
+                break;
+            case AddToTodayResult.AtLimit:
+                Pending = BuildPending(title, text => RunAddAutoSavedAsync(id, title, text));
+                break;
+            case AddToTodayResult.NothingToAdd:
+                Notice = "That task is no longer there.";
+                break;
+        }
+
+        return result;
+    }
+
     private PendingMoveViewModel BuildPending(TaskRowKey key)
     {
-        string title = Read(key)?.Title ?? "this task";
+        return BuildPending(Read(key)?.Title ?? "this task", reason => RunAddToTodayAsync(key, reason));
+    }
+
+    private PendingMoveViewModel BuildPending(string title, Func<string?, Task<AddToTodayResult>> run)
+    {
         List<(Guid, string)> choices = _tasks.Current.Tasks.Where(task => !task.IsDone).Select(task => (task.Id, task.Title)).ToList();
         return new PendingMoveViewModel(
             $"Today already has {_tasks.Current.Tasks.Count} tasks. Add “{title}” anyway?",
             _tasks.Comebacks is not null,
             choices,
-            reason => RunAddToTodayAsync(key, reason),
+            reason => run(reason),
             async parkedId =>
             {
                 await _tasks.ParkAsync(parkedId);
-                await RunAddToTodayAsync(key, null);
+                await run(null);
             },
             () => Pending = null);
     }
@@ -914,7 +949,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
                         await _autoSaved.RemoveAsync(id);
                     }
                 },
-                () => _autoSaved.RemoveAsync(id)));
+                () => _tasks.DeleteAutoSavedAsync(id),
+                () => AddAutoSavedToTodayAsync(id, title)));
         }
 
         int comeBacks = _comebacks.Open.Count;

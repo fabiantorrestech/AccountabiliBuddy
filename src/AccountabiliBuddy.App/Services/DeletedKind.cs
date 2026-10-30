@@ -23,4 +23,7 @@ public enum DeletedKind
 
     /// <summary>A step of a Later item.</summary>
     LaterStep,
+
+    /// <summary>An Auto-saved item (tomorrow's first task from a shutdown card that closed by itself).</summary>
+    AutoSaved,
 }

@@ -938,6 +938,7 @@ public partial class App : Application
         // A card left open closes by itself; its typed tomorrow's first task waits under the Tasks page's "Auto-saved" (this computer, encrypted).
         var autoSaved = new AutoSavedTaskStore(documents, new DpapiDataProtector(), time);
         autoSaved.LoadBlocking();
+        sessionTasks.AutoSaved = autoSaved;
         _shutdown = new ShutdownService(_sessions, _configuration, sessionTasks, _comebacks!, documents, autoSaved);
         _shutdown.LoadBlocking();
         _shutdown.Changed += (_, _) =>

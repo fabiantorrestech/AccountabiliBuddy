@@ -68,6 +68,24 @@ public sealed partial class SessionTasksService
         return added;
     }
 
+    /// <summary>"Add to Today" for an Auto-saved item: it joins today's list and leaves the Auto-saved list, under the same rules as Later's.</summary>
+    public async Task<(AddToTodayResult Result, Guid? TaskId)> AddAutoSavedToTodayAsync(Guid autoSavedId, string? overLimitReason = null)
+    {
+        AutoSavedTask? item = AutoSaved?.Items.FirstOrDefault(candidate => candidate.Id == autoSavedId);
+        if (AutoSaved is null || item is null)
+        {
+            return (AddToTodayResult.NothingToAdd, null);
+        }
+
+        (AddToTodayResult Result, Guid? TaskId) added = await AddToTodayAsync(new TodaySource(item.Title, []), overLimitReason);
+        if (added.Result == AddToTodayResult.Added)
+        {
+            await AutoSaved.RemoveAsync(autoSavedId);
+        }
+
+        return added;
+    }
+
     /// <summary>"Add to Today" for an open come-back: it becomes a task and the come-back is ticked off.</summary>
     public async Task<(AddToTodayResult Result, Guid? TaskId)> AddComebackToTodayAsync(Guid comebackId, string? overLimitReason = null)
     {

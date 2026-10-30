@@ -17,6 +17,9 @@ public sealed partial class SessionTasksService
     /// </summary>
     public RecentlyDeletedStore? Deleted { get; set; }
 
+    /// <summary>The Auto-saved list, set once the store exists (it is built after this service). Null: no Auto-saved items.</summary>
+    public AutoSavedTaskStore? AutoSaved { get; set; }
+
     /// <summary>Deletes a Later item; it stays in Recently deleted for 30 days.</summary>
     public async Task DeleteLaterAsync(Guid id)
     {
@@ -28,6 +31,19 @@ public sealed partial class SessionTasksService
 
         await RecordAsync(new DeletedItem(Guid.NewGuid(), _time.GetUtcNow(), DeletedKind.Later, item.Title, Later: item));
         await Later.DeleteAsync(id);
+    }
+
+    /// <summary>Deletes an Auto-saved item; it stays in Recently deleted for 30 days.</summary>
+    public async Task DeleteAutoSavedAsync(Guid id)
+    {
+        AutoSavedTask? item = AutoSaved?.Items.FirstOrDefault(candidate => candidate.Id == id);
+        if (AutoSaved is null || item is null)
+        {
+            return;
+        }
+
+        await RecordAsync(new DeletedItem(Guid.NewGuid(), _time.GetUtcNow(), DeletedKind.AutoSaved, item.Title, AutoSaved: item));
+        await AutoSaved.RemoveAsync(id);
     }
 
     /// <summary>Deletes a step of a Later item; it stays in Recently deleted for 30 days.</summary>
@@ -74,6 +90,7 @@ public sealed partial class SessionTasksService
             DeletedKind.ComeBack when Comebacks is not null => await RestoreComebackAsync(entry),
             DeletedKind.Task => await RestoreTaskAsync(entry),
             DeletedKind.Step => await RestoreStepAsync(entry),
+            DeletedKind.AutoSaved when AutoSaved is not null => await RestoreAutoSavedAsync(entry),
             DeletedKind.LaterStep when Later is not null => await RestoreLaterStepAsync(entry),
             DeletedKind.HistoryTask => await RestoreHistoryTaskAsync(entry),
             DeletedKind.HistoryStep => await RestoreHistoryStepAsync(entry),
@@ -128,6 +145,12 @@ public sealed partial class SessionTasksService
         }
 
         await SetAsync(restored);
+        return (true, null);
+    }
+
+    private async Task<(bool, string?)> RestoreAutoSavedAsync(DeletedItem entry)
+    {
+        await AutoSaved!.RestoreAsync(entry.AutoSaved!);
         return (true, null);
     }
 

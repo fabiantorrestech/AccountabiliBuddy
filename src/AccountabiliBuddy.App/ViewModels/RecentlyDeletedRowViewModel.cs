@@ -20,6 +20,7 @@ public sealed partial class RecentlyDeletedRowViewModel : ObservableObject
             DeletedKind.Step or DeletedKind.HistoryStep or DeletedKind.LaterStep => "Step",
             DeletedKind.Later => "Later",
             DeletedKind.ComeBack => "Come back to",
+            DeletedKind.AutoSaved => "Auto-saved",
             _ => "Task",
         };
         WhenText = whenText;

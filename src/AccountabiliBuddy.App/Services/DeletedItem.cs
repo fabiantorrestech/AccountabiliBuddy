@@ -31,7 +31,8 @@ public sealed record DeletedItem(
     DateTimeOffset? ChecklistStart = null,
     bool WasLive = false,
     SyncLaterItem? Later = null,
-    Comeback? ComeBack = null)
+    Comeback? ComeBack = null,
+    AutoSavedTask? AutoSaved = null)
 {
     /// <summary>The item's own id.</summary>
     public Guid ItemId => Kind switch
@@ -39,6 +40,7 @@ public sealed record DeletedItem(
         DeletedKind.Task or DeletedKind.HistoryTask => Task!.Id,
         DeletedKind.Step or DeletedKind.HistoryStep or DeletedKind.LaterStep => Step!.Id,
         DeletedKind.Later => Later!.Id,
+        DeletedKind.AutoSaved => AutoSaved!.Id,
         _ => ComeBack!.Id,
     };
 
