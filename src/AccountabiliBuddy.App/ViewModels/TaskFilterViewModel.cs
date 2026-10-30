@@ -60,8 +60,11 @@ public sealed partial class TaskFilterViewModel : ObservableObject
 
     public string BadgeText => ActiveCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-    /// <summary>Some categories are chosen (or "No category"): only those rows show.</summary>
-    public bool HasCategoryRestriction => _categoryIds.Count > 0 || _includesNoCategory;
+    /// <summary>
+    /// Some categories are chosen (or "No category"): only those rows show. With no categories at all there is nothing to restrict
+    /// to (and the saved choice is kept untouched, in case the categories simply were not loaded yet).
+    /// </summary>
+    public bool HasCategoryRestriction => _categories.Count > 0 && (_categoryIds.Count > 0 || _includesNoCategory);
 
     /// <summary>Rows without a category show: no category restriction, or "No category" is on.</summary>
     public bool ShowsNoCategory => !HasCategoryRestriction || _includesNoCategory;
@@ -73,12 +76,20 @@ public sealed partial class TaskFilterViewModel : ObservableObject
 
     public bool ShowsCategory(Guid id) => !HasCategoryRestriction || _categoryIds.Contains(id);
 
-    /// <summary>The list of categories that exist now: a chosen category that was deleted is dropped (and the change kept).</summary>
+    /// <summary>
+    /// The categories that exist now: a chosen category that is truly gone is dropped (and the change kept). An empty list drops
+    /// nothing: it may be that the categories failed to load, and the saved choice should not be lost for that.
+    /// </summary>
     public void SetCategories(IReadOnlyList<TaskCategory> categories)
     {
         _categories = categories;
-        HashSet<Guid> known = categories.Select(category => category.Id).ToHashSet();
-        bool dropped = _categoryIds.RemoveWhere(id => !known.Contains(id)) > 0;
+        bool dropped = false;
+        if (categories.Count > 0)
+        {
+            HashSet<Guid> known = categories.Select(category => category.Id).ToHashSet();
+            dropped = _categoryIds.RemoveWhere(id => !known.Contains(id)) > 0;
+        }
+
         BuildPills();
         if (dropped)
         {

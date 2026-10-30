@@ -1134,9 +1134,12 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             return true;
         }
 
-        Guid? resolved = categoryName is null
-            ? categoryId
-            : _tasks.Categories.FirstOrDefault(item => string.Equals(item.Name, categoryName, StringComparison.OrdinalIgnoreCase))?.Id;
+        // The id first (it survives a rename), then the name (Later items carry only the name); a category that no longer exists counts as none.
+        Guid? resolved = categoryId is Guid byId && _tasks.Categories.Any(item => item.Id == byId)
+            ? byId
+            : categoryName is null
+                ? null
+                : _tasks.Categories.FirstOrDefault(item => string.Equals(item.Name, categoryName, StringComparison.OrdinalIgnoreCase))?.Id;
         return resolved is Guid id ? Filter.ShowsCategory(id) : Filter.ShowsNoCategory;
     }
 
