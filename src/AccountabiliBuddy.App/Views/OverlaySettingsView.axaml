@@ -21,6 +21,7 @@
             <Setter Property="Padding" Value="12,6" />
             <Setter Property="CornerRadius" Value="6" />
             <Setter Property="FontSize" Value="13" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
         </Style>
         <Style Selector="ListBox.seg > ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
@@ -47,7 +48,13 @@
         <Border Classes="row">
             <StackPanel Spacing="10">
                 <TextBlock Text="Where it lives" />
-                <ListBox Classes="seg" ItemsSource="{x:Static vm:OverlaySettingsViewModel.PlacementNames}" SelectedIndex="{Binding PlacementIndex}" />
+                <ListBox Classes="seg" HorizontalAlignment="Stretch" ItemsSource="{x:Static vm:OverlaySettingsViewModel.PlacementNames}" SelectedIndex="{Binding PlacementIndex}">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="3" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                </ListBox>
                 <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
                            Text="Over the taskbar sits right of your apps and ends where the tray starts. Floating positions keep clear of scrollbars; a Windows notification can cover a floating tile, because Windows doesn't say when one shows." />
             </StackPanel>
@@ -56,7 +63,7 @@
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel>
                     <TextBlock Text="When the taskbar auto-hides" />
-                    <TextBlock Classes="muted" FontSize="12" Text="Detected automatically, including on extra monitors" />
+                    <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="Detected automatically, including on extra monitors" />
                 </StackPanel>
                 <ListBox Grid.Column="1" Classes="seg" ItemsSource="{x:Static vm:OverlaySettingsViewModel.AutoHideNames}" SelectedIndex="{Binding AutoHideIndex}" VerticalAlignment="Center" />
             </Grid>
@@ -81,7 +88,7 @@
                 <Grid ColumnDefinitions="*,Auto">
                     <StackPanel>
                         <TextBlock Text="Corner clock in full screen" />
-                        <TextBlock Classes="muted" FontSize="12" Text="Top right while an app covers the screen. Clicks pass through it; it fades near the mouse." />
+                        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="Top right while an app covers the screen. Clicks pass through it; it fades near the mouse." />
                     </StackPanel>
                     <ToggleSwitch Grid.Column="1" IsChecked="{Binding CornerClock}" OnContent="" OffContent="" AutomationProperties.Name="Corner clock in full screen" />
                 </Grid>

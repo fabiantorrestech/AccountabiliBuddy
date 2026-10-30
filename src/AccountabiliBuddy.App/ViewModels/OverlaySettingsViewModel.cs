@@ -13,7 +13,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 public sealed partial class OverlaySettingsViewModel : ObservableObject
 {
     public static IReadOnlyList<string> PlacementNames { get; } =
-        ["Docked over taskbar", "Docked, covering tray", "Taskbar left", "Beside tray", "Floating bottom right", "Floating bottom left"];
+        ["Over taskbar", "Cover tray", "Taskbar left", "Beside tray", "Float right", "Float left"];
 
     public static IReadOnlyList<string> AutoHideNames { get; } = ["Float", "Slim line", "Hide with it"];
 
