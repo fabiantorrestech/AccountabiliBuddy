@@ -538,7 +538,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
                 break;
             case AddToTodayResult.AtLimit:
-                Pending = BuildPending(title, text => RunAddAutoSavedAsync(id, title, text));
+                Pending = BuildPending(title, text => RunAddAutoSavedAsync(id, title, text), () => _autoSaved.Items.Any(item => item.Id == id));
                 break;
             case AddToTodayResult.NothingToAdd:
                 Notice = "That task is no longer there.";
@@ -550,10 +550,10 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     private PendingMoveViewModel BuildPending(TaskRowKey key)
     {
-        return BuildPending(Read(key)?.Title ?? "this task", reason => RunAddToTodayAsync(key, reason));
+        return BuildPending(Read(key)?.Title ?? "this task", reason => RunAddToTodayAsync(key, reason), () => Read(key) is not null);
     }
 
-    private PendingMoveViewModel BuildPending(string title, Func<string?, Task<AddToTodayResult>> run)
+    private PendingMoveViewModel BuildPending(string title, Func<string?, Task<AddToTodayResult>> run, Func<bool> sourceExists)
     {
         List<(Guid, string)> choices = _tasks.Current.Tasks.Where(task => !task.IsDone).Select(task => (task.Id, task.Title)).ToList();
         return new PendingMoveViewModel(
@@ -563,6 +563,14 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             reason => run(reason),
             async parkedId =>
             {
+                if (!sourceExists())
+                {
+                    // It left in the meantime: nothing is parked for it.
+                    Pending = null;
+                    Notice = "That task is no longer there.";
+                    return;
+                }
+
                 await _tasks.ParkAsync(parkedId);
                 await run(null);
             },
