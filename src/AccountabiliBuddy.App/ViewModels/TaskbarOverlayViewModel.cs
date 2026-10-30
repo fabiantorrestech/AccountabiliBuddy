@@ -282,12 +282,22 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
     [RelayCommand]
     private void OpenTrayOverflow()
     {
+        if (IsPreview)
+        {
+            return;
+        }
+
         Actions.OpenTrayOverflow();
     }
 
     [RelayCommand]
     private void OpenCalendar()
     {
+        if (IsPreview)
+        {
+            return;
+        }
+
         Actions.OpenCalendarFlyout();
     }
 
@@ -321,12 +331,22 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
     [RelayCommand]
     private void Pause()
     {
+        if (IsPreview)
+        {
+            return;
+        }
+
         StepAway?.Toggle();
     }
 
     [RelayCommand]
     private async Task DoneAsync()
     {
+        if (IsPreview)
+        {
+            return;
+        }
+
         if (Checklist is { HasTasks: true, CurrentTaskNumber: > 0 } checklist)
         {
             checklist.TickCurrentTaskCommand.Execute(null);
@@ -339,12 +359,22 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
     [RelayCommand]
     private void Start()
     {
+        if (IsPreview)
+        {
+            return;
+        }
+
         Actions.ShowStart();
     }
 
     [RelayCommand]
     private void ExtendFocus()
     {
+        if (IsPreview)
+        {
+            return;
+        }
+
         Actions.ExtendFocus();
     }
 
