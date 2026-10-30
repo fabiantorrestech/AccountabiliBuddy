@@ -202,7 +202,8 @@ public sealed partial class TaskFilterViewModel : ObservableObject
             return;
         }
 
-        var statuses = saved.Statuses.Select(name => Enum.TryParse(name, out TaskStatusKind kind) ? kind : (TaskStatusKind?)null)
+        // A partial or hand-edited document has null lists and odd names: anything unusable falls back to the default.
+        var statuses = (saved.Statuses ?? []).Select(name => name is not null && Enum.TryParse(name, out TaskStatusKind kind) && Enum.IsDefined(kind) ? kind : (TaskStatusKind?)null)
             .OfType<TaskStatusKind>().ToList();
         if (statuses.Count > 0)
         {
@@ -211,10 +212,10 @@ public sealed partial class TaskFilterViewModel : ObservableObject
         }
 
         // Category ids that no longer exist are dropped by SetCategories once the categories are known.
-        _categoryIds.UnionWith(saved.CategoryIds);
+        _categoryIds.UnionWith(saved.CategoryIds ?? []);
         _includesNoCategory = saved.NoCategory;
-        Due = Enum.TryParse(saved.Due, out TaskDueFilter due) ? due : TaskDueFilter.Any;
-        Sort = Enum.TryParse(saved.Sort, out TaskSortMode sort) ? sort : TaskSortMode.Default;
+        Due = saved.Due is not null && Enum.TryParse(saved.Due, out TaskDueFilter due) && Enum.IsDefined(due) ? due : TaskDueFilter.Any;
+        Sort = saved.Sort is not null && Enum.TryParse(saved.Sort, out TaskSortMode sort) && Enum.IsDefined(sort) ? sort : TaskSortMode.Default;
     }
 
     private void Save()

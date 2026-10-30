@@ -22,8 +22,9 @@ public sealed class TaskViewStore
         {
             return Task.Run(() => _documents.LoadAsync<TaskViewPreferences>(DocumentKey)).GetAwaiter().GetResult();
         }
-        catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
+        catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException or InvalidOperationException or NotSupportedException)
         {
+            // Not readable: the defaults stay (a bad preference must never stop the app starting).
             return null;
         }
     }
