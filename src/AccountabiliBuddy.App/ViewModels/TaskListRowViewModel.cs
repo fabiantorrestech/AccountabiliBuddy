@@ -6,8 +6,8 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// One row of the Tasks page's lists (This session, Come back to, Later, Done today, Unfinished from past sessions): a check
-/// box, a title with a Muted line under it and a ⋯ menu. A click selects it for the detail card. This session's rows are
+/// One row of the Tasks page's lists (This session, then the flat list of everything else): a check
+/// box, a title with a Muted line under it, a status tag, the category dot and a ⋯ menu. A click selects it for the detail card. This session's rows are
 /// numbered and can be dragged. The category shows as a small dot and its name, never as a fill.
 /// </summary>
 public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSource
@@ -71,6 +71,14 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
 
     /// <summary>The row shows a category dot and name.</summary>
     public bool HasCategory => !string.IsNullOrWhiteSpace(CategoryName);
+
+    /// <summary>The pill after the title on the flat list: "Come back", "Later", "Later · Fri", "Unfinished", "Auto-saved", "Done"; empty on This session's rows.</summary>
+    public string StatusTag { get; init; } = string.Empty;
+
+    public bool HasStatusTag => StatusTag.Length > 0;
+
+    /// <summary>The title reads in Muted (a task that is done).</summary>
+    public bool IsFaded { get; init; }
 
     /// <summary>The check box is ticked: a task that is done.</summary>
     public bool IsTicked { get; }
