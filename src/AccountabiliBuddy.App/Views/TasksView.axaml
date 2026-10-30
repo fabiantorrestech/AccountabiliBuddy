@@ -210,7 +210,7 @@
                 <Panel Classes="listItem">
                     <Button Classes="listRow" Classes.selected="{Binding IsSelected}" Command="{Binding SelectCommand}"
                             AutomationProperties.Name="{Binding Title}">
-                        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" Margin="0,0,6,0">
+                        <Grid ColumnDefinitions="Auto,*,Auto,92,Auto,Auto,22" ColumnSpacing="8" Margin="0,0,6,0">
                             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0" MinWidth="22" VerticalAlignment="Center">
                                 <TextBlock Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Center" MinWidth="16"
                                            IsVisible="{Binding IsNumbered}" />
@@ -228,7 +228,7 @@
                             </Border>
                             <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" IsVisible="{Binding HasCategory}">
                                 <Ellipse Width="8" Height="8" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" />
-                                <TextBlock Classes="muted" Text="{Binding CategoryName}" FontSize="12" MaxWidth="110" TextTrimming="CharacterEllipsis"
+                                <TextBlock Classes="muted" Text="{Binding CategoryName}" FontSize="12" MaxWidth="72" TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center" />
                             </StackPanel>
                             <TextBlock Grid.Column="4" Classes="muted" Text="Now" FontSize="13" VerticalAlignment="Center" IsVisible="{Binding IsNow}" />
