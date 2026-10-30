@@ -258,7 +258,7 @@ Keep backups of your real data with AccountabiliBuddy's own backup (`.abbackup`)
    network; longer through relays or on a sync app's schedule).
 7. **Clock right?** A device whose clock is far off can make the newest file look old. Let each device set its time
    automatically.
-8. **Errors in AccountabiliBuddy?** The PC's Devices tab and the phone's Sync folder section show the last problem
+8. **Errors in AccountabiliBuddy?** The PC's Settings › Devices & sync and the phone's Sync folder section show the last problem
    (for example "can't write to the folder").
 9. **Conflict copies?** Syncthing names them `*.sync-conflict-*`; they can be deleted. They're rare, since each device
    writes only its own file.
@@ -309,7 +309,7 @@ What it does not do:
 - A lost or stolen device is removed only by making a new group. Every device in a group can write any other device's
   file and delete it, because they share one key.
 - The relay can't read or change the contents of a file (a changed file doesn't open). It **can** hold files back, delete
-  them, and serve an older copy of a file; a device then just doesn't see a newer change (the Devices tab shows
+  them, and serve an older copy of a file; a device then just doesn't see a newer change (Settings › Devices & sync shows
   "Behind by …" for a device whose file is old). Anyone who has the group's token on that relay (a hostile relay that
   saw it, for example) can also overwrite or delete the group's files there.
 - **The join QR and the link code are the key to all your data.** Never photograph, screen-share or post them, and
