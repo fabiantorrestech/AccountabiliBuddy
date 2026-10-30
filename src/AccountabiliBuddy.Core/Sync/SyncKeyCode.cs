@@ -31,6 +31,18 @@ public static class SyncKeyCode
         }
     }
 
+    /// <returns>The code for a given 25-byte secret (a rekey, ADR 54, hands the secret over wrapped, then both sides spell it the same way).</returns>
+    /// <exception cref="ArgumentException">The secret isn't <see cref="SyncKey.SecretBytes"/> bytes.</exception>
+    public static string FromSecret(ReadOnlySpan<byte> secret)
+    {
+        if (secret.Length != SyncKey.SecretBytes)
+        {
+            throw new ArgumentException($"The link code's secret is {SyncKey.SecretBytes} bytes.", nameof(secret));
+        }
+
+        return Encode(secret);
+    }
+
     /// <summary>
     /// Reads a typed or scanned code. Spaces, dashes and lower case are ignored; what's left must be exactly 40
     /// characters of the alphabet (I, L, O and U are refused, not read as 1 or 0).
@@ -90,7 +102,7 @@ public static class SyncKeyCode
             .ToArray());
     }
 
-    private static string Encode(byte[] secret)
+    private static string Encode(ReadOnlySpan<byte> secret)
     {
         var code = new StringBuilder(CodeLength);
         int buffer = 0;
