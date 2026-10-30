@@ -70,7 +70,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     /// <summary>The bar after a delete: "Deleted “…” · Undo".</summary>
     public UndoBarViewModel Undo { get; }
 
-    public ObservableCollection<TaskGroupViewModel> SessionGroups { get; } = new();
+    /// <summary>This session's open tasks in session order (numbered), one flat block with no category headers.</summary>
+    public ObservableCollection<TaskListRowViewModel> SessionRows { get; } = new();
 
     public ObservableCollection<TaskListRowViewModel> ComeBackRows { get; } = new();
 
@@ -869,7 +870,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         string search = SearchText.Trim();
         DateOnly today = DateOnly.FromDateTime(LocalNow());
 
-        // This session: the open tasks, numbered as the session runs them (the numbers don't change with a filter), under their categories.
+        // This session: the open tasks, numbered as the session runs them (the numbers don't change with a filter), in session order.
         var sessionRows = new List<TaskListRowViewModel>();
         List<SessionTask> open = current.Tasks.Where(task => !task.IsDone).ToList();
         int total = open.Count;
@@ -888,7 +889,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
 
         _sessionRowCount = sessionRows.Count;
-        Replace(SessionGroups, Group(sessionRows));
+        Replace(SessionRows, sessionRows);
 
         // Come back to: open come-backs; they have no category, so a category filter leaves them out.
         ComeBackRows.Clear();
@@ -1011,6 +1012,15 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         };
     }
 
+    private static void Replace(ObservableCollection<TaskListRowViewModel> target, IReadOnlyList<TaskListRowViewModel> rows)
+    {
+        target.Clear();
+        foreach (TaskListRowViewModel row in rows)
+        {
+            target.Add(row);
+        }
+    }
+
     private static void Replace(ObservableCollection<TaskGroupViewModel> target, IReadOnlyList<TaskGroupViewModel> groups)
     {
         target.Clear();
@@ -1058,9 +1068,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     private void ShowSelected()
     {
         TaskSnapshot? snapshot = _selectedKey is TaskRowKey key ? Read(key) : null;
-        if (snapshot is null && SessionGroups.Count > 0)
+        if (snapshot is null && SessionRows.Count > 0)
         {
-            _selectedKey = SessionGroups[0].Rows[0].Key;
+            _selectedKey = SessionRows[0].Key;
             snapshot = Read(_selectedKey.Value);
         }
 
@@ -1083,8 +1093,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
         TaskRowKey? selected = Detail?.Key;
         _selectedKey = selected ?? _selectedKey;
-        IEnumerable<TaskListRowViewModel> rows = SessionGroups.Concat(LaterGroups).Concat(DoneGroups).Concat(UnfinishedGroups)
-            .SelectMany(group => group.Rows)
+        IEnumerable<TaskListRowViewModel> rows = SessionRows
+            .Concat(LaterGroups.Concat(DoneGroups).Concat(UnfinishedGroups).SelectMany(group => group.Rows))
             .Concat(ComeBackRows);
         foreach (TaskListRowViewModel row in rows)
         {
