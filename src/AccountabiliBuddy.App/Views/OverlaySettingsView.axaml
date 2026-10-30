@@ -221,5 +221,14 @@
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding PanelSticky}" OnContent="" OffContent="" AutomationProperties.Name="Ctrl+Alt+Space keeps it open" />
             </Grid>
         </Border>
+        <Border Classes="row">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                    <TextBlock Text="Peek uses keyboard shortcuts" />
+                    <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="Off (the default): holding Ctrl+Alt takes no keys, so other apps keep all their shortcuts. On: Ctrl+Alt+H hides, T adds 10 minutes, Up and Down pick a task. Ctrl+Alt+Space has every key without this." />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding PeekUsesKeys}" OnContent="" OffContent="" AutomationProperties.Name="Peek uses keyboard shortcuts" />
+            </Grid>
+        </Border>
     </StackPanel>
 </UserControl>
