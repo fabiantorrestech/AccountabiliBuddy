@@ -18,6 +18,11 @@ namespace AccountabiliBuddy.Core.Sync;
 /// A phone's next alarm, which the user's PCs can take as the wake time (ADR 23); null for none. Optional in the JSON,
 /// like <paramref name="Companions"/>.
 /// </param>
+/// <param name="PublicKey">
+/// The device's ECDH P-256 public key for re-keying the group (ADR 54): the 65-byte uncompressed point (0x04, X, Y) as
+/// standard base64; null for an app from before ADR 54. Optional in the JSON, like <paramref name="Companions"/>, so older
+/// files still read and older apps ignore it. The private key never leaves the device.
+/// </param>
 public sealed record SyncDeviceCard(
     Guid DeviceId,
     string Name,
@@ -30,7 +35,9 @@ public sealed record SyncDeviceCard(
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     IReadOnlyList<SyncCompanion>? Companions = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    DateTimeOffset? NextAlarm = null)
+    DateTimeOffset? NextAlarm = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? PublicKey = null)
 {
     public const string KindPc = "pc";
     public const string KindPhone = "phone";

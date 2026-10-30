@@ -239,6 +239,9 @@ object SyncFileJson {
 
         // Optional (ADR 23), like the companions.
         device.nextAlarm?.let { put("nextAlarm", writeTime(it)) }
+
+        // Optional (ADR 54): the device's key for re-keying the group.
+        device.publicKey?.let { put("publicKey", it) }
     }
 
     private fun writeSession(session: SyncSession): JsonObject = buildJsonObject {
@@ -650,6 +653,7 @@ object SyncFileJson {
                 )
             },
             json.optionalTime("nextAlarm"),
+            json.optionalString("publicKey"),
         )
     }
 

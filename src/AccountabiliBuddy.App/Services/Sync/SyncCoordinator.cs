@@ -219,7 +219,8 @@ public sealed class SyncCoordinator
         DateTimeOffset now = _sessions.Now;
         bool historyOff = !_privacy.Current.ActivityLogEnabled;
         var card = new SyncDeviceCard(
-            _identity.DeviceId, _identity.DeviceName, SyncDeviceCard.KindPc, BackupService.AppVersion, now, Methods(), historyOff, Seen());
+            _identity.DeviceId, _identity.DeviceName, SyncDeviceCard.KindPc, BackupService.AppVersion, now, Methods(), historyOff, Seen(),
+            PublicKey: _identity.DeviceKey.PublicKeyBase64);
 
         IReadOnlyList<SessionRecord> records = [];
         IReadOnlyList<DriftStretch> drift = [];

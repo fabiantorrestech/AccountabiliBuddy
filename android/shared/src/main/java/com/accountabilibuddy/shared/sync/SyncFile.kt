@@ -109,6 +109,11 @@ data class SyncDeviceCard(
     val companions: List<SyncCompanion> = emptyList(),
     /** A phone's next alarm, which the user's PCs can take as the wake time (ADR 23); null for none. Optional in the JSON. */
     val nextAlarm: Instant? = null,
+    /**
+     * The device's ECDH P-256 public key for re-keying the group (ADR 54): the 65-byte uncompressed point as standard
+     * base64; null for an app from before ADR 54. Optional in the JSON, so older files read and older apps ignore it.
+     */
+    val publicKey: String? = null,
 ) {
     companion object {
         const val KIND_PC = "pc"

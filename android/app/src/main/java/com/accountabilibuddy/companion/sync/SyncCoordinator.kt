@@ -226,7 +226,7 @@ class SyncCoordinator(
         SyncFile.CURRENT_FORMAT_VERSION,
         SyncDeviceCard(
             identity.deviceId, deviceName, SyncDeviceCard.KIND_PHONE, appVersion, now(), methods(), false, SyncCarry.seen(store.devices.value), companions(),
-            nextAlarm().takeIf { settingsStore.settings.value.alarmOn },
+            nextAlarm().takeIf { settingsStore.settings.value.alarmOn }, identity.deviceKey.publicKeyBase64,
         ),
         emptyList(), emptyList(), null, listOfNotNull(runCatching { sleepDocument() }.getOrNull()),
         pickups = runCatching { pickups() }.getOrNull(),

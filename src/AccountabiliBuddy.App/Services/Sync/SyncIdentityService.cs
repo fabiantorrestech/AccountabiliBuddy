@@ -7,8 +7,9 @@ namespace AccountabiliBuddy.App.Services.Sync;
 
 /// <summary>
 /// Who this PC is in the user's device group (ADR 22): its device id (made once, kept for good), its name, and the
-/// group's link code, from which the sync key comes. The code is stored only DPAPI-protected (<see cref="IDataProtector"/>)
-/// in the documents table ("sync.identity"). Use from the UI thread only.
+/// group's link code, from which the sync key comes, and its ECDH key pair for re-keying (ADR 54). The code and the key
+/// pair's private half are stored only DPAPI-protected (<see cref="IDataProtector"/>) in the documents table
+/// ("sync.identity"). Use from the UI thread only.
 /// </summary>
 public sealed class SyncIdentityService
 {
@@ -19,6 +20,7 @@ public sealed class SyncIdentityService
     private readonly ReceivedDevicesService _received;
 
     private string? _code;
+    private SyncDeviceKey? _deviceKey;
 
     public SyncIdentityService(SqliteJsonDocumentStore store, IDataProtector protector, ReceivedDevicesService received)
     {
@@ -34,6 +36,9 @@ public sealed class SyncIdentityService
 
     /// <summary>The group's key; null while this PC isn't in a group.</summary>
     public SyncKey? Key { get; private set; }
+
+    /// <summary>This PC's key pair for receiving a new link code when the group is re-keyed (ADR 54); made once, kept for good.</summary>
+    public SyncDeviceKey DeviceKey => _deviceKey ??= SyncDeviceKey.Generate();
 
     /// <summary>Raised when this PC creates, joins or leaves a group.</summary>
     public event EventHandler? Changed;
@@ -62,6 +67,15 @@ public sealed class SyncIdentityService
         DeviceId = stored.DeviceId;
         // A code that can't be unprotected (copied from another user or PC) means this PC isn't in the group.
         SetCode(UnprotectCode(stored.ProtectedCode));
+        // A key pair that can't be unprotected is made again; the next file carries the new public key.
+        if (UnprotectDeviceKey(stored.ProtectedDeviceKey) is SyncDeviceKey deviceKey)
+        {
+            _deviceKey = deviceKey;
+        }
+        else
+        {
+            Task.Run(() => SaveAsync()).GetAwaiter().GetResult();
+        }
     }
 
     /// <returns>The link code in groups of 5 (e.g. "8KQ2V-7XHPM-…") to show or put in a QR code; null outside a group.</returns>
@@ -139,12 +153,37 @@ public sealed class SyncIdentityService
         }
     }
 
+    private SyncDeviceKey? UnprotectDeviceKey(string? protectedKey)
+    {
+        if (protectedKey is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            string? pkcs8 = _protector.Unprotect(Convert.FromBase64String(protectedKey));
+            if (pkcs8 is null)
+            {
+                return null;
+            }
+
+            return SyncDeviceKey.TryFromPkcs8(Convert.FromBase64String(pkcs8));
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+    }
+
     private Task SaveAsync()
     {
         string? protectedCode = _code is null ? null : Convert.ToBase64String(_protector.Protect(_code));
-        return _store.SaveAsync(DocumentKey, new StoredIdentity(DeviceId, protectedCode));
+        string protectedKey = Convert.ToBase64String(_protector.Protect(Convert.ToBase64String(DeviceKey.ExportPkcs8())));
+        return _store.SaveAsync(DocumentKey, new StoredIdentity(DeviceId, protectedCode, protectedKey));
     }
 
     /// <param name="ProtectedCode">The link code, protected, as base64; null outside a group.</param>
-    private sealed record StoredIdentity(Guid DeviceId, string? ProtectedCode);
+    /// <param name="ProtectedDeviceKey">The key pair's PKCS#8 private key (as base64), protected, as base64; null before ADR 54.</param>
+    private sealed record StoredIdentity(Guid DeviceId, string? ProtectedCode, string? ProtectedDeviceKey = null);
 }
