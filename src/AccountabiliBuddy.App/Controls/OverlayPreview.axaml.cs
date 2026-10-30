@@ -33,7 +33,7 @@ public partial class OverlayPreview : UserControl
     private const int IconCount = 5;
     private const double MaxCropHeight = 170;
     private const double MinCropHeight = 84;
-    private const double MinCropWidth = 560;
+    private const double MinCropWidth = 480;
 
     // Mirrors TaskbarOverlayWindow.HeightFor and Reposition (heights, the rise of the Large size, the floating margins).
     private const double SmallHeight = 36;
@@ -371,7 +371,7 @@ public partial class OverlayPreview : UserControl
         var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
         header.Children.Add(new ProgressRing { Width = 40, Height = 40, Value = tile.RingValue, Thickness = 5, TrackBrush = OverlayBrushes.Get("Surface2"), ArcBrush = tile.RingBrush });
         var headerText = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        headerText.Children.Add(Label(model.ShowsSession ? "18 min  left · " + tile.EndsText : "Nothing running", 15, "Ab.Ink", bold: true));
+        headerText.Children.Add(Label(model.ShowsSession ? "18 min left · " + tile.EndsText : "Nothing running", 15, "Ab.Ink", bold: true));
         headerText.Children.Add(Label(model.ShowsSession ? "QS - Default" : tile.Line2, 12, "Ab.Muted", bold: false));
         header.Children.Add(headerText);
         body.Children.Add(header);
