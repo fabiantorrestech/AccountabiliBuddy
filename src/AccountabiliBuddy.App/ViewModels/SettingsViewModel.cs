@@ -1227,6 +1227,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial string OverlaySeconds { get; set; }
 
+    /// <summary>The PC overlay settings page (15c) shown under Alerts &amp; on-screen; set once the overlay has started, so its hotkey error is known.</summary>
+    [ObservableProperty]
+    public partial OverlaySettingsViewModel? OverlayPage { get; set; }
+
     [ObservableProperty]
     public partial string EnforceSeconds { get; set; }
 

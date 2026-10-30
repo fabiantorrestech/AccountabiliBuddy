@@ -889,58 +889,7 @@
                         <StackPanel Margin="0,0,0,-1">
                             <Border Classes="sRow">
                                 <TextBlock Classes="sHint"
-                                           Text="Shows how much of the session is left, on top of other windows, for the profiles chosen below (also set in each profile in Settings › Guards). Clicks go through it; hold Ctrl+Alt to see the details and drag to move it. Can be saved during focus too." />
-                            </Border>
-                            <Border Classes="sRow">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                    <TextBlock Classes="sTitle" Text="Look" VerticalAlignment="Center" />
-                                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerStyleNames}" SelectedIndex="{Binding TimerStyleIndex}" MinWidth="200" />
-                                </Grid>
-                            </Border>
-                            <Border Classes="sRow">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                    <TextBlock Classes="sTitle" Text="Size" VerticalAlignment="Center" />
-                                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerSizeNames}" SelectedIndex="{Binding TimerSizeIndex}" MinWidth="200" />
-                                </Grid>
-                            </Border>
-                            <Border Classes="sRow">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                    <TextBlock Classes="sTitle" Text="Opacity" VerticalAlignment="Center" />
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                        <Slider Minimum="20" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding TimerOpacityPercent}" Width="200" />
-                                        <TextBlock Text="{Binding TimerOpacityPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" MinWidth="40" />
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                            <Border Classes="sRow">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                    <TextBlock Classes="sTitle" Text="Marks (split the bar or ring into equal parts)" VerticalAlignment="Center" />
-                                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerMarkNames}" SelectedIndex="{Binding TimerMarksIndex}" MinWidth="200" />
-                                </Grid>
-                            </Border>
-                            <Border Classes="sRow">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                    <TextBlock Classes="sTitle" Text="Corner (bottom corners stay above the taskbar)" VerticalAlignment="Center" />
-                                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerCornerNames}" SelectedIndex="{Binding TimerCornerIndex}" MinWidth="200" />
-                                </Grid>
-                            </Border>
-                            <Border Classes="sRow">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                    <TextBlock Classes="sTitle" Text="At rest" VerticalAlignment="Center" />
-                                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:SettingsViewModel.TimerColourModes}" SelectedIndex="{Binding TimerColourIndex}" MinWidth="200" />
-                                </Grid>
-                            </Border>
-                            <Border Classes="sRow">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                    <TextBlock Classes="sTitle" Text="Turn amber in the last 5 minutes of focus" VerticalAlignment="Center" />
-                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding TimerWrapUpColor}" VerticalAlignment="Center" AutomationProperties.Name="Turn amber in the last 5 minutes of focus" />
-                                </Grid>
-                            </Border>
-                            <Border Classes="sRow">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                    <TextBlock Classes="sTitle" Text="Brighten softly once when passing a mark" VerticalAlignment="Center" />
-                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding TimerPulseAtMarks}" VerticalAlignment="Center" AutomationProperties.Name="Brighten softly once when passing a mark" />
-                                </Grid>
+                                           Text="Shows how much of the session is left, over the taskbar, for the profiles chosen below (also set in each profile in Settings › Guards). Clicks go through it; hold Ctrl+Alt for the panel. Where it sits and how it looks: Placement and the groups after it, below. Can be saved during focus too." />
                             </Border>
                             <Border Classes="sRow">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
@@ -953,59 +902,6 @@
                                     <TextBlock Classes="sTitle" Text="Fill up as time passes (instead of counting down from a full bar)" VerticalAlignment="Center" />
                                     <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding TimerFillUp}" VerticalAlignment="Center" AutomationProperties.Name="Fill up as time passes" />
                                 </Grid>
-                            </Border>
-                            <Border Classes="sRow">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                    <TextBlock Classes="sTitle" Text="Quiet at rest dulls the timeline's red too (drift marks, now line), 3 seconds after Ctrl+Alt is let go" VerticalAlignment="Center" />
-                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding TimerQuietMarks}" VerticalAlignment="Center" AutomationProperties.Name="Quiet at rest dulls the timeline's red too" />
-                                </Grid>
-                            </Border>
-                            <Border Classes="sRow">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                    <TextBlock Classes="sTitle" Text="Hide the current task unless Ctrl+Alt is held" VerticalAlignment="Center" />
-                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding TaskOnlyWithCtrlAlt}" VerticalAlignment="Center" AutomationProperties.Name="Hide the current task unless Ctrl+Alt is held" />
-                                </Grid>
-                            </Border>
-                            <Border Classes="sRow">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                    <TextBlock Classes="sTitle" Text="Opacity while Ctrl+Alt is held (background and all)" VerticalAlignment="Center" />
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                        <Slider Minimum="20" Maximum="100" Value="{Binding HeldOpacityPercent}" Width="200" />
-                                        <TextBlock Text="{Binding HeldOpacityPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" MinWidth="40" />
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                            <Border Classes="sRow">
-                                <StackPanel Spacing="8">
-                                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
-                                        <TextBlock Classes="sTitle" Text="Move in from the corner while a maximized app is in front (keeps its buttons and bars clickable)" VerticalAlignment="Center" />
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" IsEnabled="{Binding MoveForMaximizedApps}" VerticalAlignment="Center">
-                                            <NumericUpDown Value="{Binding MaximizedAppDrop}" Minimum="0" Maximum="600" Increment="10" FormatString="0" MinWidth="140" />
-                                            <TextBlock Text="{Binding VerticalLabel}" VerticalAlignment="Center" Classes="sHint" />
-                                            <TextBlock Text="(default)" VerticalAlignment="Center" Classes="sHint" />
-                                        </StackPanel>
-                                        <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding MoveForMaximizedApps}" VerticalAlignment="Center"
-                                                  AutomationProperties.Name="Move in from the corner while a maximized app is in front" />
-                                    </Grid>
-                                    <StackPanel Spacing="4" IsEnabled="{Binding MoveForMaximizedApps}">
-                                        <TextBlock Text="Per app: maximize the app, hold Ctrl+Alt and drag the timer where it should sit (away from the corner, and sideways past a side panel if needed); that spot is kept for the app."
-                                                   Classes="sHint" />
-                                        <ItemsControl ItemsSource="{Binding AppDrops}" IsVisible="{Binding HasAppDrops}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:AppDropRowViewModel">
-                                                    <Grid ColumnDefinitions="160,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="6" Margin="0,2">
-                                                        <TextBlock Text="{Binding App}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                        <NumericUpDown Grid.Column="1" Value="{Binding Drop}" Minimum="0" Maximum="600" Increment="10" FormatString="0" MinWidth="120" />
-                                                        <TextBlock Grid.Column="2" Text="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).VerticalLabel}" VerticalAlignment="Center" Classes="sHint" />
-                                                        <NumericUpDown Grid.Column="3" Value="{Binding Shift}" Minimum="0" Maximum="2000" Increment="10" FormatString="0" MinWidth="120" />
-                                                        <TextBlock Grid.Column="4" Text="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).SidewaysLabel}" VerticalAlignment="Center" Classes="sHint" />
-                                                        <Button Grid.Column="5" Content="✕" Classes="quiet" Command="{Binding RemoveCommand}" ToolTip.Tip="Use the default for this app" />
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </StackPanel>
-                                </StackPanel>
                             </Border>
                             <Border Classes="sRow">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
@@ -1079,45 +975,8 @@
                                     <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding ShowTimeline}" VerticalAlignment="Center" AutomationProperties.Name="Show the timeline on days with focus blocks" />
                                 </Grid>
                             </Border>
-                            <StackPanel IsEnabled="{Binding ShowTimeline}">
-                                <Border Classes="sRow">
-                                    <StackPanel Spacing="6">
-                                        <TextBlock Classes="sTitle" Text="While the session timer shows" />
-                                        <RadioButton GroupName="timelineInFocus" IsChecked="{Binding !TimelineStaysInFocus}" Content="Swap: the timer takes the timeline's place until the session ends" />
-                                        <RadioButton GroupName="timelineInFocus" IsChecked="{Binding TimelineStaysInFocus}" Content="Show both: timeline on top, timer under it" />
-                                    </StackPanel>
-                                </Border>
-                                <Border Classes="sRow">
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                        <TextBlock Classes="sTitle" Text="Show the current time" VerticalAlignment="Center" />
-                                        <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding TimelineShowsTime}" VerticalAlignment="Center" AutomationProperties.Name="Show the current time" />
-                                    </Grid>
-                                </Border>
-                                <Border Classes="sRow">
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                        <StackPanel Spacing="2" VerticalAlignment="Center">
-                                            <TextBlock Classes="sTitle" Text="Opacity" />
-                                            <TextBlock Classes="sHint" Text="While no session runs (in a session the timer's opacity applies)" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                            <Slider Minimum="20" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding TimelineOpacityPercent}" Width="200" />
-                                            <TextBlock Text="{Binding TimelineOpacityPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" MinWidth="40" />
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-                                <Border Classes="sRow">
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                        <TextBlock Classes="sTitle" Text="Opacity while Ctrl+Alt is held" VerticalAlignment="Center" />
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                            <Slider Minimum="20" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding TimelineHeldOpacityPercent}" Width="200" />
-                                            <TextBlock Text="{Binding TimelineHeldOpacityPercent, StringFormat={}{0:0}%}" VerticalAlignment="Center" MinWidth="40" />
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-                            </StackPanel>
                             <Border Classes="sRow">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Button Content="Reset position" Command="{Binding ResetTimerPositionCommand}" />
                                     <TextBlock Text="{Binding TimerStatus}" VerticalAlignment="Center" TextWrapping="Wrap" Classes="sHint" />
                                 </StackPanel>
                             </Border>
@@ -1126,7 +985,9 @@
                 </StackPanel>
 
                 <!-- Slot for the on-screen overlay settings page (design 15c, built with the overlay): it shows under the page's own settings. -->
-                <ContentControl x:Name="OverlaySettingsSlot" search:SearchArea.Name="On-screen overlay" />
+                <ContentControl x:Name="OverlaySettingsSlot" search:SearchArea.Name="On-screen overlay" IsVisible="{Binding OverlayPage, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <views:OverlaySettingsView DataContext="{Binding OverlayPage}" />
+                </ContentControl>
             </StackPanel>
 
             <StackPanel Spacing="16" IsVisible="{Binding Rows[7].IsSelected}"

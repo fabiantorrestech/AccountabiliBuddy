@@ -1379,6 +1379,7 @@ public partial class App : Application
             return next is null ? null : (next.Event.Title, next.Event.LocalStart);
         };
         _sessionOverlay.Start();
+        mainViewModel.Settings.OverlayPage = new OverlaySettingsViewModel(overlaySettings, () => _sessionOverlay.StickyHotkeyError);
         _timers!.Start();
         _bedtimeReminder.ReminderDue += (_, reminder) =>
             presenter.ShowReminder(reminder.Title, reminder.Message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#6366F1")));
