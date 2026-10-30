@@ -1080,7 +1080,7 @@ public partial class App : Application
             Environment.GetEnvironmentVariable(DevToolsVariable) == "1",
             _configuration.LoadError)
         {
-            Tasks = new TasksViewModel(sessionTasks, _later!, _comebacks!, autoSaved, notebook, sessionViewModel, _configuration!, time),
+            Tasks = new TasksViewModel(sessionTasks, _later!, _comebacks!, autoSaved, notebook, sessionViewModel, _configuration!, time, new TaskViewStore(documents)),
             Plan = planViewModel,
             Stats = statsViewModel,
             DayBar = _dayBar,

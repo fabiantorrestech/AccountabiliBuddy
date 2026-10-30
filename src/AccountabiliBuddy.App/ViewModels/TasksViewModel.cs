@@ -32,14 +32,13 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     private readonly ConfigurationService _configuration;
     private readonly TimeProvider _time;
     private TaskRowKey? _selectedKey;
-    private Guid? _categoryFilterId;
     private bool _refreshing;
     private List<Guid> _unfinishedIds = [];
     private int _sessionRowCount;
 
     public TasksViewModel(
         SessionTasksService tasks, LaterStore later, ComebackStore comebacks, AutoSavedTaskStore autoSaved, NotebookViewModel archive,
-        SessionViewModel session, ConfigurationService configuration, TimeProvider time)
+        SessionViewModel session, ConfigurationService configuration, TimeProvider time, TaskViewStore viewStore)
     {
         _tasks = tasks;
         _later = later;
@@ -50,6 +49,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         _configuration = configuration;
         _time = time;
         Undo = new UndoBarViewModel(tasks);
+        Filter = new TaskFilterViewModel(viewStore);
+        Filter.Changed += OnFilterChanged;
         CountsText = UnfinishedText = AddPlaceholder = SearchText = NewTaskText = Notice = string.Empty;
         _tasks.Changed += OnStoreChanged;
         _comebacks.Changed += OnStoreChanged;
@@ -67,6 +68,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     /// <summary>The Notebook, restyled as the Archive row at the bottom.</summary>
     public NotebookViewModel Archive { get; }
+
+    /// <summary>The filter button's state: Status, Category, Due and Sort (remembered on this PC).</summary>
+    public TaskFilterViewModel Filter { get; }
 
     /// <summary>The bar after a delete: "Deleted “…” · Undo".</summary>
     public UndoBarViewModel Undo { get; }
@@ -160,6 +164,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        Filter.Changed -= OnFilterChanged;
         _tasks.Changed -= OnStoreChanged;
         _comebacks.Changed -= OnStoreChanged;
         _autoSaved.Changed -= OnStoreChanged;
@@ -205,11 +210,11 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         NewTaskText = string.Empty;
         if (!SessionIsFull)
         {
-            await _tasks.AddAsync(title, null, _categoryFilterId);
+            await _tasks.AddAsync(title, null, Filter.SingleCategoryId);
             return;
         }
 
-        TaskCategory? category = _tasks.Categories.FirstOrDefault(item => item.Id == _categoryFilterId);
+        TaskCategory? category = _tasks.Categories.FirstOrDefault(item => item.Id == Filter.SingleCategoryId);
         SyncLaterItem? added = await _later.AddAsync(title, null, category?.Name, category?.Color, null, null, null);
         if (added is not null)
         {
@@ -775,6 +780,11 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         Refresh();
     }
 
+    private void OnFilterChanged(object? sender, EventArgs e)
+    {
+        Refresh();
+    }
+
     private void OnSessionPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         // The running bar counts down with Today's clock; the buttons follow the session starting or ending.
@@ -830,6 +840,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         Guid? runningId = live ? current.Shown?.Task.Id : null;
         string search = SearchText.Trim();
         DateOnly today = DateOnly.FromDateTime(LocalNow());
+        Filter.SetCategories(_tasks.Categories);
+        TaskDueFilter dueFilter = Filter.Due;
 
         // This session: the open tasks, numbered as the session runs them (the numbers don't change with a filter), in session order.
         var sessionRows = new List<TaskListRowViewModel>();
@@ -854,21 +866,21 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
         // Everything else in one flat list. Come back to: open come-backs; they have no category, so a category filter leaves them out.
         var otherRows = new List<TaskListRowViewModel>();
-        if (_categoryFilterId is null)
+        if (Filter.ShowsStatus(TaskStatusKind.ComeBack) && dueFilter == TaskDueFilter.Any && Filter.ShowsNoCategory)
         {
             foreach (Comeback comeback in _comebacks.Open.Where(item => Matches(search, item.Text, null, [])))
             {
                 Guid id = comeback.Id;
                 otherRows.Add(MakeRow(
                     new TaskRowKey(TaskRowKind.ComeBack, id), comeback.Text, $"Parked {When(comeback.CreatedAt, today)}", null, null,
-                    toggle: () => _comebacks.TickAsync(id), statusTag: "Come back"));
+                    toggle: () => _comebacks.TickAsync(id), statusTag: "Come back", sortTime: comeback.CreatedAt));
             }
         }
 
         // Later: due date first (soonest), then the list's own order (the sort is stable).
         IReadOnlyList<SyncLaterItem> laterItems = _later.Items;
-        IEnumerable<SyncLaterItem> laterShown = laterItems
-            .Where(item => InFilter(null, item.Category) && Matches(search, item.Title, item.Note, (item.Subtasks ?? []).Select(step => step.Title)))
+        IEnumerable<SyncLaterItem> laterShown = !Filter.ShowsStatus(TaskStatusKind.Later) ? [] : laterItems
+            .Where(item => InFilter(null, item.Category) && DueAllows(item.DueOn, today) && Matches(search, item.Title, item.Note, (item.Subtasks ?? []).Select(step => step.Title)))
             .OrderBy(item => item.DueOn is null ? 1 : 0)
             .ThenBy(item => item.DueOn);
         foreach (SyncLaterItem item in laterShown)
@@ -877,14 +889,16 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             string tag = item.DueOn is DateOnly due ? $"Later · {DayLabel(due, today)}" : "Later";
             otherRows.Add(MakeRow(
                 new TaskRowKey(TaskRowKind.Later, id), item.Title, LaterLine(item, today), item.Category, item.CategoryColor,
-                toggle: () => _tasks.CompleteLaterAsync(id), statusTag: tag));
+                toggle: () => _tasks.CompleteLaterAsync(id), statusTag: tag,
+                sortTime: item.DueOn is DateOnly dueDate ? DueTime(dueDate) : item.EditedAt, dueOn: item.DueOn));
         }
 
         // Unfinished from past sessions, newest first: offered to Later or Today, never moved on their own.
         DateTimeOffset from = _time.GetUtcNow() - PastShown;
         List<PastTask> past = _tasks.PastUnfinished().Where(item => item.SessionStart >= from).OrderByDescending(item => item.SessionStart).ToList();
         // "Move all to Later" and its count follow what is shown (the category filter and the search), never rows that are hidden.
-        List<PastTask> shownPast = past.Where(item => InFilter(item.Task.CategoryId, item.Task.Category) && Matches(search, item.Task.Title, item.Task.Note, [])).ToList();
+        bool showsPast = Filter.ShowsStatus(TaskStatusKind.Unfinished) && dueFilter == TaskDueFilter.Any;
+        List<PastTask> shownPast = past.Where(item => showsPast && InFilter(item.Task.CategoryId, item.Task.Category) && Matches(search, item.Task.Title, item.Task.Note, [])).ToList();
         _unfinishedIds = shownPast.Select(item => item.Task.Id).ToList();
         foreach (PastTask item in shownPast)
         {
@@ -893,34 +907,36 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             otherRows.Add(MakeRow(
                 new TaskRowKey(TaskRowKind.Past, id), item.Task.Title, $"Session of {When(item.SessionStart, today)}",
                 item.Task.Category ?? category?.Name, item.Task.CategoryColor ?? category?.Color, categoryId: item.Task.CategoryId,
-                toggle: () => _tasks.SetTickedAsync(id, true), statusTag: "Unfinished"));
+                toggle: () => _tasks.SetTickedAsync(id, true), statusTag: "Unfinished", sortTime: item.SessionStart));
         }
 
         // Auto-saved: a shutdown card's tomorrow task, kept when the card closed by itself; never moved on its own. A plain row: no check
         // box and no detail card; its ⋯ menu is Add to Today, Later, Delete.
         // They have no category, so a category filter leaves them out (like Come back rows).
-        IEnumerable<AutoSavedTask> autoSavedShown = _categoryFilterId is null ? _autoSaved.Items.Where(item => Matches(search, item.Title, null, [])) : [];
+        bool showsAutoSaved = Filter.ShowsStatus(TaskStatusKind.AutoSaved) && dueFilter == TaskDueFilter.Any && Filter.ShowsNoCategory;
+        IEnumerable<AutoSavedTask> autoSavedShown = showsAutoSaved ? _autoSaved.Items.Where(item => Matches(search, item.Title, null, [])) : [];
         foreach (AutoSavedTask item in autoSavedShown)
         {
             Guid id = item.Id;
             string title = item.Title;
             otherRows.Add(MakeRow(
                 new TaskRowKey(TaskRowKind.AutoSaved, id), title, $"Saved {When(item.SavedAt, today)}", null, null, statusTag: "Auto-saved",
-                menu: () => AutoSavedMenu(id, title), selectable: false));
+                menu: () => AutoSavedMenu(id, title), selectable: false, sortTime: item.SavedAt));
         }
 
         // Done today, at the bottom: ticked tasks of the running checklist and of sessions that ended today (and Later tasks ticked off).
-        foreach (SessionTask task in DoneToday(today).Where(task => InFilter(task.CategoryId, task.Category) && Matches(search, task.Title, task.Note, task.Subtasks.Select(step => step.Title))))
+        bool showsDone = Filter.ShowsStatus(TaskStatusKind.Done) && dueFilter == TaskDueFilter.Any;
+        foreach (SessionTask task in DoneToday(today).Where(task => showsDone && InFilter(task.CategoryId, task.Category) && Matches(search, task.Title, task.Note, task.Subtasks.Select(step => step.Title))))
         {
             Guid id = task.Id;
             TaskCategory? category = _tasks.Categories.FirstOrDefault(item => item.Id == task.CategoryId);
             otherRows.Add(MakeRow(
                 new TaskRowKey(TaskRowKind.Done, id), task.Title, $"Finished {Clock(Local(task.DoneAt!.Value))}", task.Category ?? category?.Name,
                 task.CategoryColor ?? category?.Color, categoryId: task.CategoryId, isTicked: true, toggle: () => _tasks.SetTickedAsync(id, false),
-                statusTag: "Done"));
+                statusTag: "Done", sortTime: task.DoneAt!.Value));
         }
 
-        Replace(OtherRows, otherRows);
+        Replace(OtherRows, Sorted(otherRows));
 
         int comeBacks = _comebacks.Open.Count;
         string estimate = EstimateText.Total(open.Select(task => task.EstimateMinutes));
@@ -947,7 +963,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     private TaskListRowViewModel MakeRow(
         TaskRowKey key, string title, string subText, string? categoryName, string? categoryColor, int number = 0, bool isNow = false,
         bool isTicked = false, Guid? categoryId = null, Func<Task>? toggle = null, string statusTag = "",
-        Func<IReadOnlyList<TaskMenuEntry>>? menu = null, bool selectable = true)
+        Func<IReadOnlyList<TaskMenuEntry>>? menu = null, bool selectable = true, DateTimeOffset sortTime = default, DateOnly? dueOn = null)
     {
         Action<TaskListRowViewModel> select = selectable ? SelectRow : _ => { };
         return new TaskListRowViewModel(key, title, subText, select, number, isNow, toggle, isTicked, menu ?? (() => MenuFor(key)))
@@ -957,6 +973,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             CategoryColor = categoryColor,
             CategoryBrush = TaskCategoryBrushes.Of(categoryColor),
             StatusTag = statusTag,
+            SortTime = sortTime,
+            DueOn = dueOn,
         };
     }
 
@@ -1090,17 +1108,12 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     private void RebuildCategoryChips()
     {
-        var chips = new List<TaskChipViewModel> { new("All", _categoryFilterId is null, () => PickCategoryAsync(null)) };
+        // The chips are a shortcut for the filter's Category section: "All" = no restriction, a chip = exactly that one category.
+        var chips = new List<TaskChipViewModel> { new("All", !Filter.HasCategoryRestriction, () => PickCategoryAsync(null)) };
         foreach (TaskCategory category in _tasks.Categories)
         {
             Guid id = category.Id;
-            chips.Add(new TaskChipViewModel(category.Name, _categoryFilterId == id, () => PickCategoryAsync(id), TaskCategoryBrushes.Of(category.Color)));
-        }
-
-        // A deleted category can't stay the filter.
-        if (_categoryFilterId is Guid chosen && _tasks.Categories.All(category => category.Id != chosen))
-        {
-            _categoryFilterId = null;
+            chips.Add(new TaskChipViewModel(category.Name, Filter.IsOnlyCategory(id), () => PickCategoryAsync(id), TaskCategoryBrushes.Of(category.Color)));
         }
 
         CategoryChips = chips;
@@ -1108,26 +1121,56 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     private Task PickCategoryAsync(Guid? id)
     {
-        _categoryFilterId = id;
-        Refresh();
+        Filter.ShowOnlyCategory(id);
         return Task.CompletedTask;
     }
 
-    // The chosen category (by id for tasks, by name for Later items, which carry only the name); All lets everything through.
+    // The chosen categories (by id for tasks, by name for Later items, which carry only the name); no restriction lets everything
+    // through, and a row without a category passes only with "No category".
     private bool InFilter(Guid? categoryId, string? categoryName)
     {
-        if (_categoryFilterId is not Guid chosen)
+        if (!Filter.HasCategoryRestriction)
         {
             return true;
         }
 
-        if (categoryId is not null && categoryName is null)
-        {
-            return categoryId == chosen;
-        }
+        Guid? resolved = categoryName is null
+            ? categoryId
+            : _tasks.Categories.FirstOrDefault(item => string.Equals(item.Name, categoryName, StringComparison.OrdinalIgnoreCase))?.Id;
+        return resolved is Guid id ? Filter.ShowsCategory(id) : Filter.ShowsNoCategory;
+    }
 
-        TaskCategory? category = _tasks.Categories.FirstOrDefault(item => item.Id == chosen);
-        return category is not null && categoryName is not null && string.Equals(category.Name, categoryName, StringComparison.OrdinalIgnoreCase);
+    // The Due section applies to Later items; the other kinds are built only while it is "Any".
+    private bool DueAllows(DateOnly? dueOn, DateOnly today)
+    {
+        return Filter.Due switch
+        {
+            TaskDueFilter.Overdue => dueOn is DateOnly due && due < today,
+            TaskDueFilter.Today => dueOn == today,
+            TaskDueFilter.ThisWeek => dueOn is DateOnly due && due >= today && due < today.AddDays(7),
+            TaskDueFilter.NoDate => dueOn is null,
+            _ => true,
+        };
+    }
+
+    // A due date as a moment (the start of that local day), so it sorts with the times other rows carry.
+    private DateTimeOffset DueTime(DateOnly due)
+    {
+        DateTime local = due.ToDateTime(TimeOnly.MinValue);
+        return new DateTimeOffset(local, _time.LocalTimeZone.GetUtcOffset(local));
+    }
+
+    // The Sort section: Default keeps the order the list was built in; the others are stable, so ties keep it too.
+    private IReadOnlyList<TaskListRowViewModel> Sorted(List<TaskListRowViewModel> rows)
+    {
+        return Filter.Sort switch
+        {
+            TaskSortMode.DueAscending => rows.OrderBy(row => row.DueOn is null ? 1 : 0).ThenBy(row => row.DueOn).ToList(),
+            TaskSortMode.DueDescending => rows.OrderBy(row => row.DueOn is null ? 1 : 0).ThenByDescending(row => row.DueOn).ToList(),
+            TaskSortMode.MostRecent => rows.OrderByDescending(row => row.SortTime).ToList(),
+            TaskSortMode.Oldest => rows.OrderBy(row => row.SortTime).ToList(),
+            _ => rows,
+        };
     }
 
     private static bool Matches(string search, string title, string? note, IEnumerable<string> steps)
