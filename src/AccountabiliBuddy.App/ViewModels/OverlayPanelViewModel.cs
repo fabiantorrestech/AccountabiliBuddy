@@ -126,7 +126,7 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
         if (IsLarge)
         {
             Devices.Clear();
-            foreach (OverlayBatteryRow row in Model.Batteries)
+            foreach (OverlayBatteryRow row in Model.PanelBatteries())
             {
                 Devices.Add(row);
             }

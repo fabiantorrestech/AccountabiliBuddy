@@ -88,6 +88,7 @@ public sealed class SessionOverlayService : IDisposable
         };
         cues.Cued += (_, cue) => OnCue(cue.Cue, cue.SessionEnded);
         battery.Changed += (_, _) => Dispatcher.UIThread.Post(Update);
+        visibility.Changed += (_, _) => Update();
         _peekTimer.Tick += (_, _) =>
         {
             _peekTimer.Stop();

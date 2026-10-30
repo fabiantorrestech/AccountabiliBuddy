@@ -366,9 +366,11 @@ public partial class App : Application
         _ctrlAltWatcher = new AccountabiliBuddy.Platform.Windows.Hotkeys.Win32CtrlAltWatcher();
         _panelKeys = new AccountabiliBuddy.Platform.Windows.Hotkeys.Win32PanelKeys();
         _overlayStickyHotkey = new Win32GlobalHotkey();
+        var batteryVisibility = new BatteryVisibilityService(documents);
+        batteryVisibility.LoadBlocking();
         _sessionOverlay = new SessionOverlayService(
             _sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), _taskbarGeometry, _batteryReader,
-            new ShowAllBatteries(), _ctrlAltWatcher, _panelKeys, _overlayStickyHotkey, timelineDay, _sessionCues);
+            batteryVisibility, _ctrlAltWatcher, _panelKeys, _overlayStickyHotkey, timelineDay, _sessionCues);
         _dayBar = new DayBarViewModel(
             _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, _coldTurkey, deletedUsage, time);
         // ADR 35: this PC's alarm, when Settings → Sleep takes the wake time from it.
@@ -849,8 +851,6 @@ public partial class App : Application
         // The sync light's setting and which batteries show where (both this PC only, documents "syncLight" and "batteryVisibility").
         var syncLightSetting = new SyncLightSettingService(documents);
         syncLightSetting.LoadBlocking();
-        var batteryVisibility = new BatteryVisibilityService(documents);
-        batteryVisibility.LoadBlocking();
         var devices = new DevicesViewModel(syncIdentity, syncSettings, receivedDevices, syncCoordinator, _sessions, time)
         {
             SyncLightSetting = syncLightSetting,

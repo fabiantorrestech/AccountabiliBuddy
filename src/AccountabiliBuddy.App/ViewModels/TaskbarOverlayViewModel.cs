@@ -433,22 +433,31 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
         OnPropertyChanged(nameof(HasBattery));
     }
 
-    private void RefreshBatteries()
+    /// <summary>The batteries the panel lists, by the matrix's Ctrl+Alt panel column.</summary>
+    public IReadOnlyList<OverlayBatteryRow> PanelBatteries() => BuildBatteries(BatterySurface.Panel);
+
+    private List<OverlayBatteryRow> BuildBatteries(BatterySurface surface)
     {
         var rows = new List<OverlayBatteryRow>();
-        if (_battery.Current is { } own && _visibility.IsShown("this-pc", BatterySurface.CollapsedOverlay))
+        if (_battery.Current is { } own && _visibility.IsShown("this-pc", surface, own.Percent))
         {
             rows.Add(Row("this-pc", MaterialIconKind.Laptop, own.Percent, own.IsCharging));
         }
 
         foreach ((string id, string _, int percent, string kind) in Actions.OtherBatteries())
         {
-            if (_visibility.IsShown(id, BatterySurface.CollapsedOverlay))
+            if (_visibility.IsShown(id, surface, percent))
             {
                 rows.Add(Row(id, kind == "watch" ? MaterialIconKind.Watch : MaterialIconKind.Cellphone, percent, false));
             }
         }
 
+        return rows;
+    }
+
+    private void RefreshBatteries()
+    {
+        List<OverlayBatteryRow> rows = BuildBatteries(BatterySurface.CollapsedOverlay);
         if (rows.Count == Batteries.Count && rows.Zip(Batteries).All(pair => pair.First == pair.Second))
         {
             return;
