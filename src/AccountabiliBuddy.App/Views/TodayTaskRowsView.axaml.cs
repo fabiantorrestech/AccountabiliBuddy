@@ -44,6 +44,7 @@ public partial class TodayTaskRowsView : UserControl
         if (_subscribed is not null)
         {
             _subscribed.FocusEntryRequested -= OnFocusEntryRequested;
+            _subscribed.RowsRebuilding -= OnRowsRebuilding;
             _subscribed.PropertyChanged -= OnChecklistPropertyChanged;
         }
 
@@ -51,7 +52,20 @@ public partial class TodayTaskRowsView : UserControl
         if (_subscribed is not null)
         {
             _subscribed.FocusEntryRequested += OnFocusEntryRequested;
+            _subscribed.RowsRebuilding += OnRowsRebuilding;
             _subscribed.PropertyChanged += OnChecklistPropertyChanged;
+        }
+    }
+
+    // A row's flyout still open when its row is rebuilt makes Avalonia throw while the row detaches, so it closes first (a step added in it reopens it, see WatchForRebuild).
+    private void OnRowsRebuilding(object? sender, EventArgs e)
+    {
+        foreach (Button button in this.GetVisualDescendants().OfType<Button>().Where(candidate => candidate.Classes.Contains("taskRow")))
+        {
+            if (button.Flyout is { IsOpen: true } flyout)
+            {
+                flyout.Hide();
+            }
         }
     }
 
@@ -67,6 +81,46 @@ public partial class TodayTaskRowsView : UserControl
         if (sender is MenuFlyout flyout && DataContext is ChecklistViewModel viewModel)
         {
             flyout.ItemsSource = viewModel.NewTaskCategoryChoices.ToList();
+        }
+    }
+
+    // A row's ⋯ menu (or a step's) is built when it opens. Rename and Add subtask open the row's own editor.
+    private void OnRowMoreClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button)
+        {
+            return;
+        }
+
+        TaskMenus.Show(button, entry =>
+        {
+            if (button.DataContext is TaskRowViewModel row)
+            {
+                OpenRowEditor(button, row, entry.ViewAction == "addStep");
+            }
+        });
+        e.Handled = true;
+    }
+
+    // The row's flyout opens (its name box, its steps and "Add a step"); for "Add subtask" the keyboard goes to the new step's box.
+    private void OpenRowEditor(Control target, TaskRowViewModel row, bool toNewStep)
+    {
+        Button? button = target.FindAncestorOfType<Button>();
+        if (button?.Flyout is not Flyout flyout)
+        {
+            return;
+        }
+
+        flyout.ShowAt(button);
+        if (toNewStep)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                TextBox? box = flyout.Content is Visual content
+                    ? content.GetSelfAndVisualDescendants().OfType<TextBox>().FirstOrDefault(candidate => AutomationProperties.GetName(candidate) == "New step")
+                    : null;
+                box?.Focus();
+            }, DispatcherPriority.Loaded);
         }
     }
 

@@ -1,10 +1,12 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              x:Class="AccountabiliBuddy.App.Views.NotebookView"
              x:DataType="vm:NotebookViewModel">
     <!-- The Archive (the Notebook, restyled for the Tasks page): everything written down, so it can leave your head: come-backs,
-         session notes, unfinished and done tasks, newest first, with its own filter and search. It sits in the page's scroll. -->
+         session notes, unfinished and done tasks, newest first, with its own filter and search. Every task, subtask and come-back has
+         a check box and a ⋯ menu; "Recently deleted" (30 days) is the group at the top. It sits in the page's scroll. -->
     <StackPanel Margin="4,2,4,8" Spacing="10">
         <StackPanel Orientation="Horizontal" Spacing="8">
             <TextBox Text="{Binding Search}" Width="240" PlaceholderText="Search the Archive" AutomationProperties.Name="Search the Archive" />
@@ -12,40 +14,96 @@
         </StackPanel>
         <TextBlock Classes="muted" Text="Parked ideas, notes from sessions and tasks, newest first. Written down means you can stop holding it."
                    FontSize="13" TextWrapping="Wrap" />
+
+        <!-- Recently deleted: tasks, steps, Later items and come-backs deleted in the last 30 days, each with Restore. Kept on this PC only. -->
+        <StackPanel Spacing="6" IsVisible="{Binding HasRecentlyDeleted}">
+            <Button Classes="quiet" Command="{Binding ToggleRecentlyDeletedCommand}" HorizontalAlignment="Left" Padding="4,6" AutomationProperties.Name="Recently deleted">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <mi:MaterialIcon Kind="ChevronRight" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !ShowsRecentlyDeleted}" />
+                    <mi:MaterialIcon Kind="ChevronDown" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding ShowsRecentlyDeleted}" />
+                    <TextBlock Classes="muted" Text="{Binding RecentlyDeletedHeader}" FontSize="14" />
+                </StackPanel>
+            </Button>
+            <ItemsControl ItemsSource="{Binding RecentlyDeleted}" IsVisible="{Binding ShowsRecentlyDeleted}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:RecentlyDeletedRowViewModel">
+                        <Border Padding="14,10" Margin="0,0,0,6" CornerRadius="14" Background="{DynamicResource Ab.Surface2}">
+                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                                    <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap">
+                                        <Run Text="{Binding KindText}" /><Run Text=" · " /><Run Text="{Binding WhenText}" />
+                                    </TextBlock>
+                                    <TextBlock Classes="muted" Text="{Binding Message}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding HasMessage}" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Classes="quiet" Content="Restore" Command="{Binding RestoreCommand}" Padding="12,6"
+                                        FontWeight="SemiBold" AutomationProperties.Name="Restore" />
+                                <Button Grid.Column="2" Classes="quiet" Content="✕" Command="{Binding ForgetCommand}" Padding="8,6"
+                                        ToolTip.Tip="Delete it for good (its content is erased from this PC)" AutomationProperties.Name="Delete for good" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
         <TextBlock Classes="muted" Text="Nothing here yet." IsVisible="{Binding IsEmpty}" />
 
         <ItemsControl ItemsSource="{Binding Items}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:NotebookItemViewModel">
-                    <Border Padding="14,10" Margin="0,0,0,6" CornerRadius="14" Background="{DynamicResource Ab.Surface2}"
+                    <Border Padding="14,10,10,10" Margin="0,0,0,6" CornerRadius="14" Background="{DynamicResource Ab.Surface2}"
                             Classes.sub="{Binding IsSubtask}">
                         <Border.Styles>
                             <Style Selector="Border.sub">
                                 <Setter Property="Margin" Value="28,-2,0,6" />
                             </Style>
                         </Border.Styles>
-                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
-                            <CheckBox Command="{Binding Tick}" IsVisible="{Binding CanTick}" ToolTip.Tip="Done: tick it off" VerticalAlignment="Top" />
-                            <StackPanel Grid.Column="1" Spacing="2">
-                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding IsNotEditing}" />
-                                <TextBox Text="{Binding EditText}" IsVisible="{Binding IsEditing}">
+                        <StackPanel Spacing="6">
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                                <CheckBox IsChecked="{Binding IsTicked, Mode=OneWay}" Command="{Binding ToggleCommand}" IsVisible="{Binding CanTick}"
+                                          ToolTip.Tip="Tick it off (untick to open it again)" VerticalAlignment="Top" MinWidth="0" AutomationProperties.Name="Done" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <Ellipse Width="8" Height="8" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" IsVisible="{Binding HasCategory}" />
+                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding IsNotEditing}" />
+                                    </StackPanel>
+                                    <TextBox Text="{Binding EditText}" IsVisible="{Binding IsEditing}" PropertyChanged="OnInlineBoxPropertyChanged">
+                                        <TextBox.KeyBindings>
+                                            <KeyBinding Gesture="Enter" Command="{Binding SaveCommand}" />
+                                            <KeyBinding Gesture="Escape" Command="{Binding CancelCommand}" />
+                                        </TextBox.KeyBindings>
+                                    </TextBox>
+                                    <TextBlock Classes="muted" Text="{Binding WhenText}" FontSize="12" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" Classes="faint" Text="{Binding Kind}" FontSize="12" VerticalAlignment="Top" Margin="0,4,0,0" />
+                                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2" VerticalAlignment="Top">
+                                    <Button Classes="quiet" Padding="6,2" MinHeight="0" MinWidth="0" IsVisible="{Binding HasMenu}"
+                                            AutomationProperties.Name="More actions" ToolTip.Tip="Rename, label, move, add a subtask, delete" Click="OnMoreClick">
+                                        <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
+                                    </Button>
+                                    <StackPanel Orientation="Horizontal" Spacing="2" IsVisible="{Binding HasEditButtons}">
+                                        <Button Classes="quiet" Content="✎" Command="{Binding EditCommand}" IsVisible="{Binding IsNotEditing}" ToolTip.Tip="Edit"
+                                                Padding="6,0" />
+                                        <Button Classes="quiet" Content="✓" Command="{Binding SaveCommand}" IsVisible="{Binding IsEditing}" ToolTip.Tip="Keep the change"
+                                                Padding="6,0" />
+                                        <Button Classes="quiet" Content="✕" Command="{Binding DeleteCommand}" ToolTip.Tip="{Binding DeleteTip}"
+                                                Padding="6,0" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+                            <!-- Add subtask: a box under the line. -->
+                            <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsAddingStep}" Margin="34,0,0,0">
+                                <mi:MaterialIcon Kind="Plus" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBox Grid.Column="1" Text="{Binding NewStepText}" PlaceholderText="A step (Enter)" PropertyChanged="OnInlineBoxPropertyChanged"
+                                         AutomationProperties.Name="New step">
                                     <TextBox.KeyBindings>
-                                        <KeyBinding Gesture="Enter" Command="{Binding SaveCommand}" />
-                                        <KeyBinding Gesture="Escape" Command="{Binding CancelCommand}" />
+                                        <KeyBinding Gesture="Enter" Command="{Binding SaveStepCommand}" />
+                                        <KeyBinding Gesture="Escape" Command="{Binding CancelStepCommand}" />
                                     </TextBox.KeyBindings>
                                 </TextBox>
-                                <TextBlock Classes="muted" Text="{Binding WhenText}" FontSize="12" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <TextBlock Grid.Column="2" Classes="faint" Text="{Binding Kind}" FontSize="12" VerticalAlignment="Top" />
-                            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2" IsVisible="{Binding CanEdit}" VerticalAlignment="Top">
-                                <Button Classes="quiet" Content="✎" Command="{Binding EditCommand}" IsVisible="{Binding IsNotEditing}" ToolTip.Tip="Edit"
-                                        Padding="6,0" />
-                                <Button Classes="quiet" Content="✓" Command="{Binding SaveCommand}" IsVisible="{Binding IsEditing}" ToolTip.Tip="Keep the change"
-                                        Padding="6,0" />
-                                <Button Classes="quiet" Content="✕" Command="{Binding DeleteCommand}" ToolTip.Tip="{Binding DeleteTip}"
-                                        Padding="6,0" />
-                            </StackPanel>
-                        </Grid>
+                            </Grid>
+                        </StackPanel>
                     </Border>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>

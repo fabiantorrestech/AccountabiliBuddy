@@ -5,17 +5,18 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// A task an ended session left open, in "Unfinished from past sessions": nothing moves by itself, so each row offers its
-/// own "Later" and "Delete".
+/// own "Later" and "Delete" (Auto-saved rows also "Add to Today").
 /// </summary>
 public sealed class PastTaskRowViewModel
 {
-    public PastTaskRowViewModel(Guid id, string title, string whenText, Func<Task> moveToLater, Func<Task> delete)
+    public PastTaskRowViewModel(Guid id, string title, string whenText, Func<Task> moveToLater, Func<Task> delete, Func<Task>? addToToday = null)
     {
         Id = id;
         Title = title;
         WhenText = whenText;
         MoveToLaterCommand = new AsyncRelayCommand(moveToLater);
         DeleteCommand = new AsyncRelayCommand(delete);
+        AddToTodayCommand = addToToday is null ? null : new AsyncRelayCommand(addToToday);
     }
 
     public Guid Id { get; }
@@ -28,4 +29,7 @@ public sealed class PastTaskRowViewModel
     public ICommand MoveToLaterCommand { get; }
 
     public ICommand DeleteCommand { get; }
+
+    /// <summary>"Add to Today" (Auto-saved rows); null where a row has none.</summary>
+    public ICommand? AddToTodayCommand { get; }
 }

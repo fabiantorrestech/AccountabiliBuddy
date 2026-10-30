@@ -43,6 +43,11 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
 
     public ChecklistMode Mode { get; }
 
+    private UndoBarViewModel? _undo;
+
+    /// <summary>The bar after a delete, "Deleted “…” · Undo" (made when a view first asks for it).</summary>
+    public UndoBarViewModel Undo => _undo ??= new UndoBarViewModel(_tasks);
+
     public bool IsDraft => Mode == ChecklistMode.Draft;
 
     public bool IsCompact => Mode == ChecklistMode.Compact;
@@ -194,6 +199,9 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     /// <summary>Raised to put the keyboard in the "Add a task" box (the start nudge).</summary>
     public event EventHandler? FocusEntryRequested;
 
+    /// <summary>Raised just before the rows are rebuilt, so a row's open flyout can close first (a flyout open inside a row that goes away crashes Avalonia).</summary>
+    public event EventHandler? RowsRebuilding;
+
     public void RequestFocus()
     {
         FocusEntryRequested?.Invoke(this, EventArgs.Empty);
@@ -202,6 +210,7 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _tasks.Changed -= OnChanged;
+        _undo?.Dispose();
     }
 
     /// <summary>
@@ -324,6 +333,7 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
 
     private void Refresh()
     {
+        RowsRebuilding?.Invoke(this, EventArgs.Empty);
         SessionChecklist checklist = _tasks.Current;
         IReadOnlyList<TaskCategory> categories = _tasks.Categories;
         RefreshCategories(categories);

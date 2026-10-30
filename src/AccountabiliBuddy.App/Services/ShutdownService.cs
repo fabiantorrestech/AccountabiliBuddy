@@ -144,7 +144,7 @@ public sealed class ShutdownService : IDisposable
         List<ShutdownTaskRow> unfinishedRows = _tasks.History
             .Where(checklist => checklist.SessionStart is DateTimeOffset start
                 && DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(start, _sessions.TimeProvider.LocalTimeZone).DateTime) == date)
-            .SelectMany(checklist => checklist.Tasks.Where(task => !task.IsDone))
+            .SelectMany(checklist => checklist.Tasks.Where(task => !task.IsDone && !_tasks.WasMoved(task.Id)))
             .DistinctBy(task => task.Title, StringComparer.Ordinal)
             .Where(task => !waiting.Contains(task.Title))
             .Select(task => new ShutdownTaskRow(task.Title, ExistingCategory(task.CategoryId)))

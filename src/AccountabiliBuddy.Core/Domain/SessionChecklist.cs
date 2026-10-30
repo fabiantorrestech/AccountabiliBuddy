@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace AccountabiliBuddy.Core.Domain;
 
 /// <summary>
@@ -11,12 +13,18 @@ namespace AccountabiliBuddy.Core.Domain;
 /// Open tasks removed or parked while the session runs. Above 0 the checklist is never "all done", so taking tasks off
 /// can't end a session at once (ADR 25): ticking is the only way to done. Stored with the checklist; 0 when a session starts.
 /// </param>
+/// <param name="OutsideSession">
+/// A history record that is no session: the tasks ticked on the Tasks page with no session running (a Later task ticked off).
+/// Local only, and it must never sync or count as a session: its <paramref name="SessionStart"/> is null on purpose, which is what
+/// keeps it out of the synced task lists, the day bar and the shutdown card. Its tasks carry their own tick times.
+/// </param>
 public sealed record SessionChecklist(
     DateTimeOffset? SessionStart,
     bool MadeBeforeStart,
     IReadOnlyList<SessionTask> Tasks,
     Guid? CurrentId = null,
-    int DroppedOpen = 0)
+    int DroppedOpen = 0,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool OutsideSession = false)
 {
     /// <summary>How long a session runs before a finished checklist may end it at once (ADR 25).</summary>
     public static readonly TimeSpan EndAtOnceAfter = TimeSpan.FromMinutes(10);
@@ -134,6 +142,61 @@ public sealed record SessionChecklist(
         var used = Tasks.SelectMany(other => other.Subtasks.Select(subtask => subtask.Id).Prepend(other.Id)).ToHashSet();
         Guid id = task.Id != Guid.Empty && !used.Contains(task.Id) ? task.Id : Guid.NewGuid();
         return this with { Tasks = [.. Tasks, task with { Id = id, Title = task.Title.Trim(), DoneAt = null }] };
+    }
+
+    /// <summary>
+    /// <paramref name="task"/> put back at <paramref name="index"/> with its own id, steps and fields (Undo); unchanged when
+    /// the id is already in the checklist.
+    /// </summary>
+    public SessionChecklist Insert(SessionTask task, int index)
+    {
+        if (Tasks.Any(other => other.Id == task.Id || other.Subtasks.Any(subtask => task.Subtasks.Any(own => own.Id == subtask.Id))))
+        {
+            return this;
+        }
+
+        List<SessionTask> tasks = Tasks.ToList();
+        tasks.Insert(Math.Clamp(index, 0, tasks.Count), task);
+        return this with { Tasks = tasks };
+    }
+
+    /// <summary>A step put back at <paramref name="index"/> of the task <paramref name="taskId"/> (Undo); unchanged when either is missing or the id is used.</summary>
+    public SessionChecklist InsertSubtask(Guid taskId, SessionSubtask step, int index)
+    {
+        if (Tasks.All(task => task.Id != taskId) || Tasks.Any(task => task.Id == step.Id || task.Subtasks.Any(subtask => subtask.Id == step.Id)))
+        {
+            return this;
+        }
+
+        return WithTask(taskId, task =>
+        {
+            List<SessionSubtask> steps = task.Subtasks.ToList();
+            steps.Insert(Math.Clamp(index, 0, steps.Count), step);
+            return task with { Subtasks = steps, DoneAt = step.IsDone ? task.DoneAt : null };
+        });
+    }
+
+    /// <summary>
+    /// A new open step just after the step <paramref name="stepId"/> in its task; a blank title adds nothing. Like any new step it
+    /// reopens a task that was done.
+    /// </summary>
+    public SessionChecklist AddSubtaskAfter(Guid stepId, string title)
+    {
+        string trimmed = title.Trim();
+        SessionTask? owner = Tasks.FirstOrDefault(task => task.Subtasks.Any(subtask => subtask.Id == stepId));
+        if (trimmed.Length == 0 || owner is null)
+        {
+            return this;
+        }
+
+        int at = owner.Subtasks.ToList().FindIndex(subtask => subtask.Id == stepId);
+        return InsertSubtask(owner.Id, new SessionSubtask(Guid.NewGuid(), trimmed, null), at + 1);
+    }
+
+    /// <summary>One fewer task counts as taken off open: an Undo brought an open task back into this session (ADR 25). Never below 0.</summary>
+    public SessionChecklist WithOneLessDropped()
+    {
+        return this with { DroppedOpen = Math.Max(0, DroppedOpen - 1) };
     }
 
     /// <summary>The estimate of the task <paramref name="id"/> in minutes (null or 0 clears it; held to <see cref="MaxEstimateMinutes"/>).</summary>

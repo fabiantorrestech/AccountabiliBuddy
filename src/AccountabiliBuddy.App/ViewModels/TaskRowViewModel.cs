@@ -11,7 +11,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// A task row of the checklist with its subtasks: tick it, pick it, add a subtask, put it in a category, park it as a
 /// come-back, or rename, move or remove it.
 /// </summary>
-public sealed partial class TaskRowViewModel : ChecklistRowViewModel
+public sealed partial class TaskRowViewModel : ChecklistRowViewModel, ITaskMenuSource
 {
     /// <param name="shown">What the on-screen bar shows, to mark this task or one of its subtasks with the pin icon.</param>
     /// <param name="categories">The task categories, for its colour dot and its category menu.</param>
@@ -113,6 +113,31 @@ public sealed partial class TaskRowViewModel : ChecklistRowViewModel
     private Task ParkAsync()
     {
         return Tasks.ParkAsync(Id);
+    }
+
+    /// <summary>
+    /// The row's ⋯ menu: Rename and Add subtask (the row's own editor opens, so the view answers them), Label (a category or
+    /// none), Move to… (Later, or Come back to) and Delete. Deleting an open task during a session counts as taken off open
+    /// (ADR 25); Undo is the bar under the rows.
+    /// </summary>
+    public IReadOnlyList<TaskMenuEntry> BuildMenu()
+    {
+        var moves = new List<TaskMenuEntry> { TaskMenuEntry.Async("Later", () => Tasks.MoveToLaterAsync(Id)) };
+        if (CanPark)
+        {
+            moves.Add(TaskMenuEntry.Async("Come back to", ParkAsync));
+        }
+
+        return
+        [
+            TaskMenuEntry.View("Rename", "rename"),
+            TaskMenuEntry.View("Add subtask", "addStep"),
+            TaskMenuEntry.Group("Label", CategoryChoices.Select(choice => new TaskMenuEntry(
+                choice.Name, choice.PickCommand, IsChecked: choice.IsSelected, Dot: choice.Id is null ? null : choice.Brush)).ToList()),
+            TaskMenuEntry.Group("Move to…", moves),
+            TaskMenuEntry.Separator,
+            TaskMenuEntry.Async("Delete", () => Tasks.RemoveAsync(Id)),
+        ];
     }
 
     private Task SetCategoryAsync(Guid? categoryId)

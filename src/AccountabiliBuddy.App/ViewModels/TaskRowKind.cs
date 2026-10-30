@@ -14,4 +14,7 @@ public enum TaskRowKind
 
     /// <summary>A task ticked today (running checklist or an ended session of today).</summary>
     Done,
+
+    /// <summary>A task an ended session left open ("Unfinished from past sessions", the Archive).</summary>
+    Past,
 }

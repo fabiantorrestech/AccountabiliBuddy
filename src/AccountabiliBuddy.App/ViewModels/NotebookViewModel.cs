@@ -10,7 +10,9 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>
 /// The Notebook tab: everything written down so it can leave your head. Come-backs (open and ticked), notes kept in
 /// Focus mode, tasks left unfinished when a session ended, and tasks done, newest first, with their times; searchable
-/// and filtered by kind. Open come-backs can be ticked off here; come-backs, notes and tasks can be edited or deleted.
+/// and filtered by kind. Every task, subtask and come-back has a check box (tick it, or untick it to open it again) and a ⋯ menu
+/// (rename, add a subtask, label, move, delete); notes can be edited or deleted. "Recently deleted" lists what was deleted in
+/// the last 30 days, each with Restore.
 /// </summary>
 public sealed partial class NotebookViewModel : ObservableObject
 {
@@ -28,8 +30,16 @@ public sealed partial class NotebookViewModel : ObservableObject
         _comebacks.Changed += (_, _) => Refresh();
         _notes.Changed += (_, _) => Refresh();
         _tasks.Changed += (_, _) => Refresh();
+        if (_tasks.Deleted is not null)
+        {
+            _tasks.Deleted.Changed += (_, _) => Refresh();
+        }
+
         Refresh();
     }
+
+    /// <summary>The Tasks page the Archive lives on: its ⋯ menus move, label and delete through it. Set by the page.</summary>
+    internal TasksViewModel? Host { get; set; }
 
     /// <summary>The kinds to show: "Everything" or one kind.</summary>
     public static IReadOnlyList<string> Filters { get; } = ["Everything", "Come-backs", "Notes", "Unfinished tasks", "Done tasks"];
@@ -41,6 +51,26 @@ public sealed partial class NotebookViewModel : ObservableObject
     public partial string Search { get; set; } = string.Empty;
 
     public ObservableCollection<NotebookItemViewModel> Items { get; } = new();
+
+    /// <summary>What was deleted in the last 30 days, newest first.</summary>
+    public ObservableCollection<RecentlyDeletedRowViewModel> RecentlyDeleted { get; } = new();
+
+    [ObservableProperty]
+    public partial bool IsRecentlyDeletedOpen { get; set; }
+
+    /// <summary>E.g. "Recently deleted · 3".</summary>
+    [ObservableProperty]
+    public partial string RecentlyDeletedHeader { get; set; } = "Recently deleted";
+
+    public bool HasRecentlyDeleted => RecentlyDeleted.Count > 0;
+
+    /// <summary>A search shows the group open, so a hit can't hide in a folded one.</summary>
+    public bool ShowsRecentlyDeleted => IsRecentlyDeletedOpen || Search.Trim().Length > 0;
+
+    partial void OnIsRecentlyDeletedOpenChanged(bool value) => OnPropertyChanged(nameof(ShowsRecentlyDeleted));
+
+    [RelayCommand]
+    private void ToggleRecentlyDeleted() => IsRecentlyDeletedOpen = !IsRecentlyDeletedOpen;
 
     /// <summary>E.g. "3 open come-backs · 12 notes · 4 unfinished · 31 done".</summary>
     [ObservableProperty]
@@ -78,6 +108,20 @@ public sealed partial class NotebookViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(IsEmpty));
+        RefreshRecentlyDeleted(search);
+    }
+
+    private void RefreshRecentlyDeleted(string search)
+    {
+        RecentlyDeleted.Clear();
+        foreach (DeletedItem item in (_tasks.Deleted?.Items ?? []).Where(item => search.Length == 0 || item.Title.Contains(search, StringComparison.OrdinalIgnoreCase)))
+        {
+            RecentlyDeleted.Add(new RecentlyDeletedRowViewModel(item, $"Deleted {When(item.DeletedAt)}", _tasks));
+        }
+
+        RecentlyDeletedHeader = $"Recently deleted · {RecentlyDeleted.Count}";
+        OnPropertyChanged(nameof(HasRecentlyDeleted));
+        OnPropertyChanged(nameof(ShowsRecentlyDeleted));
     }
 
     private const string ComebackKind = "Come-back";
@@ -94,9 +138,11 @@ public sealed partial class NotebookViewModel : ObservableObject
             comeback.Text,
             comeback.DoneAt is DateTimeOffset done ? $"Parked {When(comeback.CreatedAt)} · ticked {When(done)}" : $"Parked {When(comeback.CreatedAt)} · open",
             comeback.CreatedAt,
-            comeback.DoneAt is null ? new AsyncRelayCommand(() => _comebacks.TickAsync(comeback.Id)) : null,
+            toggle: () => comeback.DoneAt is null ? _comebacks.TickAsync(comeback.Id) : _comebacks.UntickAsync(comeback.Id),
             rename: text => _comebacks.EditAsync(comeback.Id, text),
-            delete: () => _comebacks.DeleteAsync(comeback.Id)));
+            delete: () => _tasks.DeleteComebackAsync(comeback.Id),
+            isTicked: comeback.DoneAt is not null,
+            menu: item => Host?.MenuFor(new TaskRowKey(TaskRowKind.ComeBack, comeback.Id), rename: item.BeginRename) ?? []));
     }
 
     private IEnumerable<NotebookItemViewModel> Notes()
@@ -114,23 +160,30 @@ public sealed partial class NotebookViewModel : ObservableObject
     // its subtasks (set in, just after it), and both can be renamed or deleted.
     private IEnumerable<NotebookItemViewModel> Tasks()
     {
-        foreach (SessionChecklist checklist in _tasks.History.Where(checklist => checklist.SessionStart is not null))
+        foreach (SessionChecklist checklist in _tasks.History.Where(checklist => checklist.SessionStart is not null || checklist.OutsideSession))
         {
-            DateTimeOffset start = checklist.SessionStart!.Value;
+            DateTimeOffset start = checklist.SessionStart ?? checklist.Tasks.Max(held => held.DoneAt) ?? default;
             foreach (SessionTask task in checklist.Tasks)
             {
                 DateTimeOffset sort = task.DoneAt ?? start;
                 // Its category as it was when the session ended, e.g. "Work · Session of …".
                 string category = CategoryName(task) is string name ? $"{name} · " : string.Empty;
+                string session = checklist.OutsideSession ? "Done outside a session" : $"Session of {When(start)}";
+                TaskRowKey key = new(task.DoneAt is null ? TaskRowKind.Past : TaskRowKind.Done, task.Id);
                 yield return new NotebookItemViewModel(
                     task.DoneAt is null ? UnfinishedKind : DoneKind,
                     task.Title,
                     task.DoneAt is DateTimeOffset done
-                        ? $"{category}Session of {When(start)} · done {When(done)}"
-                        : $"{category}Session of {When(start)} · left open",
+                        ? $"{category}{session} · done {When(done)}"
+                        : $"{category}{session} · left open",
                     sort,
+                    toggle: () => _tasks.SetTickedAsync(task.Id, task.DoneAt is null),
                     rename: title => _tasks.EditHistoryAsync(task.Id, title),
-                    delete: () => _tasks.EditHistoryAsync(task.Id, null));
+                    delete: () => _tasks.EditHistoryAsync(task.Id, null),
+                    isTicked: task.DoneAt is not null,
+                    addStep: title => _tasks.AddHistoryStepAsync(task.Id, title),
+                    menu: item => Host?.MenuFor(key, rename: item.BeginRename, addStep: item.BeginAddStep) ?? [],
+                    categoryColor: task.CategoryColor ?? _tasks.Categories.FirstOrDefault(c => c.Id == task.CategoryId)?.Color);
                 int order = 0;
                 foreach (SessionSubtask subtask in task.Subtasks)
                 {
@@ -141,9 +194,19 @@ public sealed partial class NotebookViewModel : ObservableObject
                         subtask.Title,
                         subtask.DoneAt is DateTimeOffset subDone ? $"Done {When(subDone)}" : "Left open",
                         sort - TimeSpan.FromTicks(order),
+                        toggle: () => _tasks.SetTickedAsync(subtask.Id, subtask.DoneAt is null),
                         rename: title => _tasks.EditHistoryAsync(subtask.Id, title),
                         delete: () => _tasks.EditHistoryAsync(subtask.Id, null),
-                        isSubtask: true);
+                        isSubtask: true,
+                        isTicked: subtask.DoneAt is not null,
+                        addStep: title => _tasks.AddHistoryStepAsync(task.Id, title, subtask.Id),
+                        menu: item =>
+                        [
+                            TaskMenuEntry.Do("Rename", item.BeginRename),
+                            TaskMenuEntry.Do("Add a step after", item.BeginAddStep),
+                            TaskMenuEntry.Separator,
+                            TaskMenuEntry.Async("Delete", () => _tasks.EditHistoryAsync(subtask.Id, null)),
+                        ]);
                 }
             }
         }

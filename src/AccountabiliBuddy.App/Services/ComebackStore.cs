@@ -87,6 +87,45 @@ public sealed class ComebackStore
         return SaveAsync();
     }
 
+    /// <summary>Opens a ticked one again (unticking it in the Archive); an open or unknown one changes nothing.</summary>
+    public Task UntickAsync(Guid id)
+    {
+        int index = IndexOfLive(id);
+        if (index < 0 || _all[index].DoneAt is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        _all[index] = _all[index] with { DoneAt = null, EditedAt = EditStamp(_time.GetUtcNow(), _all[index]) };
+        return SaveAsync();
+    }
+
+    /// <summary>
+    /// Puts a deleted come-back back (Undo, Recently deleted): the same id, text, times and place, as a normal newer edit that
+    /// beats its tombstone on every device. Nothing changes when it is already on the list.
+    /// </summary>
+    public Task RestoreAsync(Comeback comeback)
+    {
+        int index = _all.FindIndex(held => held.Id == comeback.Id);
+        if (index >= 0 && _all[index].DeletedAt is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        DateTimeOffset stamp = index >= 0 ? EditStamp(_time.GetUtcNow(), _all[index]) : _time.GetUtcNow();
+        Comeback back = comeback with { EditedAt = stamp, DeletedAt = null };
+        if (index >= 0)
+        {
+            _all[index] = back;
+        }
+        else
+        {
+            _all.Add(back);
+        }
+
+        return SaveAsync();
+    }
+
     /// <summary>Changes one's text (the Notebook's ✎); a blank text or an unknown id changes nothing.</summary>
     public Task EditAsync(Guid id, string text)
     {

@@ -92,8 +92,14 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable
 
     public bool IsLater => Kind == TaskRowKind.Later;
 
-    /// <summary>A come-back has only a title, its line and the moves; a done task is read-only.</summary>
-    public bool ShowsFields => Kind is TaskRowKind.Session or TaskRowKind.Later or TaskRowKind.Done;
+    /// <summary>A come-back has only a title, its line and the moves; a done or past task is read-only except its title and new steps.</summary>
+    public bool ShowsFields => Kind is TaskRowKind.Session or TaskRowKind.Later or TaskRowKind.Done or TaskRowKind.Past;
+
+    /// <summary>The title can be renamed, also on a done or past task (from here or the ⋯ menu).</summary>
+    public bool CanEditTitle => true;
+
+    /// <summary>"Add a step" shows for every task but a come-back (a new step reopens a done task).</summary>
+    public bool CanAddStep => ShowsFields;
 
     public bool ShowsEditableFields => ShowsFields && CanEdit;
 
@@ -102,14 +108,15 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable
     /// <summary>"Start with this": no session runs, and the task is one a session could start with.</summary>
     public bool ShowsStart => Kind is TaskRowKind.Session or TaskRowKind.Later && !_owner.IsSessionLive && !_snapshot.IsDone;
 
-    public bool ShowsMoveToLater => Kind == TaskRowKind.Session && !_snapshot.IsDone || Kind == TaskRowKind.ComeBack;
+    public bool ShowsMoveToLater => Kind is TaskRowKind.Session or TaskRowKind.ComeBack or TaskRowKind.Done or TaskRowKind.Past;
 
-    public bool ShowsMoveToSession => Kind is TaskRowKind.Later or TaskRowKind.ComeBack;
+    /// <summary>"Add to Today": from Later, a come-back, or a done / unfinished task (it comes back open as a copy).</summary>
+    public bool ShowsMoveToSession => Kind is TaskRowKind.Later or TaskRowKind.ComeBack or TaskRowKind.Done or TaskRowKind.Past;
 
     // Put in plan is for the next session's tasks and Later; a running session's task can't be planned for later.
     public bool ShowsPlan => (Kind == TaskRowKind.Later || Kind == TaskRowKind.Session && !_owner.IsSessionLive) && !_snapshot.IsDone;
 
-    public bool ShowsDelete => Kind is TaskRowKind.Later or TaskRowKind.ComeBack;
+    public bool ShowsDelete => true;
 
     public bool HasPlan => PlanText.Length > 0;
 
@@ -205,7 +212,7 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable
             return Task.CompletedTask;
         }
 
-        return title == _snapshot.Title || !CanEdit && !IsComeBack ? Task.CompletedTask : _owner.RenameAsync(Key, title);
+        return title == _snapshot.Title ? Task.CompletedTask : _owner.RenameAsync(Key, title);
     }
 
     [RelayCommand]
@@ -238,7 +245,7 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable
     {
         string title = NewStepText.Trim();
         NewStepText = string.Empty;
-        if (title.Length > 0 && CanEdit)
+        if (title.Length > 0 && CanAddStep)
         {
             await _owner.AddStepAsync(Key, title);
         }
@@ -271,10 +278,13 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable
     private Task MoveToLaterAsync() => _owner.MoveToLaterAsync(Key);
 
     [RelayCommand]
-    private Task MoveToSessionAsync() => _owner.MoveToSessionAsync(Key);
+    private Task AddToTodayAsync() => _owner.AddToTodayAsync(Key);
 
     [RelayCommand]
     private Task StartWithThisAsync() => _owner.StartWithThisAsync(Key);
+
+    [RelayCommand]
+    private Task MoveToComebackAsync() => _owner.MoveToComebackAsync(Key);
 
     [RelayCommand]
     private Task DeleteAsync() => _owner.DeleteAsync(Key);
@@ -298,7 +308,9 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable
         Steps.Clear();
         foreach (SessionSubtask step in snapshot.Steps)
         {
-            Steps.Add(new TaskStepViewModel(step.Id, step.Title, step.IsDone, CanEdit, id => _owner.ToggleStepAsync(Key, id), id => _owner.RemoveStepAsync(Key, id)));
+            Steps.Add(new TaskStepViewModel(
+                step.Id, step.Title, step.IsDone, CanEdit, id => _owner.ToggleStepAsync(Key, id), id => _owner.RemoveStepAsync(Key, id),
+                (id, title) => _owner.RenameStepAsync(Key, id, title), (id, title) => _owner.AddStepAfterAsync(Key, id, title)));
         }
 
         EstimateChips = BuildEstimateChips(snapshot.EstimateMinutes);

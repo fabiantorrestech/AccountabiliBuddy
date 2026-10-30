@@ -114,6 +114,32 @@ public sealed class LaterStore
         return SaveAsync();
     }
 
+    /// <summary>
+    /// Puts a deleted item back (Undo, Recently deleted): the same id, position and fields, as a normal newer edit that beats
+    /// its tombstone on every device. Nothing changes when the item is already on the list.
+    /// </summary>
+    public Task RestoreAsync(SyncLaterItem item)
+    {
+        int index = _all.FindIndex(held => held.Id == item.Id);
+        if (index >= 0 && _all[index].DeletedAt is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        DateTimeOffset stamp = SharedListMerge.NextStamp(_time.GetUtcNow(), index >= 0 ? _all[index] : null);
+        SyncLaterItem back = item with { EditedAt = stamp, DeletedAt = null };
+        if (index >= 0)
+        {
+            _all[index] = back;
+        }
+        else
+        {
+            _all.Add(back);
+        }
+
+        return SaveAsync();
+    }
+
     /// <summary>The list for this device's sync file (ADR 50): its items and the tombstones of the last 30 days, in list order.</summary>
     public IReadOnlyList<SyncLaterItem> ForSync()
     {

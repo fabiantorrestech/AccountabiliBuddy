@@ -31,6 +31,18 @@ public sealed class AutoSavedTaskStore
         _time = time;
     }
 
+    /// <summary>Puts a deleted item back with the time it was saved (the 30 days run from then); nothing changes when it is already there.</summary>
+    public Task RestoreAsync(AutoSavedTask item)
+    {
+        if (_all.Any(held => held.Id == item.Id))
+        {
+            return Task.CompletedTask;
+        }
+
+        _all.Add(item);
+        return SaveAsync();
+    }
+
     /// <summary>The items younger than 30 days, newest first.</summary>
     public IReadOnlyList<AutoSavedTask> Items
     {

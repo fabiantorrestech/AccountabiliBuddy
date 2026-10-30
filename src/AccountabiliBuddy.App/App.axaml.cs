@@ -444,6 +444,10 @@ public partial class App : Application
         _later = new LaterStore(documents, new DpapiDataProtector(), time);
         _later.LoadBlocking();
         sessionTasks.Later = _later;
+        // Recently deleted (ADR 50): what the user deletes stays 30 days on this computer only, sealed, so Undo and Restore can bring it back.
+        var recentlyDeleted = new RecentlyDeletedStore(documents, new DpapiDataProtector(), time);
+        recentlyDeleted.LoadBlocking();
+        sessionTasks.Deleted = recentlyDeleted;
         // "Put in plan": a part's own start, from the day plan as it is now (else the time it was planned with).
         sessionTasks.PlannedStartOf = slot => PlannedPartStart(slot);
         // Notes kept in Focus mode (redesign phase 5): this computer only, sealed.
@@ -934,6 +938,7 @@ public partial class App : Application
         // A card left open closes by itself; its typed tomorrow's first task waits under the Tasks page's "Auto-saved" (this computer, encrypted).
         var autoSaved = new AutoSavedTaskStore(documents, new DpapiDataProtector(), time);
         autoSaved.LoadBlocking();
+        sessionTasks.AutoSaved = autoSaved;
         _shutdown = new ShutdownService(_sessions, _configuration, sessionTasks, _comebacks!, documents, autoSaved);
         _shutdown.LoadBlocking();
         _shutdown.Changed += (_, _) =>
