@@ -36,7 +36,15 @@ public sealed class RecentlyDeletedStore
     }
 
     /// <summary>The entries kept, newest first.</summary>
-    public IReadOnlyList<DeletedItem> Items => _items.OrderByDescending(item => item.DeletedAt).ToList();
+    public IReadOnlyList<DeletedItem> Items
+    {
+        get
+        {
+            // An app left running for weeks prunes only on load and save, so entries past 30 days are left out here too.
+            DateTimeOffset keptFrom = _time.GetUtcNow() - Kept;
+            return _items.Where(item => item.DeletedAt >= keptFrom).OrderByDescending(item => item.DeletedAt).ToList();
+        }
+    }
 
     /// <summary>Raised when the list changed.</summary>
     public event EventHandler? Changed;
