@@ -662,6 +662,12 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     private List<TaskMenuEntry> MoveEntries(TaskRowKey key)
     {
         var moves = new List<TaskMenuEntry>();
+        if (key.Kind is TaskRowKind.Done or TaskRowKind.Past && _tasks.IsInChecklist(key.Id))
+        {
+            // Ticked in the running checklist: the moves look in the sessions' records only, so none of them would find it.
+            return moves;
+        }
+
         bool isOpenSessionTask = key.Kind == TaskRowKind.Session;
         bool isOpenComeBack = key.Kind == TaskRowKind.ComeBack && _comebacks.Open.Any(item => item.Id == key.Id);
         if (key.Kind is TaskRowKind.Later or TaskRowKind.Done or TaskRowKind.Past || isOpenComeBack)
