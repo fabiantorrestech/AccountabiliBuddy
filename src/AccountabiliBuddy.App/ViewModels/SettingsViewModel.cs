@@ -1494,35 +1494,19 @@ public sealed partial class SettingsViewModel : ObservableObject
         TimerStatus = null;
     }
 
-    /// <summary>The timer's look as set in the tab, on top of <paramref name="current"/>.</summary>
+    /// <summary>
+    /// The timer's look as set in the tab, on top of <paramref name="current"/>. Only the fields this tab still shows;
+    /// the overlay page owns the rest (size, style, corner, opacity, marks...), so they stay as saved.
+    /// </summary>
     private OverlaySettings BuildTimerLook(OverlaySettings current)
     {
         return current with
         {
-            Style = (OverlayStyle)Math.Clamp(TimerStyleIndex, 0, TimerStyleNames.Count - 1),
-            Opacity = TimerOpacityPercent / 100,
-            Size = (OverlaySize)Math.Clamp(TimerSizeIndex, 0, TimerSizeNames.Count - 1),
-            Divisions = TimerMarksIndex <= 0 ? 0 : Math.Min(TimerMarksIndex, TimerMarkNames.Count - 1) + 1,
-            WrapUpColor = TimerWrapUpColor,
-            PulseAtMarks = TimerPulseAtMarks,
             HideInFullscreen = TimerHideInFullscreen,
             FillUp = TimerFillUp,
-            Quiet = TimerColourIndex != 1,
-            QuietMarks = TimerQuietMarks,
-            TaskOnlyWithCtrlAlt = TaskOnlyWithCtrlAlt,
-            HeldOpacity = Math.Clamp(HeldOpacityPercent, 20, 100) / 100,
-            TimelineOpacity = Math.Clamp(TimelineOpacityPercent, 20, 100) / 100,
-            TimelineHeldOpacity = Math.Clamp(TimelineHeldOpacityPercent, 20, 100) / 100,
             DefaultTimer = new ProfileOverlay(DefaultTimerOn, DefaultTimerColor.Hex),
             ShowTimeline = ShowTimeline,
-            TimelineInFocus = TimelineStaysInFocus ? TimelineInFocus.ShowBoth : TimelineInFocus.SwapForTimer,
-            TimelineShowsTime = TimelineShowsTime,
             QuickHideSeconds = (int)(QuickHideSeconds ?? OverlaySettings.Default.QuickHideSeconds),
-            MoveForMaximizedApps = MoveForMaximizedApps,
-            Corner = (OverlayCorner)Math.Clamp(TimerCornerIndex, 0, TimerCornerNames.Count - 1),
-            MaximizedAppDrop = (int)(MaximizedAppDrop ?? OverlaySettings.Default.MaximizedAppDrop),
-            AppDrops = AppDrops.ToDictionary(row => row.App, row => (int)(row.Drop ?? 0)),
-            AppShifts = AppDrops.ToDictionary(row => row.App, row => (int)(row.Shift ?? 0)),
         };
     }
 
