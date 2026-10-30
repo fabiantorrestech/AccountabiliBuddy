@@ -13,7 +13,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 public sealed partial class OverlaySettingsViewModel : ObservableObject
 {
     public static IReadOnlyList<string> PlacementNames { get; } =
-        ["Docked over taskbar", "Docked, covering tray", "Taskbar left", "Beside tray", "Floating bottom right", "Floating bottom left"];
+        ["Over taskbar", "Cover tray", "Taskbar left", "Beside tray", "Float right", "Float left"];
 
     public static IReadOnlyList<string> AutoHideNames { get; } = ["Float", "Slim line", "Hide with it"];
 
@@ -26,6 +26,10 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     public static IReadOnlyList<string> ProgressNames { get; } = ["Ring", "Timeline"];
 
     public static IReadOnlyList<string> PanelSizeNames { get; } = ["Compact", "Standard", "Large"];
+
+    public static IReadOnlyList<string> PeekDelayNames { get; } = ["Instant", "100 ms", "150 ms", "300 ms"];
+
+    private static readonly int[] PeekDelayValues = [0, 100, 150, 300];
 
     private readonly OverlaySettingsService _settings;
     private bool _loading;
@@ -87,6 +91,10 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool HoldToPeek { get; set; }
 
+    /// <summary>Index into <see cref="PeekDelayNames"/>; -1 (nothing selected) when the saved delay is not one of the four choices.</summary>
+    [ObservableProperty]
+    public partial int PeekDelayIndex { get; set; }
+
     [ObservableProperty]
     public partial bool PanelSticky { get; set; }
 
@@ -130,6 +138,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
         ShowSeconds = settings.ShowSeconds;
         PanelSizeIndex = (int)settings.PanelSize;
         HoldToPeek = settings.HoldToPeek;
+        PeekDelayIndex = Array.IndexOf(PeekDelayValues, settings.PeekDelayMs);
         PanelSticky = settings.PanelSticky;
         PeekUsesKeys = !settings.PeekKeysLocked;
         UsesBuiltInRules = settings.AppRules is null;
@@ -199,6 +208,14 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     partial void OnPanelSizeIndexChanged(int value) => Save(s => s with { PanelSize = (PanelSize)value });
 
     partial void OnHoldToPeekChanged(bool value) => Save(s => s with { HoldToPeek = value });
+
+    partial void OnPeekDelayIndexChanged(int value)
+    {
+        if (value >= 0)
+        {
+            Save(s => s with { PeekDelayMs = PeekDelayValues[value] });
+        }
+    }
 
     partial void OnPanelStickyChanged(bool value) => Save(s => s with { PanelSticky = value });
 

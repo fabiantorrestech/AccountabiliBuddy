@@ -115,6 +115,7 @@ public sealed class OverlaySettingsService
             TimelineHeldOpacity = Math.Clamp(changed.TimelineHeldOpacity, OverlaySettings.MinOpacity, 1),
             Divisions = Math.Max(0, changed.Divisions),
             QuickHideSeconds = Math.Clamp(changed.QuickHideSeconds, OverlaySettings.MinQuickHideSeconds, OverlaySettings.MaxQuickHideSeconds),
+            PeekDelayMs = Math.Clamp(changed.PeekDelayMs, 0, OverlaySettings.MaxPeekDelayMs),
             MaximizedAppDrop = Math.Clamp(changed.MaximizedAppDrop, 0, OverlaySettings.MaxMaximizedAppDrop),
             AppDrops = Clamped(changed.AppDrops, OverlaySettings.MaxMaximizedAppDrop),
             AppShifts = Clamped(changed.AppShifts, OverlaySettings.MaxAppShift),

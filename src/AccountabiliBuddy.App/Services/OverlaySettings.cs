@@ -45,13 +45,14 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="Progress">A ring or a timeline.</param>
 /// <param name="ContentOrder">What it shows and in what order (null = the default order).</param>
 /// <param name="PanelSize">The Ctrl+Alt panel's width.</param>
-/// <param name="HoldToPeek">Holding Ctrl+Alt for 300 ms opens the panel while held (off for layouts where AltGr is Ctrl+Alt).</param>
+/// <param name="HoldToPeek">Holding Ctrl+Alt for <paramref name="PeekDelayMs"/> opens the panel while held (off for layouts where AltGr is Ctrl+Alt).</param>
 /// <param name="PanelSticky">Ctrl+Alt+Space keeps the panel open until Esc or a click elsewhere.</param>
 /// <param name="ShowSeconds">The "18:42" style: seconds in the overlay's countdown (whole minutes otherwise).</param>
 /// <param name="AppRules">The per-app rules (null = the built-in list).</param>
 /// <param name="PanelSeen">The Ctrl+Alt panel was opened at least once (the migration assistant's "set up?" check).</param>
 /// <param name="PlacementChosen">The user picked a placement on the overlay page (the migration assistant's "set up?" check); saving anything else does not set it.</param>
 /// <param name="PeekKeysLocked">While the panel only peeks (Ctrl+Alt held), it registers no keyboard shortcuts at all; true by default and for saved settings without the field. Unlocked, a peek registers only the safe ones (hide, +10 min, up, down). The sticky panel takes its keys by focus either way.</param>
+/// <param name="PeekDelayMs">How long Ctrl+Alt is held before the peek opens (0 = at once, up to 600); 150 by default and for saved settings without the field. At 0 the panel flashes on every Ctrl+Alt+key shortcut of another app.</param>
 /// <param name="SideTileY">Where the vertical tile was dragged to along the screen edge (physical pixels from the top); null = the middle.</param>
 public sealed record OverlaySettings(
     OverlayStyle Style,
@@ -97,7 +98,8 @@ public sealed record OverlaySettings(
     int? SideTileY = null,
     bool PanelSeen = false,
     bool PlacementChosen = false,
-    bool PeekKeysLocked = true)
+    bool PeekKeysLocked = true,
+    int PeekDelayMs = OverlaySettings.DefaultPeekDelayMs)
 {
     /// <summary>Default vertical distance for maximized apps from a top corner (clears tabs, toolbars, window buttons).</summary>
     public const int TopCornerDrop = 110;
@@ -114,6 +116,8 @@ public sealed record OverlaySettings(
     public const int MaxMaximizedAppDrop = 600;
     public const double MinOpacity = 0.2;
     public const double DefaultOpacity = 0.85;
+    public const int DefaultPeekDelayMs = 150;
+    public const int MaxPeekDelayMs = 600;
     public const int MinQuickHideSeconds = 3;
     public const int MaxQuickHideSeconds = 600;
 
