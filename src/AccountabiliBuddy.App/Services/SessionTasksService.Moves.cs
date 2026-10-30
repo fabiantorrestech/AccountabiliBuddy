@@ -217,9 +217,10 @@ public sealed partial class SessionTasksService
             return;
         }
 
-        if (!ticked && IsOutsideSessionTask(id))
+        if (!ticked && OutsideSessionTaskOf(id) is Guid outsideTask)
         {
-            await ReopenOutsideTaskToLaterAsync(id);
+            // A task of the "done outside a session" record, or one of its steps: it is open again, so it goes back to Later.
+            await ReopenOutsideTaskToLaterAsync(outsideTask);
             return;
         }
 
@@ -250,9 +251,13 @@ public sealed partial class SessionTasksService
         return true;
     }
 
-    private bool IsOutsideSessionTask(Guid id)
+    // The task of the "done outside a session" record that is <paramref name="id"/> or has a step with that id; null if none.
+    private Guid? OutsideSessionTaskOf(Guid id)
     {
-        return _history.Any(checklist => checklist.OutsideSession && checklist.Tasks.Any(task => task.Id == id));
+        return _history
+            .Where(checklist => checklist.OutsideSession)
+            .SelectMany(checklist => checklist.Tasks)
+            .FirstOrDefault(task => task.Id == id || task.Subtasks.Any(step => step.Id == id))?.Id;
     }
 
     // Unticked again: the task is open and goes back to Later, with its steps open and its category, estimate and note.
