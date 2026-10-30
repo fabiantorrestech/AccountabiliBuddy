@@ -5,6 +5,8 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0055](0055-backups-of-a-removed-devices-data.md) | Backups of a removed device's data | Accepted | — |
+| [0054](0054-per-device-keys-and-re-keying-on-device-removal.md) | Per-device keys and re-keying on device removal | Accepted | — |
 | [0053](0053-low-level-keyboard-hook-for-hold-to-peek.md) | Low-level keyboard hook for hold-to-peek | Accepted | — |
 | [0051](0051-dock-the-session-overlay-over-the-taskbar.md) | Dock the session overlay over the taskbar | Accepted | — |
 | [0050](0050-task-estimates-notes-and-a-later-list-in-the-shared-task-lists.md) | Task estimates, notes and a Later list in the shared task lists | Accepted | — |
