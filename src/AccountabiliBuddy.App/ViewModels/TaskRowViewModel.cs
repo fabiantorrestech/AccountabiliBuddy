@@ -4,6 +4,7 @@ using AccountabiliBuddy.Core.Domain;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Material.Icons;
 
 namespace AccountabiliBuddy.App.ViewModels;
 
@@ -122,21 +123,22 @@ public sealed partial class TaskRowViewModel : ChecklistRowViewModel, ITaskMenuS
     /// </summary>
     public IReadOnlyList<TaskMenuEntry> BuildMenu()
     {
-        var moves = new List<TaskMenuEntry> { TaskMenuEntry.Async("Later", () => Tasks.MoveToLaterAsync(Id)) };
+        var moves = new List<TaskMenuEntry> { TaskMenuEntry.Async("Later", () => Tasks.MoveToLaterAsync(Id), MaterialIconKind.ClockOutline) };
         if (CanPark)
         {
-            moves.Add(TaskMenuEntry.Async("Come back to", ParkAsync));
+            moves.Add(TaskMenuEntry.Async("Come back to", ParkAsync, MaterialIconKind.FlagOutline));
         }
 
         return
         [
-            TaskMenuEntry.View("Rename", "rename"),
-            TaskMenuEntry.View("Add subtask", "addStep"),
+            TaskMenuEntry.View("Rename", "rename", MaterialIconKind.PencilOutline),
+            TaskMenuEntry.View("Add subtask", "addStep", MaterialIconKind.PlaylistPlus),
             TaskMenuEntry.Group("Label", CategoryChoices.Select(choice => new TaskMenuEntry(
-                choice.Name, choice.PickCommand, IsChecked: choice.IsSelected, Dot: choice.Id is null ? null : choice.Brush)).ToList()),
-            TaskMenuEntry.Group("Move to…", moves),
+                choice.Name, choice.PickCommand, IsChecked: choice.IsSelected, Dot: choice.Id is null ? null : choice.Brush)).ToList(),
+                MaterialIconKind.TagMultipleOutline),
+            TaskMenuEntry.Group("Move to…", moves, MaterialIconKind.ArrowRightBox),
             TaskMenuEntry.Separator,
-            TaskMenuEntry.Async("Delete", () => Tasks.RemoveAsync(Id)),
+            TaskMenuEntry.Async("Delete", () => Tasks.RemoveAsync(Id), MaterialIconKind.DeleteOutline),
         ];
     }
 

@@ -1,6 +1,7 @@
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Material.Icons;
 
 namespace AccountabiliBuddy.App.ViewModels;
 
@@ -67,10 +68,10 @@ public sealed partial class TaskStepViewModel : ObservableObject, ITaskMenuSourc
     {
         return
         [
-            TaskMenuEntry.Do("Rename", BeginEdit),
-            TaskMenuEntry.Do("Add a step after", BeginAddAfter),
+            TaskMenuEntry.Do("Rename", BeginEdit, MaterialIconKind.PencilOutline),
+            TaskMenuEntry.Do("Add a step after", BeginAddAfter, MaterialIconKind.PlaylistPlus),
             TaskMenuEntry.Separator,
-            TaskMenuEntry.Async("Delete", () => _remove(Id)),
+            TaskMenuEntry.Async("Delete", () => _remove(Id), MaterialIconKind.DeleteOutline),
         ];
     }
 

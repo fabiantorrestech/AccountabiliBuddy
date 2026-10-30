@@ -2,6 +2,7 @@ using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Material.Icons;
 
 namespace AccountabiliBuddy.App.ViewModels;
 
@@ -26,14 +27,14 @@ public sealed partial class SubtaskRowViewModel : ChecklistRowViewModel, ITaskMe
     {
         return
         [
-            TaskMenuEntry.Do("Rename", () => BeginEditCommand.Execute(null)),
+            TaskMenuEntry.Do("Rename", () => BeginEditCommand.Execute(null), MaterialIconKind.PencilOutline),
             TaskMenuEntry.Do("Add a step after", () =>
             {
                 NewAfterTitle = string.Empty;
                 IsAddingAfter = true;
-            }),
+            }, MaterialIconKind.PlaylistPlus),
             TaskMenuEntry.Separator,
-            TaskMenuEntry.Async("Delete", () => Tasks.RemoveAsync(Id)),
+            TaskMenuEntry.Async("Delete", () => Tasks.RemoveAsync(Id), MaterialIconKind.DeleteOutline),
         ];
     }
 

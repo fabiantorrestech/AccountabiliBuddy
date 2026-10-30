@@ -5,6 +5,7 @@ using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Sync;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Material.Icons;
 
 namespace AccountabiliBuddy.App.ViewModels;
 
@@ -482,10 +483,10 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     {
         return
         [
-            TaskMenuEntry.Async("Add to Today", () => AddAutoSavedToTodayAsync(id, title)),
-            TaskMenuEntry.Async("Later", () => MoveAutoSavedToLaterAsync(id, title)),
+            TaskMenuEntry.Async("Add to Today", () => AddAutoSavedToTodayAsync(id, title), MaterialIconKind.CalendarToday),
+            TaskMenuEntry.Async("Later", () => MoveAutoSavedToLaterAsync(id, title), MaterialIconKind.ClockOutline),
             TaskMenuEntry.Separator,
-            TaskMenuEntry.Async("Delete", () => _tasks.DeleteAutoSavedAsync(id)),
+            TaskMenuEntry.Async("Delete", () => _tasks.DeleteAutoSavedAsync(id), MaterialIconKind.DeleteOutline),
         ];
     }
 
@@ -591,22 +592,22 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     {
         var entries = new List<TaskMenuEntry>
         {
-            TaskMenuEntry.Do("Rename", rename ?? (() => BeginDetailEdit(key, "title"))),
+            TaskMenuEntry.Do("Rename", rename ?? (() => BeginDetailEdit(key, "title")), MaterialIconKind.PencilOutline),
         };
         if (key.Kind != TaskRowKind.ComeBack)
         {
-            entries.Add(TaskMenuEntry.Do("Add subtask", addStep ?? (() => BeginDetailEdit(key, "step"))));
-            entries.Add(TaskMenuEntry.Group("Label", LabelEntries(key)));
+            entries.Add(TaskMenuEntry.Do("Add subtask", addStep ?? (() => BeginDetailEdit(key, "step")), MaterialIconKind.PlaylistPlus));
+            entries.Add(TaskMenuEntry.Group("Label", LabelEntries(key), MaterialIconKind.TagMultipleOutline));
         }
 
         List<TaskMenuEntry> moves = MoveEntries(key);
         if (moves.Count > 0)
         {
-            entries.Add(TaskMenuEntry.Group("Move to…", moves));
+            entries.Add(TaskMenuEntry.Group("Move to…", moves, MaterialIconKind.ArrowRightBox));
         }
 
         entries.Add(TaskMenuEntry.Separator);
-        entries.Add(TaskMenuEntry.Async("Delete", () => DeleteAsync(key)));
+        entries.Add(TaskMenuEntry.Async("Delete", () => DeleteAsync(key), MaterialIconKind.DeleteOutline));
         return entries;
     }
 
@@ -629,23 +630,23 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         bool isOpenComeBack = key.Kind == TaskRowKind.ComeBack && _comebacks.Open.Any(item => item.Id == key.Id);
         if (key.Kind is TaskRowKind.Later or TaskRowKind.Done or TaskRowKind.Past || isOpenComeBack)
         {
-            moves.Add(TaskMenuEntry.Async("Add to Today", () => AddToTodayAsync(key)));
+            moves.Add(TaskMenuEntry.Async("Add to Today", () => AddToTodayAsync(key), MaterialIconKind.CalendarToday));
         }
 
         if (key.Kind != TaskRowKind.Later)
         {
-            moves.Add(TaskMenuEntry.Async("Later", () => MoveToLaterAsync(key)));
+            moves.Add(TaskMenuEntry.Async("Later", () => MoveToLaterAsync(key), MaterialIconKind.ClockOutline));
         }
 
         if (key.Kind != TaskRowKind.ComeBack)
         {
-            moves.Add(TaskMenuEntry.Async("Come back to", () => MoveToComebackAsync(key)));
+            moves.Add(TaskMenuEntry.Async("Come back to", () => MoveToComebackAsync(key), MaterialIconKind.FlagOutline));
         }
 
         // Put in plan is for the next session's tasks and Later; a running session's task can't be planned for later.
         if (key.Kind == TaskRowKind.Later || isOpenSessionTask && !_tasks.IsLive)
         {
-            moves.Add(TaskMenuEntry.Group("Put in plan", PlanEntries(key)));
+            moves.Add(TaskMenuEntry.Group("Put in plan", PlanEntries(key), MaterialIconKind.ViewAgendaOutline));
         }
 
         return moves;
