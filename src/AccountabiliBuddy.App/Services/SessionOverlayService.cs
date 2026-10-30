@@ -60,6 +60,7 @@ public sealed class SessionOverlayService : IDisposable
     // Ctrl+Alt+Space is held only while the sticky panel option is on.
     private bool _stickyRegistered;
     private bool _sessionWasActive;
+    private string? _panelKeyMode;
     private bool _disposed;
 
     public SessionOverlayService(
@@ -399,12 +400,13 @@ public sealed class SessionOverlayService : IDisposable
             _panel.Closed += (_, _) =>
             {
                 _panelKeys.Unregister();
+                _panelKeyMode = null;
                 _panel = null;
             };
-            RegisterPanelKeys();
         }
 
         _panel.Present(tile.Box, tile.Target, sticky);
+        SyncPanelKeys();
         if (sticky)
         {
             _peekGuard.Stop();
@@ -427,10 +429,32 @@ public sealed class SessionOverlayService : IDisposable
         _panelModel?.Refresh();
     }
 
-    // While the panel is open, Ctrl+Alt+its letters work whichever app is in front. Shortcuts another app already holds are skipped.
-    private void RegisterPanelKeys()
+    // A peek (Ctrl+Alt held) takes no system-wide keys while "peek keys locked" is on (the default), and otherwise only ones that cannot
+    // start, end, lock or unlock anything: hide, +10 min (stricter only), up and down. Done can end a session, so it is not among them.
+    // The sticky panel (Ctrl+Alt+Space) has the keyboard focus and takes its keys itself; its shortcuts stay registered as before.
+    private static readonly string[] PeekSafeKeys = ["T", "H", "Up", "Down"];
+    private static readonly string[] StickyKeys = ["D", "P", "T", "B", "H", "O", "M", "F", "L", "1", "2", "3", "Up", "Down", "Plus", "Minus"];
+
+    private void SyncPanelKeys()
     {
-        string[] keys = ["D", "P", "T", "B", "H", "O", "M", "F", "L", "1", "2", "3", "Up", "Down", "Plus", "Minus"];
+        if (_panel is null)
+        {
+            return;
+        }
+
+        string mode = _panel.IsSticky ? "sticky" : _settings.Current.PeekKeysLocked ? "locked" : "safe";
+        if (mode == _panelKeyMode)
+        {
+            return;
+        }
+
+        _panelKeyMode = mode;
+        string[] keys = mode switch
+        {
+            "sticky" => StickyKeys,
+            "safe" => PeekSafeKeys,
+            _ => [],
+        };
         const HotkeyModifiers modifiers = HotkeyModifiers.Ctrl | HotkeyModifiers.Alt;
         _panelKeys.Register(keys.Select(key => new HotkeyChord(modifiers, key)).ToList());
     }
@@ -456,6 +480,7 @@ public sealed class SessionOverlayService : IDisposable
         Show();
         SyncHook();
         SyncStickyHotkey();
+        SyncPanelKeys();
         (bool, bool) status = (IsOnForSession, IsHiddenForSession);
         if (status != _lastStatus)
         {

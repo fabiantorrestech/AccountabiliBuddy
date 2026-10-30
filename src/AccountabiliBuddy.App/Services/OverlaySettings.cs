@@ -51,6 +51,7 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="AppRules">The per-app rules (null = the built-in list).</param>
 /// <param name="PanelSeen">The Ctrl+Alt panel was opened at least once (the migration assistant's "set up?" check).</param>
 /// <param name="PlacementChosen">The user picked a placement on the overlay page (the migration assistant's "set up?" check); saving anything else does not set it.</param>
+/// <param name="PeekKeysLocked">While the panel only peeks (Ctrl+Alt held), it registers no keyboard shortcuts at all; true by default and for saved settings without the field. Unlocked, a peek registers only the safe ones (hide, +10 min, up, down). The sticky panel takes its keys by focus either way.</param>
 /// <param name="SideTileY">Where the vertical tile was dragged to along the screen edge (physical pixels from the top); null = the middle.</param>
 public sealed record OverlaySettings(
     OverlayStyle Style,
@@ -95,7 +96,8 @@ public sealed record OverlaySettings(
     IReadOnlyList<OverlayAppRule>? AppRules = null,
     int? SideTileY = null,
     bool PanelSeen = false,
-    bool PlacementChosen = false)
+    bool PlacementChosen = false,
+    bool PeekKeysLocked = true)
 {
     /// <summary>Default vertical distance for maximized apps from a top corner (clears tabs, toolbars, window buttons).</summary>
     public const int TopCornerDrop = 110;
