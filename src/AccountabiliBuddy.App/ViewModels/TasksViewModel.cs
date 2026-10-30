@@ -136,6 +136,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     public bool HasOtherRows => OtherRows.Count > 0;
 
+    /// <summary>The filter hides everything in the flat list: a hint with Clear shows instead of an empty page.</summary>
+    public bool ShowsNoMatches => OtherRows.Count == 0 && Filter.HasActive;
+
     public bool HasUnfinished => _unfinishedIds.Count > 0;
 
     /// <summary>A search shows the Archive open, so a hit can't hide in it.</summary>
@@ -955,6 +958,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
         OnPropertyChanged(nameof(HasSessionRows));
         OnPropertyChanged(nameof(HasOtherRows));
+        OnPropertyChanged(nameof(ShowsNoMatches));
         OnPropertyChanged(nameof(HasUnfinished));
         OnPropertyChanged(nameof(IsSessionLive));
         OnPropertyChanged(nameof(CanStartSession));

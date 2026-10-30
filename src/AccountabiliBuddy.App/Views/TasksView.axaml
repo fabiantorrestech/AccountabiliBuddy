@@ -436,6 +436,11 @@
                                     Content="Move all to Later" ToolTip.Tip="Nothing moves on its own: this puts every unfinished task from past sessions on the Later list" />
                         </Grid>
                         <ItemsControl ItemsSource="{Binding OtherRows}" />
+                        <Grid ColumnDefinitions="*,Auto" Margin="8,10,4,2" IsVisible="{Binding ShowsNoMatches}">
+                            <TextBlock Classes="muted" Text="Nothing matches these filters" FontSize="13" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Classes="quiet" Padding="10,4" Content="Clear" Command="{Binding Filter.ClearCommand}" FontSize="13"
+                                    AutomationProperties.Name="Clear filters here" />
+                        </Grid>
 
                         <!-- The Archive: one row at the bottom that opens the Notebook (come-backs, session notes, unfinished and done tasks), with its filters and search. -->
                         <Button Classes="archiveRow" Margin="0,10,0,0" Command="{Binding ToggleArchiveCommand}" AutomationProperties.Name="Archive">
