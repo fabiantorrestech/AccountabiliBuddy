@@ -584,16 +584,19 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     // ---- The ⋯ menu ----
 
     /// <summary>
-    /// The entries of a task's ⋯ menu: Rename, Add subtask, Label (a category or none), Move to… (only the moves that make sense
-    /// for that row) and Delete. <paramref name="rename"/> and <paramref name="addStep"/> say how the place the row is shown
+    /// The entries of a task's ⋯ menu: Add to Today (first, where it applies), Rename, Add subtask, Label (a category or none),
+    /// Move to… (Later, Come back to, Put in plan: only the moves that make sense for that row) and Delete. <paramref name="rename"/> and <paramref name="addStep"/> say how the place the row is shown
     /// edits in place (the Archive); without them the detail card's boxes take the keyboard.
     /// </summary>
     internal IReadOnlyList<TaskMenuEntry> MenuFor(TaskRowKey key, Action? rename = null, Action? addStep = null)
     {
-        var entries = new List<TaskMenuEntry>
+        var entries = new List<TaskMenuEntry>();
+        if (CanAddToToday(key))
         {
-            TaskMenuEntry.Do("Rename", rename ?? (() => BeginDetailEdit(key, "title")), MaterialIconKind.PencilOutline),
-        };
+            entries.Add(TaskMenuEntry.Async("Add to Today", () => AddToTodayAsync(key), MaterialIconKind.CalendarToday));
+        }
+
+        entries.Add(TaskMenuEntry.Do("Rename", rename ?? (() => BeginDetailEdit(key, "title")), MaterialIconKind.PencilOutline));
         if (key.Kind != TaskRowKind.ComeBack)
         {
             entries.Add(TaskMenuEntry.Do("Add subtask", addStep ?? (() => BeginDetailEdit(key, "step")), MaterialIconKind.PlaylistPlus));
@@ -617,6 +620,19 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         FocusRequested?.Invoke(this, target);
     }
 
+    // "Add to Today" is the first entry of the menu: for a Later item, an open come-back, and a done or unfinished task of the
+    // sessions' records (one ticked in the running checklist is already on today's list).
+    private bool CanAddToToday(TaskRowKey key)
+    {
+        if (key.Kind is TaskRowKind.Done or TaskRowKind.Past && _tasks.IsInChecklist(key.Id))
+        {
+            return false;
+        }
+
+        bool isOpenComeBack = key.Kind == TaskRowKind.ComeBack && _comebacks.Open.Any(item => item.Id == key.Id);
+        return key.Kind is TaskRowKind.Later or TaskRowKind.Done or TaskRowKind.Past || isOpenComeBack;
+    }
+
     private List<TaskMenuEntry> MoveEntries(TaskRowKey key)
     {
         var moves = new List<TaskMenuEntry>();
@@ -627,12 +643,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
 
         bool isOpenSessionTask = key.Kind == TaskRowKind.Session;
-        bool isOpenComeBack = key.Kind == TaskRowKind.ComeBack && _comebacks.Open.Any(item => item.Id == key.Id);
-        if (key.Kind is TaskRowKind.Later or TaskRowKind.Done or TaskRowKind.Past || isOpenComeBack)
-        {
-            moves.Add(TaskMenuEntry.Async("Add to Today", () => AddToTodayAsync(key), MaterialIconKind.CalendarToday));
-        }
-
         if (key.Kind != TaskRowKind.Later)
         {
             moves.Add(TaskMenuEntry.Async("Later", () => MoveToLaterAsync(key), MaterialIconKind.ClockOutline));
