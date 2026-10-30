@@ -258,6 +258,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             TaskRowKind.Session => _tasks.RenameAsync(key.Id, title),
             TaskRowKind.Later => EditLaterAsync(key.Id, item => item with { Title = title }),
             TaskRowKind.ComeBack => _comebacks.EditAsync(key.Id, title),
+            TaskRowKind.AutoSaved => Task.CompletedTask, // an Auto-saved row has no editor
             _ => _tasks.IsInChecklist(key.Id) ? _tasks.RenameAsync(key.Id, title) : _tasks.EditHistoryAsync(key.Id, title),
         };
     }
@@ -367,7 +368,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         return key.Kind switch
         {
             TaskRowKind.Later => EditLaterAsync(key.Id, item => item with { Category = category?.Name, CategoryColor = category?.Color }),
-            TaskRowKind.ComeBack => Task.CompletedTask,
+            TaskRowKind.ComeBack or TaskRowKind.AutoSaved => Task.CompletedTask,
             _ => _tasks.IsInChecklist(key.Id) ? _tasks.SetCategoryAsync(key.Id, categoryId) : _tasks.SetHistoryCategoryAsync(key.Id, categoryId),
         };
     }
@@ -575,6 +576,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             TaskRowKind.Later => _tasks.DeleteLaterAsync(key.Id),
             TaskRowKind.ComeBack => _tasks.DeleteComebackAsync(key.Id),
             TaskRowKind.Session => _tasks.RemoveAsync(key.Id),
+            TaskRowKind.AutoSaved => _tasks.DeleteAutoSavedAsync(key.Id),
             _ => _tasks.IsInChecklist(key.Id) ? _tasks.RemoveAsync(key.Id) : _tasks.EditHistoryAsync(key.Id, null),
         };
     }
@@ -881,8 +883,10 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         // Unfinished from past sessions, newest first: offered to Later or Today, never moved on their own.
         DateTimeOffset from = _time.GetUtcNow() - PastShown;
         List<PastTask> past = _tasks.PastUnfinished().Where(item => item.SessionStart >= from).OrderByDescending(item => item.SessionStart).ToList();
-        _unfinishedIds = past.Select(item => item.Task.Id).ToList();
-        foreach (PastTask item in past.Where(item => InFilter(item.Task.CategoryId, item.Task.Category) && Matches(search, item.Task.Title, item.Task.Note, [])))
+        // "Move all to Later" and its count follow what is shown (the category filter and the search), never rows that are hidden.
+        List<PastTask> shownPast = past.Where(item => InFilter(item.Task.CategoryId, item.Task.Category) && Matches(search, item.Task.Title, item.Task.Note, [])).ToList();
+        _unfinishedIds = shownPast.Select(item => item.Task.Id).ToList();
+        foreach (PastTask item in shownPast)
         {
             Guid id = item.Task.Id;
             TaskCategory? category = _tasks.Categories.FirstOrDefault(c => c.Id == item.Task.CategoryId);
@@ -894,8 +898,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
         // Auto-saved: a shutdown card's tomorrow task, kept when the card closed by itself; never moved on its own. A plain row: no check
         // box and no detail card; its ⋯ menu is Add to Today, Later, Delete.
-        IReadOnlyList<AutoSavedTask> autoSavedItems = _autoSaved.Items;
-        foreach (AutoSavedTask item in autoSavedItems.Where(item => Matches(search, item.Title, null, [])))
+        // They have no category, so a category filter leaves them out (like Come back rows).
+        IEnumerable<AutoSavedTask> autoSavedShown = _categoryFilterId is null ? _autoSaved.Items.Where(item => Matches(search, item.Title, null, [])) : [];
+        foreach (AutoSavedTask item in autoSavedShown)
         {
             Guid id = item.Id;
             string title = item.Title;
@@ -1043,6 +1048,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
                 string kind = comeback.DoneAt is null ? "Come back to" : "Come back to · done";
                 return new TaskSnapshot(key, kind, comeback.Text, [], null, null, null, null, false, comeback.DoneAt is not null, $"Parked {When(comeback.CreatedAt, DateOnly.FromDateTime(LocalNow()))}");
             }
+
+            case TaskRowKind.AutoSaved:
+                return null; // not selectable: its menu is all it has
 
             default:
             {

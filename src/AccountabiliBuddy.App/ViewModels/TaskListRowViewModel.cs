@@ -58,7 +58,7 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
 
     public bool IsDone => Kind == TaskRowKind.Done;
 
-    /// <summary>The category filter and the groups read these.</summary>
+    /// <summary>The category filter reads these.</summary>
     public Guid? CategoryId { get; init; }
 
     public string? CategoryName { get; init; }
