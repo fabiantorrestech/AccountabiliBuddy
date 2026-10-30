@@ -78,6 +78,11 @@
     <Style Selector="TextBlock.muted">
         <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
     </Style>
+    <!-- A ticked task's title: struck through and dimmed (bind Classes.done to the row's ticked state, so unticking undoes it at once). -->
+    <Style Selector="TextBlock.done">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        <Setter Property="TextDecorations" Value="Strikethrough" />
+    </Style>
     <Style Selector="TextBlock.faint">
         <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
     </Style>

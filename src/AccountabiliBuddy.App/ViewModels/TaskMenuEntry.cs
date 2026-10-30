@@ -1,6 +1,7 @@
 using System.Windows.Input;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.Input;
+using Material.Icons;
 
 namespace AccountabiliBuddy.App.ViewModels;
 
@@ -11,6 +12,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// </summary>
 /// <param name="Dot">A category's colour dot before the text.</param>
 /// <param name="IsChecked">Marked with ✓ (the category or plan part the task has now).</param>
+/// <param name="Icon">A 16 px Material icon before the text (ADR 32: the same meaning has the same icon everywhere); null for none.</param>
 public sealed record TaskMenuEntry(
     string Header,
     ICommand? Command = null,
@@ -18,15 +20,16 @@ public sealed record TaskMenuEntry(
     bool IsChecked = false,
     IBrush? Dot = null,
     string? ViewAction = null,
-    bool IsSeparator = false)
+    bool IsSeparator = false,
+    MaterialIconKind? Icon = null)
 {
     public static TaskMenuEntry Separator { get; } = new(string.Empty, IsSeparator: true);
 
-    public static TaskMenuEntry Async(string header, Func<Task> run) => new(header, new AsyncRelayCommand(run));
+    public static TaskMenuEntry Async(string header, Func<Task> run, MaterialIconKind? icon = null) => new(header, new AsyncRelayCommand(run), Icon: icon);
 
-    public static TaskMenuEntry Do(string header, Action run) => new(header, new RelayCommand(run));
+    public static TaskMenuEntry Do(string header, Action run, MaterialIconKind? icon = null) => new(header, new RelayCommand(run), Icon: icon);
 
-    public static TaskMenuEntry View(string header, string viewAction) => new(header, ViewAction: viewAction);
+    public static TaskMenuEntry View(string header, string viewAction, MaterialIconKind? icon = null) => new(header, ViewAction: viewAction, Icon: icon);
 
-    public static TaskMenuEntry Group(string header, IReadOnlyList<TaskMenuEntry> children) => new(header, Children: children);
+    public static TaskMenuEntry Group(string header, IReadOnlyList<TaskMenuEntry> children, MaterialIconKind? icon = null) => new(header, Children: children, Icon: icon);
 }

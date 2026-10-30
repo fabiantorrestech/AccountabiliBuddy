@@ -70,24 +70,27 @@
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
 
-        <!-- A group header: a flat button with a chevron. -->
-        <Style Selector="Button.groupHeader">
-            <Setter Property="Padding" Value="4,8" />
+        <!-- A row's title: Ink; Muted once the task is ticked (the strike comes from the global TextBlock.done). -->
+        <Style Selector="TextBlock.rowTitle">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="TextBlock.rowTitle.done">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+
+        <!-- The Archive row at the bottom of the list: a flat button with a chevron. -->
+        <Style Selector="Button.archiveRow">
+            <Setter Property="Padding" Value="12,10" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         </Style>
-        <Style Selector="Button.groupHeader /template/ ContentPresenter#PART_ContentPresenter">
+        <Style Selector="Button.archiveRow /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="CornerRadius" Value="18" />
         </Style>
-        <Style Selector="Button.groupHeader:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Style Selector="Button.archiveRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
-        </Style>
-
-        <!-- A category's tasks are set in under its header. -->
-        <Style Selector="ItemsControl.indented">
-            <Setter Property="Margin" Value="16,0,0,0" />
         </Style>
 
         <Style Selector="Border.dragHandle">
@@ -199,33 +202,41 @@
     </UserControl.Styles>
 
     <UserControl.DataTemplates>
-        <!-- One row of any list: the category's 3px edge, the number (This session), a check box, the title with its Muted line, "Now",
-             the ⋯ menu and the drag handle (This session). The category is never a fill. -->
+        <!-- One row of any list: the number (This session), a check box, the title with its Muted line, the category's dot and name,
+             "Now", the ⋯ menu and the drag handle (This session). The category is never a fill. -->
         <DataTemplate x:DataType="vm:TaskListRowViewModel">
             <StackPanel Spacing="0">
                 <Border Classes="dropLine" IsVisible="{Binding ShowsLineAbove}" Margin="8,0" />
                 <Panel Classes="listItem">
                     <Button Classes="listRow" Classes.selected="{Binding IsSelected}" Command="{Binding SelectCommand}"
                             AutomationProperties.Name="{Binding Title}">
-                        <Grid ColumnDefinitions="3,Auto,*,Auto,Auto,Auto" ColumnSpacing="8" Margin="0,0,6,0">
-                            <Border Width="3" CornerRadius="2" Margin="0,10" Background="{Binding CategoryBrush}" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" Margin="4,0,0,0" VerticalAlignment="Center">
+                        <Grid ColumnDefinitions="Auto,*,Auto,92,40,Auto,22" ColumnSpacing="8" Margin="0,0,6,0">
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0" MinWidth="22" VerticalAlignment="Center">
                                 <TextBlock Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Center" MinWidth="16"
                                            IsVisible="{Binding IsNumbered}" />
                                 <CheckBox IsChecked="{Binding IsTicked, Mode=OneWay}" Command="{Binding ToggleCommand}" IsVisible="{Binding HasToggle}"
                                           MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="Done"
                                           ToolTip.Tip="Tick it off (untick to open it again)" />
                             </StackPanel>
-                            <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center" Margin="0,9">
-                                <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Ink}" />
+                            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center" Margin="0,9">
+                                <TextBlock Classes="rowTitle" Classes.done="{Binding IsTicked}" Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 <TextBlock Classes="muted" Text="{Binding SubText}" FontSize="13" TextWrapping="Wrap" IsVisible="{Binding HasSubText}" />
                             </StackPanel>
-                            <TextBlock Grid.Column="3" Classes="muted" Text="Now" FontSize="13" VerticalAlignment="Center" IsVisible="{Binding IsNow}" />
-                            <Button Grid.Column="4" Classes="quiet" Padding="6" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                            <Border Grid.Column="2" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="999" Padding="8,1" MinWidth="108"
+                                    VerticalAlignment="Center" IsVisible="{Binding HasStatusTag}">
+                                <TextBlock Classes="muted" Text="{Binding StatusTag}" FontSize="12" HorizontalAlignment="Center" />
+                            </Border>
+                            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" IsVisible="{Binding HasCategory}">
+                                <Ellipse Width="8" Height="8" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" />
+                                <TextBlock Classes="muted" Text="{Binding CategoryName}" FontSize="12" MaxWidth="72" TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="4" Classes="muted" Text="Now" FontSize="13" VerticalAlignment="Center" IsVisible="{Binding IsNow}" />
+                            <Button Grid.Column="5" Classes="quiet" Padding="6" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
                                     AutomationProperties.Name="More actions" ToolTip.Tip="Rename, label, move, add a subtask, delete" Click="OnMoreClick">
                                 <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
                             </Button>
-                            <Border Grid.Column="5" Classes="dragHandle" IsVisible="{Binding CanDrag}" ToolTip.Tip="Drag to reorder"
+                            <Border Grid.Column="6" Classes="dragHandle" IsVisible="{Binding CanDrag}" ToolTip.Tip="Drag to reorder"
                                     AutomationProperties.Name="Drag to reorder"
                                     PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
                                     PointerCaptureLost="OnHandleCaptureLost">
@@ -238,17 +249,6 @@
             </StackPanel>
         </DataTemplate>
 
-        <!-- A category's tasks: its colour dot and name (Muted 12, SemiBold), then the tasks set in about 16. "No category" is last and has
-             no header when it is the only group. -->
-        <DataTemplate x:DataType="vm:TaskGroupViewModel">
-            <StackPanel Spacing="2" Margin="0,2,0,0">
-                <StackPanel Orientation="Horizontal" Spacing="7" Margin="6,6,0,2" IsVisible="{Binding ShowsHeader}">
-                    <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" IsVisible="{Binding HasCategory}" />
-                    <TextBlock Classes="muted" Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" />
-                </StackPanel>
-                <ItemsControl ItemsSource="{Binding Rows}" Classes.indented="{Binding ShowsHeader}" />
-            </StackPanel>
-        </DataTemplate>
     </UserControl.DataTemplates>
 
     <Grid x:Name="Page" ColumnDefinitions="*,Auto" Container.Name="TasksPage" Container.Sizing="Width">
@@ -273,8 +273,13 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:TaskChipViewModel">
-                                    <Button Classes="chip" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}" Content="{Binding Text}"
-                                            AutomationProperties.Name="{Binding Text}" />
+                                    <Button Classes="chip" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}"
+                                            AutomationProperties.Name="{Binding Text}">
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
+                                            <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -359,85 +364,31 @@
                             <TextBlock Classes="section" Text="This session" />
                             <TextBlock Grid.Column="1" Classes="faint" Text="drag to reorder" FontSize="12" IsVisible="{Binding HasSessionRows}" />
                         </Grid>
-                        <ItemsControl x:Name="SessionList" ItemsSource="{Binding SessionGroups}" IsVisible="{Binding HasSessionRows}" />
+                        <ItemsControl x:Name="SessionList" ItemsSource="{Binding SessionRows}" IsVisible="{Binding HasSessionRows}" />
                         <TextBlock Classes="muted" Text="Nothing for this session yet. Add a task above." Margin="12,4" FontSize="14"
                                    IsVisible="{Binding !HasSessionRows}" />
 
-                        <!-- Come back to. -->
-                        <TextBlock Classes="section" Text="Come back to" Margin="8,16,8,2" IsVisible="{Binding HasComeBackRows}" />
-                        <ItemsControl ItemsSource="{Binding ComeBackRows}" IsVisible="{Binding HasComeBackRows}" />
-
-                        <!-- Later: folded; "Next due" on the right. -->
-                        <Button Classes="groupHeader" Margin="0,10,0,0" Command="{Binding ToggleLaterCommand}" AutomationProperties.Name="Later">
-                            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
-                                <mi:MaterialIcon Kind="ChevronRight" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !ShowsLaterRows}" />
-                                <mi:MaterialIcon Kind="ChevronDown" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding ShowsLaterRows}" />
-                                <TextBlock Grid.Column="1" Classes="muted" Text="{Binding LaterHeader}" FontSize="14" />
-                                <TextBlock Grid.Column="3" Classes="muted" Text="{Binding LaterNextDueText}" FontSize="13" TextTrimming="CharacterEllipsis" MaxWidth="320"
-                                           IsVisible="{Binding HasLaterNextDue}" />
-                            </Grid>
-                        </Button>
-                        <ItemsControl ItemsSource="{Binding LaterGroups}" IsVisible="{Binding ShowsLaterRows}" />
-
-                        <!-- Done today: folded. -->
-                        <Button Classes="groupHeader" Command="{Binding ToggleDoneCommand}" AutomationProperties.Name="Done today">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <mi:MaterialIcon Kind="ChevronRight" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !ShowsDoneRows}" />
-                                <mi:MaterialIcon Kind="ChevronDown" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding ShowsDoneRows}" />
-                                <TextBlock Classes="muted" Text="{Binding DoneHeader}" FontSize="14" />
-                            </StackPanel>
-                        </Button>
-                        <ItemsControl ItemsSource="{Binding DoneGroups}" IsVisible="{Binding ShowsDoneRows}" />
+                        <!-- Everything else, one flat list: Come back to, Later, Unfinished from past sessions, Auto-saved, Done today. The
+                             status tag and the category dot say what each row is; nothing folds. -->
+                        <Border Height="1" Background="{DynamicResource Ab.Line}" Margin="8,14,8,6" IsVisible="{Binding HasOtherRows}" />
 
                         <!-- Unfinished from past sessions: offered to Later, never moved on their own. -->
-                        <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasUnfinished}">
-                            <Button Classes="groupHeader" Command="{Binding ToggleUnfinishedCommand}" AutomationProperties.Name="Unfinished from past sessions">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <mi:MaterialIcon Kind="ChevronRight" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !ShowsUnfinishedRows}" />
-                                    <mi:MaterialIcon Kind="ChevronDown" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding ShowsUnfinishedRows}" />
-                                    <TextBlock Classes="muted" Text="{Binding UnfinishedHeader}" FontSize="14" />
-                                </StackPanel>
-                            </Button>
+                        <Grid ColumnDefinitions="*,Auto" Margin="8,0,4,2" IsVisible="{Binding HasUnfinished}">
+                            <TextBlock Classes="muted" Text="{Binding UnfinishedText}" FontSize="13" VerticalAlignment="Center" />
                             <Button Grid.Column="1" Classes="quiet" Padding="10,4" Command="{Binding MoveAllUnfinishedToLaterCommand}" FontSize="13"
-                                    Content="Move all to Later" ToolTip.Tip="Nothing moves on its own: this puts every task listed here on the Later list" />
+                                    Content="Move all to Later" ToolTip.Tip="Nothing moves on its own: this puts every unfinished task from past sessions on the Later list" />
                         </Grid>
-                        <ItemsControl ItemsSource="{Binding UnfinishedGroups}" IsVisible="{Binding ShowsUnfinishedRows}" />
+                        <ItemsControl ItemsSource="{Binding OtherRows}" />
 
-                        <!-- Auto-saved: tomorrow's first task from a shutdown card that closed by itself; gone 30 days after it was saved. -->
-                        <Button Classes="groupHeader" Command="{Binding ToggleAutoSavedCommand}" IsVisible="{Binding HasAutoSaved}" AutomationProperties.Name="Auto-saved">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <mi:MaterialIcon Kind="ChevronRight" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !ShowsAutoSavedRows}" />
-                                <mi:MaterialIcon Kind="ChevronDown" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding ShowsAutoSavedRows}" />
-                                <TextBlock Classes="muted" Text="{Binding AutoSavedHeader}" FontSize="14" />
-                            </StackPanel>
-                        </Button>
-                        <ItemsControl ItemsSource="{Binding AutoSavedRows}" IsVisible="{Binding ShowsAutoSavedRows}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:PastTaskRowViewModel">
-                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="30,4,8,4">
-                                        <StackPanel Spacing="1" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Title}" FontSize="15" TextWrapping="Wrap" />
-                                            <TextBlock Classes="muted" Text="{Binding WhenText}" FontSize="13" />
-                                        </StackPanel>
-                                        <Button Grid.Column="1" Classes="quiet" Padding="10,4" FontSize="13" Content="Add to Today" Command="{Binding AddToTodayCommand}"
-                                                ToolTip.Tip="Put this on today's list" />
-                                        <Button Grid.Column="2" Classes="quiet" Padding="10,4" FontSize="13" Content="Later" Command="{Binding MoveToLaterCommand}"
-                                                ToolTip.Tip="Move this to the Later list" />
-                                        <Button Grid.Column="3" Classes="quiet" Padding="10,4" FontSize="13" Content="✕" Command="{Binding DeleteCommand}"
-                                                ToolTip.Tip="Delete it (it stays in Recently deleted for 30 days)" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                        <!-- The Archive: the Notebook (come-backs, session notes, unfinished and done tasks), with its filters and search. -->
-                        <Button Classes="groupHeader" Command="{Binding ToggleArchiveCommand}" AutomationProperties.Name="Archive">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <mi:MaterialIcon Kind="ChevronRight" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !ShowsArchive}" />
-                                <mi:MaterialIcon Kind="ChevronDown" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding ShowsArchive}" />
-                                <TextBlock Classes="muted" Text="Archive" FontSize="14" />
-                                <TextBlock Classes="faint" Text="{Binding Archive.SummaryText}" FontSize="12" VerticalAlignment="Center" />
-                            </StackPanel>
+                        <!-- The Archive: one row at the bottom that opens the Notebook (come-backs, session notes, unfinished and done tasks), with its filters and search. -->
+                        <Button Classes="archiveRow" Margin="0,10,0,0" Command="{Binding ToggleArchiveCommand}" AutomationProperties.Name="Archive">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                <TextBlock Classes="muted" Text="Archive" FontSize="14" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Classes="faint" Text="{Binding Archive.SummaryText}" FontSize="12" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" />
+                                <mi:MaterialIcon Grid.Column="2" Kind="ChevronRight" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !ShowsArchive}" />
+                                <mi:MaterialIcon Grid.Column="2" Kind="ChevronDown" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding ShowsArchive}" />
+                            </Grid>
                         </Button>
                         <views:NotebookView DataContext="{Binding Archive}" IsVisible="{Binding $parent[views:TasksView].((vm:TasksViewModel)DataContext).ShowsArchive}" />
                     </StackPanel>

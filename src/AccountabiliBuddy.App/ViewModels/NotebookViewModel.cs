@@ -4,6 +4,7 @@ using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Material.Icons;
 
 namespace AccountabiliBuddy.App.ViewModels;
 
@@ -202,10 +203,10 @@ public sealed partial class NotebookViewModel : ObservableObject
                         addStep: title => _tasks.AddHistoryStepAsync(task.Id, title, subtask.Id),
                         menu: item =>
                         [
-                            TaskMenuEntry.Do("Rename", item.BeginRename),
-                            TaskMenuEntry.Do("Add a step after", item.BeginAddStep),
+                            TaskMenuEntry.Do("Rename", item.BeginRename, MaterialIconKind.PencilOutline),
+                            TaskMenuEntry.Do("Add a step after", item.BeginAddStep, MaterialIconKind.PlaylistPlus),
                             TaskMenuEntry.Separator,
-                            TaskMenuEntry.Async("Delete", () => _tasks.EditHistoryAsync(subtask.Id, null)),
+                            TaskMenuEntry.Async("Delete", () => _tasks.EditHistoryAsync(subtask.Id, null), MaterialIconKind.DeleteOutline),
                         ]);
                 }
             }

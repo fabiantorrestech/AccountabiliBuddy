@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Material.Icons.Avalonia;
 
 namespace AccountabiliBuddy.App.Views;
 
@@ -46,6 +47,11 @@ public static class TaskMenus
 
             var item = new MenuItem { Header = HeaderOf(entry), Command = entry.Command };
             AutomationProperties.SetName(item, entry.IsChecked ? $"{entry.Header} (chosen)" : entry.Header);
+            if (entry.Icon is { } kind)
+            {
+                item.Icon = MenuIcon(kind);
+            }
+
             if (entry.Children is { Count: > 0 } children)
             {
                 foreach (Control child in Build(children, viewAction))
@@ -65,6 +71,14 @@ public static class TaskMenus
 
             yield return item;
         }
+    }
+
+    // A 16 px icon in Ab.Muted (followed live, so a theme change recolours it).
+    private static MaterialIcon MenuIcon(Material.Icons.MaterialIconKind kind)
+    {
+        var icon = new MaterialIcon { Kind = kind, Width = 16, Height = 16 };
+        icon.Bind(TemplatedControl.ForegroundProperty, icon.GetResourceObservable("Ab.Muted"));
+        return icon;
     }
 
     // A category's dot before its text, a ✓ after the one the task has; plain text otherwise.

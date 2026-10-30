@@ -17,4 +17,7 @@ public enum TaskRowKind
 
     /// <summary>A task an ended session left open ("Unfinished from past sessions", the Archive).</summary>
     Past,
+
+    /// <summary>A shutdown card's tomorrow task, kept when the card closed by itself; a plain row with a ⋯ menu only.</summary>
+    AutoSaved,
 }
