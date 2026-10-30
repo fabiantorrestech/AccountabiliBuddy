@@ -41,7 +41,7 @@ public sealed partial class OverlayTimerLine : ObservableObject
     [ObservableProperty]
     public partial string TimeText { get; set; }
 
-    /// <summary>Filled part of the bar, 0 to <see cref="SessionOverlayViewModel.BarLength"/>.</summary>
+    /// <summary>Filled part of the bar, 0 to <see cref="OverlayTimersViewModel.BarLength"/>.</summary>
     [ObservableProperty]
     public partial double BarWidth { get; set; }
 

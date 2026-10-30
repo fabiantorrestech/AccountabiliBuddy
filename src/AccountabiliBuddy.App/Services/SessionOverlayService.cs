@@ -56,6 +56,11 @@ public sealed class SessionOverlayService : IDisposable
 
     // The keyboard hook is installed only while hold-to-peek is on and the tile is on screen.
     private bool _hookOn;
+
+    // Ctrl+Alt+Space is held only while the sticky panel option is on.
+    private bool _stickyRegistered;
+    private bool _sessionWasActive;
+    private string? _panelKeyMode;
     private bool _disposed;
 
     public SessionOverlayService(
@@ -88,6 +93,7 @@ public sealed class SessionOverlayService : IDisposable
         };
         cues.Cued += (_, cue) => OnCue(cue.Cue, cue.SessionEnded);
         battery.Changed += (_, _) => Dispatcher.UIThread.Post(Update);
+        visibility.Changed += (_, _) => Update();
         _peekTimer.Tick += (_, _) =>
         {
             _peekTimer.Stop();
@@ -173,11 +179,13 @@ public sealed class SessionOverlayService : IDisposable
                 IsHiddenForSession = false;
             }
 
-            // A fresh hook at each session start or end: Windows drops one that was too slow once, silently.
-            if (_hookOn)
+            // A fresh hook at each real session start or end (not every phase change): Windows drops one that was too slow once, silently.
+            if (_hookOn && state.IsActive != _sessionWasActive)
             {
                 _ctrlAlt.SetListening(true);
             }
+
+            _sessionWasActive = state.IsActive;
 
             Update();
         };
@@ -195,8 +203,6 @@ public sealed class SessionOverlayService : IDisposable
         _ctrlAlt.HeldChanged += (_, held) => Dispatcher.UIThread.Post(() => OnCtrlAlt(held));
         _panelKeys.Pressed += (_, chord) => Dispatcher.UIThread.Post(() => _panelModel?.HandleKey(chord.Key == "Plus" ? "+" : chord.Key == "Minus" ? "-" : chord.Key));
         _stickyHotkey.Pressed += (_, _) => Dispatcher.UIThread.Post(() => OpenPanel(sticky: true));
-        _stickyHotkey.TryRegister(new HotkeyChord(HotkeyModifiers.Ctrl | HotkeyModifiers.Alt, "Space"), out string? error);
-        StickyHotkeyError = error;
         _day.Start();
         Update();
     }
@@ -394,12 +400,14 @@ public sealed class SessionOverlayService : IDisposable
             _panel.Closed += (_, _) =>
             {
                 _panelKeys.Unregister();
+                _panelKeyMode = null;
                 _panel = null;
             };
-            RegisterPanelKeys();
         }
 
+        _panelModel.IsSticky = sticky;
         _panel.Present(tile.Box, tile.Target, sticky);
+        SyncPanelKeys();
         if (sticky)
         {
             _peekGuard.Stop();
@@ -422,10 +430,32 @@ public sealed class SessionOverlayService : IDisposable
         _panelModel?.Refresh();
     }
 
-    // While the panel is open, Ctrl+Alt+its letters work whichever app is in front. Shortcuts another app already holds are skipped.
-    private void RegisterPanelKeys()
+    // A peek (Ctrl+Alt held) takes no system-wide keys while "peek keys locked" is on (the default), and otherwise only ones that cannot
+    // start, end, lock or unlock anything: hide, +10 min (stricter only), up and down. Done can end a session, so it is not among them.
+    // The sticky panel (Ctrl+Alt+Space) has the keyboard focus and takes its keys itself; its shortcuts stay registered as before.
+    private static readonly string[] PeekSafeKeys = ["T", "H", "Up", "Down"];
+    private static readonly string[] StickyKeys = ["D", "P", "T", "B", "H", "O", "M", "F", "L", "1", "2", "3", "Up", "Down", "Plus", "Minus"];
+
+    private void SyncPanelKeys()
     {
-        string[] keys = ["D", "P", "T", "B", "H", "O", "M", "F", "L", "1", "2", "3", "Up", "Down", "Plus", "Minus"];
+        if (_panel is null)
+        {
+            return;
+        }
+
+        string mode = _panel.IsSticky ? "sticky" : _settings.Current.PeekKeysLocked ? "locked" : "safe";
+        if (mode == _panelKeyMode)
+        {
+            return;
+        }
+
+        _panelKeyMode = mode;
+        string[] keys = mode switch
+        {
+            "sticky" => StickyKeys,
+            "safe" => PeekSafeKeys,
+            _ => [],
+        };
         const HotkeyModifiers modifiers = HotkeyModifiers.Ctrl | HotkeyModifiers.Alt;
         _panelKeys.Register(keys.Select(key => new HotkeyChord(modifiers, key)).ToList());
     }
@@ -450,11 +480,34 @@ public sealed class SessionOverlayService : IDisposable
 
         Show();
         SyncHook();
+        SyncStickyHotkey();
+        SyncPanelKeys();
         (bool, bool) status = (IsOnForSession, IsHiddenForSession);
         if (status != _lastStatus)
         {
             _lastStatus = status;
             Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private void SyncStickyHotkey()
+    {
+        bool want = _settings.Current.PanelSticky;
+        if (want == _stickyRegistered)
+        {
+            return;
+        }
+
+        _stickyRegistered = want;
+        if (want)
+        {
+            _stickyHotkey.TryRegister(new HotkeyChord(HotkeyModifiers.Ctrl | HotkeyModifiers.Alt, "Space"), out string? error);
+            StickyHotkeyError = error;
+        }
+        else
+        {
+            _stickyHotkey.Unregister();
+            StickyHotkeyError = null;
         }
     }
 

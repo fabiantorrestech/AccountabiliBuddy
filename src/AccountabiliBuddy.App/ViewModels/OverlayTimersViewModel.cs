@@ -15,11 +15,17 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// </summary>
 public sealed class OverlayTimersViewModel : ObservableObject
 {
+    /// <summary>The width a full timer bar fills (<see cref="OverlayTimerLine.BarWidth"/> runs 0 to this).</summary>
+    public const double BarLength = 200;
+
+    /// <summary>The bar's colour at rest in quiet mode (<see cref="OverlaySettings.Quiet"/>).</summary>
+    public static readonly Color QuietColor = Color.FromRgb(100, 116, 139);
+
     private static readonly TimeSpan AlarmsAhead = TimeSpan.FromHours(12);
     private static readonly IBrush RunningBrush = new SolidColorBrush(Color.Parse("#38BDF8"));
     private static readonly IBrush PausedBrush = new SolidColorBrush(Color.Parse("#94A3B8"));
     private static readonly IBrush UpBrush = new SolidColorBrush(Color.Parse("#F59E0B"));
-    private static readonly IBrush QuietBrush = new SolidColorBrush(SessionOverlayViewModel.QuietColor);
+    private static readonly IBrush QuietBrush = new SolidColorBrush(QuietColor);
 
     private readonly TimersService _timers;
 
@@ -128,7 +134,7 @@ public sealed class OverlayTimersViewModel : ObservableObject
         double whole = Math.Max(timer.Length.TotalSeconds, left.TotalSeconds);
         double remaining = whole <= 0 ? 0 : left.TotalSeconds / whole;
         double shownPart = timer.State == TimerState.Done ? 1 : fillUp ? 1 - remaining : remaining;
-        line.BarWidth = Math.Round(shownPart * SessionOverlayViewModel.BarLength * 2) / 2;
+        line.BarWidth = Math.Round(shownPart * BarLength * 2) / 2;
 
         IBrush brush = line.IsUp ? UpBrush : quiet ? QuietBrush : line.IsRunning ? RunningBrush : PausedBrush;
         if (line.BarBrush != brush)

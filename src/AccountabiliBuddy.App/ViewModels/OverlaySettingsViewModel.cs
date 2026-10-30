@@ -90,6 +90,10 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool PanelSticky { get; set; }
 
+    /// <summary>The peek may use hide, +10 min, up and down as shortcuts; the inverse of <see cref="OverlaySettings.PeekKeysLocked"/>.</summary>
+    [ObservableProperty]
+    public partial bool PeekUsesKeys { get; set; }
+
     /// <summary>Why Ctrl+Alt+Space could not be registered (another copy of the app holds it); empty when it works.</summary>
     public string StickyHotkeyError { get; }
 
@@ -127,6 +131,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
         PanelSizeIndex = (int)settings.PanelSize;
         HoldToPeek = settings.HoldToPeek;
         PanelSticky = settings.PanelSticky;
+        PeekUsesKeys = !settings.PeekKeysLocked;
         UsesBuiltInRules = settings.AppRules is null;
         SetItems(settings.Items);
         Rules.Clear();
@@ -167,7 +172,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
         }
     }
 
-    partial void OnPlacementIndexChanged(int value) => Save(s => s with { Placement = (OverlayPlacement)value });
+    partial void OnPlacementIndexChanged(int value) => Save(s => s with { Placement = (OverlayPlacement)value, PlacementChosen = true });
 
     partial void OnAutoHideIndexChanged(int value) => Save(s => s with { AutoHide = (AutoHideMode)value });
 
@@ -196,6 +201,8 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     partial void OnHoldToPeekChanged(bool value) => Save(s => s with { HoldToPeek = value });
 
     partial void OnPanelStickyChanged(bool value) => Save(s => s with { PanelSticky = value });
+
+    partial void OnPeekUsesKeysChanged(bool value) => Save(s => s with { PeekKeysLocked = !value });
 
     private void SaveClockParts()
     {

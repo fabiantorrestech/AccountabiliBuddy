@@ -8,7 +8,7 @@ namespace AccountabiliBuddy.App.Services;
 /// the Ctrl+Alt panel and the app, plus "Always show a device below 20%" and "Hide a device once it's full". Document
 /// "batteryVisibility", this PC only. Stored now; the overlay and panel read it. Use from the UI thread only.
 /// </summary>
-public sealed class BatteryVisibilityService
+public sealed class BatteryVisibilityService : IBatteryVisibility
 {
     private const string DocumentKey = "batteryVisibility";
 
@@ -23,6 +23,32 @@ public sealed class BatteryVisibilityService
 
     /// <summary>Raised after a change was kept.</summary>
     public event EventHandler? Changed;
+
+    /// <summary>
+    /// The device's ticked places, except that under 20% it shows everywhere when asked to ("Always show below 20%"), and a full
+    /// device leaves the collapsed overlay when asked to ("Hide once it's full").
+    /// </summary>
+    public bool IsShown(string deviceId, BatterySurface surface, int percent)
+    {
+        BatteryVisibilitySettings settings = Current;
+        if (settings.AlwaysShowBelow20 && percent < 20)
+        {
+            return true;
+        }
+
+        if (settings.HideWhenFull && percent >= 100 && surface == BatterySurface.CollapsedOverlay)
+        {
+            return false;
+        }
+
+        BatteryPlaces places = settings.PlacesOf(deviceId);
+        return surface switch
+        {
+            BatterySurface.CollapsedOverlay => places.CollapsedOverlay,
+            BatterySurface.Panel => places.CtrlAltPanel,
+            _ => places.InApp,
+        };
+    }
 
     public void LoadBlocking()
     {

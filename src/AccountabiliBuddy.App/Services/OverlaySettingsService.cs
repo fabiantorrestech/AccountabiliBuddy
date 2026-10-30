@@ -19,15 +19,14 @@ public sealed class OverlaySettingsService
 
     public event EventHandler<OverlaySettings>? Changed;
 
-    /// <summary>The saved settings already name a placement (the user chose one, or saved the overlay settings since ADR 51); false until then.</summary>
-    public bool HasChosenPlacement { get; private set; }
+    /// <summary>The user picked a placement on the overlay page; false until then (a migrated or default placement doesn't count).</summary>
+    public bool HasChosenPlacement => Current.PlacementChosen;
 
     public void LoadBlocking()
     {
         try
         {
             OverlaySettings? loaded = Task.Run(() => _store.LoadAsync<OverlaySettings>(DocumentKey)).GetAwaiter().GetResult();
-            HasChosenPlacement = loaded?.Placement is not null;
             Current = loaded is null
                 ? WithoutSavedDocument()
                 : WithPlacement(WithDefaultTimer(loaded with
@@ -103,7 +102,6 @@ public sealed class OverlaySettingsService
     /// </summary>
     public Task SaveLookAsync(Func<OverlaySettings, OverlaySettings> change)
     {
-        HasChosenPlacement = true;
         return SaveAsync(Normalized(change(Current)));
     }
 

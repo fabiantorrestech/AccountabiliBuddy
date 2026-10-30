@@ -8,8 +8,12 @@ public enum BatterySurface
     App,
 }
 
-/// <summary>Which devices' batteries show where. Part 6 stores the matrix in a document; until its key is on main, <see cref="ShowAllBatteries"/> stands in.</summary>
+/// <summary>Which devices' batteries show where (<see cref="BatteryVisibilityService"/>).</summary>
 public interface IBatteryVisibility
 {
-    bool IsShown(string deviceId, BatterySurface surface);
+    /// <summary>Whether the device's battery shows on <paramref name="surface"/> at <paramref name="percent"/>.</summary>
+    bool IsShown(string deviceId, BatterySurface surface, int percent);
+
+    /// <summary>Raised after the matrix or its options changed.</summary>
+    event EventHandler? Changed;
 }
