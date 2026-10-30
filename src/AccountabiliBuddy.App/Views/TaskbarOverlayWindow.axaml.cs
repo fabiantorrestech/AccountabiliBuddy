@@ -3,7 +3,6 @@ using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.Core.Ports;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Platform;
@@ -94,8 +93,7 @@ public partial class TaskbarOverlayWindow : Window
         if (key != _layoutKey)
         {
             _layoutKey = key;
-            Rebuild(target, settings);
-            ApplyShape(target, settings, heightDips);
+            TileView.Apply(target, settings, heightDips);
         }
 
         Height = heightDips;
@@ -119,99 +117,6 @@ public partial class TaskbarOverlayWindow : Window
                 OverlaySize.Large => bar + LargeRise,
                 _ => bar,
             };
-    }
-
-    private void Rebuild(OverlayTarget target, OverlaySettings settings)
-    {
-        MainRow.Children.Clear();
-        ExtraRow.Children.Clear();
-        MainRow.Orientation = target.Kind == OverlayTargetKind.VerticalTile ? Avalonia.Layout.Orientation.Vertical : Avalonia.Layout.Orientation.Horizontal;
-        MainRow.HorizontalAlignment = target.Kind == OverlayTargetKind.VerticalTile ? Avalonia.Layout.HorizontalAlignment.Center : Avalonia.Layout.HorizontalAlignment.Left;
-        bool wide = settings.Size == OverlaySize.Wide;
-        bool large = settings.Size == OverlaySize.Large && target.Kind != OverlayTargetKind.VerticalTile;
-        bool ownClock = wide || target.CoversTray;
-        bool sessionAdded = false;
-        bool clockAdded = false;
-
-        if (target.Kind == OverlayTargetKind.VerticalTile)
-        {
-            MainRow.Children.Add(Block("vertical"));
-            ExtraRow.IsVisible = false;
-            return;
-        }
-
-        foreach (OverlayItem item in settings.Items.Where(item => item.Enabled))
-        {
-            switch (item.Kind)
-            {
-                case OverlayItemKind.Ring or OverlayItemKind.Task when !sessionAdded:
-                    MainRow.Children.Add(Block(settings.Size == OverlaySize.Small ? "sessionSmall" : "session"));
-                    sessionAdded = true;
-                    break;
-                case OverlayItemKind.Timeline when large:
-                    ExtraRow.Children.Add(Block("timeline"));
-                    break;
-                case OverlayItemKind.Timeline when wide:
-                    MainRow.Children.Add(Block("timeline"));
-                    break;
-                case OverlayItemKind.Controls:
-                    MainRow.Children.Add(Block("controls"));
-                    break;
-                case OverlayItemKind.TimeDate when ownClock:
-                    MainRow.Children.Add(Block("clock"));
-                    clockAdded = true;
-                    break;
-                case OverlayItemKind.Batteries when ownClock:
-                    MainRow.Children.Add(Block("batteries"));
-                    break;
-                case OverlayItemKind.Sound when large:
-                    ExtraRow.Children.Add(Block("sound"));
-                    break;
-                case OverlayItemKind.Sound when wide:
-                    MainRow.Children.Add(Block("sound"));
-                    break;
-            }
-        }
-
-        if (target.CoversTray)
-        {
-            // It covers the tray, so it brings the clock and a ⌃ for the real overflow.
-            if (!clockAdded)
-            {
-                MainRow.Children.Add(Block("clock"));
-            }
-
-            MainRow.Children.Add(Block("tray"));
-        }
-
-        ExtraRow.IsVisible = ExtraRow.Children.Count > 0;
-    }
-
-    private ContentControl Block(string key)
-    {
-        return new ContentControl { Content = _model, ContentTemplate = (IDataTemplate)Resources[key]!, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-    }
-
-    /// <summary>Docked: the corner next to the app icons is rounded, with a line on the top and that side. Floating and side tiles: rounded all round, or a pill.</summary>
-    private void ApplyShape(OverlayTarget target, OverlaySettings settings, double heightDips)
-    {
-        Tile.Padding = new Thickness(10, 0);
-        bool smallDocked = target.Kind == OverlayTargetKind.Docked && settings.Size == OverlaySize.Small;
-        if (target.Kind == OverlayTargetKind.Docked && !smallDocked)
-        {
-            Tile.CornerRadius = target.AlignRight ? new CornerRadius(10, 0, 0, 0) : new CornerRadius(0, 10, 0, 0);
-            Tile.BorderThickness = target.AlignRight ? new Thickness(1, 1, 0, 0) : new Thickness(0, 1, 1, 0);
-            return;
-        }
-
-        Tile.BorderThickness = new Thickness(1);
-        Tile.CornerRadius = settings.Shape == OverlayShape.Pill || target.Kind == OverlayTargetKind.VerticalTile
-            ? new CornerRadius(Math.Min(heightDips, 999) / 2 > 40 ? 30 : heightDips / 2)
-            : new CornerRadius(smallDocked ? 8 : 10);
-        if (target.Kind == OverlayTargetKind.VerticalTile)
-        {
-            Tile.Padding = new Thickness(6, 8);
-        }
     }
 
     private void Reposition()

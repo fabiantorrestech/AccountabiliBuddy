@@ -47,6 +47,50 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
                 Load(current);
             }
         };
+        Preview = new OverlayPreviewViewModel(this);
+    }
+
+    /// <summary>The live preview beside these settings (display only).</summary>
+    public OverlayPreviewViewModel Preview { get; }
+
+    /// <summary>
+    /// Raised before a change is saved, with the scene that shows it, and after the settings were reloaded (no scene). The preview follows it;
+    /// <see cref="Draft"/> then gives the settings as they would be saved.
+    /// </summary>
+    public event EventHandler<OverlayPreviewChange>? PreviewChanged;
+
+    /// <summary>The settings as they would be saved with what is chosen now: the saved ones with these choices on top, kept in range like a save does.</summary>
+    public OverlaySettings Draft()
+    {
+        OverlaySettings current = _settings.Current;
+        CornerClockParts parts = (ClockSession ? CornerClockParts.Session : 0) | (ClockTime ? CornerClockParts.Time : 0)
+                                 | (ClockDate ? CornerClockParts.Date : 0) | (ClockBattery ? CornerClockParts.Battery : 0);
+        return _settings.Normalized(current with
+        {
+            Placement = PlacementIndex >= 0 ? (OverlayPlacement)PlacementIndex : current.Placement,
+            AutoHide = AutoHideIndex >= 0 ? (AutoHideMode)AutoHideIndex : current.AutoHide,
+            LeftAligned = LeftAlignedIndex >= 0 ? (LeftAlignedMode)LeftAlignedIndex : current.LeftAligned,
+            CornerClock = CornerClock,
+            CornerClockParts = parts,
+            Shape = ShapeIndex >= 0 ? (OverlayShape)ShapeIndex : current.Shape,
+            Size = SizeIndex >= 0 ? (OverlaySize)SizeIndex : current.Size,
+            Progress = ProgressIndex >= 0 ? (OverlayProgress)ProgressIndex : current.Progress,
+            ShowSeconds = ShowSeconds,
+            PanelSize = PanelSizeIndex >= 0 ? (PanelSize)PanelSizeIndex : current.PanelSize,
+            HoldToPeek = HoldToPeek,
+            PeekDelayMs = PeekDelayIndex >= 0 ? PeekDelayValues[PeekDelayIndex] : current.PeekDelayMs,
+            PanelSticky = PanelSticky,
+            PeekKeysLocked = !PeekUsesKeys,
+            ContentOrder = Items.Select(row => row.ToItem()).ToList(),
+        });
+    }
+
+    private void Touch(OverlayPreviewScene scene, bool leftAlignedChosen = false)
+    {
+        if (!_loading)
+        {
+            PreviewChanged?.Invoke(this, new OverlayPreviewChange(scene, leftAlignedChosen));
+        }
     }
 
     [ObservableProperty]
@@ -150,6 +194,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
         }
 
         _loading = false;
+        PreviewChanged?.Invoke(this, new OverlayPreviewChange(null));
     }
 
     private void SetItems(IReadOnlyList<OverlayItem> items)
@@ -181,13 +226,29 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
         }
     }
 
-    partial void OnPlacementIndexChanged(int value) => Save(s => s with { Placement = (OverlayPlacement)value, PlacementChosen = true });
+    partial void OnPlacementIndexChanged(int value)
+    {
+        Touch(OverlayPreviewScene.Taskbar);
+        Save(s => s with { Placement = (OverlayPlacement)value, PlacementChosen = true });
+    }
 
-    partial void OnAutoHideIndexChanged(int value) => Save(s => s with { AutoHide = (AutoHideMode)value });
+    partial void OnAutoHideIndexChanged(int value)
+    {
+        Touch(OverlayPreviewScene.AutoHide);
+        Save(s => s with { AutoHide = (AutoHideMode)value });
+    }
 
-    partial void OnLeftAlignedIndexChanged(int value) => Save(s => s with { LeftAligned = (LeftAlignedMode)value });
+    partial void OnLeftAlignedIndexChanged(int value)
+    {
+        Touch(OverlayPreviewScene.Taskbar, leftAlignedChosen: true);
+        Save(s => s with { LeftAligned = (LeftAlignedMode)value });
+    }
 
-    partial void OnCornerClockChanged(bool value) => Save(s => s with { CornerClock = value });
+    partial void OnCornerClockChanged(bool value)
+    {
+        Touch(OverlayPreviewScene.FullScreen);
+        Save(s => s with { CornerClock = value });
+    }
 
     partial void OnClockSessionChanged(bool value) => SaveClockParts();
 
@@ -197,40 +258,75 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
 
     partial void OnClockBatteryChanged(bool value) => SaveClockParts();
 
-    partial void OnShapeIndexChanged(int value) => Save(s => s with { Shape = (OverlayShape)value });
+    partial void OnShapeIndexChanged(int value)
+    {
+        Touch(OverlayPreviewScene.Taskbar);
+        Save(s => s with { Shape = (OverlayShape)value });
+    }
 
-    partial void OnSizeIndexChanged(int value) => Save(s => s with { Size = (OverlaySize)value });
+    partial void OnSizeIndexChanged(int value)
+    {
+        Touch(OverlayPreviewScene.Taskbar);
+        Save(s => s with { Size = (OverlaySize)value });
+    }
 
-    partial void OnProgressIndexChanged(int value) => Save(s => s with { Progress = (OverlayProgress)value });
+    partial void OnProgressIndexChanged(int value)
+    {
+        Touch(OverlayPreviewScene.Taskbar);
+        Save(s => s with { Progress = (OverlayProgress)value });
+    }
 
-    partial void OnShowSecondsChanged(bool value) => Save(s => s with { ShowSeconds = value });
+    partial void OnShowSecondsChanged(bool value)
+    {
+        Touch(OverlayPreviewScene.Taskbar);
+        Save(s => s with { ShowSeconds = value });
+    }
 
-    partial void OnPanelSizeIndexChanged(int value) => Save(s => s with { PanelSize = (PanelSize)value });
+    partial void OnPanelSizeIndexChanged(int value)
+    {
+        Touch(OverlayPreviewScene.Panel);
+        Save(s => s with { PanelSize = (PanelSize)value });
+    }
 
-    partial void OnHoldToPeekChanged(bool value) => Save(s => s with { HoldToPeek = value });
+    partial void OnHoldToPeekChanged(bool value)
+    {
+        Touch(OverlayPreviewScene.Panel);
+        Save(s => s with { HoldToPeek = value });
+    }
 
     partial void OnPeekDelayIndexChanged(int value)
     {
         if (value >= 0)
         {
+            Touch(OverlayPreviewScene.Panel);
             Save(s => s with { PeekDelayMs = PeekDelayValues[value] });
         }
     }
 
-    partial void OnPanelStickyChanged(bool value) => Save(s => s with { PanelSticky = value });
+    partial void OnPanelStickyChanged(bool value)
+    {
+        Touch(OverlayPreviewScene.Panel);
+        Save(s => s with { PanelSticky = value });
+    }
 
-    partial void OnPeekUsesKeysChanged(bool value) => Save(s => s with { PeekKeysLocked = !value });
+    partial void OnPeekUsesKeysChanged(bool value)
+    {
+        Touch(OverlayPreviewScene.Panel);
+        Save(s => s with { PeekKeysLocked = !value });
+    }
 
     private void SaveClockParts()
     {
         CornerClockParts parts = (ClockSession ? CornerClockParts.Session : 0) | (ClockTime ? CornerClockParts.Time : 0)
                                  | (ClockDate ? CornerClockParts.Date : 0) | (ClockBattery ? CornerClockParts.Battery : 0);
+        Touch(OverlayPreviewScene.FullScreen);
         Save(s => s with { CornerClockParts = parts });
     }
 
     private void SaveItems()
     {
         UpdatePreview();
+        Touch(OverlayPreviewScene.Taskbar);
         Save(s => s with { ContentOrder = Items.Select(row => row.ToItem()).ToList() });
     }
 

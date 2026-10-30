@@ -39,11 +39,93 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
         _visibility = visibility;
         Day = day;
         Actions = actions;
+        SetDefaults();
+    }
+
+    /// <summary>The Settings preview's tile: sample text only, no services (see <see cref="CreatePreview"/>).</summary>
+    private TaskbarOverlayViewModel()
+    {
+        _sessions = null!;
+        _configuration = null!;
+        _settings = null!;
+        _battery = null!;
+        _visibility = null!;
+        Day = null!;
+        Actions = null!;
+        IsPreview = true;
+        SetDefaults();
+    }
+
+    private void SetDefaults()
+    {
         MinutesText = TaskText = Line2 = ClockText = DateText = TrackText = string.Empty;
         BorderBrush = OverlayBrushes.Get("Line");
         RingBrush = OverlayBrushes.Get("Accent");
         MinutesBrush = OverlayBrushes.Get("Ink");
         DotBrush = OverlayBrushes.Get("Drift");
+    }
+
+    /// <summary>True for the Settings preview's copy: it never reads a service, never subscribes to anything and <see cref="Refresh"/> does nothing.</summary>
+    public bool IsPreview { get; }
+
+    /// <summary>
+    /// A tile with made-up text for the Settings preview (a 12-hour clock, as everywhere): a running session ("18 min", a sample task, the ring at 40%,
+    /// ends 4:05 PM) or nothing running. The preview draws it with the real tile control, so the layout the settings choose shows as it would on screen.
+    /// </summary>
+    public static TaskbarOverlayViewModel CreatePreview(bool session)
+    {
+        var model = new TaskbarOverlayViewModel();
+        DateTime sample = DateTime.Today.AddHours(16).AddMinutes(5);
+        DateTime now = session ? sample.AddMinutes(-18) : sample;
+        model.ClockText = OverlayTimeText.Clock(now);
+        model.DateText = OverlayTimeText.Date(now);
+        model.TrackText = "Brown noise";
+        model.IsSession = session;
+        if (session)
+        {
+            model.State = OverlayState.Focus;
+            model.MinutesText = "18 min";
+            model.TaskText = "Draft Q4 report";
+            model.EndsText = "ends " + OverlayTimeText.Clock(sample);
+            model.Line2 = model.EndsText;
+            model.Fraction = 0.4;
+            model.RingValue = 0.4;
+            model.TimelineDone = 1620;
+            model.TimelineLeft = 1080;
+            model.TimelineBreak = 324;
+            model.TimelineNext = 486;
+            model.ShowsPause = true;
+            model.ShowsDone = true;
+        }
+        else
+        {
+            model.State = OverlayState.Between;
+            model.MinutesText = "Nothing running";
+            model.Line2 = "Work until " + OverlayTimeText.Clock(now.AddHours(1));
+            model.ShowsStart = true;
+        }
+
+        model.RefreshPreviewBrushes();
+        return model;
+    }
+
+    /// <summary>
+    /// Takes the sample tile's colours (and its battery row) from the current theme again. The live tile does this at every refresh; the preview calls it each time
+    /// it draws, so a theme picked since the tile was made shows. Does nothing for a live tile.
+    /// </summary>
+    public void RefreshPreviewBrushes()
+    {
+        if (!IsPreview)
+        {
+            return;
+        }
+
+        BorderBrush = OverlayBrushes.Get("Line");
+        RingBrush = OverlayBrushes.Get("Accent");
+        MinutesBrush = OverlayBrushes.Get(IsSession ? "Ink" : "Muted");
+        DotBrush = OverlayBrushes.Get("Drift");
+        Batteries.Clear();
+        Batteries.Add(new OverlayBatteryRow("this-pc", MaterialIconKind.Laptop, "82%", OverlayBrushes.Get("Ink")));
     }
 
     public DayBarViewModel Day { get; }
@@ -200,12 +282,22 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
     [RelayCommand]
     private void OpenTrayOverflow()
     {
+        if (IsPreview)
+        {
+            return;
+        }
+
         Actions.OpenTrayOverflow();
     }
 
     [RelayCommand]
     private void OpenCalendar()
     {
+        if (IsPreview)
+        {
+            return;
+        }
+
         Actions.OpenCalendarFlyout();
     }
 
@@ -239,12 +331,22 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
     [RelayCommand]
     private void Pause()
     {
+        if (IsPreview)
+        {
+            return;
+        }
+
         StepAway?.Toggle();
     }
 
     [RelayCommand]
     private async Task DoneAsync()
     {
+        if (IsPreview)
+        {
+            return;
+        }
+
         if (Checklist is { HasTasks: true, CurrentTaskNumber: > 0 } checklist)
         {
             checklist.TickCurrentTaskCommand.Execute(null);
@@ -257,18 +359,33 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
     [RelayCommand]
     private void Start()
     {
+        if (IsPreview)
+        {
+            return;
+        }
+
         Actions.ShowStart();
     }
 
     [RelayCommand]
     private void ExtendFocus()
     {
+        if (IsPreview)
+        {
+            return;
+        }
+
         Actions.ExtendFocus();
     }
 
     /// <summary>Re-reads everything the overlay says. Cheap: called at each session tick, and when something it reads changes.</summary>
     public void Refresh()
     {
+        if (IsPreview)
+        {
+            return;
+        }
+
         OverlaySettings settings = _settings.Current;
         SessionState session = _sessions.State;
         DateTimeOffset now = _sessions.Now;

@@ -1,0 +1,72 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="AccountabiliBuddy.App.Controls.OverlayPreview"
+             x:DataType="vm:OverlayPreviewViewModel">
+    <!-- The live preview of the overlay settings: scene tabs, Session/Idle and a drawn scene (code-behind) that follows every change before it is saved.
+         Pane (wide window): title, tabs, scene and a caption. Strip (narrow window, IsStrip set by the Settings shell): tabs and scene only, with a fold arrow. -->
+    <UserControl.Styles>
+        <Style Selector="ListBox.pseg">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Padding" Value="3" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="ItemsPanel">
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="2" />
+                </ItemsPanelTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="ListBox.pseg > ListBoxItem">
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="ListBox.pseg > ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="ListBox.pseg > ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="ListBox.pseg > ListBoxItem:selected:focus /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+    </UserControl.Styles>
+    <Border Classes="card" Padding="12,10">
+        <StackPanel Spacing="8">
+            <TextBlock x:Name="TitleText" Text="Preview" Classes="muted" FontSize="12" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <WrapPanel x:Name="Controls" Orientation="Horizontal">
+                    <ListBox Classes="pseg" Margin="0,0,8,6" ItemsSource="{x:Static vm:OverlayPreviewViewModel.SceneNames}" SelectedIndex="{Binding SceneIndex}"
+                             AutomationProperties.Name="Preview scene" />
+                    <ListBox Classes="pseg" Margin="0,0,8,6" ItemsSource="{x:Static vm:OverlayPreviewViewModel.StateNames}" SelectedIndex="{Binding StateIndex}"
+                             AutomationProperties.Name="Preview state" />
+                    <CheckBox x:Name="IconsLeftBox" Content="Apps at left" FontSize="12" IsChecked="{Binding IconsLeft}" Margin="0,0,0,6" VerticalAlignment="Top"
+                              ToolTip.Tip="Draw the mock taskbar with its app icons at the left end (Windows 10, or Windows 11 set to left)" />
+                </WrapPanel>
+                <Button x:Name="FoldButton" Grid.Column="1" Classes="quiet" Padding="4" VerticalAlignment="Top" IsVisible="False"
+                        ToolTip.Tip="Fold or unfold the preview" AutomationProperties.Name="Fold the preview">
+                    <mi:MaterialIcon x:Name="FoldIcon" Kind="ChevronDown" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
+                </Button>
+            </Grid>
+            <!-- The stage is a picture: no mouse, no Tab stop, hidden from the accessibility tree. -->
+            <Border x:Name="StageFrame" ClipToBounds="True" CornerRadius="8" Background="{DynamicResource Ab.Bg}" IsHitTestVisible="False" Focusable="False"
+                    KeyboardNavigation.TabNavigation="None" AutomationProperties.AccessibilityView="Raw">
+                <Viewbox x:Name="StageBox" Stretch="Uniform" StretchDirection="Both" MaxHeight="200">
+                    <Border x:Name="Crop" ClipToBounds="True">
+                        <Canvas x:Name="Scene" HorizontalAlignment="Left" VerticalAlignment="Top" />
+                    </Border>
+                </Viewbox>
+            </Border>
+            <TextBlock x:Name="Caption" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+        </StackPanel>
+    </Border>
+</UserControl>

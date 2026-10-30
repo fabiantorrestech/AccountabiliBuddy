@@ -3,6 +3,7 @@
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:views="using:AccountabiliBuddy.App.Views"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
              xmlns:search="using:AccountabiliBuddy.App.Services.Search"
              x:Class="AccountabiliBuddy.App.Views.SettingsShellView"
              x:DataType="vm:MainWindowViewModel">
@@ -89,6 +90,40 @@
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
             <Setter Property="BorderThickness" Value="0" />
         </Style>
+
+        <!-- The overlay preview (Alerts & on-screen): a fixed pane on the right while the page area is wide; under that width it moves
+             above the page as a short strip with a fold arrow. -->
+        <Style Selector="Panel.previewHost">
+            <Setter Property="Grid.Column" Value="1" />
+            <Setter Property="Grid.Row" Value="0" />
+            <Setter Property="Grid.RowSpan" Value="2" />
+            <Setter Property="Width" Value="420" />
+            <Setter Property="Margin" Value="12,0,16,16" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+        <Style Selector="Grid.pageHost">
+            <Setter Property="Grid.Column" Value="0" />
+            <Setter Property="Grid.Row" Value="0" />
+            <Setter Property="Grid.RowSpan" Value="2" />
+        </Style>
+        <ContainerQuery Name="SettingsPage" Query="max-width:1060">
+            <Style Selector="Panel.previewHost">
+                <Setter Property="Grid.Column" Value="0" />
+                <Setter Property="Grid.Row" Value="0" />
+                <Setter Property="Grid.RowSpan" Value="1" />
+                <Setter Property="Grid.ColumnSpan" Value="2" />
+                <Setter Property="Width" Value="NaN" />
+                <Setter Property="Margin" Value="0,0,16,8" />
+            </Style>
+            <Style Selector="Panel.previewHost > controls|OverlayPreview">
+                <Setter Property="IsStrip" Value="True" />
+            </Style>
+            <Style Selector="Grid.pageHost">
+                <Setter Property="Grid.Row" Value="1" />
+                <Setter Property="Grid.RowSpan" Value="1" />
+                <Setter Property="Grid.ColumnSpan" Value="2" />
+            </Style>
+        </ContainerQuery>
     </UserControl.Styles>
 
     <Border Classes="card" Padding="0" ClipToBounds="True">
@@ -184,7 +219,18 @@
                 <TextBlock DockPanel.Dock="Top" Classes="muted" Text="{Binding Settings.StatusMessage}" TextWrapping="Wrap" Margin="0,0,16,10"
                            IsVisible="{Binding Settings.StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
-                <Grid>
+                <Grid Container.Name="SettingsPage" Container.Sizing="Width" ColumnDefinitions="*,Auto" RowDefinitions="Auto,*">
+                    <!-- The live preview of the overlay settings: shown only on Alerts & on-screen, where the overlay settings are. -->
+                    <Panel Classes="previewHost">
+                        <Panel.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="Settings.Rows[4].IsSelected" />
+                                <Binding Path="Settings.OverlayPage" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                            </MultiBinding>
+                        </Panel.IsVisible>
+                        <controls:OverlayPreview DataContext="{Binding Settings.OverlayPage.Preview}" />
+                    </Panel>
+                <Grid Classes="pageHost">
                     <!-- Your day, Sleep, Focus sessions, Alerts & on-screen, Appearance, App & data: SettingsView's pages. -->
                     <Panel IsVisible="{Binding Settings.UsesSettingsView}">
                         <views:SettingsView DataContext="{Binding Settings}" />
@@ -253,6 +299,7 @@
                     <Panel IsVisible="{Binding Settings.Rows[10].IsSelected}" search:SearchArea.Name="About" search:SearchArea.SettingsGroup="10">
                         <views:AboutView DataContext="{Binding Settings.Updates}" />
                     </Panel>
+                </Grid>
                 </Grid>
             </DockPanel>
         </Grid>

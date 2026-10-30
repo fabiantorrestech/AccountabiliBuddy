@@ -1,0 +1,153 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="AccountabiliBuddy.App.Controls.OverlayTileView"
+             x:DataType="vm:TaskbarOverlayViewModel">
+    <UserControl.Styles>
+        <!-- Icon buttons: flat, 28 px, Muted until hovered (Surface2). -->
+        <Style Selector="Button.tilebtn">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.tilebtn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.tilebtn.done">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+    </UserControl.Styles>
+    <UserControl.Resources>
+        <!-- The session: ring (or the timeline under the text), minutes, task and the second line. Medium and up. -->
+        <DataTemplate x:Key="session" x:DataType="vm:TaskbarOverlayViewModel">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" VerticalAlignment="Center">
+                <Panel Width="36" Height="36" IsVisible="{Binding ShowsRing}">
+                    <controls:ProgressRing Value="{Binding RingValue}" TrackBrush="{DynamicResource Ab.Surface2}" ArcBrush="{Binding RingBrush}"
+                                           Thickness="4" IsVisible="{Binding !ShowsDriftDot}" />
+                    <Ellipse Width="10" Height="10" Fill="{Binding DotBrush}" IsVisible="{Binding ShowsDriftDot}" />
+                </Panel>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1" MinWidth="40">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Ellipse Width="8" Height="8" Fill="{Binding DotBrush}" IsVisible="{Binding ShowsInlineDot}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding MinutesText}" FontSize="13" FontWeight="SemiBold" Foreground="{Binding MinutesBrush}" />
+                        <TextBlock Text="{Binding TaskText}" FontSize="13" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis"
+                                   MaxWidth="170" IsVisible="{Binding ShowsTask}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Line2}" FontSize="11" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis" MaxWidth="260" />
+                    <controls:OverlayTimeline Done="{Binding TimelineDone}" Left="{Binding TimelineLeft}" Break="{Binding TimelineBreak}" Next="{Binding TimelineNext}"
+                                              DoneBrush="{DynamicResource Ab.Accent}" LeftBrush="{DynamicResource Ab.Upcoming}" BreakBrush="{DynamicResource Ab.Sleep}"
+                                              NextBrush="{DynamicResource Ab.Plan}" TickBrush="{DynamicResource Ab.Ink}" Margin="0,3,0,0" Width="180"
+                                              HorizontalAlignment="Left" IsVisible="{Binding ShowsInlineTimeline}" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+        <!-- Small: one line. -->
+        <DataTemplate x:Key="sessionSmall" x:DataType="vm:TaskbarOverlayViewModel">
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Panel Width="24" Height="24" IsVisible="{Binding ShowsRing}">
+                    <controls:ProgressRing Value="{Binding RingValue}" TrackBrush="{DynamicResource Ab.Surface2}" ArcBrush="{Binding RingBrush}"
+                                           Thickness="3.5" IsVisible="{Binding !ShowsDriftDot}" />
+                    <Ellipse Width="8" Height="8" Fill="{Binding DotBrush}" IsVisible="{Binding ShowsDriftDot}" />
+                </Panel>
+                <TextBlock Text="{Binding MinutesText}" FontSize="13" FontWeight="SemiBold" Foreground="{Binding MinutesBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding TaskText}" FontSize="13" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis" MaxWidth="150"
+                           VerticalAlignment="Center" IsVisible="{Binding ShowsTask}" />
+                <controls:OverlayTimeline Done="{Binding TimelineDone}" Left="{Binding TimelineLeft}" Break="{Binding TimelineBreak}" Next="{Binding TimelineNext}"
+                                          DoneBrush="{DynamicResource Ab.Accent}" LeftBrush="{DynamicResource Ab.Upcoming}" BreakBrush="{DynamicResource Ab.Sleep}"
+                                          NextBrush="{DynamicResource Ab.Plan}" TickBrush="{DynamicResource Ab.Ink}" Width="80" VerticalAlignment="Center"
+                                          IsVisible="{Binding ShowsInlineTimeline}" />
+            </StackPanel>
+        </DataTemplate>
+        <!-- 8d: the vertical tile beside a side taskbar: ring, "18" over "min", pause. -->
+        <DataTemplate x:Key="vertical" x:DataType="vm:TaskbarOverlayViewModel">
+            <StackPanel Spacing="2" HorizontalAlignment="Center">
+                <Panel Width="30" Height="30" HorizontalAlignment="Center">
+                    <controls:ProgressRing Value="{Binding RingValue}" TrackBrush="{DynamicResource Ab.Surface2}" ArcBrush="{Binding RingBrush}" Thickness="3.5" />
+                </Panel>
+                <TextBlock Text="{Binding MinutesNumber}" FontSize="15" FontWeight="SemiBold" Foreground="{Binding MinutesBrush}" HorizontalAlignment="Center" />
+                <TextBlock Text="{Binding MinutesUnit}" FontSize="10" Foreground="{DynamicResource Ab.Muted}" HorizontalAlignment="Center" />
+                <Button Classes="tilebtn quiet" Command="{Binding PauseCommand}" IsVisible="{Binding ShowsPause}" HorizontalAlignment="Center" AutomationProperties.Name="Pause">
+                    <mi:MaterialIcon Kind="{Binding PauseIcon}" Width="16" Height="16" />
+                </Button>
+            </StackPanel>
+        </DataTemplate>
+        <!-- The whole-line timeline (Large's second row). -->
+        <DataTemplate x:Key="timeline" x:DataType="vm:TaskbarOverlayViewModel">
+            <controls:OverlayTimeline Done="{Binding TimelineDone}" Left="{Binding TimelineLeft}" Break="{Binding TimelineBreak}" Next="{Binding TimelineNext}"
+                                      DoneBrush="{DynamicResource Ab.Accent}" LeftBrush="{DynamicResource Ab.Upcoming}" BreakBrush="{DynamicResource Ab.Sleep}"
+                                      NextBrush="{DynamicResource Ab.Plan}" TickBrush="{DynamicResource Ab.Ink}" MinWidth="120" HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Center" />
+        </DataTemplate>
+        <DataTemplate x:Key="controls" x:DataType="vm:TaskbarOverlayViewModel">
+            <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                <Button Classes="tilebtn quiet" Command="{Binding PauseCommand}" IsVisible="{Binding ShowsPause}" ToolTip.Tip="Pause: step away" AutomationProperties.Name="Pause">
+                    <mi:MaterialIcon Kind="{Binding PauseIcon}" Width="16" Height="16" />
+                </Button>
+                <Button Classes="tilebtn quiet done" Command="{Binding DoneCommand}" IsVisible="{Binding ShowsDone}" ToolTip.Tip="Done" AutomationProperties.Name="Done">
+                    <mi:MaterialIcon Kind="Check" Width="16" Height="16" />
+                </Button>
+                <Button Classes="quiet" Command="{Binding StartCommand}" IsVisible="{Binding ShowsStart}" Content="Start" Padding="10,4" FontSize="12"
+                        Background="{DynamicResource Ab.Surface2}" Foreground="{DynamicResource Ab.Ink}" MinHeight="0" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="clock" x:DataType="vm:TaskbarOverlayViewModel">
+            <Button Classes="quiet" Command="{Binding OpenCalendarCommand}" Padding="6,2" MinHeight="0" VerticalAlignment="Center" AutomationProperties.Name="Open the calendar">
+                <StackPanel Spacing="0" HorizontalAlignment="Right">
+                    <TextBlock Text="{Binding ClockText}" FontSize="13" Foreground="{DynamicResource Ab.Ink}" TextAlignment="Right" />
+                    <TextBlock Text="{Binding DateText}" FontSize="11" Foreground="{DynamicResource Ab.Muted}" TextAlignment="Right" />
+                </StackPanel>
+            </Button>
+        </DataTemplate>
+        <DataTemplate x:Key="batteries" x:DataType="vm:TaskbarOverlayViewModel">
+            <ItemsControl ItemsSource="{Binding Batteries}" VerticalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="10" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:OverlayBatteryRow">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <mi:MaterialIcon Kind="{Binding Icon}" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Text}" FontSize="12" Foreground="{Binding Brush}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </DataTemplate>
+        <DataTemplate x:Key="sound" x:DataType="vm:TaskbarOverlayViewModel">
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <mi:MaterialIcon Kind="Waveform" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding TrackText}" FontSize="11" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis" MaxWidth="110"
+                           VerticalAlignment="Center" />
+                <Button Classes="tilebtn quiet" Command="{Binding Noise.PlayPauseCommand}" ToolTip.Tip="Play or pause the noise" AutomationProperties.Name="Play or pause the noise">
+                    <mi:MaterialIcon Kind="PlayPause" Width="16" Height="16" />
+                </Button>
+            </StackPanel>
+        </DataTemplate>
+        <!-- ⌃ when the overlay covers the tray: opens Windows' own tray overflow. -->
+        <DataTemplate x:Key="tray" x:DataType="vm:TaskbarOverlayViewModel">
+            <Button Classes="tilebtn quiet" Command="{Binding OpenTrayOverflowCommand}" ToolTip.Tip="Hidden icons" AutomationProperties.Name="Show hidden icons">
+                <mi:MaterialIcon Kind="ChevronUp" Width="16" Height="16" />
+            </Button>
+        </DataTemplate>
+    </UserControl.Resources>
+    <Panel>
+        <Border x:Name="Tile" Background="{DynamicResource Ab.Surface}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="10,0">
+            <StackPanel x:Name="Rows" VerticalAlignment="Center" Spacing="2">
+                <StackPanel x:Name="MainRow" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" />
+                <StackPanel x:Name="ExtraRow" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" IsVisible="False" />
+            </StackPanel>
+        </Border>
+        <!-- 18d: a nudge went unread; the dot stays until the user looks. -->
+        <Ellipse Width="7" Height="7" Fill="{DynamicResource Ab.Waiting}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,4,0"
+                 IsVisible="{Binding HasNudgeDot}" IsHitTestVisible="False" />
+    </Panel>
+</UserControl>
