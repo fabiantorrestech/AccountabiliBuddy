@@ -15,7 +15,8 @@ namespace AccountabiliBuddy.Core.Domain;
 /// </param>
 /// <param name="OutsideSession">
 /// A history record that is no session: the tasks ticked on the Tasks page with no session running (a Later task ticked off).
-/// Local only; its <paramref name="SessionStart"/> is when the first of them was ticked that day.
+/// Local only, and it must never sync or count as a session: its <paramref name="SessionStart"/> is null on purpose, which is what
+/// keeps it out of the synced task lists, the day bar and the shutdown card. Its tasks carry their own tick times.
 /// </param>
 public sealed record SessionChecklist(
     DateTimeOffset? SessionStart,
