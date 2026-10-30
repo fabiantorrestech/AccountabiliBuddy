@@ -289,7 +289,7 @@
                                 </Border>
                             </Panel>
                             <Button.Flyout>
-                                <Flyout Placement="BottomEdgeAlignedRight">
+                                <Flyout Placement="BottomEdgeAlignedRight" Opening="OnFilterFlyoutOpening">
                                     <ScrollViewer MaxHeight="420" Width="340" VerticalScrollBarVisibility="Auto">
                                         <StackPanel Spacing="14" Margin="0,0,10,0" DataContext="{Binding Filter}">
                                             <Grid ColumnDefinitions="*,Auto">
