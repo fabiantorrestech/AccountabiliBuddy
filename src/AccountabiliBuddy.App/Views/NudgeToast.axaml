@@ -1,38 +1,42 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         x:Class="AccountabiliBuddy.App.Views.NudgeToast"
         x:DataType="vm:NudgeToastViewModel"
         Title="AccountabiliBuddy nudge"
         Width="360" SizeToContent="Height"
         WindowDecorations="None" CanResize="False"
         Topmost="True" ShowInTaskbar="False" ShowActivated="False"
-        WindowStartupLocation="Manual">
-    <Grid ColumnDefinitions="6,*">
-        <Border Grid.Column="0" Background="{Binding Accent}" />
-        <StackPanel Grid.Column="1" Margin="14,12" Spacing="6">
-            <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap" />
-                <Button Grid.Column="1" Content="✕" Command="{Binding DismissCommand}"
-                        Padding="6,0" Background="Transparent" VerticalAlignment="Top"
-                        ToolTip.Tip="Dismiss" />
-            </Grid>
-            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Opacity="0.9" />
-            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                <!-- "Later ▾": a plain click waits the default time, the menu picks one. -->
-                <SplitButton Content="Later" Command="{Binding LaterCommand}" IsVisible="{Binding HasLater}">
-                    <SplitButton.Flyout>
-                        <MenuFlyout Placement="Bottom">
-                            <MenuItem Header="5 min" Command="{Binding LaterCommand}" CommandParameter="5" />
-                            <MenuItem Header="15 min" Command="{Binding LaterCommand}" CommandParameter="15" />
-                            <MenuItem Header="30 min" Command="{Binding LaterCommand}" CommandParameter="30" />
-                            <MenuItem Header="1 h" Command="{Binding LaterCommand}" CommandParameter="60" />
-                        </MenuFlyout>
-                    </SplitButton.Flyout>
-                </SplitButton>
-                <Button Content="{Binding ActionLabel}" Command="{Binding ActCommand}"
-                        IsVisible="{Binding HasAction}" Classes="accent" />
+        WindowStartupLocation="Manual" RequestedThemeVariant="Dark"
+        TransparencyLevelHint="Transparent" Background="Transparent">
+    <!-- 5s and 18d: a flat card, a 1 px Line, a dot for what it is about, a bold title, a muted line and text actions (no accent: the card is not the main button). -->
+    <Border Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="12" Padding="16,14">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <Ellipse Width="8" Height="8" Fill="{Binding Accent}" VerticalAlignment="Top" Margin="0,6,0,0" />
+            <StackPanel Grid.Column="1" Spacing="4">
+                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Ink}" />
+                <TextBlock Text="{Binding Message}" FontSize="13" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Muted}" />
+                <StackPanel Orientation="Horizontal" Spacing="14" Margin="0,8,0,0">
+                    <Button Content="{Binding ActionLabel}" Command="{Binding ActCommand}" IsVisible="{Binding HasAction}" Classes="quiet"
+                            Padding="0,2" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Ink}" MinHeight="0" />
+                    <!-- "Later ▾": a plain click waits the default time, the menu picks one. -->
+                    <SplitButton Content="Later" Command="{Binding LaterCommand}" IsVisible="{Binding HasLater}" FontSize="13">
+                        <SplitButton.Flyout>
+                            <MenuFlyout Placement="Bottom">
+                                <MenuItem Header="5 min" Command="{Binding LaterCommand}" CommandParameter="5" />
+                                <MenuItem Header="15 min" Command="{Binding LaterCommand}" CommandParameter="15" />
+                                <MenuItem Header="30 min" Command="{Binding LaterCommand}" CommandParameter="30" />
+                                <MenuItem Header="1 h" Command="{Binding LaterCommand}" CommandParameter="60" />
+                            </MenuFlyout>
+                        </SplitButton.Flyout>
+                    </SplitButton>
+                </StackPanel>
             </StackPanel>
-        </StackPanel>
-    </Grid>
+            <Button Grid.Column="2" Command="{Binding DismissCommand}" Classes="quiet" Padding="4" VerticalAlignment="Top" MinHeight="0"
+                    Foreground="{DynamicResource Ab.Muted}" ToolTip.Tip="Dismiss" AutomationProperties.Name="Dismiss">
+                <mi:MaterialIcon Kind="Close" Width="14" Height="14" />
+            </Button>
+        </Grid>
+    </Border>
 </Window>

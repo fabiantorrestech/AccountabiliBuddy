@@ -67,6 +67,24 @@ public static class MonitorPlacement
         };
     }
 
+    /// <summary>Puts the window just above a box (the docked overlay), its right edge on the box's right edge or its left on the left, kept on its monitor.</summary>
+    public static void PlaceAbove(Window window, PixelBox anchor, bool alignRight)
+    {
+        window.Position = new PixelPoint(anchor.Left, anchor.Top - 1);
+
+        void Move()
+        {
+            double scaling = window.DesktopScaling;
+            int width = (int)Math.Ceiling(window.Bounds.Width * scaling);
+            int height = (int)Math.Ceiling(window.Bounds.Height * scaling);
+            int gap = (int)(6 * scaling);
+            window.Position = new PixelPoint(alignRight ? anchor.Right - width : anchor.Left, Math.Max(0, anchor.Top - gap - height));
+        }
+
+        window.SizeChanged += (_, _) => Move();
+        window.Opened += (_, _) => Move();
+    }
+
     private static void MoveToCorner(Window window, MonitorArea area, Corner corner)
     {
         double scaling = window.DesktopScaling;

@@ -50,6 +50,12 @@ public partial class SearchBox : UserControl
         _topLevel?.FocusManager?.Focus(null);
     }
 
+    /// <summary>Whether the visual is in the box or in its results dropdown (a popup, so not under the box in the visual tree).</summary>
+    public bool IsPartOf(Visual visual)
+    {
+        return ReferenceEquals(visual, this) || this.IsVisualAncestorOf(visual) || IsInDropdown(visual);
+    }
+
     private bool IsInDropdown(Visual visual)
     {
         return Dropdown.Child is Visual content

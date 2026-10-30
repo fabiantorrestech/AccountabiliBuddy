@@ -1,34 +1,18 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:search="using:AccountabiliBuddy.App.Services.Search"
              x:Class="AccountabiliBuddy.App.Views.SettingsUnlocksCard"
              x:DataType="vm:SettingsViewModel">
-    <!-- The Unlocks setting, shown under Profiles on the Guards row (it belongs to the profiles' unlock options). -->
-    <UserControl.Styles>
-        <Style Selector="Border.card">
-            <Setter Property="Background" Value="{DynamicResource Ab.Bg}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="{DynamicResource Ab.CardRadius}" />
-            <Setter Property="Padding" Value="18,16" />
-        </Style>
-        <Style Selector="TextBlock.sectionTitle">
-            <Setter Property="FontSize" Value="20" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Margin" Value="0,0,0,4" />
-        </Style>
-    </UserControl.Styles>
-    <Border Classes="card" search:SearchArea.Name="Unlocks">
-        <StackPanel Spacing="6" IsEnabled="{Binding !IsLocked}">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <mi:MaterialIcon Kind="LockOpenOutline" Width="18" Height="18" VerticalAlignment="Center" Opacity="0.85" />
-                <TextBlock Text="Unlocks" Classes="sectionTitle" />
+    <!-- The Unlocks setting, a row under the profiles on the Guards page (it belongs to the profiles' unlock options). -->
+    <Border Classes="sRow" search:SearchArea.Name="Unlocks">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" IsEnabled="{Binding !IsLocked}">
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+                <TextBlock Classes="sTitle" Text="Unlocks" />
+                <TextBlock Classes="sHint"
+                           Text="Relock at midnight: when on, an unlock lifts the blocks only until the next midnight unless you pick another time when unlocking. Unlock options are set per profile." />
             </StackPanel>
-            <CheckBox IsChecked="{Binding RelockAtMidnight}" Content="Relock at midnight" />
-            <TextBlock Opacity="0.75" TextWrapping="Wrap"
-                       Text="When on, an unlock lifts the blocks only until the next midnight unless you pick another time when unlocking. Unlock options are set per profile." />
-        </StackPanel>
+            <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding RelockAtMidnight}" VerticalAlignment="Center" AutomationProperties.Name="Relock at midnight" />
+        </Grid>
     </Border>
 </UserControl>

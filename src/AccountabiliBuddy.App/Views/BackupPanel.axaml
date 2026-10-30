@@ -6,7 +6,7 @@
     <!-- Export (Settings tab only) and import of backups; used by the Settings tab and the setup assistant. -->
     <StackPanel Spacing="14">
         <StackPanel Spacing="6" IsVisible="{Binding ShowExport}">
-            <TextBlock Text="Export" FontWeight="SemiBold" />
+            <TextBlock Text="Export" Classes="sTitle" />
             <WrapPanel>
                 <CheckBox Content="Profiles, rules and day plan" IsChecked="{Binding ExportProfiles}" Margin="0,0,16,0" />
                 <CheckBox Content="App settings" IsChecked="{Binding ExportSettings}" Margin="0,0,16,0" />
@@ -22,17 +22,17 @@
                          MaxWidth="320" HorizontalAlignment="Left" AutomationProperties.Name="Backup password" />
                 <TextBox Text="{Binding ExportPasswordConfirm}" PasswordChar="●" PlaceholderText="Repeat the password"
                          MaxWidth="320" HorizontalAlignment="Left" AutomationProperties.Name="Repeat backup password" />
-                <TextBlock Text="There's no way to open the file without it." Opacity="0.75" TextWrapping="Wrap" />
+                <TextBlock Text="There's no way to open the file without it." Classes="sHint" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <Button Content="Export…" Command="{Binding ExportCommand}" AutomationProperties.Name="Export backup" />
             </StackPanel>
-            <TextBlock Text="{Binding ExportStatus}" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding ExportStatus}" Classes="sHint" />
         </StackPanel>
 
         <StackPanel Spacing="6">
-            <TextBlock Text="Import" FontWeight="SemiBold" IsVisible="{Binding ShowExport}" />
-            <Border IsVisible="{Binding IsLocked}" Background="#33F59E0B" Padding="12,8" CornerRadius="6">
+            <TextBlock Text="Import" Classes="sTitle" IsVisible="{Binding ShowExport}" />
+            <Border IsVisible="{Binding IsLocked}" Classes="sInfo" Padding="14,8">
                 <TextBlock Text="Importing is locked while a focus session is running." TextWrapping="Wrap" />
             </Border>
             <Button Content="Choose a backup file…" Command="{Binding ChooseBackupCommand}" AutomationProperties.Name="Choose backup file" />
@@ -50,16 +50,16 @@
                     <CheckBox Content="Activity history" IsChecked="{Binding RestoreHistory}" IsVisible="{Binding HasHistoryPart}" />
                 </WrapPanel>
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Content="Overwrite" Command="{Binding OverwriteCommand}" IsVisible="{Binding HasExistingData}" Classes="accent"
+                    <Button Content="Overwrite" Command="{Binding OverwriteCommand}" IsVisible="{Binding HasExistingData}" Classes="primary"
                             AutomationProperties.Name="Overwrite with backup" />
                     <Button Content="Merge" Command="{Binding MergeCommand}" IsVisible="{Binding HasExistingData}"
                             AutomationProperties.Name="Merge backup" />
-                    <Button Content="Restore" Command="{Binding OverwriteCommand}" IsVisible="{Binding !HasExistingData}" Classes="accent"
+                    <Button Content="Restore" Command="{Binding OverwriteCommand}" IsVisible="{Binding !HasExistingData}" Classes="primary"
                             AutomationProperties.Name="Restore backup" />
                     <Button Content="Cancel" Command="{Binding CancelImportCommand}" AutomationProperties.Name="Cancel restore" />
                 </StackPanel>
             </StackPanel>
-            <TextBlock Text="{Binding ImportStatus}" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding ImportStatus}" Classes="sHint" />
         </StackPanel>
     </StackPanel>
 </UserControl>

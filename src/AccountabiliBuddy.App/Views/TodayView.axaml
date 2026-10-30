@@ -119,7 +119,9 @@
               Container.Name="TodayPage" Container.Sizing="Width">
 
             <!-- ===== The main column: the info banner, the main card, and the fold. ===== -->
-            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="14">
+            <!-- At least the page's height, so the main card fills it; top-aligned, so a taller side column doesn't stretch it
+                 and its action row stays in view: the page scrolls as one. -->
+            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="14" VerticalAlignment="Top" MinHeight="{Binding Viewport.Height, ElementName=PageScroll}">
 
                 <!-- The error text (a failed Pomodoro start, a read-only settings file). -->
                 <Border Classes="inner" Background="{DynamicResource Ab.InfoBg}" Padding="18,12"
@@ -393,10 +395,7 @@
             </Grid>
 
             <!-- ===== The side column: 330 wide. ===== -->
-            <!-- It scrolls by itself when its cards are taller than the page, so the main card keeps the page's height and its action row stays in view. -->
-            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" VerticalAlignment="Top" Padding="0,0,8,0"
-                          MaxHeight="{Binding Viewport.Height, ElementName=PageScroll}">
-            <StackPanel Spacing="14">
+            <StackPanel Grid.Column="1" Spacing="14" VerticalAlignment="Top" Margin="0,0,8,0">
 
                 <!-- Today's deep work against the daily goal: the ring (redesign phase 4). -->
                 <Border Classes="card" DataContext="{Binding Goal}" x:DataType="vm:GoalCardViewModel"
@@ -577,7 +576,6 @@
                     <views:SessionReviewView DataContext="{Binding Review}" />
                 </Panel>
             </StackPanel>
-            </ScrollViewer>
         </Grid>
     </ScrollViewer>
 </UserControl>

@@ -12,7 +12,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// with no set end counts up: the bar fills over each hour and starts over, and every half hour it glows
 /// (<see cref="HalfHourMarked"/>) with the time in shown in the middle for a few seconds. Near the end of a focus phase it can turn amber, passing a mark can give
 /// one soft pulse, and holding Ctrl+Alt shows the details. Size, opacity and the drag outline belong to the window
-/// it shares with the timeline (<see cref="OnScreenOverlayViewModel"/>).
+/// it shares with the timeline (the old on-screen window, removed with ADR 51).
 /// </summary>
 public sealed partial class SessionOverlayViewModel : ObservableObject
 {

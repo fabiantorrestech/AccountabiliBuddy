@@ -14,7 +14,6 @@ public sealed partial class NudgeToastViewModel : ObservableObject
 
     private readonly Action? _onAction;
 
-    private static readonly IBrush NudgeAccent = new SolidColorBrush(Color.Parse("#E0A030"));
 
     /// <param name="actionLabel">Text of the optional action button, e.g. "Back to work"; null hides it.</param>
     /// <param name="staysOpen">True: stays until dismissed instead of closing after <see cref="DisplayTime"/>.</param>
@@ -25,20 +24,32 @@ public sealed partial class NudgeToastViewModel : ObservableObject
     /// </param>
     public NudgeToastViewModel(
         string title, string message, string? actionLabel, Action? onAction, bool staysOpen = false, IBrush? accent = null,
-        Action<int?>? onLater = null)
+        Action<int?>? onLater = null, TimeSpan? lifeTime = null)
     {
+        LifeTime = lifeTime ?? DisplayTime;
         Title = title;
         Message = message;
         ActionLabel = actionLabel;
         _onAction = onAction;
         _onLater = onLater;
         StaysOpen = staysOpen;
-        Accent = accent ?? NudgeAccent;
+        Accent = accent ?? Services.OverlayBrushes.Get("Drift");
     }
 
     private readonly Action<int?>? _onLater;
 
     public bool HasLater => _onLater is not null;
+
+    /// <summary>How long it stays before closing itself (when it does not <see cref="StaysOpen"/>).</summary>
+    public TimeSpan LifeTime { get; }
+
+    /// <summary>Raised when the card closed itself because nobody answered (the overlay then keeps a dot).</summary>
+    public event EventHandler? Expired;
+
+    public void RaiseExpired()
+    {
+        Expired?.Invoke(this, EventArgs.Empty);
+    }
 
     public bool StaysOpen { get; }
 

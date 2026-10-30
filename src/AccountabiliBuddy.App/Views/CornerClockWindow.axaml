@@ -1,0 +1,30 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        xmlns:controls="using:AccountabiliBuddy.App.Controls"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+        x:Class="AccountabiliBuddy.App.Views.CornerClockWindow"
+        x:DataType="vm:TaskbarOverlayViewModel"
+        Title="AccountabiliBuddy corner clock"
+        WindowDecorations="None" CanResize="False" SizeToContent="Width" Height="26"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False" Focusable="False"
+        WindowStartupLocation="Manual" RequestedThemeVariant="Dark"
+        TransparencyLevelHint="Transparent" Background="Transparent">
+    <!-- 11b: top right, 26 px tall, one rounded inner corner (bottom left), about 86% opaque. Clicks pass through it. -->
+    <Border x:Name="Pill" Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1,0,0,1"
+            CornerRadius="0,0,0,8" Padding="10,0" Opacity="0.86">
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <StackPanel x:Name="SessionPart" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <controls:ProgressRing Width="14" Height="14" Value="{Binding RingValue}" TrackBrush="{DynamicResource Ab.Surface2}" ArcBrush="{Binding RingBrush}" Thickness="2.5" />
+                <TextBlock Text="{Binding MinutesText}" FontSize="12" FontWeight="SemiBold" Foreground="{Binding MinutesBrush}" VerticalAlignment="Center" />
+            </StackPanel>
+            <Border x:Name="Divider1" Width="1" Height="12" Background="{DynamicResource Ab.Line}" />
+            <TextBlock x:Name="TimePart" Text="{Binding ClockText}" FontSize="12" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" />
+            <TextBlock x:Name="DatePart" Text="{Binding DateText}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+            <StackPanel x:Name="BatteryPart" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <mi:MaterialIcon Kind="Battery" Width="12" Height="12" Foreground="{DynamicResource Ab.Muted}" />
+                <TextBlock x:Name="BatteryText" FontSize="12" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

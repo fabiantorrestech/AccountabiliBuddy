@@ -17,6 +17,9 @@ public sealed class EnforcementPresenter
     private static readonly TimeSpan ActionRetryInterval = TimeSpan.FromSeconds(2);
     private const int MaxTitleLength = 80;
 
+    // 18d: a reminder card stays this long, then leaves a dot on the overlay.
+    private static readonly TimeSpan ReminderLife = TimeSpan.FromSeconds(20);
+
     private readonly IEnforcer _enforcer;
     private readonly IBrowserActivitySource _browsers;
     private readonly IMonitorLocator _monitors;
@@ -43,6 +46,17 @@ public sealed class EnforcementPresenter
     /// <summary>Raised with the monitor id when the user asks for time to navigate away from a blocked view.</summary>
     public event EventHandler<string>? RecoveryRequested;
 
+    /// <summary>Raised when what the user drifted to changes: a site or app name (never a window title), or null once they are back on track. The overlay shows it.</summary>
+    public event EventHandler<string?>? DriftChanged;
+
+    /// <summary>Where the docked overlay is (physical pixels) and whether it hugs the right: reminder cards rise from it (18d). Null while it is not on screen.</summary>
+    public Func<(PixelBox Box, bool AlignRight)?>? OverlayAnchor { get; set; }
+
+    /// <summary>A reminder card went unanswered for 20 s and closed itself: the overlay keeps a dot.</summary>
+    public Action? ReminderExpired { get; set; }
+
+    private string? _lastDrift;
+
     /// <summary>Raised when the user answers the classify prompt.</summary>
     public event EventHandler<ClassifyAnswer>? Answered;
 
@@ -61,6 +75,13 @@ public sealed class EnforcementPresenter
         foreach (MonitorEnforcement decision in decisions)
         {
             ApplyToMonitor(decision, profileName, sessionDetail);
+        }
+
+        string? drift = decisions.Where(decision => decision.Action != EnforcementAction.None).Select(DriftLabel).FirstOrDefault();
+        if (drift != _lastDrift)
+        {
+            _lastDrift = drift;
+            DriftChanged?.Invoke(this, drift);
         }
 
         UpdatePrompt(decisions, profileName, otherProfiles);
@@ -87,8 +108,25 @@ public sealed class EnforcementPresenter
             return;
         }
 
-        var toast = new NudgeToast { DataContext = new NudgeToastViewModel(title, message, "Got it", null, staysOpen: true, accent) };
-        MonitorPlacement.PlaceInCorner(toast, area, MonitorPlacement.Corner.TopRight);
+        var viewModel = new NudgeToastViewModel(title, message, "Got it", null, staysOpen: false, accent, onLater: null, lifeTime: ReminderLife);
+        viewModel.Expired += (_, _) => ReminderExpired?.Invoke();
+        var toast = new NudgeToast { DataContext = viewModel };
+        PlaceReminder(toast, area);
+        toast.Show();
+    }
+
+    /// <summary>The session-done toast (5s): a Met dot, what was done and the goal, 5 seconds, bottom right of the monitor under the cursor.</summary>
+    public void ShowSessionDone(string title, string message)
+    {
+        MonitorArea? area = _monitors.Find(_monitors.FindMonitorUnderCursor());
+        if (area is null)
+        {
+            return;
+        }
+
+        var viewModel = new NudgeToastViewModel(title, message, null, null, staysOpen: false, Services.OverlayBrushes.Get("Met"), onLater: null, lifeTime: TimeSpan.FromSeconds(5));
+        var toast = new NudgeToast { DataContext = viewModel };
+        MonitorPlacement.PlaceInCorner(toast, area, MonitorPlacement.Corner.BottomRight);
         toast.Show();
     }
 
@@ -149,8 +187,10 @@ public sealed class EnforcementPresenter
             return;
         }
 
-        var toast = new NudgeToast { DataContext = new NudgeToastViewModel(title, message, actionLabel, onAction, staysOpen: true, accent, onLater) };
-        MonitorPlacement.PlaceInCorner(toast, area, MonitorPlacement.Corner.TopRight);
+        var viewModel = new NudgeToastViewModel(title, message, actionLabel, onAction, staysOpen: false, accent, onLater, ReminderLife);
+        viewModel.Expired += (_, _) => ReminderExpired?.Invoke();
+        var toast = new NudgeToast { DataContext = viewModel };
+        PlaceReminder(toast, area);
         toast.Show();
     }
 
@@ -281,7 +321,7 @@ public sealed class EnforcementPresenter
         }
 
         var toast = new NudgeToast { DataContext = viewModel };
-        MonitorPlacement.PlaceInCorner(toast, area, MonitorPlacement.Corner.TopRight);
+        MonitorPlacement.PlaceInCorner(toast, area, MonitorPlacement.Corner.BottomRight);
         toast.Closed += (_, _) =>
         {
             // The toast may close itself (timeout or button); forget it only if it is still the current one.
@@ -319,6 +359,8 @@ public sealed class EnforcementPresenter
         }
 
         DriftOverlayViewModel viewModel = presentation.OverlayViewModel!;
+        viewModel.Title = $"This isn't {profileName}.";
+        viewModel.NextStepText = decision.Scope == BlockScope.View ? "3 · Close tab" : "3 · Minimize";
         viewModel.Target = DescribeTarget(decision);
         viewModel.SessionDetail = $"{profileName} · {sessionDetail}";
         // Kept for as long as this overlay stays open, even once normal drift timing catches up.
@@ -534,6 +576,25 @@ public sealed class EnforcementPresenter
         presentation.Overlay = null;
         presentation.OverlayViewModel = null;
         overlay?.Close();
+    }
+
+    /// <summary>Where a reminder card goes: rising from the docked overlay, else the bottom right of the monitor.</summary>
+    private void PlaceReminder(NudgeToast toast, MonitorArea area)
+    {
+        if (OverlayAnchor?.Invoke() is { } anchor)
+        {
+            MonitorPlacement.PlaceAbove(toast, anchor.Box, anchor.AlignRight);
+            return;
+        }
+
+        MonitorPlacement.PlaceInCorner(toast, area, MonitorPlacement.Corner.BottomRight);
+    }
+
+    /// <summary>What the overlay says the user drifted to: a site or an app, never a window title.</summary>
+    private static string DriftLabel(MonitorEnforcement decision)
+    {
+        ActivitySnapshot snapshot = decision.Snapshot;
+        return decision.Scope == BlockScope.View && snapshot.Url is not null ? UrlNormalizer.GetHost(snapshot.Url) ?? snapshot.ProcessName : snapshot.ProcessName;
     }
 
     private static string DescribeTarget(MonitorEnforcement decision)

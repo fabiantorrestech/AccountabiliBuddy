@@ -118,7 +118,7 @@ public sealed class Win32GlobalHotkey : IGlobalHotkey, IDisposable
         }
     }
 
-    private static HOT_KEY_MODIFIERS ToNative(HotkeyModifiers modifiers)
+    internal static HOT_KEY_MODIFIERS ToNative(HotkeyModifiers modifiers)
     {
         HOT_KEY_MODIFIERS result = 0;
         if (modifiers.HasFlag(HotkeyModifiers.Ctrl))
@@ -144,7 +144,7 @@ public sealed class Win32GlobalHotkey : IGlobalHotkey, IDisposable
         return result;
     }
 
-    private static bool TryGetVirtualKey(string key, out uint virtualKey)
+    internal static bool TryGetVirtualKey(string key, out uint virtualKey)
     {
         virtualKey = 0;
         if (key == "Space")
@@ -161,6 +161,8 @@ public sealed class Win32GlobalHotkey : IGlobalHotkey, IDisposable
             "Up" => 0x26,
             "Right" => 0x27,
             "Down" => 0x28,
+            "Plus" => 0xBB, // VK_OEM_PLUS
+            "Minus" => 0xBD, // VK_OEM_MINUS
             _ => null,
         };
         if (named is uint namedKey)

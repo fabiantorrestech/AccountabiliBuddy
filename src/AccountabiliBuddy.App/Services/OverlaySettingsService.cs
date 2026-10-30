@@ -19,20 +19,24 @@ public sealed class OverlaySettingsService
 
     public event EventHandler<OverlaySettings>? Changed;
 
+    /// <summary>The saved settings already name a placement (the user chose one, or saved the overlay settings since ADR 51); false until then.</summary>
+    public bool HasChosenPlacement { get; private set; }
+
     public void LoadBlocking()
     {
         try
         {
             OverlaySettings? loaded = Task.Run(() => _store.LoadAsync<OverlaySettings>(DocumentKey)).GetAwaiter().GetResult();
+            HasChosenPlacement = loaded?.Placement is not null;
             Current = loaded is null
-                ? OverlaySettings.Default
-                : WithDefaultTimer(loaded with
+                ? WithoutSavedDocument()
+                : WithPlacement(WithDefaultTimer(loaded with
                 {
                     Opacity = Math.Clamp(loaded.Opacity, OverlaySettings.MinOpacity, 1),
                     TimelineOpacity = Math.Clamp(loaded.TimelineOpacity, OverlaySettings.MinOpacity, 1),
                     TimelineHeldOpacity = Math.Clamp(loaded.TimelineHeldOpacity, OverlaySettings.MinOpacity, 1),
                     Profiles = loaded.Profiles ?? OverlaySettings.Default.Profiles,
-                });
+                }));
         }
         catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
         {
@@ -41,8 +45,44 @@ public sealed class OverlaySettingsService
     }
 
     /// <summary>
+    /// No saved overlay settings. A fresh install gets the defaults, with the timer on for every profile that follows the default. An upgrade
+    /// (the data ran an older version before, "app.version" has a Previous) keeps what it had: the timer stays off until the user turns it on.
+    /// A fresh install saves its defaults once (placement still unset), so a later upgrade doesn't mistake it for an older install.
+    /// </summary>
+    private OverlaySettings WithoutSavedDocument()
+    {
+        AppVersionRecord? version = Task.Run(() => _store.LoadAsync<AppVersionRecord>("app.version")).GetAwaiter().GetResult();
+        bool upgrade = version?.Previous is not null;
+        if (upgrade)
+        {
+            return OverlaySettings.Default with { DefaultTimer = ProfileOverlay.Off };
+        }
+
+        Task.Run(() => _store.SaveAsync(DocumentKey, OverlaySettings.Default)).GetAwaiter().GetResult();
+        return OverlaySettings.Default;
+    }
+
+    /// <summary>
+    /// Settings saved before the taskbar overlay (ADR 51) have no placement: the old bottom-left corner becomes the floating bottom left,
+    /// a bottom-right corner the user had dragged away from becomes the floating bottom right, and everyone else (the default corner, the
+    /// top corners, which collided with tabs and title buttons) gets the new default, over the taskbar. The old position is dropped.
+    /// </summary>
+    private static OverlaySettings WithPlacement(OverlaySettings settings)
+    {
+        if (settings.Placement is not null)
+        {
+            return settings;
+        }
+
+        OverlayPlacement placement = settings.Corner == OverlayCorner.BottomLeft ? OverlayPlacement.FloatBottomLeft
+            : settings.Corner == OverlayCorner.BottomRight && settings.X is not null ? OverlayPlacement.FloatBottomRight
+            : OverlayPlacement.OverTaskbar;
+        return settings with { Placement = placement, X = null, Y = null };
+    }
+
+    /// <summary>
     /// Settings saved before there was a default timer: a profile with its timer off now follows the default
-    /// (which starts off, so nothing changes until the default is turned on); one with it on keeps its own choice.
+    /// (set to off here, so nothing changes for these users until the default is turned on; only a fresh install starts with it on); one with it on keeps its own choice.
     /// </summary>
     private static OverlaySettings WithDefaultTimer(OverlaySettings settings)
     {
@@ -63,6 +103,7 @@ public sealed class OverlaySettingsService
     /// </summary>
     public Task SaveLookAsync(Func<OverlaySettings, OverlaySettings> change)
     {
+        HasChosenPlacement = true;
         return SaveAsync(Normalized(change(Current)));
     }
 
@@ -113,6 +154,12 @@ public sealed class OverlaySettingsService
     {
         return (values ?? new Dictionary<string, int>()).ToDictionary(
             entry => entry.Key.ToLowerInvariant(), entry => Math.Clamp(entry.Value, 0, max));
+    }
+
+    /// <summary>The panel was opened: the migration assistant counts the Ctrl+Alt panel as seen.</summary>
+    public Task MarkPanelSeenAsync()
+    {
+        return Current.PanelSeen ? Task.CompletedTask : SaveAsync(Current with { PanelSeen = true });
     }
 
     /// <summary>Where the timer was dragged to; null puts it back in the default corner.</summary>

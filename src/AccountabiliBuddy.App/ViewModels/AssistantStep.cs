@@ -43,6 +43,12 @@ public enum AssistantStep
     /// <summary>ADR 49: the look, a theme and light or dark, set here or later in Settings → Appearance (only in the migration assistant).</summary>
     Appearance,
 
+    /// <summary>ADR 51: the session overlay docked over the taskbar, with its placement and look in Settings (only in the migration assistant).</summary>
+    OverlayTaskbar,
+
+    /// <summary>The Ctrl+Alt panel that rises from the overlay: hold to peek, Ctrl+Alt+Space to keep it open (only in the migration assistant).</summary>
+    PanelCtrlAlt,
+
     /// <summary>The first run's last question: how much focus a day (redesign phase 2).</summary>
     Goal,
     Done,

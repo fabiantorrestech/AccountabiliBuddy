@@ -4,6 +4,7 @@ using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.App.Views;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
@@ -28,9 +29,26 @@ public partial class MainWindow : Window
     // The pages the search reads, by MainTab (the dev Activity page is left out).
     private static readonly string[] SearchedPageNames = ["Today", "Tasks", "Plan", "Stats", "Settings"];
 
+    // After the pointer leaves both the sync light and its popover, the popover closes this long after (long enough to
+    // cross the gap between them).
+    private static readonly TimeSpan SyncLeaveGrace = TimeSpan.FromMilliseconds(300);
+
     private readonly DispatcherTimer _syncHoverTimer = new() { Interval = SyncHoverDelay };
+    private readonly DispatcherTimer _syncLeaveTimer = new() { Interval = SyncLeaveGrace };
+
+    // A click on the sync light pins its popover open until a click elsewhere; hovering alone leaves it to close on leave.
+    private bool _syncPinned;
+    private bool _syncWasPinnedOnPress;
+    private bool _pointerOnSyncLight;
+    private bool _pointerOnSyncPopover;
+    private Control? _syncPresenter;
 
     private bool _warmedUp;
+    private bool _hookedWindowMessages;
+
+    // The popover is attached rather than the button's own Flyout: a Button toggles its Flyout on every click, which would
+    // fight the hover-open / click-to-pin rules here.
+    private FlyoutBase? SyncFlyout => FlyoutBase.GetAttachedFlyout(SyncLightButton);
 
     private int _shownTab;
 
@@ -41,7 +59,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         AddHandler(DragDrop.DropEvent, OnDrop);
-        // A click away from the search flyout closes it, unless it holds a search (its highlights are then still showing).
+        // A click away from the search flyout closes it, whatever it holds.
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         // The maximize button shows "restore" while the window is maximized.
         PropertyChanged += (_, e) =>
@@ -51,14 +69,60 @@ public partial class MainWindow : Window
                 MaximizeIcon.Kind = WindowState == WindowState.Maximized ? Material.Icons.MaterialIconKind.WindowRestore : Material.Icons.MaterialIconKind.CropSquare;
             }
         };
-        SyncLightButton.PointerEntered += (_, _) => _syncHoverTimer.Start();
-        SyncLightButton.PointerExited += (_, _) => _syncHoverTimer.Stop();
+        // The buttons' ElementRole makes Windows hit-test them as caption buttons (snap layouts), but the clicks arrive as
+        // pointer events and nothing acts on them by itself: Avalonia's own decorations wire these same three actions.
+        MinimizeButton.Click += (_, _) => WindowState = WindowState.Minimized;
+        MaximizeButton.Click += (_, _) => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        CloseButton.Click += (_, _) => Close(); // OnClosing hides to the tray unless AllowClose is set.
+        SyncLightButton.PointerEntered += (_, _) =>
+        {
+            _pointerOnSyncLight = true;
+            _syncLeaveTimer.Stop();
+            _syncHoverTimer.Start();
+        };
+        SyncLightButton.PointerExited += (_, _) =>
+        {
+            _pointerOnSyncLight = false;
+            _syncHoverTimer.Stop();
+            StartSyncLeaveTimer();
+        };
+        SyncLightButton.AddHandler(
+            PointerPressedEvent,
+            (_, _) =>
+            {
+                _syncWasPinnedOnPress = _syncPinned;
+                _syncHoverTimer.Stop(); // The click decides now; a hover still ticking must not reopen what it closes.
+            },
+            Avalonia.Interactivity.RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+        SyncLightButton.Click += OnSyncLightClick;
+        if (SyncFlyout is { } syncPopover)
+        {
+            syncPopover.Opened += OnSyncPopoverOpened;
+            syncPopover.Closed += OnSyncPopoverClosed;
+            // An open flyout lays a click-catching layer over the window, which would cover the sync light itself (the
+            // pointer "leaves" it as the popover opens, and a click on it never arrives). Let input through to the window;
+            // clicks away from the popover close it here (OnWindowPointerPressed, OnWindowMessage).
+            if (syncPopover is PopupFlyoutBase popupFlyout)
+            {
+                popupFlyout.OverlayInputPassThroughElement = this;
+            }
+        }
+
         _syncHoverTimer.Tick += (_, _) =>
         {
             _syncHoverTimer.Stop();
-            if (SyncLightButton.Flyout is { IsOpen: false } popover)
+            if (SyncFlyout is { IsOpen: false } popover)
             {
                 popover.ShowAt(SyncLightButton);
+            }
+        };
+        _syncLeaveTimer.Tick += (_, _) =>
+        {
+            _syncLeaveTimer.Stop();
+            if (!_syncPinned && !_pointerOnSyncLight && !_pointerOnSyncPopover)
+            {
+                SyncFlyout?.Hide();
             }
         };
         Search.CloseRequested += (_, _) =>
@@ -69,6 +133,15 @@ public partial class MainWindow : Window
             }
         };
         Opened += (_, _) => WarmUpPages();
+        Deactivated += (_, _) => CloseSearch(); // A click in another app is a click away too.
+        Opened += (_, _) =>
+        {
+            if (!_hookedWindowMessages)
+            {
+                _hookedWindowMessages = true;
+                Win32Properties.AddWndProcHookCallback(this, OnWindowMessage);
+            }
+        };
         DataContextChanged += (_, _) =>
         {
             if (DataContext is MainWindowViewModel viewModel)
@@ -92,6 +165,68 @@ public partial class MainWindow : Window
         };
     }
 
+    // Hovering opens the popover and leaving closes it again; a click pins it open (a click on a pinned one lets it go).
+    private void OnSyncLightClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_syncWasPinnedOnPress)
+        {
+            CloseSyncPopover();
+            return;
+        }
+
+        if (SyncFlyout is { IsOpen: false } popover)
+        {
+            popover.ShowAt(SyncLightButton);
+        }
+
+        _syncPinned = true;
+    }
+
+    private void OnSyncPopoverOpened(object? sender, EventArgs e)
+    {
+        _syncPresenter = SyncPopover.FindAncestorOfType<FlyoutPresenter>();
+        if (_syncPresenter is not null)
+        {
+            _syncPresenter.PointerEntered += OnSyncPopoverEntered;
+            _syncPresenter.PointerExited += OnSyncPopoverExited;
+        }
+    }
+
+    private void OnSyncPopoverClosed(object? sender, EventArgs e)
+    {
+        if (_syncPresenter is not null)
+        {
+            _syncPresenter.PointerEntered -= OnSyncPopoverEntered;
+            _syncPresenter.PointerExited -= OnSyncPopoverExited;
+            _syncPresenter = null;
+        }
+
+        _syncLeaveTimer.Stop();
+        _syncPinned = false;
+        _pointerOnSyncPopover = false;
+    }
+
+    private void OnSyncPopoverEntered(object? sender, PointerEventArgs e)
+    {
+        _pointerOnSyncPopover = true;
+        _syncLeaveTimer.Stop();
+    }
+
+    private void OnSyncPopoverExited(object? sender, PointerEventArgs e)
+    {
+        _pointerOnSyncPopover = false;
+        StartSyncLeaveTimer();
+    }
+
+    private void StartSyncLeaveTimer()
+    {
+        if (!_syncPinned && SyncFlyout is { IsOpen: true })
+        {
+            _syncLeaveTimer.Stop();
+            _syncLeaveTimer.Start();
+        }
+    }
+
     private void OnDrop(object? sender, DragEventArgs e)
     {
         List<string> paths = (e.DataTransfer.TryGetFiles() ?? [])
@@ -107,17 +242,47 @@ public partial class MainWindow : Window
 
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (DataContext is not MainWindowViewModel { IsSearchOpen: true, Search: { } search } viewModel || search.HasQuery)
+        Visual? clickedVisual = e.Source as Visual;
+        if (clickedVisual is null || !(IsInside(SyncLightButton, clickedVisual) || IsInside(SyncPopover, clickedVisual)))
         {
-            return;
+            CloseSyncPopover();
         }
 
-        if (e.Source is Visual clicked && (IsInside(SearchFlyout, clicked) || IsInside(SearchButton, clicked)))
+        if (clickedVisual is not null && (IsInside(SearchFlyout, clickedVisual) || IsInside(SearchButton, clickedVisual) || Search.IsPartOf(clickedVisual)))
         {
-            return;
+            return; // In the box or its results dropdown (a popup of its own), or the magnifier that toggles it.
         }
 
-        viewModel.IsSearchOpen = false;
+        CloseSearch();
+    }
+
+    // The search closes on any click away from it, with or without a search typed (Esc also clears it; this leaves it).
+    private void CloseSearch()
+    {
+        if (DataContext is MainWindowViewModel { IsSearchOpen: true } viewModel)
+        {
+            viewModel.IsSearchOpen = false;
+        }
+    }
+
+    private void CloseSyncPopover()
+    {
+        _syncPinned = false;
+        SyncFlyout?.Hide();
+    }
+
+    // A press on the title bar's empty part (or its edge) is a non-client click: Windows takes it for a drag and Avalonia
+    // never sees it as a pointer press, so it is caught here.
+    private nint OnWindowMessage(nint hWnd, uint msg, nint wParam, nint lParam, ref bool handled)
+    {
+        const uint WmNcLButtonDown = 0x00A1;
+        if (msg == WmNcLButtonDown)
+        {
+            CloseSyncPopover();
+            CloseSearch();
+        }
+
+        return IntPtr.Zero;
     }
 
     private static bool IsInside(Visual container, Visual visual)
@@ -128,6 +293,13 @@ public partial class MainWindow : Window
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (e.Key == Key.Escape && SyncFlyout is { IsOpen: true })
+        {
+            CloseSyncPopover();
+            e.Handled = true;
+            return;
+        }
+
         if (DataContext is not MainWindowViewModel viewModel)
         {
             return;

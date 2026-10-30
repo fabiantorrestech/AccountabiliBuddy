@@ -403,6 +403,31 @@
                         </Grid>
                         <ItemsControl ItemsSource="{Binding UnfinishedGroups}" IsVisible="{Binding ShowsUnfinishedRows}" />
 
+                        <!-- Auto-saved: tomorrow's first task from a shutdown card that closed by itself; gone 30 days after it was saved. -->
+                        <Button Classes="groupHeader" Command="{Binding ToggleAutoSavedCommand}" IsVisible="{Binding HasAutoSaved}" AutomationProperties.Name="Auto-saved">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <mi:MaterialIcon Kind="ChevronRight" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !ShowsAutoSavedRows}" />
+                                <mi:MaterialIcon Kind="ChevronDown" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding ShowsAutoSavedRows}" />
+                                <TextBlock Classes="muted" Text="{Binding AutoSavedHeader}" FontSize="14" />
+                            </StackPanel>
+                        </Button>
+                        <ItemsControl ItemsSource="{Binding AutoSavedRows}" IsVisible="{Binding ShowsAutoSavedRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:PastTaskRowViewModel">
+                                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="30,4,8,4">
+                                        <StackPanel Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Title}" FontSize="15" TextWrapping="Wrap" />
+                                            <TextBlock Classes="muted" Text="{Binding WhenText}" FontSize="13" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Classes="quiet" Padding="10,4" FontSize="13" Content="Later" Command="{Binding MoveToLaterCommand}"
+                                                ToolTip.Tip="Move this to the Later list" />
+                                        <Button Grid.Column="2" Classes="quiet" Padding="10,4" FontSize="13" Content="✕" Command="{Binding DeleteCommand}"
+                                                ToolTip.Tip="Delete it (auto-saved items go after 30 days anyway)" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
                         <!-- The Archive: the Notebook (come-backs, session notes, unfinished and done tasks), with its filters and search. -->
                         <Button Classes="groupHeader" Command="{Binding ToggleArchiveCommand}" AutomationProperties.Name="Archive">
                             <StackPanel Orientation="Horizontal" Spacing="8">

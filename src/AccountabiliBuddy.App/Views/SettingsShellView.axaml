@@ -6,22 +6,51 @@
              xmlns:search="using:AccountabiliBuddy.App.Services.Search"
              x:Class="AccountabiliBuddy.App.Views.SettingsShellView"
              x:DataType="vm:MainWindowViewModel">
-    <!-- Settings as a list on the left (280) and the chosen row's content on the right, in one page card (design 5q).
-         Each row's content is an existing view, unchanged: SettingsView holds the cards of Your day, Sleep, Focus sessions,
-         Alerts & on-screen, Appearance and App & data; the others are pages of their own. One Save for the cards in
-         SettingsView, kept here so it stays in reach on every row; leaving Settings with unsaved changes asks first. -->
+    <!-- Settings as a list on the left (280, 220 on a narrow window) and the chosen row's page on the right, in one page card (design 5q).
+         Each page has a display title, a Muted summary and its actions on the right. SettingsView holds the pages of Your day, Sleep,
+         Focus sessions, Alerts & on-screen, Appearance and App & data; Guards, Devices & sync, Connections, Setup and About are pages
+         of their own. One Save for the pages in SettingsView, kept here so it stays in reach; leaving Settings with unsaved changes asks first. -->
+    <UserControl.Resources>
+        <!-- Quiet colour on Settings: ticked boxes, chosen radios and sliders read in ink, not the accent. -->
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{DynamicResource Ab.Surface2Color}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeChecked" Color="{DynamicResource Ab.FaintColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedFill" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedStroke" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="RadioButtonCheckGlyphFill" Color="{DynamicResource Ab.BgColor}" />
+        <SolidColorBrush x:Key="SliderTrackValueFill" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="SliderThumbBackground" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPointerOver" Color="{DynamicResource Ab.Surface2Color}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPointerOver" Color="{DynamicResource Ab.FaintColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPointerOver" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedFillPointerOver" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedStrokePointerOver" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="RadioButtonCheckGlyphFillPointerOver" Color="{DynamicResource Ab.BgColor}" />
+        <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPressed" Color="{DynamicResource Ab.Surface2Color}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPressed" Color="{DynamicResource Ab.FaintColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPressed" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedFillPressed" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedStrokePressed" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="RadioButtonCheckGlyphFillPressed" Color="{DynamicResource Ab.BgColor}" />
+        <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="{DynamicResource Ab.InkColor}" />
+    </UserControl.Resources>
     <UserControl.Styles>
         <Style Selector="ListBox.settingsList">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Padding" Value="0" />
         </Style>
         <Style Selector="ListBox.settingsList > ListBoxItem" x:DataType="vm:SettingsRowViewModel">
-            <Setter Property="Padding" Value="12,11" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="MinHeight" Value="44" />
             <Setter Property="CornerRadius" Value="14" />
             <Setter Property="Margin" Value="{Binding RowMargin}" />
             <Setter Property="IsVisible" Value="{Binding IsListed}" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
-            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <!-- Never the accent: hover and the chosen row are Surface2, the chosen one with a heavier name. -->
         <Style Selector="ListBox.settingsList > ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
@@ -46,7 +75,7 @@
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
 
-        <!-- The Search field: a Surface2 pill. -->
+        <!-- The Search field: a Surface2 pill with a magnifier. -->
         <Style Selector="TextBox.settingsSearch /template/ Border#PART_BorderElement">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
             <Setter Property="BorderThickness" Value="0" />
@@ -63,7 +92,7 @@
     </UserControl.Styles>
 
     <Border Classes="card" Padding="0" ClipToBounds="True">
-        <Grid ColumnDefinitions="280,*">
+        <Grid x:Name="Layout" ColumnDefinitions="280,*">
             <!-- The list. -->
             <Border BorderBrush="{DynamicResource Ab.Line}" BorderThickness="0,0,1,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -82,7 +111,7 @@
                                 <DataTemplate x:DataType="vm:SettingsRowViewModel">
                                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" AutomationProperties.Name="{Binding Name}"
                                           search:SearchArea.SettingsGroup="{Binding Index}">
-                                        <mi:MaterialIcon Kind="{Binding Icon}" Width="20" Height="20" Foreground="{DynamicResource Ab.Muted}" />
+                                        <mi:MaterialIcon Kind="{Binding Icon}" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
                                         <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" />
                                         <mi:MaterialIcon Grid.Column="2" Kind="LockOutline" Width="16" Height="16" IsVisible="{Binding IsResting}"
                                                          Foreground="{DynamicResource Ab.Faint}" ToolTip.Tip="Resting while you focus" />
@@ -94,12 +123,27 @@
                 </ScrollViewer>
             </Border>
 
-            <!-- The chosen row. -->
-            <DockPanel Grid.Column="1" Margin="28,26,12,0">
-                <TextBlock DockPanel.Dock="Top" Classes="display" FontSize="28" Text="{Binding Settings.SelectedRow.Name}" Margin="0,0,0,12" />
+            <!-- The chosen row's page. -->
+            <DockPanel Grid.Column="1" Margin="32,26,12,0">
+                <!-- Title, a Muted one-line summary and the page's actions on the right (Devices & sync: Add a device, Sync now). -->
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="16" Margin="0,0,16,12">
+                    <StackPanel Spacing="4">
+                        <TextBlock Classes="display" FontSize="28" Text="{Binding Settings.SelectedRow.Name}" />
+                        <TextBlock Classes="muted" FontSize="14" TextWrapping="Wrap" Text="{Binding Settings.SelectedRow.Summary}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Bottom"
+                                IsVisible="{Binding Settings.Rows[5].IsSelected}">
+                        <Button Classes="sRound" Command="{Binding Devices.ShowQrCodeCommand}" IsVisible="{Binding Devices.QrOn, FallbackValue=False}"
+                                ToolTip.Tip="Add a device: show today's QR codes" AutomationProperties.Name="Add a device">
+                            <mi:MaterialIcon Kind="QrcodeScan" Width="22" Height="22" />
+                        </Button>
+                        <Button Classes="sSoft" Content="Sync now" Command="{Binding Devices.SyncNowCommand}" IsEnabled="{Binding Devices.InGroup, FallbackValue=False}"
+                                ToolTip.Tip="Write this PC's sync file now and hand it to connected devices" />
+                    </StackPanel>
+                </Grid>
 
-                <!-- One Save for the whole of Settings' cards; shown while there is something to save or to say. -->
-                <Border DockPanel.Dock="Top" Margin="0,0,16,10" Padding="14,8" CornerRadius="{DynamicResource Ab.CardRadius}" Background="{DynamicResource Ab.Surface2}">
+                <!-- One Save for the whole of Settings' pages; shown while there is something to save or to say. -->
+                <Border DockPanel.Dock="Top" Margin="0,0,16,10" Padding="14,8" CornerRadius="{DynamicResource Ab.PanelRadius}" Background="{DynamicResource Ab.Surface2}">
                     <Border.IsVisible>
                         <MultiBinding Converter="{x:Static BoolConverters.Or}">
                             <Binding Path="Settings.HasUnsavedChanges" />
@@ -120,41 +164,67 @@
                     </Grid>
                 </Border>
                 <!-- Why a save didn't go through stays visible while the changes are still unsaved. -->
-                <Panel DockPanel.Dock="Top" Margin="0,0,16,10">
-                    <Panel.IsVisible>
+                <Border DockPanel.Dock="Top" Classes="sInfo" Margin="0,0,16,10" Padding="14,8">
+                    <Border.IsVisible>
                         <MultiBinding Converter="{x:Static BoolConverters.And}">
                             <Binding Path="Settings.HasUnsavedChanges" />
                             <Binding Path="Settings.SaveStatus" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
                         </MultiBinding>
-                    </Panel.IsVisible>
-                    <Border Background="{DynamicResource Ab.Drift}" Opacity="0.16" CornerRadius="{DynamicResource Ab.CardRadius}" />
-                    <Border Padding="14,8">
-                        <TextBlock Text="{Binding Settings.SaveStatus}" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Ink}" />
-                    </Border>
-                </Panel>
-                <!-- Guard settings are view-only while a session runs (as before); the banner and the lock icon show on the rows that hold them. -->
-                <Panel DockPanel.Dock="Top" Margin="0,0,16,10" IsVisible="{Binding Settings.ShowsLockedBanner}">
-                    <Border Background="{DynamicResource Ab.Waiting}" Opacity="0.16" CornerRadius="{DynamicResource Ab.CardRadius}" />
-                    <Border Padding="14,8">
-                        <TextBlock Text="Settings are locked while a focus session is running." TextWrapping="Wrap" Foreground="{DynamicResource Ab.Ink}" />
-                    </Border>
-                </Panel>
-                <views:PendingChangesBanner DockPanel.Dock="Top" DataContext="{Binding Settings.PendingChanges}" Margin="0,0,16,10" />
+                    </Border.IsVisible>
+                    <TextBlock Text="{Binding Settings.SaveStatus}" TextWrapping="Wrap" />
+                </Border>
+                <!-- Guard settings are view-only while a session runs (as before); the banner shows on the pages that hold them. -->
+                <Border DockPanel.Dock="Top" Classes="sInfo" Margin="0,0,16,8" Padding="14,8" IsVisible="{Binding Settings.ShowsLockedBanner}">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                        <mi:MaterialIcon Kind="LockOutline" Width="20" Height="20" VerticalAlignment="Center" Foreground="{DynamicResource Ab.InfoInk}" />
+                        <TextBlock Grid.Column="1" Text="{Binding Settings.RestingBannerText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+                <views:PendingChangesBanner DockPanel.Dock="Top" DataContext="{Binding Settings.PendingChanges}" Margin="0,0,16,8" />
                 <TextBlock DockPanel.Dock="Top" Classes="muted" Text="{Binding Settings.StatusMessage}" TextWrapping="Wrap" Margin="0,0,16,10"
                            IsVisible="{Binding Settings.StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
                 <Grid>
-                    <!-- Your day, Sleep, Focus sessions, Alerts & on-screen, Appearance, App & data: SettingsView's cards. -->
+                    <!-- Your day, Sleep, Focus sessions, Alerts & on-screen, Appearance, App & data: SettingsView's pages. -->
                     <Panel IsVisible="{Binding Settings.UsesSettingsView}">
                         <views:SettingsView DataContext="{Binding Settings}" />
                     </Panel>
 
-                    <!-- Guards: the profiles, then the Unlocks setting. -->
+                    <!-- Guards: the profiles (list and detail), then the rows around them: Unlocks, Cold Turkey and the block setup. -->
                     <ScrollViewer IsVisible="{Binding Settings.Rows[3].IsSelected}" search:SearchArea.Name="Guards" search:SearchArea.SettingsGroup="3"
                                   HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel Spacing="16" Margin="0,0,16,24">
+                        <StackPanel Spacing="12" Margin="0,0,16,24">
                             <views:ProfilesView DataContext="{Binding Profiles}" />
-                            <views:SettingsUnlocksCard DataContext="{Binding Settings}" />
+                            <TextBlock Classes="sGroup" Text="Around the profiles" />
+                            <Border Classes="sPanel">
+                                <StackPanel Margin="0,0,0,-1">
+                                    <views:SettingsUnlocksCard DataContext="{Binding Settings}" />
+                                    <Border Classes="sRow" search:SearchArea.Name="Cold Turkey" DataContext="{Binding Integrations}" x:DataType="vm:IntegrationsViewModel">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Classes="sTitle" Text="Cold Turkey Blocker" />
+                                                <TextBlock Classes="sHint" Text="{Binding ColdTurkeySummary}" />
+                                                <TextBlock Classes="sHint" Text="Its keys and spare key are set up in the full setup (Setup); the blocks each profile expects are on that profile. Nothing in Cold Turkey is changed." />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                <Button Content="Get a new spare key…" Command="{Binding NewSpareKeyCommand}" IsVisible="{Binding IsColdTurkeyInstalled}" />
+                                                <Button Content="Open Connections"
+                                                        Command="{Binding $parent[UserControl].((vm:MainWindowViewModel)DataContext).OpenConnectionsCommand}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                    <Border Classes="sRow" search:SearchArea.Name="Block setup">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Classes="sTitle" Text="Block setup" />
+                                                <TextBlock Classes="sHint" Text="Import a block list, see the other blockers on this PC and the sites Cold Turkey was seen blocking." />
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Content="Open Connections" VerticalAlignment="Center"
+                                                    Command="{Binding OpenConnectionsCommand}" />
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
 
@@ -168,7 +238,7 @@
 
                     <!-- Setup, with the day plan assistant (it used to sit in the top bar on the Day plan tab). -->
                     <DockPanel IsVisible="{Binding Settings.Rows[9].IsSelected}" search:SearchArea.Name="Setup" search:SearchArea.SettingsGroup="9">
-                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="16,0,16,0">
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="0,0,16,12">
                             <Button Command="{Binding OpenDpAssistantCommand}" ToolTip.Tip="Set up your day plan step by step, with sensible defaults">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <mi:MaterialIcon Kind="AutoFix" Width="16" Height="16" />

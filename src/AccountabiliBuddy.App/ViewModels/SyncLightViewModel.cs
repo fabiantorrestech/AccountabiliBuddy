@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using AccountabiliBuddy.App.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Material.Icons;
 
@@ -19,10 +20,17 @@ public sealed partial class SyncLightViewModel : ObservableObject
     private static readonly TimeSpan SeveralBehindAge = TimeSpan.FromHours(1);
 
     private readonly DevicesViewModel _devices;
+    private readonly SyncLightSettingService? _setting;
 
-    public SyncLightViewModel(DevicesViewModel devices)
+    public SyncLightViewModel(DevicesViewModel devices, SyncLightSettingService? setting = null)
     {
         _devices = devices;
+        _setting = setting;
+        if (setting is not null)
+        {
+            setting.Changed += (_, _) => Rebuild();
+        }
+
         devices.RowsRefreshed += (_, _) => Rebuild();
         devices.PropertyChanged += OnDevicesChanged;
         Rebuild();
@@ -77,8 +85,14 @@ public sealed partial class SyncLightViewModel : ObservableObject
             Devices.Add(new SyncLightDeviceViewModel(row.Name, IconFor(row.Kind), ago, dim));
         }
 
-        IsVisible = hasOthers;
         IsOffline = problem is not null;
+        bool somethingWrong = problem is not null || rows.Skip(1).Any(IsBehind);
+        IsVisible = hasOthers && (_setting?.Mode ?? SyncLightMode.Always) switch
+        {
+            SyncLightMode.Off => false,
+            SyncLightMode.OnlyWhenWrong => somethingWrong,
+            _ => true,
+        };
         int behindForAnHour = rows.Skip(1).Count(row => IsBehind(row) && row.Age is TimeSpan age && age > SeveralBehindAge);
         IsSeveralBehind = problem is null && behindForAnHour >= 2;
         SummaryText = problem ?? (IsSeveralBehind ? $"{behindForAnHour} devices are behind: nothing from them for over an hour" : Summary(rows));

@@ -64,6 +64,11 @@ public partial class App : Application
     private WatchedBrowsersService? _watchedBrowsers;
     private UnlockService? _unlocks;
     private SessionOverlayService? _sessionOverlay;
+    private AccountabiliBuddy.Platform.Windows.Taskbar.Win32TaskbarGeometry? _taskbarGeometry;
+    private AccountabiliBuddy.Platform.Windows.Power.WinRtBatteryReader? _batteryReader;
+    private AccountabiliBuddy.Platform.Windows.Hotkeys.Win32CtrlAltWatcher? _ctrlAltWatcher;
+    private AccountabiliBuddy.Platform.Windows.Hotkeys.Win32PanelKeys? _panelKeys;
+    private Win32GlobalHotkey? _overlayStickyHotkey;
     private PcAlarmService? _pcAlarm;
     private AccountabiliBuddy.App.Services.Timers.TimersService? _timers;
     private NoisePlayerService? _noise;
@@ -356,8 +361,14 @@ public partial class App : Application
         soundSettings.LoadBlocking();
         _soundPlayer = new Win32SoundPlayer();
         _sessionCues = new SessionCueService(_sessions, soundSettings, _soundPlayer);
+        _taskbarGeometry = new AccountabiliBuddy.Platform.Windows.Taskbar.Win32TaskbarGeometry();
+        _batteryReader = new AccountabiliBuddy.Platform.Windows.Power.WinRtBatteryReader();
+        _ctrlAltWatcher = new AccountabiliBuddy.Platform.Windows.Hotkeys.Win32CtrlAltWatcher();
+        _panelKeys = new AccountabiliBuddy.Platform.Windows.Hotkeys.Win32PanelKeys();
+        _overlayStickyHotkey = new Win32GlobalHotkey();
         _sessionOverlay = new SessionOverlayService(
-            _sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), timelineDay, _sessionCues);
+            _sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), _taskbarGeometry, _batteryReader,
+            new ShowAllBatteries(), _ctrlAltWatcher, _panelKeys, _overlayStickyHotkey, timelineDay, _sessionCues);
         _dayBar = new DayBarViewModel(
             _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, _coldTurkey, deletedUsage, time);
         // ADR 35: this PC's alarm, when Settings → Sleep takes the wake time from it.
@@ -835,7 +846,16 @@ public partial class App : Application
         }
 
         // The Devices tab (ADR 22): the group and the sharing methods.
-        var devices = new DevicesViewModel(syncIdentity, syncSettings, receivedDevices, syncCoordinator, _sessions, time);
+        // The sync light's setting and which batteries show where (both this PC only, documents "syncLight" and "batteryVisibility").
+        var syncLightSetting = new SyncLightSettingService(documents);
+        syncLightSetting.LoadBlocking();
+        var batteryVisibility = new BatteryVisibilityService(documents);
+        batteryVisibility.LoadBlocking();
+        var devices = new DevicesViewModel(syncIdentity, syncSettings, receivedDevices, syncCoordinator, _sessions, time)
+        {
+            SyncLightSetting = syncLightSetting,
+            Batteries = batteryVisibility,
+        };
         var sessionViewModel = new SessionViewModel(
             _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks), _quickSession)
         {
@@ -915,7 +935,10 @@ public partial class App : Application
         _dayBar.PhoneFreeSessions = _phonePickups.PhoneFreeSessions;
         timelineDay.PhoneFreeSessions = _phonePickups.PhoneFreeSessions;
         // The shutdown routine (redesign phase 5): one card on Today once the day's work is over.
-        _shutdown = new ShutdownService(_sessions, _configuration, sessionTasks, _comebacks!, documents);
+        // A card left open closes by itself; its typed tomorrow's first task waits under the Tasks page's "Auto-saved" (this computer, encrypted).
+        var autoSaved = new AutoSavedTaskStore(documents, new DpapiDataProtector(), time);
+        autoSaved.LoadBlocking();
+        _shutdown = new ShutdownService(_sessions, _configuration, sessionTasks, _comebacks!, documents, autoSaved);
         _shutdown.LoadBlocking();
         _shutdown.Changed += (_, _) =>
         {
@@ -925,6 +948,7 @@ public partial class App : Application
                 presenter.ShowNotice("Work's done for today", "A one-minute wrap-up is waiting on Today: come-backs, open tasks, tomorrow's first task.");
             }
         };
+        _shutdown.AutoSaved += (_, _) => presenter.ShowNotice("Wrap-up closed", "Your tomorrow task is saved under Tasks → Auto-saved.");
         // Earned time (design K): today's goal met across the user's devices opens this computer's work hours.
         _workHours!.Goal = () => _deepWork?.UnlockProgress;
         // Counted focus per date for the day plan's Budget days: one source for every guard that reads the work windows (ADR 47).
@@ -1055,7 +1079,7 @@ public partial class App : Application
             Environment.GetEnvironmentVariable(DevToolsVariable) == "1",
             _configuration.LoadError)
         {
-            Tasks = new TasksViewModel(sessionTasks, _later!, _comebacks!, notebook, sessionViewModel, _configuration!, time),
+            Tasks = new TasksViewModel(sessionTasks, _later!, _comebacks!, autoSaved, notebook, sessionViewModel, _configuration!, time),
             Plan = planViewModel,
             Stats = statsViewModel,
             DayBar = _dayBar,
@@ -1163,7 +1187,7 @@ public partial class App : Application
 
         // The migration assistant: features added since the last version that aren't set up yet.
         var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
-            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks, planHelperDismissals), BackupService.AppVersion);
+            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks, planHelperDismissals, overlaySettings), BackupService.AppVersion);
         setupFeatures.LoadBlocking();
         _setupFeatures = setupFeatures;
         coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();
@@ -1320,9 +1344,46 @@ public partial class App : Application
         _calendarSync.Start();
         _clockAnchors.Start();
         _sessionCues.Start();
-        // Ctrl+Alt + double-click on the on-screen window, or its Open button.
-        _sessionOverlay.OpenAppRequested += (_, _) => ShowMainWindow();
+        // What the overlay and its Ctrl+Alt panel ask the app: the same commands and gates as the Today page.
+        _sessions!.SessionCompleted += (_, finished) =>
+        {
+            if (finished.IsRealSession && finished.Phase == Core.Domain.SessionPhase.Focus && finished.PhaseStartedAt is { } began && finished.PhaseEndsAt is { } ended)
+            {
+                presenter.ShowSessionDone($"{(int)(ended - began).TotalMinutes} min done", _deepWork is { Progress.Met: true } ? "Today's goal is met." : "A good moment for a break.");
+            }
+        };
+        presenter.DriftChanged += (_, label) => _sessionOverlay.SetDrift(label, _sessions!.Now);
+        presenter.OverlayAnchor = () => _sessionOverlay.TileAnchor;
+        presenter.ReminderExpired = _sessionOverlay.ShowNudgeDot;
+        OverlayActions overlayActions = _sessionOverlay.Actions;
+        overlayActions.OpenApp = ShowMainWindow;
+        overlayActions.OpenSettings = () =>
+        {
+            ShowMainWindow();
+            mainViewModel.OpenSettings(SettingsSection.AlertsAndOnScreen);
+        };
+        overlayActions.EndSession = () => _endFlow!.TryEndSessionAsync(VisibleMainWindow());
+        overlayActions.ExtendFocus = () => _sessions!.ExtendFocus(TimeSpan.FromMinutes(10));
+        overlayActions.ParkThought = () => _capture!.Show();
+        overlayActions.ShowStart = () => _quickSession!.Show();
+        overlayActions.StartDefault = () => _quickSession!.StartWithDefaultAsync();
+        overlayActions.CanStartLunch = () => _lunch is { CanStart: true };
+        overlayActions.StartLunch = () => _lunch!.StartAsync();
+        overlayActions.IsWorkDone = () => _deepWork is { Progress.Met: true };
+        overlayActions.ComebackTitles = () => _comebacks?.Open.OrderByDescending(item => item.CreatedAt).Select(item => item.Text).Take(4).ToList() ?? [];
+        overlayActions.NextUp = () => sessionViewModel.NextUp?.Rows.Take(3).Select(row => (row.TimeText, row.Title)).ToList() ?? [];
+        overlayActions.OpenTrayOverflow = _taskbarGeometry!.InvokeTrayOverflow;
+        overlayActions.OpenCalendarFlyout = _taskbarGeometry.InvokeClock;
+        overlayActions.NextMeeting = () =>
+        {
+            DateTime local = TimeZoneInfo.ConvertTime(_sessions!.Now, _sessions.TimeProvider.LocalTimeZone).DateTime;
+            CalendarEntry? next = calendars.EventsOn(DateOnly.FromDateTime(local))
+                .Where(entry => !entry.Event.IsAllDay && entry.Event.LocalStart > local)
+                .OrderBy(entry => entry.Event.LocalStart).FirstOrDefault();
+            return next is null ? null : (next.Event.Title, next.Event.LocalStart);
+        };
         _sessionOverlay.Start();
+        mainViewModel.Settings.OverlayPage = new OverlaySettingsViewModel(overlaySettings, () => _sessionOverlay.StickyHotkeyError);
         _timers!.Start();
         _bedtimeReminder.ReminderDue += (_, reminder) =>
             presenter.ShowReminder(reminder.Title, reminder.Message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#6366F1")));
@@ -2270,6 +2331,11 @@ public partial class App : Application
         _activityWatcher?.Dispose();
         _checkpoints?.Dispose();
         _sessionOverlay?.Dispose();
+        _overlayStickyHotkey?.Dispose();
+        _panelKeys?.Dispose();
+        _ctrlAltWatcher?.Dispose();
+        _batteryReader?.Dispose();
+        _taskbarGeometry?.Dispose();
         _noise?.Dispose();
         _soundPlayer?.Dispose();
         _updates?.Dispose();
