@@ -71,9 +71,20 @@ public partial class TaskbarOverlayWindow : Window
 
     public OverlayTarget Target => _target;
 
-    /// <summary>Back in front of the taskbar and other always-on-top windows, without taking focus.</summary>
+    /// <summary>
+    /// A Windows flyout (hidden icons, Quick Settings, notifications, calendar) is in front: the tile stays where it is in the stack, under
+    /// the flyout, and climbs back when this is cleared (the service clears it when the flyout closes).
+    /// </summary>
+    public bool YieldsToShellFlyout { get; set; }
+
+    /// <summary>Back in front of the taskbar and other always-on-top windows, without taking focus; not over a Windows flyout.</summary>
     public void KeepOnTop()
     {
+        if (YieldsToShellFlyout)
+        {
+            return;
+        }
+
         if (TryGetPlatformHandle() is IPlatformHandle handle)
         {
             _control.KeepOnTop(handle.Handle);
