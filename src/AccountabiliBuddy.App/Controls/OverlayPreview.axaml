@@ -57,7 +57,9 @@
                     <mi:MaterialIcon x:Name="FoldIcon" Kind="ChevronDown" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
                 </Button>
             </Grid>
-            <Border x:Name="StageFrame" ClipToBounds="True" CornerRadius="8" Background="{DynamicResource Ab.Bg}" IsHitTestVisible="False">
+            <!-- The stage is a picture: no mouse, no Tab stop, hidden from the accessibility tree. -->
+            <Border x:Name="StageFrame" ClipToBounds="True" CornerRadius="8" Background="{DynamicResource Ab.Bg}" IsHitTestVisible="False" Focusable="False"
+                    KeyboardNavigation.TabNavigation="None" AutomationProperties.AccessibilityView="Raw">
                 <Viewbox x:Name="StageBox" Stretch="Uniform" StretchDirection="Both" MaxHeight="200">
                     <Border x:Name="Crop" ClipToBounds="True">
                         <Canvas x:Name="Scene" HorizontalAlignment="Left" VerticalAlignment="Top" />

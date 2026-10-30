@@ -212,6 +212,7 @@ public partial class OverlayPreview : UserControl
             MaxWidth = target.Kind == OverlayTargetKind.Docked ? Math.Max(120, target.Band.Width / target.Scale) : 420,
             HorizontalAlignment = HorizontalAlignment.Left,
             IsHitTestVisible = false,
+            Focusable = false,
             Opacity = 0,
         };
         tile.Apply(target, settings, height);
