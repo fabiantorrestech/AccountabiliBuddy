@@ -211,7 +211,7 @@
                 <Panel Classes="listItem">
                     <Button Classes="listRow" Classes.selected="{Binding IsSelected}" Command="{Binding SelectCommand}"
                             AutomationProperties.Name="{Binding Title}">
-                        <Grid ColumnDefinitions="Auto,*,Auto,92,Auto,Auto,22" ColumnSpacing="8" Margin="0,0,6,0">
+                        <Grid ColumnDefinitions="Auto,*,Auto,92,40,Auto,22" ColumnSpacing="8" Margin="0,0,6,0">
                             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0" MinWidth="22" VerticalAlignment="Center">
                                 <TextBlock Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Center" MinWidth="16"
                                            IsVisible="{Binding IsNumbered}" />
