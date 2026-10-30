@@ -42,7 +42,8 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
     private static readonly HashSet<string> ShellClasses = new(StringComparer.Ordinal) { "Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd" };
 
     // Windows' tray flyouts by window class: the hidden-icons popup (Windows 11 and 10), its popup frame, Quick Settings. The notification centre,
-    // calendar and Start are "Windows.UI.Core.CoreWindow" too, but so are Store apps, so that class only counts for Windows' own shell processes.
+    // calendar and Start are "Windows.UI.Core.CoreWindow". All of these count only when the window belongs to one of Windows' own shell
+    // processes: Store apps use the CoreWindow class and any WinUI app uses the popup class.
     private static readonly HashSet<string> FlyoutClasses = new(StringComparer.Ordinal)
     {
         "TopLevelWindowForOverflowXamlIsland", "NotifyIconOverflowWindow", "Xaml_WindowedPopupClass", "ControlCenterWindow",
@@ -619,9 +620,10 @@ public sealed unsafe class Win32TaskbarGeometry : ITaskbarGeometry, IDisposable
 
         // Windows' own screens that cover everything for a moment while switching apps (Alt+Tab, Task view, Start, Search), and its tray flyouts.
         bool isShellProcess = processName is not null && Display.Win32OverlayWindowControl.ShellProcesses.Contains(processName);
-        if (isShellProcess || FlyoutClasses.Contains(className))
+        if (isShellProcess)
         {
-            bool flyout = FlyoutClasses.Contains(className) || (isShellProcess && className == CoreWindowClass);
+            // Only Windows' own processes make a flyout: Xaml_WindowedPopupClass is any WinUI app's popup, which must keep its normal state.
+            bool flyout = FlyoutClasses.Contains(className) || className == CoreWindowClass;
             return flyout ? ForegroundScreenState.None with { IsShellFlyout = true } : ForegroundScreenState.None;
         }
 
