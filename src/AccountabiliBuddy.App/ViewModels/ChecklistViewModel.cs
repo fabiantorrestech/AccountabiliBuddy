@@ -199,6 +199,9 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     /// <summary>Raised to put the keyboard in the "Add a task" box (the start nudge).</summary>
     public event EventHandler? FocusEntryRequested;
 
+    /// <summary>Raised just before the rows are rebuilt, so a row's open flyout can close first (a flyout open inside a row that goes away crashes Avalonia).</summary>
+    public event EventHandler? RowsRebuilding;
+
     public void RequestFocus()
     {
         FocusEntryRequested?.Invoke(this, EventArgs.Empty);
@@ -330,6 +333,7 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
 
     private void Refresh()
     {
+        RowsRebuilding?.Invoke(this, EventArgs.Empty);
         SessionChecklist checklist = _tasks.Current;
         IReadOnlyList<TaskCategory> categories = _tasks.Categories;
         RefreshCategories(categories);

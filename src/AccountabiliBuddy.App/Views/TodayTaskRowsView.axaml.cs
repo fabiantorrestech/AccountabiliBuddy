@@ -44,6 +44,7 @@ public partial class TodayTaskRowsView : UserControl
         if (_subscribed is not null)
         {
             _subscribed.FocusEntryRequested -= OnFocusEntryRequested;
+            _subscribed.RowsRebuilding -= OnRowsRebuilding;
             _subscribed.PropertyChanged -= OnChecklistPropertyChanged;
         }
 
@@ -51,7 +52,20 @@ public partial class TodayTaskRowsView : UserControl
         if (_subscribed is not null)
         {
             _subscribed.FocusEntryRequested += OnFocusEntryRequested;
+            _subscribed.RowsRebuilding += OnRowsRebuilding;
             _subscribed.PropertyChanged += OnChecklistPropertyChanged;
+        }
+    }
+
+    // A row's flyout still open when its row is rebuilt makes Avalonia throw while the row detaches, so it closes first (a step added in it reopens it, see WatchForRebuild).
+    private void OnRowsRebuilding(object? sender, EventArgs e)
+    {
+        foreach (Button button in this.GetVisualDescendants().OfType<Button>().Where(candidate => candidate.Classes.Contains("taskRow")))
+        {
+            if (button.Flyout is { IsOpen: true } flyout)
+            {
+                flyout.Hide();
+            }
         }
     }
 
