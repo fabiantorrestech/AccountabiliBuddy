@@ -630,6 +630,12 @@ public sealed partial class SessionTasksService : IDisposable
         return item?.Id;
     }
 
+    /// <summary>The task was moved off an ended session's record (to Later, Today or Come back to), so it is no longer left open.</summary>
+    public bool WasMoved(Guid taskId)
+    {
+        return _movedToLater.Any(entry => entry.Id == taskId);
+    }
+
     /// <summary>The open tasks of ended sessions (newest session first), for the Tasks page's "Unfinished from past sessions".</summary>
     public IReadOnlyList<PastTask> PastUnfinished()
     {
