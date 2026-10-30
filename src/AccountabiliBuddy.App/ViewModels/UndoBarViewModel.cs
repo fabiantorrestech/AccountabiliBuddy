@@ -20,6 +20,7 @@ public sealed partial class UndoBarViewModel : ObservableObject, IDisposable
     private readonly RecentlyDeletedStore? _store;
     private CancellationTokenSource? _hide;
     private Guid? _entryId;
+    private bool _isAttached;
 
     public UndoBarViewModel(SessionTasksService tasks)
     {
@@ -43,6 +44,19 @@ public sealed partial class UndoBarViewModel : ObservableObject, IDisposable
     /// <summary>Why Undo could not put it back, e.g. "This session already has 3 tasks."</summary>
     [ObservableProperty]
     public partial string Message { get; set; }
+
+    /// <summary>
+    /// The view showing this bar is on screen. Only an attached bar reacts to a delete, so a checklist whose window is closed
+    /// (or one that is not shown) never keeps a bar of its own for a delete made somewhere else.
+    /// </summary>
+    public void SetAttached(bool attached)
+    {
+        _isAttached = attached;
+        if (!attached)
+        {
+            Hide();
+        }
+    }
 
     public bool HasMessage => Message.Length > 0;
 
@@ -86,6 +100,11 @@ public sealed partial class UndoBarViewModel : ObservableObject, IDisposable
 
     private void OnRecorded(object? sender, DeletedItem item)
     {
+        if (!_isAttached)
+        {
+            return;
+        }
+
         _entryId = item.EntryId;
         Text = $"Deleted “{Short(item.Title)}”";
         Message = string.Empty;
