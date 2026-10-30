@@ -72,6 +72,12 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     /// <summary>The row shows a category dot and name.</summary>
     public bool HasCategory => !string.IsNullOrWhiteSpace(CategoryName);
 
+    /// <summary>A Later item's own due date; null for every other row. The flat list's due-date sorts read it.</summary>
+    public DateOnly? DueOn { get; init; }
+
+    /// <summary>The row's own past-facing time for the Most recent / Oldest sorts: when it was parked, its session started, it was saved, done or (a Later item) last edited. Never a due date, which can lie in the future.</summary>
+    public DateTimeOffset SortTime { get; init; }
+
     /// <summary>The pill after the title on the flat list: "Come back", "Later", "Later · Fri", "Unfinished", "Auto-saved", "Done"; empty on This session's rows.</summary>
     public string StatusTag { get; init; } = string.Empty;
 

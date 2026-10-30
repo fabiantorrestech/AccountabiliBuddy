@@ -26,7 +26,9 @@ public sealed partial class TaskChipViewModel : ObservableObject
 
     public bool HasDot => Dot is not null;
 
-    public bool IsSelected { get; }
+    /// <summary>Picked. Settable, so a pill that stays in its list (the filter flyout) can change in place and keep the keyboard focus.</summary>
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
 
     public ICommand PickCommand { get; }
 }

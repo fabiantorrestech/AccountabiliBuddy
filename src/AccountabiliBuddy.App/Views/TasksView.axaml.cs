@@ -77,6 +77,15 @@ public partial class TasksView : UserControl
         }
     }
 
+    // The filter flyout is taller than a short window leaves room for under its button: it scrolls inside instead of running off the window.
+    private void OnFilterFlyoutOpening(object? sender, EventArgs e)
+    {
+        if (sender is Flyout { Content: ScrollViewer scroll })
+        {
+            scroll.MaxHeight = Math.Clamp(Bounds.Height - 240, 200, 420);
+        }
+    }
+
     // A step's inline box (rename, a step after it) takes the keyboard as it opens.
     private void OnInlineBoxPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
