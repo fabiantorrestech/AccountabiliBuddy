@@ -19,6 +19,7 @@ public sealed partial class TaskFilterViewModel : ObservableObject
     private readonly HashSet<Guid> _categoryIds = [];
     private bool _includesNoCategory;
     private IReadOnlyList<TaskCategory> _categories = [];
+    private string _categorySignature = "\0";
 
     public TaskFilterViewModel(TaskViewStore store)
     {
@@ -175,29 +176,66 @@ public sealed partial class TaskFilterViewModel : ObservableObject
         OnPropertyChanged(nameof(HasCategoryRestriction));
     }
 
+    // The pills are made once (the categories' pills again only when the categories change) and then updated in place: a click or a
+    // store change must not replace the button under the pointer or the keyboard focus.
     private void BuildPills()
     {
-        StatusPills = AllStatuses
-            .Select(status => new TaskChipViewModel(StatusLabel(status), _statuses.Contains(status), () => Run(() => ToggleStatus(status))))
-            .ToList();
-
-        var categoryPills = new List<TaskChipViewModel>();
-        foreach (TaskCategory category in _categories)
+        if (StatusPills.Count == 0)
         {
-            Guid id = category.Id;
-            categoryPills.Add(new TaskChipViewModel(
-                category.Name, _categoryIds.Contains(id), () => Run(() => ToggleCategory(id)), TaskCategoryBrushes.Of(category.Color)));
+            StatusPills = AllStatuses
+                .Select(status => new TaskChipViewModel(StatusLabel(status), false, () => Run(() => ToggleStatus(status))))
+                .ToList();
+            DuePills = Enum.GetValues<TaskDueFilter>()
+                .Select(due => new TaskChipViewModel(DueLabel(due), false, () => Run(() => { Due = due; Apply(); })))
+                .ToList();
+            SortPills = Enum.GetValues<TaskSortMode>()
+                .Select(sort => new TaskChipViewModel(SortLabel(sort), false, () => Run(() => { Sort = sort; Apply(); })))
+                .ToList();
         }
 
-        categoryPills.Add(new TaskChipViewModel("No category", _includesNoCategory, () => Run(ToggleNoCategory)));
-        CategoryPills = categoryPills;
+        string signature = string.Join('|', _categories.Select(category => $"{category.Id}:{category.Name}:{category.Color}"));
+        if (signature != _categorySignature)
+        {
+            _categorySignature = signature;
+            var categoryPills = new List<TaskChipViewModel>();
+            foreach (TaskCategory category in _categories)
+            {
+                Guid id = category.Id;
+                categoryPills.Add(new TaskChipViewModel(
+                    category.Name, false, () => Run(() => ToggleCategory(id)), TaskCategoryBrushes.Of(category.Color)));
+            }
 
-        DuePills = Enum.GetValues<TaskDueFilter>()
-            .Select(due => new TaskChipViewModel(DueLabel(due), Due == due, () => Run(() => { Due = due; Apply(); })))
-            .ToList();
-        SortPills = Enum.GetValues<TaskSortMode>()
-            .Select(sort => new TaskChipViewModel(SortLabel(sort), Sort == sort, () => Run(() => { Sort = sort; Apply(); })))
-            .ToList();
+            categoryPills.Add(new TaskChipViewModel("No category", false, () => Run(ToggleNoCategory)));
+            CategoryPills = categoryPills;
+        }
+
+        UpdateSelection();
+    }
+
+    private void UpdateSelection()
+    {
+        for (int index = 0; index < AllStatuses.Length; index++)
+        {
+            StatusPills[index].IsSelected = _statuses.Contains(AllStatuses[index]);
+        }
+
+        for (int index = 0; index < _categories.Count; index++)
+        {
+            CategoryPills[index].IsSelected = _categoryIds.Contains(_categories[index].Id);
+        }
+
+        CategoryPills[^1].IsSelected = _includesNoCategory;
+        TaskDueFilter[] dues = Enum.GetValues<TaskDueFilter>();
+        for (int index = 0; index < dues.Length; index++)
+        {
+            DuePills[index].IsSelected = Due == dues[index];
+        }
+
+        TaskSortMode[] sorts = Enum.GetValues<TaskSortMode>();
+        for (int index = 0; index < sorts.Length; index++)
+        {
+            SortPills[index].IsSelected = Sort == sorts[index];
+        }
     }
 
     private static Task Run(Action action)
