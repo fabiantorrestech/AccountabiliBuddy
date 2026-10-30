@@ -213,10 +213,20 @@
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel>
                     <TextBlock Text="Hold Ctrl+Alt to peek" />
-                    <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="Opens after a 300 ms hold, closes when you let go. Turn it off if AltGr on your keyboard layout counts as Ctrl+Alt." />
+                    <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="Opens after a short hold, closes when you let go. Turn it off if AltGr on your keyboard layout counts as Ctrl+Alt." />
                 </StackPanel>
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding HoldToPeek}" OnContent="" OffContent="" AutomationProperties.Name="Hold Ctrl+Alt to peek" />
             </Grid>
+        </Border>
+        <Border Classes="row" IsVisible="{Binding HoldToPeek}">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="Peek opens after" VerticalAlignment="Center" />
+                    <ListBox Grid.Column="1" Classes="seg" ItemsSource="{x:Static vm:OverlaySettingsViewModel.PeekDelayNames}" SelectedIndex="{Binding PeekDelayIndex}" />
+                </Grid>
+                <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                           Text="Instant shows the panel the moment Ctrl+Alt is down, so it flashes on every Ctrl+Alt+key shortcut of another app (an editor's, say). A short wait avoids that; 150 ms is the default." />
+            </StackPanel>
         </Border>
         <Border Classes="row">
             <Grid ColumnDefinitions="*,Auto">

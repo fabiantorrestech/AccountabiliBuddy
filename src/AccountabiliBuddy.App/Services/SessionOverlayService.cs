@@ -17,8 +17,6 @@ namespace AccountabiliBuddy.App.Services;
 /// </summary>
 public sealed class SessionOverlayService : IDisposable
 {
-    // The panel opens when Ctrl+Alt has been held this long (a tap of the two keys for something else doesn't flash it).
-    private static readonly TimeSpan PeekDelay = TimeSpan.FromMilliseconds(300);
     private static readonly TimeSpan DoneHold = TimeSpan.FromSeconds(4);
     private static readonly TimeSpan GlowFor = TimeSpan.FromMilliseconds(1400);
     private static readonly TimeSpan NudgeDotFor = TimeSpan.FromMinutes(10);
@@ -33,7 +31,8 @@ public sealed class SessionOverlayService : IDisposable
     private readonly IGlobalHotkey _stickyHotkey;
     private readonly DayBarViewModel _day;
     private readonly TaskbarOverlayViewModel _model;
-    private readonly DispatcherTimer _peekTimer = new() { Interval = PeekDelay };
+    // The panel opens when Ctrl+Alt has been held for the "Peek opens after" delay (a tap of the two keys for something else doesn't flash it).
+    private readonly DispatcherTimer _peekTimer = new();
     private readonly DispatcherTimer _wakeTimer = new();
     private readonly DispatcherTimer _clockTimer = new();
 
@@ -97,17 +96,7 @@ public sealed class SessionOverlayService : IDisposable
         _peekTimer.Tick += (_, _) =>
         {
             _peekTimer.Stop();
-            if (!_control.AreDragKeysHeld())
-            {
-                // The hook thinks Ctrl+Alt is down but the keyboard says no: a key-up was missed.
-                _ctrlAlt.Resync();
-                return;
-            }
-
-            if (_ctrlAlt.IsHeld && _settings.Current.HoldToPeek)
-            {
-                OpenPanel(sticky: false);
-            }
+            OpenPeek(verifyKeys: true);
         };
         _wakeTimer.Tick += (_, _) =>
         {
@@ -364,6 +353,16 @@ public sealed class SessionOverlayService : IDisposable
         if (held)
         {
             _peekTimer.Stop();
+            int delayMs = _settings.Current.PeekDelayMs;
+            if (delayMs <= 0)
+            {
+                // Called from inside the hook's key-down: the system's own key state has not caught up yet, so it can't be checked here.
+                // The peek guard (once a second while a peek is open) closes a panel whose keys are not really down.
+                OpenPeek(verifyKeys: false);
+                return;
+            }
+
+            _peekTimer.Interval = TimeSpan.FromMilliseconds(delayMs);
             _peekTimer.Start();
             return;
         }
@@ -372,6 +371,22 @@ public sealed class SessionOverlayService : IDisposable
         if (_panel is { IsSticky: false })
         {
             ClosePanel();
+        }
+    }
+
+    // The peek delay is over (or zero): open the panel if Ctrl+Alt is really still held.
+    private void OpenPeek(bool verifyKeys)
+    {
+        if (verifyKeys && !_control.AreDragKeysHeld())
+        {
+            // The hook thinks Ctrl+Alt is down but the keyboard says no: a key-up was missed.
+            _ctrlAlt.Resync();
+            return;
+        }
+
+        if (_ctrlAlt.IsHeld && _settings.Current.HoldToPeek)
+        {
+            OpenPanel(sticky: false);
         }
     }
 
