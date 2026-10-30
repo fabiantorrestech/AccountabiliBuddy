@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.Core.Ports;
@@ -35,14 +36,8 @@ public partial class OverlayPanelWindow : Window
         _model = model;
         InitializeComponent();
         DataContext = model;
-        model.CloseRequested += (_, _) => Close();
-        model.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(OverlayPanelViewModel.Size))
-            {
-                ChooseRowTemplate();
-            }
-        };
+        model.CloseRequested += OnCloseRequested;
+        model.PropertyChanged += OnModelPropertyChanged;
         ChooseRowTemplate();
         SizeChanged += (_, _) => Reposition();
         Deactivated += (_, _) =>
@@ -52,6 +47,24 @@ public partial class OverlayPanelWindow : Window
                 Close();
             }
         };
+    }
+
+    private void OnCloseRequested(object? sender, EventArgs e) => Close();
+
+    private void OnModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(OverlayPanelViewModel.Size))
+        {
+            ChooseRowTemplate();
+        }
+    }
+
+    /// <summary>The view model lives for the whole app; a closed window must not stay reachable through its events.</summary>
+    protected override void OnClosed(EventArgs e)
+    {
+        _model.CloseRequested -= OnCloseRequested;
+        _model.PropertyChanged -= OnModelPropertyChanged;
+        base.OnClosed(e);
     }
 
     /// <summary>The panel stays until Esc or a click elsewhere (Ctrl+Alt+Space), instead of closing when Ctrl+Alt is let go.</summary>
