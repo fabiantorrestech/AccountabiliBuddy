@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0053](0053-low-level-keyboard-hook-for-hold-to-peek.md) | Low-level keyboard hook for hold-to-peek | Accepted | — |
 | [0051](0051-dock-the-session-overlay-over-the-taskbar.md) | Dock the session overlay over the taskbar | Accepted | — |
 | [0050](0050-task-estimates-notes-and-a-later-list-in-the-shared-task-lists.md) | Task estimates, notes and a Later list in the shared task lists | Accepted | — |
 | [0049](0049-themes-from-token-dictionaries-with-bundled-fonts-and-local-sunset.md) | Themes from token dictionaries, with bundled fonts and a local sunset | Accepted | — |
