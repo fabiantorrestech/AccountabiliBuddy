@@ -1178,7 +1178,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         foreach (TaskCategory category in _tasks.Categories)
         {
             Guid id = category.Id;
-            chips.Add(new TaskChipViewModel(category.Name, _categoryFilterId == id, () => PickCategoryAsync(id)));
+            chips.Add(new TaskChipViewModel(category.Name, _categoryFilterId == id, () => PickCategoryAsync(id), TaskCategoryBrushes.Of(category.Color)));
         }
 
         // A deleted category can't stay the filter.

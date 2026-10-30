@@ -273,8 +273,13 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:TaskChipViewModel">
-                                    <Button Classes="chip" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}" Content="{Binding Text}"
-                                            AutomationProperties.Name="{Binding Text}" />
+                                    <Button Classes="chip" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}"
+                                            AutomationProperties.Name="{Binding Text}">
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
+                                            <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
