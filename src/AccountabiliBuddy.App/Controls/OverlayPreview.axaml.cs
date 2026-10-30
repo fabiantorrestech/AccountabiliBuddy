@@ -8,7 +8,6 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
-using Avalonia.Threading;
 using Material.Icons;
 using Material.Icons.Avalonia;
 
@@ -17,21 +16,23 @@ namespace AccountabiliBuddy.App.Controls;
 /// <summary>
 /// The live preview beside the overlay settings (see <see cref="OverlayPreviewViewModel"/>): a small drawn desktop for the chosen scene, in the
 /// theme's own colours. The tile in it is the real <see cref="OverlayTileView"/> with sample text, put where <see cref="OverlayPlacementCalculator"/>
-/// puts it for a mock taskbar, so the preview obeys the same rules as the real overlay. Everything is drawn in a 1366 x 768 mock screen at 100%
+/// puts it for a mock taskbar, so the preview obeys the same rules as the real overlay. Everything is drawn in a 2560 x 1440 mock screen at 100%
 /// and cropped to the part that matters; it redraws only when a setting, a tab or the page's visibility changes (no timers, no polling).
 /// </summary>
 public partial class OverlayPreview : UserControl
 {
     public static readonly StyledProperty<bool> IsStripProperty = AvaloniaProperty.Register<OverlayPreview, bool>(nameof(IsStrip));
 
-    // The mock screen (device-independent pixels at 100%): a laptop-sized desktop with a bottom taskbar.
-    private const double ScreenWidth = 1366;
-    private const double ScreenHeight = 768;
+    // The mock screen (device-independent pixels at 100%): a 2560 x 1440 desktop with a bottom taskbar, wide enough that the free stretch
+    // between the app icons and the tray holds a tile the way a real taskbar does.
+    private const double ScreenWidth = 2560;
+    private const double ScreenHeight = 1440;
     private const double BarHeight = 48;
-    private const double TrayWidth = 170;
+    private const double TrayWidth = 200;
     private const double IconSlot = 44;
     private const int IconCount = 5;
-    private const double CropHeight = 140;
+    private const double MaxCropHeight = 170;
+    private const double MinCropHeight = 84;
     private const double MinCropWidth = 560;
 
     // Mirrors TaskbarOverlayWindow.HeightFor and Reposition (heights, the rise of the Large size, the floating margins).
@@ -45,14 +46,6 @@ public partial class OverlayPreview : UserControl
     static OverlayPreview()
     {
         IsStripProperty.Changed.AddClassHandler<OverlayPreview>((preview, _) => preview.Redraw());
-        // The page was hidden while settings changed (or a theme was picked meanwhile): draw it again once it shows.
-        IsVisibleProperty.Changed.AddClassHandler<OverlayPreview>((preview, e) =>
-        {
-            if (e.NewValue is true)
-            {
-                Dispatcher.UIThread.Post(preview.Redraw);
-            }
-        });
     }
 
     public OverlayPreview()
@@ -67,6 +60,14 @@ public partial class OverlayPreview : UserControl
         };
         DataContextChanged += (_, _) => Attach(DataContext as OverlayPreviewViewModel);
         AttachedToVisualTree += (_, _) => Redraw();
+        // The page was hidden while settings changed (or a theme was picked meanwhile): it gets its size again when it shows, and draws then.
+        SizeChanged += (_, e) =>
+        {
+            if (e.PreviousSize.Width <= 0 && e.NewSize.Width > 0)
+            {
+                Redraw();
+            }
+        };
     }
 
     /// <summary>The narrow layout: a short strip above the settings (tabs and scene, with a fold arrow) instead of the side pane.</summary>
@@ -156,7 +157,7 @@ public partial class OverlayPreview : UserControl
         FoldIcon.Kind = folded ? MaterialIconKind.ChevronRight : MaterialIconKind.ChevronDown;
         IconsLeftBox.IsVisible = !IsStrip && model.Scene is OverlayPreviewScene.Taskbar or OverlayPreviewScene.AutoHide;
         StageFrame.IsVisible = !folded;
-        StageBox.MaxHeight = IsStrip ? 76 : 200;
+        StageBox.MaxHeight = IsStrip ? 76 : 260;
         Caption.IsVisible = !IsStrip;
     }
 
@@ -183,10 +184,10 @@ public partial class OverlayPreview : UserControl
         {
             case OverlayTargetKind.SlimLine:
                 DrawSlimLine(model);
-                SetCrop(MinCropWidth, anchorRight: true, atTop: false);
+                SetCrop(MinCropWidth, anchorRight: true, atTop: false, height: MinCropHeight);
                 break;
             case OverlayTargetKind.Hidden:
-                SetCrop(MinCropWidth, anchorRight: true, atTop: false);
+                SetCrop(MinCropWidth, anchorRight: true, atTop: false, height: MinCropHeight);
                 break;
             default:
                 DrawTile(model, target, settings, model.IconsLeft);
@@ -210,7 +211,7 @@ public partial class OverlayPreview : UserControl
         // The tile is always dark, as the real overlay window is, whatever theme the page is in.
         var scope = new ThemeVariantScope { RequestedThemeVariant = ThemeVariant.Dark, Child = tile, IsHitTestVisible = false };
         Scene.Children.Add(scope);
-        SetCrop(MinCropWidth, anchorRight: target.AlignRight, atTop: false);
+        SetCrop(MinCropWidth, anchorRight: target.AlignRight, atTop: false, height: MinCropHeight);
         // Its width is known after layout; then it goes where the calculator says and the crop widens to take it in.
         tile.SizeChanged += (_, e) =>
         {
@@ -223,30 +224,49 @@ public partial class OverlayPreview : UserControl
             Canvas.SetLeft(scope, x);
             Canvas.SetTop(scope, y);
             double extent = target.AlignRight ? ScreenWidth - x : x + e.NewSize.Width;
-            if (target.Kind == OverlayTargetKind.Docked && !target.AlignRight)
+            double rightInset = 0;
+            if (target.Kind == OverlayTargetKind.Docked)
             {
-                // A tile at the left end of a taskbar with centred icons: take the first icons in too.
-                extent = Math.Max(extent + 40, FirstIconLeft(iconsLeft) + (IconSlot * 3));
-            }
-            else
-            {
-                extent += 40;
+                if (target.AlignRight && !target.CoversTray)
+                {
+                    // Against the tray: the crop ends after the first of its icons instead of at the screen edge.
+                    rightInset = TrayWidth - 110;
+                    extent -= rightInset;
+                }
+                else if (!target.AlignRight && !iconsLeft)
+                {
+                    // At the left end of a taskbar with centred icons: take the first icons in too, when that doesn't make the picture tiny.
+                    double withIcons = FirstIconLeft(iconsLeft) + (IconSlot * 2);
+                    if (withIcons <= 900)
+                    {
+                        extent = Math.Max(extent, withIcons);
+                    }
+                }
             }
 
-            SetCrop(extent, target.AlignRight, atTop: false);
+            extent += 30;
+            // Only as tall as the tile needs above the taskbar.
+            SetCrop(extent, target.AlignRight, atTop: false, height: ScreenHeight - y + 14, rightInset: rightInset);
             tile.Opacity = 1;
         };
     }
 
     private void DrawSlimLine(OverlayPreviewViewModel model)
     {
-        // A 3 px line along the bottom edge with the minutes at the right (SlimLineWindow).
-        Fill(0, ScreenHeight - 3, ScreenWidth, 3, "Ab.Surface2");
-        if (model.ShowsSession)
+        // A 3 px progress line along the bottom edge with the minutes at the right (SlimLineWindow). Drawn over the width the crop shows,
+        // as if the screen were that wide, so the line and its fill can be read.
+        double left = ScreenWidth - MinCropWidth;
+        Fill(left, ScreenHeight - 3, MinCropWidth, 3, "Ab.Surface2");
+        if (!model.ShowsSession)
         {
-            Fill(0, ScreenHeight - 3, ScreenWidth * 0.6, 3, "Ab.Accent");
-            AddText(model.Tile.MinutesText, ScreenWidth - 80, ScreenHeight - 26, 14, "Ab.Ink", bold: true);
+            return;
         }
+
+        Fill(left, ScreenHeight - 3, MinCropWidth * (1 - model.Tile.Fraction), 3, "Ab.Accent");
+        var pill = new Border { Padding = new Thickness(8, 2), CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1), Child = Label(model.Tile.MinutesText, 12, "Ab.Ink", bold: true) };
+        Themed(pill, Border.BackgroundProperty, "Ab.Surface");
+        Themed(pill, Border.BorderBrushProperty, "Ab.Line");
+        Scene.Children.Add(Placed(pill, ScreenWidth - 80, ScreenHeight - 33));
     }
 
     private void DrawFullScreenScene(OverlayPreviewViewModel model)
@@ -254,7 +274,6 @@ public partial class OverlayPreview : UserControl
         OverlaySettings settings = model.Settings;
         // A dark video frame, whatever theme the page is in.
         Scene.Children.Add(Placed(new Border { Width = ScreenWidth, Height = ScreenHeight, Background = new SolidColorBrush(Color.Parse("#0C0E11")) }, 0, 0));
-        Scene.Children.Add(Placed(new Border { Width = ScreenWidth, Height = 90, Background = new SolidColorBrush(Color.Parse("#14171C")) }, 0, 0));
         SetCrop(MinCropWidth, anchorRight: true, atTop: true);
         if (!settings.CornerClock || settings.CornerClockParts == CornerClockParts.None)
         {
@@ -334,7 +353,7 @@ public partial class OverlayPreview : UserControl
         OverlaySettings settings = model.Settings;
         TaskbarOverlayViewModel tile = model.Tile;
         double width = settings.PanelSize switch { PanelSize.Compact => 320, PanelSize.Large => 760, _ => 400 };
-        const double height = 330;
+        const double height = 300;
         Fill(0, 0, width, height, "Ab.Bg");
         var card = new Border { Width = width - 16, Height = height - 16, CornerRadius = new CornerRadius(12), BorderThickness = new Thickness(1), Padding = new Thickness(18, 16) };
         Themed(card, Border.BackgroundProperty, "Ab.Surface");
@@ -382,14 +401,14 @@ public partial class OverlayPreview : UserControl
     {
         Fill(0, 0, ScreenWidth, ScreenHeight, "Ab.Bg");
         // A faint app window, so the desktop doesn't look empty.
-        var window = new Border { Width = 760, Height = 470, CornerRadius = new CornerRadius(10), BorderThickness = new Thickness(1), Opacity = 0.9 };
+        var window = new Border { Width = 900, Height = 560, CornerRadius = new CornerRadius(10), BorderThickness = new Thickness(1), Opacity = 0.9 };
         Themed(window, Border.BackgroundProperty, "Ab.Surface");
         Themed(window, Border.BorderBrushProperty, "Ab.Line");
-        Scene.Children.Add(Placed(window, 300, 120));
-        Fill(324, 146, 220, 10, "Ab.Surface2", 5);
-        Fill(324, 180, 560, 8, "Ab.Surface2", 4);
-        Fill(324, 202, 470, 8, "Ab.Surface2", 4);
-        Fill(324, 224, 520, 8, "Ab.Surface2", 4);
+        Scene.Children.Add(Placed(window, 830, 300));
+        Fill(860, 330, 240, 10, "Ab.Surface2", 5);
+        Fill(860, 366, 620, 8, "Ab.Surface2", 4);
+        Fill(860, 390, 520, 8, "Ab.Surface2", 4);
+        Fill(860, 414, 580, 8, "Ab.Surface2", 4);
     }
 
     private void DrawTaskbar(OverlayPreviewViewModel model)
@@ -407,13 +426,13 @@ public partial class OverlayPreview : UserControl
         Fill(x + 9, top + 42, 10, 3, "Ab.Accent", 1.5);
 
         double trayLeft = ScreenWidth - TrayWidth;
-        AddIcon(MaterialIconKind.ChevronUp, trayLeft + 8, top + 16);
-        AddIcon(MaterialIconKind.Wifi, trayLeft + 34, top + 16);
-        AddIcon(MaterialIconKind.VolumeHigh, trayLeft + 58, top + 16);
-        var clock = new StackPanel { Width = 70 };
+        AddIcon(MaterialIconKind.ChevronUp, trayLeft + 14, top + 16);
+        AddIcon(MaterialIconKind.Wifi, trayLeft + 44, top + 16);
+        AddIcon(MaterialIconKind.VolumeHigh, trayLeft + 72, top + 16);
+        var clock = new StackPanel { Width = 80 };
         clock.Children.Add(Label(model.Tile.ClockText, 12, "Ab.Ink", bold: false, right: true));
         clock.Children.Add(Label(model.Tile.DateText, 10, "Ab.Muted", bold: false, right: true));
-        Scene.Children.Add(Placed(clock, ScreenWidth - 80, top + 6));
+        Scene.Children.Add(Placed(clock, ScreenWidth - 90, top + 6));
     }
 
     private double FirstIconLeft(bool iconsLeft) => iconsLeft ? 12 : ((ScreenWidth - (IconCount * IconSlot)) / 2) + 8;
@@ -464,10 +483,11 @@ public partial class OverlayPreview : UserControl
     // ---- Cropping ----
 
     /// <summary>Shows only the part of the mock screen that matters: the bottom (or top) strip, as wide as needed, against the right or left edge.</summary>
-    private void SetCrop(double extent, bool anchorRight, bool atTop)
+    private void SetCrop(double extent, bool anchorRight, bool atTop, double height = MaxCropHeight, double rightInset = 0)
     {
         double width = Math.Clamp(Math.Max(MinCropWidth, extent), MinCropWidth, ScreenWidth);
-        SetCropBox(anchorRight ? ScreenWidth - width : 0, atTop ? 0 : ScreenHeight - CropHeight, width, CropHeight);
+        height = Math.Clamp(height, MinCropHeight, MaxCropHeight);
+        SetCropBox(anchorRight ? ScreenWidth - rightInset - width : 0, atTop ? 0 : ScreenHeight - height, width, height);
     }
 
     private void SetCropBox(double x, double y, double width, double height)
