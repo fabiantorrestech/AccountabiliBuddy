@@ -177,9 +177,15 @@ public sealed partial class SessionTasksService
 
     private async Task<(bool, string?)> RestoreStepAsync(DeletedItem entry)
     {
-        if (entry.ParentId is not Guid parent || Current.Tasks.All(task => task.Id != parent))
+        if (entry.ParentId is not Guid parent)
         {
             return (false, "The task it belonged to is gone.");
+        }
+
+        if (Current.Tasks.All(task => task.Id != parent))
+        {
+            // The session ended since: the task is in its record now.
+            return await RestoreHistoryStepAsync(entry);
         }
 
         await SetAsync(Current.InsertSubtask(parent, entry.Step!, entry.Index));
