@@ -60,7 +60,7 @@
             <Border x:Name="StageFrame" ClipToBounds="True" CornerRadius="8" Background="{DynamicResource Ab.Bg}" IsHitTestVisible="False">
                 <Viewbox x:Name="StageBox" Stretch="Uniform" StretchDirection="Both" MaxHeight="200">
                     <Border x:Name="Crop" ClipToBounds="True">
-                        <Canvas x:Name="Scene" />
+                        <Canvas x:Name="Scene" HorizontalAlignment="Left" VerticalAlignment="Top" />
                     </Border>
                 </Viewbox>
             </Border>
