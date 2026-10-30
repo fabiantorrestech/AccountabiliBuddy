@@ -288,12 +288,13 @@ public sealed partial class SessionTasksService
             : Current.SessionStart is DateTimeOffset start && (start - entry.ChecklistStart.Value).Duration() <= TimeSpan.FromSeconds(5);
     }
 
-    // The record the task left: the session that started then, or the day's "done outside a session" record.
+    // The record the task left: the session that started then, or the "done outside a session" record of the day it was done
+    // (none left for that day: the task comes back as a new one on Today).
     private int HistoryChecklistIndex(DeletedItem entry)
     {
         return entry.ChecklistStart is DateTimeOffset start
             ? _history.FindIndex(checklist => checklist.SessionStart is DateTimeOffset held && (held - start).Duration() <= TimeSpan.FromSeconds(5))
-            : _history.FindIndex(checklist => checklist.OutsideSession);
+            : _history.FindIndex(checklist => checklist.OutsideSession && checklist.Tasks.Any(task => task.DoneAt is DateTimeOffset done && LocalDate(done) == LocalDate(entry.Task?.DoneAt ?? entry.DeletedAt)));
     }
 
     // Its category by id when it still exists, else by the name and colour it was labelled with (made again when it is gone).
