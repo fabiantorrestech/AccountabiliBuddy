@@ -70,13 +70,12 @@
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
 
-        <!-- A row's title: Ink; struck through and Muted once the task is ticked. -->
+        <!-- A row's title: Ink; Muted once the task is ticked (the strike comes from the global TextBlock.done). -->
         <Style Selector="TextBlock.rowTitle">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
         </Style>
         <Style Selector="TextBlock.rowTitle.done">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
-            <Setter Property="TextDecorations" Value="Strikethrough" />
         </Style>
 
         <!-- The Archive row at the bottom of the list: a flat button with a chevron. -->
@@ -223,9 +222,9 @@
                                 <TextBlock Classes="rowTitle" Classes.done="{Binding IsTicked}" Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 <TextBlock Classes="muted" Text="{Binding SubText}" FontSize="13" TextWrapping="Wrap" IsVisible="{Binding HasSubText}" />
                             </StackPanel>
-                            <Border Grid.Column="2" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="999" Padding="8,1"
+                            <Border Grid.Column="2" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="999" Padding="8,1" MinWidth="108"
                                     VerticalAlignment="Center" IsVisible="{Binding HasStatusTag}">
-                                <TextBlock Classes="muted" Text="{Binding StatusTag}" FontSize="12" />
+                                <TextBlock Classes="muted" Text="{Binding StatusTag}" FontSize="12" HorizontalAlignment="Center" />
                             </Border>
                             <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" IsVisible="{Binding HasCategory}">
                                 <Ellipse Width="8" Height="8" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" />
