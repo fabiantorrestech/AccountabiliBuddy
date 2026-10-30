@@ -3,6 +3,7 @@ using System.Globalization;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.App.Services.Timers;
 using Avalonia.Media;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Material.Icons;
 
 namespace AccountabiliBuddy.App.ViewModels;
@@ -12,7 +13,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// then the alarms ringing within the next 12 hours. Updated in place each tick so the bars glide. Quiet at rest like
 /// the rest of the window (slate); a timer that's up stays amber.
 /// </summary>
-public sealed class OverlayTimersViewModel
+public sealed class OverlayTimersViewModel : ObservableObject
 {
     private static readonly TimeSpan AlarmsAhead = TimeSpan.FromHours(12);
     private static readonly IBrush RunningBrush = new SolidColorBrush(Color.Parse("#38BDF8"));
@@ -25,6 +26,7 @@ public sealed class OverlayTimersViewModel
     public OverlayTimersViewModel(TimersService timers)
     {
         _timers = timers;
+        Lines.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasLines));
     }
 
     public ObservableCollection<OverlayTimerLine> Lines { get; } = [];

@@ -250,27 +250,13 @@
                     </Button>
                 </Grid>
             </StackPanel>
-            <!-- Large: Come back to, Timers, Next up, Devices -->
+            <!-- Large: Come back to, Next up, Devices (timers stay in the main column, with their controls) -->
             <StackPanel Grid.Column="1" Width="300" IsVisible="{Binding IsLarge}" Margin="0">
                 <Border Width="1" Background="{DynamicResource Ab.Line}" HorizontalAlignment="Left" />
                 <StackPanel Margin="16,14,16,12" Spacing="14">
                     <StackPanel Spacing="4">
                         <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Come back to" Classes="head" /><TextBlock Grid.Column="1" Text="{Binding Comebacks.Count}" Classes="key" /></Grid>
                         <ItemsControl ItemsSource="{Binding Comebacks}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" FontSize="13" Margin="0,3" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Ab.Ink}" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
-                    </StackPanel>
-                    <StackPanel Spacing="4" IsVisible="{Binding Model.Timers.HasLines, FallbackValue=False}">
-                        <TextBlock Text="Timers" Classes="head" />
-                        <ItemsControl ItemsSource="{Binding Model.Timers.Lines}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:OverlayTimerLine">
-                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="0,3">
-                                        <mi:MaterialIcon Kind="{Binding Icon}" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" />
-                                        <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Ab.Ink}" />
-                                        <TextBlock Grid.Column="2" Text="{Binding TimeText}" Classes="key" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
                     </StackPanel>
                     <StackPanel Spacing="4">
                         <TextBlock Text="Next up" Classes="head" />

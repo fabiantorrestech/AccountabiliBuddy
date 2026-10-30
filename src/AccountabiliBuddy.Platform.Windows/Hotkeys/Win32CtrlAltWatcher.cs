@@ -62,8 +62,8 @@ public sealed unsafe class Win32CtrlAltWatcher : ICtrlAltWatcher, IDisposable
                     _hook = default;
                 }
 
-                _ctrl = (PInvoke.GetAsyncKeyState((int)VIRTUAL_KEY.VK_CONTROL) & 0x8000) != 0;
-                _alt = (PInvoke.GetAsyncKeyState((int)VIRTUAL_KEY.VK_MENU) & 0x8000) != 0;
+                Set((PInvoke.GetAsyncKeyState((int)VIRTUAL_KEY.VK_CONTROL) & 0x8000) != 0,
+                    (PInvoke.GetAsyncKeyState((int)VIRTUAL_KEY.VK_MENU) & 0x8000) != 0);
                 _hook = PInvoke.SetWindowsHookEx(WINDOWS_HOOK_ID.WH_KEYBOARD_LL, HookProcedure, HINSTANCE.Null, 0);
             }
             else if (!listening && !_hook.IsNull)
@@ -107,6 +107,20 @@ public sealed unsafe class Win32CtrlAltWatcher : ICtrlAltWatcher, IDisposable
 
     private static LRESULT OnKey(int code, WPARAM wParam, LPARAM lParam)
     {
+        // No exception may cross this native callback; the key is always passed on.
+        try
+        {
+            ForwardCtrlAlt(code, wParam, lParam);
+        }
+        catch
+        {
+        }
+
+        return PInvoke.CallNextHookEx(HHOOK.Null, code, wParam, lParam);
+    }
+
+    private static void ForwardCtrlAlt(int code, WPARAM wParam, LPARAM lParam)
+    {
         if (code >= 0 && _instance is { } self)
         {
             var info = (KBDLLHOOKSTRUCT*)lParam.Value;
@@ -125,8 +139,6 @@ public sealed unsafe class Win32CtrlAltWatcher : ICtrlAltWatcher, IDisposable
                 }
             }
         }
-
-        return PInvoke.CallNextHookEx(HHOOK.Null, code, wParam, lParam);
     }
 
     private void Set(bool ctrl, bool alt)
