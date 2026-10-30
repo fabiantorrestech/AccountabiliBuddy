@@ -49,7 +49,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         _configuration = configuration;
         _time = time;
         Undo = new UndoBarViewModel(tasks);
-        CountsText = UnfinishedText = AutoSavedHeader = AddPlaceholder = SearchText = NewTaskText = Notice = string.Empty;
+        CountsText = UnfinishedText = AddPlaceholder = SearchText = NewTaskText = Notice = string.Empty;
         _tasks.Changed += OnStoreChanged;
         _comebacks.Changed += OnStoreChanged;
         _autoSaved.Changed += OnStoreChanged;
@@ -79,9 +79,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     /// </summary>
     public ObservableCollection<TaskListRowViewModel> OtherRows { get; } = new();
 
-    /// <summary>Tomorrow's first tasks typed on a shutdown card that closed by itself; each goes 30 days after it was saved.</summary>
-    public ObservableCollection<PastTaskRowViewModel> AutoSavedRows { get; } = new();
-
     /// <summary>The category filter: All, then each category.</summary>
     [ObservableProperty]
     public partial IReadOnlyList<TaskChipViewModel> CategoryChips { get; set; } = [];
@@ -93,9 +90,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     /// <summary>E.g. "3 unfinished from past sessions"; shows above the list with "Move all to Later".</summary>
     [ObservableProperty]
     public partial string UnfinishedText { get; set; }
-
-    [ObservableProperty]
-    public partial string AutoSavedHeader { get; set; }
 
     [ObservableProperty]
     public partial string AddPlaceholder { get; set; }
@@ -138,8 +132,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     public bool HasOtherRows => OtherRows.Count > 0;
 
     public bool HasUnfinished => _unfinishedIds.Count > 0;
-
-    public bool HasAutoSaved => AutoSavedRows.Count > 0;
 
     /// <summary>A search shows the Archive open, so a hit can't hide in it.</summary>
     public bool IsSearching => SearchText.Trim().Length > 0;
@@ -483,6 +475,26 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
 
         return result;
+    }
+
+    /// <summary>An Auto-saved row's ⋯ menu: Add to Today (the three-task rule applies), Later, Delete.</summary>
+    private IReadOnlyList<TaskMenuEntry> AutoSavedMenu(Guid id, string title)
+    {
+        return
+        [
+            TaskMenuEntry.Async("Add to Today", () => AddAutoSavedToTodayAsync(id, title)),
+            TaskMenuEntry.Async("Later", () => MoveAutoSavedToLaterAsync(id, title)),
+            TaskMenuEntry.Separator,
+            TaskMenuEntry.Async("Delete", () => _tasks.DeleteAutoSavedAsync(id)),
+        ];
+    }
+
+    private async Task MoveAutoSavedToLaterAsync(Guid id, string title)
+    {
+        if (await _later.AddAsync(title, null, null, null, null, null, null) is not null)
+        {
+            await _autoSaved.RemoveAsync(id);
+        }
     }
 
     private PendingMoveViewModel BuildPending(TaskRowKey key)
@@ -869,24 +881,16 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
                 toggle: () => _tasks.SetTickedAsync(id, true), statusTag: "Unfinished"));
         }
 
-        // Auto-saved: a shutdown card's tomorrow task, kept when the card closed by itself; never moved on its own.
-        AutoSavedRows.Clear();
+        // Auto-saved: a shutdown card's tomorrow task, kept when the card closed by itself; never moved on its own. A plain row: no check
+        // box and no detail card; its ⋯ menu is Add to Today, Later, Delete.
         IReadOnlyList<AutoSavedTask> autoSavedItems = _autoSaved.Items;
         foreach (AutoSavedTask item in autoSavedItems.Where(item => Matches(search, item.Title, null, [])))
         {
             Guid id = item.Id;
             string title = item.Title;
-            AutoSavedRows.Add(new PastTaskRowViewModel(
-                id, title, $"Saved {When(item.SavedAt, today)}",
-                async () =>
-                {
-                    if (await _later.AddAsync(title, null, null, null, null, null, null) is not null)
-                    {
-                        await _autoSaved.RemoveAsync(id);
-                    }
-                },
-                () => _tasks.DeleteAutoSavedAsync(id),
-                () => AddAutoSavedToTodayAsync(id, title)));
+            otherRows.Add(MakeRow(
+                new TaskRowKey(TaskRowKind.AutoSaved, id), title, $"Saved {When(item.SavedAt, today)}", null, null, statusTag: "Auto-saved",
+                menu: () => AutoSavedMenu(id, title), selectable: false));
         }
 
         // Done today, at the bottom: ticked tasks of the running checklist and of sessions that ended today (and Later tasks ticked off).
@@ -912,7 +916,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             $"{laterItems.Count} later",
         }.Where(part => part.Length > 0));
         UnfinishedText = $"{_unfinishedIds.Count} unfinished from past sessions";
-        AutoSavedHeader = $"Auto-saved · {autoSavedItems.Count}";
         AddPlaceholder = SessionIsFull
             ? "This session is full: Enter adds it to Later"
             : "Add a task · Ctrl+Alt+N from anywhere";
@@ -921,16 +924,17 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasSessionRows));
         OnPropertyChanged(nameof(HasOtherRows));
         OnPropertyChanged(nameof(HasUnfinished));
-        OnPropertyChanged(nameof(HasAutoSaved));
         OnPropertyChanged(nameof(IsSessionLive));
         OnPropertyChanged(nameof(CanStartSession));
     }
 
     private TaskListRowViewModel MakeRow(
         TaskRowKey key, string title, string subText, string? categoryName, string? categoryColor, int number = 0, bool isNow = false,
-        bool isTicked = false, Guid? categoryId = null, Func<Task>? toggle = null, string statusTag = "", bool isFaded = false)
+        bool isTicked = false, Guid? categoryId = null, Func<Task>? toggle = null, string statusTag = "", bool isFaded = false,
+        Func<IReadOnlyList<TaskMenuEntry>>? menu = null, bool selectable = true)
     {
-        return new TaskListRowViewModel(key, title, subText, SelectRow, number, isNow, toggle, isTicked, () => MenuFor(key))
+        Action<TaskListRowViewModel> select = selectable ? SelectRow : _ => { };
+        return new TaskListRowViewModel(key, title, subText, select, number, isNow, toggle, isTicked, menu ?? (() => MenuFor(key)))
         {
             CategoryId = categoryId,
             CategoryName = categoryName,
