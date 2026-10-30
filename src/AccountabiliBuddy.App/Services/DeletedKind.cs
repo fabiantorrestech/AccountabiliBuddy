@@ -20,4 +20,7 @@ public enum DeletedKind
 
     /// <summary>A come-back.</summary>
     ComeBack,
+
+    /// <summary>A step of a Later item.</summary>
+    LaterStep,
 }

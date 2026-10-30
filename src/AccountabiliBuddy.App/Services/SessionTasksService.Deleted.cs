@@ -30,6 +30,23 @@ public sealed partial class SessionTasksService
         await Later.DeleteAsync(id);
     }
 
+    /// <summary>Deletes a step of a Later item; it stays in Recently deleted for 30 days.</summary>
+    public async Task DeleteLaterStepAsync(Guid laterId, Guid stepId)
+    {
+        SyncLaterItem? item = Later?.Items.FirstOrDefault(candidate => candidate.Id == laterId);
+        List<SessionSubtask> steps = item?.Subtasks?.ToList() ?? [];
+        int index = steps.FindIndex(step => step.Id == stepId);
+        if (Later is null || item is null || index < 0)
+        {
+            return;
+        }
+
+        SessionSubtask step = steps[index];
+        await RecordAsync(new DeletedItem(Guid.NewGuid(), _time.GetUtcNow(), DeletedKind.LaterStep, step.Title, Step: step, ParentId: laterId, Index: index));
+        steps.RemoveAt(index);
+        await Later.EditAsync(laterId, held => held with { Subtasks = steps.Count > 0 ? steps : null });
+    }
+
     /// <summary>Deletes a come-back, open or ticked; it stays in Recently deleted for 30 days.</summary>
     public async Task DeleteComebackAsync(Guid id)
     {
@@ -57,6 +74,7 @@ public sealed partial class SessionTasksService
             DeletedKind.ComeBack when Comebacks is not null => await RestoreComebackAsync(entry),
             DeletedKind.Task => await RestoreTaskAsync(entry),
             DeletedKind.Step => await RestoreStepAsync(entry),
+            DeletedKind.LaterStep when Later is not null => await RestoreLaterStepAsync(entry),
             DeletedKind.HistoryTask => await RestoreHistoryTaskAsync(entry),
             DeletedKind.HistoryStep => await RestoreHistoryStepAsync(entry),
             _ => (false, "That can't be restored here."),
@@ -110,6 +128,27 @@ public sealed partial class SessionTasksService
         }
 
         await SetAsync(restored);
+        return (true, null);
+    }
+
+    private async Task<(bool, string?)> RestoreLaterStepAsync(DeletedItem entry)
+    {
+        if (entry.ParentId is not Guid parent || Later!.Items.All(item => item.Id != parent))
+        {
+            return (false, "The task it belonged to is gone.");
+        }
+
+        await Later.EditAsync(parent, held =>
+        {
+            List<SessionSubtask> steps = held.Subtasks?.ToList() ?? [];
+            if (steps.Any(step => step.Id == entry.Step!.Id))
+            {
+                return held; // Already back (restored twice).
+            }
+
+            steps.Insert(Math.Clamp(entry.Index, 0, steps.Count), entry.Step!);
+            return held with { Subtasks = steps };
+        });
         return (true, null);
     }
 

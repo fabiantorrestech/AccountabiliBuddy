@@ -17,7 +17,7 @@ public sealed partial class RecentlyDeletedRowViewModel : ObservableObject
         Title = item.Title;
         KindText = item.Kind switch
         {
-            DeletedKind.Step or DeletedKind.HistoryStep => "Step",
+            DeletedKind.Step or DeletedKind.HistoryStep or DeletedKind.LaterStep => "Step",
             DeletedKind.Later => "Later",
             DeletedKind.ComeBack => "Come back to",
             _ => "Task",

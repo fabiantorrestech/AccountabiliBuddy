@@ -390,10 +390,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     {
         return key.Kind switch
         {
-            TaskRowKind.Later => EditLaterAsync(key.Id, item => item with
-            {
-                Subtasks = (item.Subtasks ?? []).Where(step => step.Id != stepId).ToList() is { Count: > 0 } kept ? kept : null,
-            }),
+            TaskRowKind.Later => _tasks.DeleteLaterStepAsync(key.Id, stepId),
             _ => _tasks.IsInChecklist(stepId) ? _tasks.RemoveAsync(stepId) : _tasks.EditHistoryAsync(stepId, null),
         };
     }

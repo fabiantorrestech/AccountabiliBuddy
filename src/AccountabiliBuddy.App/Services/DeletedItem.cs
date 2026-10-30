@@ -11,8 +11,8 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="EntryId">The entry's own id (the item's id is inside it).</param>
 /// <param name="Title">What the Undo bar and Recently deleted show.</param>
 /// <param name="Task">The task (<see cref="DeletedKind.Task"/>, <see cref="DeletedKind.HistoryTask"/>), steps and fields included.</param>
-/// <param name="Step">The step (<see cref="DeletedKind.Step"/>, <see cref="DeletedKind.HistoryStep"/>).</param>
-/// <param name="ParentId">A step's task.</param>
+/// <param name="Step">The step (<see cref="DeletedKind.Step"/>, <see cref="DeletedKind.HistoryStep"/>, <see cref="DeletedKind.LaterStep"/>).</param>
+/// <param name="ParentId">A step's task (for a Later step, the Later item).</param>
 /// <param name="Index">Its place among its siblings in the list it left.</param>
 /// <param name="ChecklistStart">
 /// The start of the session checklist it left (null: the draft, the next session's list, or the day's done-outside-a-session
@@ -37,10 +37,10 @@ public sealed record DeletedItem(
     public Guid ItemId => Kind switch
     {
         DeletedKind.Task or DeletedKind.HistoryTask => Task!.Id,
-        DeletedKind.Step or DeletedKind.HistoryStep => Step!.Id,
+        DeletedKind.Step or DeletedKind.HistoryStep or DeletedKind.LaterStep => Step!.Id,
         DeletedKind.Later => Later!.Id,
         _ => ComeBack!.Id,
     };
 
-    public bool IsStep => Kind is DeletedKind.Step or DeletedKind.HistoryStep;
+    public bool IsStep => Kind is DeletedKind.Step or DeletedKind.HistoryStep or DeletedKind.LaterStep;
 }
