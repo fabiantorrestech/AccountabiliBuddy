@@ -80,7 +80,6 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
         model.ClockText = OverlayTimeText.Clock(now);
         model.DateText = OverlayTimeText.Date(now);
         model.TrackText = "Brown noise";
-        model.Batteries.Add(new OverlayBatteryRow("this-pc", MaterialIconKind.Laptop, "82%", OverlayBrushes.Get("Ink")));
         model.IsSession = session;
         if (session)
         {
@@ -102,12 +101,31 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
         {
             model.State = OverlayState.Between;
             model.MinutesText = "Nothing running";
-            model.MinutesBrush = OverlayBrushes.Get("Muted");
             model.Line2 = "Work until " + OverlayTimeText.Clock(now.AddHours(1));
             model.ShowsStart = true;
         }
 
+        model.RefreshPreviewBrushes();
         return model;
+    }
+
+    /// <summary>
+    /// Takes the sample tile's colours (and its battery row) from the current theme again. The live tile does this at every refresh; the preview calls it each time
+    /// it draws, so a theme picked since the tile was made shows. Does nothing for a live tile.
+    /// </summary>
+    public void RefreshPreviewBrushes()
+    {
+        if (!IsPreview)
+        {
+            return;
+        }
+
+        BorderBrush = OverlayBrushes.Get("Line");
+        RingBrush = OverlayBrushes.Get("Accent");
+        MinutesBrush = OverlayBrushes.Get(IsSession ? "Ink" : "Muted");
+        DotBrush = OverlayBrushes.Get("Drift");
+        Batteries.Clear();
+        Batteries.Add(new OverlayBatteryRow("this-pc", MaterialIconKind.Laptop, "82%", OverlayBrushes.Get("Ink")));
     }
 
     public DayBarViewModel Day { get; }
