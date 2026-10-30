@@ -405,6 +405,7 @@ public sealed class SessionOverlayService : IDisposable
             };
         }
 
+        _panelModel.IsSticky = sticky;
         _panel.Present(tile.Box, tile.Target, sticky);
         SyncPanelKeys();
         if (sticky)

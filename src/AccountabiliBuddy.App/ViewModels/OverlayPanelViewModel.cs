@@ -27,6 +27,39 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
         _sessions = sessions;
         HeaderSub = TasksHeader = SwitchHint = PauseText = string.Empty;
         Size = settings.Current.PanelSize;
+        settings.Changed += (_, _) =>
+        {
+            OnPropertyChanged(nameof(PeekKeysLocked));
+            OnPropertyChanged(nameof(ShowsSafeHints));
+            OnPropertyChanged(nameof(PeekKeysTip));
+        };
+    }
+
+    /// <summary>The panel is the sticky one (Ctrl+Alt+Space), which takes every key by focus; false while it only peeks. Set by the overlay when it opens.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsAllHints), nameof(ShowsSafeHints), nameof(CompactHintText))]
+    public partial bool IsSticky { get; set; }
+
+    /// <summary>A peek registers no keys (<see cref="OverlaySettings.PeekKeysLocked"/>); read live so the panel and Settings stay in step.</summary>
+    public bool PeekKeysLocked => _settings.Current.PeekKeysLocked;
+
+    /// <summary>Letter hints for every key show only where every key works: the sticky panel.</summary>
+    public bool ShowsAllHints => IsSticky;
+
+    /// <summary>Hints for the safe keys (hide, +10 min) also show in an unlocked peek.</summary>
+    public bool ShowsSafeHints => IsSticky || !PeekKeysLocked;
+
+    public string CompactHintText => IsSticky ? "D done   P pause   T +10   B side task   H hide" : "T +10   H hide";
+
+    /// <summary>The lock button's tip.</summary>
+    public string PeekKeysTip => PeekKeysLocked
+        ? "Peek keys are off: Ctrl+Alt held registers no shortcuts. Click to turn them on."
+        : "Peek keys are on (hide, +10 min, up, down). Click to turn them off.";
+
+    [RelayCommand]
+    private void TogglePeekKeys()
+    {
+        _ = _settings.SaveLookAsync(settings => settings with { PeekKeysLocked = !settings.PeekKeysLocked });
     }
 
     public TaskbarOverlayViewModel Model { get; }

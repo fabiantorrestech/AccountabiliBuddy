@@ -72,7 +72,7 @@
                                    Foreground="{DynamicResource Ab.Ink}" />
                         <TextBlock Grid.Column="1" Text="{Binding EstimateMinutes, StringFormat='{}{0} min'}" Classes="key" Margin="0,0,8,0"
                                    IsVisible="{Binding EstimateMinutes, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                        <TextBlock Grid.Column="2" Text="{Binding Number}" Classes="key" HorizontalAlignment="Right" />
+                        <TextBlock Grid.Column="2" Text="{Binding Number}" Classes="key" HorizontalAlignment="Right" IsVisible="{Binding $parent[Window].((vm:OverlayPanelViewModel)DataContext).ShowsAllHints}" />
                     </Grid>
                 </Button>
                 <ItemsControl ItemsSource="{Binding Subtasks}" IsVisible="{Binding IsCurrent}" Margin="22,0,0,4">
@@ -89,7 +89,7 @@
                 <Grid ColumnDefinitions="*,28">
                     <TextBlock Text="{Binding Title}" FontWeight="{Binding IsCurrent, Converter={x:Static vm:PanelFontWeights.Current}}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                                Foreground="{DynamicResource Ab.Ink}" />
-                    <TextBlock Grid.Column="1" Text="{Binding Number}" Classes="key" HorizontalAlignment="Right" />
+                    <TextBlock Grid.Column="1" Text="{Binding Number}" Classes="key" HorizontalAlignment="Right" IsVisible="{Binding $parent[Window].((vm:OverlayPanelViewModel)DataContext).ShowsAllHints}" />
                 </Grid>
             </Button>
         </DataTemplate>
@@ -126,33 +126,33 @@
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <mi:MaterialIcon Kind="Check" Width="14" Height="14" />
                                 <TextBlock Text="Done" FontWeight="SemiBold" />
-                                <TextBlock Text="D" Opacity="0.6" />
+                                <TextBlock Text="D" Opacity="0.6" IsVisible="{Binding ShowsAllHints}" />
                             </StackPanel>
                         </Button>
                         <Button Classes="act" Command="{Binding Model.PauseCommand}" IsVisible="{Binding Model.ShowsPause}">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <mi:MaterialIcon Kind="{Binding Model.PauseIcon}" Width="14" Height="14" />
                                 <TextBlock Text="{Binding PauseText}" />
-                                <TextBlock Text="P" Classes="key" />
+                                <TextBlock Text="P" Classes="key" IsVisible="{Binding ShowsAllHints}" />
                             </StackPanel>
                         </Button>
                         <Button Classes="act" Command="{Binding Model.ExtendFocusCommand}" IsVisible="{Binding ShowsExtend}">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <mi:MaterialIcon Kind="Plus" Width="14" Height="14" />
                                 <TextBlock Text="10 min" />
-                                <TextBlock Text="T" Classes="key" />
+                                <TextBlock Text="T" Classes="key" IsVisible="{Binding ShowsSafeHints}" />
                             </StackPanel>
                         </Button>
                         <Button Classes="act primary" Command="{Binding StartCommand}" IsVisible="{Binding !InSession}" Background="{DynamicResource Ab.Accent}" Foreground="{DynamicResource Ab.OnAccent}">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="Start" FontWeight="SemiBold" />
-                                <TextBlock Text="F" Opacity="0.6" />
+                                <TextBlock Text="F" Opacity="0.6" IsVisible="{Binding ShowsAllHints}" />
                             </StackPanel>
                         </Button>
                         <Button Classes="act" Command="{Binding StartLunchCommand}" IsVisible="{Binding ShowsLunch}">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="Lunch" />
-                                <TextBlock Text="L" Classes="key" />
+                                <TextBlock Text="L" Classes="key" IsVisible="{Binding ShowsAllHints}" />
                             </StackPanel>
                         </Button>
                     </StackPanel>
@@ -167,14 +167,14 @@
                 <StackPanel Margin="6,8,6,6">
                     <Grid ColumnDefinitions="*,Auto" Margin="10,0,10,4">
                         <TextBlock Text="{Binding TasksHeader}" Classes="head" />
-                        <TextBlock Grid.Column="1" Text="{Binding SwitchHint}" Classes="key" />
+                        <TextBlock Grid.Column="1" Text="{Binding SwitchHint}" Classes="key" IsVisible="{Binding ShowsAllHints}" />
                     </Grid>
                     <ItemsControl x:Name="TaskList" ItemsSource="{Binding Tasks}" />
                     <Button Classes="row" Command="{Binding ParkCommand}">
                         <Grid ColumnDefinitions="Auto,*,28" ColumnSpacing="8">
                             <mi:MaterialIcon Kind="NotePlusOutline" Width="14" Height="14" Foreground="{DynamicResource Ab.Faint}" />
                             <TextBlock Grid.Column="1" Text="Park a thought…" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="2" Text="N" Classes="key" HorizontalAlignment="Right" />
+                            <TextBlock Grid.Column="2" Text="N" Classes="key" HorizontalAlignment="Right" IsVisible="{Binding ShowsAllHints}" />
                         </Grid>
                     </Button>
                 </StackPanel>
@@ -224,30 +224,39 @@
                         <Button Classes="foot" Command="{Binding Model.Noise.PreviousCommand}" AutomationProperties.Name="Previous sound"><mi:MaterialIcon Kind="SkipPrevious" Width="16" Height="16" /></Button>
                         <Button Classes="foot" Command="{Binding Model.Noise.PlayPauseCommand}" AutomationProperties.Name="Play or pause the noise"><mi:MaterialIcon Kind="PlayPause" Width="16" Height="16" /></Button>
                         <Button Classes="foot" Command="{Binding Model.Noise.NextCommand}" AutomationProperties.Name="Next sound"><mi:MaterialIcon Kind="SkipNext" Width="16" Height="16" /></Button>
-                        <TextBlock Text="M" Classes="key" Margin="4,0,0,0" />
+                        <TextBlock Text="M" Classes="key" Margin="4,0,0,0" IsVisible="{Binding ShowsAllHints}" />
                     </StackPanel>
                 </Grid>
                 <Border Height="1" Background="{DynamicResource Ab.Line}" />
-                <TextBlock IsVisible="{Binding IsCompact}" Text="D done   P pause   T +10   B side task   H hide" Classes="key" Margin="16,6,16,0" />
+                <TextBlock IsVisible="{Binding IsCompact}" Text="{Binding CompactHintText}" Classes="key" Margin="16,6,16,0" />
                 <!-- Footer -->
                 <Grid ColumnDefinitions="*,Auto" Margin="8,4,8,6">
                     <StackPanel Orientation="Horizontal" Spacing="2">
                         <Button Classes="foot" Command="{Binding SideTaskCommand}" IsVisible="{Binding ShowsSideTaskButton}">
-                            <StackPanel Orientation="Horizontal" Spacing="6"><mi:MaterialIcon Kind="CoffeeOutline" Width="14" Height="14" /><TextBlock Text="Side task" /><TextBlock Text="B" Classes="key" /></StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6"><mi:MaterialIcon Kind="CoffeeOutline" Width="14" Height="14" /><TextBlock Text="Side task" /><TextBlock Text="B" Classes="key" IsVisible="{Binding ShowsAllHints}" /></StackPanel>
                         </Button>
                         <Button Classes="foot" Command="{Binding HideCommand}">
-                            <StackPanel Orientation="Horizontal" Spacing="6"><mi:MaterialIcon Kind="EyeOffOutline" Width="14" Height="14" /><TextBlock Text="Hide" /><TextBlock Text="H" Classes="key" /></StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6"><mi:MaterialIcon Kind="EyeOffOutline" Width="14" Height="14" /><TextBlock Text="Hide" /><TextBlock Text="H" Classes="key" IsVisible="{Binding ShowsSafeHints}" /></StackPanel>
                         </Button>
                         <Button Classes="foot" Command="{Binding ShowQrCommand}" IsVisible="{Binding HasQr}" ToolTip.Tip="Show today's QR codes for your phone to scan">
                             <StackPanel Orientation="Horizontal" Spacing="6"><mi:MaterialIcon Kind="Qrcode" Width="14" Height="14" /><TextBlock Text="QR" /></StackPanel>
                         </Button>
                         <Button Classes="foot" Command="{Binding OpenAppCommand}">
-                            <StackPanel Orientation="Horizontal" Spacing="6"><mi:MaterialIcon Kind="OpenInNew" Width="14" Height="14" /><TextBlock Text="Open app" /><TextBlock Text="O" Classes="key" /></StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6"><mi:MaterialIcon Kind="OpenInNew" Width="14" Height="14" /><TextBlock Text="Open app" /><TextBlock Text="O" Classes="key" IsVisible="{Binding ShowsAllHints}" /></StackPanel>
                         </Button>
                     </StackPanel>
-                    <Button Grid.Column="1" Classes="foot" Command="{Binding OpenSettingsCommand}" ToolTip.Tip="Overlay settings" AutomationProperties.Name="Overlay settings">
-                        <mi:MaterialIcon Kind="CogOutline" Width="16" Height="16" />
-                    </Button>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+                        <Button Classes="foot" Command="{Binding TogglePeekKeysCommand}" ToolTip.Tip="{Binding PeekKeysTip}" AutomationProperties.Name="Peek keys"
+                                IsVisible="{Binding !IsSticky}">
+                            <Panel>
+                                <mi:MaterialIcon Kind="KeyboardOffOutline" Width="16" Height="16" Foreground="{DynamicResource Ab.Waiting}" IsVisible="{Binding PeekKeysLocked}" />
+                                <mi:MaterialIcon Kind="KeyboardOutline" Width="16" Height="16" IsVisible="{Binding !PeekKeysLocked}" />
+                            </Panel>
+                        </Button>
+                        <Button Classes="foot" Command="{Binding OpenSettingsCommand}" ToolTip.Tip="Overlay settings" AutomationProperties.Name="Overlay settings">
+                            <mi:MaterialIcon Kind="CogOutline" Width="16" Height="16" />
+                        </Button>
+                    </StackPanel>
                 </Grid>
             </StackPanel>
             <!-- Large: Come back to, Next up, Devices (timers stay in the main column, with their controls) -->
