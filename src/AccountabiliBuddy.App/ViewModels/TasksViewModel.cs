@@ -890,7 +890,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             otherRows.Add(MakeRow(
                 new TaskRowKey(TaskRowKind.Later, id), item.Title, LaterLine(item, today), item.Category, item.CategoryColor,
                 toggle: () => _tasks.CompleteLaterAsync(id), statusTag: tag,
-                sortTime: item.DueOn is DateOnly dueDate ? DueTime(dueDate) : item.EditedAt, dueOn: item.DueOn));
+                sortTime: item.EditedAt, dueOn: item.DueOn));
         }
 
         // Unfinished from past sessions, newest first: offered to Later or Today, never moved on their own.
@@ -1154,13 +1154,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             TaskDueFilter.NoDate => dueOn is null,
             _ => true,
         };
-    }
-
-    // A due date as a moment (the start of that local day), so it sorts with the times other rows carry.
-    private DateTimeOffset DueTime(DateOnly due)
-    {
-        DateTime local = due.ToDateTime(TimeOnly.MinValue);
-        return new DateTimeOffset(local, _time.LocalTimeZone.GetUtcOffset(local));
     }
 
     // The Sort section: Default keeps the order the list was built in; the others are stable, so ties keep it too.
