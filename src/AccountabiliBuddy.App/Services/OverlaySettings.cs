@@ -50,6 +50,7 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="ShowSeconds">The "18:42" style: seconds in the overlay's countdown (whole minutes otherwise).</param>
 /// <param name="AppRules">The per-app rules (null = the built-in list).</param>
 /// <param name="PanelSeen">The Ctrl+Alt panel was opened at least once (the migration assistant's "set up?" check).</param>
+/// <param name="PlacementChosen">The user picked a placement on the overlay page (the migration assistant's "set up?" check); saving anything else does not set it.</param>
 /// <param name="SideTileY">Where the vertical tile was dragged to along the screen edge (physical pixels from the top); null = the middle.</param>
 public sealed record OverlaySettings(
     OverlayStyle Style,
@@ -93,7 +94,8 @@ public sealed record OverlaySettings(
     bool ShowSeconds = false,
     IReadOnlyList<OverlayAppRule>? AppRules = null,
     int? SideTileY = null,
-    bool PanelSeen = false)
+    bool PanelSeen = false,
+    bool PlacementChosen = false)
 {
     /// <summary>Default vertical distance for maximized apps from a top corner (clears tabs, toolbars, window buttons).</summary>
     public const int TopCornerDrop = 110;

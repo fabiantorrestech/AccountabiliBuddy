@@ -167,7 +167,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
         }
     }
 
-    partial void OnPlacementIndexChanged(int value) => Save(s => s with { Placement = (OverlayPlacement)value });
+    partial void OnPlacementIndexChanged(int value) => Save(s => s with { Placement = (OverlayPlacement)value, PlacementChosen = true });
 
     partial void OnAutoHideIndexChanged(int value) => Save(s => s with { AutoHide = (AutoHideMode)value });
 
