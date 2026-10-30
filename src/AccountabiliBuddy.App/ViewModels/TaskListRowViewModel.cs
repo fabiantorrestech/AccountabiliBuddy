@@ -77,9 +77,6 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
 
     public bool HasStatusTag => StatusTag.Length > 0;
 
-    /// <summary>The title reads in Muted (a task that is done).</summary>
-    public bool IsFaded { get; init; }
-
     /// <summary>The check box is ticked: a task that is done.</summary>
     public bool IsTicked { get; }
 

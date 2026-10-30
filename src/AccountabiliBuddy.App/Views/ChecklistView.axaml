@@ -146,7 +146,7 @@
                                                         <TextBlock Text="{Binding NumberText}" IsVisible="{Binding HasNumber}" Opacity="0.7" VerticalAlignment="Center"
                                                                    Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
                                                     </StackPanel>
-                                                    <TextBlock Grid.Column="1" Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Center"
+                                                    <TextBlock Grid.Column="1" Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Center" Classes.done="{Binding IsDone}"
                                                                Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
                                                 </Grid>
                                             </Button>
@@ -322,7 +322,7 @@
                             <Ellipse Grid.Column="1" Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center" Fill="{Binding CategoryBrush}"
                                      IsVisible="{Binding HasCategory}" ToolTip.Tip="{Binding CategoryName}" />
                             <StackPanel Grid.Column="2">
-                                <TextBlock Text="{Binding Title}" TextWrapping="Wrap" TextDecorations="Strikethrough" Opacity="0.7"
+                                <TextBlock Classes="done" Text="{Binding Title}" TextWrapping="Wrap"
                                            Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
                                 <TextBlock Text="{Binding DoneText}" FontSize="11" Opacity="0.55" />
                             </StackPanel>

@@ -87,6 +87,13 @@
             <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
             <Setter Property="TextDecorations" Value="Strikethrough" />
         </Style>
+        <!-- A task row's title: Ink; struck through and Muted once the task is ticked. -->
+        <Style Selector="TextBlock.rowTitle">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="TextBlock.rowTitle.stepDone">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
     </UserControl.Styles>
     <UserControl.Resources>
         <!-- A category menu's entries (the add row's dot). -->
@@ -136,8 +143,8 @@
                                                 <TextBlock Text="⠿" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                             </Border>
                                             <TextBlock Grid.Column="1" Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="2" Text="{Binding Title}" FontSize="16" FontWeight="Normal" TextWrapping="Wrap" VerticalAlignment="Center"
-                                                       Foreground="{DynamicResource Ab.Ink}" />
+                                            <TextBlock Grid.Column="2" Classes="rowTitle" Classes.stepDone="{Binding IsDone}" Text="{Binding Title}" FontSize="16" FontWeight="Normal"
+                                                       TextWrapping="Wrap" VerticalAlignment="Center" />
                                             <TextBlock Grid.Column="3" Classes="muted" Text="{Binding StepsText}" FontSize="13" VerticalAlignment="Center" Margin="12,0,0,0" />
                                             <!-- Live mode only (planning, running): ticking the first task during planning begins the focus, like "I'm ready". -->
                                             <CheckBox Grid.Column="4" IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="12,0,0,0" VerticalAlignment="Center"

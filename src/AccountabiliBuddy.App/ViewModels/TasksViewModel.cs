@@ -912,7 +912,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             otherRows.Add(MakeRow(
                 new TaskRowKey(TaskRowKind.Done, id), task.Title, $"Finished {Clock(Local(task.DoneAt!.Value))}", task.Category ?? category?.Name,
                 task.CategoryColor ?? category?.Color, categoryId: task.CategoryId, isTicked: true, toggle: () => _tasks.SetTickedAsync(id, false),
-                statusTag: "Done", isFaded: true));
+                statusTag: "Done"));
         }
 
         Replace(OtherRows, otherRows);
@@ -941,7 +941,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     private TaskListRowViewModel MakeRow(
         TaskRowKey key, string title, string subText, string? categoryName, string? categoryColor, int number = 0, bool isNow = false,
-        bool isTicked = false, Guid? categoryId = null, Func<Task>? toggle = null, string statusTag = "", bool isFaded = false,
+        bool isTicked = false, Guid? categoryId = null, Func<Task>? toggle = null, string statusTag = "",
         Func<IReadOnlyList<TaskMenuEntry>>? menu = null, bool selectable = true)
     {
         Action<TaskListRowViewModel> select = selectable ? SelectRow : _ => { };
@@ -952,7 +952,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             CategoryColor = categoryColor,
             CategoryBrush = TaskCategoryBrushes.Of(categoryColor),
             StatusTag = statusTag,
-            IsFaded = isFaded,
         };
     }
 
