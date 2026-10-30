@@ -550,10 +550,13 @@ public partial class OverlayPreview : UserControl
         Scene.Children.Add(Placed(icon, x, y));
     }
 
-    /// <summary>Paints a property from a theme token and keeps it following the theme.</summary>
-    private void Themed(AvaloniaObject target, AvaloniaProperty property, string key)
+    /// <summary>
+    /// Paints a property from a theme token and keeps it following the theme. The element looks the token up for itself (not through this
+    /// long-lived control), so a scene that was cleared away is not kept alive by its own colour bindings.
+    /// </summary>
+    private static void Themed(Control target, AvaloniaProperty property, string key)
     {
-        target.Bind(property, this.GetResourceObservable(key));
+        target.Bind(property, target.GetResourceObservable(key));
     }
 
     private static string CaptionFor(OverlayPreviewViewModel model)
