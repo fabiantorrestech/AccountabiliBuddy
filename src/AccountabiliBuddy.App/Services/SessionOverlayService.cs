@@ -2,96 +2,170 @@ using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.App.Views;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Ports;
-using AccountabiliBuddy.Core.Storage;
-using Avalonia.Media;
+using Avalonia.Threading;
 
 namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
-/// Runs the small on-screen window. The session timer shows while a session runs (focus and breaks) for a profile
-/// that has it on (its own choice or the default); it can be hidden for the rest of the current session (Session
-/// tab), which resets when the session ends. In the evening (sleep mode) a sleep line shows on its own or on top.
-/// The all-day timeline shows on days with focus blocks; while the timer
-/// shows it steps aside or stays above it (<see cref="OverlaySettings.TimelineInFocus"/>). With
-/// <see cref="OverlaySettings.HideInFullscreen"/> the window also steps aside while a fullscreen app is in front
-/// (checked every tick), and the Ctrl+Alt "Hide" button hides it for a few seconds. When time is up it glows (sounds:
-/// <see cref="SessionCueService"/>). This PC's timers and alarms add a line each under the rest and keep the window
-/// showing. Display only: nothing here changes what is blocked. Use from the UI thread only.
+/// Runs the session overlay (ADR 51): a tile docked over the taskbar (or floating, or standing beside a side taskbar), the Ctrl+Alt panel that
+/// rises from it, the corner clock over a full-screen app, and the slim line over an auto-hidden taskbar. It decides which of them shows from
+/// the session, the plan, the settings, the app in front and where the taskbar is (<see cref="ITaskbarGeometry"/>), and redraws on events:
+/// a session tick, a setting, a taskbar or display change, a new window in front. Display only: nothing here changes what is blocked; the
+/// buttons use the Today page's own commands. The timer shows while a session runs for a profile that has it on (its own choice or the default;
+/// it can be hidden for the rest of the session), between sessions on days with focus blocks, in the evening (sleep mode), and while this PC's
+/// timers and alarms run. Use from the UI thread only.
 /// </summary>
 public sealed class SessionOverlayService : IDisposable
 {
+    // The panel opens when Ctrl+Alt has been held this long (a tap of the two keys for something else doesn't flash it).
+    private static readonly TimeSpan PeekDelay = TimeSpan.FromMilliseconds(300);
+    private static readonly TimeSpan DoneHold = TimeSpan.FromSeconds(4);
+    private static readonly TimeSpan GlowFor = TimeSpan.FromMilliseconds(1400);
+    private static readonly TimeSpan NudgeDotFor = TimeSpan.FromMinutes(10);
+
     private readonly SessionController _sessions;
     private readonly ConfigurationService _configuration;
     private readonly OverlaySettingsService _settings;
     private readonly IOverlayWindowControl _control;
-    private readonly SessionOverlayViewModel _timer = new();
+    private readonly ITaskbarGeometry _geometry;
+    private readonly ICtrlAltWatcher _ctrlAlt;
+    private readonly IPanelKeys _panelKeys;
+    private readonly IGlobalHotkey _stickyHotkey;
     private readonly DayBarViewModel _day;
-    private readonly OnScreenOverlayViewModel _viewModel;
+    private readonly TaskbarOverlayViewModel _model;
+    private readonly DispatcherTimer _peekTimer = new() { Interval = PeekDelay };
+    private readonly DispatcherTimer _wakeTimer = new();
+    private readonly DispatcherTimer _clockTimer = new();
 
-    /// <summary>The white glow, e.g. for this PC's alarm (ADR 35).</summary>
-    public void Glow() => _viewModel.Glow();
+    // While a peek is open, a missed key-up (Ctrl+Alt+Del, a lock screen, an elevated window) would leave it open: once a second the real key
+    // state is looked at, only for as long as the peek lasts.
+    private readonly DispatcherTimer _peekGuard = new() { Interval = TimeSpan.FromSeconds(1) };
 
-    private SessionOverlayWindow? _window;
+    private TaskbarOverlayWindow? _tile;
+    private OverlayPanelWindow? _panel;
+    private OverlayPanelViewModel? _panelModel;
+    private CornerClockWindow? _corner;
+    private SlimLineWindow? _slim;
     private StepAwayService? _stepAway;
     private PlanFirstService? _planFirst;
     private DateTimeOffset _hiddenUntil = DateTimeOffset.MinValue;
-
-    // After a session ran out, the window stays a few seconds (glowing) even if nothing else would show.
-    private static readonly TimeSpan DoneHold = TimeSpan.FromSeconds(4);
     private DateTimeOffset _doneUntil = DateTimeOffset.MinValue;
-    private string? _doneText;
     private DateTimeOffset _lastShownAt = DateTimeOffset.MinValue;
-
-    // A fullscreen app must stay in front this long before the window steps aside.
-    private static readonly TimeSpan FullscreenDelay = TimeSpan.FromSeconds(1.5);
-    private DateTimeOffset? _fullscreenSince;
-    private (int? X, int? Y) _placedAt;
     private (bool On, bool Hidden) _lastStatus;
+    private bool _started;
+
+    // The keyboard hook is installed only while hold-to-peek is on and the tile is on screen.
+    private bool _hookOn;
+    private bool _disposed;
 
     public SessionOverlayService(
         SessionController sessions,
         ConfigurationService configuration,
         OverlaySettingsService settings,
         IOverlayWindowControl control,
+        ITaskbarGeometry geometry,
+        IBatteryReader battery,
+        IBatteryVisibility visibility,
+        ICtrlAltWatcher ctrlAlt,
+        IPanelKeys panelKeys,
+        IGlobalHotkey stickyHotkey,
         DayBarViewModel timelineDay,
         SessionCueService cues)
     {
-        cues.Cued += (_, cue) => OnCue(cue.Cue, cue.SessionEnded);
-        _day = timelineDay;
         _sessions = sessions;
         _configuration = configuration;
         _settings = settings;
         _control = control;
-        _viewModel = new OnScreenOverlayViewModel(
-            _timer, timelineDay, HideBriefly, () => _ = _settings.SavePositionAsync(null, null), () => OpenAppRequested?.Invoke(this, EventArgs.Empty));
-        _viewModel.SetUseDefaultForApp(app => _ = _settings.ForgetAppOffsetAsync(app));
-        _timer.HalfHourMarked += (_, _) => _viewModel.Glow();
+        _geometry = geometry;
+        _ctrlAlt = ctrlAlt;
+        _panelKeys = panelKeys;
+        _stickyHotkey = stickyHotkey;
+        _day = timelineDay;
+        Actions.PendingChangeAt = () => _configuration.Pending is { } pending && pending.ReadyAt > _sessions.Now ? pending.ReadyAt : null;
+        _model = new TaskbarOverlayViewModel(sessions, configuration, settings, timelineDay, battery, visibility, Actions)
+        {
+            HideRequested = HideBriefly,
+        };
+        cues.Cued += (_, cue) => OnCue(cue.Cue, cue.SessionEnded);
+        battery.Changed += (_, _) => Dispatcher.UIThread.Post(Update);
+        _peekTimer.Tick += (_, _) =>
+        {
+            _peekTimer.Stop();
+            if (!_control.AreDragKeysHeld())
+            {
+                // The hook thinks Ctrl+Alt is down but the keyboard says no: a key-up was missed.
+                _ctrlAlt.Resync();
+                return;
+            }
+
+            if (_ctrlAlt.IsHeld && _settings.Current.HoldToPeek)
+            {
+                OpenPanel(sticky: false);
+            }
+        };
+        _wakeTimer.Tick += (_, _) =>
+        {
+            _wakeTimer.Stop();
+            Update();
+        };
+        _clockTimer.Tick += (_, _) => Update();
+        _peekGuard.Tick += (_, _) =>
+        {
+            if (_panel is not { IsSticky: false } || !_control.AreDragKeysHeld())
+            {
+                _peekGuard.Stop();
+                if (_panel is { IsSticky: false })
+                {
+                    ClosePanel();
+                    _ctrlAlt.Resync();
+                }
+            }
+        };
+    }
+
+    /// <summary>What the overlay and its panel ask the app to do and ask it about; set by the app before <see cref="Start"/>.</summary>
+    public OverlayActions Actions { get; } = new();
+
+    /// <summary>The tile's box and whether it hugs the right edge, for cards that rise from it; null while no tile is on screen.</summary>
+    public (PixelBox Box, bool AlignRight)? TileAnchor => _tile is { IsVisible: true } tile
+        ? (new PixelBox(tile.Box.X, tile.Box.Y, tile.Box.Right, tile.Box.Bottom), tile.Target.AlignRight)
+        : null;
+
+    /// <summary>Why Ctrl+Alt+Space could not be registered (another copy of the app or another program holds it); null when it works.</summary>
+    public string? StickyHotkeyError { get; private set; }
+
+    /// <summary>Raised when the timer is shown, hidden or turned on or off for the session.</summary>
+    public event EventHandler? Changed;
+
+    /// <summary>The panel's "Open app", or its gear: the app shows the main window.</summary>
+    public event EventHandler? OpenAppRequested
+    {
+        add => Actions.OpenApp += () => value?.Invoke(this, EventArgs.Empty);
+        remove { }
     }
 
     /// <summary>True when the timer was hidden for the session that is running now.</summary>
     public bool IsHiddenForSession { get; private set; }
 
     /// <summary>
-    /// True while a session runs whose profile has the timer on (shown or hidden for now), or a count-up session of
-    /// the Quick Start profile.
+    /// True while a session runs whose profile has the timer on (shown or hidden for now), or a count-up session of the Quick Start profile.
     /// </summary>
     public bool IsOnForSession => _sessions.State.IsActive
                                   && (_settings.Current.For(_sessions.State.ProfileId).Enabled || IsCountUp(_sessions.State));
 
-    // A session started with "No set end" has no set end: it always shows the timer, since the bar counting up is the point.
     private static bool IsCountUp(SessionState state)
     {
         return state.Mode == SessionMode.Manual && !state.HasSetEnd;
     }
 
-    /// <summary>Raised when the timer is shown, hidden or turned on or off for the session.</summary>
-    public event EventHandler? Changed;
-
-    /// <summary>Ctrl+Alt + double-click on the window, or its Open button: the app shows the main window.</summary>
-    public event EventHandler? OpenAppRequested;
-
     public void Start()
     {
+        if (_started)
+        {
+            return;
+        }
+
+        _started = true;
         _sessions.StateChanged += (_, state) =>
         {
             if (!state.IsActive)
@@ -99,89 +173,87 @@ public sealed class SessionOverlayService : IDisposable
                 IsHiddenForSession = false;
             }
 
+            // A fresh hook at each session start or end: Windows drops one that was too slow once, silently.
+            if (_hookOn)
+            {
+                _ctrlAlt.SetListening(true);
+            }
+
             Update();
         };
-        _sessions.Ticked += (_, _) =>
-        {
-            Update();
-            _viewModel.RefreshTasks(_sessions.State.IsActive);
-        };
+        _sessions.Ticked += (_, _) => Update();
         _settings.Changed += (_, _) => Update();
         _configuration.Changed += (_, _) => Update();
         _day.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName is nameof(DayBarViewModel.HasPlannedFocus) or nameof(DayBarViewModel.ShowsSleep))
+            if (e.PropertyName is nameof(DayBarViewModel.HasPlannedFocus) or nameof(DayBarViewModel.ShowsSleep) or nameof(DayBarViewModel.StatusText))
             {
                 Update();
             }
         };
+        _geometry.Changed += (_, _) => Dispatcher.UIThread.Post(Update);
+        _ctrlAlt.HeldChanged += (_, held) => Dispatcher.UIThread.Post(() => OnCtrlAlt(held));
+        _panelKeys.Pressed += (_, chord) => Dispatcher.UIThread.Post(() => _panelModel?.HandleKey(chord.Key == "Plus" ? "+" : chord.Key == "Minus" ? "-" : chord.Key));
+        _stickyHotkey.Pressed += (_, _) => Dispatcher.UIThread.Post(() => OpenPanel(sticky: true));
+        _stickyHotkey.TryRegister(new HotkeyChord(HotkeyModifiers.Ctrl | HotkeyModifiers.Alt, "Space"), out string? error);
+        StickyHotkeyError = error;
         _day.Start();
         Update();
     }
 
-    /// <summary>The window in front changed (switching apps): place or hide the window now, not at the next tick.</summary>
+    /// <summary>The window in front changed: place or hide the overlay now, not at the next tick.</summary>
     public void OnActivityChanged()
     {
-        if (_window is not null)
-        {
-            Update();
-        }
+        Update();
     }
 
-    /// <summary>Shows the noise player's play/pause and volume while Ctrl+Alt is held.</summary>
     public void SetNoisePlayer(NoisePlayerViewModel noise)
     {
-        _viewModel.Noise = noise;
+        _model.Noise = noise;
+        noise.PropertyChanged += (_, _) => RefreshPanel();
     }
 
-    /// <summary>Shows tonight's wake time, changeable for the night, while Ctrl+Alt is held.</summary>
     public void SetTonightWake(TonightWakeViewModel wake)
     {
-        _viewModel.Wake = wake;
+        _model.Wake = wake;
     }
 
-    /// <summary>A "QR" button in the Ctrl+Alt details opens today's sync QR codes (ADR 22); null hides it.</summary>
-    /// <summary>Guided sessions: the running session's checklist for the bar and the Ctrl+Alt details.</summary>
+    /// <summary>Guided sessions: the running session's checklist, for the task line, Done and the panel.</summary>
     public void SetChecklist(ChecklistViewModel checklist)
     {
-        _viewModel.Checklist = checklist;
-        checklist.PropertyChanged += (_, _) => _viewModel.RefreshTasks(_sessions.State.IsActive);
-        _sessions.StateChanged += (_, state) => _viewModel.RefreshTasks(state.IsActive);
-        _viewModel.RefreshTasks(_sessions.State.IsActive);
+        _model.Checklist = checklist;
+        checklist.PropertyChanged += (_, _) => Update();
     }
 
-    /// <summary>Plan first: "Planning · 4:12 left" on the bar and "I'm ready" with Ctrl+Alt.</summary>
     public void SetPlanFirst(PlanFirstService planFirst)
     {
         _planFirst = planFirst;
+        _model.PlanFirst = planFirst;
         planFirst.Changed += (_, _) => Update();
     }
 
-    /// <summary>Step away: the Ctrl+Alt button and the "Away · 4:12" badge.</summary>
     public void SetStepAway(StepAwayService stepAway)
     {
         _stepAway = stepAway;
-        _viewModel.SetStepAway(stepAway.Toggle);
-        _viewModel.SetSideTask(stepAway.AskSideTaskLength);
+        _model.StepAway = stepAway;
         stepAway.Changed += (_, _) => Update();
     }
 
-    /// <summary>This PC's timers and alarms: a line each on the window, with Pause, +1 min and ✕ while Ctrl+Alt is held.</summary>
+    /// <summary>This PC's timers and alarms: the tile says them when nothing else runs, and the large panel lists them.</summary>
     public void SetTimers(Timers.TimersService timers)
     {
-        _viewModel.Timers = new OverlayTimersViewModel(timers);
+        _model.Timers = new OverlayTimersViewModel(timers);
         timers.Changed += (_, _) => Update();
     }
 
-    /// <summary>Today's deep work against the goal for the Ctrl+Alt details (redesign phase 4).</summary>
     public void SetGoalText(string text)
     {
-        _viewModel.GoalText = text;
+        _model.GoalText = text;
     }
 
     public void SetSyncQr(Action? show)
     {
-        _viewModel.SetSyncQr(show);
+        Actions.ShowSyncQr = show;
     }
 
     public void SetHiddenForSession(bool hidden)
@@ -190,57 +262,194 @@ public sealed class SessionOverlayService : IDisposable
         Update();
     }
 
-    /// <summary>
-    /// The tray's "Show on-screen window again": a new window at its kept spot (or the corner when that spot is off
-    /// every screen), and a quick hide is cut short. Hidden for the session (Session tab) stays hidden.
-    /// </summary>
+    /// <summary>The white glow, e.g. for this PC's alarm (ADR 35): the border lights for a moment.</summary>
+    public void Glow()
+    {
+        _model.GlowUntil = _sessions.Now + GlowFor;
+        Update();
+        ScheduleWake(_model.GlowUntil);
+    }
+
+    /// <summary>The drift ladder's step 1 is on (or over): the tile shows the drift state; the nudge card's dot stays until the user looks.</summary>
+    public void SetDrift(string? label, DateTimeOffset since)
+    {
+        _model.SetDrift(label, since);
+        Update();
+    }
+
+    /// <summary>A nudge card went unread (it timed out after 20 s): the tile keeps a dot until it is clicked or the panel opens (18d).</summary>
+    public void ShowNudgeDot()
+    {
+        _model.HasNudgeDot = true;
+        Update();
+        ScheduleWake(_sessions.Now + NudgeDotFor);
+    }
+
+    /// <summary>The tray's "Show on-screen window again": a quick hide is cut short and the windows are made anew.</summary>
     public void ShowAgain()
     {
         _hiddenUntil = DateTimeOffset.MinValue;
-        _window?.Close();
-        _window = null;
+        CloseWindows();
         Update();
     }
 
-    /// <summary>The Ctrl+Alt "Hide" button: out of the way for a few seconds, then back on its own.</summary>
+    /// <summary>The panel's "Hide": out of the way for a few seconds, then back on its own.</summary>
     public void HideBriefly()
     {
         _hiddenUntil = _sessions.Now + TimeSpan.FromSeconds(_settings.Current.QuickHideSeconds);
+        ClosePanel();
         Update();
+        ScheduleWake(_hiddenUntil);
     }
 
-    /// <summary>
-    /// Time is up: the window glows. When the session ended with it and the window was showing a moment ago, it
-    /// stays a few seconds so the glow is seen. A window hidden for now (quick hide, fullscreen) stays hidden.
-    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _peekTimer.Stop();
+        _wakeTimer.Stop();
+        _clockTimer.Stop();
+        _hookOn = false;
+        _ctrlAlt.SetListening(false);
+        _stickyHotkey.Unregister();
+        _panelKeys.Unregister();
+        CloseWindows();
+        _day.Dispose();
+    }
+
     private void OnCue(SessionCue cue, bool sessionEnded)
     {
         DateTimeOffset now = _sessions.Now;
         if (sessionEnded && now - _lastShownAt <= TimeSpan.FromSeconds(2))
         {
             _doneUntil = now + DoneHold;
-            _doneText = cue == SessionCue.BreakEnded ? "Break over · session done" : "Session done";
+            _model.DoneNotice = cue == SessionCue.BreakEnded ? "Break over · session done" : "Session done";
+            ScheduleWake(_doneUntil);
         }
 
+        _model.GlowUntil = now + GlowFor;
         Update();
-        if (_window is not null)
+        ScheduleWake(_model.GlowUntil);
+    }
+
+    // One timer wakes the overlay at the next moment something it shows runs out (a quick hide, a glow, the done notice, the nudge dot).
+    private void ScheduleWake(DateTimeOffset at)
+    {
+        TimeSpan wait = at - _sessions.Now + TimeSpan.FromMilliseconds(50);
+        if (wait <= TimeSpan.Zero)
         {
-            _viewModel.Glow();
+            return;
+        }
+
+        if (!_wakeTimer.IsEnabled || wait < _wakeTimer.Interval)
+        {
+            _wakeTimer.Stop();
+            _wakeTimer.Interval = wait;
+            _wakeTimer.Start();
         }
     }
 
-    public void Dispose()
+    private void OnCtrlAlt(bool held)
     {
-        _day.Dispose();
-        _window?.Close();
-        _window = null;
+        if (held)
+        {
+            _peekTimer.Stop();
+            _peekTimer.Start();
+            return;
+        }
+
+        _peekTimer.Stop();
+        if (_panel is { IsSticky: false })
+        {
+            ClosePanel();
+        }
+    }
+
+    private void OpenPanel(bool sticky)
+    {
+        if (_tile is not { IsVisible: true } tile || (sticky && !_settings.Current.PanelSticky))
+        {
+            return;
+        }
+
+        if (_panel is { IsSticky: true } && sticky)
+        {
+            ClosePanel();
+            return;
+        }
+
+        _ = _settings.MarkPanelSeenAsync();
+        _model.HasNudgeDot = false;
+        _model.Wake?.Refresh();
+        _model.Refresh();
+        _panelModel ??= new OverlayPanelViewModel(_model, _settings, _sessions);
+        _panelModel.Size = _settings.Current.PanelSize;
+        if (_panel is null)
+        {
+            _panel = new OverlayPanelWindow(_control, _panelModel);
+            _panel.Closed += (_, _) =>
+            {
+                _panelKeys.Unregister();
+                _panel = null;
+            };
+            RegisterPanelKeys();
+        }
+
+        _panel.Present(tile.Box, tile.Target, sticky);
+        if (sticky)
+        {
+            _peekGuard.Stop();
+        }
+        else
+        {
+            _peekGuard.Start();
+        }
+    }
+
+    private void ClosePanel()
+    {
+        _peekGuard.Stop();
+        _panel?.Close();
+        _panel = null;
+    }
+
+    private void RefreshPanel()
+    {
+        _panelModel?.Refresh();
+    }
+
+    // While the panel is open, Ctrl+Alt+its letters work whichever app is in front. Shortcuts another app already holds are skipped.
+    private void RegisterPanelKeys()
+    {
+        string[] keys = ["D", "P", "T", "B", "H", "O", "M", "F", "L", "1", "2", "3", "Up", "Down", "Plus", "Minus"];
+        const HotkeyModifiers modifiers = HotkeyModifiers.Ctrl | HotkeyModifiers.Alt;
+        _panelKeys.Register(keys.Select(key => new HotkeyChord(modifiers, key)).ToList());
+    }
+
+    private void CloseWindows()
+    {
+        ClosePanel();
+        _tile?.Close();
+        _tile = null;
+        _corner?.Close();
+        _corner = null;
+        _slim?.Close();
+        _slim = null;
     }
 
     private void Update()
     {
-        Show();
+        if (_disposed)
+        {
+            return;
+        }
 
-        // Tell the Session tab only when something it shows changed, not on every tick.
+        Show();
+        SyncHook();
         (bool, bool) status = (IsOnForSession, IsHiddenForSession);
         if (status != _lastStatus)
         {
@@ -249,131 +458,152 @@ public sealed class SessionOverlayService : IDisposable
         }
     }
 
+    private void SyncHook()
+    {
+        bool want = _settings.Current.HoldToPeek && _tile is { IsVisible: true };
+        if (want != _hookOn)
+        {
+            _hookOn = want;
+            _ctrlAlt.SetListening(want);
+        }
+    }
+
     private void Show()
     {
-        SessionState state = _sessions.State;
         OverlaySettings settings = _settings.Current;
+        SessionState state = _sessions.State;
+        DateTimeOffset now = _sessions.Now;
+        ForegroundScreenState foreground = _geometry.Foreground;
+        OverlayAppRule? rule = OverlayAppRules.Find(settings.Rules, foreground.ProcessName);
 
         bool showsTimer = IsOnForSession && !IsHiddenForSession;
-        bool showsTimeline = settings.ShowTimeline && _day.HasPlannedFocus
-                             && !(showsTimer && settings.TimelineInFocus == TimelineInFocus.SwapForTimer);
-        bool fullscreenInFront = settings.HideInFullscreen && FullscreenLastedAWhile();
-        bool hiddenBriefly = _sessions.Now < _hiddenUntil;
-        string? doneText = _sessions.Now < _doneUntil ? _doneText : null;
-        bool showsSleep = _day.ShowsSleep;
-        bool showsTimers = _viewModel.RefreshTimers();
-        if ((!showsTimer && !showsTimeline && !showsSleep && !showsTimers && doneText is null) || fullscreenInFront || hiddenBriefly)
+        bool showsTimeline = settings.ShowTimeline && _day.HasPlannedFocus && !state.IsActive;
+        _model.Timers?.Refresh(false, settings.FillUp);
+        bool showsTimers = _model.Timers?.HasLines ?? false;
+        bool doneNotice = now < _doneUntil;
+        if (!doneNotice)
         {
-            _window?.Close();
-            _window = null;
+            _model.DoneNotice = null;
+        }
+
+        bool hasSomething = showsTimer || showsTimeline || _day.ShowsSleep || showsTimers || doneNotice;
+        bool hiddenBriefly = now < _hiddenUntil;
+        bool inCall = rule is { HideDuringCalls: true } && (foreground.IsFullScreen || (rule.CallClasses is { } classes && classes.Contains(foreground.ClassName ?? string.Empty)));
+        if (!hasSomething || hiddenBriefly || inCall)
+        {
+            CloseWindows();
+            _clockTimer.Stop();
             return;
         }
 
-        if (showsTimer)
+        _lastShownAt = now;
+        _model.Refresh();
+        RefreshPanel();
+
+        // A full-screen app in front: the corner clock takes over (or nothing, when it is off and the old "hide in full screen" is on).
+        if (foreground.IsFullScreen && (settings.CornerClock || settings.HideInFullscreen))
         {
-            Guid profileId = state.ProfileId!.Value;
-            string name = state.IsTest
-                ? "Test session"
-                : _configuration.Current.Profiles.FirstOrDefault(profile => profile.Id == profileId)?.Name ?? "Focus";
-            _timer.Update(state, _sessions.Now, _sessions.TimeProvider.LocalTimeZone, name, ColorOf(profileId, settings), settings);
+            _tile?.Close();
+            _tile = null;
+            ClosePanel();
+            _slim?.Close();
+            _slim = null;
+            ShowCornerClock(settings, foreground, rule);
+            StopClockTimer();
+            return;
         }
 
-        if (_stepAway is not null)
+        _corner?.Close();
+        _corner = null;
+
+        OverlayTarget target = OverlayPlacementCalculator.Resolve(settings, _geometry.Taskbars);
+        switch (target.Kind)
         {
-            _viewModel.SetAway(state.IsAway ? _stepAway.AwayText : null, state.IsActive, _stepAway.IsSideTask);
+            case OverlayTargetKind.Hidden:
+                _tile?.Close();
+                _tile = null;
+                ClosePanel();
+                _slim?.Close();
+                _slim = null;
+                break;
+            case OverlayTargetKind.SlimLine:
+                _tile?.Close();
+                _tile = null;
+                ClosePanel();
+                _slim ??= new SlimLineWindow(_control, _model);
+                _slim.Apply(target.Band);
+                _slim.UpdateLine();
+                if (!_slim.IsVisible)
+                {
+                    _slim.Show();
+                }
+
+                break;
+            default:
+                _slim?.Close();
+                _slim = null;
+                ShowTile(target, settings, rule);
+                break;
         }
 
-        if (_planFirst is not null)
-        {
-            // The planning stage shows as the timer's own bar (Planning, in its colour); a first session's learning keeps its line.
-            _viewModel.SetPlanning(
-                _planFirst.IsLearning ? "Learning · first session" : null,
-                _planFirst.InStage ? _planFirst.Ready : null);
-        }
-
-        DateTime localNow = TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime;
-        _viewModel.Update(showsTimer, showsTimeline, showsSleep, doneText, localNow, settings, state.IsActive);
-        _lastShownAt = _sessions.Now;
-
-        if (_window is { IsLost: true })
-        {
-            // Minimized or off every screen from outside: a new one in its place.
-            _window.Close();
-            _window = null;
-        }
-
-        if (_window is null)
-        {
-            Open(settings);
-        }
-        else if (_placedAt != (settings.X, settings.Y))
-        {
-            // Moved from Settings (Reset position).
-            _placedAt = (settings.X, settings.Y);
-            _window.PlaceAt(settings.X, settings.Y);
-        }
-
-        _window!.SetCorner(settings.Corner);
-        _window.KeepOnTop();
-        // Its hint goes back above it (a Windows tooltip would land behind it).
-        _window.KeepHintOnTop();
-
-        // Keeps a maximized app's top-right buttons (close, tabs, extensions) clickable, by that app's own distance.
-        MaximizedApp? maximized = settings.MoveForMaximizedApps ? _control.MaximizedAppInFront() : null;
-        int drop = maximized is null ? 0 : settings.DropFor(maximized.ProcessName);
-        int shift = maximized is null ? 0 : settings.ShiftFor(maximized.ProcessName);
-        _window!.AvoidMaximizedApp(maximized?.Screen, drop, shift, maximized?.ProcessName);
-        _viewModel.SetPlacement(_window.IsInDefaultCorner, _window.AvoidedApp, drop, shift, settings.Corner,
-            _window.IsTemporary, _window.TemporaryForApp, maximized is not null && settings.HasOwnOffset(maximized.ProcessName));
+        UpdateClockTimer(state.IsActive);
     }
 
-    /// <summary>
-    /// True once a fullscreen app has been in front for a moment, so something that covers the screen only briefly
-    /// (switching apps) never makes the window blink; it shows again as soon as the fullscreen app is gone.
-    /// </summary>
-    private bool FullscreenLastedAWhile()
+    private void ShowTile(OverlayTarget target, OverlaySettings settings, OverlayAppRule? rule)
     {
-        if (!_control.IsFullscreenAppInFront())
+        if (_tile is null)
         {
-            _fullscreenSince = null;
-            return false;
+            _tile = new TaskbarOverlayWindow(_control, _model);
+            _tile.Clicked += (_, _) => OpenPanel(sticky: true);
+            _tile.SideTileMoved += (_, top) => _ = _settings.SaveLookAsync(current => current with { SideTileY = top });
+            _tile.Closed += (_, _) => _tile = null;
         }
 
-        _fullscreenSince ??= _sessions.Now;
-        return _sessions.Now - _fullscreenSince.Value >= FullscreenDelay;
+        _tile.Apply(target, settings, rule);
+        if (!_tile.IsVisible)
+        {
+            _tile.Show();
+        }
+
+        _tile.KeepOnTop();
+        _panel?.Present(_tile.Box, _tile.Target, _panel.IsSticky);
     }
 
-    private void Open(OverlaySettings settings)
+    private void ShowCornerClock(OverlaySettings settings, ForegroundScreenState foreground, OverlayAppRule? rule)
     {
-        var window = new SessionOverlayWindow(_control) { DataContext = _viewModel };
-        window.PositionChosen += (_, position) =>
+        TaskbarInfo? taskbar = _geometry.Taskbars.FirstOrDefault(info => info.MonitorId == foreground.MonitorId) ?? _geometry.Taskbars.FirstOrDefault();
+        if (taskbar is null || !settings.CornerClock)
         {
-            // Null: dropped near the default corner, which then counts as no saved position.
-            _placedAt = (position?.X, position?.Y);
-            _ = _settings.SavePositionAsync(position?.X, position?.Y);
-        };
+            return;
+        }
 
-        window.TemporaryChanged += (_, _) => Update();
-        // Closed from outside (Alt+F4 while Ctrl+Alt is held, another tool): opened again at the next tick.
-        window.Closed += (_, _) =>
+        _corner ??= new CornerClockWindow(_control, _model);
+        _corner.Apply(taskbar.Monitor, settings, foreground.IsGame || rule is { TimeOnly: true });
+        if (!_corner.IsVisible)
         {
-            if (_window == window)
-            {
-                _window = null;
-            }
-        };
-        window.AppOffsetChosen += (_, chosen) => _ = _settings.SaveAppOffsetAsync(chosen.App, (int)chosen.InVDips, (int)chosen.InHDips);
-
-        _placedAt = (settings.X, settings.Y);
-        window.SetCorner(settings.Corner);
-        window.PlaceAt(settings.X, settings.Y);
-        _window = window;
-        window.Show();
+            _corner.Show();
+        }
     }
 
-    private static Color ColorOf(Guid profileId, OverlaySettings settings)
+    // With no session ticking, the clock in the overlay needs the next minute: one timer, only while the overlay shows its own clock.
+    private void UpdateClockTimer(bool sessionActive)
     {
-        string? chosen = settings.For(profileId).Color;
-        return chosen is not null && Color.TryParse(chosen, out Color color) ? color : ProfileColors.For(profileId);
+        OverlaySettings settings = _settings.Current;
+        bool needsClock = !sessionActive && _tile is not null
+                          && (settings.Size == OverlaySize.Wide || settings.EffectivePlacement == OverlayPlacement.CoverTray);
+        if (!needsClock)
+        {
+            StopClockTimer();
+            return;
+        }
+
+        DateTimeOffset now = _sessions.Now;
+        _clockTimer.Interval = TimeSpan.FromSeconds(60 - now.Second) + TimeSpan.FromMilliseconds(100);
+        _clockTimer.Start();
+    }
+
+    private void StopClockTimer()
+    {
+        _clockTimer.Stop();
     }
 }

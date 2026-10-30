@@ -6,26 +6,44 @@
         Title="AccountabiliBuddy overlay"
         WindowDecorations="None" CanResize="False"
         Topmost="True" ShowInTaskbar="False" ShowActivated="False"
-        WindowStartupLocation="Manual"
+        WindowStartupLocation="Manual" RequestedThemeVariant="Dark"
         TransparencyLevelHint="Transparent" Background="Transparent">
-    <!-- Mostly opaque everywhere, so clicks land here instead of the app underneath. -->
-    <Border Background="#D9101418">
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" MaxWidth="640">
-            <TextBlock Text="You're drifting" FontSize="34" FontWeight="SemiBold"
-                       Foreground="White" HorizontalAlignment="Center" />
-            <TextBlock Text="{Binding Target}" FontSize="20" Foreground="#FFE0A030"
-                       TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" />
-            <TextBlock Text="{Binding SessionDetail}" FontSize="15" Foreground="#CCFFFFFF"
-                       HorizontalAlignment="Center" />
-            <TextBlock Text="{Binding Hint}" IsVisible="{Binding Hint, Converter={x:Static ObjectConverters.IsNotNull}}"
-                       FontSize="14" Foreground="#B3FFFFFF" TextWrapping="Wrap" TextAlignment="Center"
-                       HorizontalAlignment="Center" />
-            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center" Margin="0,10,0,0">
-                <Button Content="{Binding PrimaryLabel}" Command="{Binding PrimaryCommand}"
-                        Classes="accent" FontSize="16" Padding="20,10" />
-                <Button Content="{Binding SecondaryLabel}" Command="{Binding SecondaryCommand}"
-                        IsVisible="{Binding HasSecondary}" FontSize="16" Padding="20,10" />
+    <!-- 5r, drift step 2: the screen dims to near black and a card says what this is. Mostly opaque everywhere, so clicks land here instead of the app underneath. -->
+    <Panel>
+        <Border Background="{DynamicResource Ab.Bg}" Opacity="0.93" />
+        <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="560" MinWidth="440" Padding="32,28" CornerRadius="12"
+                Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1">
+            <StackPanel Spacing="10">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Ellipse Width="8" Height="8" Fill="{DynamicResource Ab.Drift}" VerticalAlignment="Center" />
+                    <TextBlock Text="Drift · step 2 of 3" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Drift}" />
+                </StackPanel>
+                <TextBlock Text="{Binding Title}" Classes="display" FontSize="30" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Ink}" />
+                <TextBlock Text="{Binding Target}" FontSize="15" Foreground="{DynamicResource Ab.Muted}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding SessionDetail}" FontSize="13" Foreground="{DynamicResource Ab.Muted}" />
+                <TextBlock Text="{Binding Hint}" IsVisible="{Binding Hint, Converter={x:Static ObjectConverters.IsNotNull}}"
+                           FontSize="13" Foreground="{DynamicResource Ab.Muted}" TextWrapping="Wrap" />
+                <!-- The ladder: 1 toast, 2 this screen (now), 3 the step after. -->
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6" Margin="0,6,0,0">
+                    <StackPanel Spacing="4">
+                        <Border Height="3" CornerRadius="2" Background="{DynamicResource Ab.Drift}" Opacity="0.5" />
+                        <TextBlock Text="1 · Toast" FontSize="11" Foreground="{DynamicResource Ab.Muted}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="4">
+                        <Border Height="3" CornerRadius="2" Background="{DynamicResource Ab.Drift}" />
+                        <TextBlock Text="2 · This screen" FontSize="11" Foreground="{DynamicResource Ab.Ink}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Spacing="4">
+                        <Border Height="3" CornerRadius="2" Background="{DynamicResource Ab.Surface2}" />
+                        <TextBlock Text="{Binding NextStepText}" FontSize="11" Foreground="{DynamicResource Ab.Muted}" />
+                    </StackPanel>
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,10,0,0">
+                    <Button Content="{Binding PrimaryLabel}" Command="{Binding PrimaryCommand}" Classes="primary pill" FontSize="14" Padding="22,10" />
+                    <Button Content="{Binding SecondaryLabel}" Command="{Binding SecondaryCommand}" IsVisible="{Binding HasSecondary}"
+                            Classes="pill" FontSize="14" Padding="22,10" Background="{DynamicResource Ab.Surface2}" Foreground="{DynamicResource Ab.Ink}" />
+                </StackPanel>
             </StackPanel>
-        </StackPanel>
-    </Border>
+        </Border>
+    </Panel>
 </Window>

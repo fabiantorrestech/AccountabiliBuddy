@@ -6,17 +6,23 @@ namespace AccountabiliBuddy.App.Views;
 
 public partial class NudgeToast : Window
 {
-    private readonly DispatcherTimer _autoClose = new() { Interval = NudgeToastViewModel.DisplayTime };
+    private readonly DispatcherTimer _autoClose = new();
 
     public NudgeToast()
     {
         InitializeComponent();
 
-        _autoClose.Tick += (_, _) => Close();
+        _autoClose.Tick += (_, _) =>
+        {
+            _autoClose.Stop();
+            (DataContext as NudgeToastViewModel)?.RaiseExpired();
+            Close();
+        };
         Opened += (_, _) =>
         {
-            if (DataContext is not NudgeToastViewModel { StaysOpen: true })
+            if (DataContext is NudgeToastViewModel { StaysOpen: false } shown)
             {
+                _autoClose.Interval = shown.LifeTime;
                 _autoClose.Start();
             }
         };

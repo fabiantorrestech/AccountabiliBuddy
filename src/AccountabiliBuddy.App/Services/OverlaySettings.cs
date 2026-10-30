@@ -36,6 +36,21 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="HeldOpacity">How opaque the whole window (background, task line and all) is while Ctrl+Alt is held (0.2 to 1).</param>
 /// <param name="TimelineOpacity">The timeline's opacity while no session runs (0.2 to 1); in a session <paramref name="Opacity"/> applies.</param>
 /// <param name="TimelineHeldOpacity">The same while Ctrl+Alt is held (0.2 to 1); in a session <paramref name="HeldOpacity"/> applies.</param>
+/// <param name="Placement">Where the overlay lives (ADR 51); null in settings saved before it existed, which <see cref="OverlaySettingsService"/> fills in from the old corner.</param>
+/// <param name="AutoHide">What it does while the user's taskbar hides itself.</param>
+/// <param name="LeftAligned">Where it goes on a taskbar whose icons start at the left.</param>
+/// <param name="CornerClock">The small clock in the top right corner while an app is full screen.</param>
+/// <param name="CornerClockParts">What the corner clock shows.</param>
+/// <param name="Shape">Rounded rectangle or pill.</param>
+/// <param name="Progress">A ring or a timeline.</param>
+/// <param name="ContentOrder">What it shows and in what order (null = the default order).</param>
+/// <param name="PanelSize">The Ctrl+Alt panel's width.</param>
+/// <param name="HoldToPeek">Holding Ctrl+Alt for 300 ms opens the panel while held (off for layouts where AltGr is Ctrl+Alt).</param>
+/// <param name="PanelSticky">Ctrl+Alt+Space keeps the panel open until Esc or a click elsewhere.</param>
+/// <param name="ShowSeconds">The "18:42" style: seconds in the overlay's countdown (whole minutes otherwise).</param>
+/// <param name="AppRules">The per-app rules (null = the built-in list).</param>
+/// <param name="PanelSeen">The Ctrl+Alt panel was opened at least once (the migration assistant's "set up?" check).</param>
+/// <param name="SideTileY">Where the vertical tile was dragged to along the screen edge (physical pixels from the top); null = the middle.</param>
 public sealed record OverlaySettings(
     OverlayStyle Style,
     double Opacity,
@@ -63,7 +78,22 @@ public sealed record OverlaySettings(
     bool TaskOnlyWithCtrlAlt = false,
     double HeldOpacity = 1.0,
     double TimelineOpacity = OverlaySettings.DefaultOpacity,
-    double TimelineHeldOpacity = 1.0)
+    double TimelineHeldOpacity = 1.0,
+    OverlayPlacement? Placement = null,
+    AutoHideMode AutoHide = AutoHideMode.Float,
+    LeftAlignedMode LeftAligned = LeftAlignedMode.BesideTray,
+    bool CornerClock = true,
+    CornerClockParts CornerClockParts = CornerClockParts.Session | CornerClockParts.Time,
+    OverlayShape Shape = OverlayShape.Rounded,
+    OverlayProgress Progress = OverlayProgress.Ring,
+    IReadOnlyList<OverlayItem>? ContentOrder = null,
+    PanelSize PanelSize = PanelSize.Standard,
+    bool HoldToPeek = true,
+    bool PanelSticky = true,
+    bool ShowSeconds = false,
+    IReadOnlyList<OverlayAppRule>? AppRules = null,
+    int? SideTileY = null,
+    bool PanelSeen = false)
 {
     /// <summary>Default vertical distance for maximized apps from a top corner (clears tabs, toolbars, window buttons).</summary>
     public const int TopCornerDrop = 110;
@@ -83,9 +113,18 @@ public sealed record OverlaySettings(
     public const int MinQuickHideSeconds = 3;
     public const int MaxQuickHideSeconds = 600;
 
+    /// <summary>Where the overlay lives: the saved choice, else over the taskbar.</summary>
+    public OverlayPlacement EffectivePlacement => Placement ?? OverlayPlacement.OverTaskbar;
+
+    /// <summary>What the overlay shows and in what order, with every part listed once.</summary>
+    public IReadOnlyList<OverlayItem> Items => OverlayContentOrder.Complete(ContentOrder);
+
+    /// <summary>The per-app rules in force: the user's list, else the built-in one.</summary>
+    public IReadOnlyList<OverlayAppRule> Rules => AppRules ?? OverlayAppRules.Defaults;
+
     public static OverlaySettings Default { get; } = new(
         OverlayStyle.BarWithEndTime, DefaultOpacity, OverlaySize.Medium, null, null, new Dictionary<Guid, ProfileOverlay>(),
-        DefaultTimer: ProfileOverlay.Off);
+        DefaultTimer: new ProfileOverlay(true, null));
 
     /// <summary>How far to slide down for this maximized app: its own distance, or the default.</summary>
     public int DropFor(string processName)

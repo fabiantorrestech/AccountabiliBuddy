@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.SlimLineWindow"
+        x:DataType="vm:TaskbarOverlayViewModel"
+        Title="AccountabiliBuddy progress line"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False" Focusable="False"
+        WindowStartupLocation="Manual" RequestedThemeVariant="Dark"
+        TransparencyLevelHint="Transparent" Background="Transparent">
+    <!-- 15b "Slim line": a 3 px progress line along the bottom edge of an auto-hidden taskbar's monitor, and the minutes at the right. -->
+    <Grid RowDefinitions="*,3">
+        <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,10,4" Padding="8,2" CornerRadius="6"
+                Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1">
+            <TextBlock Text="{Binding MinutesText}" FontSize="12" FontWeight="SemiBold" Foreground="{Binding MinutesBrush}" />
+        </Border>
+        <Panel Grid.Row="1" Background="{DynamicResource Ab.Surface2}">
+            <Border x:Name="Done" HorizontalAlignment="Left" Background="{DynamicResource Ab.Accent}" Width="0" />
+        </Panel>
+    </Grid>
+</Window>

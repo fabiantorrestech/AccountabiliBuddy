@@ -397,6 +397,22 @@
                                Text="It only suggests. Move it makes the change the same way you would by hand: it is refused while a focus session you started is running, and waits like any other day plan change. Leave it hides that suggestion for that day. Calendar links and Google sign-in moved to Settings › Connections; the month view is Change a day on the Plan page." />
                 </StackPanel>
 
+                <!-- ADR 51: the overlay over the taskbar -->
+                <StackPanel IsVisible="{Binding IsOverlayTaskbar}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="The on-screen timer now sits over your taskbar, right of the app icons and ending where the tray starts. It follows the taskbar when it hides, moves to a side or changes monitor, and a small clock takes over in the top right corner while an app is full screen." />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="Open Settings › Alerts &amp; on-screen › PC overlay to pick where it lives (over the taskbar, covering the tray, at the left end, beside the tray, or floating bottom right or left), its size, shape, progress and what it shows. Nothing about what is blocked or when changed; only where and how it is drawn." />
+                </StackPanel>
+
+                <!-- The Ctrl+Alt panel -->
+                <StackPanel IsVisible="{Binding IsPanelCtrlAlt}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="Hold Ctrl+Alt for a moment and a panel rises from the overlay with Done, Pause, +10 min, this session's tasks, the sound and shortcuts. Ctrl+Alt+Space keeps it open until Esc or a click elsewhere. It replaces the old reveal of the on-screen window and keeps what it offered." />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="If your keyboard layout uses AltGr (which Windows reads as Ctrl+Alt), turn off hold to peek in Settings › Alerts &amp; on-screen › PC overlay and use Ctrl+Alt+Space." />
+                </StackPanel>
+
                 <!-- ADR 49: the look, a theme and light or dark -->
                 <StackPanel IsVisible="{Binding IsAppearance}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
                     <TextBlock Classes="body" TextWrapping="Wrap"

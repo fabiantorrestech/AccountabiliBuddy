@@ -20,11 +20,19 @@ public interface IOverlayWindowControl
     /// </summary>
     void KeepOnTop(nint windowHandle);
 
+    /// <summary>
+    /// Keeps the window out of Alt+Tab (a tool window) and lets it take the keyboard focus, or not (a peek never takes it).
+    /// </summary>
+    void SetActivatable(nint windowHandle, bool activatable);
+
     /// <summary>True while Ctrl and Alt are both held down, whichever app is in front.</summary>
     bool AreDragKeysHeld();
 
     /// <summary>True while the mouse pointer is over the window, also while clicks pass through it.</summary>
     bool IsCursorOver(nint windowHandle);
+
+    /// <summary>True while the mouse pointer is within <paramref name="marginPixels"/> of the window (physical pixels).</summary>
+    bool IsCursorNear(nint windowHandle, int marginPixels);
 
     /// <summary>The longest gap between the two clicks of a double-click, as set in Windows.</summary>
     TimeSpan DoubleClickTime();

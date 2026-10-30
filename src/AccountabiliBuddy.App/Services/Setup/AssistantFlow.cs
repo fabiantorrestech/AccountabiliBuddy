@@ -44,6 +44,8 @@ public static class AssistantFlow
             .Where(step => step != AssistantStep.Appearance)
             .Where(step => step != AssistantStep.Tasks)
             .Where(step => step != AssistantStep.PlanHelper)
+            .Where(step => step != AssistantStep.OverlayTaskbar)
+            .Where(step => step != AssistantStep.PanelCtrlAlt)
             .Where(step => step != AssistantStep.Usage || hasUsage)
             .Where(step => step != AssistantStep.LinkFirst || hasIdentity)
             .Where(step => step != AssistantStep.ComputerType || hasTypes)

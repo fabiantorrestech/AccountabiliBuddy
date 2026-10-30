@@ -41,6 +41,15 @@ public sealed class Win32OverlayWindowControl : IOverlayWindowControl
         PInvoke.SetWindowLong(window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, (int)style);
     }
 
+    public void SetActivatable(nint windowHandle, bool activatable)
+    {
+        var window = new HWND(windowHandle);
+        var style = (WINDOW_EX_STYLE)PInvoke.GetWindowLong(window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
+        style |= WINDOW_EX_STYLE.WS_EX_TOOLWINDOW;
+        style = activatable ? style & ~WINDOW_EX_STYLE.WS_EX_NOACTIVATE : style | WINDOW_EX_STYLE.WS_EX_NOACTIVATE;
+        PInvoke.SetWindowLong(window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, (int)style);
+    }
+
     public void KeepOnTop(nint windowHandle)
     {
         // HWND_TOPMOST (-1): first among the always-on-top windows; nothing else about it changes.
@@ -52,6 +61,16 @@ public sealed class Win32OverlayWindowControl : IOverlayWindowControl
     public bool AreDragKeysHeld()
     {
         return IsDown(VIRTUAL_KEY.VK_CONTROL) && IsDown(VIRTUAL_KEY.VK_MENU);
+    }
+
+    public bool IsCursorNear(nint windowHandle, int marginPixels)
+    {
+        if (!PInvoke.GetCursorPos(out System.Drawing.Point cursor) || !PInvoke.GetWindowRect(new HWND(windowHandle), out RECT rect))
+        {
+            return false;
+        }
+
+        return cursor.X >= rect.left - marginPixels && cursor.X < rect.right + marginPixels && cursor.Y >= rect.top - marginPixels && cursor.Y < rect.bottom + marginPixels;
     }
 
     public TimeSpan DoubleClickTime()
