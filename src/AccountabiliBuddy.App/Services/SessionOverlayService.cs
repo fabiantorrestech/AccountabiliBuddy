@@ -627,6 +627,15 @@ public sealed class SessionOverlayService : IDisposable
             _tile.Closed += (_, _) => _tile = null;
         }
 
+        // Set before Apply, which puts the tile back in front: not over a Windows flyout that is open (it climbs back once the flyout closes).
+        _tile.YieldsToShellFlyout = _geometry.Foreground.IsShellFlyout;
+        if (_tile.YieldsToShellFlyout)
+        {
+            // Read the foreground again with each update while a flyout is up (no new timer: the per-second update already runs), so a flyout
+            // that closes without a foreground event does not leave the tile waiting; Changed follows only if something differs.
+            _geometry.Refresh();
+        }
+
         _tile.Apply(target, settings, rule);
         if (!_tile.IsVisible)
         {

@@ -31,8 +31,16 @@ public static class OverlayPlacementCalculator
                 0, false, taskbar.Edge);
         }
 
-        if (taskbar.AutoHide && !taskbar.IsShown)
+        if (taskbar.AutoHide)
         {
+            if (taskbar.IsShown)
+            {
+                // The taskbar is up: docking over it would put the tile behind the sliding bar, so the tile floats as it did while the bar was
+                // hidden, lifted clear above the bar's top edge (all three auto-hide modes show the tile now: the slim line and "hide with it"
+                // end when the taskbar comes back). Floating() lifts only when the bar would cover the tile; the tile drops back when it hides.
+                return Floating(taskbar, alignRight: true);
+            }
+
             return settings.AutoHide switch
             {
                 AutoHideMode.SlimLine => new OverlayTarget(OverlayTargetKind.SlimLine, taskbar.MonitorId, taskbar.Scale, taskbar.Monitor, true, 0, false),
@@ -97,7 +105,26 @@ public static class OverlayPlacementCalculator
 
     private static OverlayTarget Floating(TaskbarInfo taskbar, bool alignRight)
     {
-        return new OverlayTarget(OverlayTargetKind.Floating, taskbar.MonitorId, taskbar.Scale, taskbar.WorkArea, alignRight, 0, false);
+        return new OverlayTarget(OverlayTargetKind.Floating, taskbar.MonitorId, taskbar.Scale, LiftedAboveHidingTaskbar(taskbar), alignRight, 0, false);
+    }
+
+    /// <summary>
+    /// The work area of a floating tile. An auto-hiding taskbar reserves nothing, so the tile sits near the screen's bottom edge, where the
+    /// bar slides over it; while the bar is (partly) up, the area's bottom is raised so the tile's bottom lands a gap above the bar's top
+    /// edge. A tile already higher than that stays where it is (the area is only ever shortened), and with the bar hidden (its top is at
+    /// the screen's bottom edge) nothing changes.
+    /// </summary>
+    private static PixelBox LiftedAboveHidingTaskbar(TaskbarInfo taskbar)
+    {
+        PixelBox area = taskbar.WorkArea;
+        if (!taskbar.AutoHide || taskbar.Edge != TaskbarEdge.Bottom)
+        {
+            return area;
+        }
+
+        (_, int bottomMargin) = FloatingMargins(taskbar.Scale);
+        int lifted = taskbar.Bounds.Top - (int)(GapDips * taskbar.Scale) + bottomMargin;
+        return lifted < area.Bottom ? area with { Bottom = lifted } : area;
     }
 
     /// <summary>The strip of the work area beside a side taskbar, where the vertical tile rides.</summary>

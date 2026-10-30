@@ -6,7 +6,8 @@ namespace AccountabiliBuddy.Core.Ports;
 /// <param name="MonitorId">The monitor it is on (the one it covers when full screen); null with no other app in front.</param>
 /// <param name="ProcessName">The app's process name without ".exe" (for the per-app rules); null with no other app in front.</param>
 /// <param name="ClassName">The window's class name (a call window is recognised by class, never by title); null with no other app in front.</param>
-public sealed record ForegroundScreenState(bool IsFullScreen, bool IsGame, string? MonitorId, string? ProcessName, string? ClassName = null)
+/// <param name="IsShellFlyout">One of Windows' own flyouts is in front (the tray's hidden icons, Quick Settings, notifications and calendar, Start): the overlay must not climb back over it.</param>
+public sealed record ForegroundScreenState(bool IsFullScreen, bool IsGame, string? MonitorId, string? ProcessName, string? ClassName = null, bool IsShellFlyout = false)
 {
     public static ForegroundScreenState None { get; } = new(false, false, null, null);
 }
