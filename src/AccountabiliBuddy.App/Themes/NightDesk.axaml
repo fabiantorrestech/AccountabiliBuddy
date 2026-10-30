@@ -118,6 +118,8 @@
     <FontFamily x:Key="Ab.NumeralFont">avares://AccountabiliBuddy.App/Assets/Fonts/Manrope#Manrope</FontFamily>
     <CornerRadius x:Key="Ab.CardRadius">28</CornerRadius>
     <CornerRadius x:Key="Ab.PanelRadius">24</CornerRadius>
+    <!-- The time-left ring beside the timer digits: nudged so it sits on the digits' middle, which depends on the numeral font. -->
+    <Thickness x:Key="Ab.TimeRingMargin">0,18,0,0</Thickness>
     <Thickness x:Key="Ab.CardBorderThickness">0</Thickness>
     <x:Double x:Key="Ab.DisplayLetterSpacing">-0.5</x:Double>
     <FontWeight x:Key="Ab.NumeralWeight">SemiBold</FontWeight>
