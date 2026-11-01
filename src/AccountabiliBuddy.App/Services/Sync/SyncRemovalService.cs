@@ -409,16 +409,22 @@ public sealed class SyncRemovalService
             // When the removal happened, by its maker's clock, not when this PC learned of it: files a device wrote while this PC was away are judged against it.
             // A device that stays also takes the remover's choice about the removed devices' data (ADR 55): erase is recorded and done
             // below (or when the focus session ends). One that is removed itself keeps everything it has.
+            // This PC's own rekey file, read back (the folder watcher can find it while Drive and the relay are still being written): the
+            // maker's erase waits for its backup and is applied by ApplyDataChoiceAsync. Recording it here would erase the copy first.
             bool stays = reading.Kind == RekeyReadingKind.NewKey;
+            bool madeHere = payload.RemovedBy.DeviceId == _identity.DeviceId;
             var others = payload.Removed
                 .Where(device => device.DeviceId != _identity.DeviceId)
-                .Select(device => (device.DeviceId, device.Name, stays ? (device.Erase ? RemovedDevice.EraseData : RemovedDevice.KeepData) : (string?)null))
+                .Select(device => (device.DeviceId, device.Name, stays && !madeHere ? (device.Erase ? RemovedDevice.EraseData : RemovedDevice.KeepData) : (string?)null))
                 .ToList();
             await RecordRemovedAsync(others, DateTimeOffset.FromUnixTimeSeconds(payload.Epoch));
             if (reading is { Kind: RekeyReadingKind.NewKey, NewCode: string newCode })
             {
                 await _identity.SwitchKeyAsync(newCode, payload.Removed.Select(device => device.DeviceId).ToList());
-                await ApplyPendingErasesAsync();
+                if (!madeHere)
+                {
+                    await ApplyPendingErasesAsync();
+                }
             }
             else
             {
