@@ -1,9 +1,6 @@
 package com.accountabilibuddy.companion.ui
 
-import android.net.Uri
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,18 +22,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.setup.StartOver
-import com.accountabilibuddy.companion.sync.DeviceBackups
-import com.accountabilibuddy.companion.sync.SyncShare
 import com.accountabilibuddy.companion.sync.UnlinkedState
-import kotlinx.coroutines.launch
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -49,8 +41,9 @@ private enum class UnlinkedMode { Choices, AddAgain, StartOver }
  * the user picks one of three things, with no default and no way back into a syncing screen (Back does not leave this state):
  * - Add this phone again: the join flow (scan the other device's QR with the camera, or type its link code), the same device id.
  * - Continue unsynced here: keeps all data, including what it received; the Devices tab can link again.
- * - Start from scratch: only when no focus session the user started is running; first offers a backup file of this phone's own
- *   sync file (when it still has a key), then a typed "start over" clears the app and restarts into setup.
+ * - Start from scratch: only when no focus session the user started is running; a typed "start over" keeps a private local copy of
+ *   the app's files, then clears the app and restarts into setup.
+ * Every choice, adding again included, waits while a focus session the user started runs (as on the PC).
  *
  * Minimal and functional; it gets restyled in the phone UI run. [lockedReason] is the focus-session lock as text.
  */
@@ -58,16 +51,17 @@ private enum class UnlinkedMode { Choices, AddAgain, StartOver }
 fun UnlinkedScreen(
     state: UnlinkedState,
     lockedReason: String?,
-    canBackUp: Boolean,
     onJoin: (String) -> Boolean,
     onContinueUnsynced: () -> Unit,
     onStartFromScratch: (String) -> Unit,
-    onBackUp: suspend (Uri) -> String,
 ) {
     var mode by rememberSaveable { mutableStateOf(UnlinkedMode.Choices) }
-    // This is the whole app while it lasts: Back only puts the app away, it never reaches a syncing screen.
+    // This is the whole app while it lasts: Back on the two sub-pages returns to the choices, and on the choices it only puts the app
+    // away; it never reaches a syncing screen.
     val activity = LocalContext.current as? android.app.Activity
-    BackHandler(enabled = true) { activity?.moveTaskToBack(true) }
+    BackHandler(enabled = true) {
+        if (mode != UnlinkedMode.Choices) mode = UnlinkedMode.Choices else activity?.moveTaskToBack(true)
+    }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -96,8 +90,8 @@ fun UnlinkedScreen(
 
         when (mode) {
             UnlinkedMode.Choices -> Choices(lockedReason, onChoose = { mode = it }, onContinueUnsynced)
-            UnlinkedMode.AddAgain -> AddAgain(onJoin, onBack = { mode = UnlinkedMode.Choices })
-            UnlinkedMode.StartOver -> StartOverPage(lockedReason, canBackUp, onStartFromScratch, onBackUp, onBack = { mode = UnlinkedMode.Choices })
+            UnlinkedMode.AddAgain -> AddAgain(lockedReason, onJoin, onBack = { mode = UnlinkedMode.Choices })
+            UnlinkedMode.StartOver -> StartOverPage(lockedReason, onStartFromScratch, onBack = { mode = UnlinkedMode.Choices })
         }
     }
 }
@@ -107,7 +101,7 @@ private fun Choices(lockedReason: String?, onChoose: (UnlinkedMode) -> Unit, onC
     Choice(
         "Add this phone again",
         "Link it again with a code or QR from a device that is still linked. It keeps its own history and settings; what it received from the other devices is fetched again.",
-        enabled = true,
+        enabled = lockedReason == null,
     ) { onChoose(UnlinkedMode.AddAgain) }
     Choice(
         "Continue unsynced here",
@@ -121,7 +115,7 @@ private fun Choices(lockedReason: String?, onChoose: (UnlinkedMode) -> Unit, onC
         enabled = lockedReason == null,
     ) { onChoose(UnlinkedMode.StartOver) }
     lockedReason?.let {
-        Text("Locked: $it Continuing unsynced and starting from scratch wait until it ends.", color = MaterialTheme.colorScheme.error)
+        Text("Locked: $it Every choice here waits until it ends.", color = MaterialTheme.colorScheme.error)
     }
 }
 
@@ -135,7 +129,7 @@ private fun Choice(title: String, detail: String, enabled: Boolean, onClick: () 
 }
 
 @Composable
-private fun AddAgain(onJoin: (String) -> Boolean, onBack: () -> Unit) {
+private fun AddAgain(lockedReason: String?, onJoin: (String) -> Boolean, onBack: () -> Unit) {
     var code by rememberSaveable { mutableStateOf("") }
     var wrong by remember { mutableStateOf(false) }
     Text(
@@ -157,42 +151,27 @@ private fun AddAgain(onJoin: (String) -> Boolean, onBack: () -> Unit) {
         Text("That isn't a link code from your devices.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
     }
 
-    Button(onClick = { wrong = !onJoin(code) }, enabled = code.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("Add this phone again") }
+    lockedReason?.let { Text("Locked: $it Adding this phone again waits until it ends.", color = MaterialTheme.colorScheme.error) }
+    Button(onClick = { wrong = !onJoin(code) }, enabled = code.isNotBlank() && lockedReason == null, modifier = Modifier.fillMaxWidth()) {
+        Text("Add this phone again")
+    }
     TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back to the choices") }
 }
 
 @Composable
-private fun StartOverPage(
-    lockedReason: String?,
-    canBackUp: Boolean,
-    onStartFromScratch: (String) -> Unit,
-    onBackUp: suspend (Uri) -> String,
-    onBack: () -> Unit,
-) {
+private fun StartOverPage(lockedReason: String?, onStartFromScratch: (String) -> Unit, onBack: () -> Unit) {
     var typed by rememberSaveable { mutableStateOf("") }
-    var backupNote by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-    val saveBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(SyncShare.MIME_TYPE)) { uri ->
-        if (uri != null) scope.launch { backupNote = onBackUp(uri) }
-    }
 
     Text("This clears everything AccountabiliBuddy keeps on this phone: settings, timers, the link to your other devices and what it received from them. Setup then opens as on a first run.")
+    Text(
+        "A copy of the app's files is kept first, in the app's own private storage on this phone (the three newest copies stay; " +
+            "uninstalling the app removes them). It is never sent anywhere.",
+    )
     Text(
         "Not touched: Curbox and your other apps, Android's permissions, your Google sign-in (remove it in your Google account if you want), and your other devices.",
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     Text("If this phone has a Pixel Watch linked, the watch is told and asks whether to forget its data.", style = MaterialTheme.typography.bodySmall)
-    if (canBackUp) {
-        OutlinedButton(onClick = { saveBackup.launch("This phone ${DeviceBackups.fileNameFor(LocalDate.now())}") }) {
-            Text("Save a backup file first…")
-        }
-        Text(
-            "A sealed copy of this phone's own sync file; only your linked devices can open it.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-
-    backupNote?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
     lockedReason?.let { Text("Locked: $it", color = MaterialTheme.colorScheme.error) }
     OutlinedTextField(
         value = typed,

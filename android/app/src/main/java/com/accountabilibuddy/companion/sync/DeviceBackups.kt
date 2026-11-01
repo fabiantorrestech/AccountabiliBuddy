@@ -2,6 +2,8 @@ package com.accountabilibuddy.companion.sync
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFile
 import com.accountabilibuddy.shared.sync.SyncFileCodec
@@ -48,9 +50,11 @@ object DeviceBackups {
 
     /**
      * The Drive folder of a device's backups: its name and the first four characters of its id, so two devices with the same name
-     * (phones are often both "Pixel 7") never share a folder or overwrite each other's backup; "device" when the name is blank.
+     * (phones are often both "Pixel 7") never share a folder or overwrite each other's backup; "device" when the name is blank. The
+     * PC's rule exactly (the name trimmed, no character filtered), so one device never gets two folders; Drive allows any character in a
+     * name, and [DriveFiles] escapes it in its queries. Only the local file name ([suggestedFileName]) filters characters.
      */
-    fun folderNameFor(card: SyncDeviceCard): String = "${safeName(card.name)} (${shortId(card.deviceId)})"
+    fun folderNameFor(card: SyncDeviceCard): String = "${card.name.trim().ifEmpty { "device" }} (${shortId(card.deviceId)})"
 
     private fun shortId(deviceId: UUID): String = deviceId.toString().replace("-", "").substring(0, 4)
 
@@ -84,7 +88,7 @@ object DeviceBackups {
             // "wt": an existing file the picker returned is replaced, not written over its start.
             val stream = context.contentResolver.openOutputStream(uri, "wt") ?: return@withContext BackupOutcome.failed("Couldn't open the file to write.")
             stream.use { it.write(bytes) }
-            BackupOutcome.saved(displayName(uri))
+            BackupOutcome.saved(displayName(context, uri))
         } catch (e: IOException) {
             BackupOutcome.failed("Couldn't write the file: ${e.message ?: "storage error"}")
         } catch (e: SecurityException) {
@@ -92,8 +96,23 @@ object DeviceBackups {
         }
     }
 
-    /** The last part of a picked document's address, for "Backup saved: …". */
-    fun displayName(uri: Uri): String = uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')?.ifEmpty { null } ?: "the file you chose"
+    /** A picked document's name as its provider says it ("x.absync"), else the last part of its address; for "Backup saved: …". */
+    fun displayName(context: Context, uri: Uri): String {
+        val named = runCatching {
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+        }.getOrNull()
+        return named?.ifEmpty { null } ?: uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')?.ifEmpty { null } ?: "the file you chose"
+    }
+
+    /**
+     * Deletes a file the system picker made but nothing was written to (the dialog was cancelled, or the removal failed), so no empty
+     * `.absync` is left in the user's folder. Quiet when the provider doesn't allow it.
+     */
+    fun deleteUnwritten(context: Context, uri: Uri) {
+        runCatching { DocumentsContract.deleteDocument(context.contentResolver, uri) }
+    }
 }
 
 /**
@@ -125,7 +144,8 @@ class DriveBackups(private val signIn: DriveSignIn, private val files: DriveFile
         val token = signIn.accessToken() ?: return DriveBackupList(emptyList(), "Google Drive isn't signed in (sign in in Devices to see its backups).")
         return withContext(Dispatchers.IO) {
             try {
-                DriveBackupList(files.listBackups(token).sortedByDescending { it.modifiedAt }, null)
+                // A file bigger than a backup can be isn't listed (it is never read into memory): the same cap the opener enforces.
+                DriveBackupList(files.listBackups(token).filter { it.size <= BackupOpener.MAX_BACKUP_BYTES }.sortedByDescending { it.modifiedAt }, null)
             } catch (e: Exception) {
                 DriveBackupList(emptyList(), "Couldn't reach Google Drive to list its backups.")
             }

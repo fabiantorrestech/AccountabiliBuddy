@@ -135,7 +135,7 @@ private fun BackupPage(state: RemoveDeviceState, flow: RemoveDeviceFlow, chooseF
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = chooseFile) { Text(if (state.backupUri == null) "Save a file…" else "Choose another…") }
             Text(
-                state.backupUri?.let(DeviceBackups::displayName) ?: "Choose where to save it first.",
+                state.backupUri?.let { DeviceBackups.displayName(androidx.compose.ui.platform.LocalContext.current, it) } ?: "Choose where to save it first.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }

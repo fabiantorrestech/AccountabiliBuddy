@@ -54,13 +54,15 @@ object PhoneNotice {
 
     /** "Keep for now": the data stays, and the prompt does not come back until the phone links the watch again. */
     fun keepForNow(context: Context) {
-        prefs(context).edit().putBoolean(KEY_UNLINKED_BY_PHONE, false).putBoolean(KEY_KEPT, true).apply()
+        // A watch the phone has unlinked has no phone state left to show: the "phone unlinked" page goes with the prompt (it would
+        // otherwise never clear, since a phone that no longer has this watch linked never sends the 0).
+        prefs(context).edit().putBoolean(KEY_UNLINKED_BY_PHONE, false).putBoolean(KEY_PHONE_UNLINKED, false).putBoolean(KEY_KEPT, true).apply()
         publish(context)
     }
 
     /** "Forget data": the snapshot goes, and so does the prompt. */
     fun forget(context: Context) {
-        prefs(context).edit().putBoolean(KEY_UNLINKED_BY_PHONE, false).putBoolean(KEY_KEPT, false).apply()
+        prefs(context).edit().putBoolean(KEY_UNLINKED_BY_PHONE, false).putBoolean(KEY_PHONE_UNLINKED, false).putBoolean(KEY_KEPT, false).apply()
         SnapshotStore.clear(context)
         publish(context)
     }

@@ -29,6 +29,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -218,7 +220,8 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         val prompt = joinOffer.value ?: return
         joinOffer.value = null
         val offer = prompt.link
-        if (prompt.leavesCurrentGroup) {
+        // No escape hatches (ADR 54): leaving a group, and adding an unlinked phone again (the PC's rule too), wait for a focus session to end.
+        if (prompt.leavesCurrentGroup || sync.unlinked.value != null) {
             sync.removalLockedReason()?.let {
                 message.value = it
                 return
@@ -368,6 +371,15 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     /** Why devices can't be removed, left, or this phone started from scratch right now (a focus session the user started); null when they can. */
     fun removalLockedReason(): String? = sync.removalLockedReason()
 
+    /**
+     * [removalLockedReason] as state, looked at again when the other devices' files change and every 15 seconds (a session ends by the
+     * clock, with no file to say so), so the Unlinked screen's buttons don't stay off after the lock lifts.
+     */
+    val removalLocked: StateFlow<String?> =
+        combine(sync.received, flow { while (true) { emit(Unit); delay(LOCK_RECHECK_MS) } }) { _, _ -> sync.removalLockedReason() }
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), sync.removalLockedReason())
+
     fun openRemoveDevice(deviceId: java.util.UUID) = removeDevice.open(deviceId)
 
     /** "Continue unsynced here" (ADR 54): leaves the group, keeps all data. True when done; else the reason is shown. */
@@ -382,20 +394,16 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         return true
     }
 
-    /** True when this phone is in a group, so it has a latest sync file to offer as a backup before starting from scratch. */
-    fun canBackUpBeforeStartingOver(): Boolean = sync.key.value != null
-
-    /** Writes this phone's own latest sync file, sealed with the group's key, to the file the user picked. Returns what to tell the user. */
-    suspend fun saveOwnBackup(uri: Uri): String {
-        val bytes = sync.ownBackup() ?: return "This phone isn't in a device group, so there is no sync file to back up."
-        val outcome = DeviceBackups.writeToFile(getApplication(), uri, bytes)
-        return if (outcome.done) "Backup saved: ${outcome.where}" else outcome.problem ?: "The backup couldn't be saved."
+    init {
+        // A start from scratch that never finished (ADR 54) says so once, so the user can ask again from the Unlinked screen.
+        com.accountabilibuddy.companion.setup.StartOver.takeNotice(application)?.let { message.value = it }
     }
 
     /**
-     * "Start from scratch" (ADR 54): after the typed phrase and only when no focus session the user started runs, the watch is told to
-     * unlink (it then asks what to do with its data), a marker is left and the app restarts; the new process clears the app's files and
-     * preferences before anything opens them ([com.accountabilibuddy.companion.setup.StartOver]) and setup opens as on a first run.
+     * "Start from scratch" (ADR 54): after the typed phrase and only when no focus session the user started runs, a local copy of the
+     * app's data files is kept, the watch is told to unlink (it then asks what to do with its data), a marker is left and the app
+     * restarts; the new process clears the app's files and preferences before anything opens them
+     * ([com.accountabilibuddy.companion.setup.StartOver]) and setup opens as on a first run.
      */
     fun startFromScratch(typed: String) {
         sync.removalLockedReason()?.let {
@@ -410,13 +418,18 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
         val app = getApplication<CompanionApp>()
         viewModelScope.launch {
-            if (!com.accountabilibuddy.companion.setup.StartOver.prepare(app)) {
-                message.value = "Start from scratch didn't happen: the phone's storage wouldn't take the note. Nothing was cleared."
+            val problem = withContext(Dispatchers.IO) { com.accountabilibuddy.companion.setup.StartOver.prepare(app) }
+            if (problem != null) {
+                message.value = "Start from scratch didn't happen: $problem. Nothing was cleared."
                 return@launch
             }
 
             // The watch hears first (W4): it asks its wearer whether to forget what it shows. Waits a few seconds at most.
-            withContext(Dispatchers.IO) { kotlinx.coroutines.withTimeoutOrNull(WATCH_WAIT_MS) { runCatching { watchBridge.unlinkWatchAndWait() } } }
+            withContext(Dispatchers.IO) {
+                kotlinx.coroutines.withTimeoutOrNull(WATCH_WAIT_MS) { runCatching { watchBridge.unlinkWatchAndWait() } }
+                // The periodic Drive-folder work is WorkManager's, in a folder the clearing leaves alone: it ends here.
+                runCatching { androidx.work.WorkManager.getInstance(app).cancelAllWork() }
+            }
             try {
                 com.accountabilibuddy.companion.setup.StartOver.restart(app)
             } catch (e: Exception) {
@@ -484,6 +497,14 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     fun joinWithCode(code: String): Boolean {
         val typed = code.trim()
         val target = SyncKeyCode.parse(typed) ?: return false
+
+        // Adding an unlinked phone again waits for a focus session to end, as on the PC (the code was fine: no "not a link code" line).
+        if (sync.unlinked.value != null) {
+            sync.removalLockedReason()?.let {
+                message.value = it
+                return true
+            }
+        }
 
         // A different group than the one this phone is in: the same question and second confirmation as a join link.
         val currentKey = sync.key.value
@@ -800,5 +821,8 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     private companion object {
         // How long "Start from scratch" waits for the watch to be told before it goes on.
         const val WATCH_WAIT_MS = 6_000L
+
+        // How often the focus-session lock is looked at again for the screens that show it.
+        const val LOCK_RECHECK_MS = 15_000L
     }
 }

@@ -660,7 +660,7 @@ object DevicesModel {
                 state.label,
                 OwnDeviceRows.tone(state),
                 DeviceKind.of(card.kind),
-                removableId = card.deviceId.takeIf { card.kind != SyncDeviceCard.KIND_WATCH },
+                removableId = card.deviceId.takeIf { devices.joined && card.kind != SyncDeviceCard.KIND_WATCH },
             )
         }
 

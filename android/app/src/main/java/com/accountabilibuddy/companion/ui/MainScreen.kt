@@ -68,6 +68,8 @@ fun MainScreen(
     // ADR 54, 55: a phone that was removed from its group, the removed devices kept, and the remove and restore dialogs.
     val unlinked by viewModel.unlinked.collectAsStateWithLifecycle()
     val removedDevices by viewModel.removedDevices.collectAsStateWithLifecycle()
+    // The focus-session lock, looked at again every 15 s, so the Unlinked screen's buttons come back when it lifts.
+    val removalLocked by viewModel.removalLocked.collectAsStateWithLifecycle()
     val removeState by viewModel.removeDevice.state.collectAsStateWithLifecycle()
     val restoreState by viewModel.restoreBackup.state.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -132,15 +134,13 @@ fun MainScreen(
             unlinked?.let { state ->
                 UnlinkedScreen(
                     state = state,
-                    lockedReason = viewModel.removalLockedReason(),
-                    canBackUp = viewModel.canBackUpBeforeStartingOver(),
+                    lockedReason = removalLocked,
                     onJoin = viewModel::joinWithCode,
                     onContinueUnsynced = {
                         // Lands on Today, with the one-time note shown as a message.
                         if (viewModel.continueUnsynced()) tab = 0
                     },
                     onStartFromScratch = viewModel::startFromScratch,
-                    onBackUp = viewModel::saveOwnBackup,
                 )
                 return@Column
             }
@@ -274,7 +274,7 @@ fun MainScreen(
                         alarmApps = viewModel.alarmApps(),
                         learnedAlarmApp = viewModel.learnedAlarmApp(),
                         removed = removedDevices,
-                        removalLocked = viewModel.removalLockedReason(),
+                        removalLocked = removalLocked,
                     ),
                     actions = DevicesActions(
                         onRemoveDevice = viewModel::openRemoveDevice,

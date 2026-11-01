@@ -87,12 +87,16 @@ class RemoveDeviceFlow(
     private var result: RemovalResult? = null
     private var day: LocalDate = LocalDate.now()
 
+    // A backup was written into the picked file: it is not an empty file to clean up.
+    private var fileWritten = false
+
     /** Opens the dialog for the device with [deviceId]. */
     fun open(deviceId: UUID) {
         val device = sync.received.value.firstOrNull { it.file.device.deviceId == deviceId } ?: return
         val card = device.file.device
         snapshot = device.file
         result = null
+        fileWritten = false
         day = LocalDate.now()
         _state.value = RemoveDeviceState(
             deviceId = deviceId,
@@ -108,16 +112,43 @@ class RemoveDeviceFlow(
     /** Closes the dialog; during the removal itself it stays (the work goes on), and a backup problem is left with the data kept. */
     fun close() {
         if (_state.value?.step != RemoveStep.Working) {
+            discardUnwrittenFile()
             _state.value = null
         }
     }
 
     fun setErase(erase: Boolean) = change { copy(erase = erase) }
 
-    fun setBackup(choice: RemoveBackupChoice) = change { copy(backup = choice) }
+    fun setBackup(choice: RemoveBackupChoice) {
+        if (choice != RemoveBackupChoice.File) {
+            // A file the picker made for a backup that is not going there any more.
+            discardUnwrittenFile()
+            change { copy(backup = choice, backupUri = null) }
+        } else {
+            change { copy(backup = choice) }
+        }
+    }
 
     /** The file picked with the system file picker for the backup. */
-    fun onFilePicked(uri: Uri) = change { copy(backupUri = uri, backup = RemoveBackupChoice.File) }
+    fun onFilePicked(uri: Uri) {
+        // Picking another place leaves the first one empty: it goes.
+        if (_state.value?.backupUri != uri) {
+            discardUnwrittenFile()
+        }
+
+        change { copy(backupUri = uri, backup = RemoveBackupChoice.File) }
+    }
+
+    // The system file picker makes the (empty) file when it is picked. Until a backup was written into it, it is deleted when the dialog
+    // closes, the removal fails, or another place is chosen, so no empty ".absync" is left in the user's folder.
+    private fun discardUnwrittenFile() {
+        val uri = _state.value?.backupUri ?: return
+        if (!fileWritten) {
+            scope.launch(Dispatchers.IO) { DeviceBackups.deleteUnwritten(context, uri) }
+        }
+
+        fileWritten = false
+    }
 
     fun next() {
         val state = _state.value ?: return
@@ -154,8 +185,11 @@ class RemoveDeviceFlow(
         scope.launch(Dispatchers.IO) {
             val removal = sync.removeDevices(listOf(state.deviceId), state.erase)
             if (!removal.done) {
+                // Nothing was removed and no backup will be made: the empty file the picker made goes.
+                discardUnwrittenFile()
                 change {
                     copy(
+                        backupUri = null,
                         doneFailed = true,
                         doneTitle = if (removal.conflict) "Another device changed your devices at the same time" else "$name was not removed",
                         summary = listOf(
@@ -196,6 +230,10 @@ class RemoveDeviceFlow(
             RemoveBackupChoice.File -> state.backupUri?.let { DeviceBackups.writeToFile(context, it, bytes) } ?: BackupOutcome.failed("No file was chosen.")
             RemoveBackupChoice.None -> BackupOutcome.saved("")
         }
+        if (outcome.done && state.backup == RemoveBackupChoice.File) {
+            fileWritten = true
+        }
+
         handleBackup(outcome)
     }
 

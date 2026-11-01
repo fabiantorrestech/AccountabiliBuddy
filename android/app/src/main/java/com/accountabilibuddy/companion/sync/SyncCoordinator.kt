@@ -286,12 +286,14 @@ class SyncCoordinator(
         val unknown = cards.flatMap { it.seen.keys }
             .filter { it != identity.deviceId && it !in known && it !in deviceIds && !isRemoved(it) }
             .distinct()
-            .map { "A device this phone hasn't received a file from" }
-        return oldApps + unknown
+        // Devices only named in the others' lists have no name: one line with a count, not the same line over and over.
+        val unnamed = when (unknown.size) {
+            0 -> emptyList()
+            1 -> listOf("A device this phone hasn't received a file from")
+            else -> listOf("${unknown.size} devices this phone hasn't received a file from")
+        }
+        return oldApps + unnamed
     }
-
-    /** This phone's own latest sync file as a backup, sealed with the group's key; null while the phone isn't in a group. */
-    fun ownBackup(): ByteArray? = identity.key.value?.let { DeviceBackups.seal(ownFile(), it) }
 
     /**
      * Brings a removed device's backup ([file], opened by [BackupOpener]) in as a received device under its old name and records it as
@@ -528,10 +530,13 @@ class SyncCoordinator(
         // below (or at the next file once a focus session has ended). One that is removed itself keeps everything it has.
         val stays = reading.kind == RekeyReadingKind.NewKey
         val others = payload.removed.filter { it.deviceId != identity.deviceId }
+        // This phone's own rekey file, read back (a folder or Drive poll finds it): the maker's erase waits for its backup and is applied
+        // by applyDataChoice, as on the PC. Recording the choice here would erase its copy before the backup is made or given up.
+        val madeHere = payload.removedBy.deviceId == identity.deviceId
         removedStore.record(
             others.map { it.deviceId to it.name },
             java.time.Instant.ofEpochSecond(payload.epoch),
-            if (stays) others.associate { it.deviceId to if (it.erase) RemovedDevice.ERASE_DATA else RemovedDevice.KEEP_DATA } else emptyMap(),
+            if (stays && !madeHere) others.associate { it.deviceId to if (it.erase) RemovedDevice.ERASE_DATA else RemovedDevice.KEEP_DATA } else emptyMap(),
         )
         val newCode = reading.newCode
         if (reading.kind == RekeyReadingKind.NewKey && newCode != null) {
@@ -539,7 +544,9 @@ class SyncCoordinator(
             // still listen (the PCs that reach only one of them).
             forwardRekey(rekey.bytes, rekey.cameBy, current, payload.removedBy.deviceId)
             switchTo(newCode, current, payload.removed.map { it.deviceId })
-            applyPendingErases()
+            if (!madeHere) {
+                applyPendingErases()
+            }
         } else {
             // Removed, or left out of the rekey: there is no new key to switch to.
             removedStore.setUnlinked(UnlinkedState(now(), reading.kind == RekeyReadingKind.Removed, payload.removedBy.name))
