@@ -1054,6 +1054,18 @@
                                               AutomationProperties.Name="Keep window titles, full addresses and screen text in History" />
                                 </Grid>
                             </Border>
+                            <!-- Start over (ADR 54, 10): clears the app's data after a typed confirmation and a safety copy; locked during a focus session you started. -->
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="sTitle" Text="Start over" />
+                                        <TextBlock Classes="sHint"
+                                                   Text="Clear everything on this computer and set it up again from the beginning. A copy of your data is kept first." />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="Start over…" Command="{Binding StartOverCommand}" IsEnabled="{Binding !IsLocked}" VerticalAlignment="Center"
+                                            ToolTip.Tip="Locked while a focus session you started is running" />
+                                </Grid>
+                            </Border>
                             <Border Classes="sRow">
                                 <TextBlock Text="{Binding VersionText}" Classes="sHint" />
                             </Border>

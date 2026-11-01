@@ -8,6 +8,9 @@ public enum AssistantStep
     /// <summary>Link to your other devices first (ADR 22): a new device then gets their profiles and plan.</summary>
     LinkFirst,
 
+    /// <summary>ADR 55: restore the history of a removed device from a backup (Drive or a file) once linked; skipped when this PC is in no group.</summary>
+    Restore,
+
     /// <summary>What kind of computer this is: Personal, Work or Local only (each a starting set of switches).</summary>
     ComputerType,
     Import,

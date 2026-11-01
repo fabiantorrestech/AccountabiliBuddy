@@ -1,0 +1,120 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.RemoveDeviceDialog"
+        x:DataType="vm:RemoveDeviceViewModel"
+        Title="Remove this device"
+        Icon="/Assets/app-icon.png"
+        Width="560" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner">
+    <!-- Remove this device (ADR 54, 55): what removal does, its data (keep or erase), a backup first, a warning about older versions, the
+         confirmation; then it works and says what it did. Nothing is erased before the backup was made or given up. -->
+    <StackPanel Margin="22" Spacing="14">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+            <mi:MaterialIcon Kind="LinkOff" Width="24" Height="24" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="{Binding Name, StringFormat='Remove {0}'}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            <TextBlock Grid.Column="2" Text="{Binding StepText}" Opacity="0.7" VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- 1. What removal does -->
+        <StackPanel IsVisible="{Binding IsWhat}" Spacing="10">
+            <TextBlock TextWrapping="Wrap" Text="Removing a device locks it out. Your other devices switch to a new key, so it can't read anything new, even if it still has the old link code." />
+            <TextBlock TextWrapping="Wrap" Text="To use it again it has to be linked again, with a link code or QR from a device that is still linked. What it already received stays on it." />
+            <TextBlock TextWrapping="Wrap" IsVisible="{Binding IsPhone}" Text="Its watch goes with it." />
+            <Border Padding="12,8" CornerRadius="6" Background="#22E0A030" IsVisible="{Binding IsBlocked}">
+                <TextBlock Text="{Binding BlockedReason}" TextWrapping="Wrap" />
+            </Border>
+        </StackPanel>
+
+        <!-- 2. Its data -->
+        <StackPanel IsVisible="{Binding IsData}" Spacing="10">
+            <TextBlock TextWrapping="Wrap" Text="What should happen to the data this PC got from it (focus sessions, pickups, sleep nights, drift)?" />
+            <RadioButton GroupName="data" IsChecked="{Binding IsKeepData}">
+                <TextBlock TextWrapping="Wrap" Text="Keep it. History and Stats show it as &quot;(removed)&quot; after its name." />
+            </RadioButton>
+            <RadioButton GroupName="data" IsChecked="{Binding IsEraseData}">
+                <TextBlock TextWrapping="Wrap" Text="Erase it, from this PC and from every device as they catch up. Items in shared lists (tasks, Later) stay, because they belong to everyone." />
+            </RadioButton>
+        </StackPanel>
+
+        <!-- 3. Backup -->
+        <StackPanel IsVisible="{Binding IsBackup}" Spacing="10">
+            <TextBlock TextWrapping="Wrap" Text="Back its data up first? The backup is a sealed file only your linked devices can open; a new setup can restore it." />
+            <RadioButton GroupName="backup" IsChecked="{Binding IsBackupDrive}" IsVisible="{Binding DriveAvailable}">
+                <TextBlock TextWrapping="Wrap" Text="Google Drive: in the app's own Drive folder, under Backups." />
+            </RadioButton>
+            <RadioButton GroupName="backup" IsChecked="{Binding IsBackupFile}">
+                <TextBlock TextWrapping="Wrap" Text="Save a file on this PC." />
+            </RadioButton>
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="28,0,0,0" IsVisible="{Binding IsBackupFile}">
+                <TextBlock Text="{Binding BackupPath}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Opacity="0.85" />
+                <Button Grid.Column="1" Content="Choose…" Command="{Binding ChooseFileCommand}" />
+            </Grid>
+            <RadioButton GroupName="backup" IsChecked="{Binding IsBackupNone}">
+                <TextBlock TextWrapping="Wrap" Text="No backup." />
+            </RadioButton>
+            <TextBlock TextWrapping="Wrap" Opacity="0.7" IsVisible="{Binding !DriveAvailable}"
+                       Text="Google Drive isn't one of the ways this PC syncs, so the backup goes to a file." />
+        </StackPanel>
+
+        <!-- 4. Older versions -->
+        <StackPanel IsVisible="{Binding IsOlder}" Spacing="10">
+            <TextBlock TextWrapping="Wrap" FontWeight="SemiBold" Text="Some devices can't get the new key" />
+            <TextBlock TextWrapping="Wrap" Text="These run an older version of AccountabiliBuddy, or this PC hasn't heard from them. They will be cut off too. Update them first, or link them again afterwards:" />
+            <ItemsControl ItemsSource="{Binding NotWrappedNames}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                        <TextBlock Text="{Binding StringFormat='• {0}'}" TextWrapping="Wrap" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <!-- 5. Confirm -->
+        <StackPanel IsVisible="{Binding IsConfirm}" Spacing="10">
+            <TextBlock TextWrapping="Wrap" Text="{Binding Name, StringFormat='Remove {0} from your synced devices now?'}" />
+            <TextBlock TextWrapping="Wrap" Opacity="0.85" Text="Your other devices switch to a new key. This can't be undone, except by linking the device again." />
+            <Border Padding="12,8" CornerRadius="6" Background="#22E0A030" IsVisible="{Binding IsBlocked}">
+                <TextBlock Text="{Binding BlockedReason}" TextWrapping="Wrap" />
+            </Border>
+        </StackPanel>
+
+        <!-- Working -->
+        <StackPanel IsVisible="{Binding IsWorking}" Spacing="10">
+            <ProgressBar IsIndeterminate="True" />
+            <TextBlock Text="Removing it and making the backup…" />
+        </StackPanel>
+
+        <!-- The backup didn't work: nothing is erased until the user picks. -->
+        <StackPanel IsVisible="{Binding IsBackupProblem}" Spacing="10">
+            <TextBlock FontWeight="SemiBold" TextWrapping="Wrap" Text="The device is removed, but its backup wasn't saved" />
+            <TextBlock Text="{Binding ProblemText}" TextWrapping="Wrap" />
+            <TextBlock TextWrapping="Wrap" Opacity="0.85" Text="Its data on this PC is untouched until you pick." />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Try again" Command="{Binding TryBackupAgainCommand}" />
+                <Button Content="Save a file instead…" Command="{Binding SaveFileInsteadCommand}" IsVisible="{Binding CanSaveFileInstead}" />
+                <Button Content="Go on without a backup" Command="{Binding ContinueWithoutBackupCommand}" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Done -->
+        <StackPanel IsVisible="{Binding IsDone}" Spacing="10">
+            <TextBlock Text="{Binding DoneTitle}" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <ItemsControl ItemsSource="{Binding Summary}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                        <TextBlock Text="{Binding StringFormat='• {0}'}" TextWrapping="Wrap" Margin="0,2" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="Cancel" Command="{Binding CloseCommand}" IsVisible="{Binding IsQuestionPage}" />
+            <Button Content="Back" Command="{Binding BackCommand}" IsVisible="{Binding IsQuestionPage}" />
+            <Button Content="{Binding NextText}" Command="{Binding NextCommand}" Classes="accent" IsVisible="{Binding IsQuestionPage}" />
+            <Button Content="Close" Command="{Binding CloseCommand}" IsVisible="{Binding IsDone}" Classes="accent" />
+        </StackPanel>
+    </StackPanel>
+</Window>

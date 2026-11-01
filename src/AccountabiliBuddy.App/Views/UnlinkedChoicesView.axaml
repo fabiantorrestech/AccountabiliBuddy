@@ -1,0 +1,59 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.UnlinkedChoicesView"
+             x:DataType="vm:UnlinkedViewModel">
+    <!-- The three ways out when this PC was removed from the synced devices (ADR 54), in the Unlinked dialog and on the Devices page.
+         No button is the default; nothing syncs until one is picked. -->
+    <StackPanel Spacing="12">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+            <mi:MaterialIcon Kind="LinkOff" Width="26" Height="26" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Title}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding ByLine}" TextWrapping="Wrap" Opacity="0.8" />
+            </StackPanel>
+        </Grid>
+        <TextBlock TextWrapping="Wrap" Opacity="0.85"
+                   Text="Nothing syncs from this PC until you choose. What it already has stays on it." />
+
+        <!-- Add this PC again: a normal join with a code from a linked device; keeps this PC's device id. -->
+        <Border Padding="14,12" CornerRadius="8" BorderThickness="1" BorderBrush="#40808080">
+            <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="Add this PC again" FontWeight="SemiBold" />
+                        <TextBlock Text="Link it again with a code from a device that is still linked. It keeps its name and history." TextWrapping="Wrap" Opacity="0.8" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Add this PC again" Command="{Binding AddAgainCommand}" VerticalAlignment="Center" />
+                </Grid>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding IsAddingAgain}">
+                    <TextBox Text="{Binding JoinCode}" PlaceholderText="A link code from your other device (40 characters)" />
+                    <Button Grid.Column="1" Content="Join" Command="{Binding JoinAgainCommand}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <Border Padding="14,12" CornerRadius="8" BorderThickness="1" BorderBrush="#40808080">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="Continue unsynced here" FontWeight="SemiBold" />
+                    <TextBlock Text="Leave the group and keep everything on this PC, including what it received. You can link again later." TextWrapping="Wrap" Opacity="0.8" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="Continue unsynced" Command="{Binding ContinueUnsyncedCommand}" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <Border Padding="14,12" CornerRadius="8" BorderThickness="1" BorderBrush="#40808080">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="Start from scratch" FontWeight="SemiBold" />
+                    <TextBlock Text="Clear this PC's data and set it up again from the beginning. A copy of the data is kept first." TextWrapping="Wrap" Opacity="0.8" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="Start from scratch…" Command="{Binding StartFromScratchCommand}" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+    </StackPanel>
+</UserControl>

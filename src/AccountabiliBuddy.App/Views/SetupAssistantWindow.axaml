@@ -94,6 +94,31 @@
                     <TextBlock Classes="muted" Text="You can also do this later in Settings › Devices &amp; sync." />
                 </StackPanel>
 
+                <!-- 1b'. Restore from an older device (ADR 55): the history of a removed device, from a backup on Drive or a file. -->
+                <StackPanel IsVisible="{Binding IsRestore}" Spacing="12" MaxWidth="720" HorizontalAlignment="Left">
+                    <TextBlock Classes="body"
+                               Text="Did you remove an older device and back it up? Bring its history (sessions, phone pickups, sleep nights) back. It shows under its old name, marked removed. A backup opens only in the group it was made in." />
+                    <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsLoadingBackups}" MaxWidth="320" HorizontalAlignment="Left" />
+                    <ItemsControl ItemsSource="{Binding BackupRows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:RestoreBackupRowViewModel">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,4">
+                                    <StackPanel Spacing="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding DeviceName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Classes="muted" Text="{Binding DateText}" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="Restore" Command="{Binding RestoreCommand}" VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Classes="muted" Text="No backups found on Google Drive." IsVisible="{Binding NoBackupsFound}" />
+                    <Button Content="Choose a backup file…" Command="{Binding ChooseBackupFileCommand}" HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding RestoreMessage}" TextWrapping="Wrap"
+                               IsVisible="{Binding RestoreMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    <TextBlock Classes="muted" Text="You can skip this: it only brings history back, and nothing else here depends on it." />
+                </StackPanel>
+
                 <!-- 1c. What kind of computer is this? (ADR 22) -->
                 <StackPanel IsVisible="{Binding IsComputerType}" Spacing="12" MaxWidth="720" HorizontalAlignment="Left">
                     <TextBlock Classes="body"

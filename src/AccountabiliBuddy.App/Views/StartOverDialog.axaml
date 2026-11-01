@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.StartOverDialog"
+        x:DataType="vm:StartOverViewModel"
+        Title="Start over"
+        Icon="/Assets/app-icon.png"
+        Width="540" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner">
+    <!-- Start over (ADR 54, 10): a typed confirmation, then a safety copy of the data, then the data is cleared as the app restarts and the
+         first-run assistant opens. Locked while a focus session you started is running. -->
+    <StackPanel Margin="22" Spacing="12">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+            <mi:MaterialIcon Kind="Restore" Width="24" Height="24" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="Start over" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+        </Grid>
+        <TextBlock TextWrapping="Wrap" Text="This clears everything AccountabiliBuddy keeps on this PC: profiles, day plan, tasks, settings, history, your sign-ins and the link to your other devices. The setup assistant then opens as on a first run." />
+        <TextBlock TextWrapping="Wrap" Text="A copy of your data is saved first, in the backups folder of the data folder, and it stays. The browser extension link, a relay hosted on this PC, and Cold Turkey itself are not touched." />
+        <TextBlock TextWrapping="Wrap" FontWeight="SemiBold" Text="Keys the app holds for Cold Turkey blocks are cleared with the data: have your spare key to hand." />
+        <Border Padding="12,8" CornerRadius="6" Background="#22E0A030" IsVisible="{Binding IsLocked}">
+            <TextBlock Text="{Binding LockedText}" TextWrapping="Wrap" />
+        </Border>
+        <TextBlock TextWrapping="Wrap" Text="{Binding Phrase, StringFormat='Type &quot;{0}&quot; to confirm:'}" />
+        <TextBox Text="{Binding Typed}" IsEnabled="{Binding !IsLocked}" Width="260" HorizontalAlignment="Left" AutomationProperties.Name="Confirmation" />
+        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="Cancel" Command="{Binding CloseCommand}" />
+            <Button Content="Clear everything and restart" Command="{Binding StartCommand}" />
+        </StackPanel>
+    </StackPanel>
+</Window>

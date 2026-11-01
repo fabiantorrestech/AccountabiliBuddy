@@ -98,6 +98,11 @@ public partial class App : Application
     private AccountabiliBuddy.App.Services.Sync.SyncDriveService? _syncDrive;
     private AccountabiliBuddy.App.Services.Sync.SyncRelayService? _syncRelay;
     private AccountabiliBuddy.App.Services.Sync.SyncRemovalService? _syncRemoval;
+    private UnlinkedViewModel? _unlinkedViewModel;
+    private UnlinkedDialog? _unlinkedDialog;
+
+    // The unlinked state the dialog was last shown for, so closing it without choosing doesn't bring it back until the next start.
+    private DateTimeOffset? _unlinkedShownFor;
     private AccountabiliBuddy.App.Services.Sync.RelayHostService? _relayHost;
     private AccountabiliBuddy.App.Services.Sync.QrSyncService? _qrSync;
     private NamedPipeBrowserSource? _browserSource;
@@ -202,6 +207,9 @@ public partial class App : Application
                 }
             }
 
+            // Removed from the synced devices while this PC was off or away (ADR 54): ask what to do now.
+            ShowUnlinkedIfNew();
+
             // Later launches (second start, Start menu shortcut) hand over to this copy.
             _instanceSignals = InstanceSignals.Listen(Program.InstanceName, signal => Dispatcher.UIThread.Post(() =>
             {
@@ -230,6 +238,8 @@ public partial class App : Application
         string? dataOverride = Environment.GetEnvironmentVariable(DataDirectoryVariable);
         _usesDevData = dataOverride is null && !AppPaths.IsInstalled;
         string dataDirectory = dataOverride ?? (_usesDevData ? LocalDatabase.DefaultDirectory() + DevDataSuffix : LocalDatabase.DefaultDirectory());
+        // "Start over" asked for the data to be cleared (ADR 54, 10): done now, before the database is opened.
+        AccountabiliBuddy.App.Services.Setup.StartOverService.RunPending(dataDirectory);
         var database = new LocalDatabase(dataDirectory);
         string? problem = UpgradeSafety.CheckBlocking(database);
         if (problem is not null)
@@ -739,9 +749,9 @@ public partial class App : Application
         var driveAccount = new AccountabiliBuddy.App.Services.Sync.DriveAccountService(
             new GoogleCalendarClient(_calendarNetwork, googleEndpoints, time), calendars, documents, dataProtector, time);
         driveAccount.LoadBlocking();
+        var driveFiles = new AccountabiliBuddy.App.Services.Sync.GoogleDriveFiles(_calendarNetwork, googleEndpoints, driveAccount.GetAccessTokenAsync);
         _syncDrive = new AccountabiliBuddy.App.Services.Sync.SyncDriveService(
-            syncCoordinator, syncSettings, syncIdentity, receivedDevices, _sessions,
-            new AccountabiliBuddy.App.Services.Sync.GoogleDriveFiles(_calendarNetwork, googleEndpoints, driveAccount.GetAccessTokenAsync))
+            syncCoordinator, syncSettings, syncIdentity, receivedDevices, _sessions, driveFiles)
         {
             IsSignedIn = () => driveAccount.IsSignedIn,
             NoiseBusy = () => remoteNoise.WantsFastPoll,
@@ -769,6 +779,16 @@ public partial class App : Application
         };
         _syncRemoval.LoadBlocking();
         syncCoordinator.Removal = _syncRemoval;
+        // Backups of a removed device and restoring them (ADR 55); History, Stats and the day bar label removed devices.
+        var deviceBackups = new AccountabiliBuddy.App.Services.Sync.DeviceBackupService(driveFiles, syncIdentity, syncSettings, () => driveAccount.IsSignedIn);
+        var backupRestore = new AccountabiliBuddy.App.Services.Sync.BackupRestoreService(deviceBackups, syncIdentity, receivedDevices, _syncRemoval);
+        receivedDevices.IsRemoved = _syncRemoval.IsRemoved;
+        // Start over / Start from scratch (ADR 54, 10): the next start clears the data (see StartOverService).
+        var startOver = new AccountabiliBuddy.App.Services.Setup.StartOverService(database, _sessions, dataDirectory);
+        Action openStartOver = () => ShowOwnedDialog(new StartOverDialog { DataContext = new StartOverViewModel(startOver, _sessions, RestartApp) });
+        _unlinkedViewModel = new UnlinkedViewModel(_syncRemoval, _sessions, time, openStartOver);
+        _unlinkedViewModel.Resolved += (_, _) => _unlinkedShownFor = null;
+        _syncRemoval.Changed += (_, _) => Dispatcher.UIThread.Post(ShowUnlinkedIfNew);
 
         // Run a relay on this PC (ADR 46): the relay program ships next to the app, lives in the app's data folder and ends with the app.
         _relayHost = new AccountabiliBuddy.App.Services.Sync.RelayHostService(
@@ -803,6 +823,7 @@ public partial class App : Application
         {
             Types = computerTypes,
             Identity = syncIdentity,
+            Restore = backupRestore,
             Goal = goal,
             StartNudge = _startNudge,
             Appearance = new AppearanceViewModel(appTheme),
@@ -863,7 +884,14 @@ public partial class App : Application
         {
             SyncLightSetting = syncLightSetting,
             Batteries = batteryVisibility,
+            Removal = _syncRemoval,
+            UnlinkedPanel = _unlinkedViewModel,
         };
+        // Remove this device… (ADR 54, 55): the dialog works through the removal service and the backup service.
+        devices.OpenRemoveDialog = deviceId => ShowOwnedDialog(new RemoveDeviceDialog
+        {
+            DataContext = new RemoveDeviceViewModel(_syncRemoval!, receivedDevices, deviceBackups, time, deviceId),
+        });
         var sessionViewModel = new SessionViewModel(
             _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks), _quickSession)
         {
@@ -1065,6 +1093,7 @@ public partial class App : Application
                 _noise)
             {
                 StepAway = _stepAway,
+                OpenStartOver = openStartOver,
                 WorkHours = new WorkHoursViewModel(_workHours!, _sessions),
                 Hyperfocus = new HyperfocusViewModel(_hyperfocus!, _configuration),
                 StartNudge = new StartNudgeViewModel(_startNudge!),
@@ -2113,6 +2142,68 @@ public partial class App : Application
         }
 
         dialog.Activate();
+    }
+
+    // Shows a dialog over the main window when it is open, else in the middle of the screen.
+    private void ShowOwnedDialog(Window dialog)
+    {
+        if (_mainWindow is { IsVisible: true })
+        {
+            dialog.Show(_mainWindow);
+        }
+        else
+        {
+            dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            dialog.Show();
+        }
+
+        dialog.Activate();
+    }
+
+    // This PC is unlinked (ADR 54): the three choices, once per removal. With the window closed (a start at sign-in) a notice
+    // with "Choose…" comes first. Closing the dialog without choosing leaves the PC unlinked; it comes back at the next start.
+    private void ShowUnlinkedIfNew()
+    {
+        if (_syncRemoval?.Unlinked is not { } state || _unlinkedViewModel is null || _unlinkedShownFor == state.At)
+        {
+            return;
+        }
+
+        _unlinkedShownFor = state.At;
+        if (_mainWindow is { IsVisible: true } || _presenter is null)
+        {
+            ShowUnlinkedDialog();
+            return;
+        }
+
+        _presenter.ShowChoice(
+            "This PC was removed from your synced devices",
+            $"Removed by {state.RemovedByName}. Nothing syncs until you choose what to do.",
+            "Choose…",
+            () =>
+            {
+                ShowMainWindow();
+                ShowUnlinkedDialog();
+            },
+            () => _unlinkedShownFor = null);
+    }
+
+    private void ShowUnlinkedDialog()
+    {
+        if (_unlinkedDialog is not null)
+        {
+            _unlinkedDialog.Activate();
+            return;
+        }
+
+        if (_unlinkedViewModel is null || _syncRemoval?.Unlinked is null)
+        {
+            return;
+        }
+
+        _unlinkedDialog = new UnlinkedDialog { DataContext = _unlinkedViewModel };
+        _unlinkedDialog.Closed += (_, _) => _unlinkedDialog = null;
+        ShowOwnedDialog(_unlinkedDialog);
     }
 
     /// <summary>Starts a new copy (which waits for this one to exit) and quits, e.g. to load restored settings.</summary>

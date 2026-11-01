@@ -15,8 +15,9 @@ public static class AssistantFlow
     /// <param name="joined">Joined a device group: the profiles come from the other devices, so the import pages are skipped.</param>
     /// <param name="hasColdTurkey">Cold Turkey is installed: the full setup offers to hold its keys (ADR 39).</param>
     /// <param name="needsSpareKey">No spare key written down yet: the spare key page follows.</param>
+    /// <param name="hasRestore">This PC is in a device group and backups can be opened (ADR 55): "Restore from an older device" follows linking.</param>
     public static IReadOnlyList<AssistantStep> Steps(bool quick, bool hasIdentity, bool hasTypes, bool hasUsage, bool joined,
-        bool hasColdTurkey = false, bool needsSpareKey = false)
+        bool hasColdTurkey = false, bool needsSpareKey = false, bool hasRestore = false)
     {
         if (quick)
         {
@@ -29,6 +30,11 @@ public static class AssistantFlow
             if (hasIdentity)
             {
                 steps.Add(AssistantStep.LinkFirst);
+            }
+
+            if (hasRestore)
+            {
+                steps.Add(AssistantStep.Restore);
             }
 
             steps.Add(AssistantStep.Goal);
@@ -48,6 +54,7 @@ public static class AssistantFlow
             .Where(step => step != AssistantStep.PanelCtrlAlt)
             .Where(step => step != AssistantStep.Usage || hasUsage)
             .Where(step => step != AssistantStep.LinkFirst || hasIdentity)
+            .Where(step => step != AssistantStep.Restore || hasRestore)
             .Where(step => step != AssistantStep.ComputerType || hasTypes)
             .Where(step => !joined || step is not (AssistantStep.Import or AssistantStep.Usage or AssistantStep.Review))
             .Where(step => step != AssistantStep.ColdTurkeyKeys || hasColdTurkey)
