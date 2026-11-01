@@ -95,6 +95,12 @@ public sealed class GoogleDriveFiles : IDriveFiles
         return created.RootElement.GetProperty("id").GetString()!;
     }
 
+    public async Task DeleteAsync(string id, CancellationToken cancellationToken)
+    {
+        string token = await _accessToken(cancellationToken);
+        await _network.DeleteAsync(Uri($"files/{System.Uri.EscapeDataString(id)}", new Dictionary<string, string>()), token, cancellationToken);
+    }
+
     // The app's folder: found by name among the files the app made, else made now. Kept for this run.
     private async Task<string> FolderAsync(string token, CancellationToken cancellationToken)
     {

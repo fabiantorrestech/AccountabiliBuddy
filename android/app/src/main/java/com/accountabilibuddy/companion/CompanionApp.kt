@@ -15,6 +15,7 @@ import com.accountabilibuddy.companion.sync.WakeEstimate
 import com.accountabilibuddy.companion.sync.AlarmSighting
 import com.accountabilibuddy.companion.sync.PhoneSyncSettingsStore
 import com.accountabilibuddy.companion.sync.ReceivedDevicesStore
+import com.accountabilibuddy.companion.sync.RemovedDevicesStore
 import com.accountabilibuddy.companion.sync.SyncCoordinator
 import com.accountabilibuddy.companion.sync.SyncIdentityStore
 import com.accountabilibuddy.companion.watch.WatchBridge
@@ -217,6 +218,7 @@ class CompanionApp : Application() {
         sync = SyncCoordinator(
             SyncIdentityStore(File(filesDir, "companion/sync.json")),
             ReceivedDevicesStore(File(filesDir, "companion/sync-received.json")),
+            RemovedDevicesStore(File(filesDir, "companion/sync-removed.json")),
             deviceName,
             appVersion(),
             PhoneSyncSettingsStore(File(filesDir, "companion/sync-settings.json")),
@@ -365,6 +367,17 @@ class CompanionApp : Application() {
         driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn, beforeSync = { watchBridge.refreshKnownWatches() })
         // The relay source comes first: a file the Drive loop accepts at start-up calls relaySource.syncSoon().
         relaySource = com.accountabilibuddy.companion.sync.RelaySyncSource(sync, appScope, beforeSync = { watchBridge.refreshKnownWatches() })
+        // ADR 54: removing a device writes the rekey file by these, and a new key clears the old group's files from them.
+        sync.rekeyMethods = listOf(folderSource, driveSource, relaySource)
+        sync.backgroundScope = appScope
+        // No escape hatches (ADR 54): removing devices, leaving and erasing a removed device's data wait for a PC focus session to end.
+        sync.removalLockedReason = {
+            if (com.accountabilibuddy.companion.placement.PlacementSession.current(this, java.time.Instant.now()) != null) {
+                "This is locked while a focus session is running."
+            } else {
+                null
+            }
+        }
         // Drive (ADR 26): every 30 s while a session runs or the timeline is pinned, else 15 min.
         appScope.launch { driveSource.loop { driveBusy() } }
         // The relay (ADR 46): the same pace, plus a push stream open while a session runs or the timeline is pinned.

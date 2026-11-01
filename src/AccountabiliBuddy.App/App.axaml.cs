@@ -97,6 +97,7 @@ public partial class App : Application
     private AccountabiliBuddy.App.Services.Sync.SyncFolderService? _syncFolder;
     private AccountabiliBuddy.App.Services.Sync.SyncDriveService? _syncDrive;
     private AccountabiliBuddy.App.Services.Sync.SyncRelayService? _syncRelay;
+    private AccountabiliBuddy.App.Services.Sync.SyncRemovalService? _syncRemoval;
     private AccountabiliBuddy.App.Services.Sync.RelayHostService? _relayHost;
     private AccountabiliBuddy.App.Services.Sync.QrSyncService? _qrSync;
     private NamedPipeBrowserSource? _browserSource;
@@ -761,6 +762,13 @@ public partial class App : Application
             NoiseBusy = _syncDrive.NoiseBusy,
             InWorkHours = _syncDrive.InWorkHours,
         };
+        // Removing devices from the group and learning of a removal (ADR 54): the rekey file travels by every method in use.
+        _syncRemoval = new AccountabiliBuddy.App.Services.Sync.SyncRemovalService(documents, syncIdentity, receivedDevices, _sessions)
+        {
+            Publishers = [_syncFolder, _syncDrive, _syncRelay],
+        };
+        _syncRemoval.LoadBlocking();
+        syncCoordinator.Removal = _syncRemoval;
 
         // Run a relay on this PC (ADR 46): the relay program ships next to the app, lives in the app's data folder and ends with the app.
         _relayHost = new AccountabiliBuddy.App.Services.Sync.RelayHostService(

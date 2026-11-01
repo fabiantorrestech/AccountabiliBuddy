@@ -15,7 +15,7 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// change, and at each interval. Its own file is never read. Nothing is written or read while the switch is off or the
 /// PC isn't linked to a group. Use from the UI thread only.
 /// </summary>
-public sealed class SyncFolderService : IDisposable
+public sealed class SyncFolderService : IDisposable, IRekeyPublisher
 {
     public const string Extension = ".absync";
 
@@ -85,6 +85,7 @@ public sealed class SyncFolderService : IDisposable
         _sessionActive = _sessions.State.IsActive;
         _settings.Changed += OnSettingsChanged;
         _identity.Changed += OnIdentityChanged;
+        _identity.KeySwitched += OnKeySwitched;
         _coordinator.OwnDataChanged += OnOwnDataChanged;
         _sessions.StateChanged += OnSessionStateChanged;
         Restart();
@@ -138,6 +139,67 @@ public sealed class SyncFolderService : IDisposable
         }
     }
 
+    /// <summary>Writes the rekey file (ADR 54) into the folder beside the devices' files, the way <see cref="WriteNowAsync"/> writes this PC's.</summary>
+    public async Task<bool?> PublishRekeyAsync(byte[] sealedBytes, string fileName)
+    {
+        if (!TryGetFolder(out string folder, out _, out _))
+        {
+            return null;
+        }
+
+        await _writing.WaitAsync();
+        try
+        {
+            await Task.Run(() =>
+            {
+                string target = Path.Combine(folder, fileName);
+                string temporary = target + ".tmp";
+                File.WriteAllBytes(temporary, sealedBytes);
+                File.Move(temporary, target, overwrite: true);
+            });
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
+        finally
+        {
+            _writing.Release();
+        }
+    }
+
+    /// <summary>The rekey files (ADR 54) in the folder under any of <paramref name="fileNames"/>.</summary>
+    public async Task<IReadOnlyList<byte[]>> FindRekeysAsync(IReadOnlyCollection<string> fileNames)
+    {
+        if (!TryGetFolder(out string folder, out _, out _))
+        {
+            return [];
+        }
+
+        return await Task.Run(() =>
+        {
+            var found = new List<byte[]>();
+            foreach (string name in fileNames)
+            {
+                try
+                {
+                    var file = new FileInfo(Path.Combine(folder, name));
+                    if (file.Exists && file.Length <= MaxFileBytes)
+                    {
+                        found.Add(File.ReadAllBytes(file.FullName));
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+                {
+                    // Being written or synced: not counted.
+                }
+            }
+
+            return (IReadOnlyList<byte[]>)found;
+        });
+    }
+
     /// <summary>Reads the other devices' files in the folder now; a file that can't be read shows as "Can't read a file from …".</summary>
     public async Task ReadNowAsync()
     {
@@ -165,8 +227,15 @@ public sealed class SyncFolderService : IDisposable
             }
 
             bool unreadable = false;
+            SyncKey? passKey = _identity.Key;
             foreach (FileInfo file in files)
             {
+                // A rekey (ADR 54) switched the group's key during this pass: the rest are the old group's, the next pass reads the new group's.
+                if (_identity.Key?.SameGroupAs(passKey) != true)
+                {
+                    break;
+                }
+
                 bool? bad = await ReadFileAsync(file);
                 unreadable |= bad == true;
             }
@@ -198,6 +267,7 @@ public sealed class SyncFolderService : IDisposable
         {
             _settings.Changed -= OnSettingsChanged;
             _identity.Changed -= OnIdentityChanged;
+            _identity.KeySwitched -= OnKeySwitched;
             _coordinator.OwnDataChanged -= OnOwnDataChanged;
             _sessions.StateChanged -= OnSessionStateChanged;
         }
@@ -245,7 +315,7 @@ public sealed class SyncFolderService : IDisposable
 
         bool unreadable = reason == SyncCoordinator.CannotReadReason;
         // Accepted, unreadable or this PC's own: the same bytes give the same answer. An older file is read again.
-        if (reason is null || unreadable || reason == SyncCoordinator.OwnFileReason)
+        if (reason is null || unreadable || reason == SyncCoordinator.OwnFileReason || reason == SyncCoordinator.RemovedDeviceReason)
         {
             _seen[file.FullName] = new SeenFile(file.Length, file.LastWriteTimeUtc, unreadable);
         }
@@ -358,6 +428,40 @@ public sealed class SyncFolderService : IDisposable
     private void OnIdentityChanged(object? sender, EventArgs e)
     {
         Restart();
+    }
+
+    // The group got a new key (ADR 54): this PC's file and the removed devices' files of the old group leave the folder.
+    // Best effort; the rekey file stays, since a device that is behind (or the removed one) still has to read it.
+    private void OnKeySwitched(object? sender, SyncKeySwitchedEventArgs e)
+    {
+        SyncSettings settings = _settings.Current;
+        if (_disposed || !settings.FolderOn || string.IsNullOrWhiteSpace(settings.FolderPath))
+        {
+            return;
+        }
+
+        string folder = settings.FolderPath;
+        // The old group is dead: this PC's file, the removed devices' and every device this PC knows (their old copies, which
+        // the phone may have carried) go; each of them writes a new file under the new key.
+        List<string> names = e.RemovedDeviceIds.Append(_identity.DeviceId)
+            .Concat(_received.Devices.Select(device => device.File.Device.DeviceId))
+            .Distinct()
+            .Select(id => FileNameFor(e.OldKey.GroupId, id))
+            .ToList();
+        _ = Task.Run(() =>
+        {
+            foreach (string name in names)
+            {
+                try
+                {
+                    File.Delete(Path.Combine(folder, name));
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+                {
+                    // Left for the user to clear; the new group never reads it.
+                }
+            }
+        });
     }
 
     private void OnOwnDataChanged(object? sender, EventArgs e)

@@ -216,6 +216,12 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         val prompt = joinOffer.value ?: return
         joinOffer.value = null
         val offer = prompt.link
+        if (prompt.leavesCurrentGroup) {
+            sync.removalLockedReason()?.let {
+                message.value = it
+                return
+            }
+        }
         if (!sync.join(offer.code)) {
             message.value = "That link code didn't work. Show it again on ${offer.pcName}."
             return
@@ -423,6 +429,12 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun leaveSyncGroup() {
+        // No escape hatches during a focus session the user started (ADR 54).
+        sync.removalLockedReason()?.let {
+            message.value = it
+            return
+        }
+
         // The relay's copy of this phone's file goes first, while the group's key is still here (ADR 46).
         relaySource.leaveGroup()
         sync.leave()

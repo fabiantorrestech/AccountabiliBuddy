@@ -1,8 +1,10 @@
 package com.accountabilibuddy.companion.sync
 
+import com.accountabilibuddy.shared.sync.RekeyCodec
 import com.accountabilibuddy.shared.sync.RelayIdentity
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFolder
+import com.accountabilibuddy.shared.sync.SyncKey
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,14 +37,15 @@ import java.util.concurrent.ConcurrentHashMap
  * session runs or the timeline is pinned, else 15 minutes). While that busy state holds it also keeps the relay's push
  * stream open, so a change on a PC arrives in about a second; the stream reconnects after 1 s, doubling to 60 s. The
  * relay is trusted only with sealed bytes: the pin (or normal certificate checks) is never skipped, and a mismatch is a
- * problem on the status line, not a fallback.
+ * problem on the status line, not a fallback. It also carries the rekey file and clears an old group's files after a
+ * removal (ADR 54).
  */
 class RelaySyncSource(
     private val sync: SyncCoordinator,
     private val scope: CoroutineScope,
     /** Runs before each full sync, so this phone's file says what's true now (e.g. its linked watch is still valid). */
     private val beforeSync: suspend () -> Unit = {},
-) {
+) : RekeySyncMethod {
     private val running = Mutex()
     private val _status = MutableStateFlow(FolderStatus())
 
@@ -62,6 +65,8 @@ class RelaySyncSource(
     private val ownGate = OwnFileWriteGate()
 
     val status: StateFlow<FolderStatus> = _status.asStateFlow()
+
+    override val method: String = SyncDeviceCard.METHOD_RELAY
 
     /** Polls at [DrivePoll]'s pace and keeps the push stream open while [busy]; runs until cancelled. */
     suspend fun loop(busy: () -> Boolean) = coroutineScope {
@@ -106,6 +111,56 @@ class RelaySyncSource(
         }
 
         forget()
+    }
+
+    override suspend fun publishRekey(sealed: ByteArray, fileName: String, key: SyncKey): Boolean? {
+        if (!isEnabled()) {
+            return null
+        }
+
+        val endpoint = endpoint(key) ?: return false
+        return running.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    RelayNetwork.put(endpoint, fileName, sealed)
+                    true
+                } catch (e: Exception) {
+                    false
+                }
+            }
+        }
+    }
+
+    override suspend fun findRekeys(fileNames: Set<String>, key: SyncKey): List<ByteArray> {
+        if (!isEnabled()) {
+            return emptyList()
+        }
+
+        val endpoint = endpoint(key) ?: return emptyList()
+        return running.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    RelayNetwork.list(endpoint).filter { it.name in fileNames }.mapNotNull { RelayNetwork.get(endpoint, it.name)?.bytes }
+                } catch (e: Exception) {
+                    emptyList()
+                }
+            }
+        }
+    }
+
+    override suspend fun clearOldGroup(oldKey: SyncKey, deviceIds: List<UUID>) {
+        if (!isEnabled()) {
+            return
+        }
+
+        val endpoint = endpoint(oldKey) ?: return
+        running.withLock {
+            withContext(Dispatchers.IO) {
+                for (id in deviceIds) {
+                    runCatching { RelayNetwork.delete(endpoint, SyncFolder.fileNameFor(oldKey.groupId, id)) }
+                }
+            }
+        }
     }
 
     private suspend fun pollLoop(busy: () -> Boolean) {
@@ -311,6 +366,14 @@ class RelaySyncSource(
             val downloaded = RelayNetwork.get(endpoint, file.name) ?: continue
             passBytes += downloaded.bytes.size
             val etag = downloaded.etag ?: file.etag
+            // The rekey file (ADR 54): handed to the coordinator, which applies it a few seconds later (the relay's cache follows
+            // the group's id, so the next pass after the switch reads the new group's files).
+            if (RekeyCodec.isRekey(downloaded.bytes)) {
+                sync.acceptSealed(downloaded.bytes, SyncDeviceCard.METHOD_RELAY)
+                seen[file.name] = etag
+                continue
+            }
+
             val card = sync.cardOf(downloaded.bytes)
             if (card == null) {
                 // Another group's or damaged: not read again until it changes.
@@ -324,7 +387,7 @@ class RelaySyncSource(
             // Remembered only once taken in, or when this phone holds a copy at least as new (nothing to gain by
             // reading it again); a refusal for any other reason is retried at the next pass.
             val held = sync.received.value.firstOrNull { it.file.device.deviceId == card.deviceId }
-            if (error == null || (held != null && held.file.device.writtenAt >= card.writtenAt)) {
+            if (error == null || error == SyncCoordinator.REMOVED_DEVICE || (held != null && held.file.device.writtenAt >= card.writtenAt)) {
                 seen[file.name] = etag
             }
         }
@@ -364,9 +427,9 @@ class RelaySyncSource(
 
     private fun shouldStream(busy: () -> Boolean): Boolean = isEnabled() && busy()
 
-    private fun endpoint(): RelayEndpoint? {
+    private fun endpoint(key: SyncKey? = sync.key.value): RelayEndpoint? {
         val settings = sync.settings.value
-        val key = sync.key.value ?: return null
+        key ?: return null
         val url = settings.relayUrl ?: return null
 
         // The group's id and token are this relay's own (named by its pin, else its address), not the same on every relay.

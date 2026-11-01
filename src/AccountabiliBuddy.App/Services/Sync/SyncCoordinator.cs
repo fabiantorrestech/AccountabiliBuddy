@@ -30,6 +30,9 @@ public sealed class SyncCoordinator
     /// <summary>Why a file was refused when it is this PC's own.</summary>
     public const string OwnFileReason = "This is this PC's own sync file.";
 
+    /// <summary>Why a file was refused when it is from a device removed from the group (ADR 54).</summary>
+    public const string RemovedDeviceReason = "This file is from a device that was removed from your device group.";
+
     private const string NotInGroupReason = "This PC isn't linked to your other devices yet.";
 
     // The plan's sync state: its version, when it was last edited, and the newest version it shares with the others.
@@ -114,6 +117,9 @@ public sealed class SyncCoordinator
         log.AllDeleted += (_, _) => Dispatcher.UIThread.Post(RaiseOwnDataChanged);
         identity.Changed += (_, _) => ForgetGroupWork();
     }
+
+    /// <summary>Removed devices and the rekey file (ADR 54); set by the app. Without it a rekey file is treated as unreadable.</summary>
+    public SyncRemovalService? Removal { get; set; }
 
     /// <summary>The day plan was changed here and on another device before they synced: ask which to keep.</summary>
     public event EventHandler<DayPlanClashRequest>? ClashRaised;
@@ -219,7 +225,8 @@ public sealed class SyncCoordinator
         DateTimeOffset now = _sessions.Now;
         bool historyOff = !_privacy.Current.ActivityLogEnabled;
         var card = new SyncDeviceCard(
-            _identity.DeviceId, _identity.DeviceName, SyncDeviceCard.KindPc, BackupService.AppVersion, now, Methods(), historyOff, Seen());
+            _identity.DeviceId, _identity.DeviceName, SyncDeviceCard.KindPc, BackupService.AppVersion, now, Methods(), historyOff, Seen(),
+            PublicKey: _identity.DeviceKey.PublicKeyBase64);
 
         IReadOnlyList<SessionRecord> records = [];
         IReadOnlyList<DriftStretch> drift = [];
@@ -368,6 +375,12 @@ public sealed class SyncCoordinator
             return NotInGroupReason;
         }
 
+        // The rekey file (ADR 54) travels with the devices' files, under a name shaped like theirs.
+        if (RekeyCodec.IsRekey(sealedBytes))
+        {
+            return Removal is null ? CannotReadReason : await Removal.AcceptRekeyAsync(sealedBytes, key);
+        }
+
         if (SyncFileCodec.Open(sealedBytes, key) is not SyncFile file)
         {
             return CannotReadReason;
@@ -377,6 +390,18 @@ public sealed class SyncCoordinator
         if (sender.DeviceId == _identity.DeviceId)
         {
             return OwnFileReason;
+        }
+
+        // A removed device's file is refused (ADR 54). One that opens with the group's NEW key, written after the removal, can
+        // only come from a device that was linked again: it is a member once more.
+        if (Removal?.RemovedAs(sender.DeviceId) is RemovedDevice removed)
+        {
+            if (sender.WrittenAt <= removed.RemovedAt)
+            {
+                return RemovedDeviceReason;
+            }
+
+            await Removal.ClearRemovedAsync(sender.DeviceId);
         }
 
         ReceivedDevice? stored = _received.Devices.FirstOrDefault(device => device.File.Device.DeviceId == sender.DeviceId);

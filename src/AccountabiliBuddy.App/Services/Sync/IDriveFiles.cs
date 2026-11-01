@@ -11,4 +11,8 @@ public interface IDriveFiles
     /// <summary>Writes [name] (a new file when [existingId] is null, else that file's new content).</summary>
     /// <returns>The file's Drive id.</returns>
     Task<string> UploadAsync(string name, byte[] content, string? existingId, CancellationToken cancellationToken);
+
+    /// <summary>Deletes the file with Drive id [id] (one the app made); a file that is already gone is fine.</summary>
+    /// <exception cref="HttpRequestException">Network error, or Drive refused.</exception>
+    Task DeleteAsync(string id, CancellationToken cancellationToken);
 }

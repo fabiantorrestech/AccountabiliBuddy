@@ -136,6 +136,15 @@ object SyncKeyCode {
     }
 
     /**
+     * The code for a given 25-byte secret (a rekey, ADR 54, hands the secret over wrapped, then both sides spell it the same
+     * way).
+     */
+    fun fromSecret(secret: ByteArray): String {
+        require(secret.size == SyncKey.SECRET_BYTES) { "The link code's secret is ${SyncKey.SECRET_BYTES} bytes." }
+        return encode(secret)
+    }
+
+    /**
      * Reads a typed or scanned code. Spaces, dashes and lower case are ignored; what's left must be exactly 40
      * characters of the alphabet (I, L, O and U are refused, not read as 1 or 0). Null when it isn't a code.
      */

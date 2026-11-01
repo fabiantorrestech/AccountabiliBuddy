@@ -11,7 +11,8 @@ import java.time.Instant
  * @property method How the newest file came (QR, folder, Drive or file; "link" in a copy kept from before ADR 45); the
  * phone never carries a file back the way it came ([SyncCarry.filesFor]).
  * @property sealed The newest file's sealed bytes exactly as they arrived: what the phone carries on. A merged copy is
- * never sealed again and relayed, since it has gaps where its files didn't meet.
+ * never sealed again and relayed, since it has gaps where its files didn't meet. Empty after the group got a new key
+ * (ADR 54): the old bytes can't be opened by the others, so the copy isn't carried until a new file from the device replaces it.
  */
 class ReceivedDevice(val file: SyncFile, val receivedAt: Instant, val method: String, val sealed: ByteArray) {
     /**
@@ -19,4 +20,7 @@ class ReceivedDevice(val file: SyncFile, val receivedAt: Instant, val method: St
      * taken out (they merge into the phone's own store), leaving an empty "parked" as the mark.
      */
     val hasSharedLists: Boolean get() = file.parked != null
+
+    /** Whether [sealed] can be handed to the other devices; false after a new key (ADR 54), until the device's next file. */
+    val carryable: Boolean get() = sealed.isNotEmpty()
 }
