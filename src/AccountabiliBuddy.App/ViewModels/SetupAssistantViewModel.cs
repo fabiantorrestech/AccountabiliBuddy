@@ -363,6 +363,9 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     /// </summary>
     public Func<Task>? ReadOtherDevicesNow { get; init; }
 
+    /// <summary>True when this PC has a way to read the other devices' files (a sync folder, Drive or a relay).</summary>
+    public Func<bool>? HasSyncMethod { get; init; }
+
     /// <summary>Set by the window: shows an open-file dialog for a backup file (.absync) and returns the chosen path.</summary>
     public Func<Task<string?>>? PickBackupFile { get; set; }
 
@@ -464,6 +467,16 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         if (opening.Kind != BackupOpeningKind.DifferentGroup || ReadOtherDevicesNow is null)
         {
             return opening;
+        }
+
+        if (HasSyncMethod?.Invoke() == false)
+        {
+            // Nothing to read the past keys from yet (the quick setup doesn't ask how this PC syncs).
+            return opening with
+            {
+                Message = "This backup may be from before a later removal; its key comes from your other devices' sync files. Set up how "
+                    + "this PC syncs in Settings › Devices & sync, let it sync once, then restore it from Settings › Setup › Full setup.",
+            };
         }
 
         RestoreMessage = "Getting the keys your other devices keep…";

@@ -844,6 +844,8 @@ public partial class App : Application
                 await _syncDrive!.ReadNowAsync();
                 await _syncRelay!.ReadNowAsync();
             },
+            HasSyncMethod = () => syncSettings.Current is { } sync
+                && ((sync.FolderOn && !string.IsNullOrWhiteSpace(sync.FolderPath)) || sync.DriveOn || sync.RelayOn),
             Goal = goal,
             StartNudge = _startNudge,
             Appearance = new AppearanceViewModel(appTheme),
