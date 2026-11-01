@@ -36,6 +36,8 @@ data class DeviceRow(
     val pillTone: PillTone,
     val kind: DeviceKind,
     val indented: Boolean = false,
+    /** Set on a device that can be removed from the group (ADR 54): the row gets a ⋯ menu. Not on this phone, its watch, a watch or a removed device. */
+    val removableId: java.util.UUID? = null,
 )
 
 /** The rows for this phone and its linked watch (no Android here, so the checks can run them). */

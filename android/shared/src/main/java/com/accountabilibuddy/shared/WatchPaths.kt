@@ -11,6 +11,12 @@ object WatchPaths {
     /** The phone tells the watch it's not linked (any more): the watch forgets what it has. */
     const val UNLINK = "/unlink"
 
+    /**
+     * The phone tells the watch whether the phone itself was removed from the user's synced devices (ADR 54): one byte, 1 = unlinked
+     * and waiting for the user's choice, 0 = fine. A flag only; nothing private goes with it.
+     */
+    const val PHONE_STATE = "/phone-state"
+
     /** The phone tells the watch what its noise player is doing ([NoiseRemote.State], ADR 36). */
     const val NOISE = "/noise"
 

@@ -48,6 +48,14 @@ object WatchText {
         return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, rest) else "%d:%02d".format(minutes, rest)
     }
 
+    /** The watch's page while its phone is unlinked (ADR 54): a title and a line; the snapshot stays until the phone chooses. */
+    val PHONE_REMOVED: Pair<String, String> =
+        "Phone unlinked" to "Your phone was removed from your synced devices. Choose what to do on your phone."
+
+    /** The watch's page after the phone unlinked this watch (the phone unlinked it, or started from scratch): a title and a line. */
+    val UNLINKED_BY_PHONE: Pair<String, String> =
+        "Unlinked by your phone" to "Forget what this watch shows, or keep it for now?"
+
     /** What the watch says before it has anything from the phone: a title and a line, by whether the phone answered. */
     fun notLinked(phoneReachable: Boolean?): Pair<String, String> = when (phoneReachable) {
         null -> "AccountabiliBuddy" to "Asking your phone…"

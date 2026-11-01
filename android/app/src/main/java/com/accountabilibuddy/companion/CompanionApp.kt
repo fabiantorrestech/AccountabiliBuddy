@@ -15,6 +15,7 @@ import com.accountabilibuddy.companion.sync.WakeEstimate
 import com.accountabilibuddy.companion.sync.AlarmSighting
 import com.accountabilibuddy.companion.sync.PhoneSyncSettingsStore
 import com.accountabilibuddy.companion.sync.ReceivedDevicesStore
+import com.accountabilibuddy.companion.sync.BackupOpener
 import com.accountabilibuddy.companion.sync.PastKeysStore
 import com.accountabilibuddy.companion.sync.RemovedDevicesStore
 import com.accountabilibuddy.companion.sync.SyncCoordinator
@@ -31,10 +32,12 @@ import com.accountabilibuddy.companion.sync.DayPlanFileSync
 import com.accountabilibuddy.companion.sync.PcFileRemote
 import com.accountabilibuddy.companion.sync.PcNoiseRemote
 import com.accountabilibuddy.shared.sync.SyncAction
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.serialization.json.JsonObject
 import java.io.File
 
@@ -73,6 +76,10 @@ class CompanionApp : Application() {
 
     /** Device sync (ADR 22): the group, the other devices' parts, and the files the phone carries. */
     lateinit var sync: SyncCoordinator
+        private set
+
+    /** Opens a removed device's backup with the group's key or a past key (ADR 55, 56). */
+    lateinit var backupOpener: BackupOpener
         private set
 
     /** The sync folder another app keeps in step with Google Drive (ADR 22, way B). */
@@ -204,6 +211,12 @@ class CompanionApp : Application() {
     // Lives as long as the app; the sync work runs here.
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(base)
+        // "Start from scratch" (ADR 54) clears the app here, before any content provider, store or loop has opened a file.
+        com.accountabilibuddy.companion.setup.StartOver.runPending(this)
+    }
+
     override fun onCreate() {
         super.onCreate()
         store = CompanionStore(File(filesDir, "companion"))
@@ -217,15 +230,18 @@ class CompanionApp : Application() {
         // ADR 45: the Wi-Fi link's stored pairing and focus day are deleted once.
         com.accountabilibuddy.companion.sync.LinkLeftovers.deleteOnce(this)
         val removedDevices = RemovedDevicesStore(File(filesDir, "companion/sync-removed.json"))
+        val pastKeys = PastKeysStore(File(filesDir, "companion/sync-past-keys.json"))
         sync = SyncCoordinator(
             SyncIdentityStore(File(filesDir, "companion/sync.json")),
             ReceivedDevicesStore(File(filesDir, "companion/sync-received.json")) { id -> removedDevices.devices.value.any { it.deviceId == id } },
             removedDevices,
-            PastKeysStore(File(filesDir, "companion/sync-past-keys.json")),
+            pastKeys,
             deviceName,
             appVersion(),
             PhoneSyncSettingsStore(File(filesDir, "companion/sync-settings.json")),
         )
+        // ADR 55, 56: a removed device's backup opens with the group's key or a past key.
+        backupOpener = BackupOpener({ sync.key.value }, pastKeys, { sync.deviceId })
         // A new file that came by QR code, a folder or a share goes on to the PCs through Drive and the relay soon; one
         // that came by Drive also goes to the relay, and one that came by the relay to Drive (after a pause, since a
         // busy PC's file arrives every few seconds), never back where it came from.
@@ -262,6 +278,8 @@ class CompanionApp : Application() {
                 driveSource.syncNow()
                 relaySource.syncNow()
             },
+            // ADR 54: the watch is told, as a flag, while this phone is unlinked from its synced devices.
+            phoneUnlinked = sync.unlinked.map { it != null }.stateIn(appScope, SharingStarted.Eagerly, sync.unlinked.value != null),
         )
             .also { it.start() }
         // The phone's card names its linked watch (Task 18); linking or unlinking it tells the PC at once.

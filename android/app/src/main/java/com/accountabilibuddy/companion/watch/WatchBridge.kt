@@ -53,6 +53,8 @@ class WatchBridge(
     private val pickedPc: () -> String? = { null },
     /** Reads the other devices' files from Drive now (ADR 42): what "/hello" does before it answers. */
     private val syncNow: suspend () -> Unit = {},
+    /** True while this phone is unlinked from its synced devices (ADR 54): the watch is told, as a flag only. */
+    private val phoneUnlinked: StateFlow<Boolean> = MutableStateFlow(false),
 ) {
     private val messages = Wearable.getMessageClient(context)
     private val capabilities = Wearable.getCapabilityClient(context)
@@ -114,6 +116,19 @@ class WatchBridge(
                 send(build() ?: return@collectLatest)
             }
         }
+        // ADR 54: the watch hears when this phone becomes unlinked, and when that ends. The first value (nothing to say) is not sent.
+        scope.launch {
+            var told: Boolean? = null
+            phoneUnlinked.collectLatest { unlinked ->
+                if (told == null && !unlinked) {
+                    told = false
+                    return@collectLatest
+                }
+
+                told = unlinked
+                sendPhoneState(unlinked)
+            }
+        }
     }
 
     fun findWatches() {
@@ -135,19 +150,39 @@ class WatchBridge(
         onLinkChanged?.invoke()
     }
 
-    /** Stops all sends; the watch is told (when a route allows) so it forgets what it has. */
+    /** Stops all sends; the watch is told (when a route allows), and asks the user whether to forget what it has (W4). */
     fun unlinkWatch() {
         val before = links.settings.value
         links.update { it.copy(linkedNodeId = null, linkedName = null) }
         lastHeard = null
         onLinkChanged?.invoke()
-        scope.launch {
-            sending.withLock {
-                lastSent = null
-                WatchRoute.choose(before, reachableWatches()).forEach { watch ->
-                    runCatching { messages.sendMessage(watch.id, WatchPaths.UNLINK, ByteArray(0)).await() }
-                }
+        scope.launch { tellWatchUnlinked(before) }
+    }
+
+    /**
+     * [unlinkWatch] for "Start from scratch" (ADR 54): returns when the watch has been sent the message (or no route allowed one), so
+     * the app can be cleared right after. The link is dropped here as well, in the file that is about to go.
+     */
+    suspend fun unlinkWatchAndWait() {
+        val before = links.settings.value
+        links.update { it.copy(linkedNodeId = null, linkedName = null) }
+        lastHeard = null
+        tellWatchUnlinked(before)
+    }
+
+    private suspend fun tellWatchUnlinked(before: WatchLinkSettings) {
+        sending.withLock {
+            lastSent = null
+            WatchRoute.choose(before, reachableWatches()).forEach { watch ->
+                runCatching { messages.sendMessage(watch.id, WatchPaths.UNLINK, ByteArray(0)).await() }
             }
+        }
+    }
+
+    /** Tells the linked watch, when a route allows, whether this phone is unlinked (a flag only, ADR 54). */
+    private suspend fun sendPhoneState(unlinked: Boolean) = sending.withLock {
+        WatchRoute.choose(links.settings.value, reachableWatches()).forEach { watch ->
+            runCatching { messages.sendMessage(watch.id, WatchPaths.PHONE_STATE, byteArrayOf(if (unlinked) 1 else 0)).await() }
         }
     }
 
@@ -181,6 +216,8 @@ class WatchBridge(
 
         withTimeoutOrNull(PC_WAIT_MS) { runCatching { syncNow() } }
         build()?.let { send(it) }
+        // A watch that was away when this phone became unlinked (or when that ended) learns it now.
+        sendPhoneState(phoneUnlinked.value)
     }
 
     /** The snapshot for the linked watch, or null when none is linked. */
