@@ -90,7 +90,7 @@ class DriveSyncSource(
                     followKey()
                     val listed = files.list(token)
                     val unreadable = read(token, listed, ownName)
-                    // A rekey in the files switched the group's key: the rest of this pass is the old group's, the next one reads the new group's.
+                    // A rekey the coordinator applied in the background may have changed the key meanwhile: write for the key as it is now.
                     followKey()
                     write(token, listed)
                     FolderStatus(Instant.now(), if (unreadable) "Can't read a file in Google Drive." else null)
@@ -176,14 +176,10 @@ class DriveSyncSource(
 
             val bytes = files.download(token, file.id)
             seen[file.id] = file.modifiedAt
-            // The rekey file (ADR 54): taken in, and if it switched the key the rest of this listing is the old group's.
+            // The rekey file (ADR 54): handed to the coordinator, which applies it a few seconds later (the key change is then
+            // picked up by followKey on the next pass).
             if (RekeyCodec.isRekey(bytes)) {
-                val before = sync.keyGeneration
                 sync.acceptSealed(bytes, SyncDeviceCard.METHOD_DRIVE)
-                if (sync.keyGeneration != before) {
-                    return false
-                }
-
                 continue
             }
 

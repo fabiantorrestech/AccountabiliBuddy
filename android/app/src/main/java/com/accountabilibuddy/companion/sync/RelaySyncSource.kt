@@ -366,15 +366,11 @@ class RelaySyncSource(
             val downloaded = RelayNetwork.get(endpoint, file.name) ?: continue
             passBytes += downloaded.bytes.size
             val etag = downloaded.etag ?: file.etag
-            // The rekey file (ADR 54): taken in, and if it switched the key the rest of this listing is the old group's.
+            // The rekey file (ADR 54): handed to the coordinator, which applies it a few seconds later (the relay's cache follows
+            // the group's id, so the next pass after the switch reads the new group's files).
             if (RekeyCodec.isRekey(downloaded.bytes)) {
-                val before = sync.keyGeneration
                 sync.acceptSealed(downloaded.bytes, SyncDeviceCard.METHOD_RELAY)
                 seen[file.name] = etag
-                if (sync.keyGeneration != before) {
-                    return false
-                }
-
                 continue
             }
 

@@ -37,6 +37,9 @@ public sealed class SyncRemovalService
     // Rekeys for the current group that came in and wait for the others of the same read pass, one per maker (see AcceptRekeyAsync).
     private static readonly TimeSpan PickWindow = TimeSpan.FromSeconds(3);
 
+    // When an apply could not be kept (storage busy), the rekeys wait this long and are tried again.
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(30);
+
     private readonly List<PendingRekey> _pending = [];
     private bool _applyScheduled;
 
@@ -241,18 +244,22 @@ public sealed class SyncRemovalService
         if (!_applyScheduled)
         {
             _applyScheduled = true;
-            _ = ApplyPendingAfterWindowAsync();
+            _ = ApplyPendingAfterWindowAsync(PickWindow);
         }
 
         return Task.FromResult<string?>(null);
     }
 
-    // Waits for the other rekey files of the same read pass, then applies the one every device picks.
-    private async Task ApplyPendingAfterWindowAsync()
+    // Waits for the other rekey files of the same read pass, then applies the one every device picks. If it can't be kept
+    // right now the rekeys are put back and tried again later: the readers have already marked their files as seen, so
+    // nothing else would bring them back.
+    private async Task ApplyPendingAfterWindowAsync(TimeSpan wait)
     {
-        await Task.Delay(PickWindow);
+        await Task.Delay(wait);
         _applyScheduled = false;
-        List<PendingRekey> pending = _pending.ToList();
+        // Only rekeys for the group this PC is in now: one for a group it already left (it was buffered while another apply ran)
+        // must not win the pick and take the valid one down with it.
+        List<PendingRekey> pending = _pending.Where(candidate => _identity.Key?.SameGroupAs(candidate.Key) == true).ToList();
         _pending.Clear();
         PendingRekey? chosen = null;
         foreach (PendingRekey candidate in pending)
@@ -271,7 +278,12 @@ public sealed class SyncRemovalService
             }
             catch (SqliteException)
             {
-                // Couldn't be kept right now; the file is read again with the next pass.
+                _pending.AddRange(pending.Where(candidate => _pending.All(waiting => waiting.Payload.RemovedBy.DeviceId != candidate.Payload.RemovedBy.DeviceId)));
+                if (!_applyScheduled)
+                {
+                    _applyScheduled = true;
+                    _ = ApplyPendingAfterWindowAsync(RetryDelay);
+                }
             }
         }
     }

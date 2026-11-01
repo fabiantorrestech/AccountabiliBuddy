@@ -81,7 +81,7 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
                 _status.value = try {
                     followKey()
                     val unreadable = read(tree, ownName)
-                    // A rekey in the folder switched the group's key: the rest of this pass is the old group's, the next one reads the new group's.
+                    // A rekey the coordinator applied in the background may have changed the key meanwhile: write for the key as it is now.
                     followKey()
                     write(tree)
                     FolderStatus(Instant.now(), if (unreadable) "Can't read a file from the sync folder." else null)
@@ -162,14 +162,10 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
             }
 
             val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: continue
-            // The rekey file (ADR 54): taken in, and if it switched the key the rest of this listing is the old group's.
+            // The rekey file (ADR 54): handed to the coordinator, which applies it a few seconds later (the key change is then
+            // picked up by followKey on the next pass).
             if (RekeyCodec.isRekey(bytes)) {
-                val before = sync.keyGeneration
                 sync.acceptSealed(bytes, SyncDeviceCard.METHOD_FOLDER)
-                if (sync.keyGeneration != before) {
-                    return false
-                }
-
                 continue
             }
 

@@ -381,14 +381,29 @@ class SyncCoordinator(
         return null
     }
 
-    // Applies the one rekey every device picks among those that came in.
+    // Applies the one rekey every device picks among those that came in. If it can't be kept right now (storage) the rekeys are
+    // put back and tried again later: the sources have already marked their files as seen, so nothing else would bring them back.
     @Synchronized
     private fun applyPendingRekeys() {
         applyScheduled = false
-        val chosen = pendingRekeys.minWithOrNull { a, b -> RekeyCodec.compareMakers(a.payload.removedBy.deviceId, b.payload.removedBy.deviceId) }
+        // Only rekeys for the group this phone is in now: one for a group it already left (it was buffered while another apply
+        // ran) must not win the pick and take the valid one down with it.
+        val current = identity.key.value
+        val candidates = pendingRekeys.filter { current?.sameGroupAs(it.key) == true }
         pendingRekeys.clear()
-        if (chosen != null) {
+        val chosen = candidates.minWithOrNull { a, b -> RekeyCodec.compareMakers(a.payload.removedBy.deviceId, b.payload.removedBy.deviceId) } ?: return
+        try {
             applyRekey(chosen)
+        } catch (e: java.io.IOException) {
+            pendingRekeys.addAll(candidates)
+            val scope = backgroundScope
+            if (scope != null && !applyScheduled) {
+                applyScheduled = true
+                scope.launch {
+                    kotlinx.coroutines.delay(RETRY_MS)
+                    applyPendingRekeys()
+                }
+            }
         }
     }
 
@@ -612,6 +627,9 @@ class SyncCoordinator(
         /** Why a file was refused when it is from a device removed from the group (ADR 54). */
         // How long a rekey waits for the others of the same read pass before the lowest maker's is applied.
         private const val PICK_WINDOW_MS = 3_000L
+
+        // How long rekeys wait to be tried again when an apply could not be kept.
+        private const val RETRY_MS = 30_000L
 
         const val REMOVED_DEVICE = "This file is from a device that was removed from your device group."
     }
