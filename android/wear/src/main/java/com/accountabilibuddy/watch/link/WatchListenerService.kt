@@ -49,6 +49,8 @@ class WatchListenerService : WearableListenerService() {
      */
     private fun unlinkedByPhone() {
         if (SnapshotStore.snapshot(this).value == null) {
+            // Nothing to ask about, but a "your phone was removed" page left from before must not stay up.
+            PhoneNotice.phoneUnlinked(this, false)
             return
         }
 
