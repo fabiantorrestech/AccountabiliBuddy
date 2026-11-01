@@ -22,7 +22,8 @@ namespace AccountabiliBuddy.Core.Sync;
 ///               id (16 bytes), ephemeral public key (65 bytes), nonce (12 bytes), wrapped secret (41 bytes), see <see cref="RekeyWrap"/>
 /// </code>
 /// The old key opens it, so a removed device that still holds that key can read that it was removed; only a device with
-/// a wrap for its own id and key can read the new link code. The file is named <see cref="FileNameFor"/> and goes where
+/// a wrap for its own id and key can read the new link code (the maker is among the recipients, so it reads its own file the
+/// same way). The file is named <see cref="FileNameFor"/> and goes where
 /// the group's sync files go, so every method that carries them carries it.
 /// </summary>
 public static class RekeyCodec
@@ -54,15 +55,30 @@ public static class RekeyCodec
     }
 
     /// <summary>
-    /// The name of the rekey file for the group <paramref name="oldGroupId"/>: the first 6 bytes of SHA-256 over the UTF-8
-    /// of the group id and "rekey", as 12 lower-case hex characters, then ".absync". Shaped like a device's file name
-    /// (<c>SyncFolderService.FileNameFor</c>, whose hash input ends in a GUID, so the two never meet) so every method and the
-    /// relay accept it.
+    /// The name of the rekey file that <paramref name="makerId"/> writes for the group <paramref name="oldGroupId"/>: the first
+    /// 6 bytes of SHA-256 over the UTF-8 of the group id, the maker's id ("D" format, lower case) and "rekey", as 12 lower-case
+    /// hex characters, then ".absync". One file per maker, so two devices that remove at the same time never overwrite each
+    /// other. Shaped like a device's file name (<c>SyncFolderService.FileNameFor</c>, whose hash input ends in a GUID, so the
+    /// two never meet) so every method and the relay accept it.
     /// </summary>
-    public static string FileNameFor(string oldGroupId)
+    public static string FileNameFor(string oldGroupId, Guid makerId)
     {
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(oldGroupId + "rekey"));
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(oldGroupId + makerId.ToString("D") + "rekey"));
         return Convert.ToHexStringLower(hash.AsSpan(0, 6)) + ".absync";
+    }
+
+    /// <summary>
+    /// Which of two rekeys for the same group wins: the one whose maker has the lower id, comparing the ids' bytes (RFC 4122
+    /// order, as in the file) as unsigned numbers. Every device picks the same one, whatever order it saw them in.
+    /// </summary>
+    /// <returns>Negative when <paramref name="first"/> wins, positive when <paramref name="second"/> does.</returns>
+    public static int CompareMakers(Guid first, Guid second)
+    {
+        Span<byte> a = stackalloc byte[IdBytes];
+        Span<byte> b = stackalloc byte[IdBytes];
+        first.TryWriteBytes(a, bigEndian: true, out _);
+        second.TryWriteBytes(b, bigEndian: true, out _);
+        return a.SequenceCompareTo(b);
     }
 
     public static byte[] Seal(RekeyPayload payload, SyncKey oldKey)

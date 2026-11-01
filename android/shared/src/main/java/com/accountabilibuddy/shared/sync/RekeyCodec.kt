@@ -43,7 +43,8 @@ class RekeyPayload(val epoch: Long, val removedBy: RekeyRemovedDevice, val remov
  * ```
  *
  * The old key opens it, so a removed device that still holds that key can read that it was removed; only a device with a
- * wrap for its own id and key can read the new link code. The file is named [fileNameFor] and goes where the group's sync
+ * wrap for its own id and key can read the new link code (the maker is among the recipients, so it reads its own file the
+ * same way). The file is named [fileNameFor] and goes where the group's sync
  * files go, so every method that carries them carries it.
  */
 object RekeyCodec {
@@ -71,13 +72,33 @@ object RekeyCodec {
         if (isRekey(bytes)) bytes.copyOfRange(MAGIC_BYTES, MAGIC_BYTES + GROUP_ID_BYTES).joinToString("") { "%02x".format(it) } else null
 
     /**
-     * The name of the rekey file for the group [oldGroupId]: the first 6 bytes of SHA-256 over the UTF-8 of the group id and
-     * "rekey", as 12 lower-case hex characters, then ".absync". Shaped like a device's file name ([SyncFolder.fileNameFor],
-     * whose hash input ends in a UUID, so the two never meet) so every method and the relay accept it.
+     * The name of the rekey file that [makerId] writes for the group [oldGroupId]: the first 6 bytes of SHA-256 over the UTF-8
+     * of the group id, the maker's id ("D" format, lower case) and "rekey", as 12 lower-case hex characters, then ".absync". One
+     * file per maker, so two devices that remove at the same time never overwrite each other. Shaped like a device's file name
+     * ([SyncFolder.fileNameFor], whose hash input ends in a UUID, so the two never meet) so every method and the relay accept it.
      */
-    fun fileNameFor(oldGroupId: String): String {
-        val hash = MessageDigest.getInstance("SHA-256").digest((oldGroupId + "rekey").toByteArray(Charsets.UTF_8))
+    fun fileNameFor(oldGroupId: String, makerId: UUID): String {
+        val hash = MessageDigest.getInstance("SHA-256").digest((oldGroupId + makerId.toString() + "rekey").toByteArray(Charsets.UTF_8))
         return hash.take(6).joinToString("") { "%02x".format(it) } + SyncFolder.EXTENSION
+    }
+
+    /**
+     * Which of two rekeys for the same group wins: the one whose maker has the lower id, comparing the ids' bytes (RFC 4122
+     * order, as in the file) as unsigned numbers. Every device picks the same one, whatever order it saw them in.
+     *
+     * @return Negative when [first] wins, positive when [second] does.
+     */
+    fun compareMakers(first: UUID, second: UUID): Int {
+        val a = RekeyWrap.idBytes(first)
+        val b = RekeyWrap.idBytes(second)
+        for (index in a.indices) {
+            val difference = (a[index].toInt() and 0xFF) - (b[index].toInt() and 0xFF)
+            if (difference != 0) {
+                return difference
+            }
+        }
+
+        return 0
     }
 
     fun seal(payload: RekeyPayload, oldKey: SyncKey): ByteArray {
