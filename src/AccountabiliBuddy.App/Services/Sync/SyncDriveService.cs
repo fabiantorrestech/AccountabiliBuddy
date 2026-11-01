@@ -14,7 +14,7 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// written or read while the switch is off, the PC isn't in a group, or no Drive account is signed in. Use from the UI
 /// thread only.
 /// </summary>
-public sealed class SyncDriveService : IDisposable
+public sealed class SyncDriveService : IDisposable, IRekeyPublisher
 {
     private static readonly TimeSpan BusyPoll = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan IdlePoll = TimeSpan.FromMinutes(5);
@@ -86,6 +86,7 @@ public sealed class SyncDriveService : IDisposable
         _sessionActive = _sessions.State.IsActive;
         _settings.Changed += OnSettingsChanged;
         _identity.Changed += OnIdentityChanged;
+        _identity.KeySwitched += OnKeySwitched;
         _coordinator.OwnDataChanged += OnOwnDataChanged;
         _sessions.StateChanged += OnSessionStateChanged;
         Restart();
@@ -123,6 +124,31 @@ public sealed class SyncDriveService : IDisposable
             {
                 SetProblem("Can't write to Google Drive right now");
             }
+        }
+        finally
+        {
+            _busy.Release();
+        }
+    }
+
+    /// <summary>Writes the rekey file (ADR 54) into the app's Drive folder beside the devices' files.</summary>
+    public async Task<bool?> PublishRekeyAsync(byte[] sealedBytes, string fileName)
+    {
+        if (!TryGetName(out _, out _))
+        {
+            return null;
+        }
+
+        await _busy.WaitAsync();
+        try
+        {
+            string? existingId = (await _drive.ListAsync(CancellationToken.None)).FirstOrDefault(info => info.Name == fileName)?.Id;
+            await _drive.UploadAsync(fileName, sealedBytes, existingId, CancellationToken.None);
+            return true;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or InvalidOperationException)
+        {
+            return false;
         }
         finally
         {
@@ -178,7 +204,8 @@ public sealed class SyncDriveService : IDisposable
                     byte[] bytes = await _drive.DownloadAsync(info.Id, CancellationToken.None);
                     string? reason = await _coordinator.AcceptSealedAsync(bytes, SyncDeviceCard.MethodDrive);
                     unreadable |= reason == SyncCoordinator.CannotReadReason;
-                    if (reason is null || reason == SyncCoordinator.CannotReadReason || reason == SyncCoordinator.OwnFileReason)
+                    if (reason is null || reason == SyncCoordinator.CannotReadReason || reason == SyncCoordinator.OwnFileReason
+                        || reason == SyncCoordinator.RemovedDeviceReason)
                     {
                         _seen[info.Id] = info.ModifiedAt;
                     }
@@ -212,6 +239,7 @@ public sealed class SyncDriveService : IDisposable
         {
             _settings.Changed -= OnSettingsChanged;
             _identity.Changed -= OnIdentityChanged;
+            _identity.KeySwitched -= OnKeySwitched;
             _coordinator.OwnDataChanged -= OnOwnDataChanged;
             _sessions.StateChanged -= OnSessionStateChanged;
         }
@@ -281,6 +309,39 @@ public sealed class SyncDriveService : IDisposable
     private void OnSettingsChanged(object? sender, SyncSettings settings) => Restart();
 
     private void OnIdentityChanged(object? sender, EventArgs e) => Restart();
+
+    // The group got a new key (ADR 54): this PC's file and the removed devices' files of the old group leave Drive. Best
+    // effort; the rekey file stays, since a device that is behind (or the removed one) still has to read it.
+    private void OnKeySwitched(object? sender, SyncKeySwitchedEventArgs e)
+    {
+        if (_disposed || !_settings.Current.DriveOn || !IsSignedIn())
+        {
+            return;
+        }
+
+        var names = e.RemovedDeviceIds.Append(_identity.DeviceId).Select(id => SyncFolderService.FileNameFor(e.OldKey.GroupId, id)).ToHashSet();
+        _ = DeleteOldFilesAsync(names);
+    }
+
+    private async Task DeleteOldFilesAsync(HashSet<string> names)
+    {
+        await _busy.WaitAsync();
+        try
+        {
+            foreach (DriveFileInfo info in (await _drive.ListAsync(CancellationToken.None)).Where(info => names.Contains(info.Name)))
+            {
+                await _drive.DeleteAsync(info.Id, CancellationToken.None);
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or InvalidOperationException)
+        {
+            // Left for the user to clear; the new group never reads it.
+        }
+        finally
+        {
+            _busy.Release();
+        }
+    }
 
     private void OnOwnDataChanged(object? sender, EventArgs e)
     {

@@ -137,6 +137,19 @@ public sealed class CalendarNetwork : IDisposable
         return await ReadJsonAsync(response, cancellationToken);
     }
 
+    /// <summary>DELETE with a bearer token (Drive's delete of a file the app made); a file that is already gone is fine.</summary>
+    /// <exception cref="HttpRequestException">Network error or an unsuccessful status code other than 404.</exception>
+    public async Task DeleteAsync(Uri uri, string accessToken, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, uri);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.NotFound)
+        {
+            throw new HttpRequestException($"{(int)response.StatusCode} {response.ReasonPhrase}", null, response.StatusCode);
+        }
+    }
+
     /// <summary>
     /// Reads the user's Beeminder goals (ADR 43): one GET, nothing written to Beeminder and nothing about the user sent.
     /// Beeminder takes the personal auth token in the query string; the address is never logged or shown, and errors

@@ -43,6 +43,9 @@ public sealed class SyncIdentityService
     /// <summary>Raised when this PC creates, joins or leaves a group.</summary>
     public event EventHandler? Changed;
 
+    /// <summary>Raised, just before <see cref="Changed"/>, when <see cref="SwitchKeyAsync"/> replaced the key.</summary>
+    public event EventHandler<SyncKeySwitchedEventArgs>? KeySwitched;
+
     /// <summary>Loads the identity; on the first run makes the device id and saves it.</summary>
     public void LoadBlocking()
     {
@@ -106,6 +109,38 @@ public sealed class SyncIdentityService
     public Task LeaveAsync()
     {
         return ChangeCodeAsync(null);
+    }
+
+    /// <summary>
+    /// Replaces the group's key in place (ADR 54): same group, new link code, after a device was removed. Unlike joining
+    /// or leaving, it keeps every device received from the group. <see cref="KeySwitched"/> is raised first, so the sync
+    /// methods can clear the old group's files, then <see cref="Changed"/>.
+    /// </summary>
+    /// <param name="removedDeviceIds">The devices the rekey removed; their old files are cleared too.</param>
+    /// <returns>False (nothing changes) when this PC isn't in a group or the code isn't a link code.</returns>
+    public async Task<bool> SwitchKeyAsync(string newCode, IReadOnlyList<Guid> removedDeviceIds)
+    {
+        if (Key is not SyncKey keyBefore || !SyncKeyCode.TryParse(newCode, out _))
+        {
+            return false;
+        }
+
+        SetCode(SyncKeyCode.Display(newCode));
+        await SaveAsync();
+        KeySwitched?.Invoke(this, new SyncKeySwitchedEventArgs(keyBefore, removedDeviceIds));
+        Changed?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+
+    /// <summary>
+    /// Drops the code and the key but keeps what was received (this PC was removed, ADR 54): nothing syncs until it
+    /// joins a group again. <see cref="LeaveAsync"/> also forgets the devices.
+    /// </summary>
+    public async Task DropKeyKeepingDataAsync()
+    {
+        SetCode(null);
+        await SaveAsync();
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     private async Task ChangeCodeAsync(string? code)

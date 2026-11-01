@@ -23,7 +23,7 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// isn't in a group or the address is invalid. The relay's calls all go through <see cref="CalendarNetwork"/>; the
 /// token and the sealed bytes are never logged. Use from the UI thread only.
 /// </summary>
-public sealed class SyncRelayService : IDisposable
+public sealed class SyncRelayService : IDisposable, IRekeyPublisher
 {
     private static readonly TimeSpan BusyPoll = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan IdlePoll = TimeSpan.FromMinutes(5);
@@ -133,6 +133,7 @@ public sealed class SyncRelayService : IDisposable
         _sessionActive = _sessions.State.IsActive;
         _settings.Changed += OnSettingsChanged;
         _identity.Changed += OnIdentityChanged;
+        _identity.KeySwitched += OnKeySwitched;
         _coordinator.OwnDataChanged += OnOwnDataChanged;
         _sessions.StateChanged += OnSessionStateChanged;
         Restart();
@@ -188,6 +189,35 @@ public sealed class SyncRelayService : IDisposable
                 _ownDirty = true;
                 SetWriteProblem(Describe(ex, access));
             }
+        }
+        finally
+        {
+            _busy.Release();
+        }
+    }
+
+    /// <summary>
+    /// Puts the rekey file (ADR 54) on the relay in the OLD group's place, where the devices that haven't switched yet are
+    /// still listening. Call before the key is switched.
+    /// </summary>
+    public async Task<bool?> PublishRekeyAsync(byte[] sealedBytes, string fileName)
+    {
+        RelayAccess? access = _access;
+        if (_disposed || access is null)
+        {
+            return null;
+        }
+
+        CancellationToken token = _lifetime.Token;
+        await _busy.WaitAsync();
+        try
+        {
+            await _network.PutRelayFileAsync(access, fileName, sealedBytes, token);
+            return true;
+        }
+        catch (Exception ex) when (IsRelayFailure(ex))
+        {
+            return false;
         }
         finally
         {
@@ -262,7 +292,8 @@ public sealed class SyncRelayService : IDisposable
                     passBytes += download.Bytes.Length;
                     string? reason = await _coordinator.AcceptSealedAsync(download.Bytes, SyncDeviceCard.MethodRelay);
                     unreadable |= reason == SyncCoordinator.CannotReadReason;
-                    if (reason is null || reason == SyncCoordinator.CannotReadReason || reason == SyncCoordinator.OwnFileReason)
+                    if (reason is null || reason == SyncCoordinator.CannotReadReason || reason == SyncCoordinator.OwnFileReason
+                        || reason == SyncCoordinator.RemovedDeviceReason)
                     {
                         _seen[info.Name] = download.ETag ?? info.ETag;
                     }
@@ -342,6 +373,7 @@ public sealed class SyncRelayService : IDisposable
         {
             _settings.Changed -= OnSettingsChanged;
             _identity.Changed -= OnIdentityChanged;
+            _identity.KeySwitched -= OnKeySwitched;
             _coordinator.OwnDataChanged -= OnOwnDataChanged;
             _sessions.StateChanged -= OnSessionStateChanged;
         }
@@ -612,6 +644,42 @@ public sealed class SyncRelayService : IDisposable
     private void OnSettingsChanged(object? sender, SyncSettings settings) => Restart();
 
     private void OnIdentityChanged(object? sender, EventArgs e) => Restart();
+
+    // The group got a new key (ADR 54): the removed devices' files leave the old group on the relay (this PC's own is deleted
+    // by the Restart that follows, as for any change of group). Best effort; the rekey file stays, since a device that is
+    // behind (or the removed one) still has to read it.
+    private void OnKeySwitched(object? sender, SyncKeySwitchedEventArgs e)
+    {
+        RelayAccess? access = _access;
+        if (_disposed || access is null || e.RemovedDeviceIds.Count == 0)
+        {
+            return;
+        }
+
+        // The service still holds the old group's access: Restart, which swaps it for the new one, runs on Changed, after this.
+        List<string> names = e.RemovedDeviceIds.Select(id => SyncFolderService.FileNameFor(e.OldKey.GroupId, id)).ToList();
+        _ = DeleteOldFilesAsync(access, names);
+    }
+
+    private async Task DeleteOldFilesAsync(RelayAccess oldAccess, List<string> names)
+    {
+        await _busy.WaitAsync();
+        try
+        {
+            foreach (string name in names)
+            {
+                await _network.DeleteRelayFileAsync(oldAccess, name, CancellationToken.None);
+            }
+        }
+        catch (Exception ex) when (IsRelayFailure(ex))
+        {
+            // The relay drops untouched files after 30 days.
+        }
+        finally
+        {
+            _busy.Release();
+        }
+    }
 
     private void OnOwnDataChanged(object? sender, EventArgs e) => ScheduleOwnWrite();
 
