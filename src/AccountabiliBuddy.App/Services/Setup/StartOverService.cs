@@ -33,6 +33,9 @@ public sealed class StartOverService
     // A marker left by a run that crashed before restarting must not wipe the data of a later, unrelated start.
     private static readonly TimeSpan MarkerLifetime = TimeSpan.FromMinutes(10);
 
+    // How many start-over copies of the database are kept (the newest).
+    private const int KeptCopies = 3;
+
     // The old copy of the app may still hold the database for a moment after it asked for the restart.
     private const int DeleteAttempts = 12;
     private static readonly TimeSpan DeleteRetryDelay = TimeSpan.FromMilliseconds(500);
@@ -85,6 +88,13 @@ public sealed class StartOverService
             // ten of that pattern) never prune it.
             string copy = Path.Combine(Path.GetDirectoryName(made)!, "start-over-" + Path.GetFileName(made)["before-start-over-".Length..]);
             File.Move(made, copy, overwrite: true);
+            // Only the newest few of these copies are kept (each is a whole database).
+            foreach (FileInfo old in new DirectoryInfo(Path.GetDirectoryName(copy)!).GetFiles("start-over-*.db")
+                         .OrderByDescending(file => file.CreationTimeUtc).Skip(KeptCopies))
+            {
+                old.Delete();
+            }
+
             var marker = new Marker(TimeProvider.System.GetUtcNow(), copy);
             await File.WriteAllTextAsync(Path.Combine(_dataDirectory, MarkerFileName), JsonSerializer.Serialize(marker));
             return null;

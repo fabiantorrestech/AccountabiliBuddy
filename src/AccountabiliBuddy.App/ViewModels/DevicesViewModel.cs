@@ -96,6 +96,9 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>The group's past keys (ADR 56); "Leave group" clears them. Set by the app.</summary>
+    public PastKeysService? PastKeys { get; init; }
+
     /// <summary>Opens the "Remove this device" dialog for the device with this id; set by the app.</summary>
     public Action<Guid>? OpenRemoveDialog { get; set; }
 
@@ -631,6 +634,12 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         }
 
         await _identity.LeaveAsync();
+        // Leaving the group forgets its past keys too (ADR 56); continuing unsynced and joining again keep them.
+        if (PastKeys is not null)
+        {
+            await PastKeys.ClearAsync();
+        }
+
         LinkCodeText = null;
         LinkQrImage = null;
         OnPropertyChanged(nameof(HasLinkCode));

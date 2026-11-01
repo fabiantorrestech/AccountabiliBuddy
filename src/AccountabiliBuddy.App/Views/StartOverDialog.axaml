@@ -16,7 +16,7 @@
             <TextBlock Grid.Column="1" Text="Start over" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
         </Grid>
         <TextBlock TextWrapping="Wrap" Text="This clears everything AccountabiliBuddy keeps on this PC: profiles, day plan, tasks, settings, history, your sign-ins and the link to your other devices. The setup assistant then opens as on a first run." />
-        <TextBlock TextWrapping="Wrap" Text="A copy of your data is saved first, in the backups folder of the data folder, and it stays. The browser extension link, a relay hosted on this PC, and Cold Turkey itself are not touched." />
+        <TextBlock TextWrapping="Wrap" Text="A copy of your data is saved first, in the backups folder of the data folder; the three newest such copies stay. The browser extension link, a relay hosted on this PC, and Cold Turkey itself are not touched." />
         <TextBlock TextWrapping="Wrap" FontWeight="SemiBold" Text="Keys the app holds for Cold Turkey blocks are cleared with the data: have your spare key to hand." />
         <Border Padding="12,8" CornerRadius="6" Background="#22E0A030" IsVisible="{Binding IsLocked}">
             <TextBlock Text="{Binding LockedText}" TextWrapping="Wrap" />

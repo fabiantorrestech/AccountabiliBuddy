@@ -794,8 +794,6 @@ public partial class App : Application
         syncIdentity.KeySwitched += (_, switched) => pastKeys.NoteSwitched(switched.OldKey);
         syncCoordinator.PastKeys = pastKeys;
         var backupRestore = new AccountabiliBuddy.App.Services.Sync.BackupRestoreService(deviceBackups, syncIdentity, receivedDevices, _syncRemoval, pastKeys);
-        // An erase the last run could not finish (a session was running) is done now.
-        _ = _syncRemoval.ApplyPendingErasesQuietlyAsync();
         receivedDevices.IsRemoved = _syncRemoval.IsRemoved;
         // Start over / Start from scratch (ADR 54, 10): the next start clears the data (see StartOverService).
         var startOver = new AccountabiliBuddy.App.Services.Setup.StartOverService(database, _sessions, dataDirectory);
@@ -901,6 +899,7 @@ public partial class App : Application
             SyncLightSetting = syncLightSetting,
             Batteries = batteryVisibility,
             Removal = _syncRemoval,
+            PastKeys = pastKeys,
             UnlinkedPanel = _unlinkedViewModel,
         };
         // Remove this device… (ADR 54, 55): the dialog works through the removal service and the backup service.
@@ -1383,6 +1382,9 @@ public partial class App : Application
 
         _recorder.Start();
         SessionResume? resumed = _sessions.Start(savedSession);
+        // An erase the last run could not finish (a focus session was running) is done now, after a crashed session is resumed so
+        // that it still waits for that one.
+        _ = _syncRemoval!.ApplyPendingErasesQuietlyAsync();
         _ = sessionTasks.AfterStartupAsync();
         if (resumed is not null && _sessions.State.IsActive)
         {

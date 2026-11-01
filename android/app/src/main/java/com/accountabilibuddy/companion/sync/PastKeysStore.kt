@@ -42,6 +42,16 @@ class PastKeysStore(private val file: File, private val now: () -> Instant = Ins
     fun keyFor(groupId: String): SyncKey? =
         keys.firstOrNull { it.groupId == groupId }?.let { SyncKey.forOpeningOnly(Base64.getDecoder().decode(it.key), it.groupId) }
 
+    /**
+     * Forgets every past key: "Leave group" (ADR 56). "Continue unsynced" and joining again keep them; a start from scratch clears the
+     * app's files, this one with them.
+     */
+    @Synchronized
+    fun clear() {
+        keys = emptyList()
+        file.delete()
+    }
+
     /** The group left [outgoing] (a rekey applied or made): keeps it. */
     @Synchronized
     fun noteSwitched(outgoing: SyncKey) {

@@ -228,6 +228,8 @@ class SyncCoordinator(
         removalLockedReason()?.let { return it }
         identity.leave()
         store.clear()
+        // Leaving the group forgets its past keys too (ADR 56); continuing unsynced and joining again keep them.
+        pastKeys.clear()
         scan.reset()
         keyGeneration++
         return null
@@ -624,15 +626,30 @@ class SyncCoordinator(
      */
     @Synchronized
     fun applyPendingErases() {
-        if (removalLockedReason() != null) {
+        val erase = removedStore.devices.value.filter { it.dataChoice == RemovedDevice.ERASE_DATA }.map { it.deviceId }.toSet()
+        if (erase.isEmpty() || store.devices.value.none { it.file.device.deviceId in erase }) {
             return
         }
 
-        val erase = removedStore.devices.value.filter { it.dataChoice == RemovedDevice.ERASE_DATA }.map { it.deviceId }.toSet()
-        if (erase.isNotEmpty() && store.devices.value.any { it.file.device.deviceId in erase }) {
-            store.save(store.devices.value.filter { it.file.device.deviceId !in erase })
+        if (removalLockedReason() != null) {
+            // A session is running: look again in a minute (only while an erase is waiting, so nothing polls otherwise), not just at the next file.
+            val scope = backgroundScope
+            if (scope != null && !eraseRetryScheduled) {
+                eraseRetryScheduled = true
+                scope.launch {
+                    kotlinx.coroutines.delay(ERASE_RETRY_MS)
+                    eraseRetryScheduled = false
+                    applyPendingErases()
+                }
+            }
+
+            return
         }
+
+        store.save(store.devices.value.filter { it.file.device.deviceId !in erase })
     }
+
+    private var eraseRetryScheduled = false
 
     /** Everything to hand over by [method] (Drive or a share): this phone's own file first, then what it carries. */
     fun filesToCarry(method: String): List<ByteArray> =
@@ -676,6 +693,9 @@ class SyncCoordinator(
         /** Why a file was refused when it is from a device removed from the group (ADR 54). */
         // How long a rekey waits for the others of the same read pass before the lowest maker's is applied.
         private const val PICK_WINDOW_MS = 3_000L
+
+        // How long a deferred erase waits before it looks again while a PC focus session is running.
+        private const val ERASE_RETRY_MS = 60_000L
 
         // How long rekeys wait to be tried again when an apply could not be kept.
         private const val RETRY_MS = 30_000L

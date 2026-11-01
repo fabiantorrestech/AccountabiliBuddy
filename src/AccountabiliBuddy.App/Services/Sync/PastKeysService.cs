@@ -65,6 +65,23 @@ public sealed class PastKeysService
         return found is null ? null : SyncKey.ForOpeningOnly(Convert.FromBase64String(found.Key), found.GroupId);
     }
 
+    /// <summary>
+    /// Forgets every past key: "Leave group" (ADR 56). "Continue unsynced" and joining again keep them; a start over clears the
+    /// database, this document with it.
+    /// </summary>
+    public async Task ClearAsync()
+    {
+        _keys = [];
+        try
+        {
+            await SaveAsync();
+        }
+        catch (SqliteException)
+        {
+            // Empty in memory for this run; the next change saves it.
+        }
+    }
+
     /// <summary>The group left <paramref name="outgoing"/> (a rekey applied or made): keeps it. Saves in the background.</summary>
     public void NoteSwitched(SyncKey outgoing)
     {

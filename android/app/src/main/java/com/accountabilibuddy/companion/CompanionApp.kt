@@ -252,7 +252,7 @@ class CompanionApp : Application() {
         // ADR 40: the PC's settings (profiles, day plan, sleep, day bar, events) from its sync file.
         appScope.launch { sync.received.collect { devices -> applyPcFileSettings(devices.map { it.file }) } }
         watchBridge = WatchBridge(
-            this, store, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope, sync.received,
+            this, store, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope, sync.received, sync.allReceived,
             pickedPc = { pcRemote.chosenPcId.value },
             // The watch's Lunch page: today's lunch and the length setting.
             lunch = { lunch.forWatch(store.state.value.document.dayPlan) },
@@ -381,6 +381,9 @@ class CompanionApp : Application() {
                 null
             }
         }
+        // An erase that could not be finished last run (a PC session was running) is retried now, and every minute while one still runs.
+        // Posted, so it runs after onCreate: the session check reads services that are made further down.
+        android.os.Handler(mainLooper).post { sync.applyPendingErases() }
         // Drive (ADR 26): every 30 s while a session runs or the timeline is pinned, else 15 min.
         appScope.launch { driveSource.loop { driveBusy() } }
         // The relay (ADR 46): the same pace, plus a push stream open while a session runs or the timeline is pinned.
