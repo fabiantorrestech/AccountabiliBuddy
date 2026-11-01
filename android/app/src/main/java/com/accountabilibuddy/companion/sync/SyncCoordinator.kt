@@ -189,11 +189,17 @@ class SyncCoordinator(
     /**
      * Joins the group of [code] (from the PC's link code); a new group drops the old one's copies. False when invalid.
      * It is also "Add this phone again" after a removal: the device id stays, and being [unlinked] ends.
+ * False too when it would move to another group during a focus session the user started ([removalLockedReason]).
      */
     fun join(code: String): Boolean {
         val current = identity.code()
         if (current != null && SyncKeyCode.parse(current)?.sameGroupAs(SyncKeyCode.parse(code)) == true) {
             return SyncKeyCode.parse(code) != null
+        }
+
+        // Moving to another group drops the PC's copy mid-session; locked like leave() (no escape hatches).
+        if (current != null && removalLockedReason() != null) {
+            return false
         }
 
         if (!identity.join(code)) {
