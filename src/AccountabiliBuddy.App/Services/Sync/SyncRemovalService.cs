@@ -54,6 +54,21 @@ public sealed class SyncRemovalService
         _sessions = sessions;
         // Joining or making a group ends "unlinked".
         identity.Changed += (_, _) => OnIdentityChanged();
+        // An erase that waited for a focus session to end (ADR 55) is done when it has.
+        sessions.StateChanged += (_, _) => _ = ApplyPendingErasesQuietlyAsync();
+    }
+
+    /// <summary>As <see cref="ApplyPendingErasesAsync"/>, for callers that can only retry later: a storage failure is left for the next call.</summary>
+    public async Task ApplyPendingErasesQuietlyAsync()
+    {
+        try
+        {
+            await ApplyPendingErasesAsync();
+        }
+        catch (SqliteException)
+        {
+            // Tried again at the next session change or start.
+        }
     }
 
     /// <summary>The sync methods that carry the rekey file (folder, Drive, relay); set by the app.</summary>
@@ -102,6 +117,54 @@ public sealed class SyncRemovalService
     public RemovedDevice? RemovedAs(Guid deviceId) => _removed.FirstOrDefault(device => device.DeviceId == deviceId);
 
     /// <summary>
+    /// The devices that would be cut off along with <paramref name="deviceIds"/> because they can't receive the new key (ADR 54): an
+    /// app from before ADR 54 (no public key in its card), and devices this PC only knows from the others' "seen" lists. The remove
+    /// dialog names them before the user confirms. (A key that isn't a valid P-256 point shows up only in <see cref="RemovalResult.NotWrapped"/>.)
+    /// </summary>
+    public IReadOnlyList<NotWrappedDevice> NotWrappedFor(IReadOnlyList<Guid> deviceIds)
+    {
+        IReadOnlyList<SyncDeviceCard> cards = _received.Devices.Select(device => device.File.Device).ToList();
+        var known = cards.Select(card => card.DeviceId).ToHashSet();
+        List<NotWrappedDevice> result = cards
+            .Where(card => !deviceIds.Contains(card.DeviceId) && !IsRemoved(card.DeviceId) && string.IsNullOrEmpty(card.PublicKey))
+            .Select(card => new NotWrappedDevice(card.DeviceId, card.Name))
+            .ToList();
+        result.AddRange(cards.SelectMany(card => card.Seen.Keys)
+            .Where(id => id != _identity.DeviceId && !known.Contains(id) && !deviceIds.Contains(id) && !IsRemoved(id))
+            .Distinct()
+            .Select(id => new NotWrappedDevice(id, "A device this PC hasn't received a file from")));
+        return result;
+    }
+
+    /// <summary>
+    /// Restoring a backup (ADR 55) brought a device's data in as a received device: the device is recorded as removed, so
+    /// it shows as "[name] (removed)" and its files aren't taken in (a file from it that opens with this group's key and was written
+    /// after <paramref name="writtenAt"/> clears the mark, as for any removed device). Nothing changes when it is recorded already.
+    /// </summary>
+    public async Task RecordRestoredAsync(Guid deviceId, string name, DateTimeOffset writtenAt)
+    {
+        await _changing.WaitAsync();
+        try
+        {
+            if (!IsRemoved(deviceId))
+            {
+                _removed = _removed.Append(new RemovedDevice(deviceId, name, writtenAt, RemovedDevice.KeepData)).ToList();
+                await SaveAsync();
+            }
+            else if (RemovedAs(deviceId) is { DataChoice: RemovedDevice.EraseData } erased)
+            {
+                // The user restores what was erased here: it must not be erased again by the recorded choice.
+                _removed = _removed.Select(existing => existing == erased ? erased with { DataChoice = RemovedDevice.KeepData } : existing).ToList();
+                await SaveAsync();
+            }
+        }
+        finally
+        {
+            _changing.Release();
+        }
+    }
+
+    /// <summary>
     /// Removes <paramref name="deviceIds"/> from the group: writes this PC's rekey file to the sync methods, then switches this
     /// PC to the new key. Their received data is left as it is; <see cref="ApplyDataChoiceAsync"/> is the caller's next step
     /// (ADR 55). Nothing changes when it can't be done, or when no method took the file (the other devices would never hear of it).
@@ -111,7 +174,7 @@ public sealed class SyncRemovalService
     /// instead of this one. The network calls run outside <c>_changing</c>: the Drive and relay read passes hold their own lock
     /// while they hand a rekey in, so taking <c>_changing</c> first would deadlock with them.
     /// </summary>
-    public async Task<RemovalResult> RemoveAsync(IReadOnlyList<Guid> deviceIds)
+    public async Task<RemovalResult> RemoveAsync(IReadOnlyList<Guid> deviceIds, bool erase = false)
     {
         if (BlockedReason is string blocked)
         {
@@ -123,11 +186,17 @@ public sealed class SyncRemovalService
             return RemovalResult.Failed("Pick other devices to remove; this PC leaves the group with Leave group.");
         }
 
+        // Removing one twice (the dialog opened twice, or another device just removed it) would re-key again for nothing.
+        if (deviceIds.Any(IsRemoved))
+        {
+            return RemovalResult.Failed("That device is already removed from your group.");
+        }
+
         SyncKey oldKey = _identity.Key!;
         IReadOnlyList<SyncDeviceCard> cards = _received.Devices.Select(device => device.File.Device).ToList();
         List<RekeyRemovedDevice> removing = deviceIds
             .Distinct()
-            .Select(id => new RekeyRemovedDevice(id, cards.FirstOrDefault(card => card.DeviceId == id)?.Name ?? "Unknown device"))
+            .Select(id => new RekeyRemovedDevice(id, cards.FirstOrDefault(card => card.DeviceId == id)?.Name ?? "Unknown device", erase))
             .ToList();
         List<SyncDeviceCard> staying = cards.Where(card => !deviceIds.Contains(card.DeviceId) && !IsRemoved(card.DeviceId)).ToList();
 
@@ -202,7 +271,7 @@ public sealed class SyncRemovalService
                 return RemovalResult.ConflictWith("The device group changed while this was being saved. Check your devices and try again.");
             }
 
-            await RecordRemovedAsync(removing.Select(device => (device.DeviceId, device.Name)), DateTimeOffset.FromUnixTimeSeconds(build.Payload.Epoch));
+            await RecordRemovedAsync(removing.Select(device => (device.DeviceId, device.Name, (string?)null)), DateTimeOffset.FromUnixTimeSeconds(build.Payload.Epoch));
             await _identity.SwitchKeyAsync(build.NewCode, removing.Select(device => device.DeviceId).ToList());
             return new RemovalResult(true, null, notWrapped, failed);
         }
@@ -338,11 +407,18 @@ public sealed class SyncRemovalService
             }
 
             // When the removal happened, by its maker's clock, not when this PC learned of it: files a device wrote while this PC was away are judged against it.
-            var others = payload.Removed.Where(device => device.DeviceId != _identity.DeviceId).Select(device => (device.DeviceId, device.Name)).ToList();
+            // A device that stays also takes the remover's choice about the removed devices' data (ADR 55): erase is recorded and done
+            // below (or when the focus session ends). One that is removed itself keeps everything it has.
+            bool stays = reading.Kind == RekeyReadingKind.NewKey;
+            var others = payload.Removed
+                .Where(device => device.DeviceId != _identity.DeviceId)
+                .Select(device => (device.DeviceId, device.Name, stays ? (device.Erase ? RemovedDevice.EraseData : RemovedDevice.KeepData) : (string?)null))
+                .ToList();
             await RecordRemovedAsync(others, DateTimeOffset.FromUnixTimeSeconds(payload.Epoch));
             if (reading is { Kind: RekeyReadingKind.NewKey, NewCode: string newCode })
             {
                 await _identity.SwitchKeyAsync(newCode, payload.Removed.Select(device => device.DeviceId).ToList());
+                await ApplyPendingErasesAsync();
             }
             else
             {
@@ -369,7 +445,7 @@ public sealed class SyncRemovalService
     {
         if (_sessions.IsEnforcing)
         {
-            return LockedReason;
+            return "Locked while a focus session you started is running.";
         }
 
         await _changing.WaitAsync();
@@ -449,14 +525,35 @@ public sealed class SyncRemovalService
     }
 
     // Adds the devices not already recorded (a repeated rekey, or a second file saying the same), then saves.
-    private async Task RecordRemovedAsync(IEnumerable<(Guid DeviceId, string Name)> devices, DateTimeOffset removedAt)
+    private async Task RecordRemovedAsync(IEnumerable<(Guid DeviceId, string Name, string? DataChoice)> devices, DateTimeOffset removedAt)
     {
-        foreach ((Guid deviceId, string name) in devices.Where(device => !IsRemoved(device.DeviceId)))
+        foreach ((Guid deviceId, string name, string? choice) in devices.Where(device => !IsRemoved(device.DeviceId)))
         {
-            _removed = _removed.Append(new RemovedDevice(deviceId, name, removedAt)).ToList();
+            _removed = _removed.Append(new RemovedDevice(deviceId, name, removedAt, choice)).ToList();
         }
 
         await SaveAsync();
+    }
+
+    /// <summary>
+    /// Forgets what this PC received from every removed device whose recorded choice is erase (ADR 55), when it still holds a copy.
+    /// A staying device records the remover's choice from the rekey and erases here; it waits while a focus session the user
+    /// started runs (a running session's pickup evidence is not dropped) and runs again when it ends. Safe to call any time.
+    /// </summary>
+    public async Task ApplyPendingErasesAsync()
+    {
+        if (_sessions.IsEnforcing)
+        {
+            return;
+        }
+
+        foreach (RemovedDevice device in _removed.Where(device => device.DataChoice == RemovedDevice.EraseData).ToList())
+        {
+            if (_received.Devices.Any(received => received.File.Device.DeviceId == device.DeviceId))
+            {
+                await _received.ForgetAsync(device.DeviceId);
+            }
+        }
     }
 
     // This PC joined or made a group: it is no longer unlinked.

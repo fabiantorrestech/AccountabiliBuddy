@@ -121,6 +121,9 @@ public sealed class SyncCoordinator
     /// <summary>Removed devices and the rekey file (ADR 54); set by the app. Without it a rekey file is treated as unreadable.</summary>
     public SyncRemovalService? Removal { get; set; }
 
+    /// <summary>The group's past keys (ADR 56), written into this PC's sealed file and merged from the others'; set by the app.</summary>
+    public PastKeysService? PastKeys { get; set; }
+
     /// <summary>The day plan was changed here and on another device before they synced: ask which to keep.</summary>
     public event EventHandler<DayPlanClashRequest>? ClashRaised;
 
@@ -262,7 +265,9 @@ public sealed class SyncCoordinator
                 ProfileOptions = profiles.Select(profile => new SyncProfileOption(profile.Id, profile.Name)).ToList(),
                 DefaultProfileId = CountUpProfileId?.Invoke(), Noise = noise,
                 // ADR 48, 50: the shared lists, each with its tombstones; sealed like everything in the file.
-                NextTasks = NextTasks?.Invoke(), Parked = Parked?.Invoke(), Later = Later?.Invoke() };
+                NextTasks = NextTasks?.Invoke(), Parked = Parked?.Invoke(), Later = Later?.Invoke(),
+                // ADR 56: the past keys, for opening backups; sealed with the current key like everything else.
+                PastKeys = PastKeys?.ForFile() };
     }
 
     /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
@@ -412,7 +417,13 @@ public sealed class SyncCoordinator
 
         // The shared lists (ADR 48) are merged into this PC's own, encrypted stores below; the copy kept of the sender's file
         // doesn't hold them, so their text isn't kept a second time, in the clear (the sealed bytes it passes on are sealed).
-        await _received.AcceptAsync(file with { NextTasks = null, Parked = null, Later = null }, method, sealedBytes);
+        // The past keys (ADR 56) are merged into their own encrypted store and left out of the copy kept here too.
+        await _received.AcceptAsync(file with { NextTasks = null, Parked = null, Later = null, PastKeys = null }, method, sealedBytes);
+        if (PastKeys is not null)
+        {
+            await PastKeys.MergeAsync(file.PastKeys);
+        }
+
         if (file.DayPlan is SyncDayPlan plan)
         {
             await ConsiderPlanAsync(plan, sender.DeviceId, sender.Name);
@@ -720,7 +731,7 @@ public sealed class SyncCoordinator
             return;
         }
 
-        SyncDocument? newest = _received.Devices
+        SyncDocument? newest = _received.Active
             .SelectMany(device => device.File.Documents)
             .Where(document => document.Key == SyncDocument.GoalKey)
             .MaxBy(document => document.EditedAt);
@@ -982,7 +993,7 @@ public sealed class SyncCoordinator
 
     private Dictionary<Guid, DateTimeOffset> Seen()
     {
-        return _received.Devices.ToDictionary(device => device.File.Device.DeviceId, device => device.File.Device.WrittenAt);
+        return _received.Active.ToDictionary(device => device.File.Device.DeviceId, device => device.File.Device.WrittenAt);
     }
 
     /// <summary>A new group or none: plans and settings from the old one are no longer this PC's to take.</summary>

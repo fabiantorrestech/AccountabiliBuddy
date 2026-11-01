@@ -330,7 +330,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     public bool HasNotes => Notes.Count > 0;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsLinkFirst), nameof(IsComputerType), nameof(IsImport), nameof(IsUsage), nameof(IsReview), nameof(IsBrowsers),
+    [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsLinkFirst), nameof(IsRestore), nameof(IsComputerType), nameof(IsImport), nameof(IsUsage), nameof(IsReview), nameof(IsBrowsers),
         nameof(IsBasics), nameof(IsWorkdays), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsDpAssistant), nameof(IsStartOfDay), nameof(IsTasks), nameof(IsPlanHelper), nameof(IsOverlayTaskbar), nameof(IsPanelCtrlAlt), nameof(IsAppearance), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(BackCommand))]
     public partial AssistantStep Step { get; set; }
@@ -347,6 +347,125 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         {
             Workdays.Load();
         }
+
+        if (value == AssistantStep.Restore)
+        {
+            _ = LoadBackupsAsync();
+        }
+    }
+
+    /// <summary>Opening a removed device's backup and bringing its history in (ADR 55); null skips the Restore step.</summary>
+    public BackupRestoreService? Restore { get; init; }
+
+    /// <summary>Set by the window: shows an open-file dialog for a backup file (.absync) and returns the chosen path.</summary>
+    public Func<Task<string?>>? PickBackupFile { get; set; }
+
+    // The Restore step shows only once this PC is in a device group: a backup opens only with its group's key.
+    private bool CanRestore => Restore is not null && Restore.CanOpen;
+
+    private int _backupLoad;
+
+    public ObservableCollection<RestoreBackupRowViewModel> BackupRows { get; } = new();
+
+    public bool HasBackupRows => BackupRows.Count > 0;
+
+    /// <summary>Nothing was found on Google Drive (and the search is over).</summary>
+    public bool NoBackupsFound => !IsLoadingBackups && BackupRows.Count == 0 && Restore?.Backups.DriveSignedIn == true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NoBackupsFound))]
+    public partial bool IsLoadingBackups { get; set; }
+
+    /// <summary>Why the list is empty or what happened with the last restore, in plain words.</summary>
+    [ObservableProperty]
+    public partial string? RestoreMessage { get; set; }
+
+    /// <summary>Something was restored in this step: the button reads "Next" instead of "Not now".</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NextText))]
+    public partial bool HasRestored { get; set; }
+
+    // Lists the backups on Drive (newest first) when the step opens.
+    private async Task LoadBackupsAsync()
+    {
+        // A quick Back and Next starts a second listing: only the newest one fills the list.
+        int load = ++_backupLoad;
+        BackupRows.Clear();
+        OnPropertyChanged(nameof(HasBackupRows));
+        if (Restore is null)
+        {
+            return;
+        }
+
+        RestoreMessage = Restore.Backups.DriveSignedIn
+            ? null
+            : "Google Drive isn't signed in on this PC, so backups made there can't be listed. Sign in later under Settings › Devices & sync, or choose a backup file.";
+        IsLoadingBackups = true;
+        IReadOnlyList<DriveBackupInfo> found = await Restore.Backups.ListDriveAsync();
+        if (load != _backupLoad)
+        {
+            return;
+        }
+
+        foreach (DriveBackupInfo backup in found)
+        {
+            BackupRows.Add(new RestoreBackupRowViewModel(backup.DeviceName, BackupDateText(backup), new AsyncRelayCommand(() => RestoreFromDriveAsync(backup))));
+        }
+
+        IsLoadingBackups = false;
+        OnPropertyChanged(nameof(HasBackupRows));
+        OnPropertyChanged(nameof(NoBackupsFound));
+    }
+
+    // "Backed up Oct 28, 2026": the day in the file's name (yyyy-MM-dd.absync), else Drive's modified day.
+    private string BackupDateText(DriveBackupInfo backup)
+    {
+        string stem = Path.GetFileNameWithoutExtension(backup.FileName);
+        DateTime day = DateTime.TryParseExact(stem, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsed)
+            ? parsed
+            : TimeZoneInfo.ConvertTime(backup.ModifiedAt, _time.LocalTimeZone).DateTime;
+        return "Backed up " + day.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+    }
+
+    private async Task RestoreFromDriveAsync(DriveBackupInfo backup)
+    {
+        if (Restore is null)
+        {
+            return;
+        }
+
+        RestoreMessage = "Downloading the backup…";
+        await FinishRestoreAsync(await Restore.OpenDriveAsync(backup));
+    }
+
+    [RelayCommand]
+    private async Task ChooseBackupFileAsync()
+    {
+        string? path = PickBackupFile is null ? null : await PickBackupFile();
+        if (path is null || Restore is null)
+        {
+            return;
+        }
+
+        await FinishRestoreAsync(await Restore.OpenFileAsync(path));
+    }
+
+    private async Task FinishRestoreAsync(BackupOpening opening)
+    {
+        if (!opening.IsReady || Restore is null)
+        {
+            RestoreMessage = opening.Message;
+            return;
+        }
+
+        if (await Restore.RestoreAsync(opening) is string problem)
+        {
+            RestoreMessage = problem;
+            return;
+        }
+
+        HasRestored = true;
+        RestoreMessage = $"Restored {opening.File!.Device.Name}'s history. History and Stats show it as \"{opening.File.Device.Name} (removed)\".";
     }
 
     private async Task LoadSpareKeyAsync(ColdTurkeyKeysService keys)
@@ -401,6 +520,8 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     public bool IsWelcome => Step == AssistantStep.Welcome;
 
     public bool IsLinkFirst => Step == AssistantStep.LinkFirst;
+
+    public bool IsRestore => Step == AssistantStep.Restore;
 
     public bool IsComputerType => Step == AssistantStep.ComputerType;
 
@@ -459,6 +580,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     {
         AssistantStep.Welcome => "Welcome to AccountabiliBuddy",
         AssistantStep.LinkFirst => "Link to your other devices?",
+        AssistantStep.Restore => "Restore from an older device",
         AssistantStep.ComputerType => "What kind of computer is this?",
         AssistantStep.Import => "Bring your blocks",
         AssistantStep.Usage => "Your usage",
@@ -492,6 +614,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     public string NextText => Step switch
     {
         AssistantStep.Welcome => "Get started",
+        AssistantStep.Restore => HasRestored ? "Next" : "Not now",
         AssistantStep.Review => PlannedProfiles.Any(row => row.IsIncluded) ? "Import" : "Skip import",
         AssistantStep.Basics => "Next",
         AssistantStep.Workdays when HasColdTurkey && _whatsNew is null => "Next",
@@ -560,9 +683,22 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
             case AssistantStep.LinkFirst:
                 if (await JoinIfAskedAsync())
                 {
-                    await GoToTypeOrImportAsync();
+                    if (CanRestore)
+                    {
+                        Step = AssistantStep.Restore;
+                    }
+                    else
+                    {
+                        await GoToTypeOrImportAsync();
+                    }
                 }
 
+                break;
+            case AssistantStep.Restore when IsQuick:
+                GoToNextQuickStep();
+                break;
+            case AssistantStep.Restore:
+                await GoToTypeOrImportAsync();
                 break;
             case AssistantStep.ComputerType:
                 if (Types is not null)
@@ -1200,7 +1336,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         }
 
         return AssistantFlow.Steps(IsQuick, Identity is not null, Types is not null, HasUsage, _joined,
-            HasColdTurkey, NeedsSpareKeyPage).ToList();
+            HasColdTurkey, NeedsSpareKeyPage, CanRestore).ToList();
     }
 
     // As NextAsync: the spare key page follows only when no key is written down yet and a block is ticked.

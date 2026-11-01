@@ -17,7 +17,8 @@ namespace AccountabiliBuddy.Core.Sync;
 ///           epoch (8 bytes, signed, big-endian: seconds since 1970-01-01 UTC)
 ///           remover: id (16 bytes, RFC 4122 order), name length (2 bytes, big-endian), name (UTF-8, at most 200 bytes)
 ///           removed count (2 bytes, big-endian), then for each removed device
-///               id (16 bytes, RFC 4122 order), name length (2 bytes, big-endian), name (UTF-8, at most 200 bytes)
+///               id (16 bytes, RFC 4122 order), name length (2 bytes, big-endian), name (UTF-8, at most 200 bytes),
+///               erase (1 byte: 1 = every staying device forgets what it received from this device, 0 = it is kept; any other value makes the file unreadable)
 ///           wrap count (2 bytes, big-endian), then for each remaining device
 ///               id (16 bytes), ephemeral public key (65 bytes), nonce (12 bytes), wrapped secret (41 bytes), see <see cref="RekeyWrap"/>
 /// </code>
@@ -130,6 +131,7 @@ public static class RekeyCodec
         foreach (RekeyRemovedDevice removed in payload.Removed)
         {
             WriteDevice(stream, removed);
+            stream.WriteByte(removed.Erase ? (byte)1 : (byte)0);
         }
 
         WriteUInt16(stream, payload.Wraps.Count);
@@ -157,12 +159,12 @@ public static class RekeyCodec
         var removed = new List<RekeyRemovedDevice>();
         for (int index = 0; index < removedCount; index++)
         {
-            if (!TryReadDevice(ref reader, out RekeyRemovedDevice? device))
+            if (!TryReadDevice(ref reader, out RekeyRemovedDevice? device) || !reader.TryReadByte(out byte erase) || erase > 1)
             {
                 return null;
             }
 
-            removed.Add(device);
+            removed.Add(device with { Erase = erase == 1 });
         }
 
         if (!reader.TryReadUInt16(out int wrapCount))

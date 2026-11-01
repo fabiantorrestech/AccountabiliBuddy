@@ -23,15 +23,21 @@ class SyncKey(val key: ByteArray, val groupId: String, private val relayRoot: By
         require(groupId.length == GROUP_ID_BYTES * 2 && groupId.all { it in HEX_DIGITS }) {
             "The group id is ${GROUP_ID_BYTES * 2} lower-case hex characters."
         }
-        require(relayRoot.size == RELAY_ROOT_BYTES) { "The relay root is $RELAY_ROOT_BYTES bytes." }
+        // Empty only for a past key (ADR 56), which opens files and has no relay values.
+        require(relayRoot.size == RELAY_ROOT_BYTES || relayRoot.isEmpty()) { "The relay root is $RELAY_ROOT_BYTES bytes." }
     }
 
+    private fun requireRelayRoot() = check(relayRoot.isNotEmpty()) { "A past key (ADR 56) opens files only; it has no relay values." }
+
     /** The group's id on the relay named [relayIdentity] ([RelayIdentity.of]): 32 lower-case hex characters. */
-    fun relayGroupIdFor(relayIdentity: String): String =
-        toHex(hkdf(relayRoot, "relay-group|$relayIdentity".toByteArray(Charsets.UTF_8), RELAY_GROUP_BYTES))
+    fun relayGroupIdFor(relayIdentity: String): String {
+        requireRelayRoot()
+        return toHex(hkdf(relayRoot, "relay-group|$relayIdentity".toByteArray(Charsets.UTF_8), RELAY_GROUP_BYTES))
+    }
 
     /** The bearer token on the relay named [relayIdentity]: 43 base64url characters (no padding). Never logged or put in a URL. */
     fun relayTokenFor(relayIdentity: String): String {
+        requireRelayRoot()
         val auth = hkdf(relayRoot, "relay-auth|$relayIdentity".toByteArray(Charsets.UTF_8), RELAY_TOKEN_BYTES)
         val token = Base64.encodeToString(auth, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
         auth.fill(0)
@@ -65,6 +71,12 @@ class SyncKey(val key: ByteArray, val groupId: String, private val relayRoot: By
         private val keyInfo = "key".toByteArray(Charsets.UTF_8)
         private val groupInfo = "group".toByteArray(Charsets.UTF_8)
         private val relayRootInfo = "relay-root".toByteArray(Charsets.UTF_8)
+
+        /**
+         * A key that can only open sealed sync files: the group's AES key and group id, from a past key (ADR 56). It has no link code
+         * behind it, so it has no relay values ([relayGroupIdFor] and [relayTokenFor] throw). Used only to open backups.
+         */
+        fun forOpeningOnly(key: ByteArray, groupId: String): SyncKey = SyncKey(key.copyOf(), groupId, ByteArray(0))
 
         /** @throws IllegalArgumentException The secret isn't [SECRET_BYTES] bytes. */
         fun fromSecret(secret: ByteArray): SyncKey {

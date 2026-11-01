@@ -44,6 +44,8 @@ class WatchBridge(
     private val scope: CoroutineScope,
     /** The other devices' parts on the phone (ADR 22): their focus joins the watch's day, tagged with the device. */
     private val received: StateFlow<List<ReceivedDevice>> = MutableStateFlow(emptyList()),
+    /** Every device held, removed ones included: today's focus total counts their sessions as history (ADR 54). */
+    private val allReceived: StateFlow<List<ReceivedDevice>> = received,
     /** Today's lunch for the watch's Lunch page, and what changes it (lunch started or changed, the length setting). */
     private val lunch: () -> com.accountabilibuddy.shared.WatchLunch? = { null },
     private val lunchChanges: kotlinx.coroutines.flow.Flow<Any?> = kotlinx.coroutines.flow.flowOf(Unit),
@@ -189,10 +191,11 @@ class WatchBridge(
 
         val settings = links.settings.value
         val pcFiles = received.value.map { it.file.device.name to it.file }
+        val totals = allReceived.value.map { it.file.device.name to it.file }
         return SnapshotBuilder.build(
             PhoneSnapshot.input(
                 store.state.value, linked = true, PcFileControl.target(received.value, pickedPc())?.file?.device?.name, Instant.now(),
-                ZoneId.systemDefault(), relayAllowed = settings.relayOn, received = pcFiles,
+                ZoneId.systemDefault(), relayAllowed = settings.relayOn, received = pcFiles, totals = totals,
             ).copy(lunch = lunch()),
         )
     }

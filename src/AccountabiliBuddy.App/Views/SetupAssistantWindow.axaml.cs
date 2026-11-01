@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.Services.Sync;
 using AccountabiliBuddy.App.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
@@ -31,8 +32,25 @@ public partial class SetupAssistantWindow : Window
                 viewModel.CloseRequested += (_, _) => Close();
                 viewModel.PickFile = PickFileAsync;
                 viewModel.PickFolder = PickFolderAsync;
+                viewModel.PickBackupFile = PickBackupFileAsync;
             }
         };
+    }
+
+    // A removed device's backup (ADR 55): a sealed .absync file; by default the backups folder in Documents.
+    private async Task<string?> PickBackupFileAsync()
+    {
+        IStorageFolder? start = Directory.Exists(DeviceBackupService.DefaultFolder)
+            ? await StorageProvider.TryGetFolderFromPathAsync(DeviceBackupService.DefaultFolder)
+            : null;
+        IReadOnlyList<IStorageFile> files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Choose a device backup",
+            AllowMultiple = false,
+            SuggestedStartLocation = start,
+            FileTypeFilter = [new FilePickerFileType("AccountabiliBuddy sync file") { Patterns = ["*.absync"] }, FilePickerFileTypes.All],
+        });
+        return files.Count > 0 ? files[0].TryGetLocalPath() : null;
     }
 
     private async Task<string?> PickFolderAsync()

@@ -31,6 +31,8 @@ object PhoneSnapshot {
         relayAllowed: Boolean = true,
         /** The devices' names and sync files on the phone (ADR 22): their focus makes today's, tagged with the device. */
         received: List<Pair<String, SyncFile>> = emptyList(),
+        /** Every device held, a kept removed one included (ADR 54): today's focus total counts their sessions as history, as the PC's goal does; [received] stays the live devices. */
+        totals: List<Pair<String, SyncFile>> = received,
     ): SnapshotInput {
         val today = now.atZone(zone).toLocalDate()
         val fileRunning = runningFromFiles(received, now)
@@ -41,7 +43,7 @@ object PhoneSnapshot {
             pcName = pcName,
             parts = todayParts(state.document.dayPlan, today, zone, state.sleep),
             // The parts and planned minutes come from the imported plan (ADR 42).
-            focusDay = FocusDayCombine.combine(received, today, zone, now, planParts = { date -> todayParts(state.document.dayPlan, date, zone, state.sleep) }),
+            focusDay = FocusDayCombine.combine(totals, today, zone, now, planParts = { date -> todayParts(state.document.dayPlan, date, zone, state.sleep) }),
             sources = received.map { (name, file) -> DataSource(name, file.device.writtenAt) },
             running = fileRunning?.first,
             runningAt = fileRunning?.second,

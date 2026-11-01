@@ -17,4 +17,7 @@ public enum DeviceSyncState
 
     /// <summary>This PC isn't in a device group.</summary>
     Unlinked,
+
+    /// <summary>Removed from the group (ADR 54) with its data kept: shown as "[name] (removed)".</summary>
+    Removed,
 }

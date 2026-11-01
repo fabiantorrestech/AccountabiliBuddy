@@ -72,7 +72,8 @@ public sealed partial class SyncLightViewModel : ObservableObject
 
     private void Rebuild()
     {
-        IReadOnlyList<DeviceRowViewModel> rows = _devices.Rows.ToList();
+        // A removed device (ADR 54) isn't expected to sync, so it has no light.
+        IReadOnlyList<DeviceRowViewModel> rows = _devices.Rows.Where(row => row.State != DeviceSyncState.Removed).ToList();
         string? problem = _devices.SyncProblem;
         bool hasOthers = rows.Count > 1;
 

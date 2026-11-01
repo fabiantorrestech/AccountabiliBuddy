@@ -79,9 +79,35 @@ data class SyncFile(
      * predates it. Optional in the JSON, so older apps ignore it.
      */
     val later: List<SyncLaterItem>? = null,
+    /**
+     * The group's past keys (ADR 56), for opening backups sealed before a later removal; a receiver merges them as a set by group
+     * id. Null when the device has none, in a QR file and from an app that predates it. Optional in the JSON, so older apps ignore
+     * it. Never kept in the copy a receiver stores of this file.
+     */
+    val pastKeys: List<SyncPastKey>? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1
+    }
+}
+
+/**
+ * A past group key (ADR 56): the group id and AES-256-GCM key a group had before a removal re-keyed it. Devices keep a few of these
+ * and share them inside their sealed sync files, so a backup sealed with an earlier key can still be opened. It holds the derived
+ * AES key, never the link code (the code also admits a device to the relay). Used only to open backups; never to read or write sync
+ * files.
+ *
+ * @property groupId The group id of that key: 8 lower-case hex characters.
+ * @property key The 32-byte AES key as standard base64.
+ * @property retiredAt When the group left this key. Keys older than a year are dropped.
+ */
+class SyncPastKey(val groupId: String, val key: String, val retiredAt: Instant) {
+    companion object {
+        /** The most past keys a device keeps (the newest by [retiredAt]). */
+        const val MAX_KEPT = 20
+
+        /** How long a past key is kept after [retiredAt], in days. */
+        const val KEPT_FOR_DAYS = 365L
     }
 }
 

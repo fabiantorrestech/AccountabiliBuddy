@@ -62,6 +62,7 @@ fun MainScreen(
     val detectedWatches by viewModel.detectedWatches.collectAsStateWithLifecycle()
     val joinOffer by viewModel.joinOffer.collectAsStateWithLifecycle()
     val syncReceived by viewModel.syncReceived.collectAsStateWithLifecycle()
+    val syncAllReceived by viewModel.syncAllReceived.collectAsStateWithLifecycle()
     val syncKey by viewModel.syncKey.collectAsStateWithLifecycle()
     val syncSettings by viewModel.syncSettings.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -243,6 +244,7 @@ fun MainScreen(
                         joined = syncKey != null,
                         settings = syncSettings,
                         received = syncReceived,
+                        allReceived = syncAllReceived,
                         folder = folderStatus,
                         drive = driveStatus,
                         relay = relayStatus,

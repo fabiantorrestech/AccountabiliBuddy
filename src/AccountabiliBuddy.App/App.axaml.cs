@@ -98,6 +98,14 @@ public partial class App : Application
     private AccountabiliBuddy.App.Services.Sync.SyncDriveService? _syncDrive;
     private AccountabiliBuddy.App.Services.Sync.SyncRelayService? _syncRelay;
     private AccountabiliBuddy.App.Services.Sync.SyncRemovalService? _syncRemoval;
+    private UnlinkedViewModel? _unlinkedViewModel;
+
+    // Set when "Start over" was asked for and could not clear the data at start; told to the user once the app is up.
+    private string? _startOverProblem;
+    private UnlinkedDialog? _unlinkedDialog;
+
+    // The unlinked state the dialog was last shown for, so closing it without choosing doesn't bring it back until the next start.
+    private DateTimeOffset? _unlinkedShownFor;
     private AccountabiliBuddy.App.Services.Sync.RelayHostService? _relayHost;
     private AccountabiliBuddy.App.Services.Sync.QrSyncService? _qrSync;
     private NamedPipeBrowserSource? _browserSource;
@@ -202,6 +210,13 @@ public partial class App : Application
                 }
             }
 
+            // Removed from the synced devices while this PC was off or away (ADR 54): ask what to do now.
+            ShowUnlinkedIfNew();
+            if (_startOverProblem is not null)
+            {
+                _presenter?.ShowNotice("Start over didn't happen", _startOverProblem);
+            }
+
             // Later launches (second start, Start menu shortcut) hand over to this copy.
             _instanceSignals = InstanceSignals.Listen(Program.InstanceName, signal => Dispatcher.UIThread.Post(() =>
             {
@@ -230,6 +245,8 @@ public partial class App : Application
         string? dataOverride = Environment.GetEnvironmentVariable(DataDirectoryVariable);
         _usesDevData = dataOverride is null && !AppPaths.IsInstalled;
         string dataDirectory = dataOverride ?? (_usesDevData ? LocalDatabase.DefaultDirectory() + DevDataSuffix : LocalDatabase.DefaultDirectory());
+        // "Start over" asked for the data to be cleared (ADR 54, 10): done now, before the database is opened.
+        AccountabiliBuddy.App.Services.Setup.StartOverService.RunPending(dataDirectory, out _startOverProblem);
         var database = new LocalDatabase(dataDirectory);
         string? problem = UpgradeSafety.CheckBlocking(database);
         if (problem is not null)
@@ -583,11 +600,11 @@ public partial class App : Application
         // A paired phone's next alarm (ADR 23): the newest phone file's, while it's still ahead.
         void FollowPhoneAlarm()
         {
-            sleepSettings.SetPhoneAlarm(AccountabiliBuddy.App.Services.Sync.PhoneAlarm.Of(receivedDevices.Devices, time));
+            sleepSettings.SetPhoneAlarm(AccountabiliBuddy.App.Services.Sync.PhoneAlarm.Of(receivedDevices.Active, time));
             // ADR 34: the phone's smart bedtime, from the same files.
-            sleepSettings.SetPhoneBedtime(AccountabiliBuddy.App.Services.Sync.PhoneBedtime.Of(receivedDevices.Devices));
+            sleepSettings.SetPhoneBedtime(AccountabiliBuddy.App.Services.Sync.PhoneBedtime.Of(receivedDevices.Active));
             // ADR 40: the phone's estimated wake per kind of morning, for mornings with no alarm known.
-            sleepSettings.SetPhoneWake(AccountabiliBuddy.App.Services.Sync.PhoneWake.Of(receivedDevices.Devices));
+            sleepSettings.SetPhoneWake(AccountabiliBuddy.App.Services.Sync.PhoneWake.Of(receivedDevices.Active));
         }
 
         receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(FollowPhoneAlarm);
@@ -624,7 +641,7 @@ public partial class App : Application
         syncCoordinator.Later = _later.ForSync;
         syncCoordinator.MergeLater = _later.MergeAsync;
         // A fixed lunch doesn't start by itself while another PC runs a session (its file says so).
-        _lunch!.OtherPcSessionRunning = () => AccountabiliBuddy.App.Services.Sync.OtherPcSessions.IsRunning(receivedDevices.Devices, time.GetUtcNow());
+        _lunch!.OtherPcSessionRunning = () => AccountabiliBuddy.App.Services.Sync.OtherPcSessions.IsRunning(receivedDevices.Active, time.GetUtcNow());
         // Beeminder (ADR 43): only the derived summary goes in this PC's sync file; removing the token removes it.
         syncCoordinator.Beeminder = _beeminder.SyncSummary;
         IReadOnlyList<AccountabiliBuddy.Core.Sync.SyncBeeminderGoal>? lastBeeminder = _beeminder.SyncSummary();
@@ -691,7 +708,7 @@ public partial class App : Application
         _lunch!.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            foreach (AccountabiliBuddy.Core.Sync.SyncLunch lunch in receivedDevices.Devices.Select(device => device.File.Lunch).OfType<AccountabiliBuddy.Core.Sync.SyncLunch>())
+            foreach (AccountabiliBuddy.Core.Sync.SyncLunch lunch in receivedDevices.Active.Select(device => device.File.Lunch).OfType<AccountabiliBuddy.Core.Sync.SyncLunch>())
             {
                 _lunch.Receive(lunch);
             }
@@ -710,7 +727,7 @@ public partial class App : Application
         };
         receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            foreach (var entry in receivedDevices.Devices.SelectMany(device => device.File.ReminderActions ?? Array.Empty<AccountabiliBuddy.Core.Sync.SyncReminderAction>()))
+            foreach (var entry in receivedDevices.Active.SelectMany(device => device.File.ReminderActions ?? Array.Empty<AccountabiliBuddy.Core.Sync.SyncReminderAction>()))
             {
                 string key = $"{entry.Night}/{entry.Number}/{entry.Action}/{entry.At.ToUnixTimeMilliseconds()}";
                 if (entry.At < time.GetUtcNow().AddHours(-1) || entry.Night != _bedtimeReminder.Night || !appliedReminderActions.Add(key))
@@ -739,9 +756,9 @@ public partial class App : Application
         var driveAccount = new AccountabiliBuddy.App.Services.Sync.DriveAccountService(
             new GoogleCalendarClient(_calendarNetwork, googleEndpoints, time), calendars, documents, dataProtector, time);
         driveAccount.LoadBlocking();
+        var driveFiles = new AccountabiliBuddy.App.Services.Sync.GoogleDriveFiles(_calendarNetwork, googleEndpoints, driveAccount.GetAccessTokenAsync);
         _syncDrive = new AccountabiliBuddy.App.Services.Sync.SyncDriveService(
-            syncCoordinator, syncSettings, syncIdentity, receivedDevices, _sessions,
-            new AccountabiliBuddy.App.Services.Sync.GoogleDriveFiles(_calendarNetwork, googleEndpoints, driveAccount.GetAccessTokenAsync))
+            syncCoordinator, syncSettings, syncIdentity, receivedDevices, _sessions, driveFiles)
         {
             IsSignedIn = () => driveAccount.IsSignedIn,
             NoiseBusy = () => remoteNoise.WantsFastPoll,
@@ -769,6 +786,23 @@ public partial class App : Application
         };
         _syncRemoval.LoadBlocking();
         syncCoordinator.Removal = _syncRemoval;
+        // Backups of a removed device and restoring them (ADR 55); History, Stats and the day bar label removed devices.
+        var deviceBackups = new AccountabiliBuddy.App.Services.Sync.DeviceBackupService(driveFiles, syncIdentity, syncSettings, () => driveAccount.IsSignedIn);
+        // The group's past keys (ADR 56): kept on every key switch, shared in the sealed sync files, used only to open backups.
+        var pastKeys = new AccountabiliBuddy.App.Services.Sync.PastKeysService(documents, dataProtector, time);
+        pastKeys.LoadBlocking();
+        syncIdentity.KeySwitched += (_, switched) => pastKeys.NoteSwitched(switched.OldKey);
+        syncCoordinator.PastKeys = pastKeys;
+        var backupRestore = new AccountabiliBuddy.App.Services.Sync.BackupRestoreService(deviceBackups, syncIdentity, receivedDevices, _syncRemoval, pastKeys);
+        receivedDevices.IsRemoved = _syncRemoval.IsRemoved;
+        // Start over / Start from scratch (ADR 54, 10): the next start clears the data (see StartOverService).
+        var startOver = new AccountabiliBuddy.App.Services.Setup.StartOverService(database, _sessions, dataDirectory);
+        Action openStartOver = () => ShowOwnedDialog(new StartOverDialog { DataContext = new StartOverViewModel(startOver, _sessions, TryRestartApp) });
+        _unlinkedViewModel = new UnlinkedViewModel(_syncRemoval, _sessions, time, openStartOver);
+        _unlinkedViewModel.Resolved += (_, _) => _unlinkedShownFor = null;
+        _syncRemoval.Changed += (_, _) => Dispatcher.UIThread.Post(ShowUnlinkedIfNew);
+        // A removed phone stops driving bedtime, wake and the alarm (ReceivedDevicesService.Active).
+        _syncRemoval.Changed += (_, _) => Dispatcher.UIThread.Post(FollowPhoneAlarm);
 
         // Run a relay on this PC (ADR 46): the relay program ships next to the app, lives in the app's data folder and ends with the app.
         _relayHost = new AccountabiliBuddy.App.Services.Sync.RelayHostService(
@@ -803,6 +837,7 @@ public partial class App : Application
         {
             Types = computerTypes,
             Identity = syncIdentity,
+            Restore = backupRestore,
             Goal = goal,
             StartNudge = _startNudge,
             Appearance = new AppearanceViewModel(appTheme),
@@ -863,7 +898,15 @@ public partial class App : Application
         {
             SyncLightSetting = syncLightSetting,
             Batteries = batteryVisibility,
+            Removal = _syncRemoval,
+            PastKeys = pastKeys,
+            UnlinkedPanel = _unlinkedViewModel,
         };
+        // Remove this device… (ADR 54, 55): the dialog works through the removal service and the backup service.
+        devices.OpenRemoveDialog = deviceId => ShowOwnedDialog(new RemoveDeviceDialog
+        {
+            DataContext = new RemoveDeviceViewModel(_syncRemoval!, receivedDevices, deviceBackups, time, deviceId),
+        });
         var sessionViewModel = new SessionViewModel(
             _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks), _quickSession)
         {
@@ -1065,6 +1108,7 @@ public partial class App : Application
                 _noise)
             {
                 StepAway = _stepAway,
+                OpenStartOver = openStartOver,
                 WorkHours = new WorkHoursViewModel(_workHours!, _sessions),
                 Hyperfocus = new HyperfocusViewModel(_hyperfocus!, _configuration),
                 StartNudge = new StartNudgeViewModel(_startNudge!),
@@ -1082,7 +1126,7 @@ public partial class App : Application
                 PcAlarmWarning = () => _pcAlarm!.WakeProblem(),
                 Reminders = new BedtimeRemindersViewModel(sleepSettings, () => _bedtimeReminder!.DeviceId()),
                 // ADR 35: only a linked phone measures sleep.
-                HasLinkedPhone = () => receivedDevices.Devices.Any(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone),
+                HasLinkedPhone = () => receivedDevices.Active.Any(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone),
             },
             activityViewModel,
             Environment.GetEnvironmentVariable(DevToolsVariable) == "1",
@@ -1223,7 +1267,7 @@ public partial class App : Application
                     .Select(b => (new BlockRef(me, b.Kind, b.Id, b.Name), "This PC", b.On)));
             }
 
-            foreach (var device in receivedDevices.Devices.Where(d => d.File.Blockers is not null))
+            foreach (var device in receivedDevices.Active.Where(d => d.File.Blockers is not null))
             {
                 var card = device.File.Device;
                 string who = card.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone ? BlockRef.Phone : BlockRef.Pc(card.DeviceId);
@@ -1254,7 +1298,7 @@ public partial class App : Application
                 Today = () => DateOnly.FromDateTime(time.GetLocalNow().DateTime),
                 GoalLowerWaits = goalLowerWaits,
                 WorkHoursGuardOn = () => _workHours?.Settings.On == true,
-                HasLinkedPhone = () => receivedDevices.Devices.Any(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone),
+                HasLinkedPhone = () => receivedDevices.Active.Any(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone),
                 RefreshProgress = () => _deepWork?.CheckNow(),
             };
             dpAssistantWindow = new DpAssistantWindow { DataContext = viewModel };
@@ -1338,6 +1382,9 @@ public partial class App : Application
 
         _recorder.Start();
         SessionResume? resumed = _sessions.Start(savedSession);
+        // An erase the last run could not finish (a focus session was running) is done now, after a crashed session is resumed so
+        // that it still waits for that one.
+        _ = _syncRemoval!.ApplyPendingErasesQuietlyAsync();
         _ = sessionTasks.AfterStartupAsync();
         if (resumed is not null && _sessions.State.IsActive)
         {
@@ -2115,22 +2162,99 @@ public partial class App : Application
         dialog.Activate();
     }
 
-    /// <summary>Starts a new copy (which waits for this one to exit) and quits, e.g. to load restored settings.</summary>
-    private void RestartApp()
+    // Shows a dialog over the main window when it is open, else in the middle of the screen.
+    private void ShowOwnedDialog(Window dialog)
     {
-        string? executable = Environment.ProcessPath;
-        if (executable is null)
+        if (_mainWindow is { IsVisible: true })
+        {
+            dialog.Show(_mainWindow);
+        }
+        else
+        {
+            dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            dialog.Show();
+        }
+
+        dialog.Activate();
+    }
+
+    // This PC is unlinked (ADR 54): the three choices, once per removal. With the window closed (a start at sign-in) a notice
+    // with "Choose…" comes first. Closing the dialog without choosing leaves the PC unlinked; it comes back at the next start.
+    private void ShowUnlinkedIfNew()
+    {
+        if (_syncRemoval?.Unlinked is not { } state || _unlinkedViewModel is null || _unlinkedShownFor == state.At)
         {
             return;
         }
 
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(executable, StartupOptions.RestartedArgument) { UseShellExecute = false });
+        _unlinkedShownFor = state.At;
+        if (_mainWindow is { IsVisible: true } || _presenter is null)
+        {
+            ShowUnlinkedDialog();
+            return;
+        }
+
+        _presenter.ShowChoice(
+            "This PC was removed from your synced devices",
+            $"Removed by {state.RemovedByName}. Nothing syncs until you choose what to do.",
+            "Choose…",
+            () =>
+            {
+                ShowMainWindow();
+                ShowUnlinkedDialog();
+            },
+            () => _unlinkedShownFor = null);
+    }
+
+    private void ShowUnlinkedDialog()
+    {
+        if (_unlinkedDialog is not null)
+        {
+            _unlinkedDialog.Activate();
+            return;
+        }
+
+        if (_unlinkedViewModel is null || _syncRemoval?.Unlinked is null)
+        {
+            return;
+        }
+
+        _unlinkedDialog = new UnlinkedDialog { DataContext = _unlinkedViewModel };
+        _unlinkedDialog.Closed += (_, _) => _unlinkedDialog = null;
+        ShowOwnedDialog(_unlinkedDialog);
+    }
+
+    /// <summary>Starts a new copy (which waits for this one to exit) and quits, e.g. to load restored settings.</summary>
+    private void RestartApp()
+    {
+        TryRestartApp();
+    }
+
+    /// <returns>False when the new copy could not be started (nothing was shut down).</returns>
+    private bool TryRestartApp()
+    {
+        string? executable = Environment.ProcessPath;
+        if (executable is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(executable, StartupOptions.RestartedArgument) { UseShellExecute = false });
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return false;
+        }
+
         if (_mainWindow is not null)
         {
             _mainWindow.AllowClose = true;
         }
 
         _desktop?.Shutdown();
+        return true;
     }
 
     /// <param name="quick">The first run's three questions; otherwise the full setup.</param>

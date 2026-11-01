@@ -460,7 +460,7 @@ public sealed partial class HistoryViewModel : ObservableObject
         // The other devices' sessions (ADR 22) add the time no local session covered; "This PC" leaves them out.
         HasReceivedDevices = _received is { Devices.Count: > 0 };
         IReadOnlyList<ReceivedSession> received = ShowAllDevices && _received is not null
-            ? ReceivedSessions.In(_received.Devices, from, to)
+            ? ReceivedSessions.In(_received.Devices, from, to, _received.LabelOf)
             : [];
         IEnumerable<TimeRange> counted = around
             .Where(record => record.Mode != SessionMode.Scheduled && !_omitted.IsOmitted(record.StartedAt))

@@ -9,11 +9,21 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="Indented">Shown under the device above it (a phone's linked watch, Task 18).</param>
 /// <param name="Age">How long ago its newest data arrived; null for this PC and for a device not heard from yet (the sync light reads it).</param>
 /// <param name="AppVersion">The app version the device wrote its file with (this PC's own for its row); empty when not known.</param>
+/// <param name="RemoveCommand">Opens the remove dialog for this device; null for rows that can not be removed (this PC, a watch, a removed device).</param>
+/// <param name="RemoveEnabled">The command can run now (not during a focus session you started).</param>
+/// <param name="RemoveHint">Why it can not run, shown as the menu item's tooltip.</param>
 /// <param name="DeviceKey">Its id for the battery settings: the sync device id, "this-pc" for this PC, "companion:" and the name for a phone's linked watch.</param>
 public sealed record DeviceRowViewModel(
     string Name, string Kind, string MethodsText, string LastText, DeviceSyncState State, string StateText, bool Indented = false,
-    TimeSpan? Age = null, string AppVersion = "", string? DeviceKey = null)
+    TimeSpan? Age = null, string AppVersion = "", string? DeviceKey = null,
+    System.Windows.Input.ICommand? RemoveCommand = null, bool RemoveEnabled = false, string? RemoveHint = null)
 {
+    /// <summary>The row has a ⋯ menu with "Remove this device…" (another device that is still in the group; ADR 54).</summary>
+    public bool HasMenu => RemoveCommand is not null;
+
+    /// <summary>The menu item's text; when it is disabled the reason is part of it (a tooltip never shows on a disabled item).</summary>
+    public string RemoveHeader => RemoveEnabled || RemoveHint is null ? "Remove this device…" : $"Remove this device… ({RemoveHint})";
+
     /// <summary>A device's part counts as behind once it's older than its interval plus this margin (as on the phone).</summary>
     public static readonly TimeSpan Margin = TimeSpan.FromMinutes(5);
 
@@ -59,10 +69,10 @@ public sealed record DeviceRowViewModel(
     public string AgoText => State switch
     {
         DeviceSyncState.ThisDevice => "Now",
-        DeviceSyncState.Unlinked => StateText,
+        DeviceSyncState.Unlinked or DeviceSyncState.Removed => StateText,
         _ => Age is TimeSpan age ? DevicesViewModel.Ago(age) : "Not yet",
     };
 
     /// <summary>The dot reads Sleep (stale) instead of Met (fresh) while the device is behind, unlinked or not heard from yet.</summary>
-    public bool IsStale => State is DeviceSyncState.Behind or DeviceSyncState.Waiting or DeviceSyncState.Unlinked;
+    public bool IsStale => State is DeviceSyncState.Behind or DeviceSyncState.Waiting or DeviceSyncState.Unlinked or DeviceSyncState.Removed;
 }

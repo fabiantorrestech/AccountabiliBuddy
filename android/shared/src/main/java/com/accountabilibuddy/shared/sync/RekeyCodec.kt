@@ -10,8 +10,12 @@ import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
-/** A device a rekey file removes from the group: its id and the name it had (ADR 54). */
-class RekeyRemovedDevice(val deviceId: UUID, val name: String)
+/**
+ * A device a rekey file names (ADR 54): its id and the name it had. For a removed device, [erase] is the remover's choice about
+ * its data (ADR 55): true = every staying device that applies the rekey forgets what it received from it; false = they keep it,
+ * shown as removed. Always false for the maker entry, which is written without the flag.
+ */
+class RekeyRemovedDevice(val deviceId: UUID, val name: String, val erase: Boolean = false)
 
 /**
  * What a rekey file says (ADR 54), once opened with the old group key.
@@ -37,7 +41,8 @@ class RekeyPayload(val epoch: Long, val removedBy: RekeyRemovedDevice, val remov
  *           epoch (8 bytes, signed, big-endian: seconds since 1970-01-01 UTC)
  *           remover: id (16 bytes, RFC 4122 order), name length (2 bytes, big-endian), name (UTF-8, at most 200 bytes)
  *           removed count (2 bytes, big-endian), then for each removed device
- *               id (16 bytes, RFC 4122 order), name length (2 bytes, big-endian), name (UTF-8, at most 200 bytes)
+ *               id (16 bytes, RFC 4122 order), name length (2 bytes, big-endian), name (UTF-8, at most 200 bytes),
+ *               erase (1 byte: 1 = every staying device forgets what it received from this device, 0 = it is kept; any other value makes the file unreadable)
  *           wrap count (2 bytes, big-endian), then for each remaining device
  *               id (16 bytes), ephemeral public key (65 bytes), nonce (12 bytes), wrapped secret (41 bytes), see [RekeyWrap]
  * ```
@@ -143,6 +148,7 @@ object RekeyCodec {
         writeUInt16(out, payload.removed.size)
         for (removed in payload.removed) {
             writeDevice(out, removed)
+            out.write(if (removed.erase) 1 else 0)
         }
 
         writeUInt16(out, payload.wraps.size)
@@ -168,7 +174,13 @@ object RekeyCodec {
         val removedCount = reader.readUInt16() ?: return null
         val removed = ArrayList<RekeyRemovedDevice>()
         repeat(removedCount) {
-            removed += readDevice(reader) ?: return null
+            val device = readDevice(reader) ?: return null
+            val erase = reader.readByte()
+            if (erase != 0 && erase != 1) {
+                return null
+            }
+
+            removed += RekeyRemovedDevice(device.deviceId, device.name, erase == 1)
         }
 
         val wrapCount = reader.readUInt16() ?: return null

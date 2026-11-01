@@ -59,14 +59,15 @@ object HeaderSource {
         val state = app.store.state.value
         val zone = ZoneId.systemDefault()
         val received = app.sync.received.value.map { it.file.device.name to it.file }
-        if (received.isEmpty()) {
+        val totals = app.sync.allReceived.value.map { it.file.device.name to it.file }
+        if (totals.isEmpty()) {
             return null
         }
 
         return SnapshotBuilder.build(
             PhoneSnapshot.input(
                 state, linked = true, PcFileControl.target(app.sync.received.value, app.pcRemote.chosenPcId.value)?.file?.device?.name, now.atZone(zone).toInstant(), zone,
-                received = received,
+                received = received, totals = totals,
             ),
         )
     }

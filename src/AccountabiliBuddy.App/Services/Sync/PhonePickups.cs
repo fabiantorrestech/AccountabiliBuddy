@@ -29,7 +29,7 @@ public sealed class PhonePickups
     }
 
     /// <summary>True when a phone in the group counts pickups (it has Usage access and sends them).</summary>
-    public bool IsCounting => Entries().Any() || _received.Devices.Any(device => device.File.Device.Kind == SyncDeviceCard.KindPhone && device.File.Pickups is not null);
+    public bool IsCounting => Entries().Any() || _received.Active.Any(device => device.File.Device.Kind == SyncDeviceCard.KindPhone && device.File.Pickups is not null);
 
     /// <summary>The phone's newest count for this PC's session that started at <paramref name="sessionStart"/>; null when none came.</summary>
     public SyncPickup? For(DateTimeOffset sessionStart)
@@ -78,7 +78,7 @@ public sealed class PhonePickups
     /// <summary>E.g. "out 2× · pocket 14 min" from the phone's placement for the session; null when the phone sent none.</summary>
     public string? DescribePlacement(DateTimeOffset sessionStart)
     {
-        if (PhonePlacementLookup.Newest(_received.Devices, sessionStart) is not { } found)
+        if (PhonePlacementLookup.Newest(_received.Active, sessionStart) is not { } found)
         {
             return null;
         }
@@ -94,7 +94,7 @@ public sealed class PhonePickups
     public string? DescribeOtherPcs(DateTimeOffset sessionStart)
     {
         Guid me = _identity.DeviceId;
-        List<string> parts = _received.Devices
+        List<string> parts = _received.Active
             .Where(device => device.File.Device.Kind == SyncDeviceCard.KindPc && device.File.Device.DeviceId != me)
             .Select(device => (device.File.Device.Name, Pickup: (device.File.Pickups ?? [])
                 .Where(entry => entry.DeviceId == me && (entry.SessionStart - sessionStart).Duration() <= StartTolerance)
@@ -113,7 +113,7 @@ public sealed class PhonePickups
 
     private bool TooLongInPocket(DateTimeOffset sessionStart)
     {
-        return PhonePlacementLookup.Newest(_received.Devices, sessionStart) is { } found && PocketCostsCredit(found);
+        return PhonePlacementLookup.Newest(_received.Active, sessionStart) is { } found && PocketCostsCredit(found);
     }
 
     // Only a phone whose card says 0.1.63 or later has the pocket switch; an unreadable version counts as older.

@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.DevicesView"
              x:DataType="vm:DevicesViewModel">
     <!-- Devices & sync (ADR 22, design 5q): this PC and the user's other devices with how fresh each is, a note for a stale one, the
@@ -29,9 +30,14 @@
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="0,0,16,24" Spacing="12">
             <TextBlock Classes="sHint" Margin="4,0,0,0" IsVisible="{Binding IsLocked}"
-                       Text="Leaving the group and the sharing switches rest while you focus; the sync light and batteries still change." />
+                       Text="Leaving the group, removing a device and the sharing switches rest while you focus; the sync light and batteries still change." />
             <TextBlock Classes="muted" Text="{Binding CombinedTodayText}" Margin="4,0,0,0"
                        IsVisible="{Binding CombinedTodayText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+            <!-- This PC was removed from the group (ADR 54): the three choices, the same as in the dialog at start. -->
+            <Border Classes="sPanel" Padding="18,16" IsVisible="{Binding IsUnlinked}">
+                <views:UnlinkedChoicesView DataContext="{Binding UnlinkedPanel}" />
+            </Border>
 
             <!-- Every device in the group, this PC first, with how fresh its data is. -->
             <Border Classes="sPanel">
@@ -49,6 +55,20 @@
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                         <Ellipse Classes="dot" Classes.stale="{Binding IsStale}" />
                                         <TextBlock Classes="muted" FontSize="13" Text="{Binding AgoText}" />
+                                        <!-- Another device that is still in the group: remove it (ADR 54). A watch is managed on its phone; this PC leaves with Leave group. -->
+                                        <Button Classes="quiet" Padding="6,4" MinHeight="0" IsVisible="{Binding HasMenu}"
+                                                ToolTip.Tip="More actions for this device" AutomationProperties.Name="More actions for this device">
+                                            <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" />
+                                            <Button.Flyout>
+                                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                                    <MenuItem Header="{Binding RemoveHeader}" Command="{Binding RemoveCommand}" IsEnabled="{Binding RemoveEnabled}">
+                                                        <MenuItem.Icon>
+                                                            <mi:MaterialIcon Kind="LinkOff" Width="16" Height="16" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                        </Button>
                                     </StackPanel>
                                 </Grid>
                             </Border>

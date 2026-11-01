@@ -65,7 +65,11 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         RelayStatusText = string.Empty;
         JoinCode = string.Empty;
         IsLocked = sessions.IsEnforcing;
-        sessions.StateChanged += (_, _) => IsLocked = sessions.IsEnforcing;
+        sessions.StateChanged += (_, _) =>
+        {
+            IsLocked = sessions.IsEnforcing;
+            Refresh();
+        };
         identity.Changed += (_, _) => Refresh();
         settings.Changed += (_, _) => Refresh();
         received.Changed += (_, _) => Refresh();
@@ -75,6 +79,35 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         WatchNetwork();
         Refresh();
     }
+
+    private readonly SyncRemovalService? _removal;
+
+    /// <summary>Removing devices and this PC's unlinked state (ADR 54); set by the app.</summary>
+    public SyncRemovalService? Removal
+    {
+        get => _removal;
+        init
+        {
+            _removal = value;
+            if (value is not null)
+            {
+                value.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
+            }
+        }
+    }
+
+    /// <summary>The group's past keys (ADR 56); "Leave group" clears them. Set by the app.</summary>
+    public PastKeysService? PastKeys { get; init; }
+
+    /// <summary>Opens the "Remove this device" dialog for the device with this id; set by the app.</summary>
+    public Action<Guid>? OpenRemoveDialog { get; set; }
+
+    /// <summary>The three choices shown while this PC is unlinked (add it again, continue unsynced, start from scratch); set by the app.</summary>
+    public UnlinkedViewModel? UnlinkedPanel { get; init; }
+
+    /// <summary>This PC was removed from the group (or cut off) and has not chosen yet: the three choices show at the top of the page.</summary>
+    [ObservableProperty]
+    public partial bool IsUnlinked { get; set; }
 
     /// <summary>Opens today's sync QR codes; set by the app.</summary>
     public Action? ShowSyncQr { get; set; }
@@ -401,18 +434,34 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
 
         DateTimeOffset now = _time.GetUtcNow();
         Rows.Clear();
+        IsUnlinked = _removal?.Unlinked is not null;
+        string? removeBlocked = _removal?.BlockedReason;
         Rows.Add(new DeviceRowViewModel(
             _identity.DeviceName,
             "This PC",
             MethodsText(OwnMethods(settings)),
-            InGroup ? string.Empty : "Not linked to your other devices yet",
+            InGroup ? string.Empty : IsUnlinked ? "Removed from your synced devices: choose below" : "Not linked to your other devices yet",
             InGroup ? DeviceSyncState.ThisDevice : DeviceSyncState.Unlinked,
-            InGroup ? "This PC" : "Unlinked",
+            InGroup ? "This PC" : IsUnlinked ? "Removed from the group" : "Unlinked",
             AppVersion: Services.Backup.BackupService.AppVersion,
             DeviceKey: BatteryVisibilitySettings.ThisPcKey));
         foreach (ReceivedDevice device in _received.Devices.OrderByDescending(device => device.File.Device.WrittenAt))
         {
             SyncDeviceCard card = device.File.Device;
+            if (_removal?.IsRemoved(card.DeviceId) == true)
+            {
+                // Removed with its data kept (ADR 54, 55): a line with no menu, and a phone's watch goes with it.
+                Rows.Add(new DeviceRowViewModel(
+                    $"{card.Name} (removed)",
+                    KindName(card.Kind),
+                    MethodsText(card.Methods),
+                    "Its data is kept; it can't read new data",
+                    DeviceSyncState.Removed,
+                    "Removed",
+                    AppVersion: card.AppVersion));
+                continue;
+            }
+
             TimeSpan age = now - card.WrittenAt;
             // A PC writes at this PC's interval; a phone or watch sends when it's opened, so a day is its interval.
             TimeSpan interval = card.Kind == SyncDeviceCard.KindPc ? IntervalOf(settings.Interval) : TimeSpan.FromDays(1);
@@ -426,7 +475,10 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
                 state == DeviceSyncState.Behind ? $"Behind by {Duration(age - interval)}" : "Up to date",
                 Age: age < TimeSpan.Zero ? TimeSpan.Zero : age,
                 AppVersion: card.AppVersion,
-                DeviceKey: card.DeviceId.ToString()));
+                DeviceKey: card.DeviceId.ToString(),
+                RemoveCommand: _removal is null ? null : new RelayCommand(() => RequestRemove(card.DeviceId)),
+                RemoveEnabled: removeBlocked is null,
+                RemoveHint: removeBlocked));
             foreach (SyncCompanion companion in card.Companions ?? [])
             {
                 Rows.Add(CompanionRow(companion, card.Name, now));
@@ -437,6 +489,18 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         RefreshBatteryRows();
         RowsRefreshed?.Invoke(this, EventArgs.Empty);
         _ = UpdateTodayAsync(now);
+    }
+
+    // "Remove this device…" on a row: refused with the reason during a focus session you started.
+    private void RequestRemove(Guid deviceId)
+    {
+        if (_removal?.BlockedReason is string reason)
+        {
+            Message = reason;
+            return;
+        }
+
+        OpenRemoveDialog?.Invoke(deviceId);
     }
 
     /// <summary>Raised when <see cref="Rows"/> has been rebuilt (it is cleared and refilled one row at a time).</summary>
@@ -570,6 +634,12 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         }
 
         await _identity.LeaveAsync();
+        // Leaving the group forgets its past keys too (ADR 56); continuing unsynced and joining again keep them.
+        if (PastKeys is not null)
+        {
+            await PastKeys.ClearAsync();
+        }
+
         LinkCodeText = null;
         LinkQrImage = null;
         OnPropertyChanged(nameof(HasLinkCode));

@@ -67,6 +67,8 @@ data class DevicesState(
     val joined: Boolean,
     val settings: PhoneSyncSettings,
     val received: List<ReceivedDevice>,
+    /** Every device held, a kept removed one included (ADR 54): the day's combined focus counts their sessions as history. */
+    val allReceived: List<ReceivedDevice> = received,
     /** The sync folder's last result (ADR 22, way B). */
     val folder: FolderStatus = FolderStatus(),
     /** Google Drive's last result (ADR 26). */
@@ -602,7 +604,7 @@ object DevicesModel {
     /** E.g. "Today: 5h 10m focused across 3 devices"; null when there's nothing to add up. */
     fun todayLine(devices: DevicesState, now: Instant, zone: ZoneId): String? {
         val today = now.atZone(zone).toLocalDate()
-        val combined = FocusDayCombine.combine(devices.received.map { it.file.device.name to it.file }, today, zone, now) ?: return null
+        val combined = FocusDayCombine.combine(devices.allReceived.map { it.file.device.name to it.file }, today, zone, now) ?: return null
         val count = combined.sessions.mapNotNull { it.device }.distinct().size
         val minutes = combined.focusedMinutes
         val time = if (minutes >= 60) "${minutes / 60}h ${"%02d".format(minutes % 60)}m" else "${minutes}m"

@@ -87,6 +87,15 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>Opens the "Start over" dialog (ADR 54, 10); set by the app. It refuses during a focus session the user started.</summary>
+    public Action? OpenStartOver { get; init; }
+
+    [RelayCommand]
+    private void StartOver()
+    {
+        OpenStartOver?.Invoke();
+    }
+
     // Not locked during focus: the guide only explains and saves the Google client.
     [RelayCommand]
     private void OpenGoogleGuide()

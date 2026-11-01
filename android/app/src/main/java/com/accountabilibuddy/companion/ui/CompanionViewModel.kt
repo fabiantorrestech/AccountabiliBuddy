@@ -284,6 +284,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     /** The Devices tab (ADR 22): the other devices' parts, the group's key and the phone's method switches. */
     val syncReceived = sync.received
+    val syncAllReceived = sync.allReceived
     val syncKey = sync.key
     val syncSettings = sync.settings
 

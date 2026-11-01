@@ -1,0 +1,14 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        xmlns:views="using:AccountabiliBuddy.App.Views"
+        x:Class="AccountabiliBuddy.App.Views.UnlinkedDialog"
+        x:DataType="vm:UnlinkedViewModel"
+        Title="{Binding Title}"
+        Icon="/Assets/app-icon.png"
+        Width="580" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterScreen">
+    <!-- Modal in spirit: shown at start and when sync finds the PC unlinked. Closing it changes nothing (the PC stays unlinked and it
+         comes back at the next start); only one of the three buttons does anything. -->
+    <views:UnlinkedChoicesView Margin="22" />
+</Window>
