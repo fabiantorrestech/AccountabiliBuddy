@@ -12,12 +12,14 @@ public static class ReceivedSessions
     private static readonly string[] Shades = ["#0E7490", "#0369A1", "#4338CA", "#6D28D9", "#047857", "#B45309"];
 
     /// <summary>Every received session touching [<paramref name="from"/>, <paramref name="to"/>), by start.</summary>
-    public static IReadOnlyList<ReceivedSession> In(IReadOnlyList<ReceivedDevice> devices, DateTimeOffset from, DateTimeOffset to)
+    /// <param name="nameOf">The name to show for a device (<see cref="ReceivedDevicesService.LabelOf"/> adds "(removed)"); the device's own name when null.</param>
+    public static IReadOnlyList<ReceivedSession> In(
+        IReadOnlyList<ReceivedDevice> devices, DateTimeOffset from, DateTimeOffset to, Func<AccountabiliBuddy.Core.Sync.SyncDeviceCard, string>? nameOf = null)
     {
         return devices
             .SelectMany(device => device.File.Sessions.Select(session => new ReceivedSession(
                 device.File.Device.DeviceId,
-                device.File.Device.Name,
+                nameOf is null ? device.File.Device.Name : nameOf(device.File.Device),
                 session.Start,
                 session.End ?? device.File.Device.WrittenAt,
                 session.Profile,

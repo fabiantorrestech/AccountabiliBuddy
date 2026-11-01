@@ -29,6 +29,12 @@ public sealed class ReceivedDevicesService
 
     public IReadOnlyList<ReceivedDevice> Devices => _devices;
 
+    /// <summary>Whether a device was removed from the group (ADR 54); set by the app from <see cref="SyncRemovalService"/>. Only used for labels.</summary>
+    public Func<Guid, bool> IsRemoved { get; set; } = static _ => false;
+
+    /// <summary>The device's name as History, Stats and the day bar show it: "Pixel 7 (removed)" for a removed device whose data was kept.</summary>
+    public string LabelOf(SyncDeviceCard card) => IsRemoved(card.DeviceId) ? $"{card.Name} (removed)" : card.Name;
+
     /// <summary>Why the last file couldn't be used, e.g. "Can't read a file from <folder>"; null when fine.</summary>
     public string? LastProblem { get; private set; }
 

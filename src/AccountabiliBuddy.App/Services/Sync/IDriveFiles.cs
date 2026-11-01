@@ -15,4 +15,16 @@ public interface IDriveFiles
     /// <summary>Deletes the file with Drive id [id] (one the app made); a file that is already gone is fine.</summary>
     /// <exception cref="HttpRequestException">Network error, or Drive refused.</exception>
     Task DeleteAsync(string id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Writes a removed device's backup (ADR 55) to <c>Backups/[deviceName]/[fileName]</c> inside the app's folder, making the
+    /// folders when they aren't there; a file of the same name is replaced.
+    /// </summary>
+    /// <returns>The file's Drive id.</returns>
+    /// <exception cref="HttpRequestException">Network error, or Drive refused (a full Drive answers 403).</exception>
+    Task<string> UploadBackupAsync(string deviceName, string fileName, byte[] content, CancellationToken cancellationToken);
+
+    /// <summary>The backups under <c>Backups/</c> (every device's folder); empty when there are none.</summary>
+    /// <exception cref="HttpRequestException">Network error, or Drive refused (e.g. signed out).</exception>
+    Task<IReadOnlyList<DriveBackupInfo>> ListBackupsAsync(CancellationToken cancellationToken);
 }

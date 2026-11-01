@@ -102,6 +102,48 @@ public sealed class SyncRemovalService
     public RemovedDevice? RemovedAs(Guid deviceId) => _removed.FirstOrDefault(device => device.DeviceId == deviceId);
 
     /// <summary>
+    /// The devices that would be cut off along with <paramref name="deviceIds"/> because they can't receive the new key (ADR 54): an
+    /// app from before ADR 54 (no public key in its card), and devices this PC only knows from the others' "seen" lists. The remove
+    /// dialog names them before the user confirms. (A key that isn't a valid P-256 point shows up only in <see cref="RemovalResult.NotWrapped"/>.)
+    /// </summary>
+    public IReadOnlyList<NotWrappedDevice> NotWrappedFor(IReadOnlyList<Guid> deviceIds)
+    {
+        IReadOnlyList<SyncDeviceCard> cards = _received.Devices.Select(device => device.File.Device).ToList();
+        var known = cards.Select(card => card.DeviceId).ToHashSet();
+        List<NotWrappedDevice> result = cards
+            .Where(card => !deviceIds.Contains(card.DeviceId) && !IsRemoved(card.DeviceId) && string.IsNullOrEmpty(card.PublicKey))
+            .Select(card => new NotWrappedDevice(card.DeviceId, card.Name))
+            .ToList();
+        result.AddRange(cards.SelectMany(card => card.Seen.Keys)
+            .Where(id => id != _identity.DeviceId && !known.Contains(id) && !deviceIds.Contains(id) && !IsRemoved(id))
+            .Distinct()
+            .Select(id => new NotWrappedDevice(id, "A device this PC hasn't received a file from")));
+        return result;
+    }
+
+    /// <summary>
+    /// Restoring a backup (ADR 55) brought a device's data in as a received device: the device is recorded as removed, so
+    /// it shows as "[name] (removed)" and its files aren't taken in (a file from it that opens with this group's key and was written
+    /// after <paramref name="writtenAt"/> clears the mark, as for any removed device). Nothing changes when it is recorded already.
+    /// </summary>
+    public async Task RecordRestoredAsync(Guid deviceId, string name, DateTimeOffset writtenAt)
+    {
+        await _changing.WaitAsync();
+        try
+        {
+            if (!IsRemoved(deviceId))
+            {
+                _removed = _removed.Append(new RemovedDevice(deviceId, name, writtenAt, RemovedDevice.KeepData)).ToList();
+                await SaveAsync();
+            }
+        }
+        finally
+        {
+            _changing.Release();
+        }
+    }
+
+    /// <summary>
     /// Removes <paramref name="deviceIds"/> from the group: writes this PC's rekey file to the sync methods, then switches this
     /// PC to the new key. Their received data is left as it is; <see cref="ApplyDataChoiceAsync"/> is the caller's next step
     /// (ADR 55). Nothing changes when it can't be done, or when no method took the file (the other devices would never hear of it).
