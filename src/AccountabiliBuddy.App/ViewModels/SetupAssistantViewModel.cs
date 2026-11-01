@@ -357,6 +357,12 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     /// <summary>Opening a removed device's backup and bringing its history in (ADR 55); null skips the Restore step.</summary>
     public BackupRestoreService? Restore { get; init; }
 
+    /// <summary>
+    /// Reads the other devices' files now (every sync method). A PC that has just joined holds none of the group's past keys
+    /// (ADR 56) until it has read them, so a backup from before a later removal opens only after this.
+    /// </summary>
+    public Func<Task>? ReadOtherDevicesNow { get; init; }
+
     /// <summary>Set by the window: shows an open-file dialog for a backup file (.absync) and returns the chosen path.</summary>
     public Func<Task<string?>>? PickBackupFile { get; set; }
 
@@ -435,7 +441,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         }
 
         RestoreMessage = "Downloading the backup…";
-        await FinishRestoreAsync(await Restore.OpenDriveAsync(backup));
+        await FinishRestoreAsync(await OpenReadingKeysFirstAsync(() => Restore.OpenDriveAsync(backup)));
     }
 
     [RelayCommand]
@@ -447,7 +453,22 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
             return;
         }
 
-        await FinishRestoreAsync(await Restore.OpenFileAsync(path));
+        await FinishRestoreAsync(await OpenReadingKeysFirstAsync(() => Restore.OpenFileAsync(path)));
+    }
+
+    // A backup sealed before a later removal needs a past key the other devices' files carry; a PC that has just joined may not
+    // have read them yet, so it reads them once and tries again before calling it a different group.
+    private async Task<BackupOpening> OpenReadingKeysFirstAsync(Func<Task<BackupOpening>> open)
+    {
+        BackupOpening opening = await open();
+        if (opening.Kind != BackupOpeningKind.DifferentGroup || ReadOtherDevicesNow is null)
+        {
+            return opening;
+        }
+
+        RestoreMessage = "Getting the keys your other devices keep…";
+        await ReadOtherDevicesNow();
+        return await open();
     }
 
     private async Task FinishRestoreAsync(BackupOpening opening)

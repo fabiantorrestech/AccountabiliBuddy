@@ -838,6 +838,12 @@ public partial class App : Application
             Types = computerTypes,
             Identity = syncIdentity,
             Restore = backupRestore,
+            ReadOtherDevicesNow = async () =>
+            {
+                await _syncFolder!.ReadNowAsync();
+                await _syncDrive!.ReadNowAsync();
+                await _syncRelay!.ReadNowAsync();
+            },
             Goal = goal,
             StartNudge = _startNudge,
             Appearance = new AppearanceViewModel(appTheme),
