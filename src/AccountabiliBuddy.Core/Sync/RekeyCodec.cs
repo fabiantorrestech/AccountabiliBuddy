@@ -15,6 +15,7 @@ namespace AccountabiliBuddy.Core.Sync;
 ///           tag (16 bytes)
 /// payload = version (1 byte, 1)
 ///           epoch (8 bytes, signed, big-endian: seconds since 1970-01-01 UTC)
+///           remover: id (16 bytes, RFC 4122 order), name length (2 bytes, big-endian), name (UTF-8, at most 200 bytes)
 ///           removed count (2 bytes, big-endian), then for each removed device
 ///               id (16 bytes, RFC 4122 order), name length (2 bytes, big-endian), name (UTF-8, at most 200 bytes)
 ///           wrap count (2 bytes, big-endian), then for each remaining device
@@ -108,13 +109,11 @@ public static class RekeyCodec
         using var stream = new MemoryStream();
         stream.WriteByte(Version);
         WriteInt64(stream, payload.Epoch);
+        WriteDevice(stream, payload.RemovedBy);
         WriteUInt16(stream, payload.Removed.Count);
         foreach (RekeyRemovedDevice removed in payload.Removed)
         {
-            WriteGuid(stream, removed.DeviceId);
-            byte[] name = TruncatedName(removed.Name);
-            WriteUInt16(stream, name.Length);
-            stream.Write(name);
+            WriteDevice(stream, removed);
         }
 
         WriteUInt16(stream, payload.Wraps.Count);
@@ -133,7 +132,8 @@ public static class RekeyCodec
     public static RekeyPayload? Parse(ReadOnlySpan<byte> plain)
     {
         var reader = new Reader(plain);
-        if (!reader.TryReadByte(out byte version) || version != Version || !reader.TryReadInt64(out long epoch) || !reader.TryReadUInt16(out int removedCount))
+        if (!reader.TryReadByte(out byte version) || version != Version || !reader.TryReadInt64(out long epoch)
+            || !TryReadDevice(ref reader, out RekeyRemovedDevice? removedBy) || !reader.TryReadUInt16(out int removedCount))
         {
             return null;
         }
@@ -141,12 +141,12 @@ public static class RekeyCodec
         var removed = new List<RekeyRemovedDevice>();
         for (int index = 0; index < removedCount; index++)
         {
-            if (!reader.TryReadGuid(out Guid id) || !reader.TryReadUInt16(out int nameLength) || nameLength > MaxNameBytes || !reader.TryReadBytes(nameLength, out byte[] name))
+            if (!TryReadDevice(ref reader, out RekeyRemovedDevice? device))
             {
                 return null;
             }
 
-            removed.Add(new RekeyRemovedDevice(id, Encoding.UTF8.GetString(name)));
+            removed.Add(device);
         }
 
         if (!reader.TryReadUInt16(out int wrapCount))
@@ -168,7 +168,28 @@ public static class RekeyCodec
             wraps.Add(new RekeyWrapRecord(id, ephemeral, nonce, wrapped));
         }
 
-        return reader.AtEnd ? new RekeyPayload(epoch, removed, wraps) : null;
+        return reader.AtEnd ? new RekeyPayload(epoch, removedBy, removed, wraps) : null;
+    }
+
+    // A device's id, then its name (length and UTF-8).
+    private static void WriteDevice(Stream stream, RekeyRemovedDevice device)
+    {
+        WriteGuid(stream, device.DeviceId);
+        byte[] name = TruncatedName(device.Name);
+        WriteUInt16(stream, name.Length);
+        stream.Write(name);
+    }
+
+    private static bool TryReadDevice(ref Reader reader, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out RekeyRemovedDevice? device)
+    {
+        device = null;
+        if (!reader.TryReadGuid(out Guid id) || !reader.TryReadUInt16(out int nameLength) || nameLength > MaxNameBytes || !reader.TryReadBytes(nameLength, out byte[] name))
+        {
+            return false;
+        }
+
+        device = new RekeyRemovedDevice(id, Encoding.UTF8.GetString(name));
+        return true;
     }
 
     // At most MaxNameBytes of UTF-8, cut at a character boundary.

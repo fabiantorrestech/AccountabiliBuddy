@@ -6,9 +6,10 @@ namespace AccountabiliBuddy.Core.Sync;
 public static class RekeyBuilder
 {
     /// <param name="oldKey">The group's key now; it seals the file, so the removed devices can read that they were removed.</param>
+    /// <param name="maker">This device (its id and name), named in the file so a removed device can say who removed it.</param>
     /// <param name="removed">The devices to remove.</param>
     /// <param name="recipients">The devices that stay (not the maker: it already has the new code).</param>
-    public static RekeyBuild Build(SyncKey oldKey, IReadOnlyList<RekeyRemovedDevice> removed, IReadOnlyList<RekeyRecipient> recipients, DateTimeOffset now)
+    public static RekeyBuild Build(SyncKey oldKey, RekeyRemovedDevice maker, IReadOnlyList<RekeyRemovedDevice> removed, IReadOnlyList<RekeyRecipient> recipients, DateTimeOffset now)
     {
         byte[] secret = RandomNumberGenerator.GetBytes(SyncKey.SecretBytes);
         try
@@ -28,7 +29,7 @@ public static class RekeyBuilder
                 }
             }
 
-            var payload = new RekeyPayload(now.ToUnixTimeSeconds(), removed, wraps);
+            var payload = new RekeyPayload(now.ToUnixTimeSeconds(), maker, removed, wraps);
             return new RekeyBuild(RekeyCodec.Seal(payload, oldKey), SyncKeyCode.FromSecret(secret), payload, notWrapped);
         }
         finally

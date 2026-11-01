@@ -23,10 +23,11 @@ object RekeyBuilder {
 
     /**
      * @param oldKey The group's key now; it seals the file, so the removed devices can read that they were removed.
+     * @param maker This device (its id and name), named in the file so a removed device can say who removed it.
      * @param removed The devices to remove.
      * @param recipients The devices that stay (not the maker: it already has the new code).
      */
-    fun build(oldKey: SyncKey, removed: List<RekeyRemovedDevice>, recipients: List<RekeyRecipient>, now: Instant): RekeyBuild {
+    fun build(oldKey: SyncKey, maker: RekeyRemovedDevice, removed: List<RekeyRemovedDevice>, recipients: List<RekeyRecipient>, now: Instant): RekeyBuild {
         val secret = ByteArray(SyncKey.SECRET_BYTES)
         random.nextBytes(secret)
         try {
@@ -38,7 +39,7 @@ object RekeyBuilder {
                 if (wrap == null) notWrapped += recipient.deviceId else wraps += wrap
             }
 
-            val payload = RekeyPayload(now.epochSecond, removed, wraps)
+            val payload = RekeyPayload(now.epochSecond, maker, removed, wraps)
             return RekeyBuild(RekeyCodec.seal(payload, oldKey), SyncKeyCode.fromSecret(secret), payload, notWrapped)
         } finally {
             secret.fill(0)

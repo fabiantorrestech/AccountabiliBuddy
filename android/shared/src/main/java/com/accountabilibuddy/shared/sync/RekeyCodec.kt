@@ -17,10 +17,11 @@ class RekeyRemovedDevice(val deviceId: UUID, val name: String)
  * What a rekey file says (ADR 54), once opened with the old group key.
  *
  * @property epoch When the rekey was made, in seconds since 1970-01-01 UTC. Tells rekeys apart; never compared across devices' clocks to refuse one.
+ * @property removedBy The device that made the rekey (its id and name), so a removed device can say who removed it.
  * @property removed The devices this rekey removes from the group.
  * @property wraps The new link code's secret wrapped for each remaining device that had a public key.
  */
-class RekeyPayload(val epoch: Long, val removed: List<RekeyRemovedDevice>, val wraps: List<RekeyWrapRecord>)
+class RekeyPayload(val epoch: Long, val removedBy: RekeyRemovedDevice, val removed: List<RekeyRemovedDevice>, val wraps: List<RekeyWrapRecord>)
 
 /**
  * Seals and opens the rekey file (ADR 54): what a device writes when it removes devices from the group. The PC writes and
@@ -34,6 +35,7 @@ class RekeyPayload(val epoch: Long, val removed: List<RekeyRemovedDevice>, val w
  *           tag (16 bytes)
  * payload = version (1 byte, 1)
  *           epoch (8 bytes, signed, big-endian: seconds since 1970-01-01 UTC)
+ *           remover: id (16 bytes, RFC 4122 order), name length (2 bytes, big-endian), name (UTF-8, at most 200 bytes)
  *           removed count (2 bytes, big-endian), then for each removed device
  *               id (16 bytes, RFC 4122 order), name length (2 bytes, big-endian), name (UTF-8, at most 200 bytes)
  *           wrap count (2 bytes, big-endian), then for each remaining device
@@ -116,12 +118,10 @@ object RekeyCodec {
         val out = ByteArrayOutputStream()
         out.write(VERSION)
         out.write(ByteBuffer.allocate(8).putLong(payload.epoch).array())
+        writeDevice(out, payload.removedBy)
         writeUInt16(out, payload.removed.size)
         for (removed in payload.removed) {
-            out.write(RekeyWrap.idBytes(removed.deviceId))
-            val name = truncatedName(removed.name)
-            writeUInt16(out, name.size)
-            out.write(name)
+            writeDevice(out, removed)
         }
 
         writeUInt16(out, payload.wraps.size)
@@ -143,17 +143,11 @@ object RekeyCodec {
         }
 
         val epoch = reader.readLong() ?: return null
+        val removedBy = readDevice(reader) ?: return null
         val removedCount = reader.readUInt16() ?: return null
         val removed = ArrayList<RekeyRemovedDevice>()
         repeat(removedCount) {
-            val id = reader.readId() ?: return null
-            val nameLength = reader.readUInt16() ?: return null
-            if (nameLength > MAX_NAME_BYTES) {
-                return null
-            }
-
-            val name = reader.readBytes(nameLength) ?: return null
-            removed += RekeyRemovedDevice(id, String(name, Charsets.UTF_8))
+            removed += readDevice(reader) ?: return null
         }
 
         val wrapCount = reader.readUInt16() ?: return null
@@ -166,7 +160,26 @@ object RekeyCodec {
             wraps += RekeyWrapRecord(id, ephemeral, nonce, wrapped)
         }
 
-        return if (reader.atEnd) RekeyPayload(epoch, removed, wraps) else null
+        return if (reader.atEnd) RekeyPayload(epoch, removedBy, removed, wraps) else null
+    }
+
+    // A device's id, then its name (length and UTF-8).
+    private fun writeDevice(out: ByteArrayOutputStream, device: RekeyRemovedDevice) {
+        out.write(RekeyWrap.idBytes(device.deviceId))
+        val name = truncatedName(device.name)
+        writeUInt16(out, name.size)
+        out.write(name)
+    }
+
+    private fun readDevice(reader: Reader): RekeyRemovedDevice? {
+        val id = reader.readId() ?: return null
+        val nameLength = reader.readUInt16() ?: return null
+        if (nameLength > MAX_NAME_BYTES) {
+            return null
+        }
+
+        val name = reader.readBytes(nameLength) ?: return null
+        return RekeyRemovedDevice(id, String(name, Charsets.UTF_8))
     }
 
     // At most MAX_NAME_BYTES of UTF-8, cut at a character boundary.
