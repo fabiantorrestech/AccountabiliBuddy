@@ -156,6 +156,35 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
         }
     }
 
+    /// <summary>The rekey files (ADR 54) in the app's Drive folder under any of <paramref name="fileNames"/>.</summary>
+    public async Task<IReadOnlyList<byte[]>> FindRekeysAsync(IReadOnlyCollection<string> fileNames)
+    {
+        if (!TryGetName(out _, out _))
+        {
+            return [];
+        }
+
+        await _busy.WaitAsync();
+        try
+        {
+            var found = new List<byte[]>();
+            foreach (DriveFileInfo info in (await _drive.ListAsync(CancellationToken.None)).Where(info => fileNames.Contains(info.Name) && info.Size <= MaxFileBytes))
+            {
+                found.Add(await _drive.DownloadAsync(info.Id, CancellationToken.None));
+            }
+
+            return found;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or InvalidOperationException)
+        {
+            return [];
+        }
+        finally
+        {
+            _busy.Release();
+        }
+    }
+
     /// <summary>Reads the other devices' files from Drive now.</summary>
     public async Task ReadNowAsync()
     {
@@ -179,8 +208,15 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
             }
 
             bool unreadable = false;
+            SyncKey? passKey = _identity.Key;
             foreach (DriveFileInfo info in files.Where(info => info.Name.EndsWith(SyncFolderService.Extension, StringComparison.OrdinalIgnoreCase)))
             {
+                // A rekey (ADR 54) switched the group's key during this pass: the rest are the old group's, the next pass reads the new group's.
+                if (_identity.Key?.SameGroupAs(passKey) != true)
+                {
+                    break;
+                }
+
                 if (info.Name == ownName)
                 {
                     _ownId = info.Id;
@@ -319,7 +355,12 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
             return;
         }
 
-        var names = e.RemovedDeviceIds.Append(_identity.DeviceId).Select(id => SyncFolderService.FileNameFor(e.OldKey.GroupId, id)).ToHashSet();
+        // The old group is dead: this PC's file, the removed devices' and every device this PC knows (their old copies, which
+        // the phone may have carried) go; each of them writes a new file under the new key.
+        var names = e.RemovedDeviceIds.Append(_identity.DeviceId)
+            .Concat(_received.Devices.Select(device => device.File.Device.DeviceId))
+            .Select(id => SyncFolderService.FileNameFor(e.OldKey.GroupId, id))
+            .ToHashSet();
         _ = DeleteOldFilesAsync(names);
     }
 

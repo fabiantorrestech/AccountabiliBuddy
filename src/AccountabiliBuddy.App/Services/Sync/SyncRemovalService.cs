@@ -15,6 +15,9 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// local document "sync.removed"; their files are refused (<see cref="SyncCoordinator"/>) until one opens with the new
 /// key, which means the device was linked again. A rekey is tied to the group it was made for (its old group id), so one
 /// that was already applied, or that comes after the PC moved on, is ignored. Use from the UI thread only.
+/// Rekey files are one per maker (<see cref="RekeyCodec.FileNameFor"/>): when two devices remove at the same time every device
+/// applies the one whose maker has the lower id (<see cref="RekeyCodec.CompareMakers"/>), and a maker looks for another's file
+/// before and after writing its own.
 /// </summary>
 public sealed class SyncRemovalService
 {
@@ -30,6 +33,12 @@ public sealed class SyncRemovalService
 
     // Changes and their saves run one at a time, so an older list never overwrites a newer one.
     private readonly SemaphoreSlim _changing = new(1, 1);
+
+    // Rekeys for the current group that came in and wait for the others of the same read pass, one per maker (see AcceptRekeyAsync).
+    private static readonly TimeSpan PickWindow = TimeSpan.FromSeconds(3);
+
+    private readonly List<PendingRekey> _pending = [];
+    private bool _applyScheduled;
 
     private List<RemovedDevice> _removed = [];
     private UnlinkedState? _unlinked;
@@ -90,9 +99,14 @@ public sealed class SyncRemovalService
     public RemovedDevice? RemovedAs(Guid deviceId) => _removed.FirstOrDefault(device => device.DeviceId == deviceId);
 
     /// <summary>
-    /// Removes <paramref name="deviceIds"/> from the group: writes the rekey file to the sync methods, then switches this PC
-    /// to the new key. Their received data is left as it is; <see cref="ApplyDataChoiceAsync"/> is the caller's next step
+    /// Removes <paramref name="deviceIds"/> from the group: writes this PC's rekey file to the sync methods, then switches this
+    /// PC to the new key. Their received data is left as it is; <see cref="ApplyDataChoiceAsync"/> is the caller's next step
     /// (ADR 55). Nothing changes when it can't be done, or when no method took the file (the other devices would never hear of it).
+    /// Two devices removing at the same time would split the group, so: a rekey another device already wrote for this group is
+    /// applied here instead and the call returns a <see cref="RemovalResult.Conflict"/> (look and try again), and after writing,
+    /// a rekey from a device with a lower id (the one every device picks, <see cref="RekeyCodec.CompareMakers"/>) is applied
+    /// instead of this one. The network calls run outside <c>_changing</c>: the Drive and relay read passes hold their own lock
+    /// while they hand a rekey in, so taking <c>_changing</c> first would deadlock with them.
     /// </summary>
     public async Task<RemovalResult> RemoveAsync(IReadOnlyList<Guid> deviceIds)
     {
@@ -106,44 +120,86 @@ public sealed class SyncRemovalService
             return RemovalResult.Failed("Pick other devices to remove; this PC leaves the group with Leave group.");
         }
 
+        SyncKey oldKey = _identity.Key!;
+        IReadOnlyList<SyncDeviceCard> cards = _received.Devices.Select(device => device.File.Device).ToList();
+        List<RekeyRemovedDevice> removing = deviceIds
+            .Distinct()
+            .Select(id => new RekeyRemovedDevice(id, cards.FirstOrDefault(card => card.DeviceId == id)?.Name ?? "Unknown device"))
+            .ToList();
+        List<SyncDeviceCard> staying = cards.Where(card => !deviceIds.Contains(card.DeviceId) && !IsRemoved(card.DeviceId)).ToList();
+
+        // This PC is among the recipients, so reading its own file (after a crash between writing and switching) gives it the new
+        // key instead of "unlinked".
+        List<RekeyRecipient> recipients = staying
+            .Where(card => !string.IsNullOrEmpty(card.PublicKey))
+            .Select(card => new RekeyRecipient(card.DeviceId, card.PublicKey!))
+            .Append(new RekeyRecipient(_identity.DeviceId, _identity.DeviceKey.PublicKeyBase64))
+            .ToList();
+
+        RekeyBuild build = RekeyBuilder.Build(oldKey, new RekeyRemovedDevice(_identity.DeviceId, _identity.DeviceName), removing, recipients, _sessions.Now);
+
+        // The devices that stay but can't get the new key: an app from before ADR 54 (no public key in its card), a key that isn't
+        // a P-256 point, or a device this PC never received a file from (only named in the others' "seen" lists). They are cut
+        // off like the removed ones; the remove dialog names them.
+        var known = cards.Select(card => card.DeviceId).ToHashSet();
+        List<Guid> notWrapped = staying.Where(card => string.IsNullOrEmpty(card.PublicKey)).Select(card => card.DeviceId)
+            .Concat(build.NotWrapped)
+            .Concat(cards.SelectMany(card => card.Seen.Keys)
+                .Where(id => id != _identity.DeviceId && !known.Contains(id) && !deviceIds.Contains(id) && !IsRemoved(id)))
+            .Distinct()
+            .ToList();
+
+        // Where another device's rekey for this group would be, if there is one.
+        List<string> otherNames = known.Concat(cards.SelectMany(card => card.Seen.Keys))
+            .Where(id => id != _identity.DeviceId)
+            .Distinct()
+            .Select(id => RekeyCodec.FileNameFor(oldKey.GroupId, id))
+            .ToList();
+
+        if (await ApplyOthersRekeyAsync(oldKey, otherNames, lowerThanThisPcOnly: false))
+        {
+            return RemovalResult.ConflictWith("Another device just changed the device group. Its change was applied here; check your devices and try again.");
+        }
+
+        string fileName = RekeyCodec.FileNameFor(oldKey.GroupId, _identity.DeviceId);
+        int written = 0;
+        int failed = 0;
+        foreach (IRekeyPublisher publisher in Publishers)
+        {
+            bool? result = await publisher.PublishRekeyAsync(build.SealedFile, fileName);
+            written += result == true ? 1 : 0;
+            failed += result == false ? 1 : 0;
+        }
+
+        if (written == 0)
+        {
+            return RemovalResult.Failed(failed == 0
+                ? "Turn on a sync method (a sync folder, Google Drive or the relay) first: the other devices learn of the change through it."
+                : "The change couldn't be written to any sync method. Check the sync status and try again.");
+        }
+
+        // Written first, then looked for: of two devices that wrote at the same time, the one with the higher id sees the other's file.
+        if (await ApplyOthersRekeyAsync(oldKey, otherNames, lowerThanThisPcOnly: true))
+        {
+            return RemovalResult.ConflictWith("Another device changed the device group at the same time. Its change was applied here instead; check your devices and try again.");
+        }
+
         await _changing.WaitAsync();
         try
         {
-            SyncKey oldKey = _identity.Key!;
-            IReadOnlyList<SyncDeviceCard> cards = _received.Devices.Select(device => device.File.Device).ToList();
-            List<RekeyRemovedDevice> removing = deviceIds
-                .Distinct()
-                .Select(id => new RekeyRemovedDevice(id, cards.FirstOrDefault(card => card.DeviceId == id)?.Name ?? "Unknown device"))
-                .ToList();
-            List<SyncDeviceCard> staying = cards.Where(card => !deviceIds.Contains(card.DeviceId) && !IsRemoved(card.DeviceId)).ToList();
-            List<RekeyRecipient> recipients = staying
-                .Where(card => !string.IsNullOrEmpty(card.PublicKey))
-                .Select(card => new RekeyRecipient(card.DeviceId, card.PublicKey!))
-                .ToList();
-
-            RekeyBuild build = RekeyBuilder.Build(oldKey, new RekeyRemovedDevice(_identity.DeviceId, _identity.DeviceName), removing, recipients, _sessions.Now);
-            // The devices that stay but can't get the new key: an app from before ADR 54 (no public key in its card), or a key
-            // that isn't a P-256 point. They are cut off like the removed ones; the remove dialog names them.
-            List<Guid> notWrapped = staying.Where(card => string.IsNullOrEmpty(card.PublicKey)).Select(card => card.DeviceId).Concat(build.NotWrapped).ToList();
-
-            string fileName = RekeyCodec.FileNameFor(oldKey.GroupId);
-            int written = 0;
-            int failed = 0;
-            foreach (IRekeyPublisher publisher in Publishers)
+            // This PC's own file, read meanwhile, already switched it to the new key (it is among the recipients): done.
+            if (SyncKeyCode.TryParse(build.NewCode, out SyncKey? newKey) && newKey.SameGroupAs(_identity.Key))
             {
-                bool? result = await publisher.PublishRekeyAsync(build.SealedFile, fileName);
-                written += result == true ? 1 : 0;
-                failed += result == false ? 1 : 0;
+                return new RemovalResult(true, null, notWrapped, failed);
             }
 
-            if (written == 0)
+            // Another rekey switched or unlinked this PC while the file was being written.
+            if (_identity.Key is not SyncKey current || !current.SameGroupAs(oldKey))
             {
-                return RemovalResult.Failed(failed == 0
-                    ? "Turn on a sync method (a sync folder, Google Drive or the relay) first: the other devices learn of the change through it."
-                    : "The change couldn't be written to any sync method. Check the sync status and try again.");
+                return RemovalResult.ConflictWith("The device group changed while this was being saved. Check your devices and try again.");
             }
 
-            await RecordRemovedAsync(removing.Select(device => (device.DeviceId, device.Name)));
+            await RecordRemovedAsync(removing.Select(device => (device.DeviceId, device.Name)), DateTimeOffset.FromUnixTimeSeconds(build.Payload.Epoch));
             await _identity.SwitchKeyAsync(build.NewCode, removing.Select(device => device.DeviceId).ToList());
             return new RemovalResult(true, null, notWrapped, failed);
         }
@@ -155,36 +211,123 @@ public sealed class SyncRemovalService
 
     /// <summary>
     /// Takes in a rekey file (ADR 54) another device wrote, as <see cref="SyncCoordinator"/> hands it over. A rekey for a
-    /// group this PC has already left or switched away from is ignored, which also makes a repeated file harmless. When it
-    /// names this PC (or leaves it out) this PC becomes <see cref="Unlinked"/>.
+    /// group this PC has already left or switched away from is ignored, which also makes a repeated file harmless. A rekey for
+    /// this PC's group is kept for a few seconds before it is applied: if two devices removed at the same time, the one with the
+    /// lower id wins (<see cref="RekeyCodec.CompareMakers"/>), whichever file arrived first. When the chosen rekey names this PC
+    /// (or leaves it out) this PC becomes <see cref="Unlinked"/>.
     /// </summary>
     /// <param name="sealedBytes">The file, starting "ABR1".</param>
     /// <param name="currentKey">The key this PC holds now.</param>
     /// <returns>Null when taken in or ignored; <see cref="SyncCoordinator.CannotReadReason"/> when it is this group's but doesn't open.</returns>
-    public async Task<string?> AcceptRekeyAsync(byte[] sealedBytes, SyncKey currentKey)
+    public Task<string?> AcceptRekeyAsync(byte[] sealedBytes, SyncKey currentKey)
     {
         if (RekeyCodec.GroupIdOf(sealedBytes) != currentKey.GroupId)
         {
-            return null;
+            return Task.FromResult<string?>(null);
         }
 
         if (RekeyCodec.Open(sealedBytes, currentKey) is not RekeyPayload payload)
         {
-            return SyncCoordinator.CannotReadReason;
+            return Task.FromResult<string?>(SyncCoordinator.CannotReadReason);
         }
 
-        RekeyReading reading = RekeyReader.Read(payload, _identity.DeviceId, _identity.DeviceKey, currentKey.GroupId);
+        // One per maker: a newer file from the same maker replaces its older one.
+        _pending.RemoveAll(pending => pending.Payload.RemovedBy.DeviceId == payload.RemovedBy.DeviceId && pending.Payload.Epoch <= payload.Epoch);
+        if (_pending.All(pending => pending.Payload.RemovedBy.DeviceId != payload.RemovedBy.DeviceId))
+        {
+            _pending.Add(new PendingRekey(payload, currentKey));
+        }
+
+        if (!_applyScheduled)
+        {
+            _applyScheduled = true;
+            _ = ApplyPendingAfterWindowAsync();
+        }
+
+        return Task.FromResult<string?>(null);
+    }
+
+    // Waits for the other rekey files of the same read pass, then applies the one every device picks.
+    private async Task ApplyPendingAfterWindowAsync()
+    {
+        await Task.Delay(PickWindow);
+        _applyScheduled = false;
+        List<PendingRekey> pending = _pending.ToList();
+        _pending.Clear();
+        PendingRekey? chosen = null;
+        foreach (PendingRekey candidate in pending)
+        {
+            if (chosen is null || RekeyCodec.CompareMakers(candidate.Payload.RemovedBy.DeviceId, chosen.Payload.RemovedBy.DeviceId) < 0)
+            {
+                chosen = candidate;
+            }
+        }
+
+        if (chosen is not null)
+        {
+            try
+            {
+                await ApplyAsync(chosen.Payload, chosen.Key);
+            }
+            catch (SqliteException)
+            {
+                // Couldn't be kept right now; the file is read again with the next pass.
+            }
+        }
+    }
+
+    // Applies the best rekey among files other devices wrote for oldKey's group (the lowest maker id, and only those below this
+    // PC's when asked). False when there is none.
+    private async Task<bool> ApplyOthersRekeyAsync(SyncKey oldKey, IReadOnlyCollection<string> fileNames, bool lowerThanThisPcOnly)
+    {
+        RekeyPayload? best = null;
+        foreach (IRekeyPublisher publisher in Publishers)
+        {
+            foreach (byte[] bytes in await publisher.FindRekeysAsync(fileNames))
+            {
+                if (RekeyCodec.GroupIdOf(bytes) != oldKey.GroupId || RekeyCodec.Open(bytes, oldKey) is not RekeyPayload payload)
+                {
+                    continue;
+                }
+
+                Guid maker = payload.RemovedBy.DeviceId;
+                if (maker == _identity.DeviceId || (lowerThanThisPcOnly && RekeyCodec.CompareMakers(maker, _identity.DeviceId) > 0))
+                {
+                    continue;
+                }
+
+                if (best is null || RekeyCodec.CompareMakers(maker, best.RemovedBy.DeviceId) < 0)
+                {
+                    best = payload;
+                }
+            }
+        }
+
+        if (best is null)
+        {
+            return false;
+        }
+
+        await ApplyAsync(best, oldKey);
+        return true;
+    }
+
+    // Applies one rekey: switch to the new key, or become unlinked when it names this PC or leaves it out.
+    private async Task ApplyAsync(RekeyPayload payload, SyncKey rekeyKey)
+    {
+        RekeyReading reading = RekeyReader.Read(payload, _identity.DeviceId, _identity.DeviceKey, rekeyKey.GroupId);
         await _changing.WaitAsync();
         try
         {
             // Another file already switched (or unlinked) this PC while this one waited.
-            if (_identity.Key is not SyncKey key || !key.SameGroupAs(currentKey))
+            if (_identity.Key is not SyncKey key || !key.SameGroupAs(rekeyKey))
             {
-                return null;
+                return;
             }
 
+            // When the removal happened, by its maker's clock, not when this PC learned of it: files a device wrote while this PC was away are judged against it.
             var others = payload.Removed.Where(device => device.DeviceId != _identity.DeviceId).Select(device => (device.DeviceId, device.Name)).ToList();
-            await RecordRemovedAsync(others);
+            await RecordRemovedAsync(others, DateTimeOffset.FromUnixTimeSeconds(payload.Epoch));
             if (reading is { Kind: RekeyReadingKind.NewKey, NewCode: string newCode })
             {
                 await _identity.SwitchKeyAsync(newCode, payload.Removed.Select(device => device.DeviceId).ToList());
@@ -197,8 +340,6 @@ public sealed class SyncRemovalService
                 await SaveAsync();
                 await _identity.DropKeyKeepingDataAsync();
             }
-
-            return null;
         }
         finally
         {
@@ -207,9 +348,9 @@ public sealed class SyncRemovalService
     }
 
     /// <summary>
-    /// "Continue unsynced here" (ADR 54): this PC stays out of the group and keeps its own data. Like Leave group it forgets
-    /// what was received from the group's devices; it also forgets the removed list, which belonged to the group.
-    /// Refused during a focus session the user started.
+    /// "Continue unsynced here" (ADR 54): this PC stays out of the group and keeps its own data, and what it had received from
+    /// the group's devices stays as it was at the last sync (shown as not syncing); a later join forgets it, as any join does.
+    /// The removed list stays too, so removed devices keep their label. Refused during a focus session the user started.
     /// </summary>
     /// <returns>Null when done; otherwise why not.</returns>
     public async Task<string?> ContinueUnsyncedAsync()
@@ -223,10 +364,8 @@ public sealed class SyncRemovalService
         try
         {
             _unlinked = null;
-            _removed = [];
             await SaveAsync();
             await _identity.LeaveAsync();
-            await _received.ForgetAllAsync();
             return null;
         }
         finally
@@ -238,6 +377,7 @@ public sealed class SyncRemovalService
     /// <summary>
     /// "Add this PC again" (ADR 54): joins the group of a new link code from a device that is still linked, keeping this PC's
     /// device id. That ends <see cref="Unlinked"/>; the other devices accept this PC's files again once one opens with the new key.
+    /// Like any join it forgets what was received from the earlier group.
     /// </summary>
     /// <returns>False when the code isn't a link code.</returns>
     public Task<bool> RejoinAsync(string code) => _identity.JoinAsync(code);
@@ -245,10 +385,17 @@ public sealed class SyncRemovalService
     /// <summary>
     /// Applies the user's choice for a removed device's received data (ADR 55). <see cref="RemovedDevice.EraseData"/> forgets
     /// what this PC received from it (its sessions, drift and the rest of its file); <see cref="RemovedDevice.KeepData"/>
-    /// keeps it, shown as removed. The choice is recorded either way.
+    /// keeps it, shown as removed. The choice is recorded either way. Refused during a focus session the user started (erasing
+    /// a phone's copy mid-session would drop its pickup evidence).
     /// </summary>
-    public async Task ApplyDataChoiceAsync(Guid deviceId, string choice)
+    /// <returns>Null when done; otherwise why not.</returns>
+    public async Task<string?> ApplyDataChoiceAsync(Guid deviceId, string choice)
     {
+        if (_sessions.IsEnforcing)
+        {
+            return LockedReason;
+        }
+
         if (choice == RemovedDevice.EraseData)
         {
             await _received.ForgetAsync(deviceId);
@@ -262,6 +409,8 @@ public sealed class SyncRemovalService
                 _removed = _removed.Select(existing => existing == device ? device with { DataChoice = choice } : existing).ToList();
                 await SaveAsync();
             }
+
+            return null;
         }
         finally
         {
@@ -288,12 +437,11 @@ public sealed class SyncRemovalService
     }
 
     // Adds the devices not already recorded (a repeated rekey, or a second file saying the same), then saves.
-    private async Task RecordRemovedAsync(IEnumerable<(Guid DeviceId, string Name)> devices)
+    private async Task RecordRemovedAsync(IEnumerable<(Guid DeviceId, string Name)> devices, DateTimeOffset removedAt)
     {
-        DateTimeOffset now = _sessions.Now;
         foreach ((Guid deviceId, string name) in devices.Where(device => !IsRemoved(device.DeviceId)))
         {
-            _removed = _removed.Append(new RemovedDevice(deviceId, name, now)).ToList();
+            _removed = _removed.Append(new RemovedDevice(deviceId, name, removedAt)).ToList();
         }
 
         await SaveAsync();
@@ -327,6 +475,8 @@ public sealed class SyncRemovalService
         Changed?.Invoke(this, EventArgs.Empty);
         return _store.SaveAsync(DocumentKey, new StoredRemoved(_removed, _unlinked));
     }
+
+    private sealed record PendingRekey(RekeyPayload Payload, SyncKey Key);
 
     /// <param name="Devices">The devices removed from the group.</param>
     /// <param name="Unlinked">Set while this PC is unlinked.</param>

@@ -169,6 +169,37 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
         }
     }
 
+    /// <summary>The rekey files (ADR 54) in the folder under any of <paramref name="fileNames"/>.</summary>
+    public async Task<IReadOnlyList<byte[]>> FindRekeysAsync(IReadOnlyCollection<string> fileNames)
+    {
+        if (!TryGetFolder(out string folder, out _, out _))
+        {
+            return [];
+        }
+
+        return await Task.Run(() =>
+        {
+            var found = new List<byte[]>();
+            foreach (string name in fileNames)
+            {
+                try
+                {
+                    var file = new FileInfo(Path.Combine(folder, name));
+                    if (file.Exists && file.Length <= MaxFileBytes)
+                    {
+                        found.Add(File.ReadAllBytes(file.FullName));
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+                {
+                    // Being written or synced: not counted.
+                }
+            }
+
+            return (IReadOnlyList<byte[]>)found;
+        });
+    }
+
     /// <summary>Reads the other devices' files in the folder now; a file that can't be read shows as "Can't read a file from …".</summary>
     public async Task ReadNowAsync()
     {
@@ -196,8 +227,15 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
             }
 
             bool unreadable = false;
+            SyncKey? passKey = _identity.Key;
             foreach (FileInfo file in files)
             {
+                // A rekey (ADR 54) switched the group's key during this pass: the rest are the old group's, the next pass reads the new group's.
+                if (_identity.Key?.SameGroupAs(passKey) != true)
+                {
+                    break;
+                }
+
                 bool? bad = await ReadFileAsync(file);
                 unreadable |= bad == true;
             }
@@ -403,7 +441,13 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
         }
 
         string folder = settings.FolderPath;
-        List<string> names = e.RemovedDeviceIds.Append(_identity.DeviceId).Select(id => FileNameFor(e.OldKey.GroupId, id)).ToList();
+        // The old group is dead: this PC's file, the removed devices' and every device this PC knows (their old copies, which
+        // the phone may have carried) go; each of them writes a new file under the new key.
+        List<string> names = e.RemovedDeviceIds.Append(_identity.DeviceId)
+            .Concat(_received.Devices.Select(device => device.File.Device.DeviceId))
+            .Distinct()
+            .Select(id => FileNameFor(e.OldKey.GroupId, id))
+            .ToList();
         _ = Task.Run(() =>
         {
             foreach (string name in names)

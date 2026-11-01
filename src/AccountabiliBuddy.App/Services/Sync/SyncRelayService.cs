@@ -225,6 +225,40 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
         }
     }
 
+    /// <summary>The rekey files (ADR 54) on the relay under any of <paramref name="fileNames"/>, in the group this PC is in now.</summary>
+    public async Task<IReadOnlyList<byte[]>> FindRekeysAsync(IReadOnlyCollection<string> fileNames)
+    {
+        RelayAccess? access = _access;
+        if (_disposed || access is null)
+        {
+            return [];
+        }
+
+        CancellationToken token = _lifetime.Token;
+        await _busy.WaitAsync();
+        try
+        {
+            var found = new List<byte[]>();
+            foreach (RelayFileInfo info in (await _network.ListRelayFilesAsync(access, token)).Where(info => fileNames.Contains(info.Name) && info.Size <= MaxFileBytes))
+            {
+                if (await _network.GetRelayFileAsync(access, info.Name, token) is RelayDownload download)
+                {
+                    found.Add(download.Bytes);
+                }
+            }
+
+            return found;
+        }
+        catch (Exception ex) when (IsRelayFailure(ex))
+        {
+            return [];
+        }
+        finally
+        {
+            _busy.Release();
+        }
+    }
+
     /// <summary>Reads the other devices' files from the relay now (only the ones whose etag changed).</summary>
     public async Task ReadNowAsync()
     {
@@ -262,8 +296,15 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
             bool unreadable = false;
             string? downloadProblem = null;
             long passBytes = 0;
+            SyncKey? passKey = _identity.Key;
             foreach (RelayFileInfo info in files.Where(info => IsSyncFileName(info.Name)))
             {
+                // A rekey (ADR 54) switched the group's key during this pass: the rest are the old group's, the next pass reads the new group's.
+                if (_identity.Key?.SameGroupAs(passKey) != true)
+                {
+                    break;
+                }
+
                 if (passBytes >= MaxPassBytes)
                 {
                     break; // Enough for one pass; the rest waits for the next.
@@ -651,13 +692,19 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
     private void OnKeySwitched(object? sender, SyncKeySwitchedEventArgs e)
     {
         RelayAccess? access = _access;
-        if (_disposed || access is null || e.RemovedDeviceIds.Count == 0)
+        if (_disposed || access is null)
         {
             return;
         }
 
         // The service still holds the old group's access: Restart, which swaps it for the new one, runs on Changed, after this.
-        List<string> names = e.RemovedDeviceIds.Select(id => SyncFolderService.FileNameFor(e.OldKey.GroupId, id)).ToList();
+        // The old group is dead: the removed devices' files and every device's old copy this PC knows (the phone may have
+        // carried them) go; each of those devices writes a new file under the new key.
+        List<string> names = e.RemovedDeviceIds
+            .Concat(_received.Devices.Select(device => device.File.Device.DeviceId))
+            .Distinct()
+            .Select(id => SyncFolderService.FileNameFor(e.OldKey.GroupId, id))
+            .ToList();
         _ = DeleteOldFilesAsync(access, names);
     }
 

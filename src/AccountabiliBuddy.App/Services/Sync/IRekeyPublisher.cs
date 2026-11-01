@@ -11,4 +11,10 @@ public interface IRekeyPublisher
     /// <param name="fileName">Its name, from <c>RekeyCodec.FileNameFor</c>.</param>
     /// <returns>Null when this method isn't in use; true when the file was written; false when writing failed.</returns>
     Task<bool?> PublishRekeyAsync(byte[] sealedBytes, string fileName);
+
+    /// <summary>
+    /// The rekey files this method holds under any of <paramref name="fileNames"/> (the names other devices would write, from
+    /// <c>RekeyCodec.FileNameFor</c>), to find a removal made at the same time. Empty when none, or the method isn't in use or can't be reached.
+    /// </summary>
+    Task<IReadOnlyList<byte[]>> FindRekeysAsync(IReadOnlyCollection<string> fileNames);
 }
