@@ -89,6 +89,14 @@ class DriveFiles(private val transport: DriveTransport, private val api: String 
         return json(created).getValue("id").jsonPrimitive.content
     }
 
+    /** Deletes the file with Drive id [id] (one the app made); a file that is already gone is fine. */
+    fun delete(token: String, id: String) {
+        val response = transport.send("DELETE", url(api + "files/" + encode(id), emptyMap()), token, null, null)
+        if (!response.isSuccess && response.code != 404) {
+            throw DriveException(response.code, "Drive said ${response.code}.")
+        }
+    }
+
     private fun folder(token: String): String {
         folderId?.let { return it }
         val found = json(

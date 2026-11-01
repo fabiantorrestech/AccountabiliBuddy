@@ -42,11 +42,12 @@ object SyncCarry {
 
     /**
      * The sealed files to hand over by [method]: not the ones that came that way (back to where they came from), nor
-     * the ones the recipient already has, by its [recipientSeen].
+     * the ones the recipient already has, by its [recipientSeen]. Never a device in [excluded] (a removed one, ADR 54) and
+     * never a copy that isn't [ReceivedDevice.carryable].
      */
-    fun filesFor(devices: List<ReceivedDevice>, method: String, recipientSeen: Map<UUID, Instant>): List<ByteArray> =
+    fun filesFor(devices: List<ReceivedDevice>, method: String, recipientSeen: Map<UUID, Instant>, excluded: Set<UUID> = emptySet()): List<ByteArray> =
         devices
-            .filter { it.method != method }
+            .filter { it.method != method && it.carryable && it.file.device.deviceId !in excluded }
             .filter { device -> recipientSeen[device.file.device.deviceId]?.let { device.file.device.writtenAt > it } ?: true }
             .map { it.sealed }
 }

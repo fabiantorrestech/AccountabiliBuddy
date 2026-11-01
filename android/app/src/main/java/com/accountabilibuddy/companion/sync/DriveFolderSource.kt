@@ -6,8 +6,10 @@ import android.provider.DocumentsContract
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.accountabilibuddy.shared.sync.RekeyCodec
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFolder
+import com.accountabilibuddy.shared.sync.SyncKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,9 +29,10 @@ data class FolderStatus(val lastSyncAt: Instant? = null, val problem: String? = 
  * The phone's sync folder (ADR 22, way B): a folder another app (e.g. Autosync) keeps in step with Google Drive,
  * chosen with Android's folder picker. Each sync reads the other devices' files first, then writes this phone's own
  * file and the files it carries that the folder doesn't have yet, under the same opaque names the PCs use. Every 15
- * minutes through WorkManager, faster (1 or 5 minutes) only while the pinned timeline notification runs.
+ * minutes through WorkManager, faster (1 or 5 minutes) only while the pinned timeline notification runs. It also carries the
+ * rekey file and clears an old group's files after a removal (ADR 54).
  */
-class DriveFolderSource(private val context: Context, private val sync: SyncCoordinator) {
+class DriveFolderSource(private val context: Context, private val sync: SyncCoordinator) : RekeySyncMethod {
     private val running = Mutex()
     private val _status = MutableStateFlow(FolderStatus())
 
@@ -39,7 +42,12 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
     // Writes this phone's own file only when it changed (or on the slow heartbeat).
     private val ownGate = OwnFileWriteGate()
 
+    // The key generation (ADR 54) the map above belongs to: a new key reads the new group's files from scratch.
+    private var generation = -1
+
     val status: StateFlow<FolderStatus> = _status.asStateFlow()
+
+    override val method: String = SyncDeviceCard.METHOD_FOLDER
 
     /** Starts or stops the 15-minute background sync to match the folder switch. */
     fun schedule() {
@@ -71,12 +79,56 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
         running.withLock {
             withContext(Dispatchers.IO) {
                 _status.value = try {
+                    followKey()
                     val unreadable = read(tree, ownName)
+                    // A rekey in the folder switched the group's key: the rest of this pass is the old group's, the next one reads the new group's.
+                    followKey()
                     write(tree)
                     FolderStatus(Instant.now(), if (unreadable) "Can't read a file from the sync folder." else null)
                 } catch (e: Exception) {
                     // A folder whose permission was taken away, or a storage app that's gone.
                     FolderStatus(_status.value.lastSyncAt, "Can't open the sync folder: choose it again.")
+                }
+            }
+        }
+    }
+
+    // After a new key (ADR 54, or joining or leaving a group) what was remembered about the old group's files no longer applies.
+    private fun followKey() {
+        if (generation != sync.keyGeneration) {
+            generation = sync.keyGeneration
+            inFolder.clear()
+            ownGate.reset()
+        }
+    }
+
+    override suspend fun publishRekey(sealed: ByteArray, fileName: String, key: SyncKey): Boolean? {
+        val tree = sync.settings.value.folderUri?.takeIf { isOn() }?.let(Uri::parse) ?: return null
+        return running.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    val target = children(tree).toMap()[fileName]
+                        ?: DocumentsContract.createDocument(context.contentResolver, folderDocument(tree), MIME, fileName)
+                        ?: return@withContext false
+                    context.contentResolver.openOutputStream(target, "wt")?.use { it.write(sealed) } != null
+                } catch (e: Exception) {
+                    false
+                }
+            }
+        }
+    }
+
+    override suspend fun clearOldGroup(oldKey: SyncKey, deviceIds: List<UUID>) {
+        val tree = sync.settings.value.folderUri?.takeIf { isOn() }?.let(Uri::parse) ?: return
+        val names = deviceIds.map { SyncFolder.fileNameFor(oldKey.groupId, it) }.toSet()
+        running.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    for ((name, uri) in children(tree)) {
+                        if (name in names) {
+                            DocumentsContract.deleteDocument(context.contentResolver, uri)
+                        }
+                    }
                 }
             }
         }
@@ -96,6 +148,17 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
             }
 
             val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: continue
+            // The rekey file (ADR 54): taken in, and if it switched the key the rest of this listing is the old group's.
+            if (RekeyCodec.isRekey(bytes)) {
+                val before = sync.keyGeneration
+                sync.acceptSealed(bytes, SyncDeviceCard.METHOD_FOLDER)
+                if (sync.keyGeneration != before) {
+                    return false
+                }
+
+                continue
+            }
+
             val card = sync.cardOf(bytes)
             if (card == null) {
                 unreadable = true

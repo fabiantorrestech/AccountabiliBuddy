@@ -83,6 +83,19 @@ class SyncIdentityStore(private val file: File) {
         return true
     }
 
+    /**
+     * Replaces the group's link code in place (ADR 54): same group, new key, after a device was removed. Nothing else changes;
+     * what was received stays. False (changing nothing) when [code] isn't a valid code.
+     */
+    @Synchronized
+    fun switchKey(code: String): Boolean {
+        val key = SyncKeyCode.parse(code) ?: return false
+        sealedCode = TokenVault.seal(SyncKeyCode.display(code))
+        save()
+        _key.value = key
+        return true
+    }
+
     /** Leaves the group; the device id stays. */
     @Synchronized
     fun leave() {
