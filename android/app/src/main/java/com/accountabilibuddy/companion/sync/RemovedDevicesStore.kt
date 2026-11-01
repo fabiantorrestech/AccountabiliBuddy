@@ -60,19 +60,11 @@ class RemovedDevicesStore(private val file: File) {
         load()
     }
 
-    /** Adds the devices not already recorded (a repeated rekey says the same again). */
+    /** Adds the devices not already recorded (a repeated rekey says the same again), removed at [removedAt] (the rekey's time). */
     @Synchronized
-    fun record(removed: List<Pair<UUID, String>>, now: Instant) {
+    fun record(removed: List<Pair<UUID, String>>, removedAt: Instant) {
         val known = _devices.value.map { it.deviceId }.toSet()
-        _devices.value = _devices.value + removed.filter { it.first !in known }.map { RemovedDevice(it.first, it.second, now) }
-        save()
-    }
-
-    /** The phone is out of the group for good ("Continue unsynced here"): the removed list belonged to the group, and the unlinked mark is over. */
-    @Synchronized
-    fun clearAll() {
-        _devices.value = emptyList()
-        _unlinked.value = null
+        _devices.value = _devices.value + removed.filter { it.first !in known }.map { RemovedDevice(it.first, it.second, removedAt) }
         save()
     }
 

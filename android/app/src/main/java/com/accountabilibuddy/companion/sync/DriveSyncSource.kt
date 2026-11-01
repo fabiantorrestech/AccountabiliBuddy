@@ -127,6 +127,23 @@ class DriveSyncSource(
         }
     }
 
+    override suspend fun findRekeys(fileNames: Set<String>, key: SyncKey): List<ByteArray> {
+        if (!sync.settings.value.driveOn || !sync.isJoined) {
+            return emptyList()
+        }
+
+        return running.withLock {
+            val token = signIn.accessToken() ?: return@withLock emptyList()
+            withContext(Dispatchers.IO) {
+                try {
+                    files.list(token).filter { it.name in fileNames }.map { files.download(token, it.id) }
+                } catch (e: Exception) {
+                    emptyList()
+                }
+            }
+        }
+    }
+
     override suspend fun clearOldGroup(oldKey: SyncKey, deviceIds: List<UUID>) {
         if (!sync.settings.value.driveOn || !sync.isJoined) {
             return

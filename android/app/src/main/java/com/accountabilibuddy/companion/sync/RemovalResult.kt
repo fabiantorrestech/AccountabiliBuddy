@@ -9,9 +9,13 @@ import java.util.UUID
  * @property problem In plain words why not, when [done] is false; nothing changed then.
  * @property notWrapped Remaining devices that had no public key and so can't receive the new key: they are cut off like the removed ones.
  * @property failedMethods How many sync methods failed to take the rekey file (others did): devices that sync only through those won't hear of it.
+ * @property conflict True when another device removed devices at the same time: its change was applied here instead, nothing
+ * was removed by this call, and the user can look and try again.
  */
-data class RemovalResult(val done: Boolean, val problem: String?, val notWrapped: List<UUID>, val failedMethods: Int) {
+data class RemovalResult(val done: Boolean, val problem: String?, val notWrapped: List<UUID>, val failedMethods: Int, val conflict: Boolean = false) {
     companion object {
         fun failed(problem: String) = RemovalResult(false, problem, emptyList(), 0)
+
+        fun conflictWith(problem: String) = RemovalResult(false, problem, emptyList(), 0, true)
     }
 }

@@ -43,6 +43,13 @@ class SyncCoordinator(
 ) {
     private val scan = QrScan()
 
+    init {
+        // A phone that is in a group is not unlinked (the file was left over from a race or a restore).
+        if (identity.key.value != null && removedStore.unlinked.value != null) {
+            removedStore.setUnlinked(null)
+        }
+    }
+
     /** The other devices' parts on this phone. */
     val received: StateFlow<List<ReceivedDevice>> = store.devices
 
@@ -200,45 +207,63 @@ class SyncCoordinator(
         return true
     }
 
-    /** Leaves the group and forgets every device's part on this phone (ADR 15). */
-    fun leave() {
+    /**
+     * Leaves the group and forgets every device's part on this phone (ADR 15).
+     *
+     * @return Null when done; otherwise why not (a focus session the user started).
+     */
+    fun leave(): String? {
+        removalLockedReason()?.let { return it }
         identity.leave()
         store.clear()
         scan.reset()
         keyGeneration++
+        return null
     }
 
     /**
-     * "Continue unsynced here" (ADR 54): this phone stays out of the group and keeps its own data. Like [leave] it forgets what
-     * was received from the group's devices; it also forgets the removed list, which belonged to the group.
+     * "Continue unsynced here" (ADR 54): this phone stays out of the group and keeps its own data, and what it had received
+     * from the group's devices stays as it was at the last sync (shown as not syncing); a later join forgets it, as any join
+     * does. The removed list stays too, so removed devices keep their label.
      *
      * @return Null when done; otherwise why not (a focus session the user started).
      */
     fun continueUnsynced(): String? {
         removalLockedReason()?.let { return it }
-        removedStore.clearAll()
-        leave()
+        removedStore.setUnlinked(null)
+        identity.leave()
+        scan.reset()
+        keyGeneration++
         return null
     }
 
     /**
      * Applies the user's choice for a removed device's received data (ADR 55): [RemovedDevice.ERASE_DATA] forgets what this
      * phone received from it; [RemovedDevice.KEEP_DATA] keeps it, shown as removed. The choice is recorded either way.
+     * Refused during a focus session the user started (erasing a PC's copy would end the phone-down guard).
+     *
+     * @return Null when done; otherwise why not.
      */
     @Synchronized
-    fun applyDataChoice(deviceId: UUID, choice: String) {
+    fun applyDataChoice(deviceId: UUID, choice: String): String? {
+        removalLockedReason()?.let { return it }
         if (choice == RemovedDevice.ERASE_DATA) {
             store.save(store.devices.value.filter { it.file.device.deviceId != deviceId })
         }
 
         removedStore.setDataChoice(deviceId, choice)
+        return null
     }
 
     /**
-     * Removes [deviceIds] from the group (ADR 54): makes a new link code, writes the rekey file to every sync method in use,
-     * then switches this phone to the new key, keeping everything it received. Their received data is left as it is;
+     * Removes [deviceIds] from the group (ADR 54): makes a new link code, writes this phone's rekey file to every sync method in
+     * use, then switches this phone to the new key, keeping everything it received. Their received data is left as it is;
      * [applyDataChoice] is the caller's next step. Nothing changes when it can't be done, or when no method took the file
      * (the other devices would never hear of it).
+     *
+     * Two devices removing at the same time would split the group, so: a rekey another device already wrote for this group is
+     * applied here instead and the call returns a [RemovalResult.conflict] (look and try again), and after writing, a rekey from
+     * a device with a lower id (the one every device picks, [RekeyCodec.compareMakers]) is applied instead of this one.
      */
     suspend fun removeDevices(deviceIds: List<UUID>): RemovalResult {
         removalLockedReason()?.let { return RemovalResult.failed(it) }
@@ -250,14 +275,29 @@ class SyncCoordinator(
 
         val cards = store.devices.value.map { it.file.device }
         val removing = ids.map { id -> RekeyRemovedDevice(id, cards.firstOrNull { it.deviceId == id }?.name ?: "Unknown device") }
-        val staying = cards.filter { it.deviceId !in ids && removedStore.devices.value.none { removed -> removed.deviceId == it.deviceId } }
-        val recipients = staying.mapNotNull { card -> card.publicKey?.takeIf { it.isNotEmpty() }?.let { RekeyRecipient(card.deviceId, it) } }
+        val isRemoved = { id: UUID -> removedStore.devices.value.any { it.deviceId == id } }
+        val staying = cards.filter { it.deviceId !in ids && !isRemoved(it.deviceId) }
+        // This phone is among the recipients, so reading its own file (after a crash between writing and switching) gives it the
+        // new key instead of "unlinked".
+        val recipients = staying.mapNotNull { card -> card.publicKey?.takeIf { it.isNotEmpty() }?.let { RekeyRecipient(card.deviceId, it) } } +
+            RekeyRecipient(identity.deviceId, identity.deviceKey.publicKeyBase64)
         val build = RekeyBuilder.build(oldKey, RekeyRemovedDevice(identity.deviceId, deviceName), removing, recipients, now())
-        // The devices that stay but can't get the new key: an app from before ADR 54 (no public key in its card), or a key
-        // that isn't a P-256 point. They are cut off like the removed ones; the remove dialog names them.
-        val notWrapped = staying.filter { it.publicKey.isNullOrEmpty() }.map { it.deviceId } + build.notWrapped
 
-        val fileName = RekeyCodec.fileNameFor(oldKey.groupId)
+        // The devices that stay but can't get the new key: an app from before ADR 54 (no public key in its card), a key that
+        // isn't a P-256 point, or a device this phone never received a file from (only named in the others' "seen" lists). They
+        // are cut off like the removed ones; the remove dialog names them.
+        val known = cards.map { it.deviceId }.toSet()
+        val seenIds = cards.flatMap { it.seen.keys }
+        val unknown = seenIds.filter { it != identity.deviceId && it !in known && it !in ids && !isRemoved(it) }
+        val notWrapped = (staying.filter { it.publicKey.isNullOrEmpty() }.map { it.deviceId } + build.notWrapped + unknown).distinct()
+
+        // Where another device's rekey for this group would be, if there is one.
+        val otherNames = (known + seenIds).filter { it != identity.deviceId }.distinct().map { RekeyCodec.fileNameFor(oldKey.groupId, it) }.toSet()
+        if (applyOthersRekey(oldKey, otherNames, lowerThanThisPhoneOnly = false)) {
+            return RemovalResult.conflictWith("Another device just changed the device group. Its change was applied here; check your devices and try again.")
+        }
+
+        val fileName = RekeyCodec.fileNameFor(oldKey.groupId, identity.deviceId)
         var written = 0
         var failed = 0
         for (method in rekeyMethods) {
@@ -275,17 +315,41 @@ class SyncCoordinator(
             )
         }
 
+        // Written first, then looked for: of two devices that wrote at the same time, the one with the higher id sees the other's file.
+        if (applyOthersRekey(oldKey, otherNames, lowerThanThisPhoneOnly = true)) {
+            return RemovalResult.conflictWith("Another device changed the device group at the same time. Its change was applied here instead; check your devices and try again.")
+        }
+
         synchronized(this) {
-            removedStore.record(removing.map { it.deviceId to it.name }, now())
+            // This phone's own file, read meanwhile, already switched it to the new key (it is among the recipients): done.
+            if (SyncKeyCode.parse(build.newCode)?.sameGroupAs(identity.key.value) == true) {
+                return RemovalResult(true, null, notWrapped, failed)
+            }
+
+            // Another rekey switched or unlinked the phone while the file was being written.
+            if (identity.key.value?.sameGroupAs(oldKey) != true) {
+                return RemovalResult.conflictWith("The device group changed while this was being saved. Check your devices and try again.")
+            }
+
+            removedStore.record(removing.map { it.deviceId to it.name }, java.time.Instant.ofEpochSecond(build.payload.epoch))
             switchTo(build.newCode, oldKey, removing.map { it.deviceId })
         }
 
         return RemovalResult(true, null, notWrapped, failed)
     }
 
+    // A rekey for this phone's group that came in, waiting for the others of the same read pass.
+    private class PendingRekey(val payload: com.accountabilibuddy.shared.sync.RekeyPayload, val bytes: ByteArray, val key: SyncKey, val cameBy: String)
+
+    // Rekeys for the current group that wait for the others of the same read pass, one per maker (see acceptRekey).
+    private val pendingRekeys = mutableListOf<PendingRekey>()
+    private var applyScheduled = false
+
     /**
      * Takes in a rekey file (ADR 54) another device wrote, from [method]. A rekey for a group this phone has already left or
-     * switched away from is ignored, which also makes a repeated file harmless. When it names this phone (or leaves it out) this
+     * switched away from is ignored, which also makes a repeated file harmless. A rekey for this phone's group is kept for a few
+     * seconds before it is applied: if two devices removed at the same time, the one with the lower id wins
+     * ([RekeyCodec.compareMakers]), whichever file arrived first. When the chosen rekey names this phone (or leaves it out) this
      * phone becomes [unlinked]: the key is dropped, so nothing syncs by any method, and what was received stays.
      * Null when taken in or ignored; otherwise why not.
      */
@@ -296,13 +360,86 @@ class SyncCoordinator(
         }
 
         val payload = RekeyCodec.open(bytes, current) ?: return CANNOT_READ
+        // One per maker: a newer file from the same maker replaces its older one.
+        val maker = payload.removedBy.deviceId
+        pendingRekeys.removeAll { it.payload.removedBy.deviceId == maker && it.payload.epoch <= payload.epoch }
+        if (pendingRekeys.none { it.payload.removedBy.deviceId == maker }) {
+            pendingRekeys += PendingRekey(payload, bytes, current, method)
+        }
+
+        val scope = backgroundScope
+        if (scope == null) {
+            applyPendingRekeys()
+        } else if (!applyScheduled) {
+            applyScheduled = true
+            scope.launch {
+                kotlinx.coroutines.delay(PICK_WINDOW_MS)
+                applyPendingRekeys()
+            }
+        }
+
+        return null
+    }
+
+    // Applies the one rekey every device picks among those that came in.
+    @Synchronized
+    private fun applyPendingRekeys() {
+        applyScheduled = false
+        val chosen = pendingRekeys.minWithOrNull { a, b -> RekeyCodec.compareMakers(a.payload.removedBy.deviceId, b.payload.removedBy.deviceId) }
+        pendingRekeys.clear()
+        if (chosen != null) {
+            applyRekey(chosen)
+        }
+    }
+
+    // Applies the best rekey among files other devices wrote for oldKey's group (the lowest maker id, and only those below this
+    // phone's when asked). False when there is none.
+    private suspend fun applyOthersRekey(oldKey: SyncKey, fileNames: Set<String>, lowerThanThisPhoneOnly: Boolean): Boolean {
+        var best: PendingRekey? = null
+        for (method in rekeyMethods) {
+            for (bytes in method.findRekeys(fileNames, oldKey)) {
+                if (RekeyCodec.groupIdOf(bytes) != oldKey.groupId) {
+                    continue
+                }
+
+                val payload = RekeyCodec.open(bytes, oldKey) ?: continue
+                val maker = payload.removedBy.deviceId
+                if (maker == identity.deviceId || (lowerThanThisPhoneOnly && RekeyCodec.compareMakers(maker, identity.deviceId) > 0)) {
+                    continue
+                }
+
+                if (best == null || RekeyCodec.compareMakers(maker, best.payload.removedBy.deviceId) < 0) {
+                    best = PendingRekey(payload, bytes, oldKey, "")
+                }
+            }
+        }
+
+        val chosen = best ?: return false
+        synchronized(this) { applyRekey(chosen) }
+        return true
+    }
+
+    // Applies one rekey: switch to the new key, or become unlinked when it names this phone or leaves it out.
+    private fun applyRekey(rekey: PendingRekey) {
+        val current = identity.key.value
+        // Another file already switched (or unlinked) this phone meanwhile.
+        if (current == null || !current.sameGroupAs(rekey.key)) {
+            return
+        }
+
+        val payload = rekey.payload
         val reading = RekeyReader.read(payload, identity.deviceId, identity.deviceKey, current.groupId)
-        removedStore.record(payload.removed.filter { it.deviceId != identity.deviceId }.map { it.deviceId to it.name }, now())
+        // When the removal happened, by its maker's clock, not when this phone learned of it: files a device wrote while this
+        // phone was away are judged against it.
+        removedStore.record(
+            payload.removed.filter { it.deviceId != identity.deviceId }.map { it.deviceId to it.name },
+            java.time.Instant.ofEpochSecond(payload.epoch),
+        )
         val newCode = reading.newCode
         if (reading.kind == RekeyReadingKind.NewKey && newCode != null) {
             // Hand the file on to the methods it didn't come by, in the old group where the devices that haven't switched yet
             // still listen (the PCs that reach only one of them).
-            forwardRekey(bytes, method, current)
+            forwardRekey(rekey.bytes, rekey.cameBy, current, payload.removedBy.deviceId)
             switchTo(newCode, current, payload.removed.map { it.deviceId })
         } else {
             // Removed, or left out of the rekey: there is no new key to switch to.
@@ -311,20 +448,19 @@ class SyncCoordinator(
             scan.reset()
             keyGeneration++
         }
-
-        return null
     }
 
     // Switches to the new link code in place: what was received stays, but its sealed bytes can't be opened by the others any
-    // more, so those copies aren't carried until the device's next file replaces them. The old group's files for this phone and
-    // the removed devices are deleted in the background.
-    private fun switchTo(newCode: String, oldKey: com.accountabilibuddy.shared.sync.SyncKey, removedIds: List<UUID>) {
+    // more, so those copies aren't carried until the device's next file replaces them. The old group is dead: this phone's file,
+    // the removed devices' and every device's old copy this phone carried are deleted in the background.
+    private fun switchTo(newCode: String, oldKey: SyncKey, removedIds: List<UUID>) {
+        val deviceIds = (removedIds + identity.deviceId + store.devices.value.map { it.file.device.deviceId }).distinct()
         identity.switchKey(newCode)
+        removedStore.setUnlinked(null)
         store.save(store.devices.value.map { ReceivedDevice(it.file, it.receivedAt, it.method, ByteArray(0)) })
         scan.reset()
         keyGeneration++
         val methods = rekeyMethods
-        val deviceIds = removedIds + identity.deviceId
         backgroundScope?.launch(Dispatchers.IO) {
             for (method in methods) {
                 runCatching { method.clearOldGroup(oldKey, deviceIds) }
@@ -332,9 +468,9 @@ class SyncCoordinator(
         }
     }
 
-    private fun forwardRekey(bytes: ByteArray, cameBy: String, oldKey: com.accountabilibuddy.shared.sync.SyncKey) {
+    private fun forwardRekey(bytes: ByteArray, cameBy: String, oldKey: SyncKey, makerId: UUID) {
         val methods = rekeyMethods.filter { it.method != cameBy }
-        val fileName = RekeyCodec.fileNameFor(oldKey.groupId)
+        val fileName = RekeyCodec.fileNameFor(oldKey.groupId, makerId)
         backgroundScope?.launch(Dispatchers.IO) {
             for (method in methods) {
                 runCatching { method.publishRekey(bytes, fileName, oldKey) }
@@ -436,7 +572,7 @@ class SyncCoordinator(
 
     /** Everything to hand over by [method] (Drive or a share): this phone's own file first, then what it carries. */
     fun filesToCarry(method: String): List<ByteArray> =
-        listOfNotNull(ownSealed()) + SyncCarry.filesFor(store.devices.value, method, emptyMap(), removedIds())
+        if (identity.key.value == null) emptyList() else listOfNotNull(ownSealed()) + SyncCarry.filesFor(store.devices.value, method, emptyMap(), removedIds())
 
     /** This phone's file name in the sync folder (the PCs' naming); null outside a group. */
     fun ownFolderFileName(): String? = identity.key.value?.let { SyncFolder.fileNameFor(it.groupId, identity.deviceId) }
@@ -474,6 +610,9 @@ class SyncCoordinator(
         const val CANNOT_READ = "This file can't be read: it's from another device group, or it's damaged."
 
         /** Why a file was refused when it is from a device removed from the group (ADR 54). */
+        // How long a rekey waits for the others of the same read pass before the lowest maker's is applied.
+        private const val PICK_WINDOW_MS = 3_000L
+
         const val REMOVED_DEVICE = "This file is from a device that was removed from your device group."
     }
 }

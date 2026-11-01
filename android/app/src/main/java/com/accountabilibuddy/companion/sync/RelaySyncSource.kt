@@ -131,6 +131,23 @@ class RelaySyncSource(
         }
     }
 
+    override suspend fun findRekeys(fileNames: Set<String>, key: SyncKey): List<ByteArray> {
+        if (!isEnabled()) {
+            return emptyList()
+        }
+
+        val endpoint = endpoint(key) ?: return emptyList()
+        return running.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    RelayNetwork.list(endpoint).filter { it.name in fileNames }.mapNotNull { RelayNetwork.get(endpoint, it.name)?.bytes }
+                } catch (e: Exception) {
+                    emptyList()
+                }
+            }
+        }
+    }
+
     override suspend fun clearOldGroup(oldKey: SyncKey, deviceIds: List<UUID>) {
         if (!isEnabled()) {
             return

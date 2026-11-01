@@ -370,6 +370,14 @@ class CompanionApp : Application() {
         // ADR 54: removing a device writes the rekey file by these, and a new key clears the old group's files from them.
         sync.rekeyMethods = listOf(folderSource, driveSource, relaySource)
         sync.backgroundScope = appScope
+        // No escape hatches (ADR 54): removing devices, leaving and erasing a removed device's data wait for a PC focus session to end.
+        sync.removalLockedReason = {
+            if (com.accountabilibuddy.companion.placement.PlacementSession.current(this, java.time.Instant.now()) != null) {
+                "This is locked while a focus session is running."
+            } else {
+                null
+            }
+        }
         // Drive (ADR 26): every 30 s while a session runs or the timeline is pinned, else 15 min.
         appScope.launch { driveSource.loop { driveBusy() } }
         // The relay (ADR 46): the same pace, plus a push stream open while a session runs or the timeline is pinned.

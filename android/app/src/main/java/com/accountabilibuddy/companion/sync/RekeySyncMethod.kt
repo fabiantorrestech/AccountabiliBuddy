@@ -17,6 +17,13 @@ interface RekeySyncMethod {
     suspend fun publishRekey(sealed: ByteArray, fileName: String, key: SyncKey): Boolean?
 
     /**
+     * The rekey files this method holds under any of [fileNames] (the names other devices would write, from
+     * [com.accountabilibuddy.shared.sync.RekeyCodec.fileNameFor]) for the group of [key], to find a removal made at the same
+     * time. Empty when none, or the method isn't in use or can't be reached.
+     */
+    suspend fun findRekeys(fileNames: Set<String>, key: SyncKey): List<ByteArray>
+
+    /**
      * After the group got a new key: deletes the files of [deviceIds] (this phone's own and the removed devices') from the old
      * group [oldKey]. Best effort; the rekey file stays, since a device that is behind (or the removed one) still has to read it.
      */

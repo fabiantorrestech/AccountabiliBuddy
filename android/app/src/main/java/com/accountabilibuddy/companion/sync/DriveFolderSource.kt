@@ -118,6 +118,20 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
         }
     }
 
+    override suspend fun findRekeys(fileNames: Set<String>, key: SyncKey): List<ByteArray> {
+        val tree = sync.settings.value.folderUri?.takeIf { isOn() }?.let(Uri::parse) ?: return emptyList()
+        return running.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    children(tree).filter { (name, _) -> name in fileNames }
+                        .mapNotNull { (_, uri) -> context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }
+                } catch (e: Exception) {
+                    emptyList()
+                }
+            }
+        }
+    }
+
     override suspend fun clearOldGroup(oldKey: SyncKey, deviceIds: List<UUID>) {
         val tree = sync.settings.value.folderUri?.takeIf { isOn() }?.let(Uri::parse) ?: return
         val names = deviceIds.map { SyncFolder.fileNameFor(oldKey.groupId, it) }.toSet()
