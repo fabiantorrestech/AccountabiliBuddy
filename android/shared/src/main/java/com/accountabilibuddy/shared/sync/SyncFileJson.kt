@@ -188,6 +188,8 @@ object SyncFileJson {
         file.nextTasks?.let { put("nextTasks", writeNextTasks(it)) }
         file.parked?.let { put("parked", writeParked(it)) }
         file.later?.let { put("later", writeLater(it)) }
+        // Optional (ADR 56): the group's past keys, for opening backups; older apps ignore them.
+        file.pastKeys?.let { put("pastKeys", writePastKeys(it)) }
         file.lunch?.let { lunch ->
             put("lunch", buildJsonObject {
                 put("start", writeTime(lunch.start))
@@ -347,6 +349,7 @@ object SyncFileJson {
             readNextTasks(json["nextTasks"]),
             readParked(json["parked"]),
             readLater(json["later"]),
+            readPastKeys(json["pastKeys"]),
         )
     }
 
@@ -409,6 +412,26 @@ object SyncFileJson {
             item.plannedFor?.let { put("plannedFor", writePlannedFor(it)) }
         }
     })
+
+    /** The past group keys as the sync file carries them (ADR 56), in the PC's shape (camelCase). */
+    fun writePastKeys(list: List<SyncPastKey>): JsonArray = JsonArray(list.map { key ->
+        buildJsonObject {
+            put("groupId", key.groupId)
+            put("key", key.key)
+            put("retiredAt", writeTime(key.retiredAt))
+        }
+    })
+
+    /** An optional list; an entry that can't be read is left out rather than failing the file. */
+    fun readPastKeys(value: JsonElement?): List<SyncPastKey>? {
+        val array = value as? JsonArray ?: return null
+        return array.mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            runCatching {
+                SyncPastKey(item.optionalString("groupId")!!, item.optionalString("key")!!, item.requiredTime("retiredAt"))
+            }.getOrNull()
+        }
+    }
 
     /** An optional list; an entry that can't be read is left out rather than failing the file. */
     fun readLater(value: JsonElement?): List<SyncLaterItem>? {

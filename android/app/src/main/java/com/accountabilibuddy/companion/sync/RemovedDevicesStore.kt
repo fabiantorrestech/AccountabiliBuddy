@@ -60,12 +60,19 @@ class RemovedDevicesStore(private val file: File) {
         load()
     }
 
-    /** Adds the devices not already recorded (a repeated rekey says the same again), removed at [removedAt] (the rekey's time). */
+    /** Called after the removed list changed (a device recorded or cleared); set by the coordinator so the active list follows. */
+    var onChanged: (() -> Unit)? = null
+
+    /**
+     * Adds the devices not already recorded (a repeated rekey says the same again), removed at [removedAt] (the rekey's time), with
+     * the remover's [choices] of keep or erase for their data (ADR 55; none for a device not named there).
+     */
     @Synchronized
-    fun record(removed: List<Pair<UUID, String>>, removedAt: Instant) {
+    fun record(removed: List<Pair<UUID, String>>, removedAt: Instant, choices: Map<UUID, String> = emptyMap()) {
         val known = _devices.value.map { it.deviceId }.toSet()
-        _devices.value = _devices.value + removed.filter { it.first !in known }.map { RemovedDevice(it.first, it.second, removedAt) }
+        _devices.value = _devices.value + removed.filter { it.first !in known }.map { RemovedDevice(it.first, it.second, removedAt, choices[it.first]) }
         save()
+        onChanged?.invoke()
     }
 
     /** A removed device wrote a file that opens with the new key: it was linked again. */
@@ -74,6 +81,7 @@ class RemovedDevicesStore(private val file: File) {
         if (_devices.value.any { it.deviceId == deviceId }) {
             _devices.value = _devices.value.filter { it.deviceId != deviceId }
             save()
+            onChanged?.invoke()
         }
     }
 

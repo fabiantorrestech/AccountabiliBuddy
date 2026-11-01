@@ -36,6 +36,7 @@ class SyncCoordinator(
     private val identity: SyncIdentityStore,
     private val store: ReceivedDevicesStore,
     private val removedStore: RemovedDevicesStore,
+    private val pastKeys: PastKeysStore,
     private val deviceName: String,
     private val appVersion: String,
     private val settingsStore: PhoneSyncSettingsStore,
@@ -44,6 +45,8 @@ class SyncCoordinator(
     private val scan = QrScan()
 
     init {
+        // The live list follows the removed list (ADR 54).
+        removedStore.onChanged = { store.refreshActive() }
         // A phone that is in a group is not unlinked (the file was left over from a race or a restore).
         if (identity.key.value != null && removedStore.unlinked.value != null) {
             removedStore.setUnlinked(null)
@@ -51,7 +54,10 @@ class SyncCoordinator(
     }
 
     /** The other devices' parts on this phone. */
-    val received: StateFlow<List<ReceivedDevice>> = store.devices
+    val received: StateFlow<List<ReceivedDevice>> = store.active
+
+    /** Every device's copy held, the removed ones included (history only, ADR 54); [received] has only the devices still in the group. */
+    val allReceived: StateFlow<List<ReceivedDevice>> = store.devices
 
     /** The group's key; null while the phone isn't in a group. */
     val key: StateFlow<SyncKey?> = identity.key
@@ -95,7 +101,7 @@ class SyncCoordinator(
     fun ownQrLinks(): List<String> {
         val key = identity.key.value ?: return emptyList()
         // The shared lists with their tombstones (ADR 48) stay out of QR codes, as on the PC: a file without them leaves them alone.
-        return SyncQr.links(SyncFileCodec.seal(ownFile().copy(nextTasks = null, parked = null, later = null), key), key.groupId)
+        return SyncQr.links(SyncFileCodec.seal(ownFile().copy(nextTasks = null, parked = null, later = null, pastKeys = null), key), key.groupId)
     }
 
     // The methods on the phone's card: what's switched on.
@@ -271,7 +277,7 @@ class SyncCoordinator(
      * applied here instead and the call returns a [RemovalResult.conflict] (look and try again), and after writing, a rekey from
      * a device with a lower id (the one every device picks, [RekeyCodec.compareMakers]) is applied instead of this one.
      */
-    suspend fun removeDevices(deviceIds: List<UUID>): RemovalResult {
+    suspend fun removeDevices(deviceIds: List<UUID>, erase: Boolean = false): RemovalResult {
         removalLockedReason()?.let { return RemovalResult.failed(it) }
         val oldKey = identity.key.value ?: return RemovalResult.failed(NOT_JOINED)
         val ids = deviceIds.distinct()
@@ -279,8 +285,14 @@ class SyncCoordinator(
             return RemovalResult.failed("Pick other devices to remove; this phone leaves the group with Leave group.")
         }
 
+        // Removing one twice (a dialog opened twice, or another device just removed it) would re-key again for nothing.
+        if (ids.any { id -> removedStore.devices.value.any { it.deviceId == id } }) {
+            return RemovalResult.failed("That device is already removed from your group.")
+        }
+
         val cards = store.devices.value.map { it.file.device }
-        val removing = ids.map { id -> RekeyRemovedDevice(id, cards.firstOrNull { it.deviceId == id }?.name ?: "Unknown device") }
+        // The erase choice goes into the rekey file: every staying device that applies it forgets these devices' received data (ADR 55).
+        val removing = ids.map { id -> RekeyRemovedDevice(id, cards.firstOrNull { it.deviceId == id }?.name ?: "Unknown device", erase) }
         val isRemoved = { id: UUID -> removedStore.devices.value.any { it.deviceId == id } }
         val staying = cards.filter { it.deviceId !in ids && !isRemoved(it.deviceId) }
         // This phone is among the recipients, so reading its own file (after a crash between writing and switching) gives it the
@@ -452,9 +464,14 @@ class SyncCoordinator(
         val reading = RekeyReader.read(payload, identity.deviceId, identity.deviceKey, current.groupId)
         // When the removal happened, by its maker's clock, not when this phone learned of it: files a device wrote while this
         // phone was away are judged against it.
+        // A device that stays also takes the remover's choice about the removed devices' data (ADR 55): erase is recorded and done
+        // below (or at the next file once a focus session has ended). One that is removed itself keeps everything it has.
+        val stays = reading.kind == RekeyReadingKind.NewKey
+        val others = payload.removed.filter { it.deviceId != identity.deviceId }
         removedStore.record(
-            payload.removed.filter { it.deviceId != identity.deviceId }.map { it.deviceId to it.name },
+            others.map { it.deviceId to it.name },
             java.time.Instant.ofEpochSecond(payload.epoch),
+            if (stays) others.associate { it.deviceId to if (it.erase) RemovedDevice.ERASE_DATA else RemovedDevice.KEEP_DATA } else emptyMap(),
         )
         val newCode = reading.newCode
         if (reading.kind == RekeyReadingKind.NewKey && newCode != null) {
@@ -462,6 +479,7 @@ class SyncCoordinator(
             // still listen (the PCs that reach only one of them).
             forwardRekey(rekey.bytes, rekey.cameBy, current, payload.removedBy.deviceId)
             switchTo(newCode, current, payload.removed.map { it.deviceId })
+            applyPendingErases()
         } else {
             // Removed, or left out of the rekey: there is no new key to switch to.
             removedStore.setUnlinked(UnlinkedState(now(), reading.kind == RekeyReadingKind.Removed, payload.removedBy.name))
@@ -477,6 +495,8 @@ class SyncCoordinator(
     private fun switchTo(newCode: String, oldKey: SyncKey, removedIds: List<UUID>) {
         val deviceIds = (removedIds + identity.deviceId + store.devices.value.map { it.file.device.deviceId }).distinct()
         identity.switchKey(newCode)
+        // ADR 56: the group's outgoing key is kept (never the code), to open backups sealed with it.
+        pastKeys.noteSwitched(oldKey)
         removedStore.setUnlinked(null)
         store.save(store.devices.value.map { ReceivedDevice(it.file, it.receivedAt, it.method, ByteArray(0)) })
         scan.reset()
@@ -533,13 +553,17 @@ class SyncCoordinator(
         // The copy kept of the sender's file doesn't hold the shared lists (ADR 48): they merge into this phone's own sealed
         // store below, so their text isn't kept a second time in the clear. The sealed bytes it carries on are sealed.
         // An empty "parked" stays as the mark that the device keeps the shared lists (a QR file carries none: the mark is kept).
+        // The past keys (ADR 56) go into their own sealed store and stay out of the copy too.
         val mark = if (file.parked != null || held?.file?.parked != null) emptyList<com.accountabilibuddy.shared.sync.SyncParked>() else null
-        val outcome = SyncCarry.accept(store.devices.value, file.copy(nextTasks = null, parked = mark, later = null), bytes, method, identity.deviceId, now())
+        val outcome = SyncCarry.accept(store.devices.value, file.copy(nextTasks = null, parked = mark, later = null, pastKeys = null), bytes, method, identity.deviceId, now())
         if (outcome.error != null) {
             return outcome.error
         }
 
         store.save(outcome.devices)
+        pastKeys.merge(file.pastKeys)
+        // An erase that waited for a focus session to end (ADR 55) is done at the next file after it.
+        applyPendingErases()
         // Not from a device whose clock runs more than a minute ahead; a later file from it, once the clocks agree, is taken.
         if ((file.nextTasks != null || file.parked != null || file.later != null) && !file.device.writtenAt.isAfter(now().plusSeconds(60))) {
             // A file with a "later" list (even empty) comes from a writer that knows ADR 50's fields; one without, from an older app.
@@ -574,7 +598,7 @@ class SyncCoordinator(
     fun ownFile(): SyncFile = SyncFile(
         SyncFile.CURRENT_FORMAT_VERSION,
         SyncDeviceCard(
-            identity.deviceId, deviceName, SyncDeviceCard.KIND_PHONE, appVersion, now(), methods(), false, SyncCarry.seen(store.devices.value), companions(),
+            identity.deviceId, deviceName, SyncDeviceCard.KIND_PHONE, appVersion, now(), methods(), false, SyncCarry.seen(store.active.value), companions(),
             nextAlarm().takeIf { settingsStore.settings.value.alarmOn }, identity.deviceKey.publicKeyBase64,
         ),
         emptyList(), emptyList(), null, listOfNotNull(runCatching { sleepDocument() }.getOrNull()),
@@ -589,7 +613,26 @@ class SyncCoordinator(
         nextTasks = runCatching { nextTasks() }.getOrNull(),
         parked = runCatching { parked() }.getOrNull(),
         later = runCatching { later() }.getOrNull(),
+        // ADR 56: the past keys, for opening backups; sealed with the current key like everything else.
+        pastKeys = pastKeys.forFile(),
     )
+
+    /**
+     * Forgets what this phone received from every removed device whose recorded choice is erase (ADR 55), when it still holds a copy.
+     * A staying device records the remover's choice from the rekey and erases here; it waits while a focus session the user started
+     * runs ([removalLockedReason]: a running session's pickup evidence is not dropped) and runs again at the next file after it.
+     */
+    @Synchronized
+    fun applyPendingErases() {
+        if (removalLockedReason() != null) {
+            return
+        }
+
+        val erase = removedStore.devices.value.filter { it.dataChoice == RemovedDevice.ERASE_DATA }.map { it.deviceId }.toSet()
+        if (erase.isNotEmpty() && store.devices.value.any { it.file.device.deviceId in erase }) {
+            store.save(store.devices.value.filter { it.file.device.deviceId !in erase })
+        }
+    }
 
     /** Everything to hand over by [method] (Drive or a share): this phone's own file first, then what it carries. */
     fun filesToCarry(method: String): List<ByteArray> =

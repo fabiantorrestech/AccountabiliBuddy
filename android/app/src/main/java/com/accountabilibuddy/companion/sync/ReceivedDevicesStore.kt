@@ -20,10 +20,25 @@ import java.util.Base64
  * sync-received.json in the app's private folder. Received sessions are kept 90 days ([SyncCarry.accept] merges with
  * [com.accountabilibuddy.shared.sync.SyncMerge]); leaving the group clears them.
  */
-class ReceivedDevicesStore(private val file: File) {
+class ReceivedDevicesStore(private val file: File, private val isRemoved: (java.util.UUID) -> Boolean = { false }) {
     private val _devices = MutableStateFlow(load())
+    private val _active = MutableStateFlow(_devices.value.filter { !isRemoved(it.file.device.deviceId) })
 
+    /** Every device's copy held, removed ones included (what History and the carry read). */
     val devices: StateFlow<List<ReceivedDevice>> = _devices.asStateFlow()
+
+    /**
+     * The copies of the devices still in the group: [devices] without the removed ones (ADR 54). Everything live reads this
+     * (a PC's sessions and settings, bedtime and wake, remote control, placement, comebacks, Beeminder and the like); a removed
+     * device's kept data is history only.
+     */
+    val active: StateFlow<List<ReceivedDevice>> = _active.asStateFlow()
+
+    /** Recomputes [active] after the removed list changed. */
+    @Synchronized
+    fun refreshActive() {
+        _active.value = _devices.value.filter { !isRemoved(it.file.device.deviceId) }
+    }
 
     @Synchronized
     fun save(devices: List<ReceivedDevice>) {
@@ -48,12 +63,14 @@ class ReceivedDevicesStore(private val file: File) {
         }
 
         _devices.value = devices
+        _active.value = devices.filter { !isRemoved(it.file.device.deviceId) }
     }
 
     @Synchronized
     fun clear() {
         file.delete()
         _devices.value = emptyList()
+        _active.value = emptyList()
     }
 
     // A copy that can't be read is left out (its device sends a whole file again next time).
