@@ -37,6 +37,20 @@ public sealed class SyncKey
         _relayRoot = relayRoot;
     }
 
+    /// <summary>
+    /// A key that can only open sealed sync files: the group's AES key and group id, from a past key (ADR 56). It has no link code behind
+    /// it, so it has no relay values (<see cref="RelayGroupIdFor"/> and <see cref="RelayTokenFor"/> throw). Used only to open backups.
+    /// </summary>
+    public static SyncKey ForOpeningOnly(byte[] key, string groupId)
+    {
+        if (key.Length != KeyBytes)
+        {
+            throw new ArgumentException($"The key is {KeyBytes} bytes.", nameof(key));
+        }
+
+        return new SyncKey((byte[])key.Clone(), groupId, []);
+    }
+
     /// <summary>The AES-256-GCM key (32 bytes).</summary>
     public byte[] Key { get; }
 
@@ -50,6 +64,7 @@ public sealed class SyncKey
     /// <param name="relayIdentity">What names the relay, from <see cref="RelayIdentity.Of"/>.</param>
     public string RelayGroupIdFor(string relayIdentity)
     {
+        RequireRelayRoot();
         byte[] bytes = new byte[RelayGroupIdBytes];
         HKDF.DeriveKey(HashAlgorithmName.SHA256, _relayRoot, bytes, Salt, Encoding.UTF8.GetBytes("relay-group|" + relayIdentity));
         return Convert.ToHexStringLower(bytes);
@@ -63,6 +78,7 @@ public sealed class SyncKey
     /// <param name="relayIdentity">What names the relay, from <see cref="RelayIdentity.Of"/>.</param>
     public string RelayTokenFor(string relayIdentity)
     {
+        RequireRelayRoot();
         byte[] bytes = new byte[RelayTokenBytes];
         HKDF.DeriveKey(HashAlgorithmName.SHA256, _relayRoot, bytes, Salt, Encoding.UTF8.GetBytes("relay-auth|" + relayIdentity));
         return Base64Url(bytes);
@@ -98,6 +114,14 @@ public sealed class SyncKey
         byte[] relayRoot = new byte[RelayRootBytes];
         HKDF.DeriveKey(HashAlgorithmName.SHA256, secret25, relayRoot, Salt, RelayRootInfo);
         return new SyncKey(key, Convert.ToHexStringLower(groupId), relayRoot);
+    }
+
+    private void RequireRelayRoot()
+    {
+        if (_relayRoot.Length == 0)
+        {
+            throw new InvalidOperationException("A past key (ADR 56) opens files only; it has no relay values.");
+        }
     }
 
     private static string Base64Url(byte[] bytes)

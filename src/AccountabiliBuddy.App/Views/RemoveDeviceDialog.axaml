@@ -34,7 +34,7 @@
                 <TextBlock TextWrapping="Wrap" Text="Keep it. History and Stats show it as &quot;(removed)&quot; after its name." />
             </RadioButton>
             <RadioButton GroupName="data" IsChecked="{Binding IsEraseData}">
-                <TextBlock TextWrapping="Wrap" Text="Erase it, from this PC and from every device as they catch up. Items in shared lists (tasks, Later) stay, because they belong to everyone." />
+                <TextBlock TextWrapping="Wrap" Text="Erase it from every device: this PC once the backup is done, and each of your other devices when it applies the change. Items in shared lists (tasks, Later) stay, because they belong to everyone." />
             </RadioButton>
         </StackPanel>
 
@@ -91,6 +91,8 @@
             <TextBlock FontWeight="SemiBold" TextWrapping="Wrap" Text="The device is removed, but its backup wasn't saved" />
             <TextBlock Text="{Binding ProblemText}" TextWrapping="Wrap" />
             <TextBlock TextWrapping="Wrap" Opacity="0.85" Text="Its data on this PC is untouched until you pick." />
+            <TextBlock TextWrapping="Wrap" Opacity="0.85" IsVisible="{Binding IsEraseData}"
+                       Text="You chose Erase: your other devices erase their copy as they apply the change, so this PC's copy is the only one left. Closing this window keeps it." />
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <Button Content="Try again" Command="{Binding TryBackupAgainCommand}" />
                 <Button Content="Save a file instead…" Command="{Binding SaveFileInsteadCommand}" IsVisible="{Binding CanSaveFileInstead}" />

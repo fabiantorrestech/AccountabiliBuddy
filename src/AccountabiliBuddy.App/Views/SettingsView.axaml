@@ -1061,9 +1061,10 @@
                                         <TextBlock Classes="sTitle" Text="Start over" />
                                         <TextBlock Classes="sHint"
                                                    Text="Clear everything on this computer and set it up again from the beginning. A copy of your data is kept first." />
+                                        <TextBlock Classes="sHint" IsVisible="{Binding IsLocked}"
+                                                   Text="Locked while a focus session you started is running." />
                                     </StackPanel>
-                                    <Button Grid.Column="1" Content="Start over…" Command="{Binding StartOverCommand}" IsEnabled="{Binding !IsLocked}" VerticalAlignment="Center"
-                                            ToolTip.Tip="Locked while a focus session you started is running" />
+                                    <Button Grid.Column="1" Content="Start over…" Command="{Binding StartOverCommand}" IsEnabled="{Binding !IsLocked}" VerticalAlignment="Center" />
                                 </Grid>
                             </Border>
                             <Border Classes="sRow">

@@ -85,7 +85,7 @@ public sealed class PcPickupsService : IDisposable
         DateTimeOffset now = _sessions.Now;
         Guid self = _identity.DeviceId;
         var list = new List<SyncPickup>();
-        foreach (ReceivedDevice device in _received.Devices.Where(device => device.File.Device.Kind == SyncDeviceCard.KindPc && device.File.Device.DeviceId != self))
+        foreach (ReceivedDevice device in _received.Active.Where(device => device.File.Device.Kind == SyncDeviceCard.KindPc && device.File.Device.DeviceId != self))
         {
             foreach (SyncSession session in device.File.Sessions.Where(session => !session.Added && session.Start >= now - KeptFor && session.Start < now))
             {
@@ -169,7 +169,7 @@ public sealed class PcPickupsService : IDisposable
         }
 
         Guid self = _identity.DeviceId;
-        ReceivedDevice? from = _received.Devices
+        ReceivedDevice? from = _received.Active
             .Where(device => device.File.Device.Kind == SyncDeviceCard.KindPc && device.File.Device.DeviceId != self)
             .FirstOrDefault(device => (device.File.InputRuns ?? []).Any(run => run.Start <= start && run.End >= start - SwitchWindow));
         if (from is null)

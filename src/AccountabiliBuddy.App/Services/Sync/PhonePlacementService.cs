@@ -71,7 +71,7 @@ public sealed class PhonePlacementService : IDisposable
 
         DateTimeOffset now = _sessions.Now;
         // A file older than 5 minutes reads as unknown (the phone re-sends at least every 2 minutes in a session).
-        if (PhonePlacementLookup.Newest(_received.Devices, sessionStart) is not { } found || now - found.WrittenAt > StaleAfter)
+        if (PhonePlacementLookup.Newest(_received.Active, sessionStart) is not { } found || now - found.WrittenAt > StaleAfter)
         {
             ClearOut();
             return;

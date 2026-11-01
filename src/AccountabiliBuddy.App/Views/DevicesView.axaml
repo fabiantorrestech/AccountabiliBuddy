@@ -30,7 +30,7 @@
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="0,0,16,24" Spacing="12">
             <TextBlock Classes="sHint" Margin="4,0,0,0" IsVisible="{Binding IsLocked}"
-                       Text="Leaving the group and the sharing switches rest while you focus; the sync light and batteries still change." />
+                       Text="Leaving the group, removing a device and the sharing switches rest while you focus; the sync light and batteries still change." />
             <TextBlock Classes="muted" Text="{Binding CombinedTodayText}" Margin="4,0,0,0"
                        IsVisible="{Binding CombinedTodayText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
@@ -61,8 +61,7 @@
                                             <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" />
                                             <Button.Flyout>
                                                 <MenuFlyout Placement="BottomEdgeAlignedRight">
-                                                    <MenuItem Header="Remove this device…" Command="{Binding RemoveCommand}" IsEnabled="{Binding RemoveEnabled}"
-                                                              ToolTip.Tip="{Binding RemoveHint}">
+                                                    <MenuItem Header="{Binding RemoveHeader}" Command="{Binding RemoveCommand}" IsEnabled="{Binding RemoveEnabled}">
                                                         <MenuItem.Icon>
                                                             <mi:MaterialIcon Kind="LinkOff" Width="16" Height="16" />
                                                         </MenuItem.Icon>

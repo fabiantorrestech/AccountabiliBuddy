@@ -181,7 +181,7 @@ public sealed class QrSyncService : IDisposable
     // Every phone this PC has a file from holds this PC's file from after its last change. No phone yet: it hasn't.
     private bool EveryPhoneHasLatest()
     {
-        List<ReceivedDevice> phones = _received.Devices.Where(device => device.File.Device.Kind == SyncDeviceCard.KindPhone).ToList();
+        List<ReceivedDevice> phones = _received.Active.Where(device => device.File.Device.Kind == SyncDeviceCard.KindPhone).ToList();
         return phones.Count > 0 && phones.All(phone =>
             phone.File.Device.Seen.TryGetValue(_identity.DeviceId, out DateTimeOffset seen) && seen >= _lastOwnChange);
     }

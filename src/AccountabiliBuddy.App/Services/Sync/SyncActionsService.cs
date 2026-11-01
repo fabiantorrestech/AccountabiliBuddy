@@ -474,7 +474,7 @@ public sealed class SyncActionsService
     private IEnumerable<SentAction> ActionsForThisPc()
     {
         Guid self = _identity.DeviceId;
-        return _received.Devices
+        return _received.Active
             .SelectMany(device => (device.File.Actions ?? []).Select(action => new SentAction(action, device.File.Device.Name, device.ReceivedAt)))
             .Where(sent => sent.Action.Target == self);
     }

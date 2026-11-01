@@ -29,7 +29,14 @@ public sealed class ReceivedDevicesService
 
     public IReadOnlyList<ReceivedDevice> Devices => _devices;
 
-    /// <summary>Whether a device was removed from the group (ADR 54); set by the app from <see cref="SyncRemovalService"/>. Only used for labels.</summary>
+    /// <summary>
+    /// The devices that are still in the group: <see cref="Devices"/> without the removed ones (ADR 54). Everything live reads this
+    /// (bedtime, wake and alarm from a phone, running sessions, pickups, placement, shared settings, remote actions, QR, battery
+    /// and the like); a removed device's kept data is history only, so History, Stats' totals and the day bar read <see cref="Devices"/>.
+    /// </summary>
+    public IReadOnlyList<ReceivedDevice> Active => _devices.Where(device => !IsRemoved(device.File.Device.DeviceId)).ToList();
+
+    /// <summary>Whether a device was removed from the group (ADR 54); set by the app from <see cref="SyncRemovalService"/>. Used for labels and <see cref="Active"/>.</summary>
     public Func<Guid, bool> IsRemoved { get; set; } = static _ => false;
 
     /// <summary>The device's name as History, Stats and the day bar show it: "Pixel 7 (removed)" for a removed device whose data was kept.</summary>

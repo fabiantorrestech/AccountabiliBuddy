@@ -4,7 +4,7 @@
         xmlns:views="using:AccountabiliBuddy.App.Views"
         x:Class="AccountabiliBuddy.App.Views.UnlinkedDialog"
         x:DataType="vm:UnlinkedViewModel"
-        Title="This PC was removed from your synced devices"
+        Title="{Binding Title}"
         Icon="/Assets/app-icon.png"
         Width="580" SizeToContent="Height" CanResize="False"
         WindowStartupLocation="CenterScreen">

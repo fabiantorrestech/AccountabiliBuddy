@@ -37,6 +37,11 @@ namespace AccountabiliBuddy.Core.Sync;
 /// The Later list with its tombstones (ADR 50), merged item by item like <paramref name="NextTasks"/>; null from a QR file
 /// or an app that predates it, which then take no part in it.
 /// </param>
+/// <param name="PastKeys">
+/// The group's past keys (ADR 56), for opening backups sealed before a later removal; a receiver merges them as a set by group id.
+/// Null when the device has none, in a QR file and from an app that predates it, which ignore it. Never kept in the copy a receiver
+/// stores of this file, and never in a backup.
+/// </param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
@@ -67,7 +72,8 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncPlacement? Placement = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncNextTask>? NextTasks = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncParked>? Parked = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncLaterItem>? Later = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncLaterItem>? Later = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncPastKey>? PastKeys = null)
 {
     public const int CurrentFormatVersion = 1;
 }

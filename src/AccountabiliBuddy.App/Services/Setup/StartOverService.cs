@@ -33,6 +33,10 @@ public sealed class StartOverService
     // A marker left by a run that crashed before restarting must not wipe the data of a later, unrelated start.
     private static readonly TimeSpan MarkerLifetime = TimeSpan.FromMinutes(10);
 
+    // The old copy of the app may still hold the database for a moment after it asked for the restart.
+    private const int DeleteAttempts = 12;
+    private static readonly TimeSpan DeleteRetryDelay = TimeSpan.FromMilliseconds(500);
+
     // The database and its journal files.
     private static readonly string[] ClearedFiles = [DatabaseFileName, DatabaseFileName + "-wal", DatabaseFileName + "-shm", DatabaseFileName + "-journal"];
 
@@ -76,7 +80,11 @@ public sealed class StartOverService
 
         try
         {
-            string copy = await _database.BackupAsync("start-over");
+            string made = await _database.BackupAsync("start-over");
+            // Renamed out of the "before-*.db" pattern, so the later copies before migrations and updates (which keep only the newest
+            // ten of that pattern) never prune it.
+            string copy = Path.Combine(Path.GetDirectoryName(made)!, "start-over-" + Path.GetFileName(made)["before-start-over-".Length..]);
+            File.Move(made, copy, overwrite: true);
             var marker = new Marker(TimeProvider.System.GetUtcNow(), copy);
             await File.WriteAllTextAsync(Path.Combine(_dataDirectory, MarkerFileName), JsonSerializer.Serialize(marker));
             return null;
@@ -88,12 +96,22 @@ public sealed class StartOverService
     }
 
     /// <summary>
+    /// Takes the marker away: the restart after <see cref="PrepareAsync"/> did not happen, so nothing may clear the data later.
+    /// </summary>
+    public void CancelPending()
+    {
+        TryDelete(Path.Combine(_dataDirectory, MarkerFileName));
+    }
+
+    /// <summary>
     /// Clears the data if the last run asked for it (see the class summary). Call at start, before the database is opened.
     /// </summary>
     /// <remarks>The marker is dated with the system clock, not the trusted clock: it only bridges one restart, and the trusted clock is not restored yet at this point.</remarks>
+    /// <param name="problem">Set when the data was to be cleared and could not be (the old copy of the app still holds the database); nothing was touched then.</param>
     /// <returns>True when the data was cleared.</returns>
-    public static bool RunPending(string dataDirectory)
+    public static bool RunPending(string dataDirectory, out string? problem)
     {
+        problem = null;
         string markerPath = Path.Combine(dataDirectory, MarkerFileName);
         if (!File.Exists(markerPath))
         {
@@ -124,14 +142,25 @@ public sealed class StartOverService
             return false;
         }
 
-        // The database first: if it can't be deleted (still open somewhere), nothing else is touched.
-        try
+        // The database first: if it can't be deleted (the old copy of the app can still be shutting down), it is tried for a few
+        // seconds; if it still can't, nothing else is touched and the user is told.
+        for (int attempt = 1; ; attempt++)
         {
-            File.Delete(Path.Combine(dataDirectory, DatabaseFileName));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return false;
+            try
+            {
+                File.Delete(Path.Combine(dataDirectory, DatabaseFileName));
+                break;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                if (attempt >= DeleteAttempts)
+                {
+                    problem = "Start over could not clear your data because the database was still in use. Nothing was changed; try again.";
+                    return false;
+                }
+
+                Thread.Sleep(DeleteRetryDelay);
+            }
         }
 
         foreach (string name in ClearedFiles.Skip(1))

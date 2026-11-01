@@ -3,6 +3,7 @@ using AccountabiliBuddy.App.Services.Sync;
 using AccountabiliBuddy.Core.Sync;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Data.Sqlite;
 
 namespace AccountabiliBuddy.App.ViewModels;
 
@@ -20,7 +21,8 @@ public sealed partial class RemoveDeviceViewModel : ObservableObject
     private readonly DeviceBackupService _backups;
     private readonly TimeProvider _time;
     private readonly Guid _deviceId;
-    private readonly SyncFile? _snapshot;
+    private readonly ReceivedDevicesService _received;
+    private SyncFile? _snapshot;
     private readonly DateOnly _day;
     private readonly IReadOnlyList<NotWrappedDevice> _notWrapped;
     private RemovalResult? _result;
@@ -29,6 +31,7 @@ public sealed partial class RemoveDeviceViewModel : ObservableObject
         SyncRemovalService removal, ReceivedDevicesService received, DeviceBackupService backups, TimeProvider time, Guid deviceId)
     {
         _removal = removal;
+        _received = received;
         _backups = backups;
         _time = time;
         _deviceId = deviceId;
@@ -45,10 +48,9 @@ public sealed partial class RemoveDeviceViewModel : ObservableObject
 
         DriveAvailable = backups.DriveAvailable;
         BackupChoice = DriveAvailable ? RemoveBackupChoice.Drive : RemoveBackupChoice.File;
-        BackupPath = Path.Combine(DeviceBackupService.DefaultFolder, DeviceBackupService.LocalFileNameFor(Name, _day));
+        BackupPath = Path.Combine(DeviceBackupService.DefaultFolder, DeviceBackupService.LocalFileNameFor(Name, deviceId, _day));
         DoneTitle = string.Empty;
         ProblemText = string.Empty;
-        BlockedReason = removal.BlockedReason;
     }
 
     /// <summary>Picks where to save the backup file: the folder to start in and the suggested file name; the chosen path or null. Set by the dialog.</summary>
@@ -63,7 +65,7 @@ public sealed partial class RemoveDeviceViewModel : ObservableObject
     public bool IsPhone { get; }
 
     /// <summary>Why it can't be removed right now (a focus session you started); null when it can.</summary>
-    public string? BlockedReason { get; }
+    public string? BlockedReason => _removal.BlockedReason;
 
     public bool IsBlocked => BlockedReason is not null;
 
@@ -80,7 +82,7 @@ public sealed partial class RemoveDeviceViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWhat), nameof(IsData), nameof(IsBackup), nameof(IsOlder), nameof(IsConfirm), nameof(IsWorking), nameof(IsBackupProblem), nameof(IsDone),
-        nameof(IsQuestionPage), nameof(CanGoBack), nameof(NextText), nameof(StepText))]
+        nameof(IsQuestionPage), nameof(CanGoBack), nameof(NextText), nameof(StepText), nameof(BlockedReason), nameof(IsBlocked))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(BackCommand))]
     public partial RemoveStep Step { get; set; }
 
@@ -262,14 +264,18 @@ public sealed partial class RemoveDeviceViewModel : ObservableObject
     private async Task RemoveAsync()
     {
         Step = RemoveStep.Working;
-        RemovalResult result = await _removal.RemoveAsync([_deviceId]);
+        // The copy to back up is taken now, so a file that arrived while the dialog sat open is in it.
+        _snapshot = _received.Devices.FirstOrDefault(candidate => candidate.File.Device.DeviceId == _deviceId)?.File ?? _snapshot;
+        RemovalResult result = await _removal.RemoveAsync([_deviceId], IsEraseData);
         if (!result.Done)
         {
             DoneFailed = true;
             DoneTitle = result.Conflict ? "Another device changed your devices at the same time" : $"{Name} was not removed";
             Summary.Clear();
             Summary.Add(result.Problem ?? "Something went wrong.");
-            Summary.Add("Nothing was changed on this PC.");
+            Summary.Add(result.Conflict
+                ? $"{Name} was not removed by this attempt. Look at your devices and try again if it is still there."
+                : "Nothing was changed on this PC.");
             Step = RemoveStep.Done;
             return;
         }
@@ -347,7 +353,17 @@ public sealed partial class RemoveDeviceViewModel : ObservableObject
     // The backup is made or given up: now the keep or erase choice is applied, and the page says what happened.
     private async Task FinishAsync(string? backupWhere)
     {
-        string? reason = await _removal.ApplyDataChoiceAsync(_deviceId, IsEraseData ? RemovedDevice.EraseData : RemovedDevice.KeepData);
+        // Your other devices erase (or keep) as they apply the change; this PC does it now, after the backup.
+        string? reason;
+        try
+        {
+            reason = await _removal.ApplyDataChoiceAsync(_deviceId, IsEraseData ? RemovedDevice.EraseData : RemovedDevice.KeepData);
+        }
+        catch (SqliteException)
+        {
+            reason = "this PC's storage was busy; its copy is still here.";
+        }
+
         DoneFailed = false;
         DoneTitle = $"{Name} was removed";
         Summary.Clear();
@@ -359,13 +375,15 @@ public sealed partial class RemoveDeviceViewModel : ObservableObject
 
         if (reason is not null)
         {
-            Summary.Add($"Its data was not erased: {reason}");
+            Summary.Add(IsEraseData
+                ? $"Its data was not erased on this PC: {reason}"
+                : $"The choice to keep its data could not be saved: {reason}");
         }
         else
         {
             Summary.Add(IsEraseData
-                ? $"Its data was erased from this PC, and from your other devices as they catch up. Shared lists keep the items it added."
-                : $"Its data is kept. History and Stats show it as \"{Name} (removed)\".");
+                ? "Its data was erased from this PC. Each of your other devices erases it when it applies the change (a PC in a focus session waits until it ends). Shared lists keep the items it added."
+                : $"Its data is kept on every device. History and Stats show it as \"{Name} (removed)\".");
         }
 
         Summary.Add(backupWhere is null

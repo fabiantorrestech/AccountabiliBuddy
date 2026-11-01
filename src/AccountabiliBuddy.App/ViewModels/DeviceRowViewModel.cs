@@ -21,6 +21,9 @@ public sealed record DeviceRowViewModel(
     /// <summary>The row has a ⋯ menu with "Remove this device…" (another device that is still in the group; ADR 54).</summary>
     public bool HasMenu => RemoveCommand is not null;
 
+    /// <summary>The menu item's text; when it is disabled the reason is part of it (a tooltip never shows on a disabled item).</summary>
+    public string RemoveHeader => RemoveEnabled || RemoveHint is null ? "Remove this device…" : $"Remove this device… ({RemoveHint})";
+
     /// <summary>A device's part counts as behind once it's older than its interval plus this margin (as on the phone).</summary>
     public static readonly TimeSpan Margin = TimeSpan.FromMinutes(5);
 

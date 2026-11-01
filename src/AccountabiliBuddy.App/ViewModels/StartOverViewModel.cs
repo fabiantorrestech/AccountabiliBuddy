@@ -16,10 +16,10 @@ public sealed partial class StartOverViewModel : ObservableObject, IDisposable
 {
     private readonly StartOverService _service;
     private readonly SessionController _sessions;
-    private readonly Action _restart;
+    private readonly Func<bool> _restart;
 
-    /// <param name="restart">Restarts the app (the data is cleared on the way up).</param>
-    public StartOverViewModel(StartOverService service, SessionController sessions, Action restart)
+    /// <param name="restart">Restarts the app (the data is cleared on the way up); false when the new copy could not be started.</param>
+    public StartOverViewModel(StartOverService service, SessionController sessions, Func<bool> restart)
     {
         _service = service;
         _sessions = sessions;
@@ -81,8 +81,13 @@ public sealed partial class StartOverViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            Message = "Copied your data to the backups folder. Restarting…";
-            _restart();
+            Message = "Saved a copy of your data in the backups folder. Restarting…";
+            if (!_restart())
+            {
+                // The app could not start its new copy: nothing may clear the data later.
+                _service.CancelPending();
+                Message = "The app couldn't restart itself, so nothing was cleared. Close it from the tray and try again.";
+            }
         }
         finally
         {

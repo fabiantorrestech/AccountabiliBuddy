@@ -461,7 +461,7 @@ public sealed partial class StatsViewModel : ObservableObject
         IReadOnlyList<SyncPickup> pickups = _phone.Between(from, now.AddDays(1))
             .Where(pickup => !leftOutStarts.Any(start => (start - pickup.SessionStart).Duration() <= PickupStartTolerance)).ToList();
         IReadOnlyList<ReceivedSession> receivedSessions = ReceivedSessions.In(_received.Devices, from, now.AddDays(1));
-        SyncSmartBedtime? bedtime = PhoneBedtime.Of(_received.Devices);
+        SyncSmartBedtime? bedtime = PhoneBedtime.Of(_received.Active);
         bool phoneCounts = _phone.IsCounting;
         bool loggingOn = _privacy.Current.ActivityLogEnabled;
         TimeSpan goal = TimeSpan.FromMinutes(Math.Max(1, _goal.Current.DailyMinutes));

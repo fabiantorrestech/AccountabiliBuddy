@@ -23,7 +23,7 @@
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                     <StackPanel Spacing="2" VerticalAlignment="Center">
                         <TextBlock Text="Add this PC again" FontWeight="SemiBold" />
-                        <TextBlock Text="Link it again with a code from a device that is still linked. It keeps its name and history." TextWrapping="Wrap" Opacity="0.8" />
+                        <TextBlock Text="Link it again with a code from a device that is still linked. It keeps its own history and settings; what it received from the other devices is fetched again, and anything older than their last 14 days isn't." TextWrapping="Wrap" Opacity="0.8" />
                     </StackPanel>
                     <Button Grid.Column="1" Content="Add this PC again" Command="{Binding AddAgainCommand}" VerticalAlignment="Center" />
                 </Grid>

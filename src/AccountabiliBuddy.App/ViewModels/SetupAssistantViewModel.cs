@@ -363,6 +363,8 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     // The Restore step shows only once this PC is in a device group: a backup opens only with its group's key.
     private bool CanRestore => Restore is not null && Restore.CanOpen;
 
+    private int _backupLoad;
+
     public ObservableCollection<RestoreBackupRowViewModel> BackupRows { get; } = new();
 
     public bool HasBackupRows => BackupRows.Count > 0;
@@ -386,6 +388,8 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     // Lists the backups on Drive (newest first) when the step opens.
     private async Task LoadBackupsAsync()
     {
+        // A quick Back and Next starts a second listing: only the newest one fills the list.
+        int load = ++_backupLoad;
         BackupRows.Clear();
         OnPropertyChanged(nameof(HasBackupRows));
         if (Restore is null)
@@ -398,6 +402,11 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
             : "Google Drive isn't signed in on this PC, so backups made there can't be listed. Sign in later under Settings › Devices & sync, or choose a backup file.";
         IsLoadingBackups = true;
         IReadOnlyList<DriveBackupInfo> found = await Restore.Backups.ListDriveAsync();
+        if (load != _backupLoad)
+        {
+            return;
+        }
+
         foreach (DriveBackupInfo backup in found)
         {
             BackupRows.Add(new RestoreBackupRowViewModel(backup.DeviceName, BackupDateText(backup), new AsyncRelayCommand(() => RestoreFromDriveAsync(backup))));
@@ -449,7 +458,12 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
             return;
         }
 
-        await Restore.RestoreAsync(opening);
+        if (await Restore.RestoreAsync(opening) is string problem)
+        {
+            RestoreMessage = problem;
+            return;
+        }
+
         HasRestored = true;
         RestoreMessage = $"Restored {opening.File!.Device.Name}'s history. History and Stats show it as \"{opening.File.Device.Name} (removed)\".";
     }

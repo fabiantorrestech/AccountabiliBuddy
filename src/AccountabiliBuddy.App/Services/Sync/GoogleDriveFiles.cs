@@ -190,33 +190,62 @@ public sealed class GoogleDriveFiles : IDriveFiles
     // The folders directly inside [parent] (each element has "id" and "name"); the elements stay valid after the call.
     private async Task<IReadOnlyList<JsonElement>> ChildFoldersAsync(string token, string parent, CancellationToken cancellationToken)
     {
-        using JsonDocument found = await _network.GetJsonAsync(Uri("files", new Dictionary<string, string>
+        var folders = new List<JsonElement>();
+        string? page = null;
+        do
         {
-            ["q"] = $"mimeType='{FolderMime}' and '{parent}' in parents and trashed=false",
-            ["fields"] = "files(id,name)",
-            ["pageSize"] = "100",
-            ["spaces"] = "drive",
-        }), token, cancellationToken);
-        return found.RootElement.GetProperty("files").EnumerateArray().Select(folder => folder.Clone()).ToList();
+            var query = new Dictionary<string, string>
+            {
+                ["q"] = $"mimeType='{FolderMime}' and '{parent}' in parents and trashed=false",
+                ["fields"] = "nextPageToken,files(id,name)",
+                ["pageSize"] = "100",
+                ["spaces"] = "drive",
+            };
+            if (page is not null)
+            {
+                query["pageToken"] = page;
+            }
+
+            using JsonDocument found = await _network.GetJsonAsync(Uri("files", query), token, cancellationToken);
+            folders.AddRange(found.RootElement.GetProperty("files").EnumerateArray().Select(folder => folder.Clone()));
+            page = found.RootElement.TryGetProperty("nextPageToken", out JsonElement next) ? next.GetString() : null;
+        }
+        while (page is not null);
+
+        return folders;
     }
 
     // The files (not folders) directly inside [parent].
     private async Task<IReadOnlyList<DriveFileInfo>> ChildrenAsync(string token, string parent, CancellationToken cancellationToken)
     {
-        using JsonDocument found = await _network.GetJsonAsync(Uri("files", new Dictionary<string, string>
+        var files = new List<DriveFileInfo>();
+        string? page = null;
+        do
         {
-            ["q"] = $"'{parent}' in parents and mimeType!='{FolderMime}' and trashed=false",
-            ["fields"] = "files(id,name,modifiedTime,size)",
-            ["pageSize"] = "100",
-            ["spaces"] = "drive",
-        }), token, cancellationToken);
-        return found.RootElement.GetProperty("files").EnumerateArray()
-            .Select(file => new DriveFileInfo(
-                file.GetProperty("id").GetString()!,
-                file.GetProperty("name").GetString()!,
-                DateTimeOffset.Parse(file.GetProperty("modifiedTime").GetString()!, CultureInfo.InvariantCulture),
-                file.TryGetProperty("size", out JsonElement size) && long.TryParse(size.GetString(), out long bytes) ? bytes : 0))
-            .ToList();
+            var query = new Dictionary<string, string>
+            {
+                ["q"] = $"'{parent}' in parents and mimeType!='{FolderMime}' and trashed=false",
+                ["fields"] = "nextPageToken,files(id,name,modifiedTime,size)",
+                ["pageSize"] = "100",
+                ["spaces"] = "drive",
+            };
+            if (page is not null)
+            {
+                query["pageToken"] = page;
+            }
+
+            using JsonDocument found = await _network.GetJsonAsync(Uri("files", query), token, cancellationToken);
+            files.AddRange(found.RootElement.GetProperty("files").EnumerateArray()
+                .Select(file => new DriveFileInfo(
+                    file.GetProperty("id").GetString()!,
+                    file.GetProperty("name").GetString()!,
+                    DateTimeOffset.Parse(file.GetProperty("modifiedTime").GetString()!, CultureInfo.InvariantCulture),
+                    file.TryGetProperty("size", out JsonElement size) && long.TryParse(size.GetString(), out long bytes) ? bytes : 0)));
+            page = found.RootElement.TryGetProperty("nextPageToken", out JsonElement next) ? next.GetString() : null;
+        }
+        while (page is not null);
+
+        return files;
     }
 
     // A name inside a Drive query string: backslash and single quote are escaped.

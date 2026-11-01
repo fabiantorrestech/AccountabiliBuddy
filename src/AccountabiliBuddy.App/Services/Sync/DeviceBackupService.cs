@@ -43,11 +43,23 @@ public sealed class DeviceBackupService
     public static string FileNameFor(DateOnly day) => day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + SyncFolderService.Extension;
 
     /// <summary>A file name that is safe on disk for the device's name and the day, e.g. "Pixel 7 2026-10-28.absync".</summary>
-    public static string LocalFileNameFor(string deviceName, DateOnly day)
+    public static string LocalFileNameFor(string deviceName, Guid deviceId, DateOnly day)
     {
         string safe = string.Concat(deviceName.Where(character => !Path.GetInvalidFileNameChars().Contains(character))).Trim();
-        return $"{(safe.Length == 0 ? "device" : safe)} {FileNameFor(day)}";
+        return $"{(safe.Length == 0 ? "device" : safe)} ({ShortId(deviceId)}) {FileNameFor(day)}";
     }
+
+    /// <summary>
+    /// The Drive folder of a device's backups: its name and the first four characters of its id, so two devices with the same name
+    /// (phones are often both "Pixel 7") never share a folder or overwrite each other's backup; "device" when the name is blank.
+    /// </summary>
+    public static string FolderNameFor(SyncDeviceCard device)
+    {
+        string name = device.Name.Trim();
+        return $"{(name.Length == 0 ? "device" : name)} ({ShortId(device.DeviceId)})";
+    }
+
+    private static string ShortId(Guid deviceId) => deviceId.ToString("N")[..4];
 
     /// <summary>Writes the backup of <paramref name="device"/>'s data to Drive (<c>Backups/[name]/[day].absync</c>).</summary>
     public async Task<BackupOutcome> SaveToDriveAsync(SyncFile device, DateOnly day)
@@ -62,7 +74,7 @@ public sealed class DeviceBackupService
             return BackupOutcome.Failed("Google Drive isn't signed in.");
         }
 
-        string name = device.Device.Name.Trim();
+        string name = FolderNameFor(device.Device);
         byte[] sealedBytes = SyncFileCodec.Seal(ForBackup(device), key);
         try
         {
@@ -156,6 +168,7 @@ public sealed class DeviceBackupService
             Parked = null,
             Later = null,
             Comebacks = null,
+            PastKeys = null,
         };
     }
 }

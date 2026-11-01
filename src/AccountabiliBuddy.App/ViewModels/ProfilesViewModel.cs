@@ -379,7 +379,7 @@ public sealed partial class ProfilesViewModel : ObservableObject
     {
         // A watch only shows the session and today's focus (ADR 21) and another PC has its own tab; neither lists profiles here.
         IReadOnlyList<ReceivedDevice> devices =
-            (_received?.Devices ?? Array.Empty<ReceivedDevice>()).Where(device => device.File.Device.Kind == SyncDeviceCard.KindPhone).ToList();
+            (_received?.Active ?? Array.Empty<ReceivedDevice>()).Where(device => device.File.Device.Kind == SyncDeviceCard.KindPhone).ToList();
         HasLinkedDevices = devices.Count > 0;
 
         // A scheduled block isn't a focus session you started, so it reads "blocks on", not "running".
