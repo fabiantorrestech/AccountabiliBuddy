@@ -17,6 +17,14 @@ import java.time.Instant
 /** A file in the app's Drive folder: its Drive id, name and last change. */
 data class DriveFileInfo(val id: String, val name: String, val modifiedAt: Instant)
 
+/**
+ * A backup of a removed device in the app's Drive folder (ADR 55): `Backups/<device folder>/<date>.absync`.
+ *
+ * @property deviceName The name of the folder it is in: the removed device's name and the start of its id.
+ * @property fileName E.g. "2026-10-28.absync".
+ */
+data class DriveBackupInfo(val id: String, val deviceName: String, val fileName: String, val modifiedAt: Instant, val size: Long)
+
 /** Drive refused or couldn't be reached; [code] is the HTTP status (0: no answer). */
 class DriveException(val code: Int, message: String) : IOException(message)
 
@@ -64,8 +72,11 @@ class DriveFiles(private val transport: DriveTransport, private val api: String 
         return response.body
     }
 
-    /** Writes [name]: a new file when [existingId] is null, else that file's new content. Returns its Drive id. */
-    fun upload(token: String, name: String, content: ByteArray, existingId: String?): String {
+    /**
+     * Writes [name]: a new file when [existingId] is null, else that file's new content. Returns its Drive id. A new file goes in the
+     * app's folder, or in [parent] (a folder's Drive id) when given.
+     */
+    fun upload(token: String, name: String, content: ByteArray, existingId: String?, parent: String? = null): String {
         if (existingId != null) {
             val updated = transport.send(
                 "PATCH", url(upload + "files/" + encode(existingId), mapOf("uploadType" to "media", "fields" to "id")), token, MIME, content,
@@ -75,7 +86,7 @@ class DriveFiles(private val transport: DriveTransport, private val api: String 
 
         val metadata = buildJsonObject {
             put("name", name)
-            putJsonArray("parents") { add(folder(token)) }
+            putJsonArray("parents") { add(parent ?: folder(token)) }
         }.toString()
         val boundary = "ab" + System.nanoTime()
         val body = buildString {
@@ -88,6 +99,79 @@ class DriveFiles(private val transport: DriveTransport, private val api: String 
         )
         return json(created).getValue("id").jsonPrimitive.content
     }
+
+    /**
+     * Writes a removed device's backup (ADR 55) to `Backups/[deviceFolder]/[fileName]` inside the app's folder, making the folders
+     * when needed; a file of the same name (the same day) is replaced. Returns its Drive id.
+     */
+    fun uploadBackup(token: String, deviceFolder: String, fileName: String, content: ByteArray): String {
+        val backups = childFolder(token, folder(token), BACKUPS_FOLDER_NAME, create = true)!!
+        val device = childFolder(token, backups, deviceFolder, create = true)!!
+        val existing = pages(token, "'$device' in parents and trashed=false and mimeType!='$FOLDER_MIME'", "nextPageToken,files(id,name)")
+            .firstOrNull { it.getValue("name").jsonPrimitive.content == fileName }?.getValue("id")?.jsonPrimitive?.content
+        return upload(token, fileName, content, existing, device)
+    }
+
+    /** The backups under `Backups/` in the app's folder (every device's folder, every `.absync` file); empty when there is none. */
+    fun listBackups(token: String): List<DriveBackupInfo> {
+        val backups = childFolder(token, folder(token), BACKUPS_FOLDER_NAME, create = false) ?: return emptyList()
+        val found = mutableListOf<DriveBackupInfo>()
+        for (device in pages(token, "'$backups' in parents and trashed=false and mimeType='$FOLDER_MIME'", "nextPageToken,files(id,name)")) {
+            val deviceName = device.getValue("name").jsonPrimitive.content
+            val deviceId = device.getValue("id").jsonPrimitive.content
+            val inside = pages(
+                token, "'$deviceId' in parents and trashed=false and mimeType!='$FOLDER_MIME'",
+                "nextPageToken,files(id,name,modifiedTime,size)",
+            )
+            for (file in inside) {
+                val name = file.getValue("name").jsonPrimitive.content
+                if (name.endsWith(".absync", ignoreCase = true)) {
+                    found += DriveBackupInfo(
+                        file.getValue("id").jsonPrimitive.content, deviceName, name,
+                        Instant.parse(file.getValue("modifiedTime").jsonPrimitive.content),
+                        file["size"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L,
+                    )
+                }
+            }
+        }
+
+        return found
+    }
+
+    // A folder directly inside [parent], by name; made when [create] and it isn't there (null when it isn't there and [create] is false).
+    private fun childFolder(token: String, parent: String, name: String, create: Boolean): String? {
+        val found = pages(token, "name='${escapeQuery(name)}' and mimeType='$FOLDER_MIME' and '$parent' in parents and trashed=false", "files(id)")
+        found.firstOrNull()?.getValue("id")?.jsonPrimitive?.content?.let { return it }
+        if (!create) {
+            return null
+        }
+
+        val body = buildJsonObject {
+            put("name", name)
+            put("mimeType", FOLDER_MIME)
+            putJsonArray("parents") { add(parent) }
+        }.toString().toByteArray()
+        val created = json(transport.send("POST", url(api + "files", mapOf("fields" to "id")), token, "application/json; charset=UTF-8", body))
+        return created.getValue("id").jsonPrimitive.content
+    }
+
+    // Every file a query finds, page after page (each element is one file with the requested [fields]).
+    private fun pages(token: String, query: String, fields: String): List<JsonObject> {
+        val files = mutableListOf<JsonObject>()
+        var page: String? = null
+        do {
+            val parameters = mutableMapOf("q" to query, "fields" to fields, "pageSize" to "100", "spaces" to "drive")
+            page?.let { parameters["pageToken"] = it }
+            val json = json(transport.send("GET", url(api + "files", parameters), token, null, null))
+            json["files"]?.jsonArray.orEmpty().forEach { files += it.jsonObject }
+            page = json["nextPageToken"]?.jsonPrimitive?.content
+        } while (page != null)
+
+        return files
+    }
+
+    // A name inside a Drive query string: a backslash and a single quote are escaped.
+    private fun escapeQuery(text: String): String = text.replace("\\", "\\\\").replace("'", "\\'")
 
     /** Deletes the file with Drive id [id] (one the app made); a file that is already gone is fine. */
     fun delete(token: String, id: String) {
@@ -136,6 +220,9 @@ class DriveFiles(private val transport: DriveTransport, private val api: String 
         /** The same folder name as the PC's (App's GoogleDriveFiles.FolderName). */
         const val FOLDER_NAME = "AccountabiliBuddy sync"
         private const val FOLDER_MIME = "application/vnd.google-apps.folder"
+
+        /** The folder inside the app's folder that holds the removed devices' backups, one folder per device (ADR 55), as on the PC. */
+        const val BACKUPS_FOLDER_NAME = "Backups"
         private const val MIME = "application/octet-stream"
         private const val API = "https://www.googleapis.com/drive/v3/"
         private const val UPLOAD = "https://www.googleapis.com/upload/drive/v3/"

@@ -65,6 +65,13 @@ fun MainScreen(
     val syncAllReceived by viewModel.syncAllReceived.collectAsStateWithLifecycle()
     val syncKey by viewModel.syncKey.collectAsStateWithLifecycle()
     val syncSettings by viewModel.syncSettings.collectAsStateWithLifecycle()
+    // ADR 54, 55: a phone that was removed from its group, the removed devices kept, and the remove and restore dialogs.
+    val unlinked by viewModel.unlinked.collectAsStateWithLifecycle()
+    val removedDevices by viewModel.removedDevices.collectAsStateWithLifecycle()
+    // The focus-session lock, looked at again every 15 s, so the Unlinked screen's buttons come back when it lifts.
+    val removalLocked by viewModel.removalLocked.collectAsStateWithLifecycle()
+    val removeState by viewModel.removeDevice.state.collectAsStateWithLifecycle()
+    val restoreState by viewModel.restoreBackup.state.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
     var nudgeRepeat by remember { mutableIntStateOf(com.accountabilibuddy.companion.notify.WorkStartNudge.repeatMinutes(context)) }
     var showSetup by remember { mutableStateOf(!SetupState.shown(context)) }
@@ -98,11 +105,12 @@ fun MainScreen(
     }
 
     Scaffold(
-        topBar = { AppHeader() },
+        topBar = { if (unlinked == null) AppHeader() },
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            // Hidden while the day plan editor is open: its own Save and Cancel lead out.
-            if (planDraft == null) Column {
+            // Hidden while the day plan editor is open (its own Save and Cancel lead out) and while the phone is unlinked (ADR 54):
+            // that screen is the whole app until the user chooses.
+            if (planDraft == null && unlinked == null) Column {
             NoiseBar(noiseState, noiseSettings, noise) { viewModel.message.value = it }
             NavigationBar {
                 listOf(
@@ -122,6 +130,21 @@ fun MainScreen(
         },
     ) { padding ->
         Column(Modifier.padding(padding)) {
+            // ADR 54: removed from the group, or cut off by a removal. Nothing syncs and no other screen shows until the user chooses.
+            unlinked?.let { state ->
+                UnlinkedScreen(
+                    state = state,
+                    lockedReason = removalLocked,
+                    onJoin = viewModel::joinWithCode,
+                    onContinueUnsynced = {
+                        // Lands on Today, with the one-time note shown as a message.
+                        if (viewModel.continueUnsynced()) tab = 0
+                    },
+                    onStartFromScratch = viewModel::startFromScratch,
+                )
+                return@Column
+            }
+
             if (showSetup) {
                 SetupScreen(health, onConnectHealth, onAllowUsage, onConnectCurbox, viewModel::setReenableTime) {
                     SetupState.markShown(context)
@@ -250,8 +273,12 @@ fun MainScreen(
                         relay = relayStatus,
                         alarmApps = viewModel.alarmApps(),
                         learnedAlarmApp = viewModel.learnedAlarmApp(),
+                        removed = removedDevices,
+                        removalLocked = removalLocked,
                     ),
                     actions = DevicesActions(
+                        onRemoveDevice = viewModel::openRemoveDevice,
+                        onRestore = viewModel.restoreBackup::open,
                         onShare = { viewModel.shareSyncFiles(context) },
                         ownQrLinks = viewModel::ownQrLinks,
                         linkCode = viewModel::syncLinkCode,
@@ -342,6 +369,9 @@ fun MainScreen(
     joinOffer?.let { prompt ->
         JoinPromptDialog(prompt, onContinue = viewModel::continueJoin, onCancel = viewModel::cancelJoin)
     }
+
+    removeState?.let { RemoveDeviceDialog(it, viewModel.removeDevice) }
+    restoreState?.let { RestoreBackupDialog(it, viewModel.restoreBackup) }
 
     planConflict?.let { conflict ->
         DayPlanConflictDialog(conflict, viewModel.conflictPcName(), viewModel.clock, onKeepPc = viewModel::keepPcPlan, onUseMine = viewModel::useMyPlan)

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Smartphone
@@ -75,6 +76,7 @@ object SectionIcons {
         "PC" to Icons.Outlined.Computer,
         "Your devices" to Icons.Outlined.Devices,
         "Link this phone" to Icons.Outlined.Link,
+        "Restore from an older device" to Icons.Outlined.Restore,
         "How this phone shares" to Icons.Outlined.Share,
         "Bring your PC's profiles" to Icons.Outlined.Inventory2,
         "Today" to Icons.Outlined.CalendarToday,

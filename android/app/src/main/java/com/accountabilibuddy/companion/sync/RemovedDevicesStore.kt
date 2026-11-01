@@ -85,6 +85,27 @@ class RemovedDevicesStore(private val file: File) {
         }
     }
 
+    /**
+     * Restoring a backup (ADR 55) brought a device's data in: the device is recorded as removed, kept, so it shows as "[name] (removed)"
+     * and nothing more is expected from it (a file from it that opens with the group's key and was written after [writtenAt] clears
+     * the mark, as for any removed device). Nothing changes when it is recorded already, except that an erase choice turns to keep:
+     * what the user restores must not be erased again by it.
+     */
+    @Synchronized
+    fun recordRestored(deviceId: UUID, name: String, writtenAt: Instant) {
+        val known = _devices.value.firstOrNull { it.deviceId == deviceId }
+        if (known == null) {
+            _devices.value = _devices.value + RemovedDevice(deviceId, name, writtenAt, RemovedDevice.KEEP_DATA)
+        } else if (known.dataChoice == RemovedDevice.ERASE_DATA) {
+            _devices.value = _devices.value.map { if (it.deviceId == deviceId) it.copy(dataChoice = RemovedDevice.KEEP_DATA) else it }
+        } else {
+            return
+        }
+
+        save()
+        onChanged?.invoke()
+    }
+
     @Synchronized
     fun setDataChoice(deviceId: UUID, choice: String) {
         _devices.value = _devices.value.map { if (it.deviceId == deviceId) it.copy(dataChoice = choice) else it }

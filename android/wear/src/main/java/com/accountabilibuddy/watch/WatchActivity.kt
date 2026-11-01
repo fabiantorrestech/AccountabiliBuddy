@@ -33,12 +33,15 @@ import com.accountabilibuddy.shared.WatchText
 import com.accountabilibuddy.shared.WeekView
 import com.accountabilibuddy.watch.alerts.PhaseAlertScheduler
 import com.accountabilibuddy.watch.link.PhoneLink
+import com.accountabilibuddy.watch.link.PhoneNotice
+import com.accountabilibuddy.watch.link.PhoneNoticeKind
 import com.accountabilibuddy.watch.link.SnapshotStore
 import com.accountabilibuddy.watch.model.SampleData
 import com.accountabilibuddy.watch.timers.TimerStore
 import com.accountabilibuddy.watch.ui.AlertsPage
 import com.accountabilibuddy.watch.ui.LinkPage
 import com.accountabilibuddy.watch.ui.NotLinkedScreen
+import com.accountabilibuddy.watch.ui.PhoneNoticePage
 import com.accountabilibuddy.watch.ui.SessionPage
 import com.accountabilibuddy.watch.ui.TimersPage
 import com.accountabilibuddy.watch.ui.TodayPage
@@ -70,13 +73,16 @@ class WatchActivity : ComponentActivity() {
         }
         openTimers = intent?.getStringExtra(PAGE) == PAGE_TIMERS
         val snapshots = SnapshotStore.snapshot(this)
+        val notices = PhoneNotice.notice(this)
         setContent {
             MaterialTheme {
                 val stored by snapshots.collectAsState()
                 val phoneReachable by PhoneLink.phoneReachable.collectAsState()
+                val notice by notices.collectAsState()
                 WatchApp(
                     stored, phoneReachable, onAskAgain = { askForNews(force = true) }, onForget = { SnapshotStore.clear(this) },
                     openTimers = openTimers, onTimersOpened = { openTimers = false },
+                    notice = notice, onForgetUnlinked = { PhoneNotice.forget(this) }, onKeepUnlinked = { PhoneNotice.keepForNow(this) },
                 )
             }
         }
@@ -141,6 +147,7 @@ private fun rememberSecondClock(): State<Instant> {
 private fun WatchApp(
     stored: WatchSnapshot?, phoneReachable: Boolean?, onAskAgain: () -> Unit, onForget: () -> Unit,
     openTimers: Boolean, onTimersOpened: () -> Unit,
+    notice: PhoneNoticeKind?, onForgetUnlinked: () -> Unit, onKeepUnlinked: () -> Unit,
 ) {
     // Not read here: the pieces below read it inside derivedStateOf, so this function recomposes only when what they
     // work out changes (the page order, a timer ending, the time zone), not every second.
@@ -169,10 +176,12 @@ private fun WatchApp(
             }
         }
         // Not linked yet: the "not linked" screen, and the watch's own timers beside it.
-        val pages by remember(snapshot) {
+        val pages by remember(snapshot, notice) {
             derivedStateOf {
+                // ADR 54: what the phone link needs the user to know comes first; the snapshot stays behind it.
+                val noticePage = listOfNotNull(Page.Notice.takeIf { notice != null })
                 if (snapshot == null) {
-                    listOf(Page.NotLinked, Page.Timers)
+                    noticePage + listOf(Page.NotLinked, Page.Timers)
                 } else {
                     // While a focus or break timer runs, its page comes first; else while lunch runs, the Lunch page (the pager
                     // starts over when the pages change). The Lunch page shows on a workday or while lunch runs, from today's snapshot.
@@ -183,7 +192,7 @@ private fun WatchApp(
                         onLunch -> listOf(Page.Lunch, Page.Today, Page.Session)
                         else -> listOfNotNull(Page.Today, Page.Session, Page.Lunch.takeIf { lunch != null })
                     }
-                    order + listOf(Page.Timers, Page.Noise, Page.Week, Page.Alerts, Page.Link)
+                    noticePage + order + listOf(Page.Timers, Page.Noise, Page.Week, Page.Alerts, Page.Link)
                 }
             }
         }
@@ -201,6 +210,7 @@ private fun WatchApp(
                 AnimatedPage(pageIndex = page, pagerState = pager) {
                     ScreenScaffold {
                         when (pages[page]) {
+                            Page.Notice -> notice?.let { PhoneNoticePage(it, onForgetUnlinked, onKeepUnlinked) }
                             Page.NotLinked -> NotLinkedScreen(phoneReachable, onAskAgain, onSample = { sample = SampleData.snapshot(Instant.now(), zone) })
                             Page.Today -> snapshot?.let { TodayContent(it, now, zone) }
                             Page.Session -> snapshot?.let { SessionContent(it, now, zone) }
@@ -262,4 +272,4 @@ private fun LinkContent(snapshot: WatchSnapshot, now: State<Instant>, isSample: 
     LinkPage(pcName = snapshot.pcName, updated = ages.updated, sources = ages.sources, isSample = isSample, onForget = onForget)
 }
 
-private enum class Page { NotLinked, Today, Session, Lunch, Timers, Noise, Week, Alerts, Link }
+private enum class Page { Notice, NotLinked, Today, Session, Lunch, Timers, Noise, Week, Alerts, Link }

@@ -24,7 +24,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.LinkOff
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -52,6 +57,7 @@ import com.accountabilibuddy.companion.sync.FolderStatus
 import com.accountabilibuddy.companion.sync.PhoneSyncSettings
 import com.accountabilibuddy.companion.sync.RelayAddress
 import com.accountabilibuddy.companion.sync.ReceivedDevice
+import com.accountabilibuddy.companion.sync.RemovedDevice
 import com.accountabilibuddy.shared.sync.FocusDayCombine
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncKeyCode
@@ -59,6 +65,9 @@ import com.accountabilibuddy.shared.sync.SyncState
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import java.util.UUID
 import kotlinx.coroutines.launch
 
 /** What the Devices tab shows (ADR 22): this phone, the other devices and how fresh each is, and today across them. */
@@ -78,10 +87,18 @@ data class DevicesState(
     /** Apps seen setting alarms (id to name), and the one learned as the wake-up alarm. */
     val alarmApps: List<Pair<String, String>> = emptyList(),
     val learnedAlarmApp: String? = null,
+    /** The devices removed from the group (ADR 54): the ones whose data is kept show as "(removed)". */
+    val removed: List<RemovedDevice> = emptyList(),
+    /** Why devices can't be removed right now (a focus session the user started); null when they can. */
+    val removalLocked: String? = null,
 )
 
 /** The Devices tab's actions. */
 data class DevicesActions(
+    /** "Remove this device…" on a device's row (ADR 54). */
+    val onRemoveDevice: (UUID) -> Unit = {},
+    /** "Restore from an older device…" (ADR 55). */
+    val onRestore: () -> Unit = {},
     val onShare: () -> Unit = {},
     val ownQrLinks: () -> List<String> = { emptyList() },
     val linkCode: () -> String? = { null },
@@ -126,7 +143,10 @@ fun DevicesScreen(
                 // This phone first, its linked watch indented under it, then the other devices.
                 OwnDeviceRows.rows(devices.deviceName, devices.joined, watch.settings, watch.detected.map { it.id }.toSet())
                     .forEach { row -> DeviceRowView(row) }
-                DevicesModel.rows(devices, now).forEach { row -> DeviceRowView(row) }
+                DevicesModel.rows(devices, now).forEach { row -> DeviceRowView(row, devices.removalLocked, actions.onRemoveDevice) }
+                devices.removalLocked?.let {
+                    Text("Removing a device: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 if (devices.joined && devices.received.isEmpty()) {
                     Text("No other device yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Hint("Scan the PC's codes, open a sync file, or sign in to Google Drive below.", label = "How to bring them in")
@@ -161,6 +181,20 @@ fun DevicesScreen(
                     }
                 } else {
                     JoinWithCode(actions.onJoin)
+                }
+            }
+        }
+
+        // ADR 55: a removed device's backup brings its history back (the setup assistant gets this step in the phone UI run).
+        if (devices.joined) {
+            item {
+                Section("Restore from an older device", summary = "Bring back a removed device's history") {
+                    Text(
+                        "A backup is a sealed file made when a device was removed, on Google Drive (Backups) or in a file you saved. " +
+                            "Restoring it brings that device's history back under its old name, marked (removed).",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedButton(onClick = actions.onRestore) { Text("Restore from an older device…") }
                 }
             }
         }
@@ -503,8 +537,12 @@ private fun JoinWithCode(onJoin: (String) -> Boolean) {
     }
 }
 
+/**
+ * One device's row. A device that can be removed (ADR 54) has a ⋯ menu with "Remove this device…"; during a focus session the user
+ * started the item is off and says why ([removalLocked]).
+ */
 @Composable
-private fun DeviceRowView(row: DeviceRow) {
+private fun DeviceRowView(row: DeviceRow, removalLocked: String? = null, onRemove: (UUID) -> Unit = {}) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -522,6 +560,32 @@ private fun DeviceRowView(row: DeviceRow) {
                 .padding(horizontal = 8.dp, vertical = 2.dp),
         ) {
             Text(row.pillText, style = MaterialTheme.typography.labelSmall, color = Color.White)
+        }
+        row.removableId?.let { id ->
+            var open by remember { mutableStateOf(false) }
+            Box {
+                IconButton(onClick = { open = true }) {
+                    Icon(Icons.Outlined.MoreHoriz, contentDescription = "More for ${row.name}")
+                }
+                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                    DropdownMenuItem(
+                        text = {
+                            Column {
+                                Text("Remove this device…")
+                                if (removalLocked != null) {
+                                    Text("(Locked: $removalLocked)", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        },
+                        leadingIcon = { Icon(Icons.Outlined.LinkOff, contentDescription = null) },
+                        enabled = removalLocked == null,
+                        onClick = {
+                            open = false
+                            onRemove(id)
+                        },
+                    )
+                }
+            }
         }
     }
 }
@@ -581,25 +645,46 @@ object DevicesModel {
     /** How often another device's file should come when nothing else says (the PC's default interval). */
     val DEFAULT_INTERVAL: Duration = Duration.ofMinutes(15)
 
-    fun rows(devices: DevicesState, now: Instant): List<DeviceRow> = devices.received
+    fun rows(devices: DevicesState, now: Instant): List<DeviceRow> = liveRows(devices, now) + removedRows(devices)
+
+    // The devices still in the group. Each can be removed (a ⋯ menu), except a watch row: those stay as they are.
+    private fun liveRows(devices: DevicesState, now: Instant): List<DeviceRow> = devices.received
         .sortedByDescending { it.file.device.writtenAt }
         .map { device ->
             val card = device.file.device
             val age = Duration.between(card.writtenAt, now).coerceAtLeast(Duration.ZERO)
-            val kind = when (card.kind) {
-                SyncDeviceCard.KIND_PC -> "PC"
-                SyncDeviceCard.KIND_WATCH -> "Watch"
-                else -> "Phone"
-            }
             val state = SyncState.of(age, DEFAULT_INTERVAL)
             DeviceRow(
                 card.name,
-                "$kind · ${ago(age)} · ${methodName(device.method)}",
+                "${kindName(card.kind)} · ${ago(age)} · ${methodName(device.method)}",
                 state.label,
                 OwnDeviceRows.tone(state),
                 DeviceKind.of(card.kind),
+                removableId = card.deviceId.takeIf { devices.joined && card.kind != SyncDeviceCard.KIND_WATCH },
             )
         }
+
+    // A removed device whose data was kept (ADR 54, 55): "<name> (removed)", no menu, nothing more expected from it.
+    private fun removedRows(devices: DevicesState): List<DeviceRow> =
+        devices.removed.mapNotNull { removed ->
+            val card = devices.allReceived.firstOrNull { it.file.device.deviceId == removed.deviceId }?.file?.device ?: return@mapNotNull null
+            DeviceRow(
+                "${removed.name} (removed)",
+                "${kindName(card.kind)} · removed ${REMOVED_ON.format(removed.removedAt.atZone(ZoneId.systemDefault()))} · its data is kept",
+                "Removed",
+                PillTone.UNLINKED,
+                DeviceKind.of(card.kind),
+            )
+        }
+
+    private fun kindName(kind: String): String = when (kind) {
+        SyncDeviceCard.KIND_PC -> "PC"
+        SyncDeviceCard.KIND_WATCH -> "Watch"
+        else -> "Phone"
+    }
+
+    // E.g. "Oct 28"; a date only, so the 12-hour rule has nothing to apply to.
+    private val REMOVED_ON: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d", Locale.US)
 
     /** E.g. "Today: 5h 10m focused across 3 devices"; null when there's nothing to add up. */
     fun todayLine(devices: DevicesState, now: Instant, zone: ZoneId): String? {
