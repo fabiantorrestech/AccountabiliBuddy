@@ -21,6 +21,8 @@ Added with the watch's noise switcher (W 1, 2026-10-26): a `noise` action (`{op:
 
 Changed with C 13 (2026-10-27): a `start` with no length is a Quick Start that counts down from the PC's remembered focus length; a session with no set end is asked for explicitly (`noSetEnd`). The "count-up profile" names on the wire stay for older builds.
 
+Amended (phone redesign Part 2): the phone's Today, Step away, I'm back and End early follow the PC that has a live session (the controlled PC while it runs one, else another linked PC that does); Start always goes to the controlled PC. A named PC whose file is gone is refused. See `doc/hard-rules.md` ("Which PC the phone's Today shows").
+
 ## Consequences
 
 The phone can start and end PC sessions and edit the plan at home, at work and on mobile data, with a lag of seconds to a minute instead of near real time, and the link can be deleted (a separate step, with its own clean-up of ADR 14, 15 and 21's link parts). The sync file grows an offer, results, three running-session fields and the goal; an old PC simply never answers, which the phone detects by version. The end-early wait still runs on the PC's clock, so a phone can't shorten it. Controlling a PC's noise player from the watch costs that PC more Drive calls (a poll every 10 seconds while noise plays), a known network and battery cost.

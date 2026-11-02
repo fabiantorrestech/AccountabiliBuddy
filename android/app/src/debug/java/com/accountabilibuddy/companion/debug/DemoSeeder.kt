@@ -43,6 +43,8 @@ class DemoSeeder(private val app: CompanionApp) {
         // Stepped away across the old end (the phone must still see the session), and a file 40 minutes old while away (it must not).
         DemoSeedReceiver.MODE_AWAY_PAST -> seed(withSession = true, away = true, pastOldEnd = true)
         DemoSeedReceiver.MODE_AWAY_STALE -> seed(withSession = true, away = true, fileAgeMinutes = 40)
+        // Stepped away with the old end still ahead and a file 40 minutes old (the PC went offline): the session must still hold.
+        DemoSeedReceiver.MODE_AWAY_OFFLINE -> seed(withSession = true, away = true, fileAgeMinutes = 40, longSession = true)
         DemoSeedReceiver.MODE_SESSION_BUDGET -> seed(withSession = true, dayKind = "budget")
         DemoSeedReceiver.MODE_TWOPC -> seed(withSession = true, secondPc = true)
         // Idle days of another kind (ADR 47): the headline wording on a Budget day, a Free day and a day off.
@@ -51,7 +53,7 @@ class DemoSeeder(private val app: CompanionApp) {
         else -> "unknown mode \"$mode\" (idle, session or clear)"
     }
 
-    private fun seed(withSession: Boolean, planning: Boolean = false, dayKind: String = "schedule", secondPc: Boolean = false, away: Boolean = false, pastOldEnd: Boolean = false, fileAgeMinutes: Long = 0): String {
+    private fun seed(withSession: Boolean, planning: Boolean = false, dayKind: String = "schedule", secondPc: Boolean = false, away: Boolean = false, pastOldEnd: Boolean = false, fileAgeMinutes: Long = 0, longSession: Boolean = false): String {
         if (app.sync.isJoined && !prefs.getBoolean(KEY_JOINED_BY_DEMO, false)) {
             return "refused: this phone is in a real sync group; the seeder only works in none or its own"
         }
@@ -67,7 +69,7 @@ class DemoSeeder(private val app: CompanionApp) {
         val key = app.sync.key.value ?: return "no sync key"
         // [fileAgeMinutes] > 0 writes everything that long ago (a file the PC has not rewritten since).
         val now = Instant.now().minus(Duration.ofMinutes(fileAgeMinutes))
-        val file = DemoPcFile.build(now, withSession, listOf(SyncDeviceCard.METHOD_QR), planning, dayKind, away, pastOldEnd)
+        val file = DemoPcFile.build(now, withSession, listOf(SyncDeviceCard.METHOD_QR), planning, dayKind, away, pastOldEnd, longSession)
         val error = app.sync.acceptSealed(SyncFileCodec.seal(file, key), SyncDeviceCard.METHOD_QR)
         if (error != null) {
             return "the demo file was refused: $error"

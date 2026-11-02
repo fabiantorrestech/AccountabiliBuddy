@@ -70,7 +70,7 @@ object DemoPcFile {
         }
     }
 
-    fun build(now: Instant, withSession: Boolean, methods: List<String>, planning: Boolean = false, dayKind: String = "schedule", away: Boolean = false, pastOldEnd: Boolean = false): SyncFile {
+    fun build(now: Instant, withSession: Boolean, methods: List<String>, planning: Boolean = false, dayKind: String = "schedule", away: Boolean = false, pastOldEnd: Boolean = false, longSession: Boolean = false): SyncFile {
         val sessions = history(now).toMutableList()
         val running = if (withSession && planning) {
             // The PC's planning stage: 2 minutes in, 4 left, then a 50-minute focus phase; no tasks picked yet.
@@ -84,7 +84,8 @@ object DemoPcFile {
         } else if (withSession) {
             // [pastOldEnd]: stepped away 30 minutes ago, 5 minutes after the phase's (unmoved) end: the PC keeps the old end in its file.
             val start = now.minus(Duration.ofMinutes(if (pastOldEnd) 60 else 25))
-            val end = if (pastOldEnd) now.minus(Duration.ofMinutes(5)) else start.plus(Duration.ofMinutes(50))
+            // [longSession]: a 90-minute session that began 5 minutes before the file was written, so its old end is far ahead.
+            val end = if (pastOldEnd) now.minus(Duration.ofMinutes(5)) else if (longSession) now.plus(Duration.ofMinutes(85)) else start.plus(Duration.ofMinutes(50))
             val awayAt = if (pastOldEnd) now.minus(Duration.ofMinutes(30)) else now.minus(Duration.ofMinutes(3))
             sessions += SyncSession(start, null, "Deep work", false, runningTasks(now))
             SyncRunning("Deep work", start, end, false, awayAt.takeIf { away }, currentTask = "demo-task-2", profileId = DEEP_WORK_ID.toString())

@@ -391,12 +391,17 @@ data class SyncRunning(
     }
 
     /**
-     * True when this session is stepped away and its file ([writtenAt], when the PC wrote it) is older than the limit for a session with
-     * no set end: a paused session has no end to run out, so a PC that stopped writing (off, asleep, gone) must not hold a phone's
-     * guards. While the PC is on and syncing it rewrites its file every sync interval (at most 15 minutes), well inside the limit.
+     * True when this session is stepped away, its old end ([phaseEndsAt], which the file keeps while away) has passed, and its file
+     * ([writtenAt], when the PC wrote it) is older than the limit for a session with no set end: a paused session has no end to run
+     * out, so a PC that stopped writing (off, asleep, gone) must not hold a phone's guards for good. Before the old end the age does
+     * not count, so stepping away never releases the phone earlier than a session that did not step away would be released (a PC
+     * with no sync method on writes no file while away); after it, the phone holds until the file is 30 minutes old, or the 12-hour
+     * limit on any file. The age includes delivery, so a healthy PC's file can briefly look old past the old end; the next file clears it.
      */
     fun isAwayOverdue(writtenAt: java.time.Instant, now: java.time.Instant): Boolean =
-        awaySince != null && java.time.Duration.between(writtenAt, now) > com.accountabilibuddy.shared.SnapshotBuilder.NO_END_LIMIT
+        awaySince != null &&
+            (phaseEndsAt == null || !now.isBefore(phaseEndsAt)) &&
+            java.time.Duration.between(writtenAt, now) > com.accountabilibuddy.shared.SnapshotBuilder.NO_END_LIMIT
 }
 
 /**

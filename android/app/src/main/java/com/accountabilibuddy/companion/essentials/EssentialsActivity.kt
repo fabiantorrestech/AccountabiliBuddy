@@ -490,7 +490,7 @@ private fun timeLeft(app: CompanionApp, kind: EssentialsKind, now: Instant): Str
     }
     val running = app.sync.received.value
         .filter { it.file.device.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC }
-        .mapNotNull { it.file.running }
+        .mapNotNull { com.accountabilibuddy.companion.sync.PcFileControl.liveRunning(it.file, now) }
         .filter { it.phaseEndAt(now)?.isAfter(now) ?: true }
         .maxByOrNull { it.phaseStartedAt }
         ?: return app.testSession.running(now)?.let { (_, end) -> "Test session · ${minutes(Duration.between(now, end))} left" }
