@@ -399,6 +399,8 @@ class CompanionApp : Application() {
                 null
             }
         }
+        // The guard settings rest during a focus session: a "turn off" whose wait runs out then waits for the session to end.
+        pause.sessionRunning = { now -> com.accountabilibuddy.companion.placement.PlacementSession.current(this, now) != null }
         // An erase that could not be finished last run (a PC session was running) is retried now, and every minute while one still runs.
         // Posted, so it runs after onCreate: the session check reads services that are made further down.
         android.os.Handler(mainLooper).post { sync.applyPendingErases() }

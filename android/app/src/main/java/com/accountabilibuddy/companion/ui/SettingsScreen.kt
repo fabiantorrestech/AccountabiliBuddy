@@ -112,7 +112,7 @@ fun SettingsDetail(
                 item {
                     Section("Work hours and day types", summary = "Edited in Plan") {
                         Text("Your work hours, day types, day parts and days off are in Plan.", style = MaterialTheme.typography.bodySmall)
-                        TextButton(onClick = onOpenPlan) { Text("Open Plan") }
+                        TextButton(onClick = onOpenPlan, colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = com.accountabilibuddy.companion.ui.theme.Ab.colors.ink)) { Text("Open Plan") }
                     }
                 }
             }
@@ -215,7 +215,10 @@ internal fun LazyListScope.phoneGuardItems(
     pauseActions: PauseActions,
     clock: ClockFormat,
     usageNeed: Need,
+    guardsLock: com.accountabilibuddy.companion.placement.GuardsLock?,
 ) {
+    // While a focus session runs these are view-only (the guard lock); the banner says until when.
+    guardsLock?.let { lock -> item { GuardsRestBanner(lock) } }
     if (pause != null) {
         item {
             // Ticks the wait down while it's shown.
@@ -278,7 +281,11 @@ private fun NoiseSection(player: com.accountabilibuddy.companion.noise.NoisePlay
 }
 
 @Composable
-private fun CurboxSection(curbox: CurboxStatus, onConnect: () -> Unit, onReenableTime: (Boolean, java.time.LocalTime) -> String?) {
+private fun CurboxSection(curbox: CurboxStatus, onConnect: () -> Unit, onReenableTime: (Boolean, java.time.LocalTime) -> String?) =
+    GuardsScope { CurboxSectionBody(curbox, onConnect, onReenableTime) }
+
+@Composable
+private fun CurboxSectionBody(curbox: CurboxStatus, onConnect: () -> Unit, onReenableTime: (Boolean, java.time.LocalTime) -> String?) {
     val summary = when {
         !curbox.installed -> "Not installed"
         !curbox.granted -> "Not connected"
@@ -286,6 +293,7 @@ private fun CurboxSection(curbox: CurboxStatus, onConnect: () -> Unit, onReenabl
         else -> "Connected"
     }
     Section("Curbox", summary = summary) {
+        GuardsRestNote()
         when {
             !curbox.installed -> Text("Not installed (or too old for its API).", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -448,7 +456,8 @@ internal fun ToggleRow(title: String, detail: String, checked: Boolean, enabled:
                 Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
+        // Inside a guard section while a focus session runs (the guard lock) a switch shows its value and takes no tap.
+        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled && !LocalGuardsLocked.current)
     }
 }
 

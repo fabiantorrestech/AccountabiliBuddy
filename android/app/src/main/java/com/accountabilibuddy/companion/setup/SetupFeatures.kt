@@ -73,7 +73,7 @@ object SetupFeatures {
         SetupFeature(
             APPEARANCE, "0.1.67", "Appearance: three themes, light or dark by the clock or by sunset, and quiet colour",
             relevant = { true },
-            // Set up once seen in the assistant, or a theme was already picked in Settings → App → Appearance.
+            // Set up once seen in the assistant, or a theme was already picked in Settings › Appearance.
             setUp = { done(it, APPEARANCE) || it.getSharedPreferences("ui", Context.MODE_PRIVATE).contains("themeName") },
         ),
     )

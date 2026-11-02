@@ -99,7 +99,7 @@ object PhoneGuards {
 
     private fun workCard(context: Context): PhoneGuard {
         val on = NudgeStore(context).load().takeoverOn
-        return PhoneGuard("Work card", if (on) "Ready: covers the phone during work time with no session" else "Off (Settings)")
+        return PhoneGuard("Work card", if (on) "Ready: covers the phone during work time with no session" else "Off (Settings › Guards)")
     }
 }
 

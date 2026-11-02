@@ -37,6 +37,7 @@ import com.accountabilibuddy.companion.model.PlannedFocus
 import com.accountabilibuddy.companion.model.ProfileDocument
 import com.accountabilibuddy.companion.notify.TimelineNotifier
 import com.accountabilibuddy.companion.ui.kit.AbPageHeader
+import com.accountabilibuddy.companion.ui.theme.Ab
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -72,8 +73,10 @@ fun PlanScreen(
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             AbPageHeader("Plan") {
-                onPlanDay?.let { TextButton(onClick = it) { Text("Plan day(s)") } }
-                onEditPlan?.let { TextButton(onClick = it) { Text("Edit plan") } }
+                // Ink, not the accent: the accent is for progress and the one main button.
+                val ink = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = Ab.colors.ink)
+                onPlanDay?.let { TextButton(onClick = it, colors = ink) { Text("Plan day(s)") } }
+                onEditPlan?.let { TextButton(onClick = it, colors = ink) { Text("Edit plan") } }
             }
         }
         item {

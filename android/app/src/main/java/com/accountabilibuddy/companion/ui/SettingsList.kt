@@ -15,7 +15,7 @@ import com.accountabilibuddy.companion.data.CompanionState
 import com.accountabilibuddy.companion.lunch.LunchStore
 import com.accountabilibuddy.companion.pause.PauseState
 import com.accountabilibuddy.companion.ui.kit.AbCard
-import com.accountabilibuddy.companion.ui.kit.AbInfoBanner
+import com.accountabilibuddy.companion.placement.GuardsLock
 import com.accountabilibuddy.companion.ui.kit.AbListRow
 import com.accountabilibuddy.companion.ui.kit.AbPageHeader
 
@@ -30,8 +30,8 @@ data class SettingsListInputs(
     /** "In your device group · Drive": the Devices & sync row's status. */
     val devicesSummary: String,
     val appVersion: String,
-    /** A focus session the user started is running: Guards shows its lock and a line says so. */
-    val resting: Boolean,
+    /** A focus session is running: the guard settings are view-only. Guards shows its lock and a banner says until when. */
+    val guardsLock: GuardsLock?,
 )
 
 /**
@@ -48,11 +48,11 @@ fun SettingsList(inputs: SettingsListInputs, onOpen: (SettingsCategory) -> Unit,
 
     LazyColumn(state = listState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { AbPageHeader("Settings") }
-        if (inputs.resting) {
-            item { AbInfoBanner("A focus session is on: guards stay strict until it ends.") }
+        inputs.guardsLock?.let { lock ->
+            item { GuardsRestBanner(lock) }
         }
-        item { CategoryCard(SettingsCategory.Main, summaries, inputs.resting, onOpen) }
-        item { CategoryCard(SettingsCategory.Below, summaries, inputs.resting, onOpen) }
+        item { CategoryCard(SettingsCategory.Main, summaries, inputs.guardsLock != null, onOpen) }
+        item { CategoryCard(SettingsCategory.Below, summaries, inputs.guardsLock != null, onOpen) }
         item {
             Hint(
                 "Local only: the app talks only to your linked watch (through Google's encrypted relay only if you allow it in Devices & sync) " +

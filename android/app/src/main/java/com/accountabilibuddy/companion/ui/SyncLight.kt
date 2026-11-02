@@ -73,7 +73,7 @@ class SyncNow(private val context: android.content.Context) {
 @Composable
 fun rememberSyncNow(): SyncNow {
     val context = LocalContext.current
-    return remember { SyncNow(context) }
+    return remember { SyncNow(context.applicationContext) }
 }
 
 /**
@@ -100,7 +100,9 @@ fun SyncLightHost(
             }
         }
     }
-    val model = SyncLightRules.of(devices, watch, detectedWatchIds, syncNow.refreshing, now)
+    // Worked out again only when something it reads changes or the tick moves on, not on every recomposition of Today.
+    val refreshing = syncNow.refreshing
+    val model = remember(devices, watch, detectedWatchIds, refreshing, now) { SyncLightRules.of(devices, watch, detectedWatchIds, refreshing, now) }
     SyncLight(model, syncNow.refreshing, onSyncNow = syncNow::run, onOpenDevices = onOpenDevices, modifier = modifier)
 }
 

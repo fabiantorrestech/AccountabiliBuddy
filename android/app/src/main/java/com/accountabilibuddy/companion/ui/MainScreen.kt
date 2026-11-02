@@ -75,6 +75,8 @@ fun MainScreen(
     val removedDevices by viewModel.removedDevices.collectAsStateWithLifecycle()
     // The focus-session lock, looked at again every 15 s, so the Unlinked screen's buttons come back when it lifts.
     val removalLocked by viewModel.removalLocked.collectAsStateWithLifecycle()
+    // The guard settings are view-only while a focus session runs; null otherwise. Looked at again every few seconds.
+    val guardsLock by viewModel.guardsLock.collectAsStateWithLifecycle()
     val removeState by viewModel.removeDevice.state.collectAsStateWithLifecycle()
     val restoreState by viewModel.restoreBackup.state.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -153,6 +155,7 @@ fun MainScreen(
         },
     )
 
+    androidx.compose.runtime.CompositionLocalProvider(LocalGuardsLock provides guardsLock) {
     AppScaffold(
         nav = nav,
         layout = navLayout,
@@ -218,16 +221,22 @@ fun MainScreen(
 
             val scale = LocalMotionScale.current
             androidx.compose.animation.AnimatedContent(
-                targetState = nav.destination,
+                // Keyed on the whole route, so the pane that fades out keeps the page it showed (a Settings page does not flash the list).
+                targetState = nav.route,
                 transitionSpec = {
-                    val toRight = targetState.ordinal > initialState.ordinal
-                    (androidx.compose.animation.fadeIn(motionSpec(scale, 220)) +
-                        androidx.compose.animation.slideInHorizontally(motionSpec(scale, 220)) { width -> if (toRight) width / 8 else -width / 8 })
-                        .togetherWith(androidx.compose.animation.fadeOut(motionSpec(scale, 150)))
+                    val sameplace = targetState.destination == initialState.destination
+                    val toRight = targetState.destination.ordinal > initialState.destination.ordinal
+                    if (sameplace) {
+                        androidx.compose.animation.fadeIn(motionSpec(scale, 160)).togetherWith(androidx.compose.animation.fadeOut(motionSpec(scale, 100)))
+                    } else {
+                        (androidx.compose.animation.fadeIn(motionSpec(scale, 220)) +
+                            androidx.compose.animation.slideInHorizontally(motionSpec(scale, 220)) { width -> if (toRight) width / 8 else -width / 8 })
+                            .togetherWith(androidx.compose.animation.fadeOut(motionSpec(scale, 150)))
+                    }
                 },
                 label = "places",
             ) { shown ->
-            when (shown) {
+            when (shown.destination) {
                 AppDestination.Today -> Column {
                     WhatsNewCard(appVersion, onSetUp = { whatsNewOpen = true }, onDismissed = { whatsNewTick++ })
                     DayOffCard()
@@ -276,7 +285,7 @@ fun MainScreen(
                         noiseCard = if (noiseState.hasFolder) {
                             {
                                 androidx.compose.foundation.layout.Box(Modifier.clip(RoundedCornerShape(16.dp))) {
-                                    NoiseBar(noiseState, noiseSettings, noise) { viewModel.message.value = it }
+                                    NoiseBar(noiseState, noiseSettings, noise)
                                 }
                             }
                         } else {
@@ -321,7 +330,7 @@ fun MainScreen(
                         viewModel.refreshCurbox()
                         onStopOrDispose { }
                     }
-                    val category = SettingsCategory.fromKey(nav.detail)
+                    val category = SettingsCategory.fromKey(shown.detail)
                     val backToList = { nav.open(AppDestination.Settings) }
                     val devicesSummary = listOfNotNull(
                         if (syncKey != null) "In your device group" else "Not linked yet",
@@ -333,7 +342,7 @@ fun MainScreen(
                         null -> SettingsList(
                             SettingsListInputs(
                                 state = state, health = health, lunchLengthMinutes = lunchLength, pause = pauseState, takeoverOn = takeoverOn,
-                                curbox = curbox, devicesSummary = devicesSummary, appVersion = appVersion, resting = removalLocked != null,
+                                curbox = curbox, devicesSummary = devicesSummary, appVersion = appVersion, guardsLock = guardsLock,
                             ),
                             onOpen = { nav.open(AppDestination.Settings, it.key) },
                             listState = settingsListState,
@@ -394,7 +403,7 @@ fun MainScreen(
                                 pcState = pcState,
                                 deviceName = viewModel.deviceName,
                                 curbox = curbox,
-                                header = { phoneGuardItems(pauseState, pauseActions, viewModel.clock, usageNeed) },
+                                header = { phoneGuardItems(pauseState, pauseActions, viewModel.clock, usageNeed, guardsLock) },
                             )
                         }
                         SettingsCategory.About -> SettingsPageFrame(category, backToList) {
@@ -429,6 +438,7 @@ fun MainScreen(
             }
             }
         }
+    }
     }
 
     joinOffer?.let { prompt ->

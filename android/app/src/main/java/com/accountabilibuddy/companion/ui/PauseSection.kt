@@ -11,13 +11,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
+import com.accountabilibuddy.companion.ui.GuardButton as Button
+import com.accountabilibuddy.companion.ui.GuardFilterChip as FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
+import com.accountabilibuddy.companion.ui.GuardOutlinedButton as OutlinedButton
+import com.accountabilibuddy.companion.ui.GuardRadioButton as RadioButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.accountabilibuddy.companion.ui.GuardTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -60,17 +60,27 @@ data class PauseActions(
  * stays off for the chosen time) and "Pause in the car". Turning it back on is at once.
  */
 @Composable
-fun PauseSection(state: PauseState, now: Instant, clock: ClockFormat, actions: PauseActions) {
+fun PauseSection(state: PauseState, now: Instant, clock: ClockFormat, actions: PauseActions) =
+    GuardsScope { PauseSectionBody(state, now, clock, actions) }
+
+/**
+ * While a focus session runs the page is view-only (the guard lock): a "turn off" request that is waiting shows as it is and is not
+ * applied until the session is over, and nothing here can be changed.
+ */
+@Composable
+private fun PauseSectionBody(state: PauseState, now: Instant, clock: ClockFormat, actions: PauseActions) {
     val zone = ZoneId.systemDefault()
-    // Shown as it is now, also once the wait ended before the next refresh applied it.
-    val status = PauseRules.status(PauseRules.advance(state, now, zone), now, zone)
+    val resting = LocalGuardsLock.current != null
+    // Shown as it is now, also once the wait ended before the next refresh applied it (not during a session: it waits).
+    val status = PauseRules.status(PauseRules.advance(state, now, zone, sessionRunning = resting), now, zone)
     var choosing by remember { mutableStateOf(false) }
     val summary = when (status) {
         PauseStatus.On -> if (state.carPause && state.inCar) "Paused in the car" else "On"
-        is PauseStatus.Waiting -> "Turns off in ${left(status.left)}"
+        is PauseStatus.Waiting -> if (resting && status.left.isZero) "Turns off when your session ends" else "Turns off in ${left(status.left)}"
         is PauseStatus.Paused -> status.until?.let { "Off until ${clock.time(LocalDateTime.ofInstant(it, zone))}" } ?: "Off until you turn it on"
     }
     Section("AccountabiliBuddy on this phone", summary = summary, startOpen = status != PauseStatus.On) {
+        GuardsRestNote()
         Text(summary, style = MaterialTheme.typography.titleMedium, color = if (status == PauseStatus.On) Color.Unspecified else Color(0xFFF4A261))
         when (status) {
             PauseStatus.On -> OutlinedButton(onClick = { choosing = true }) { Text("Turn off…") }

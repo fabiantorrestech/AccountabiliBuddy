@@ -30,7 +30,7 @@ object PauseReminder {
         val notification = NotificationCompat.Builder(context, Channels.NUDGE)
             .setSmallIcon(R.drawable.ic_stat_timeline)
             .setContentTitle("AccountabiliBuddy is still off on this phone")
-            .setContentText("Turn it back on in Settings when you're ready. Need set times off? Plan off days in the day plan instead.")
+            .setContentText("Turn it back on in Settings › Guards when you're ready. Need set times off? Plan off days in the day plan instead.")
             .setStyle(NotificationCompat.BigTextStyle())
             .setAutoCancel(true)
             .setContentIntent(open)

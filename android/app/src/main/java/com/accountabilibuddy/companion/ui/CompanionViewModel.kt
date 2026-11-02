@@ -386,6 +386,18 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
             .distinctUntilChanged()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), sync.removalLockedReason())
 
+    /**
+     * The guard lock (the guard settings are view-only while a focus session runs): the same session check as [removalLocked], with the
+     * session's end time for the banner. Looked at again when the other devices' files or the test session change and every few
+     * seconds, so a guard page that is open unlocks by itself when the session ends.
+     */
+    val guardsLock: StateFlow<com.accountabilibuddy.companion.placement.GuardsLock?> =
+        combine(sync.received, getApplication<CompanionApp>().testSession.window, flow { while (true) { emit(Unit); delay(GUARDS_RECHECK_MS) } }) { _, _, _ ->
+            com.accountabilibuddy.companion.placement.GuardsLock.at(getApplication(), java.time.Instant.now())
+        }
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.accountabilibuddy.companion.placement.GuardsLock.at(getApplication(), java.time.Instant.now()))
+
     fun openRemoveDevice(deviceId: java.util.UUID) = removeDevice.open(deviceId)
 
     /** "Continue unsynced here" (ADR 54): leaves the group, keeps all data. True when done; else the reason is shown. */
@@ -830,5 +842,6 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
         // How often the focus-session lock is looked at again for the screens that show it.
         const val LOCK_RECHECK_MS = 15_000L
+        const val GUARDS_RECHECK_MS = 5_000L
     }
 }
