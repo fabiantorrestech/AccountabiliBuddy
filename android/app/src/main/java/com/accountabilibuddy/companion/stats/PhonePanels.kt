@@ -50,7 +50,7 @@ object PhonePanels {
     }
 
     private fun usual(days: List<PhoneDay>, today: LocalDate): List<PhoneDay>? {
-        if (days.isEmpty()) return null
+        if (days.isEmpty() || days.all { it.total < Duration.ofMinutes(1) }) return null
         val past = days.filter { it.date.isBefore(today) }
         return past.ifEmpty { days }
     }

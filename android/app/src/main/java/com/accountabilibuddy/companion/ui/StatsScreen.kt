@@ -1,132 +1,127 @@
 package com.accountabilibuddy.companion.ui
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.data.CompanionState
-import com.accountabilibuddy.companion.engine.ClockFormat
-import com.accountabilibuddy.companion.engine.DayBarBuilder
-import com.accountabilibuddy.companion.ui.kit.AbPageHeader
+import com.accountabilibuddy.companion.engine.SmartBedtime
+import com.accountabilibuddy.companion.model.LocalWindow
+import com.accountabilibuddy.companion.stats.PhoneDay
+import com.accountabilibuddy.companion.stats.StatsData
+import com.accountabilibuddy.companion.stats.StatsFormat
+import com.accountabilibuddy.companion.stats.StatsView
+import com.accountabilibuddy.companion.sync.ReceivedDevice
+import com.accountabilibuddy.companion.ui.stats.PhoneDayLoader
+import com.accountabilibuddy.companion.ui.stats.SleepNightModel
+import com.accountabilibuddy.companion.ui.stats.StatsPane
+import com.accountabilibuddy.companion.ui.stats.StatsPaneActions
+import com.accountabilibuddy.companion.ui.stats.StatsPaneModel
+import com.accountabilibuddy.companion.ui.stats.StatsPrefs
 import com.accountabilibuddy.companion.usage.PhoneUsage
+import com.accountabilibuddy.companion.usage.PhoneUsageReader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 /**
- * Stats: for now the two cards that told the day's numbers on Today, last night's sleep and the time on the phone (the real
- * Stats views come in a later part).
+ * Stats (boards 5d, 19e to 19h): the host of the redesigned pane. It works out what the pane draws from: the sessions and drift the
+ * user's devices sent (every received device, removed ones kept, as the PC counts them), this phone's own sleep (Health Connect) and phone
+ * use (Android's usage records, read off the main thread). The numbers are looked at again every minute while the app is in front.
+ * Only the choice of view, range and chip order is stored (preferences "stats", this phone only); nothing is sent anywhere.
+ *
+ * @param routeView The part after `stats/` of an `ab.open` route (`stats/consistency`); null or unknown shows the saved view.
  */
 @Composable
 fun StatsScreen(
     state: CompanionState,
-    clock: ClockFormat,
+    received: List<ReceivedDevice>,
     health: HealthStatus,
     onConnectHealth: () -> Unit,
     onRefreshSleep: () -> Unit,
     phoneUsage: PhoneUsage?,
     onAllowUsage: () -> Unit,
+    routeView: String?,
+    modifier: Modifier = Modifier,
 ) {
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { AbPageHeader("Stats") }
-        item { SleepCard(state, clock, health, onConnectHealth, onRefreshSleep) }
-        item { PhoneCard(phoneUsage, onAllowUsage) }
-    }
-}
+    val context = LocalContext.current
+    val app = context.applicationContext as CompanionApp
+    val prefs = remember { StatsPrefs(context) }
+    LaunchedEffect(routeView) { StatsView.fromKey(routeView)?.let(prefs::select) }
 
-@Composable
-private fun PhoneCard(usage: PhoneUsage?, onAllow: () -> Unit) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            IconTitle("Phone today", style = MaterialTheme.typography.titleMedium)
-            if (usage == null) {
-                Text("Time on the phone, and during focus.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                OutlinedButton(onClick = onAllow) { Text("Allow usage access") }
-                Hint("Needs Usage access. What it reads stays on the phone.", label = "Why the permission")
-                return@Column
-            }
-
-            Row {
-                Text("${DayBarBuilder.duration(usage.total)} on the phone", style = MaterialTheme.typography.bodyLarge)
-                if (!usage.inFocus.isZero) {
-                    Text(
-                        " · ${DayBarBuilder.duration(usage.inFocus)} during focus",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = Color(0xFFF87171),
-                    )
-                }
-            }
-            usage.apps.take(6).forEach { app ->
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Text(app.label, modifier = Modifier.weight(1f), maxLines = 1)
-                    if (!app.inFocus.isZero) {
-                        Text(
-                            "${DayBarBuilder.duration(app.inFocus)} in focus  ",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFF87171),
-                        )
-                    }
-                    Text(DayBarBuilder.duration(app.total), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            if (usage.apps.isEmpty()) {
-                Text("Nothing yet today.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    // Looked at again every minute while the app is in front (and at once when it comes back).
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var now by remember { mutableStateOf(LocalDateTime.now()) }
+    LaunchedEffect(lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                now = LocalDateTime.now()
+                delay(60_000)
             }
         }
     }
-}
 
-@Composable
-private fun SleepCard(state: CompanionState, clock: ClockFormat, health: HealthStatus, onConnect: () -> Unit, onRefresh: () -> Unit) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            IconTitle("Sleep", style = MaterialTheme.typography.titleMedium)
-            val night = state.sleep.toSchedule(state.document.dayPlan).nightAround(LocalDateTime.now())
-            if (state.sleep.enabled) {
-                Text(
-                    "Planned: ${clock.time(night.start)} – ${clock.time(night.end)} (${DayBarBuilder.duration(Duration.between(night.start, night.end))})",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            } else {
-                Text("Sleep mode is off (Settings › Sleep).", style = MaterialTheme.typography.bodyMedium)
-            }
+    val zone = ZoneId.systemDefault()
+    val plan = state.document.dayPlan
+    val minute = now.truncatedTo(ChronoUnit.MINUTES)
+    val data = remember(received, plan, minute) { StatsData.build(received.map { it.file }, Instant.now(), zone) { date -> plan.isWorkday(date) } }
 
-            when (health) {
-                HealthStatus.Checking -> Unit
-                HealthStatus.NotAvailable -> Text(
-                    "No Health Connect: measured sleep can't show.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                HealthStatus.NeedsPermission -> {
-                    OutlinedButton(onClick = onConnect) { Text("Show measured sleep") }
-                    Hint("The sleep your watch measured (Pixel Watch, Fitbit), read from Health Connect. It stays on the phone.", label = "What this reads")
-                }
-                HealthStatus.Connected -> {
-                    val last = state.slept.lastOrNull()
-                    if (last == null) {
-                        Text("No sleep recorded in the last two days.", style = MaterialTheme.typography.bodySmall)
-                    } else {
-                        val total = Duration.between(last.start, last.end)
-                        Text(
-                            "Last sleep: ${DayBarBuilder.duration(total)} (${clock.time(last.start)} – ${clock.time(last.end)})",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                    OutlinedButton(onClick = onRefresh) { Text("Check again") }
-                }
-            }
-        }
+    // This phone's own days, read off the main thread when the focus windows or the minute change (every 5 minutes at most).
+    val reader = remember { PhoneUsageReader(context) }
+    val usageStep = minute.truncatedTo(ChronoUnit.HOURS).plusMinutes((minute.minute / 5 * 5).toLong())
+    val phoneDays by produceState(emptyList<PhoneDay>(), data.windows, phoneUsage != null, usageStep) {
+        value = withContext(Dispatchers.IO) { runCatching { PhoneDayLoader.load(reader, data.today, data.windows, zone, Instant.now()) }.getOrDefault(emptyList()) }
     }
+
+    val nights = remember(state.slept, plan, now.toLocalDate(), minute.hour) {
+        val store = app.smartBedtime.store
+        val known = store.nights().associateBy { it.evening }
+        val measured = SmartBedtime.nights(
+            state.slept, now, { date: LocalDate -> plan.isWorkdayByWeek(date) },
+            phoneDown = { evening, _ -> known[evening]?.phoneDown },
+            asked = { evening -> store.asked(evening) },
+        )
+        (known + measured.associateBy { it.evening }).values.sortedBy { it.evening }
+    }
+
+    val sleepNight = remember(state.sleep, plan, state.slept, health, minute.hour) {
+        val night = state.sleep.toSchedule(plan).nightAround(now)
+        val planned = if (state.sleep.enabled) "Planned: ${StatsFormat.time(night.start)} – ${StatsFormat.time(night.end)} (${StatsFormat.hoursMinutes(Duration.between(night.start, night.end))})" else null
+        val last = state.slept.lastOrNull()?.let { "Last sleep: ${StatsFormat.hoursMinutes(Duration.between(it.start, it.end))} (${StatsFormat.time(it.start)} – ${StatsFormat.time(it.end)})" }
+        SleepNightModel(planned, health, last)
+    }
+
+    val model = remember(data, received.isNotEmpty(), phoneDays, phoneUsage, nights, sleepNight, state.sleep) {
+        val schedule = state.sleep.toSchedule(plan)
+        StatsPaneModel(
+            data = data,
+            hasDevices = received.isNotEmpty(),
+            phoneDays = phoneDays,
+            phoneToday = phoneUsage,
+            nights = nights,
+            sleepGoal = state.sleep.goal,
+            sleepNight = sleepNight,
+            sleepOn = { date: LocalDate -> if (state.sleep.enabled) listOf<LocalWindow>(schedule.night(date.minusDays(1)), schedule.night(date)) else emptyList() },
+        )
+    }
+
+    val actions = remember(prefs, onConnectHealth, onRefreshSleep, onAllowUsage) {
+        StatsPaneActions(prefs::select, prefs::chooseRange, prefs::chooseViews, onConnectHealth, onRefreshSleep, onAllowUsage)
+    }
+    StatsPane(model, prefs.view, prefs.range, prefs.views, actions, modifier)
 }
