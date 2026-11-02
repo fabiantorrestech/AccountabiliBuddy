@@ -35,7 +35,7 @@ class TimerRingActivity : ComponentActivity() {
         setTurnScreenOn(true)
         val store = (applicationContext as CompanionApp).timers
         setContent {
-            CompanionTheme {
+            CompanionTheme(systemBarIconsFollowTheme = false) {
                 val ringing by TimerRinger.ringing.collectAsStateWithLifecycle()
                 LaunchedEffect(ringing.isEmpty()) { if (ringing.isEmpty()) finish() }
                 Column(

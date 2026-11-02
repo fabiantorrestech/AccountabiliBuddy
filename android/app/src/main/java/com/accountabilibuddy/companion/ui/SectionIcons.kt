@@ -14,6 +14,16 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.CalendarViewDay
+import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Insights
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material.icons.outlined.Computer
 import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.EventNote
@@ -52,6 +62,47 @@ import androidx.compose.ui.unit.dp
  * for the headphones switch. Titles that start with a known word ("PC · DESK", "Tasks · …") match it.
  */
 object SectionIcons {
+    /*
+     * The same meaning gets the same icon on the PC and the phone (ADR 32). PC: Material.Icons.Avalonia kinds; phone: the
+     * material-icons-extended Outlined set. Used by the 5-tab bar and the Settings rows of the redesign.
+     *
+     *   Page              PC kind                   Phone (Outlined)
+     *   Today             CalendarToday             CalendarToday
+     *   Tasks             FormatListChecks          Checklist
+     *   Plan              ViewAgendaOutline         CalendarViewDay
+     *   Stats             ChartTimelineVariant      Insights
+     *   Settings          Cog                       Settings
+     *   Your day          WeatherSunny              WbSunny
+     *   Sleep             WeatherNight              Bedtime
+     *   Focus sessions    TimerOutline              Timer
+     *   Guards            ShieldOutline             Shield
+     *   Alerts & on-screen BellOutline              Notifications
+     *   Devices & sync    Devices                   Devices
+     *   Connections       PuzzleOutline             Extension
+     *   Appearance        PaletteOutline            Palette
+     *   App & data        DatabaseOutline           Storage
+     *   Setup             Wrench                    Build
+     *   About             InformationOutline        Info
+     *   Resting (locked)  LockOutline               Lock
+     */
+    val Today: ImageVector = Icons.Outlined.CalendarToday
+    val Tasks: ImageVector = Icons.Outlined.Checklist
+    val Plan: ImageVector = Icons.Outlined.CalendarViewDay
+    val Stats: ImageVector = Icons.Outlined.Insights
+    val Settings: ImageVector = Icons.Outlined.Settings
+    val YourDay: ImageVector = Icons.Outlined.WbSunny
+    val Sleep: ImageVector = Icons.Outlined.Bedtime
+    val FocusSessions: ImageVector = Icons.Outlined.Timer
+    val Guards: ImageVector = Icons.Outlined.Shield
+    val AlertsAndOnScreen: ImageVector = Icons.Outlined.Notifications
+    val DevicesAndSync: ImageVector = Icons.Outlined.Devices
+    val Connections: ImageVector = Icons.Outlined.Extension
+    val Appearance: ImageVector = Icons.Outlined.Palette
+    val AppAndData: ImageVector = Icons.Outlined.Storage
+    val Setup: ImageVector = Icons.Outlined.Build
+    val About: ImageVector = Icons.Outlined.Info
+    val Resting: ImageVector = Icons.Outlined.Lock
+
     private val byTitle: List<Pair<String, ImageVector>> = listOf(
         "AccountabiliBuddy on this phone" to Icons.Outlined.PowerSettingsNew,
         "Permissions" to Icons.Outlined.Security,

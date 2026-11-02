@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A phone in light mode with the System setting starts on Instrument light's ground, so there is no dark flash. -->
+    <style name="Theme.AccountabiliBuddy" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FFF3F4F5</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

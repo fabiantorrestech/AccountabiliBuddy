@@ -1,64 +1,148 @@
 package com.accountabilibuddy.companion.ui
 
-import androidx.compose.foundation.isSystemInDarkTheme
+import android.app.Activity
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import com.accountabilibuddy.companion.ui.theme.AbColors
+import com.accountabilibuddy.companion.ui.theme.AbPalettes
+import com.accountabilibuddy.companion.ui.theme.AbShapes
+import com.accountabilibuddy.companion.ui.theme.AbTypography
+import com.accountabilibuddy.companion.ui.theme.ColourMode
+import com.accountabilibuddy.companion.ui.theme.LocalAbColors
+import com.accountabilibuddy.companion.ui.theme.LocalAbShapes
+import com.accountabilibuddy.companion.ui.theme.LocalAbTypography
+import com.accountabilibuddy.companion.ui.theme.LocalQuietColour
+import com.accountabilibuddy.companion.ui.theme.ThemeName
+import com.accountabilibuddy.companion.ui.theme.rememberDarkNow
 
-/** The PC app's look: dark slate with the focus teal. */
-private val Dark = darkColorScheme(
-    primary = Color(0xFF5EEAD4),
-    onPrimary = Color(0xFF042F2E),
-    primaryContainer = Color(0xFF0F766E),
-    onPrimaryContainer = Color.White,
-    secondary = Color(0xFFA5B4FC),
-    background = Color(0xFF101418),
-    surface = Color(0xFF101418),
-    secondaryContainer = Color(0xFF312E81),
-    surfaceContainerLowest = Color(0xFF0B0F12),
-    surfaceContainerLow = Color(0xFF13181D),
-    surfaceContainer = Color(0xFF161B21),
-    surfaceContainerHigh = Color(0xFF1C222A),
-    surfaceContainerHighest = Color(0xFF222932),
-    onBackground = Color(0xFFE6E8EA),
-    onSurface = Color(0xFFE6E8EA),
-    onSurfaceVariant = Color(0xFFAAB2BB),
-)
-
-private val Light = lightColorScheme(
-    primary = Color(0xFF0F766E),
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFCCFBF1),
-    onPrimaryContainer = Color(0xFF042F2E),
-    secondary = Color(0xFF4F46E5),
-    secondaryContainer = Color(0xFFE0E7FF),
-    background = Color(0xFFF6F8F9),
-    surface = Color(0xFFF6F8F9),
-    surfaceContainerLowest = Color.White,
-    surfaceContainerLow = Color(0xFFF0F3F4),
-    surfaceContainer = Color(0xFFEBEFF1),
-    surfaceContainerHigh = Color(0xFFE5EAEC),
-    surfaceContainerHighest = Color(0xFFDFE5E8),
-    onBackground = Color(0xFF15191E),
-    onSurface = Color(0xFF15191E),
-    onSurfaceVariant = Color(0xFF55606B),
-)
-
-/** The app's colours (the phone's setting, or Light or Dark from Settings → Appearance) and its animation speed. */
+/**
+ * The app's look: the theme (Instrument, Night Desk or Paper), light or dark (as the user set it in Settings → Appearance,
+ * by the clock or by sunset), and the animation speed. The tokens go out as [LocalAbColors], [LocalAbShapes] and
+ * [LocalAbTypography], and are also mapped onto the Material 3 colour scheme, so screens not redone yet and stock Material
+ * widgets follow the theme too (ADR 49).
+ */
 @Composable
-fun CompanionTheme(content: @Composable () -> Unit) {
-    val theme by UiPrefs.theme.collectAsState()
+fun CompanionTheme(systemBarIconsFollowTheme: Boolean = true, content: @Composable () -> Unit) {
+    val themeName by UiPrefs.themeName.collectAsState()
+    val mode by UiPrefs.mode.collectAsState()
+    val colour by UiPrefs.colour.collectAsState()
+    val darkAt by UiPrefs.darkAt.collectAsState()
+    val lightAt by UiPrefs.lightAt.collectAsState()
+    val place by UiPrefs.place.collectAsState()
     val motion by UiPrefs.motion.collectAsState()
-    val dark = when (theme) {
-        ThemeChoice.System -> isSystemInDarkTheme()
-        ThemeChoice.Light -> false
-        ThemeChoice.Dark -> true
+
+    val dark = rememberDarkNow(mode, darkAt, lightAt, place)
+    ThemedContent(themeName, dark, colour == ColourMode.Quiet, motion.scale, systemBarIconsFollowTheme, content)
+}
+
+/**
+ * The theme for an explicit [themeName] and light or dark: what [CompanionTheme] resolves to, and what the Appearance
+ * previews and the debug gallery use to show a theme other than the one in use.
+ */
+@Composable
+fun ThemedContent(
+    themeName: ThemeName,
+    dark: Boolean,
+    quiet: Boolean,
+    motionScale: Float,
+    systemBarIconsFollowTheme: Boolean = true,
+    content: @Composable () -> Unit,
+) {
+    val colors = AbPalettes.of(themeName, dark)
+    val shapes = remember(themeName) { AbShapes.of(themeName) }
+    val type = remember(themeName) { AbTypography.of(themeName) }
+
+    // The status and navigation bar icons follow the app's light or dark, not the phone's. The takeover screens that paint
+    // their own dark ground pass false and always get light icons, whatever the theme is.
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        val darkGround = if (systemBarIconsFollowTheme) dark else true
+        SideEffect {
+            val window = (view.context as? Activity)?.window ?: return@SideEffect
+            val controller = WindowCompat.getInsetsController(window, view)
+            // "Appearance light" means dark icons (for a light ground); a dark ground wants light icons.
+            controller.isAppearanceLightStatusBars = !darkGround
+            controller.isAppearanceLightNavigationBars = !darkGround
+        }
     }
-    androidx.compose.runtime.CompositionLocalProvider(LocalMotionScale provides motion.scale) {
-        MaterialTheme(colorScheme = if (dark) Dark else Light, content = content)
+
+    CompositionLocalProvider(
+        LocalMotionScale provides motionScale,
+        LocalAbColors provides colors,
+        LocalAbShapes provides shapes,
+        LocalAbTypography provides type,
+        LocalQuietColour provides quiet,
+    ) {
+        MaterialTheme(
+            colorScheme = remember(colors) { colors.toColorScheme() },
+            typography = type.material(),
+            shapes = shapes.material(),
+            content = content,
+        )
     }
 }
+
+/**
+ * The tokens on the Material 3 scheme. Screens not redone yet draw cards on `surfaceContainerLow` over `surface`, so those
+ * two are the theme's surface and background; links and icons that use `primary` get the accent.
+ */
+private fun AbColors.toColorScheme(): ColorScheme {
+    val base = if (isDark) darkColorScheme() else lightColorScheme()
+    return base.copy(
+        primary = accent,
+        onPrimary = onAccent,
+        primaryContainer = accentSoft,
+        onPrimaryContainer = ink,
+        inversePrimary = accent,
+        secondary = muted,
+        onSecondary = bg,
+        secondaryContainer = surface2,
+        onSecondaryContainer = ink,
+        tertiary = sleep,
+        onTertiary = bg,
+        tertiaryContainer = infoBg,
+        onTertiaryContainer = infoInk,
+        background = bg,
+        onBackground = ink,
+        surface = bg,
+        onSurface = ink,
+        surfaceVariant = surface2,
+        onSurfaceVariant = muted,
+        surfaceTint = Color.Transparent,
+        inverseSurface = ink,
+        inverseOnSurface = bg,
+        error = drift,
+        onError = bg,
+        errorContainer = surface2,
+        onErrorContainer = drift,
+        outline = faint,
+        outlineVariant = line,
+        scrim = Color.Black,
+        surfaceBright = surface2,
+        surfaceDim = bg,
+        surfaceContainerLowest = bg,
+        surfaceContainerLow = surface,
+        surfaceContainer = surface,
+        surfaceContainerHigh = surface2,
+        surfaceContainerHighest = surface2,
+    )
+}
+
+private fun AbShapes.material(): Shapes = Shapes(
+    small = RoundedCornerShape(small),
+    medium = RoundedCornerShape(medium),
+    large = RoundedCornerShape(large),
+)

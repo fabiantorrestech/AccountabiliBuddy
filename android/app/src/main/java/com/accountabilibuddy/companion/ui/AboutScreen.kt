@@ -102,5 +102,13 @@ fun AboutScreen(pcName: String?, onOpenWhatsNew: () -> Unit = {}) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
+        Spacer(Modifier.height(16.dp))
+        // Credits for what the look is made from (ADR 49); the font licence texts are in the app's assets/licenses.
+        Text(
+            "Fonts: IBM Plex Mono, Manrope and Newsreader, under the SIL Open Font License 1.1. City list © GeoNames (geonames.org), CC BY 4.0.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
     }
 }

@@ -45,6 +45,8 @@ import com.accountabilibuddy.companion.engine.DayBarBuilder
 import com.accountabilibuddy.companion.engine.SleepSchedule
 import com.accountabilibuddy.companion.model.SleepSettings
 import com.accountabilibuddy.companion.model.SleepTimes
+import com.accountabilibuddy.companion.ui.kit.AbCard
+import com.accountabilibuddy.companion.ui.kit.AbListRow
 import com.accountabilibuddy.shared.WatchLinkSettings
 import com.accountabilibuddy.shared.WatchNode
 import java.time.Duration
@@ -93,9 +95,19 @@ fun SettingsScreen(
     val usageNeed = Need("Usage access", usageAccess, onAllowUsage)
     val lunchLength by (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.lengthMinutes.collectAsState()
 
+    // Appearance is its own page (until the 5-tab shell moves it); Back returns to the App page.
+    var appearanceOpen by rememberSaveable { mutableStateOf(false) }
+    // Kept here so the list's scroll position survives a visit to the Appearance page.
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    androidx.activity.compose.BackHandler(enabled = appearanceOpen) { appearanceOpen = false }
+    if (appearanceOpen) {
+        AppearanceScreen(onBack = { appearanceOpen = false })
+        return
+    }
+
     Column {
     category?.let { open -> Box(Modifier.padding(start = 8.dp, top = 8.dp)) { CategoryHeader(open) { category = null } } }
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    LazyColumn(state = listState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         when (val open = category) {
             null -> {
                 val sleep = state.sleep
@@ -200,7 +212,6 @@ fun SettingsScreen(
                                 OutlinedButton(onClick = onAddWidget) { Text("Add timeline widget to home screen") }
                             }
                         }
-                        item { TimelineLookSection() }
                     }
                     SettingsCategory.Sound -> {
                         noise?.let { player -> item { NoiseSection(player, noiseSettings) } }
@@ -223,7 +234,16 @@ fun SettingsScreen(
                         }
                     }
                     SettingsCategory.App -> {
-                        item { AppearanceSection() }
+                        item {
+                            val theme by UiPrefs.themeName.collectAsState()
+                            val mode by UiPrefs.mode.collectAsState()
+                            AbCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 4.dp)) {
+                                AbListRow(
+                                    title = "Appearance", icon = SectionIcons.of("Appearance"), subtitle = "${theme.label} · ${mode.label.lowercase()}",
+                                    onClick = { appearanceOpen = true },
+                                )
+                            }
+                        }
                         item { StartupSection() }
                         item { BackupSection() }
                         item {
@@ -438,28 +458,6 @@ internal fun Section(title: String, summary: String? = null, startOpen: Boolean 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
         }
     }
-    }
-}
-
-/** Settings → Appearance: the theme and how fast animations run. */
-@Composable
-private fun AppearanceSection() {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val theme by UiPrefs.theme.collectAsState()
-    val motion by UiPrefs.motion.collectAsState()
-    Section("Appearance", summary = "${theme.label} · animations ${motion.label.lowercase()}") {
-        Text("Theme", style = MaterialTheme.typography.bodyMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ThemeChoice.entries.forEach { choice ->
-                androidx.compose.material3.FilterChip(selected = theme == choice, onClick = { UiPrefs.setTheme(context, choice) }, label = { Text(choice.label) })
-            }
-        }
-        Text("Animations", style = MaterialTheme.typography.bodyMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            MotionSpeed.entries.forEach { speed ->
-                androidx.compose.material3.FilterChip(selected = motion == speed, onClick = { UiPrefs.setMotion(context, speed) }, label = { Text(speed.label) })
-            }
-        }
     }
 }
 

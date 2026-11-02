@@ -25,6 +25,7 @@ object SetupFeatures {
     const val PHONE_DOWN = "phone.down"
     const val RELAY = "sync.relay"
     const val DAY_PLAN_MODES = "dayplan.modes"
+    const val APPEARANCE = "appearance.themes"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
@@ -68,6 +69,12 @@ object SetupFeatures {
                 done(it, DAY_PLAN_MODES) || plan.templates.size > 2 || plan.cycle.weeks.size > 1 ||
                     plan.templates.any { named -> named.template.mode != com.accountabilibuddy.companion.model.DayMode.Schedule || named.template.workWindow != null }
             },
+        ),
+        SetupFeature(
+            APPEARANCE, "0.1.67", "Appearance: three themes, light or dark by the clock or by sunset, and quiet colour",
+            relevant = { true },
+            // Set up once seen in the assistant, or a theme was already picked in Settings → App → Appearance.
+            setUp = { done(it, APPEARANCE) || it.getSharedPreferences("ui", Context.MODE_PRIVATE).contains("themeName") },
         ),
     )
 

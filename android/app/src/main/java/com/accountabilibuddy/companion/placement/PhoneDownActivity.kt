@@ -96,7 +96,7 @@ class PhoneDownActivity : ComponentActivity() {
         val app = application as CompanionApp
         ContextCompat.registerReceiver(this, screenOff, IntentFilter(Intent.ACTION_SCREEN_OFF), ContextCompat.RECEIVER_EXPORTED)
         setContent {
-            CompanionTheme {
+            CompanionTheme(systemBarIconsFollowTheme = false) {
                 key(generation) {
                     PhoneDownScreen(
                         app, intent.getBooleanExtra(EXTRA_POCKET, false), shown,
