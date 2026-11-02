@@ -9,14 +9,3 @@ internal fun parseCategoryColor(hex: String?): Color? {
     return Color(0xFF000000 or rgb)
 }
 
-/** 1 = "a.", 26 = "z.", 27 = "aa.", 28 = "ab." */
-internal fun subtaskLetter(place: Int): String {
-    var rest = place
-    val letters = StringBuilder()
-    while (rest > 0) {
-        rest--
-        letters.insert(0, 'a' + rest % 26)
-        rest /= 26
-    }
-    return "$letters."
-}

@@ -34,3 +34,5 @@ The Tasks page can show the design's groups with real data, and a task planned f
 Every device that knows these fields always writes the `later` list, even empty, so a file without `later` marks an older writer: a task from such a file that lacks an estimate, note or planned part takes them from the receiver's copy of the same task before merging, since an older app can't clear them.
 
 The sync files grow by the notes and the Later list, bounded by the 30-day tombstones. Notes add one more kind of private text that must stay sealed in transit and encrypted at rest, and `doc/hard-rules.md` records it with the other synced fields. Removing a field later means a reader that skips it, which is cheap. Removing the Later list would orphan items users have kept there, which is not.
+
+Amended (phone redesign Part 3): Later items gain an optional `doneAt`, so a tick on any device keeps the item and shows as done everywhere (Undo clears it; done items age out after 90 days into a text-free tombstone), and the phone edits the Later list with the same per-item merge. Older apps ignore `doneAt` and show the item as open.

@@ -41,3 +41,5 @@ The phone gets an editor for the next-session list, come-backs and parked though
 The user plans on any device and finds the same list everywhere. A task ticked on the phone or the other PC shows done on all of them after a sync, and a come-back written on one PC can be handled on another.
 
 Lists now merge, so two devices editing the same item offline keep the later edit and lose the earlier one; two different items always both survive. Tombstones grow the files a little, bounded by the 30-day expiry. The speed depends on the sync method: seconds with the relay or Drive, up to the folder tool's interval with Autosync. Task text stays end-to-end sealed and never reaches anything but the user's devices. The old read-only paths (ADR 30's open come-backs in the link state) are replaced, so an older phone sees the shared lists as read-only until it updates.
+
+Amended (phone redesign Part 3): a task add the PC could only park answers with status `parked` (still `ok` with the same message for older phones), so the phone keeps a Later item's details instead of removing it.
