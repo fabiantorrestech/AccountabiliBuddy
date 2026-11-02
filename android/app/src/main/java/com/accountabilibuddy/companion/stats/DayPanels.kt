@@ -33,12 +33,13 @@ object DayPanels {
             else -> "goal ${StatsFormat.duration(goal)}"
         }
 
-        val sessions = data.sessionsOn(date)
+        // The sessions that touch the day, cut to it: one that began the evening before still counts for the hours after midnight.
         val devices = data.sessions.map { it.device }.distinct().size
         val rows = mutableListOf<Pair<LocalDateTime, DayListRow>>()
-        sessions.forEach { session ->
+        data.sessions.forEach { session ->
+            val shown = DayTimeline.clip(LocalWindow(session.start, session.end), day) ?: return@forEach
             val title = if (devices > 1) "${session.title} · ${session.device}" else session.title
-            rows += session.start to DayListRow(StatsFormat.time(session.start), title, StatsFormat.duration(Duration.between(session.start, session.end)), isDrift = false)
+            rows += shown.start to DayListRow(StatsFormat.time(shown.start), title, StatsFormat.duration(Duration.between(shown.start, shown.end)), isDrift = false)
         }
 
         visits.forEach { visit ->

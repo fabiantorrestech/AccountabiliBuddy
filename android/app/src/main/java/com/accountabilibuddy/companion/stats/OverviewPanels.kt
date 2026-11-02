@@ -15,7 +15,7 @@ object OverviewPanels {
     /** @param extraCards Phone and Sleep tiles, built from this phone's own data (they are left out when it has none). */
     fun build(data: StatsData, range: StatsRange, selected: LocalDate, extraCards: List<StatCard>): BarPanel? {
         if (!data.hasHistory) return null
-        return if (range == StatsRange.Day) day(data, selected, extraCards) else days(data, range, extraCards)
+        return if (range == StatsRange.Day) day(data, selected) else days(data, range, extraCards)
     }
 
     private fun days(data: StatsData, range: StatsRange, extraCards: List<StatCard>): BarPanel {
@@ -56,7 +56,7 @@ object OverviewPanels {
     }
 
     // One bar per hour of the selected day; a full bar is a full hour.
-    private fun day(data: StatsData, day: LocalDate, extraCards: List<StatCard>): BarPanel {
+    private fun day(data: StatsData, day: LocalDate): BarPanel {
         val start = day.atStartOfDay()
         val total = data.dayOf(day)?.focused ?: Duration.ZERO
         val bars = (0 until 24).map { hour ->
@@ -77,7 +77,8 @@ object OverviewPanels {
             total >= goal -> "deep work · goal met"
             else -> "deep work · ${StatsFormat.duration(goal.minus(total))} to go"
         }
-        return BarPanel(StatsFormat.hoursMinutes(total), note, bars, null, null, extraCards + driftCard(data, day, day, total > Duration.ZERO), emptyList(), null)
+        // The day's own tiles (deep work, drift) sit under the chart in the day detail; the week's averages would only repeat them.
+        return BarPanel(StatsFormat.hoursMinutes(total), note, bars, null, null, emptyList(), emptyList(), null)
     }
 
     // Drift is a number only with sessions to drift in; a stretch count of zero then is a real zero.

@@ -79,6 +79,8 @@ fun StatsDayDetail(panel: DayPanel, onPrevious: (() -> Unit)?, onNext: (() -> Un
 @Composable
 private fun DayStrip(panel: DayPanel) {
     val colors = Ab.colors
+    // Focus is a meaning (goal met) and goes quiet in Quiet colour, so the accent stays for progress; drift and sleep keep their colours.
+    val focus = Ab.meaning(colors.met)
     val description = panel.spans.joinToString("; ") { it.description }.ifEmpty { "Nothing on the strip" }
     Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = "Day strip, 12 AM to 12 AM. $description" }) {
         Canvas(Modifier.fillMaxWidth().height(STRIP_HEIGHT)) {
@@ -90,7 +92,7 @@ private fun DayStrip(panel: DayPanel) {
                     val width = maxOf(size.width * (span.to - span.from), 2.dp.toPx())
                     val inset = if (kind == DayStripKind.Drift) 3.dp.toPx() else 0f
                     drawRoundRect(
-                        stripColor(kind, colors.sleep, colors.met, colors.drift), Offset(from, inset), Size(width, size.height - inset * 2),
+                        stripColor(kind, colors.sleep, focus, colors.drift), Offset(from, inset), Size(width, size.height - inset * 2),
                         CornerRadius(minOf(radius.x, width / 2, 4.dp.toPx())),
                     )
                 }
@@ -103,7 +105,7 @@ private fun DayStrip(panel: DayPanel) {
     }
 
     Row(Modifier.fillMaxWidth().clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-        LegendDot("Focus", colors.met)
+        LegendDot("Focus", focus)
         LegendDot("Drift", colors.drift)
         LegendDot("Sleep", colors.sleep)
     }
@@ -132,7 +134,7 @@ private fun DayRowLine(row: DayListRow) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(row.time, style = Ab.type.small, color = colors.muted, modifier = Modifier.widthIn(min = 68.dp), maxLines = 1, softWrap = false)
-        Box(Modifier.size(8.dp).background(if (row.isDrift) colors.drift else colors.met, CircleShape))
+        Box(Modifier.size(8.dp).background(if (row.isDrift) colors.drift else Ab.meaning(colors.met), CircleShape))
         Text(row.title, style = Ab.type.bodyMedium, color = colors.ink, modifier = Modifier.weight(1f))
         Text(row.length, style = Ab.type.small, color = colors.muted, textAlign = TextAlign.End, fontWeight = FontWeight.Medium)
     }

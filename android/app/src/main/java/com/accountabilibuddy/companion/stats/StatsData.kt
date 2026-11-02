@@ -53,9 +53,6 @@ class StatsData(
     fun driftBetween(from: LocalDate, to: LocalDate): List<DriftVisit> =
         drift.filter { dateOf(it.start).let { date -> !date.isBefore(from) && !date.isAfter(to) } }
 
-    /** The sessions that began on [date], earliest first. */
-    fun sessionsOn(date: LocalDate): List<StatsSession> = sessions.filter { it.start.toLocalDate() == date }
-
     /** Drift time per date. */
     fun driftPerDay(): Map<LocalDate, Duration> =
         drift.groupBy { dateOf(it.start) }.mapValues { (_, visits) -> visits.fold(Duration.ZERO) { sum, visit -> sum.plus(visit.length) } }
