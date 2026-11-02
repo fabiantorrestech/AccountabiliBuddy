@@ -25,65 +25,84 @@
         </Style>
     </UserControl.Styles>
     <UserControl.Resources>
-        <!-- The session: ring (or the timeline under the text), minutes, task and the second line. Medium and up. -->
-        <DataTemplate x:Key="session" x:DataType="vm:TaskbarOverlayViewModel">
-            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" VerticalAlignment="Center">
-                <Panel Width="36" Height="36" IsVisible="{Binding ShowsRing}">
-                    <controls:ProgressRing Value="{Binding RingValue}" TrackBrush="{DynamicResource Ab.Surface2}" ArcBrush="{Binding RingBrush}"
-                                           Thickness="4" IsVisible="{Binding !ShowsDriftDot}" />
-                    <Ellipse Width="10" Height="10" Fill="{Binding DotBrush}" IsVisible="{Binding ShowsDriftDot}" />
-                </Panel>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1" MinWidth="40">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <Ellipse Width="8" Height="8" Fill="{Binding DotBrush}" IsVisible="{Binding ShowsInlineDot}" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding MinutesText}" FontSize="13" FontWeight="SemiBold" Foreground="{Binding MinutesBrush}" />
-                        <TextBlock Text="{Binding TaskText}" FontSize="13" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis"
-                                   MaxWidth="170" IsVisible="{Binding ShowsTask}" />
-                    </StackPanel>
-                    <TextBlock Text="{Binding Line2}" FontSize="11" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis" MaxWidth="260" />
-                    <controls:OverlayTimeline Done="{Binding TimelineDone}" Left="{Binding TimelineLeft}" Break="{Binding TimelineBreak}" Next="{Binding TimelineNext}"
-                                              DoneBrush="{DynamicResource Ab.Accent}" LeftBrush="{DynamicResource Ab.Upcoming}" BreakBrush="{DynamicResource Ab.Sleep}"
-                                              NextBrush="{DynamicResource Ab.Plan}" TickBrush="{DynamicResource Ab.Ink}" Margin="0,3,0,0" Width="180"
-                                              HorizontalAlignment="Left" IsVisible="{Binding ShowsInlineTimeline}" />
-                </StackPanel>
-            </Grid>
+        <!-- The session parts, each its own row of the settings list: the code puts them in the order the settings give. The ring is 36 px (24 on Small). -->
+        <DataTemplate x:Key="ring" x:DataType="vm:TaskbarOverlayViewModel">
+            <Panel Width="36" Height="36" Margin="0,0,-2,0">
+                <controls:ProgressRing Value="{Binding RingValue}" TrackBrush="{DynamicResource Ab.Surface2}" ArcBrush="{Binding RingBrush}"
+                                       Thickness="4" IsVisible="{Binding !ShowsDriftDot}" />
+                <Ellipse Width="10" Height="10" Fill="{Binding DotBrush}" IsVisible="{Binding ShowsDriftDot}" />
+            </Panel>
         </DataTemplate>
-        <!-- Small: one line. -->
-        <DataTemplate x:Key="sessionSmall" x:DataType="vm:TaskbarOverlayViewModel">
-            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <Panel Width="24" Height="24" IsVisible="{Binding ShowsRing}">
-                    <controls:ProgressRing Value="{Binding RingValue}" TrackBrush="{DynamicResource Ab.Surface2}" ArcBrush="{Binding RingBrush}"
-                                           Thickness="3.5" IsVisible="{Binding !ShowsDriftDot}" />
-                    <Ellipse Width="8" Height="8" Fill="{Binding DotBrush}" IsVisible="{Binding ShowsDriftDot}" />
-                </Panel>
-                <TextBlock Text="{Binding MinutesText}" FontSize="13" FontWeight="SemiBold" Foreground="{Binding MinutesBrush}" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding TaskText}" FontSize="13" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis" MaxWidth="150"
-                           VerticalAlignment="Center" IsVisible="{Binding ShowsTask}" />
-                <controls:OverlayTimeline Done="{Binding TimelineDone}" Left="{Binding TimelineLeft}" Break="{Binding TimelineBreak}" Next="{Binding TimelineNext}"
-                                          DoneBrush="{DynamicResource Ab.Accent}" LeftBrush="{DynamicResource Ab.Upcoming}" BreakBrush="{DynamicResource Ab.Sleep}"
-                                          NextBrush="{DynamicResource Ab.Plan}" TickBrush="{DynamicResource Ab.Ink}" Width="80" VerticalAlignment="Center"
-                                          IsVisible="{Binding ShowsInlineTimeline}" />
-            </StackPanel>
+        <DataTemplate x:Key="ringSmall" x:DataType="vm:TaskbarOverlayViewModel">
+            <Panel Width="24" Height="24" Margin="0,0,-4,0">
+                <controls:ProgressRing Value="{Binding RingValue}" TrackBrush="{DynamicResource Ab.Surface2}" ArcBrush="{Binding RingBrush}"
+                                       Thickness="3.5" IsVisible="{Binding !ShowsDriftDot}" />
+                <Ellipse Width="8" Height="8" Fill="{Binding DotBrush}" IsVisible="{Binding ShowsDriftDot}" />
+            </Panel>
         </DataTemplate>
-        <!-- 8d: the vertical tile beside a side taskbar: ring, "18" over "min", pause. -->
-        <DataTemplate x:Key="vertical" x:DataType="vm:TaskbarOverlayViewModel">
-            <StackPanel Spacing="2" HorizontalAlignment="Center">
-                <Panel Width="30" Height="30" HorizontalAlignment="Center">
-                    <controls:ProgressRing Value="{Binding RingValue}" TrackBrush="{DynamicResource Ab.Surface2}" ArcBrush="{Binding RingBrush}" Thickness="3.5" />
-                </Panel>
-                <TextBlock Text="{Binding MinutesNumber}" FontSize="15" FontWeight="SemiBold" Foreground="{Binding MinutesBrush}" HorizontalAlignment="Center" />
-                <TextBlock Text="{Binding MinutesUnit}" FontSize="10" Foreground="{DynamicResource Ab.Muted}" HorizontalAlignment="Center" />
-                <Button Classes="tilebtn quiet" Command="{Binding PauseCommand}" IsVisible="{Binding ShowsPause}" HorizontalAlignment="Center" AutomationProperties.Name="Pause">
-                    <mi:MaterialIcon Kind="{Binding PauseIcon}" Width="16" Height="16" />
-                </Button>
-            </StackPanel>
-        </DataTemplate>
-        <!-- The whole-line timeline (Large's second row). -->
+        <!-- The timeline: on its own (180 wide), under the text (stacked), after the text on Small (80), or the whole line in Large's second row. -->
         <DataTemplate x:Key="timeline" x:DataType="vm:TaskbarOverlayViewModel">
+            <controls:OverlayTimeline Done="{Binding TimelineDone}" Left="{Binding TimelineLeft}" Break="{Binding TimelineBreak}" Next="{Binding TimelineNext}"
+                                      DoneBrush="{DynamicResource Ab.Accent}" LeftBrush="{DynamicResource Ab.Upcoming}" BreakBrush="{DynamicResource Ab.Sleep}"
+                                      NextBrush="{DynamicResource Ab.Plan}" TickBrush="{DynamicResource Ab.Ink}" Width="180" VerticalAlignment="Center" />
+        </DataTemplate>
+        <DataTemplate x:Key="timelineStacked" x:DataType="vm:TaskbarOverlayViewModel">
+            <controls:OverlayTimeline Done="{Binding TimelineDone}" Left="{Binding TimelineLeft}" Break="{Binding TimelineBreak}" Next="{Binding TimelineNext}"
+                                      DoneBrush="{DynamicResource Ab.Accent}" LeftBrush="{DynamicResource Ab.Upcoming}" BreakBrush="{DynamicResource Ab.Sleep}"
+                                      NextBrush="{DynamicResource Ab.Plan}" TickBrush="{DynamicResource Ab.Ink}" Margin="0,3,0,0" Width="180" HorizontalAlignment="Left" />
+        </DataTemplate>
+        <DataTemplate x:Key="timelineSmall" x:DataType="vm:TaskbarOverlayViewModel">
+            <controls:OverlayTimeline Done="{Binding TimelineDone}" Left="{Binding TimelineLeft}" Break="{Binding TimelineBreak}" Next="{Binding TimelineNext}"
+                                      DoneBrush="{DynamicResource Ab.Accent}" LeftBrush="{DynamicResource Ab.Upcoming}" BreakBrush="{DynamicResource Ab.Sleep}"
+                                      NextBrush="{DynamicResource Ab.Plan}" TickBrush="{DynamicResource Ab.Ink}" Width="80" Margin="2,0,0,0" VerticalAlignment="Center" />
+        </DataTemplate>
+        <DataTemplate x:Key="timelineLarge" x:DataType="vm:TaskbarOverlayViewModel">
             <controls:OverlayTimeline Done="{Binding TimelineDone}" Left="{Binding TimelineLeft}" Break="{Binding TimelineBreak}" Next="{Binding TimelineNext}"
                                       DoneBrush="{DynamicResource Ab.Accent}" LeftBrush="{DynamicResource Ab.Upcoming}" BreakBrush="{DynamicResource Ab.Sleep}"
                                       NextBrush="{DynamicResource Ab.Plan}" TickBrush="{DynamicResource Ab.Ink}" MinWidth="120" HorizontalAlignment="Stretch"
                                       VerticalAlignment="Center" />
+        </DataTemplate>
+        <DataTemplate x:Key="minutes" x:DataType="vm:TaskbarOverlayViewModel">
+            <TextBlock Text="{Binding MinutesText}" FontSize="13" FontWeight="SemiBold" Foreground="{Binding MinutesBrush}" VerticalAlignment="Center" />
+        </DataTemplate>
+        <DataTemplate x:Key="task" x:DataType="vm:TaskbarOverlayViewModel">
+            <TextBlock Text="{Binding TaskText}" FontSize="13" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis" MaxWidth="170"
+                       HorizontalAlignment="Left" VerticalAlignment="Center" />
+        </DataTemplate>
+        <DataTemplate x:Key="line2" x:DataType="vm:TaskbarOverlayViewModel">
+            <TextBlock Text="{Binding Line2}" FontSize="11" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis" MaxWidth="260" />
+        </DataTemplate>
+        <!-- Drift with no ring to turn into a dot: a dot before the first text part. -->
+        <DataTemplate x:Key="cue" x:DataType="vm:TaskbarOverlayViewModel">
+            <Ellipse Width="8" Height="8" Fill="{Binding DotBrush}" IsVisible="{Binding ShowsInlineDot}" VerticalAlignment="Center" Margin="0,0,6,0" />
+        </DataTemplate>
+        <!-- Drift with no ring and no text on the tile: the dot on its own. -->
+        <DataTemplate x:Key="dot" x:DataType="vm:TaskbarOverlayViewModel">
+            <Ellipse Width="10" Height="10" Fill="{Binding DotBrush}" IsVisible="{Binding ShowsDriftDot}" VerticalAlignment="Center" />
+        </DataTemplate>
+        <!-- Everything switched off: a small dot in the state colour, so the tile can still be found (and clicked for the panel). -->
+        <DataTemplate x:Key="marker" x:DataType="vm:TaskbarOverlayViewModel">
+            <Panel Width="12" Height="12">
+                <Ellipse Fill="{Binding RingBrush}" />
+                <Ellipse Fill="{Binding DotBrush}" IsVisible="{Binding ShowsDriftDot}" />
+            </Panel>
+        </DataTemplate>
+        <!-- 8d: the vertical tile beside a side taskbar: ring, "18" over "min", pause. -->
+        <DataTemplate x:Key="vRing" x:DataType="vm:TaskbarOverlayViewModel">
+            <Panel Width="30" Height="30" HorizontalAlignment="Center">
+                <controls:ProgressRing Value="{Binding RingValue}" TrackBrush="{DynamicResource Ab.Surface2}" ArcBrush="{Binding RingBrush}" Thickness="3.5" />
+            </Panel>
+        </DataTemplate>
+        <DataTemplate x:Key="vMinutes" x:DataType="vm:TaskbarOverlayViewModel">
+            <StackPanel HorizontalAlignment="Center">
+                <TextBlock Text="{Binding MinutesNumber}" FontSize="15" FontWeight="SemiBold" Foreground="{Binding MinutesBrush}" HorizontalAlignment="Center" />
+                <TextBlock Text="{Binding MinutesUnit}" FontSize="10" Foreground="{DynamicResource Ab.Muted}" HorizontalAlignment="Center" />
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="vPause" x:DataType="vm:TaskbarOverlayViewModel">
+            <Button Classes="tilebtn quiet" Command="{Binding PauseCommand}" IsVisible="{Binding ShowsPause}" HorizontalAlignment="Center" AutomationProperties.Name="Pause">
+                <mi:MaterialIcon Kind="{Binding PauseIcon}" Width="16" Height="16" />
+            </Button>
         </DataTemplate>
         <DataTemplate x:Key="controls" x:DataType="vm:TaskbarOverlayViewModel">
             <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
@@ -127,8 +146,10 @@
                 <mi:MaterialIcon Kind="Waveform" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
                 <TextBlock Text="{Binding TrackText}" FontSize="11" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis" MaxWidth="110"
                            VerticalAlignment="Center" />
-                <Button Classes="tilebtn quiet" Command="{Binding Noise.PlayPauseCommand}" ToolTip.Tip="Play or pause the noise" AutomationProperties.Name="Play or pause the noise">
-                    <mi:MaterialIcon Kind="PlayPause" Width="16" Height="16" />
+                <!-- What a press does now: Pause while the noise plays, Play while it is paused (NoisePlayerViewModel follows every cause: sidebar, media keys, headphone lock, the watch). -->
+                <Button Classes="tilebtn quiet" Command="{Binding Noise.PlayPauseCommand}" ToolTip.Tip="{Binding Noise.PlayTip, FallbackValue='Play the noise'}"
+                        AutomationProperties.Name="{Binding Noise.PlayTip, FallbackValue='Play the noise'}">
+                    <mi:MaterialIcon Kind="{Binding Noise.PlayIcon, FallbackValue=Play}" Width="16" Height="16" />
                 </Button>
             </StackPanel>
         </DataTemplate>
@@ -142,7 +163,7 @@
     <Panel>
         <Border x:Name="Tile" Background="{DynamicResource Ab.Surface}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="10,0" ClipToBounds="True">
             <StackPanel x:Name="Rows" VerticalAlignment="Center" Spacing="2">
-                <StackPanel x:Name="MainRow" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" />
+                <controls:PriorityRowPanel x:Name="MainRow" Spacing="12" VerticalAlignment="Center" />
                 <StackPanel x:Name="ExtraRow" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" IsVisible="False" />
             </StackPanel>
         </Border>

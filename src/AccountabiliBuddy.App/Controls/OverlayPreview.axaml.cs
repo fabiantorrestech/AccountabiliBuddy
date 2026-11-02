@@ -204,7 +204,7 @@ public partial class OverlayPreview : UserControl
         {
             DataContext = model.Tile,
             Height = height,
-            MaxWidth = target.Kind == OverlayTargetKind.Docked ? Math.Max(120, target.Band.Width / target.Scale) : 420,
+            MaxWidth = OverlayTileGeometry.MaxWidthFor(target),
             HorizontalAlignment = HorizontalAlignment.Left,
             IsHitTestVisible = false,
             Focusable = false,

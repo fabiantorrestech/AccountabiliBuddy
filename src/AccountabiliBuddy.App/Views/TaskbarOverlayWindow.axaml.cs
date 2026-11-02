@@ -104,7 +104,7 @@ public partial class TaskbarOverlayWindow : Window
         }
 
         Height = heightDips;
-        MaxWidth = target.Kind == OverlayTargetKind.Docked ? Math.Max(120, target.Band.Width / target.Scale) : 420;
+        MaxWidth = MaxWidthFor(target);
         if (monitorChanged || !IsVisible)
         {
             // Start on the target monitor so the window gets that monitor's scaling from the beginning.
@@ -112,6 +112,21 @@ public partial class TaskbarOverlayWindow : Window
         }
 
         Reposition();
+    }
+
+    // The room the tile has: its band when docked, the work area less the side margins otherwise (nothing cuts it off at a fixed width).
+    private double MaxWidthFor(OverlayTarget target)
+    {
+        double max = OverlayTileGeometry.MaxWidthFor(target);
+        if (!double.IsInfinity(max))
+        {
+            return max;
+        }
+
+        // No taskbar known: the main monitor's work area.
+        double scale = DesktopScaling;
+        (int side, _) = OverlayPlacementCalculator.FloatingMargins(scale);
+        return Math.Max(120, (PrimaryArea().Width - (2 * side)) / scale);
     }
 
     private void Reposition()
@@ -123,7 +138,9 @@ public partial class TaskbarOverlayWindow : Window
 
         double scale = DesktopScaling;
         int width = (int)Math.Ceiling(Bounds.Width * scale);
-        int height = (int)Math.Ceiling(Height * scale);
+        // The height the window really has: Windows keeps a window above a minimum height (about 56 px at 150%), so a short tile (Small) can come
+        // out taller than asked, and it must be placed by what it is, or its bottom edge ends up off the spot it was meant for.
+        int height = (int)Math.Ceiling(Math.Max(Height, (FrameSize ?? ClientSize).Height) * scale);
         PixelBox fallbackArea = _target.MonitorId is null ? PrimaryArea() : _target.Band;
         (int x, int y) = OverlayTileGeometry.PositionFor(_target, _settings, _rule, width, height, scale, fallbackArea);
         var next = new PixelPoint(x, y);
