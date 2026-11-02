@@ -61,6 +61,7 @@ class DemoSeedReceiver : BroadcastReceiver() {
         const val MODE_TASKS_SESSION = "tasks-session"
         const val MODE_FOLDER_DROP = "folder-drop"
         const val MODE_FOLDER_AGE = "folder-age"
+        const val MODE_FOLDER_UPGRADE = "folder-upgrade"
         const val MODE_DUMP = "dump"
         const val MODE_MERGE_CHECK = "merge-check"
         const val MODE_HANDOFF_CHECK = "handoff-check"

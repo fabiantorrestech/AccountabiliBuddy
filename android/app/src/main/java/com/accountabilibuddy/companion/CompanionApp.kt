@@ -399,11 +399,9 @@ class CompanionApp : Application() {
         sync.offWait = com.accountabilibuddy.companion.sync.SyncOffWait(this).also { it.onStart = ::watchSyncOff }
         // A way that has changed since the last run (an imported settings file) starts its 10 minutes from now.
         sync.offWait?.observe(sync.settings.value, java.time.Instant.now())
-        // A way counts as a way of syncing only once it has brought another device's file; ones already on count if the phone holds a file that came by them.
-        sync.offWait?.migrateDelivery(
-            sync.settings.value,
-            sync.received.value.mapNotNull { com.accountabilibuddy.companion.sync.SyncMethod.fromCardMethod(it.method) }.toSet(),
-        )
+        // A way counts as a way of syncing only once it has brought another device's file: Drive and the relay already on count if the phone holds a
+        // file that came by them; the shared folder earns it from the start-up pass (see SyncOffWait.migrateDelivery).
+        sync.offWait?.migrateDelivery(sync.settings.value, sync.received.value)
         // The ways of syncing that report a problem right now: only those may be pointed somewhere else while they are the last one that counts.
         sync.hasProblem = {
             when (it) {

@@ -89,7 +89,8 @@ internal fun FolderMethodCard(devices: DevicesState, actions: DevicesActions, no
                 }
             }
             MethodStatusLine(devices.folder, now)
-            if (onlyOwnFile(devices.folder)) {
+            // Not once the folder has brought a file: another way may have fetched it first, and the copy this phone then carried in is left out of the count.
+            if (onlyOwnFile(devices.folder) && !actions.hasDelivered(SyncMethod.Folder)) {
                 Text(ONLY_OWN_FILE, style = Ab.type.small, color = Ab.colors.drift)
             }
         }

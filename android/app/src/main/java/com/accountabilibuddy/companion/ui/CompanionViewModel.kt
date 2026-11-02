@@ -328,6 +328,9 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     /** Whether pointing [method] somewhere else is refused now (it is the only way that counts and has no problem), so the page says so. */
     fun repointWaits(method: com.accountabilibuddy.companion.sync.SyncMethod): Boolean = sync.repointWaits(method)
 
+    /** Whether another device's file has come through [method] from where it points now. */
+    fun hasDelivered(method: com.accountabilibuddy.companion.sync.SyncMethod): Boolean = sync.hasDelivered(method)
+
     /** Whether [method] counts as a way of syncing now (it has brought another device's file), so the page can say what changing it does. */
     fun countsAsWay(method: com.accountabilibuddy.companion.sync.SyncMethod): Boolean = sync.counts(method)
 

@@ -58,6 +58,7 @@ class DemoSeeder(private val app: CompanionApp) {
         // Sharing-folder checks (folder-repoint fix): a new Work PC file into the chosen folder, and the folder's "on since" 15 minutes back.
         DemoSeedReceiver.MODE_FOLDER_DROP -> dropInFolder()
         DemoSeedReceiver.MODE_FOLDER_AGE -> ageFolder()
+        DemoSeedReceiver.MODE_FOLDER_UPGRADE -> simulateUpgrade()
         DemoSeedReceiver.MODE_DUMP -> TasksDemo(app).dump()
         DemoSeedReceiver.MODE_MERGE_CHECK -> TasksDemo(app).mergeCheck()
         DemoSeedReceiver.MODE_HANDOFF_CHECK -> TasksDemo(app).handoffCheck()
@@ -126,6 +127,21 @@ class DemoSeeder(private val app: CompanionApp) {
         ) ?: return "could not create the file"
         app.contentResolver.openOutputStream(target, "wt")?.use { it.write(sealed) }
         return "dropped the Work PC's file in the folder as $name"
+    }
+
+    // The state an update from the version before the "delivered" rule leaves: the Work PC's file held as having come by the folder, the folder
+    // on for 15 minutes, and no delivered or carried marks. Restart the app afterwards (the migration runs at start-up).
+    private fun simulateUpgrade(): String {
+        val key = app.sync.key.value ?: return "no sync key"
+        val file = DemoPcFile.build(Instant.now(), false, listOf(SyncDeviceCard.METHOD_FOLDER))
+        val error = app.sync.acceptSealed(SyncFileCodec.seal(file, key), SyncDeviceCard.METHOD_FOLDER)
+        if (error != null) return "refused: $error"
+
+        val prefs = app.getSharedPreferences("syncOff", Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+        prefs.all.keys.filter { it.startsWith("delivered.") || it.startsWith("out.") || it == "deliveryMigrated" }.forEach { editor.remove(it) }
+        editor.putLong("since.folder", Instant.now().minus(Duration.ofMinutes(15)).toEpochMilli()).commit()
+        return "upgrade state: file held by the folder, no marks; restart the app"
     }
 
     // The shared folder has been on, unchanged, for 15 minutes (the wait's "on since"), without waiting for real.

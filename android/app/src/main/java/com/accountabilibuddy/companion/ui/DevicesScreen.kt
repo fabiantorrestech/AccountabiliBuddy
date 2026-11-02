@@ -123,6 +123,8 @@ data class DevicesActions(
     val repointWaits: (SyncMethod) -> Boolean = { false },
     /** Whether a way counts as a way of syncing: it has brought another device's file (a way that has not can be changed at once). */
     val countsAsWay: (SyncMethod) -> Boolean = { false },
+    /** Whether another device's file has come through a way from where it points now. */
+    val hasDelivered: (SyncMethod) -> Boolean = { false },
 )
 
 private enum class DevicesDialog { Scan, Picture, LinkDevice, Leave }

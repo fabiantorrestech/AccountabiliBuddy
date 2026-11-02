@@ -430,6 +430,7 @@ fun MainScreen(
                                     turnOffWaits = viewModel::turnOffWaits,
                                     repointWaits = viewModel::repointWaits,
                                     countsAsWay = viewModel::countsAsWay,
+                                    hasDelivered = viewModel::hasDelivered,
                                 ),
                                 watch = WatchSectionState(watchSettings, detectedWatches),
                                 watchActions = WatchSectionActions(

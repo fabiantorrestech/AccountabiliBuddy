@@ -111,16 +111,32 @@ class SyncOffWait(context: Context) {
         writtenAt.toEpochMilli() <= prefs.getLong(carriedKey(method, deviceId), 0L)
 
     /**
-     * Once, on the first run of this version: a way that is on, and whose method brought a file the phone still holds ([receivedBy]), counts as
-     * having delivered; the others must deliver first. (Before this, a way counted as soon as it had been on for 10 minutes.)
+     * Once, on the first run of this version, for the files the phone holds ([held]; each came by its [ReceivedDevice.method]):
+     * - Drive and the relay count as having delivered when they are on and a held file came by them. The shared folder is never migrated: a
+     *   held file's method has no destination and survives a pointing elsewhere, so it could mark a wrongly picked folder; a real folder earns
+     *   its mark from the pass that runs at start-up.
+     * - Every held file is recorded as carried by each way other than the one it came by: the old version wrote those copies there itself, so
+     *   reading them back must not look like a delivery (an empty folder holding carried copies would otherwise earn the mark).
+     * (Before this, a way counted as soon as it had been on for 10 minutes.)
      */
     @Synchronized
-    fun migrateDelivery(settings: PhoneSyncSettings, receivedBy: Set<SyncMethod>) {
+    fun migrateDelivery(settings: PhoneSyncSettings, held: List<ReceivedDevice>) {
         if (prefs.contains(KEY_DELIVERY)) return
 
         val editor = prefs.edit()
-        for (method in receivedBy) {
-            if (method.isLive(settings)) editor.putString(deliveredKey(method), pointsOf(method, settings))
+        for (device in held) {
+            val cameBy = SyncMethod.fromCardMethod(device.method)
+            for (way in SyncMethod.entries) {
+                if (way == cameBy) continue
+
+                val carriedKey = carriedKey(way, device.file.device.deviceId)
+                val writtenAt = device.file.device.writtenAt.toEpochMilli()
+                if (writtenAt > prefs.getLong(carriedKey, 0L)) editor.putLong(carriedKey, writtenAt)
+            }
+
+            if (cameBy != null && cameBy != SyncMethod.Folder && cameBy.isLive(settings)) {
+                editor.putString(deliveredKey(cameBy), pointsOf(cameBy, settings))
+            }
         }
         editor.putBoolean(KEY_DELIVERY, true).apply()
     }

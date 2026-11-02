@@ -150,6 +150,9 @@ class SyncCoordinator(
         return wait.countedWays(settingsStore.settings.value, now()) == listOf(method)
     }
 
+    /** Whether another device's file has come through [method], pointing where it does now (the folder's "only this phone's file" warning stops once it has). */
+    fun hasDelivered(method: SyncMethod): Boolean = offWait?.delivered(method, settingsStore.settings.value) == true
+
     /** Whether [method] counts as a way of syncing right now: on, unchanged for 10 minutes, and it has brought another device's file. */
     fun counts(method: SyncMethod): Boolean = offWait?.counted(method, settingsStore.settings.value, now()) == true
 
