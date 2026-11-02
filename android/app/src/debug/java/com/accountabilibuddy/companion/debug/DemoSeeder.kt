@@ -37,13 +37,18 @@ class DemoSeeder(private val app: CompanionApp) {
         DemoSeedReceiver.MODE_IDLE -> seed(withSession = false)
         DemoSeedReceiver.MODE_SESSION -> seed(withSession = true)
         DemoSeedReceiver.MODE_PLANNING -> seed(withSession = true, planning = true)
+        // A session on Work PC while a second, idle PC (Desk PC) wrote the newest file: the controlled PC is the idle one.
+        // Stepped away for 3 minutes (the timer holds); and a running session on a Budget day (the pace line).
+        DemoSeedReceiver.MODE_AWAY -> seed(withSession = true, away = true)
+        DemoSeedReceiver.MODE_SESSION_BUDGET -> seed(withSession = true, dayKind = "budget")
+        DemoSeedReceiver.MODE_TWOPC -> seed(withSession = true, secondPc = true)
         // Idle days of another kind (ADR 47): the headline wording on a Budget day, a Free day and a day off.
         DemoSeedReceiver.MODE_BUDGET, DemoSeedReceiver.MODE_FREE, DemoSeedReceiver.MODE_DAYOFF -> seed(withSession = false, dayKind = mode)
         DemoSeedReceiver.MODE_CLEAR -> clear()
         else -> "unknown mode \"$mode\" (idle, session or clear)"
     }
 
-    private fun seed(withSession: Boolean, planning: Boolean = false, dayKind: String = "schedule"): String {
+    private fun seed(withSession: Boolean, planning: Boolean = false, dayKind: String = "schedule", secondPc: Boolean = false, away: Boolean = false): String {
         if (app.sync.isJoined && !prefs.getBoolean(KEY_JOINED_BY_DEMO, false)) {
             return "refused: this phone is in a real sync group; the seeder only works in none or its own"
         }
@@ -58,10 +63,21 @@ class DemoSeeder(private val app: CompanionApp) {
 
         val key = app.sync.key.value ?: return "no sync key"
         val now = Instant.now()
-        val file = DemoPcFile.build(now, withSession, listOf(SyncDeviceCard.METHOD_QR), planning, dayKind)
+        val file = DemoPcFile.build(now, withSession, listOf(SyncDeviceCard.METHOD_QR), planning, dayKind, away)
         val error = app.sync.acceptSealed(SyncFileCodec.seal(file, key), SyncDeviceCard.METHOD_QR)
         if (error != null) {
             return "the demo file was refused: $error"
+        }
+
+        if (secondPc) {
+            // An idle PC with no history of its own, a moment newer than Work PC's file.
+            val other = DemoPcFile.build(now, false, listOf(SyncDeviceCard.METHOD_QR))
+            val desk = other.copy(
+                device = other.device.copy(deviceId = DemoPcFile.SECOND_DEVICE_ID, name = "Desk PC", writtenAt = now.plusSeconds(2)),
+                sessions = emptyList(), drift = emptyList(), running = null,
+            )
+            val problem = app.sync.acceptSealed(SyncFileCodec.seal(desk, key), SyncDeviceCard.METHOD_QR)
+            if (problem != null) return "the second demo file was refused: $problem"
         }
 
         app.store.setSlept(sleepNights())

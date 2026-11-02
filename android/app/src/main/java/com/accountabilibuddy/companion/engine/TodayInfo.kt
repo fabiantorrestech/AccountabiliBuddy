@@ -57,8 +57,8 @@ data class TodayInfo(
                     ?: return info("budget day", "Budget day.")
                 if (pace.budgetLeft.isZero) return info("budget met", "Budget met for today.", pace)
                 val left = DayBarBuilder.duration(pace.budgetLeft)
-                val tail = if (pace.behind) " Only ${DayBarBuilder.duration(pace.availableLeft)} of the day is left." else ""
-                return info("budget day", "Budget day: $left of focus to go.$tail", pace)
+                val tail = if (pace.behind) " Behind." else ""
+                return info("budget day", "Budget day: $left to go.$tail", pace)
             }
 
             val windows = DayWorkWindows.workWindows(plan, date, counted, now, nightFallback)

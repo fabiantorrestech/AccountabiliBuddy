@@ -36,6 +36,9 @@ import kotlin.random.Random
 object DemoPcFile {
     val DEVICE_ID: UUID = UUID.nameUUIDFromBytes("demo-work-pc".toByteArray())
 
+    /** The idle second PC of the `twopc` mode. */
+    val SECOND_DEVICE_ID: UUID = UUID.nameUUIDFromBytes("demo-desk-pc".toByteArray())
+
     private const val DAYS_OF_HISTORY = 60L
 
     // Newer than every version check the phone makes (remote control, noise, task edits), so the cards offer their buttons.
@@ -67,7 +70,7 @@ object DemoPcFile {
         }
     }
 
-    fun build(now: Instant, withSession: Boolean, methods: List<String>, planning: Boolean = false, dayKind: String = "schedule"): SyncFile {
+    fun build(now: Instant, withSession: Boolean, methods: List<String>, planning: Boolean = false, dayKind: String = "schedule", away: Boolean = false): SyncFile {
         val sessions = history(now).toMutableList()
         val running = if (withSession && planning) {
             // The PC's planning stage: 2 minutes in, 4 left, then a 50-minute focus phase; no tasks picked yet.
@@ -81,7 +84,7 @@ object DemoPcFile {
         } else if (withSession) {
             val start = now.minus(Duration.ofMinutes(25))
             sessions += SyncSession(start, null, "Deep work", false, runningTasks(now))
-            SyncRunning("Deep work", start, start.plus(Duration.ofMinutes(50)), false, null, currentTask = "demo-task-2", profileId = DEEP_WORK_ID.toString())
+            SyncRunning("Deep work", start, start.plus(Duration.ofMinutes(50)), false, now.minus(Duration.ofMinutes(3)).takeIf { away }, currentTask = "demo-task-2", profileId = DEEP_WORK_ID.toString())
         } else {
             null
         }
