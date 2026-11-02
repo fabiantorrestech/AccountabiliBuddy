@@ -155,8 +155,8 @@
                                                 CommandParameter="{Binding}" AutomationProperties.Name="Move down"><mi:MaterialIcon Kind="ChevronDown" Width="16" Height="16" /></Button>
                                     </StackPanel>
                                     <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="2" Text="{Binding Sample}" Classes="muted" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                    <ToggleSwitch Grid.Column="3" IsChecked="{Binding IsOn}" OnContent="" OffContent="" AutomationProperties.Name="{Binding Name}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Detail}" Classes="muted" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    <ToggleSwitch Grid.Column="3" IsChecked="{Binding IsOn}" IsEnabled="{Binding IsAvailable}" OnContent="" OffContent="" AutomationProperties.Name="{Binding Name}" />
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

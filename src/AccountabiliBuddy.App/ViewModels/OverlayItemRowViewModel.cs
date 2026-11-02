@@ -28,6 +28,18 @@ public sealed partial class OverlayItemRowViewModel : ObservableObject
 
     public string Sample { get; }
 
+    /// <summary>True for Time and date and Batteries at Small, where the tile stays one line.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsAvailable), nameof(Detail))]
+    public partial bool NeedsMedium { get; set; }
+
+    public bool IsAvailable => !NeedsMedium;
+
+    /// <summary>The sample, or why the switch is disabled.</summary>
+    public string Detail => NeedsMedium ? "Needs Medium or larger" : Sample;
+
+    public bool IsSizeBound => Kind is OverlayItemKind.TimeDate or OverlayItemKind.Batteries;
+
     [ObservableProperty]
     public partial bool IsOn { get; set; }
 

@@ -666,8 +666,7 @@ public sealed class SessionOverlayService : IDisposable
     private void UpdateClockTimer(bool sessionActive)
     {
         OverlaySettings settings = _settings.Current;
-        bool needsClock = !sessionActive && _tile is not null
-                          && (settings.Size == OverlaySize.Wide || settings.EffectivePlacement == OverlayPlacement.CoverTray);
+        bool needsClock = !sessionActive && _tile is not null && ShowsClock(settings);
         if (!needsClock)
         {
             StopClockTimer();
@@ -677,6 +676,17 @@ public sealed class SessionOverlayService : IDisposable
         DateTimeOffset now = _sessions.Now;
         _clockTimer.Interval = TimeSpan.FromSeconds(60 - now.Second) + TimeSpan.FromMilliseconds(100);
         _clockTimer.Start();
+    }
+
+    // The tile draws a clock when it covers the tray, or when Time & date is on at Medium and up (Small stays one line).
+    private static bool ShowsClock(OverlaySettings settings)
+    {
+        if (settings.EffectivePlacement == OverlayPlacement.CoverTray)
+        {
+            return true;
+        }
+
+        return settings.Size != OverlaySize.Small && settings.Items.Any(item => item.Kind == OverlayItemKind.TimeDate && item.Enabled);
     }
 
     private void StopClockTimer()

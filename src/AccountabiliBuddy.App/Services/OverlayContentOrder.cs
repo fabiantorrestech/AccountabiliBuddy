@@ -36,6 +36,18 @@ public static class OverlayContentOrder
         new(OverlayItemKind.Sound, false),
     ];
 
+    /// <summary>
+    /// What an untouched list (never saved) shows: the clock and batteries are on where the tile always drew them (Wide, and over the tray) and
+    /// off at Small, Medium and Large, which kept the tile as it was before those two could be switched on there.
+    /// </summary>
+    public static IReadOnlyList<OverlayItem> DefaultFor(OverlaySize size, OverlayPlacement placement)
+    {
+        return size == OverlaySize.Wide || placement == OverlayPlacement.CoverTray ? FocusFirst : FocusFirstWithoutClock;
+    }
+
+    private static IReadOnlyList<OverlayItem> FocusFirstWithoutClock { get; } =
+        FocusFirst.Select(item => item.Kind is OverlayItemKind.TimeDate or OverlayItemKind.Batteries ? item with { Enabled = false } : item).ToList();
+
     /// <summary>The saved list made whole: every part appears once (parts a saved list lacks are added off at the end).</summary>
     public static IReadOnlyList<OverlayItem> Complete(IReadOnlyList<OverlayItem>? saved)
     {
