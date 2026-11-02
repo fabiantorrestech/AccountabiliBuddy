@@ -59,8 +59,8 @@ fun PlanPane(model: PlanPaneModel, actions: PlanPaneActions, modifier: Modifier 
             }
         }
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            AbTonalButton("Change a day", onClick = actions.onChangeDay, enabled = model.canChange, modifier = Modifier.weight(1f))
-            AbTonalButton("Templates", onClick = actions.onTemplates, enabled = model.canChange, modifier = Modifier.weight(1f))
+            AbTonalButton("Change a day", onClick = actions.onChangeDay, enabled = model.canEdit, modifier = Modifier.weight(1f))
+            AbTonalButton("Templates", onClick = actions.onTemplates, enabled = model.canEdit, modifier = Modifier.weight(1f))
         }
     }
 

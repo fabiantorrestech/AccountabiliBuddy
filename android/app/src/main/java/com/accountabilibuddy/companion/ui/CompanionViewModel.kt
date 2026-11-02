@@ -620,7 +620,23 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     var planEditorTab: Int = 0
         private set
 
+    /**
+     * Why the plan can't be changed right now, or null: the plan rests during a focus session the phone tracks (the PC's rule for
+     * its Plan page, and the same live check the guard settings and the removal lock use), the phone's own test session
+     * included. Every way into a plan change asks this first, so no route gets around it.
+     */
+    fun planLockedReason(): String? =
+        com.accountabilibuddy.companion.placement.GuardsLock.at(getApplication(), Instant.now())?.planSentence()
+
+    /** "Change a day" (ADR 37): opens it unless the plan rests. Null when it opened, otherwise why not. */
+    fun openPlanDay(): String? {
+        planLockedReason()?.let { return it }
+        planDayOpen.value = true
+        return null
+    }
+
     fun openPlanEditor(startTab: Int = 0): String? {
+        planLockedReason()?.let { return it }
         planEditorTab = startTab
         val state = store.state.value
         val pending = state.pendingPlan
@@ -644,6 +660,12 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
      */
     fun savePlanDraft(): Boolean {
         val draft = planDraft.value ?: return false
+        // A session that started while the editor was open: the draft stays, nothing is saved.
+        planLockedReason()?.let {
+            message.value = it
+            return false
+        }
+
         DayPlanValidator.validate(draft.plan)?.let {
             message.value = it
             return false
@@ -712,6 +734,12 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun discardDayPlanEdit() {
+        // Dropping an edit moves the phone back to the PC's plan: also a plan change, so it rests with the plan.
+        planLockedReason()?.let {
+            message.value = it
+            return
+        }
+
         store.clearPendingPlan(null)
         message.value = "Edit discarded; showing the PC's plan."
     }

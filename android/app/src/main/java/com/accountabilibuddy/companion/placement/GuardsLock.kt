@@ -16,6 +16,9 @@ data class GuardsLock(val until: Instant?, val test: Boolean = false) {
     /** "Settings rest until 2:20 PM." (12-hour, whatever the phone's clock setting), or until the session ends when it has no set end. */
     fun sentence(zone: ZoneId = ZoneId.systemDefault()): String = "Settings rest until ${untilText(zone) ?: "your session ends"}."
 
+    /** "Plans rest until 2:20 PM." while the day plan is held (the PC's Plan page is locked the same way during a session). */
+    fun planSentence(zone: ZoneId = ZoneId.systemDefault()): String = "Plans rest until ${untilText(zone) ?: "your session ends"}."
+
     /** The end time as "2:20 PM", or null when the session has no set end. */
     fun untilText(zone: ZoneId = ZoneId.systemDefault()): String? = until?.let { CLOCK.format(it.atZone(zone)) }
 

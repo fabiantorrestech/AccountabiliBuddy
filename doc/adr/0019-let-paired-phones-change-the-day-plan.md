@@ -16,6 +16,7 @@ We will add one request from a paired device to the PC, `dayPlanEdit`, that carr
 
 - **Applied:** the edit was based on the PC's current plan. The PC checks it like its own Day plan tab does and saves it at once (the plan has no looser-change delay). The usual settings push then brings it back to the phone.
 - **Locked:** a focus session the user started is running, so the plan is locked as on the PC. The phone keeps the edit and sends it again once no session runs.
+  - Update 2026-11-02 (phone redesign Part 4): the phone no longer takes a new edit while a session runs (its Plan buttons are off and its editors refuse to save), because a saved edit already drives the phone's own blocks and nudges. An edit saved before the session still goes on when it ends. See `doc/hard-rules.md`.
 - **Conflict:** the PC's plan changed since the phone's copy. The answer carries the PC's current plan, version and edit time. The phone shows both versions with their times, highlights the newer one, lists each side's changes from the shared starting point, and the user picks one. Picking the phone's sends it again on top of the PC's version; picking the PC's drops the phone's edit.
 - **Invalid:** the plan breaks the editor's rules (overlaps, a part under 15 minutes, a missing category); nothing changes.
 

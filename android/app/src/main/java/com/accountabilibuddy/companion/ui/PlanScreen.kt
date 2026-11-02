@@ -1,13 +1,17 @@
 package com.accountabilibuddy.companion.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.data.CompanionState
 import com.accountabilibuddy.companion.engine.ClockFormat
@@ -36,10 +40,8 @@ import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 
 /**
- * Plan (board 5c): the host of the redesigned pane. It reads the plan, the calendar and today's focus, keeps which day is
- * picked (in memory and across rotation), works out what to say about that day and gives it to [PlanPane]. Every change goes
- * out through the lambdas, which open the editors or send the edit to the PC exactly as before ([canChange] is false with no
- * PC to take it, so the page is read-only and says why). Nothing here starts, ends or unlocks anything.
+ * Plan (board 5c): the host of the redesigned pane. It keeps the clock (looked at again every half minute, only while the app is in
+ * front) and today's counted focus, and hands them to [PlanScreenBody]. Nothing here starts, ends or unlocks anything.
  */
 @Composable
 fun PlanScreen(
@@ -49,7 +51,7 @@ fun PlanScreen(
     /** The PC that takes the plan edits (ADR 42); null when none is linked. */
     pcName: String?,
     canChange: Boolean,
-    /** Set while a focus session runs: a plan edit saved now waits for it to end. */
+    /** Set while a focus session runs: the plan rests (a test session too, like the guard settings). */
     guardsLock: GuardsLock?,
     /** A plan edit a PC took and is holding (ADR 28); null for none. */
     planWait: PlanWait?,
@@ -61,31 +63,68 @@ fun PlanScreen(
     /** "This is week N of M" (ADR 47): picks the week of the cycle as a plan edit. */
     onSetWeek: (week: Int) -> Unit,
     onDiscardPlanEdit: () -> Unit,
-    /** For previews and the debug gallery only: a fixed "now" and today's counted focus. The app passes neither. */
-    nowOverride: LocalDateTime? = null,
-    focusedOverride: Duration? = null,
 ) {
     val app = LocalContext.current.applicationContext as CompanionApp
-    // Looked at again every half minute, so the "Now" rule moves and a day that ends is no longer today.
-    val now by produceState(nowOverride ?: LocalDateTime.now(), nowOverride) {
-        if (nowOverride != null) return@produceState
-        while (true) {
-            delay(30_000)
-            value = LocalDateTime.now()
+    // Looked at again every half minute while the app is in front (and at once when it comes back), so the "Now" rule moves and
+    // a day that ends is no longer today.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var now by remember { mutableStateOf(LocalDateTime.now()) }
+    LaunchedEffect(lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                now = LocalDateTime.now()
+                delay(30_000)
+            }
         }
     }
-    val today = now.toLocalDate()
-    var pickedDay by rememberSaveable { mutableLongStateOf(today.toEpochDay()) }
-    val selected = LocalDate.ofEpochDay(pickedDay)
-    val plan = state.document.dayPlan
 
     val minute = now.truncatedTo(ChronoUnit.MINUTES)
     val focus = remember(model, minute) { HeaderSource.focus(app, now) }
-    val timeline = remember(plan, selected, minute, state.events, focus, model.today) {
-        val zone = ZoneId.systemDefault()
+    val zone = ZoneId.systemDefault()
+    PlanScreenBody(
+        state, model, clock, now, DayWorkWindows.focusedToday(focus, now, zone)?.invoke(now.toLocalDate()) ?: Duration.ZERO,
+        pcName, canChange, guardsLock, planWait, onChangeDay, onTemplates, onCategories, onSetWeek, onDiscardPlanEdit,
+    )
+}
+
+/**
+ * The page for a given [now] and today's counted focus [focusedToday] (a Budget day's windows and the "done" times use it; other days have none): works
+ * out which day is picked, what to say about it and gives it to [PlanPane]. Every change goes out through the lambdas, which open
+ * the editors or send the edit to the PC exactly as before. The buttons that change the plan are off with no PC to take the edit
+ * ([canChange]) and while a focus session holds the plan ([guardsLock]); the page says why in both cases. The debug gallery draws it
+ * at a fixed time.
+ */
+@Composable
+internal fun PlanScreenBody(
+    state: CompanionState,
+    model: DayBarModel,
+    clock: ClockFormat,
+    now: LocalDateTime,
+    focusedToday: Duration,
+    pcName: String?,
+    canChange: Boolean,
+    guardsLock: GuardsLock?,
+    planWait: PlanWait?,
+    onChangeDay: () -> Unit,
+    onTemplates: () -> Unit,
+    onCategories: () -> Unit,
+    onSetWeek: (week: Int) -> Unit,
+    onDiscardPlanEdit: () -> Unit,
+) {
+    val today = now.toLocalDate()
+    // Which day is picked survives rotation. "Follow today" (the default, and after picking today) moves on at midnight by itself.
+    var pickedDay by rememberSaveable { mutableLongStateOf(FOLLOW_TODAY) }
+    val selected = if (pickedDay == FOLLOW_TODAY) today else LocalDate.ofEpochDay(pickedDay)
+    fun pick(date: LocalDate) {
+        pickedDay = if (date == today) FOLLOW_TODAY else date.toEpochDay()
+    }
+    val plan = state.document.dayPlan
+
+    val minute = now.truncatedTo(ChronoUnit.MINUTES)
+    val timeline = remember(plan, selected, minute, state.events, focusedToday, model.today) {
         PlanTimelineBuilder.build(
             plan = plan, date = selected, now = now, events = state.events,
-            focused = focusedOverride?.takeIf { selected == today } ?: DayWorkWindows.focusedToday(focus, now, zone)?.invoke(selected) ?: Duration.ZERO,
+            focused = if (selected == today) focusedToday else Duration.ZERO,
             goal = Duration.ofMinutes((model.today?.goalMinutes ?: 0).toLong()),
             nightFallback = state.sleep::fallbackNightBefore, clock = clock,
         )
@@ -112,9 +151,8 @@ fun PlanScreen(
             selected.isBefore(today) -> "This day is over, so it can't be changed."
             else -> null
         },
-        lockNote = guardsLock?.takeIf { canChange }?.let {
-            "A focus session is on until ${it.untilText() ?: "it ends"}. A plan change you save now waits for ${pcName ?: "the PC"} to finish it."
-        },
+        // The plan rests during a focus session, as on the PC and like the guard settings (the phone's own test session too).
+        lockNote = guardsLock?.planSentence(),
         waitNote = holding?.let { "${it.pcName} is holding your change and applies it at about ${CLOCK.format(it.appliesAt.atZone(ZoneId.systemDefault()))}." },
         pending = state.pendingPlan,
         weekLabel = if (weeks > 1) "Week ${plan.cycle.weekNumberFor(selected)} of $weeks" else null,
@@ -122,14 +160,15 @@ fun PlanScreen(
         weekNumber = plan.cycle.weekNumberFor(today),
         isToday = selected == today,
         canChange = canChange,
+        locked = guardsLock != null,
     )
 
     PlanPane(
         model = paneModel,
         actions = PlanPaneActions(
-            onPick = { cell -> pickedDay = cell.date.toEpochDay() },
-            onShiftWeek = { by -> pickedDay = selected.plusWeeks(by.toLong()).toEpochDay() },
-            onToday = { pickedDay = today.toEpochDay() },
+            onPick = { cell -> pick(cell.date) },
+            onShiftWeek = { by -> pick(selected.plusWeeks(by.toLong())) },
+            onToday = { pickedDay = FOLLOW_TODAY },
             onChangeDay = onChangeDay,
             onTemplates = onTemplates,
             onCategories = onCategories,
@@ -138,6 +177,8 @@ fun PlanScreen(
         ),
     )
 }
+
+private const val FOLLOW_TODAY = Long.MIN_VALUE
 
 private val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
 

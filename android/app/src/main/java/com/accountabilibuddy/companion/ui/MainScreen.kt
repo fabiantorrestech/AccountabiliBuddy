@@ -326,7 +326,7 @@ fun MainScreen(
                     canChange = canControlPc,
                     guardsLock = guardsLock,
                     planWait = planWait,
-                    onChangeDay = { viewModel.planDayOpen.value = true },
+                    onChangeDay = { viewModel.openPlanDay()?.let { viewModel.message.value = it } },
                     onTemplates = { viewModel.openPlanEditor()?.let { viewModel.message.value = it } },
                     onCategories = { viewModel.openPlanEditor(startTab = 3)?.let { viewModel.message.value = it } },
                     onSetWeek = { week -> viewModel.setThisWeek(week)?.let { viewModel.message.value = it } },

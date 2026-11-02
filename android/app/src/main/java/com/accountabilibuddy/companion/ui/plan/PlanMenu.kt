@@ -29,14 +29,15 @@ fun PlanMenu(model: PlanPaneModel, actions: PlanPaneActions, onWeekSheet: () -> 
             if (!model.isToday) MenuRow("Back to today", pick(actions.onToday))
             MenuRow("Previous week", pick { actions.onShiftWeek(-1) })
             MenuRow("Next week", pick { actions.onShiftWeek(1) })
-            if (model.canChange && model.weekCount > 1) MenuRow("This week is A/B…", pick(onWeekSheet))
-            if (model.canChange) MenuRow("Categories", pick(actions.onCategories))
-            if (model.pending != null) MenuRow("Discard my edit", pick(actions.onDiscardEdit))
+            // Off (not gone) while a focus session holds the plan; gone with no PC.
+            if (model.canChange && model.weekCount > 1) MenuRow("This week is A/B…", pick(onWeekSheet), enabled = !model.locked)
+            if (model.canChange) MenuRow("Categories", pick(actions.onCategories), enabled = !model.locked)
+            if (model.pending != null) MenuRow("Discard my edit", pick(actions.onDiscardEdit), enabled = !model.locked)
         }
     }
 }
 
 @Composable
-private fun MenuRow(text: String, onClick: () -> Unit) {
-    DropdownMenuItem(text = { Text(text, style = Ab.type.bodyMedium, color = Ab.colors.ink) }, onClick = onClick)
+private fun MenuRow(text: String, onClick: () -> Unit, enabled: Boolean = true) {
+    DropdownMenuItem(text = { Text(text, style = Ab.type.bodyMedium, color = if (enabled) Ab.colors.ink else Ab.colors.faint) }, onClick = onClick, enabled = enabled)
 }

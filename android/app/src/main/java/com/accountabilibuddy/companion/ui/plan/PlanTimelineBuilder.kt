@@ -102,9 +102,9 @@ object PlanTimelineBuilder {
         return PlanDayTimeline(rows, hasWork = parts.any { it.category.behavior.isWork })
     }
 
-    /** "2h", "1h 10m" or "45m". */
+    /** "2h", "1h 10m" or "45m"; rounded to the nearest minute, as the PC does. */
     fun span(span: Duration): String {
-        val minutes = span.toMinutes().toInt()
+        val minutes = ((span.seconds + 30) / 60).toInt()
         val hours = minutes / 60
         val rest = minutes % 60
         return when {

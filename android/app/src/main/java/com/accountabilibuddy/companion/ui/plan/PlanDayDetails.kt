@@ -30,6 +30,8 @@ fun PlanDayDetails(model: PlanPaneModel, actions: PlanPaneActions, modifier: Mod
         model.readOnlyNote?.let { AbInfoBanner(it, icon = Icons.Outlined.Info) }
         model.lockNote?.let { AbInfoBanner(it, icon = Icons.Outlined.Lock) }
         model.waitNote?.let { AbInfoBanner(it, icon = Icons.Outlined.Schedule) }
-        model.pending?.let { PlanEditStatus(it, onFix = actions.onTemplates, onDiscard = actions.onDiscardEdit) }
+        model.pending?.let {
+            PlanEditStatus(it, onFix = actions.onTemplates.takeIf { model.canEdit }, onDiscard = actions.onDiscardEdit, canDiscard = !model.locked)
+        }
     }
 }

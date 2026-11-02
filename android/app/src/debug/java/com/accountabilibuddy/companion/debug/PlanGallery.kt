@@ -23,7 +23,7 @@ import com.accountabilibuddy.companion.model.ProfileDocument
 import com.accountabilibuddy.companion.model.SleepSettings
 import com.accountabilibuddy.companion.placement.GuardsLock
 import com.accountabilibuddy.companion.sync.PlanWait
-import com.accountabilibuddy.companion.ui.PlanScreen
+import com.accountabilibuddy.companion.ui.PlanScreenBody
 import com.accountabilibuddy.companion.ui.kit.ChangeWaitsSheet
 import com.accountabilibuddy.companion.ui.plan.PlanWaitSheet
 import com.accountabilibuddy.companion.ui.theme.Ab
@@ -71,17 +71,17 @@ fun PlanGallery(intent: Intent) {
     var confirm by remember { mutableStateOf(intent.getBooleanExtra("confirm", false)) }
 
     Column(Modifier.fillMaxSize().background(Ab.colors.bg).safeDrawingPadding()) {
-        PlanScreen(
+        PlanScreenBody(
             state = CompanionState(document = document, events = events, sleep = sleep, pendingPlan = pending),
             model = bar.copy(today = info),
             clock = clock,
+            now = now,
+            focusedToday = Duration.ofMinutes(70),
             pcName = if (hasPc) "Work PC" else null,
             canChange = hasPc,
             guardsLock = until?.let { GuardsLock(it) },
             planWait = wait,
             onChangeDay = {}, onTemplates = {}, onCategories = {}, onSetWeek = {}, onDiscardPlanEdit = {},
-            nowOverride = now,
-            focusedOverride = Duration.ofMinutes(70),
         )
     }
 
