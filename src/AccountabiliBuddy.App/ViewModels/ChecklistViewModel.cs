@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Sync;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -29,19 +30,26 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     // The category the "Add a task" box puts new tasks in (null: none); kept until changed or the category is deleted.
     private Guid? _newTaskCategoryId;
 
+    // The 4th item taken "From your lists" waiting on the same prompt (null: the held task is one typed in the box).
+    private (PulledListKind Kind, Guid Id)? _heldPull;
+
     public ChecklistViewModel(SessionTasksService tasks, ChecklistMode mode, TimeProvider time)
     {
         _tasks = tasks;
         _time = time;
         Mode = mode;
         NewTaskTitle = Heading = DoneHeader = ProgressText = CurrentTaskText = CurrentSubtaskText = NewCategoryName = NewTaskCategoryTip = string.Empty;
-        NewTaskCategoryChoices = [];
         NewTaskCategoryBrush = CurrentCategoryBrush = Brushes.Transparent;
+        ListPicker = new ListPickerViewModel(tasks, time, PullAsync);
         _tasks.Changed += OnChanged;
+        _tasks.OtherCategoriesChanged += OnOtherCategoriesChanged;
         Refresh();
     }
 
     public ChecklistMode Mode { get; }
+
+    /// <summary>The "From your lists" picker by the "Add a task" box: Later and Come back to.</summary>
+    public ListPickerViewModel ListPicker { get; }
 
     private UndoBarViewModel? _undo;
 
@@ -89,16 +97,19 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     /// <summary>The dot on each open task that changes its category: where tasks are edited, once a category exists.</summary>
     public bool ShowsCategoryPickers => CanEdit && HasCategories;
 
+    /// <summary>
+    /// The "Add a task" box's category button shows: this PC has a category, or another device of the group lists some (a
+    /// task can take those too).
+    /// </summary>
+    [ObservableProperty]
+    public partial bool HasNewTaskCategoryChoices { get; set; }
+
     /// <summary>The "Categories" panel is open (add, rename, recolour, delete).</summary>
     [ObservableProperty]
     public partial bool IsManagingCategories { get; set; }
 
     [ObservableProperty]
     public partial string NewCategoryName { get; set; }
-
-    /// <summary>The menu by the "Add a task" box: which category new tasks go in.</summary>
-    [ObservableProperty]
-    public partial IReadOnlyList<TaskCategoryChoiceViewModel> NewTaskCategoryChoices { get; set; }
 
     /// <summary>The colour of the category new tasks go in; transparent for no category.</summary>
     [ObservableProperty]
@@ -162,8 +173,18 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool IsOverLimitPrompt { get; set; }
 
+    /// <summary>The held 4th item came "From your lists": it stays in its list unless added anyway, so there is nothing to park.</summary>
+    public bool IsHeldPull => _heldPull is not null;
+
     /// <summary>The prompt's title line: the held task.</summary>
-    public string OverLimitText => $"Keep it to {SessionTasksService.MaxTasks}: park \"{_heldTitle}\" for later?";
+    public string OverLimitText => _heldPull is { Kind: var kind }
+        ? $"Keep it to {SessionTasksService.MaxTasks}: add \"{_heldTitle}\" anyway? It stays in {(kind == PulledListKind.Later ? "Later" : "Come back to")} until you do."
+        : $"Keep it to {SessionTasksService.MaxTasks}: park \"{_heldTitle}\" for later?";
+
+    /// <summary>The reason box's placeholder.</summary>
+    public string OverLimitReasonHint => _heldPull is null
+        ? "Or add it anyway: why? (10+ characters, stays on this PC)"
+        : "Add it anyway: why? (10+ characters, stays on this PC)";
 
     /// <summary>Why the 4th task is added anyway.</summary>
     [ObservableProperty]
@@ -175,6 +196,8 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     partial void OnIsOverLimitPromptChanged(bool value)
     {
         OnPropertyChanged(nameof(OverLimitText));
+        OnPropertyChanged(nameof(OverLimitReasonHint));
+        OnPropertyChanged(nameof(IsHeldPull));
     }
 
     public bool NotifyAllDone
@@ -210,6 +233,7 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _tasks.Changed -= OnChanged;
+        _tasks.OtherCategoriesChanged -= OnOtherCategoriesChanged;
         _undo?.Dispose();
     }
 
@@ -260,6 +284,20 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task AddHeldTaskAnywayAsync()
     {
+        if (_heldPull is { } pull)
+        {
+            // Taken "From your lists": the same add as the Tasks page's "Add to Today" with a reason.
+            (AddToTodayResult result, _) = await TakeFromListAsync(pull.Kind, pull.Id, OverLimitReason);
+            if (result == AddToTodayResult.ReasonTooShort)
+            {
+                OverLimitError = $"Write why, at least {SessionTasksService.MinOverLimitReasonLength} characters.";
+                return;
+            }
+
+            CloseOverLimitPrompt();
+            return;
+        }
+
         if (!await _tasks.AddOverLimitAsync(_heldTitle, _heldCategoryId, OverLimitReason))
         {
             OverLimitError = $"Write why, at least {SessionTasksService.MinOverLimitReasonLength} characters.";
@@ -267,6 +305,35 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
         }
 
         CloseOverLimitPrompt();
+    }
+
+    /// <summary>
+    /// An item chosen in "From your lists" joins today's list through the Tasks page's "Add to Today" path (same stamps, it leaves its
+    /// list only once it was really added, and it keeps its steps, note, estimate and category). At three tasks the prompt asks for
+    /// a reason first; there is nothing to park, the item is in a list already.
+    /// </summary>
+    private async Task PullAsync(PulledListKind kind, Guid id, string title)
+    {
+        if (IsOverLimitPrompt)
+        {
+            return;
+        }
+
+        (AddToTodayResult result, _) = await TakeFromListAsync(kind, id, null);
+        if (result == AddToTodayResult.AtLimit)
+        {
+            _heldPull = (kind, id);
+            _heldTitle = title;
+            _heldCategoryId = null;
+            OverLimitReason = string.Empty;
+            OverLimitError = null;
+            IsOverLimitPrompt = true;
+        }
+    }
+
+    private Task<(AddToTodayResult Result, Guid? TaskId)> TakeFromListAsync(PulledListKind kind, Guid id, string? reason)
+    {
+        return kind == PulledListKind.Later ? _tasks.MoveFromLaterAsync(id, reason) : _tasks.AddComebackToTodayAsync(id, reason);
     }
 
     /// <summary>Drops the held task without adding or parking it.</summary>
@@ -278,10 +345,11 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
 
     private void CloseOverLimitPrompt()
     {
+        _heldPull = null;
+        _heldTitle = string.Empty;
         IsOverLimitPrompt = false;
         OverLimitReason = string.Empty;
         OverLimitError = null;
-        _heldTitle = string.Empty;
     }
 
     [RelayCommand]
@@ -437,18 +505,69 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
         RefreshNewTaskCategory();
     }
 
+    private void OnOtherCategoriesChanged(object? sender, EventArgs e)
+    {
+        RefreshNewTaskCategory();
+    }
+
     private void RefreshNewTaskCategory()
     {
         IReadOnlyList<TaskCategory> categories = _tasks.Categories;
+        HasNewTaskCategoryChoices = categories.Count > 0 || _tasks.OtherCategories().Count > 0;
         TaskCategory? chosen = categories.FirstOrDefault(category => category.Id == _newTaskCategoryId);
         NewTaskCategoryBrush = TaskCategoryBrushes.Of(chosen?.Color);
         NewTaskCategoryTip = chosen is null ? "New tasks have no category (click to choose one)" : $"New tasks go in {chosen.Name} (click to change)";
-        NewTaskCategoryChoices =
-        [
-            .. categories.Select(category => new TaskCategoryChoiceViewModel(
-                category.Id, category.Name, TaskCategoryBrushes.Of(category.Color), category.Id == _newTaskCategoryId, PickNewTaskCategory)),
-            new TaskCategoryChoiceViewModel(null, "No category", Brushes.Transparent, _newTaskCategoryId is null, PickNewTaskCategory),
-        ];
+    }
+
+    /// <summary>
+    /// The menu by the "Add a task" box, built as it opens: which category new tasks go in. With only this PC's categories it reads as it
+    /// always did (the categories, then "No category"); when other devices of the group list categories too it is "No category", then
+    /// "This PC" and its categories, then each other device's name with its categories under it. Picking another device's category
+    /// takes it into this PC's list first.
+    /// </summary>
+    public IReadOnlyList<TaskMenuEntry> BuildNewTaskCategoryMenu()
+    {
+        IReadOnlyList<TaskCategory> categories = _tasks.Categories;
+        IReadOnlyList<DeviceCategories> others = _tasks.OtherCategories();
+        var none = new TaskMenuEntry("No category", new AsyncRelayCommand(() => PickNewTaskCategory(null)), IsChecked: _newTaskCategoryId is null);
+        IEnumerable<TaskMenuEntry> own = categories.Select(category =>
+        {
+            Guid id = category.Id;
+            return new TaskMenuEntry(
+                category.Name, new AsyncRelayCommand(() => PickNewTaskCategory(id)), IsChecked: id == _newTaskCategoryId,
+                Dot: TaskCategoryBrushes.Of(category.Color), Indented: others.Count > 0);
+        });
+        if (others.Count == 0)
+        {
+            return [.. own, none];
+        }
+
+        var entries = new List<TaskMenuEntry> { none };
+        if (categories.Count > 0)
+        {
+            entries.Add(new TaskMenuEntry("This PC", IsHeading: true));
+            entries.AddRange(own);
+        }
+
+        foreach (DeviceCategories device in others)
+        {
+            entries.Add(new TaskMenuEntry(device.DeviceName, IsHeading: true));
+            foreach (SyncCategory category in device.Categories)
+            {
+                SyncCategory taken = category;
+                entries.Add(new TaskMenuEntry(
+                    taken.Name, new AsyncRelayCommand(() => PickOtherDeviceCategoryAsync(taken)), Dot: TaskCategoryBrushes.Of(taken.Color), Indented: true));
+            }
+        }
+
+        return entries;
+    }
+
+    // Another device's category: this PC takes it into its own list (the same name in any case is this PC's already, with its colour) and new tasks go in it.
+    private async Task PickOtherDeviceCategoryAsync(SyncCategory category)
+    {
+        Guid? id = await _tasks.AdoptCategoryAsync(category.Name, category.Color);
+        await PickNewTaskCategory(id);
     }
 
     // "Done 10:42 AM · 25m": when, and how long since the previous tick (or the session's start).
