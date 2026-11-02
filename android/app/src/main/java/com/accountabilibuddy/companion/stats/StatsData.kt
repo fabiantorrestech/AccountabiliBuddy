@@ -63,9 +63,10 @@ class StatsData(
 
         /**
          * @param files Each received device's merged sync file, removed devices' kept copies included (as the PC's totals count them).
+         * @param goalFiles The files of the devices that are still in the group: the daily goal comes from the newest PC among them, as on Today.
          * @param isWorkday Whether a date is a workday in the day plan (`DayPlan.isWorkday`).
          */
-        fun build(files: List<SyncFile>, now: Instant, zone: ZoneId, isWorkday: (LocalDate) -> Boolean): StatsData {
+        fun build(files: List<SyncFile>, goalFiles: List<SyncFile>, now: Instant, zone: ZoneId, isWorkday: (LocalDate) -> Boolean): StatsData {
             val nowLocal = LocalDateTime.ofInstant(now, zone)
             val today = nowLocal.toLocalDate()
             val first = today.minusDays(KEPT_DAYS - 1L)
@@ -87,8 +88,9 @@ class StatsData(
             val earliest = sessions.minOfOrNull { it.start.toLocalDate() }
             val firstData = maxOf(first, earliest ?: today)
             return StatsData(
-                today, nowLocal, zone, first, firstData, earliest != null, goalOf(files), windows, days,
-                DriftMarks.of(files.flatMap { it.drift }), sessions, isWorkday,
+                today, nowLocal, zone, first, firstData, earliest != null, goalOf(goalFiles), windows, days,
+                // Each device's own drift is joined on its own, as the PC joins only its own (two devices on one site stay two visits).
+                files.flatMap { DriftMarks.of(it.drift) }.sortedBy { it.start }, sessions, isWorkday,
             )
         }
 

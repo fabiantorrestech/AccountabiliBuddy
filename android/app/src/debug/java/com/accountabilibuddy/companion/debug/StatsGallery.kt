@@ -46,7 +46,7 @@ fun StatsGallery(intent: Intent) {
     val noData = intent.getBooleanExtra("nodata", false)
     val plan = DemoPcFile.dayPlan("week")
     val files = if (noPc) emptyList() else listOf(DemoPcFile.build(now, withSession = false, methods = listOf("drive")).let { if (noData) it.copy(sessions = emptyList(), drift = emptyList()) else it })
-    val data = remember { StatsData.build(files, now, zone) { plan.isWorkday(it) } }
+    val data = remember { StatsData.build(files, files, now, zone) { plan.isWorkday(it) } }
     val today = data.today
     val phoneDays = remember {
         listOf(190, 165, 242, 150, 220, 305, 118).mapIndexed { index, minutes ->

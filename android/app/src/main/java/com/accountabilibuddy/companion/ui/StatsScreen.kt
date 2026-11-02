@@ -50,7 +50,9 @@ import java.time.temporal.ChronoUnit
 @Composable
 fun StatsScreen(
     state: CompanionState,
+    /** Every device held, kept removed ones included (the sessions); [active] are the ones still in the group (the daily goal). */
     received: List<ReceivedDevice>,
+    active: List<ReceivedDevice>,
     health: HealthStatus,
     onConnectHealth: () -> Unit,
     onRefreshSleep: () -> Unit,
@@ -79,7 +81,13 @@ fun StatsScreen(
     val zone = ZoneId.systemDefault()
     val plan = state.document.dayPlan
     val minute = now.truncatedTo(ChronoUnit.MINUTES)
-    val data = remember(received, plan, minute) { StatsData.build(received.map { it.file }, Instant.now(), zone) { date -> plan.isWorkday(date) } }
+    // Worked out off the main thread (it runs every minute and on every sync file); the last result stays on screen while the next builds.
+    val built by produceState<StatsData?>(null, received, active, plan, minute) {
+        value = withContext(Dispatchers.Default) {
+            StatsData.build(received.map { it.file }, active.map { it.file }, Instant.now(), zone) { date -> plan.isWorkday(date) }
+        }
+    }
+    val data = built ?: return
 
     // This phone's own days, read off the main thread when the focus windows or the minute change (every 5 minutes at most).
     val reader = remember { PhoneUsageReader(context) }

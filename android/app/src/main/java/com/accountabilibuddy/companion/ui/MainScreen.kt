@@ -332,7 +332,7 @@ fun MainScreen(
                     onSetWeek = { week -> viewModel.setThisWeek(week)?.let { viewModel.message.value = it } },
                     onDiscardPlanEdit = viewModel::discardDayPlanEdit,
                 )
-                AppDestination.Stats -> StatsScreen(state, syncAllReceived, health, onConnectHealth, viewModel::refreshSleep, phoneUsage, onAllowUsage, routeView = shown.detail)
+                AppDestination.Stats -> StatsScreen(state, syncAllReceived, syncReceived, health, onConnectHealth, viewModel::refreshSleep, phoneUsage, onAllowUsage, routeView = shown.detail)
                 AppDestination.Settings -> {
                     // Curbox's status shows only in Settings (Connections): ask it when Settings opens, or the app comes back to it.
                     LifecycleStartEffect(Unit) {
