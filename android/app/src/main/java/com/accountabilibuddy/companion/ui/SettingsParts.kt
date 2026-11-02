@@ -10,6 +10,7 @@ import androidx.compose.ui.semantics.Role
 import com.accountabilibuddy.companion.ui.theme.Ab
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.MaterialTheme
@@ -86,8 +87,9 @@ internal fun ToggleRow(title: String, detail: String, checked: Boolean, enabled:
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = MaterialTheme.typography.bodyLarge)
                 if (long) {
-                    Text(" ⓘ", style = MaterialTheme.typography.bodyLarge, color = Ab.colors.muted,
-                        modifier = Modifier.heightIn(min = 44.dp).clickable(role = Role.Button) { explained = !explained }.padding(horizontal = 4.dp))
+                    // A 44 x 44 dp target: the glyph is narrow.
+                    Text(" ⓘ", style = MaterialTheme.typography.bodyLarge, color = Ab.colors.muted, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.heightIn(min = 44.dp).widthIn(min = 44.dp).clickable(role = Role.Button) { explained = !explained }.padding(horizontal = 4.dp))
                 }
             }
             if (!long || explained) {

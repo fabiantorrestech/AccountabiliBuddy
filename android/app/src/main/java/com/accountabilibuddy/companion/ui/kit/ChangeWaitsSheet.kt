@@ -25,7 +25,7 @@ private val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Loc
  * The "change waits" sheet (board 5h): a looser change that can't apply at once waits its time and then applies on its own.
  * It says what is being changed, the wait and the moment it applies ([appliesAt], 12-hour); there is no "apply now" and
  * nothing here shortens a wait. Reuse it only for waits that already exist (a plan edit, placement or a pocket penalty off,
- * sleep off); it never adds one.
+ * sleep off, the last way of syncing off); it never adds one.
  *
  * Two shapes: with [onQueue] it asks first (the accent "Queue it" starts the wait the caller already has; the quiet "Never
  * mind" leaves everything as it was); without it the wait has already started and the sheet only says so (one quiet button).
