@@ -69,6 +69,7 @@ public partial class App : Application
     private AccountabiliBuddy.Platform.Windows.Hotkeys.Win32CtrlAltWatcher? _ctrlAltWatcher;
     private AccountabiliBuddy.Platform.Windows.Hotkeys.Win32PanelKeys? _panelKeys;
     private Win32GlobalHotkey? _overlayStickyHotkey;
+    private Win32GlobalHotkey? _overlayHideHotkey;
     private PcAlarmService? _pcAlarm;
     private AccountabiliBuddy.App.Services.Timers.TimersService? _timers;
     private NoisePlayerService? _noise;
@@ -384,11 +385,12 @@ public partial class App : Application
         _ctrlAltWatcher = new AccountabiliBuddy.Platform.Windows.Hotkeys.Win32CtrlAltWatcher();
         _panelKeys = new AccountabiliBuddy.Platform.Windows.Hotkeys.Win32PanelKeys();
         _overlayStickyHotkey = new Win32GlobalHotkey();
+        _overlayHideHotkey = new Win32GlobalHotkey();
         var batteryVisibility = new BatteryVisibilityService(documents);
         batteryVisibility.LoadBlocking();
         _sessionOverlay = new SessionOverlayService(
             _sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), _taskbarGeometry, _batteryReader,
-            batteryVisibility, _ctrlAltWatcher, _panelKeys, _overlayStickyHotkey, timelineDay, _sessionCues);
+            batteryVisibility, _ctrlAltWatcher, _panelKeys, _overlayStickyHotkey, _overlayHideHotkey, timelineDay, _sessionCues);
         _dayBar = new DayBarViewModel(
             _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, _coldTurkey, deletedUsage, time);
         // ADR 35: this PC's alarm, when Settings → Sleep takes the wake time from it.
@@ -803,6 +805,17 @@ public partial class App : Application
         _syncRemoval.Changed += (_, _) => Dispatcher.UIThread.Post(ShowUnlinkedIfNew);
         // A removed phone stops driving bedtime, wake and the alarm (ReceivedDevicesService.Active).
         _syncRemoval.Changed += (_, _) => Dispatcher.UIThread.Post(FollowPhoneAlarm);
+        // Task categories from every device: this PC lists its own in its sync file, and the "Add a task" pickers group the other
+        // devices' by name (a removed device's are gone: Active). The pickers look again when a device's list or the group changes.
+        syncCoordinator.Categories = () => sessionTasks.Categories.Select(category => new AccountabiliBuddy.Core.Sync.SyncCategory(category.Name, category.Color)).ToList();
+        sessionTasks.OtherDeviceCategories = () => receivedDevices.Active
+            .Where(device => device.File.Categories is { Count: > 0 })
+            .OrderBy(device => device.File.Device.Name, StringComparer.CurrentCultureIgnoreCase)
+            .Select(device => new DeviceCategories(device.File.Device.DeviceId, device.File.Device.Name, device.File.Categories!))
+            .ToList();
+        receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(sessionTasks.NotifyOtherCategoriesChanged);
+        _syncRemoval.Changed += (_, _) => Dispatcher.UIThread.Post(sessionTasks.NotifyOtherCategoriesChanged);
+        Dispatcher.UIThread.Post(sessionTasks.NotifyOtherCategoriesChanged);
 
         // Run a relay on this PC (ADR 46): the relay program ships next to the app, lives in the app's data folder and ends with the app.
         _relayHost = new AccountabiliBuddy.App.Services.Sync.RelayHostService(
@@ -919,6 +932,7 @@ public partial class App : Application
             _sessions, _configuration, _endFlow, VisibleMainWindow, new UnlockViewModel(_sessions, _configuration, _unlocks), _quickSession)
         {
             TimerToggle = new TimerToggleViewModel(_sessionOverlay),
+            OverlayStatus = new OverlayStatusViewModel(overlaySettings, _sessionOverlay),
             Day = timelineDay,
             ColdTurkey = new ColdTurkeyStatusViewModel(_coldTurkey, _sessions),
         };
@@ -1421,6 +1435,7 @@ public partial class App : Application
         presenter.ReminderExpired = _sessionOverlay.ShowNudgeDot;
         OverlayActions overlayActions = _sessionOverlay.Actions;
         overlayActions.OpenApp = ShowMainWindow;
+        overlayActions.Notify = presenter.ShowNotice;
         overlayActions.OpenSettings = () =>
         {
             ShowMainWindow();
@@ -1447,7 +1462,8 @@ public partial class App : Application
             return next is null ? null : (next.Event.Title, next.Event.LocalStart);
         };
         _sessionOverlay.Start();
-        mainViewModel.Settings.OverlayPage = new OverlaySettingsViewModel(overlaySettings, () => _sessionOverlay.StickyHotkeyError);
+        mainViewModel.Settings.OverlayPage = new OverlaySettingsViewModel(
+            overlaySettings, _sessions, _sessionOverlay.TurnOn, () => _sessionOverlay.StickyHotkeyError, () => _sessionOverlay.HideHotkeyError);
         _timers!.Start();
         _bedtimeReminder.ReminderDue += (_, reminder) =>
             presenter.ShowReminder(reminder.Title, reminder.Message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#6366F1")));
@@ -2473,6 +2489,7 @@ public partial class App : Application
         _checkpoints?.Dispose();
         _sessionOverlay?.Dispose();
         _overlayStickyHotkey?.Dispose();
+        _overlayHideHotkey?.Dispose();
         _panelKeys?.Dispose();
         _ctrlAltWatcher?.Dispose();
         _batteryReader?.Dispose();

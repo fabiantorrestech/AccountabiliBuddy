@@ -21,8 +21,9 @@ import com.accountabilibuddy.companion.ui.DayBarPainter
 /**
  * The always-on, silent timeline card (like BridgeCal's): collapsed, the date, what's now or next and a small bar;
  * expanded, the full bar with hour labels and the sleep line. Colorized in the app's teal and held by
- * [PinnedTimelineService] so it stays at the top of the shade. The card's colour is fixed when it's posted, so the
- * bar is drawn once, for that colour; the pinned service posts the card again when the theme changes.
+ * [PinnedTimelineService] so it stays at the top of the shade: Android ranks a colorized foreground card above the rest, so every
+ * bar look stays colorized, grayscale and e-ink on a neutral card. The card's colour is fixed when it's posted, so the bar is drawn
+ * once, for that colour; the pinned service posts the card again when the theme changes.
  */
 object TimelineNotifier {
     // The noise button's width on the collapsed card.
@@ -32,6 +33,9 @@ object TimelineNotifier {
 
     private const val CARD_NIGHT = 0xFF134E4A.toInt()
     private const val CARD_DAY = 0xFFCCFBF1.toInt()
+    private const val GRAY_CARD_NIGHT = 0xFF262626.toInt()
+    private const val GRAY_CARD_DAY = 0xFFE6E6E6.toInt()
+    private const val EINK_CARD = 0xFFFFFFFF.toInt()
 
     fun canPost(context: Context): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -45,8 +49,22 @@ object TimelineNotifier {
         val night = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         val metrics = context.resources.displayMetrics
         val width = ((context.resources.configuration.screenWidthDp - SIDE_MARGINS_DP) * metrics.density).toInt()
-        val text = if (night) 0xFFFFFFFF.toInt() else 0xFF042F2E.toInt()
-        val subtle = if (night) 0xCCFFFFFF.toInt() else 0xB3042F2E.toInt()
+        val look = com.accountabilibuddy.companion.ui.UiPrefs.barLook.value
+        val text = when (look) {
+            com.accountabilibuddy.companion.ui.BarLook.Color -> if (night) 0xFFFFFFFF.toInt() else 0xFF042F2E.toInt()
+            com.accountabilibuddy.companion.ui.BarLook.Grayscale -> if (night) 0xFFFFFFFF.toInt() else 0xFF000000.toInt()
+            com.accountabilibuddy.companion.ui.BarLook.Eink -> 0xFF000000.toInt()
+        }
+        val subtle = when (look) {
+            com.accountabilibuddy.companion.ui.BarLook.Color -> if (night) 0xCCFFFFFF.toInt() else 0xB3042F2E.toInt()
+            com.accountabilibuddy.companion.ui.BarLook.Grayscale -> if (night) 0xCCFFFFFF.toInt() else 0xB3000000.toInt()
+            com.accountabilibuddy.companion.ui.BarLook.Eink -> 0xFF000000.toInt()
+        }
+        val card = when (look) {
+            com.accountabilibuddy.companion.ui.BarLook.Color -> if (night) CARD_NIGHT else CARD_DAY
+            com.accountabilibuddy.companion.ui.BarLook.Grayscale -> if (night) GRAY_CARD_NIGHT else GRAY_CARD_DAY
+            com.accountabilibuddy.companion.ui.BarLook.Eink -> EINK_CARD
+        }
 
         val noise = noiseButton(context)
         val collapsed = RemoteViews(context.packageName, R.layout.notification_timeline).apply {
@@ -72,7 +90,7 @@ object TimelineNotifier {
             val sleep = model.sleepLine
             if (sleep != null) {
                 setTextViewText(R.id.timeline_sleep, sleep.text)
-                setTextColor(R.id.timeline_sleep, sleepColor(sleep.amount, night))
+                setTextColor(R.id.timeline_sleep, if (look == com.accountabilibuddy.companion.ui.BarLook.Eink) text else sleepColor(sleep.amount, night))
                 setViewVisibility(R.id.timeline_sleep, View.VISIBLE)
             } else {
                 setViewVisibility(R.id.timeline_sleep, View.GONE)
@@ -91,8 +109,8 @@ object TimelineNotifier {
             .setCustomContentView(collapsed)
             .setCustomBigContentView(expanded)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-            .setColorized(com.accountabilibuddy.companion.ui.UiPrefs.barLook.value == com.accountabilibuddy.companion.ui.BarLook.Color)
-            .setColor(if (night) CARD_NIGHT else CARD_DAY)
+            .setColorized(true)
+            .setColor(card)
             .setOngoing(true)
             // Swiped away (Android 14+ allows it): posted again at once.
             .setDeleteIntent(RefreshReceiver.dismissedIntent(context, 100))

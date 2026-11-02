@@ -33,6 +33,9 @@ public sealed class SyncCoordinator
     /// <summary>Why a file was refused when it is from a device removed from the group (ADR 54).</summary>
     public const string RemovedDeviceReason = "This file is from a device that was removed from your device group.";
 
+    /// <summary>Why a file was skipped when its header names another device group: a leftover from before a device removal, no problem to show.</summary>
+    public const string OtherGroupReason = "This file belongs to another device group.";
+
     private const string NotInGroupReason = "This PC isn't linked to your other devices yet.";
 
     // The plan's sync state: its version, when it was last edited, and the newest version it shares with the others.
@@ -267,7 +270,9 @@ public sealed class SyncCoordinator
                 // ADR 48, 50: the shared lists, each with its tombstones; sealed like everything in the file.
                 NextTasks = NextTasks?.Invoke(), Parked = Parked?.Invoke(), Later = Later?.Invoke(),
                 // ADR 56: the past keys, for opening backups; sealed with the current key like everything else.
-                PastKeys = PastKeys?.ForFile() };
+                PastKeys = PastKeys?.ForFile(),
+                // This PC's task categories, always listed (empty when it has none), sealed like everything else.
+                Categories = Categories?.Invoke() };
     }
 
     /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
@@ -299,6 +304,9 @@ public sealed class SyncCoordinator
 
     /// <summary>The Later list with its tombstones for this PC's sync file (ADR 50); set by the app.</summary>
     public Func<IReadOnlyList<SyncLaterItem>?>? Later { get; set; }
+
+    /// <summary>This PC's task categories (name and colour) for its sync file, so the other devices can offer them; set by the app.</summary>
+    public Func<IReadOnlyList<SyncCategory>?>? Categories { get; set; }
 
     /// <summary>
     /// Merges another device's next-session list into this PC's (ADR 48); true when it changed. A merge that changed it
@@ -384,6 +392,11 @@ public sealed class SyncCoordinator
         if (RekeyCodec.IsRekey(sealedBytes))
         {
             return Removal is null ? CannotReadReason : await Removal.AcceptRekeyAsync(sealedBytes, key);
+        }
+
+        if (SyncFileCodec.IsOtherGroups(sealedBytes, key))
+        {
+            return OtherGroupReason;
         }
 
         if (SyncFileCodec.Open(sealedBytes, key) is not SyncFile file)

@@ -28,6 +28,32 @@ public static class OverlayTileGeometry
     }
 
     /// <summary>
+    /// The widest the tile may be, in device-independent pixels: a docked tile gets its band; any other tile gets the work area less the side
+    /// margins it keeps. Past this the tile gives up room itself (<c>PriorityRowPanel</c>) instead of being sliced at the edge.
+    /// </summary>
+    public static double MaxWidthFor(OverlayTarget target)
+    {
+        double scale = target.Scale <= 0 ? 1 : target.Scale;
+        if (target.Kind == OverlayTargetKind.Docked)
+        {
+            return Math.Max(120, target.Band.Width / scale);
+        }
+
+        // No taskbar known (the band is empty): the tile floats in the main monitor's work area, which the window does not know here.
+        if (target.Band.Width <= 0)
+        {
+            return double.PositiveInfinity;
+        }
+
+        (int side, _) = OverlayPlacementCalculator.FloatingMargins(scale);
+        double room = target.Kind == OverlayTargetKind.VerticalTile ? SideTileMaxWidth : (target.Band.Width - (2 * side)) / scale;
+        return Math.Max(120, room);
+    }
+
+    // The vertical tile is a narrow column; its parts are stacked, so this is a ceiling it never reaches.
+    private const double SideTileMaxWidth = 420;
+
+    /// <summary>
     /// The tile's top-left corner in physical pixels.
     /// </summary>
     /// <param name="widthPixels">The tile's laid-out width, physical pixels.</param>

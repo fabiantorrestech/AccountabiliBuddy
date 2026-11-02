@@ -112,7 +112,11 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     /// <summary>The category filter: All, then each category.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCategoryChips))]
     public partial IReadOnlyList<TaskChipViewModel> CategoryChips { get; set; } = [];
+
+    /// <summary>There is a chip besides "All": the chips need room, so the header gives them their own row sooner.</summary>
+    public bool HasCategoryChips => CategoryChips.Count > 1;
 
     /// <summary>E.g. "3 for this session · 2 to come back to · 11 later".</summary>
     [ObservableProperty]
@@ -157,6 +161,22 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     public bool HasPending => Pending is not null;
 
     public bool HasDetail => Detail is not null;
+
+    /// <summary>
+    /// The user opened the detail card (a row click, Rename, Add subtask). Only a page under 980 wide hides the card while this
+    /// is false; a wide page always shows it.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsDetailOpen { get; set; }
+
+    /// <summary>The detail card's close button and Esc (narrow pages): saves what is being edited, then hides the card and deselects.</summary>
+    [RelayCommand]
+    private void CloseDetail()
+    {
+        Detail?.Flush();
+        IsDetailOpen = false;
+        _selectedKey = null;
+    }
 
     public bool HasSessionRows => _sessionRowCount > 0;
 
@@ -354,6 +374,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             return;
         }
 
+        IsDetailOpen = true;
         Select(row.Key);
     }
 
@@ -734,6 +755,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     private void BeginDetailEdit(TaskRowKey key, string target)
     {
+        IsDetailOpen = true;
         Select(key);
         FocusRequested?.Invoke(this, target);
     }
@@ -813,6 +835,12 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     // Select mode's bulk picker marks none, since the picked rows may differ.
     private List<TaskMenuEntry> CategoryChoices(string? current, bool markCurrent, Func<Guid?, Task> apply)
     {
+        IReadOnlyList<DeviceCategories> others = _tasks.OtherCategories();
+        if (others.Count > 0)
+        {
+            return GroupedCategoryChoices(others, current, markCurrent, apply);
+        }
+
         var entries = new List<TaskMenuEntry>();
         foreach (TaskCategory category in _tasks.Categories)
         {
@@ -828,6 +856,51 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         if (_tasks.Categories.Count == 0)
         {
             entries.Add(new TaskMenuEntry("Add categories with the Categories button above"));
+        }
+
+        return entries;
+    }
+
+    // With other devices' categories to offer: "No category", then "This PC" and its categories, then each other device's name with
+    // its categories under it. Picking another device's category takes it into this PC's list first (the same name, any case, is this
+    // PC's already and keeps its colour), then applies it like any other choice.
+    private List<TaskMenuEntry> GroupedCategoryChoices(IReadOnlyList<DeviceCategories> others, string? current, bool markCurrent, Func<Guid?, Task> apply)
+    {
+        var entries = new List<TaskMenuEntry>
+        {
+            new("No category", new AsyncRelayCommand(() => apply(null)), IsChecked: markCurrent && current is null),
+        };
+        if (_tasks.Categories.Count > 0)
+        {
+            entries.Add(new TaskMenuEntry("This PC", IsHeading: true));
+            foreach (TaskCategory category in _tasks.Categories)
+            {
+                Guid id = category.Id;
+                entries.Add(new TaskMenuEntry(
+                    category.Name,
+                    new AsyncRelayCommand(() => apply(id)),
+                    IsChecked: markCurrent && string.Equals(current, category.Name, StringComparison.OrdinalIgnoreCase),
+                    Dot: TaskCategoryBrushes.Of(category.Color),
+                    Indented: true));
+            }
+        }
+
+        foreach (DeviceCategories device in others)
+        {
+            entries.Add(new TaskMenuEntry(device.DeviceName, IsHeading: true));
+            foreach (SyncCategory category in device.Categories)
+            {
+                SyncCategory taken = category;
+                entries.Add(new TaskMenuEntry(
+                    taken.Name,
+                    new AsyncRelayCommand(async () =>
+                    {
+                        Guid? adopted = await _tasks.AdoptCategoryAsync(taken.Name, taken.Color);
+                        await apply(adopted);
+                    }),
+                    Dot: TaskCategoryBrushes.Of(taken.Color),
+                    Indented: true));
+            }
         }
 
         return entries;

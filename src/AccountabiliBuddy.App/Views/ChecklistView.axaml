@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:local="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.ChecklistView"
              x:DataType="vm:ChecklistViewModel">
     <!-- A guided session's checklist (ADR 24, 25): before Start (add/edit), while it runs (tick/add/edit) or in the
@@ -237,37 +238,45 @@
         </ItemsControl>
 
         <!-- Add a task: the dot picks the category it goes in; the tag button opens the categories panel. -->
-        <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding CanEdit}">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto" IsVisible="{Binding CanEdit}">
             <Button Classes="small" Padding="2,0" Margin="0,0,4,0" ToolTip.Tip="{Binding NewTaskCategoryTip}"
-                    AutomationProperties.Name="Category for new tasks" IsVisible="{Binding HasCategories}">
+                    AutomationProperties.Name="Category for new tasks" IsVisible="{Binding HasNewTaskCategoryChoices}"
+                    Click="OnNewTaskCategoryClick">
                 <Ellipse Width="12" Height="12" Fill="{Binding NewTaskCategoryBrush}" Stroke="#80808080" StrokeThickness="1" />
-                <Button.Flyout>
-                    <!-- Items are rebuilt each time it opens (OnNewTaskPickerOpening); a long-lived flyout whose ItemsSource is
-                         replaced kept the stale item set. -->
-                    <MenuFlyout Opening="OnNewTaskPickerOpening" ItemContainerTheme="{StaticResource CategoryMenuItem}"
-                                ItemTemplate="{StaticResource CategoryChoiceTemplate}" />
-                </Button.Flyout>
             </Button>
             <TextBox Grid.Column="1" x:Name="NewTaskBox" Classes="taskEntry" Text="{Binding NewTaskTitle}" PlaceholderText="Add a task (Enter)">
                 <TextBox.KeyBindings>
                     <KeyBinding Gesture="Enter" Command="{Binding AddTaskCommand}" />
                 </TextBox.KeyBindings>
             </TextBox>
-            <Button Grid.Column="2" Classes="small" Margin="4,0,0,0" Command="{Binding ToggleManageCategoriesCommand}"
+            <Button Grid.Column="2" x:Name="ListPullButton" Classes="small" Margin="4,0,0,0" IsEnabled="{Binding !IsOverLimitPrompt}"
+                    ToolTip.Tip="From your lists: take a task from Later or Come back to" AutomationProperties.Name="From your lists">
+                <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
+                <Button.Flyout>
+                    <Flyout Placement="BottomEdgeAlignedRight" Opening="OnListPickerOpening">
+                        <local:ListPickerView DataContext="{Binding ListPicker}" />
+                    </Flyout>
+                </Button.Flyout>
+            </Button>
+            <Button Grid.Column="3" Classes="small" Margin="4,0,0,0" Command="{Binding ToggleManageCategoriesCommand}"
                     ToolTip.Tip="Categories: group tasks under names with colours (e.g. Work, Personal)" AutomationProperties.Name="Categories">
                 <mi:MaterialIcon Kind="TagMultipleOutline" Width="16" Height="16" />
             </Button>
         </Grid>
 
+        <TextBlock Text="{Binding PullNotice}" FontSize="11" Opacity="0.7" TextWrapping="Wrap"
+                   IsVisible="{Binding PullNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
         <!-- A 4th task: park it, or add it anyway with a reason (3 tasks per session). -->
         <Border IsVisible="{Binding IsOverLimitPrompt}" BorderBrush="#40808080" BorderThickness="1" CornerRadius="6" Padding="8,6">
             <StackPanel Spacing="6">
                 <TextBlock Text="{Binding OverLimitText}" TextWrapping="Wrap" FontWeight="SemiBold" />
-                <TextBox Text="{Binding OverLimitReason}" PlaceholderText="Or add it anyway: why? (10+ characters, stays on this PC)" />
+                <!-- taskEntry: the quick-session popup lets only these boxes take typing (its Enter, B, 1-5 and arrows are shortcuts). -->
+                <TextBox Classes="taskEntry" Text="{Binding OverLimitReason}" PlaceholderText="{Binding OverLimitReasonHint}" />
                 <TextBlock Text="{Binding OverLimitError}" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap"
                            IsVisible="{Binding OverLimitError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 <StackPanel Orientation="Horizontal" Spacing="6">
-                    <Button Classes="small" Content="Park it" Command="{Binding ParkHeldTaskCommand}" />
+                    <Button Classes="small" Content="Park it" Command="{Binding ParkHeldTaskCommand}" IsVisible="{Binding !IsHeldPull}" />
                     <Button Classes="small" Content="Add anyway" Command="{Binding AddHeldTaskAnywayCommand}" />
                     <Button Classes="small" Content="Cancel" Command="{Binding CancelHeldTaskCommand}" />
                 </StackPanel>

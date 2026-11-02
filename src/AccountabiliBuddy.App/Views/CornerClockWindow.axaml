@@ -12,7 +12,7 @@
         TransparencyLevelHint="Transparent" Background="Transparent">
     <!-- 11b: top right, 26 px tall, one rounded inner corner (bottom left), about 86% opaque. Clicks pass through it. -->
     <Border x:Name="Pill" Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1,0,0,1"
-            CornerRadius="0,0,0,8" Padding="10,0" Opacity="0.86">
+            CornerRadius="0,0,0,8" Padding="10,0" Opacity="0.86" Height="26" VerticalAlignment="Top">
         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
             <StackPanel x:Name="SessionPart" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <controls:ProgressRing Width="14" Height="14" Value="{Binding RingValue}" TrackBrush="{DynamicResource Ab.Surface2}" ArcBrush="{Binding RingBrush}" Thickness="2.5" />

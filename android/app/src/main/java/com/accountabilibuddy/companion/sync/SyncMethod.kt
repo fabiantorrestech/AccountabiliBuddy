@@ -1,5 +1,7 @@
 package com.accountabilibuddy.companion.sync
 
+import com.accountabilibuddy.shared.sync.SyncDeviceCard
+
 /**
  * The ways of syncing that bring the PC's file to this phone by themselves: the shared folder, Google Drive and the own relay. QR codes
  * and sync files are not here: they only work when the user scans or opens something by hand, so they never keep this phone seeing a
@@ -9,6 +11,14 @@ enum class SyncMethod(val key: String, val label: String) {
     Drive("drive", "Google Drive"),
     Folder("folder", "Shared folder"),
     Relay("relay", "Own relay");
+
+    /** The name a received file's card gives this way ([SyncDeviceCard.METHOD_DRIVE] and so on). */
+    val cardMethod: String
+        get() = when (this) {
+            Drive -> SyncDeviceCard.METHOD_DRIVE
+            Folder -> SyncDeviceCard.METHOD_FOLDER
+            Relay -> SyncDeviceCard.METHOD_RELAY
+        }
 
     /** Whether this way is on and has what it needs (a folder chosen, a relay address). */
     fun isLive(settings: PhoneSyncSettings): Boolean = when (this) {
@@ -43,6 +53,9 @@ enum class SyncMethod(val key: String, val label: String) {
 
     companion object {
         fun live(settings: PhoneSyncSettings): List<SyncMethod> = entries.filter { it.isLive(settings) }
+
+        /** The way a file came by ([ReceivedDevice.method]); null for QR codes, sync files and the old network link, which are not ways that count. */
+        fun fromCardMethod(method: String?): SyncMethod? = entries.firstOrNull { it.cardMethod == method }
 
         fun fromKey(key: String?): SyncMethod? = entries.firstOrNull { it.key == key }
     }

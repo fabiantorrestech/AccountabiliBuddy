@@ -36,6 +36,12 @@ public sealed class OverlaySettingsService
                     TimelineHeldOpacity = Math.Clamp(loaded.TimelineHeldOpacity, OverlaySettings.MinOpacity, 1),
                     Profiles = loaded.Profiles ?? OverlaySettings.Default.Profiles,
                 }));
+            if (loaded is not null && OverlayContentOrder.NeedsMigration(loaded.ContentOrder))
+            {
+                // Once, here: the list is replaced by its migrated form and saved, so a later change of Progress cannot migrate it again.
+                Current = Current with { ContentOrder = OverlayContentOrder.Complete(loaded.ContentOrder, loaded.Progress) };
+                Task.Run(() => _store.SaveAsync(DocumentKey, Current)).GetAwaiter().GetResult();
+            }
         }
         catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
         {

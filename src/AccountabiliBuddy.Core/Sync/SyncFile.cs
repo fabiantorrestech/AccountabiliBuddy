@@ -42,6 +42,11 @@ namespace AccountabiliBuddy.Core.Sync;
 /// Null when the device has none, in a QR file and from an app that predates it, which ignore it. Never kept in the copy a receiver
 /// stores of this file, and never in a backup.
 /// </param>
+/// <param name="Categories">
+/// This device's own task categories, name and colour only, so the other devices can offer them when adding a task. Null in a QR
+/// file and from an app that predates it, which ignore it; a device that knows it always writes it, empty when it has none. A
+/// receiver keeps it in its copy of this device's file, and keeps the stored list when a file carries none.
+/// </param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
@@ -73,7 +78,8 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncNextTask>? NextTasks = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncParked>? Parked = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncLaterItem>? Later = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncPastKey>? PastKeys = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncPastKey>? PastKeys = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncCategoriesConverter))] IReadOnlyList<SyncCategory>? Categories = null)
 {
     public const int CurrentFormatVersion = 1;
 }

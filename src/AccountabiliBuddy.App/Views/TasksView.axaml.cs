@@ -108,16 +108,34 @@ public partial class TasksView : UserControl
         }
     }
 
-    // Esc leaves select mode (the search box has its own Esc and handles it first).
+    // Esc leaves select mode (the search box has its own Esc and handles it first); otherwise it closes the detail card when that
+    // is a card over the list's room (under 980 wide), unless a text box has the focus: Esc there is left to the edit.
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (e.Key == Key.Escape && !e.Handled && DataContext is TasksViewModel { IsSelectMode: true } page)
+        if (e.Key != Key.Escape || e.Handled || DataContext is not TasksViewModel page)
+        {
+            return;
+        }
+
+        if (page.IsSelectMode)
         {
             page.CancelSelectCommand.Execute(null);
             e.Handled = true;
+            return;
+        }
+
+        bool editing = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox;
+        Control? card = this.FindControl<Control>("DetailCard");
+        if (!editing && page.IsDetailOpen && card is { IsEffectivelyVisible: true } && IsDetailOverlay())
+        {
+            page.CloseDetailCommand.Execute(null);
+            e.Handled = true;
         }
     }
+
+    // The close button shows only on a page under 980 wide, which is also when the card can be hidden.
+    private bool IsDetailOverlay() => this.FindControl<Control>("Page") is { Bounds.Width: < 980 };
 
     // The filter flyout is taller than a short window leaves room for under its button: it scrolls inside instead of running off the window.
     private void OnFilterFlyoutOpening(object? sender, EventArgs e)

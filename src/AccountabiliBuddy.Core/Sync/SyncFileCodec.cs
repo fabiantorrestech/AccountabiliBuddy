@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
+using AccountabiliBuddy.Core.Domain;
 
 namespace AccountabiliBuddy.Core.Sync;
 
@@ -20,6 +21,10 @@ public static class SyncFileCodec
 
     // Only a device holding the key can make a file that opens; this keeps a broken one from filling memory.
     private const int MaxJsonBytes = 16 * 1024 * 1024;
+
+    // A device's category list is short; these bound what a file can make a picker show.
+    private const int MaxCategories = 100;
+    private const int MaxCategoryNameLength = 500;
 
     private static readonly byte[] Magic = "ABS1"u8.ToArray();
 
@@ -41,6 +46,14 @@ public static class SyncFileCodec
     public static int SealedLength(SyncFile file)
     {
         return HeaderBytes + Compress(file).Length + TagBytes;
+    }
+
+    /// <summary>A sync file ("ABS1") whose header names another group than <paramref name="key"/>'s: a leftover (from before a device removal), not a problem.</summary>
+    public static bool IsOtherGroups(ReadOnlySpan<byte> sealedBytes, SyncKey key)
+    {
+        return sealedBytes.Length >= MagicBytes + GroupIdBytes
+            && sealedBytes[..MagicBytes].SequenceEqual(Magic)
+            && !sealedBytes.Slice(MagicBytes, GroupIdBytes).SequenceEqual(Convert.FromHexString(key.GroupId));
     }
 
     /// <returns>
@@ -86,7 +99,31 @@ public static class SyncFileCodec
             return null;
         }
 
-        return file is not null && IsComplete(file) ? file : null;
+        return file is not null && IsComplete(file) ? WithCleanCategories(file) : null;
+    }
+
+    /// <summary>
+    /// The device's category list (a file from a newer or odd writer is not trusted): an entry with no name, or one far longer than a
+    /// category name can be, is dropped; a colour that is not "#RRGGBB" becomes the palette's first; at most <see cref="MaxCategories"/> are kept.
+    /// </summary>
+    private static SyncFile WithCleanCategories(SyncFile file)
+    {
+        if (file.Categories is null)
+        {
+            return file;
+        }
+
+        List<SyncCategory> clean = file.Categories
+            .Where(category => category is { Name: not null } && category.Name.Trim().Length is > 0 and <= MaxCategoryNameLength)
+            .Select(category => new SyncCategory(category.Name.Trim(), IsHexColor(category.Color) ? category.Color : TaskCategory.Palette[0]))
+            .Take(MaxCategories)
+            .ToList();
+        return file with { Categories = clean };
+    }
+
+    private static bool IsHexColor(string? color)
+    {
+        return color is { Length: 7 } && color[0] == '#' && color[1..].All(char.IsAsciiHexDigit);
     }
 
     /// <summary>

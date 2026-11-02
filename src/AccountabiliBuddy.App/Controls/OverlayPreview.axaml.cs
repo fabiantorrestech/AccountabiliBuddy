@@ -204,7 +204,7 @@ public partial class OverlayPreview : UserControl
         {
             DataContext = model.Tile,
             Height = height,
-            MaxWidth = target.Kind == OverlayTargetKind.Docked ? Math.Max(120, target.Band.Width / target.Scale) : 420,
+            MaxWidth = OverlayTileGeometry.MaxWidthFor(target),
             HorizontalAlignment = HorizontalAlignment.Left,
             IsHitTestVisible = false,
             Focusable = false,
@@ -391,7 +391,7 @@ public partial class OverlayPreview : UserControl
         var lockIcon = new MaterialIcon { Kind = settings.PeekKeysLocked ? MaterialIconKind.LockOutline : MaterialIconKind.LockOpenVariantOutline, Width = 14, Height = 14, VerticalAlignment = VerticalAlignment.Center };
         Themed(lockIcon, TemplatedControl.ForegroundProperty, "Ab.Muted");
         keys.Children.Add(lockIcon);
-        keys.Children.Add(Label(settings.PeekKeysLocked ? "A peek takes no keys" : "A peek takes hide, +10 min, up and down", 12, "Ab.Muted", bold: false));
+        keys.Children.Add(Label(settings.PeekKeysLocked ? "A peek takes no keys" : settings.HideShortcutOn ? "A peek takes +10 min, up and down" : "A peek takes hide, +10 min, up and down", 12, "Ab.Muted", bold: false));
         body.Children.Add(keys);
         body.Children.Add(Label(settings.HoldToPeek ? "Hold Ctrl+Alt to peek · opens after " + PeekDelayText(settings.PeekDelayMs) : "Hold-to-peek is off", 12, "Ab.Muted", bold: false));
         body.Children.Add(Label(settings.PanelSticky ? "Ctrl+Alt+Space keeps it open" : "Ctrl+Alt+Space is off", 12, "Ab.Muted", bold: false));
@@ -532,6 +532,12 @@ public partial class OverlayPreview : UserControl
     }
 
     private static string CaptionFor(OverlayPreviewViewModel model)
+    {
+        string text = CaptionText(model);
+        return model.Settings.OverlayOn ? text : "The overlay is turned off, so none of this shows. " + text;
+    }
+
+    private static string CaptionText(OverlayPreviewViewModel model)
     {
         OverlaySettings settings = model.Settings;
         string state = model.ShowsSession ? "with a session running" : "with nothing running";

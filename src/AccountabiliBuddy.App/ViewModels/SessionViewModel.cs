@@ -157,6 +157,9 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Hide or show the on-screen timer for the running session.</summary>
     public TimerToggleViewModel? TimerToggle { get; init; }
 
+    /// <summary>The quiet "Overlay hidden" line and the "Overlay turned off from the panel" card on Today.</summary>
+    public OverlayStatusViewModel? OverlayStatus { get; init; }
+
     /// <summary>Today's plan, for the "next scheduled" line.</summary>
     public DayBarViewModel? Day
     {

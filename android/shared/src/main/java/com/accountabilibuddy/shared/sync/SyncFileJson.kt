@@ -190,6 +190,8 @@ object SyncFileJson {
         file.later?.let { put("later", writeLater(it)) }
         // Optional (ADR 56): the group's past keys, for opening backups; older apps ignore them.
         file.pastKeys?.let { put("pastKeys", writePastKeys(it)) }
+        // Optional: this device's task categories, name and colour; older apps ignore them.
+        file.categories?.let { put("categories", writeCategories(it)) }
         file.lunch?.let { lunch ->
             put("lunch", buildJsonObject {
                 put("start", writeTime(lunch.start))
@@ -350,6 +352,7 @@ object SyncFileJson {
             readParked(json["parked"]),
             readLater(json["later"]),
             readPastKeys(json["pastKeys"]),
+            readCategories(json["categories"]),
         )
     }
 
@@ -413,6 +416,33 @@ object SyncFileJson {
             item.doneAt?.let { put("doneAt", writeTime(it)) }
         }
     })
+
+    /** A device's task categories as the sync file carries them, in the PC's shape (camelCase). */
+    fun writeCategories(list: List<SyncCategory>): JsonArray = JsonArray(list.map { category ->
+        buildJsonObject {
+            put("name", category.name)
+            put("color", category.color)
+        }
+    })
+
+    /**
+     * An optional list; an entry with no usable name is left out rather than failing the file, a colour that isn't "#RRGGBB" becomes
+     * [FALLBACK_CATEGORY_COLOR], and at most [MAX_CATEGORIES] are kept (as the PC reads them).
+     */
+    fun readCategories(value: JsonElement?): List<SyncCategory>? {
+        val array = value as? JsonArray ?: return null
+        return array.mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            val name = item.optionalString("name")?.trim()?.takeIf { it.isNotEmpty() && it.length <= MAX_CATEGORY_NAME_LENGTH } ?: return@mapNotNull null
+            val color = item.optionalString("color")?.takeIf { it.matches(CATEGORY_COLOR) } ?: FALLBACK_CATEGORY_COLOR
+            SyncCategory(name, color)
+        }.take(MAX_CATEGORIES)
+    }
+
+    private const val MAX_CATEGORIES = 100
+    private const val MAX_CATEGORY_NAME_LENGTH = 500
+    private const val FALLBACK_CATEGORY_COLOR = "#2563EB"
+    private val CATEGORY_COLOR = Regex("#[0-9A-Fa-f]{6}")
 
     /** The past group keys as the sync file carries them (ADR 56), in the PC's shape (camelCase). */
     fun writePastKeys(list: List<SyncPastKey>): JsonArray = JsonArray(list.map { key ->

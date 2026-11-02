@@ -436,6 +436,8 @@
                                Text="Hold Ctrl+Alt for a moment and a panel rises from the overlay with Done, Pause, +10 min, this session's tasks, the sound and shortcuts. Ctrl+Alt+Space keeps it open until Esc or a click elsewhere. It replaces the old reveal of the on-screen window and keeps what it offered." />
                     <TextBlock Classes="muted" TextWrapping="Wrap"
                                Text="If your keyboard layout uses AltGr (which Windows reads as Ctrl+Alt), turn off hold to peek in Settings › Alerts &amp; on-screen › PC overlay and use Ctrl+Alt+Space." />
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="Ctrl+Alt+H hides the overlay until you press it again, in any app, also after a restart; holding Ctrl+Alt still shows it, and Today says it is hidden. The panel's Disable button turns the overlay off until you turn it on from Today or in Settings (not during a focus session). Both are in Settings › Alerts &amp; on-screen › PC overlay too." />
                 </StackPanel>
 
                 <!-- ADR 49: the look, a theme and light or dark -->

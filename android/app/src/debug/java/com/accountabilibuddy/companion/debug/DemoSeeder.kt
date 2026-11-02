@@ -55,6 +55,14 @@ class DemoSeeder(private val app: CompanionApp) {
         DemoSeedReceiver.MODE_PLAN_WAIT -> holdPlanEdit()
         DemoSeedReceiver.MODE_TASKS -> TasksDemo(app).seed(seed(withSession = false))
         DemoSeedReceiver.MODE_TASKS_SESSION -> TasksDemo(app).seed(seed(withSession = true))
+        // Sharing-folder checks (folder-repoint fix): a new Work PC file into the chosen folder, and the folder's "on since" 15 minutes back.
+        DemoSeedReceiver.MODE_FOLDER_DROP -> dropInFolder()
+        DemoSeedReceiver.MODE_FOLDER_AGE -> ageFolder()
+        DemoSeedReceiver.MODE_FOLDER_UPGRADE -> simulateUpgrade()
+        DemoSeedReceiver.MODE_FOLDER_CLEAR -> clearFolder()
+        DemoSeedReceiver.MODE_FOLDER_MIX -> clearFolder() + "; " + dropInFolder() + "; " + writeLeftovers(conflict = true, otherGroup = true, corrupt = false)
+        DemoSeedReceiver.MODE_FOLDER_CORRUPT -> clearFolder() + "; " + dropInFolder() + "; " + writeLeftovers(conflict = false, otherGroup = false, corrupt = true)
+        DemoSeedReceiver.MODE_FOLDER_OLD_ONLY -> clearFolder() + "; " + writeLeftovers(conflict = false, otherGroup = true, corrupt = false)
         DemoSeedReceiver.MODE_DUMP -> TasksDemo(app).dump()
         DemoSeedReceiver.MODE_MERGE_CHECK -> TasksDemo(app).mergeCheck()
         DemoSeedReceiver.MODE_HANDOFF_CHECK -> TasksDemo(app).handoffCheck()
@@ -101,6 +109,103 @@ class DemoSeeder(private val app: CompanionApp) {
         }
 
         return "seeded ${if (withSession) "session" else "idle"}: ${file.sessions.size} sessions, ${file.drift.size} drift marks"
+    }
+
+    // What a sync app does for a shared folder: the Work PC's newest file appears in it (the phone reads it at its next pass or "Sync now").
+    private fun dropInFolder(): String {
+        val key = app.sync.key.value ?: return "no sync key"
+        val tree = app.sync.settings.value.folderUri?.let(android.net.Uri::parse) ?: return "no folder chosen"
+        val sealed = SyncFileCodec.seal(DemoPcFile.build(Instant.now(), false, listOf(SyncDeviceCard.METHOD_FOLDER)), key)
+        val name = com.accountabilibuddy.shared.sync.SyncFolder.fileNameFor(key.groupId, DemoPcFile.DEVICE_ID)
+        val treeId = android.provider.DocumentsContract.getTreeDocumentId(tree)
+        val children = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(tree, treeId)
+        var existing: android.net.Uri? = null
+        app.contentResolver.query(children, arrayOf("document_id", "_display_name"), null, null, null)?.use { cursor ->
+            while (cursor.moveToNext()) {
+                if (cursor.getString(1) == name) existing = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, cursor.getString(0))
+            }
+        }
+
+        val target = existing ?: android.provider.DocumentsContract.createDocument(
+            app.contentResolver, android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, treeId), "application/octet-stream", name,
+        ) ?: return "could not create the file"
+        app.contentResolver.openOutputStream(target, "wt")?.use { it.write(sealed) }
+        return "dropped the Work PC's file in the folder as $name"
+    }
+
+    private fun folderChildren(tree: android.net.Uri): List<Pair<String, android.net.Uri>> {
+        val treeId = android.provider.DocumentsContract.getTreeDocumentId(tree)
+        val children = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(tree, treeId)
+        val found = mutableListOf<Pair<String, android.net.Uri>>()
+        app.contentResolver.query(children, arrayOf("document_id", "_display_name"), null, null, null)?.use { cursor ->
+            while (cursor.moveToNext()) {
+                found += cursor.getString(1) to android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, cursor.getString(0))
+            }
+        }
+
+        return found
+    }
+
+    private fun clearFolder(): String {
+        val tree = app.sync.settings.value.folderUri?.let(android.net.Uri::parse) ?: return "no folder chosen"
+        val files = folderChildren(tree)
+        files.forEach { (_, uri) -> android.provider.DocumentsContract.deleteDocument(app.contentResolver, uri) }
+        return "emptied the folder (${files.size} files)"
+    }
+
+    // Files a sync app and a device removal leave in the folder: a "(conflict ...)" copy of a valid file, a file sealed with another group's
+    // key, and a file that names this group but is damaged (its last byte flipped, so the tag fails).
+    private fun writeLeftovers(conflict: Boolean, otherGroup: Boolean, corrupt: Boolean): String {
+        val key = app.sync.key.value ?: return "no sync key"
+        val tree = app.sync.settings.value.folderUri?.let(android.net.Uri::parse) ?: return "no folder chosen"
+        val treeId = android.provider.DocumentsContract.getTreeDocumentId(tree)
+        val parent = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, treeId)
+        val file = DemoPcFile.build(Instant.now(), false, listOf(SyncDeviceCard.METHOD_FOLDER))
+        val written = mutableListOf<String>()
+        fun put(name: String, bytes: ByteArray) {
+            val target = android.provider.DocumentsContract.createDocument(app.contentResolver, parent, "application/octet-stream", name) ?: return
+            app.contentResolver.openOutputStream(target, "wt")?.use { it.write(bytes) }
+            written += name
+        }
+
+        val validName = com.accountabilibuddy.shared.sync.SyncFolder.fileNameFor(key.groupId, DemoPcFile.DEVICE_ID)
+        if (conflict) {
+            put(validName.removeSuffix(".absync") + " (conflict 2026-11-01).absync", SyncFileCodec.seal(file, key))
+        }
+
+        if (otherGroup) {
+            val other = com.accountabilibuddy.shared.sync.SyncKey.fromSecret(java.security.SecureRandom().let { random -> ByteArray(25).also(random::nextBytes) })
+            put("aaaaaaaaaaaa.absync", SyncFileCodec.seal(file, other))
+        }
+
+        if (corrupt) {
+            val sealed = SyncFileCodec.seal(file, key)
+            sealed[sealed.size - 1] = (sealed[sealed.size - 1].toInt() xor 0x55).toByte()
+            put("bbbbbbbbbbbb.absync", sealed)
+        }
+
+        return "wrote $written"
+    }
+
+    // The state an update from the version before the "delivered" rule leaves: the Work PC's file held as having come by the folder, the folder
+    // on for 15 minutes, and no delivered or carried marks. Restart the app afterwards (the migration runs at start-up).
+    private fun simulateUpgrade(): String {
+        val key = app.sync.key.value ?: return "no sync key"
+        val file = DemoPcFile.build(Instant.now(), false, listOf(SyncDeviceCard.METHOD_FOLDER))
+        val error = app.sync.acceptSealed(SyncFileCodec.seal(file, key), SyncDeviceCard.METHOD_FOLDER)
+        if (error != null) return "refused: $error"
+
+        val prefs = app.getSharedPreferences("syncOff", Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+        prefs.all.keys.filter { it.startsWith("delivered.") || it.startsWith("out.") || it == "deliveryMigrated" }.forEach { editor.remove(it) }
+        editor.putLong("since.folder", Instant.now().minus(Duration.ofMinutes(15)).toEpochMilli()).commit()
+        return "upgrade state: file held by the folder, no marks; restart the app"
+    }
+
+    // The shared folder has been on, unchanged, for 15 minutes (the wait's "on since"), without waiting for real.
+    private fun ageFolder(): String {
+        app.getSharedPreferences("syncOff", Context.MODE_PRIVATE).edit().putLong("since.folder", Instant.now().minus(Duration.ofMinutes(15)).toEpochMilli()).apply()
+        return "the folder counts as on for 15 minutes"
     }
 
     // The standup and a review today, an all-day event tomorrow (the Calendar rows of the Plan timeline).

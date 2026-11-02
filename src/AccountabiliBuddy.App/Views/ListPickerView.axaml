@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.ListPickerView"
+             x:DataType="vm:ListPickerViewModel">
+    <!-- "From your lists": the open items of Later and Come back to, newest first, with a search box. Choosing one adds it to today's
+         list the way "Add to Today" does on the Tasks page (the checklist's three-task prompt applies). -->
+    <StackPanel Spacing="6" Width="340">
+        <TextBox x:Name="SearchBox" Classes="taskEntry" Text="{Binding Search}" PlaceholderText="Search Later and Come back to"
+                 AutomationProperties.Name="Search your lists" />
+        <TextBlock Text="{Binding EmptyText}" IsVisible="{Binding IsEmpty}" Foreground="{DynamicResource Ab.Muted}" FontSize="12" Margin="2,2,0,2" />
+        <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto" IsVisible="{Binding !IsEmpty}">
+            <ItemsControl ItemsSource="{Binding Rows}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ListPickRowViewModel">
+                        <Panel>
+                            <TextBlock Text="{Binding Title}" IsVisible="{Binding IsHeader}" FontWeight="SemiBold" FontSize="12"
+                                       Foreground="{DynamicResource Ab.Muted}" Margin="4,8,0,2" />
+                            <Button Classes="quiet" Command="{Binding PickCommand}" IsVisible="{Binding IsItem}" Padding="8,6"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" AutomationProperties.Name="{Binding Title}">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                    <Panel Width="10" VerticalAlignment="Top" Margin="0,5,0,0">
+                                        <Ellipse Width="10" Height="10" Fill="{Binding Brush}" Stroke="#80808080" StrokeThickness="1"
+                                                 IsVisible="{Binding HasCategory}" ToolTip.Tip="{Binding CategoryName}" />
+                                    </Panel>
+                                    <StackPanel Grid.Column="1" Spacing="1">
+                                        <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Detail}" IsVisible="{Binding HasDetail}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+                        </Panel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </StackPanel>
+</UserControl>

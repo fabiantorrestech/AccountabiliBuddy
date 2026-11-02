@@ -102,10 +102,11 @@ class SyncCoordinator(
      * Saves the sharing settings. Null when saved as asked; otherwise a line for the user: why not, or when a held turn-off happens.
      * - During a focus session the user started a way of syncing may be turned on but never off or pointed somewhere else
      *   ([PhoneSyncSettings.narrowedBy], [removalLockedReason]), so a frozen session can still be recovered.
-     * - Between sessions the ways that count ([SyncOffWait.counted]: shared folder, Drive, own relay, on and unchanged for 10 minutes) are
-     *   guarded the same way. Turning off the last one that counts is a looser change: it is held for [SyncOffWait.WAIT] with the way still on
-     *   and applied by [applyPendingSyncOff]. Pointing the last one somewhere else is refused, unless it reports a problem (so a broken one can
-     *   be fixed). Turning off one of several, turning a way on, QR codes, Sync files and every other field apply at once.
+     * - Between sessions the ways that count ([SyncOffWait.counted]: shared folder, Drive, own relay, that have brought a file from another
+     *   device, on and unchanged for 10 minutes) are guarded the same way. Turning off the last one that counts is a looser change: it is held
+     *   for [SyncOffWait.WAIT] with the way still on and applied by [applyPendingSyncOff]. Pointing the last one somewhere else is refused,
+     *   unless it reports a problem (so a broken one can be fixed). A way that has never brought a file protects nothing, so it can be pointed
+     *   elsewhere or turned off at once. Turning off one of several, turning a way on, QR codes, Sync files and every other field apply at once.
      */
     @Synchronized
     fun saveSettings(settings: PhoneSyncSettings): String? {
@@ -119,6 +120,7 @@ class SyncCoordinator(
         val wait = offWait
         if (wait != null) {
             val time = now()
+            wait.observe(current, time)
             val counted = wait.countedWays(current, time)
             val stays = counted.any { it.isLive(settings) && it.sameIn(current, settings) }
             if (counted.isNotEmpty() && !stays) {
@@ -147,6 +149,18 @@ class SyncCoordinator(
         val wait = offWait ?: return false
         return wait.countedWays(settingsStore.settings.value, now()) == listOf(method)
     }
+
+    /** Whether another device's file has come through [method], pointing where it does now (the folder's "only this phone's file" warning stops once it has). */
+    fun hasDelivered(method: SyncMethod): Boolean = offWait?.delivered(method, settingsStore.settings.value) == true
+
+    /** Whether [method] counts as a way of syncing right now: on, unchanged for 10 minutes, and it has brought another device's file. */
+    fun counts(method: SyncMethod): Boolean = offWait?.counted(method, settingsStore.settings.value, now()) == true
+
+    /**
+     * Whether pointing [method] somewhere else is refused between sessions: it is the only way that counts and reports no problem. (A way that
+     * has never brought another device's file is not counted, so it can be pointed elsewhere at once.) The Devices page says why before it asks.
+     */
+    fun repointWaits(method: SyncMethod): Boolean = turnOffWaits(method) && !hasProblem(method)
 
     /** Whether this file's settings would leave the ways that count without one (an import must not do that; see [saveSettings]). */
     fun leavesNoWay(next: PhoneSyncSettings): Boolean {
@@ -193,7 +207,7 @@ class SyncCoordinator(
     fun ownQrLinks(): List<String> {
         val key = identity.key.value ?: return emptyList()
         // The shared lists with their tombstones (ADR 48) stay out of QR codes, as on the PC: a file without them leaves them alone.
-        return SyncQr.links(SyncFileCodec.seal(ownFile().copy(nextTasks = null, parked = null, later = null, pastKeys = null), key), key.groupId)
+        return SyncQr.links(SyncFileCodec.seal(ownFile().copy(nextTasks = null, parked = null, later = null, pastKeys = null, categories = null), key), key.groupId)
     }
 
     // The methods on the phone's card: what's switched on.
@@ -246,6 +260,13 @@ class SyncCoordinator(
 
     /** The Later list with its tombstones (ADR 50); null before the app sets it. */
     var later: () -> List<com.accountabilibuddy.shared.sync.SyncLaterItem>? = { null }
+
+    /**
+     * This phone's own task categories, name and colour, for its file so the PCs can offer them. The phone keeps no category list of its
+     * own yet (its picker lists the categories it has seen on tasks), so this stays null until the phone gets one; the field and its JSON
+     * are in place.
+     */
+    var categories: () -> List<com.accountabilibuddy.shared.sync.SyncCategory>? = { null }
 
     /**
      * Another device's shared lists (ADR 48), from a file just taken in; a list the file doesn't carry is null. The app
@@ -708,6 +729,8 @@ class SyncCoordinator(
             removedStore.clear(removed.deviceId)
         }
 
+        noteDelivery(method, file.device, settings)
+
         val held = store.devices.value.firstOrNull { it.file.device.deviceId == file.device.deviceId }
         // The copy kept of the sender's file doesn't hold the shared lists (ADR 48): they merge into this phone's own sealed
         // store below, so their text isn't kept a second time in the clear. The sealed bytes it carries on are sealed.
@@ -734,6 +757,24 @@ class SyncCoordinator(
         }
 
         return null
+    }
+
+    /** Whether [card]'s file at [method]'s place is a copy this phone wrote there itself to carry it on (see [filesForFolder]). */
+    fun writtenByThisPhone(method: String, card: SyncDeviceCard): Boolean {
+        val way = SyncMethod.fromCardMethod(method) ?: return false
+        return offWait?.wasCarried(way, card.deviceId, card.writtenAt) == true
+    }
+
+    // A readable file from another device of the group came by [method]: that way brings the others' files, so it counts as a way of syncing
+    // (SyncOffWait). Not a copy of a file this phone wrote to that place itself, and not this phone's own file.
+    private fun noteDelivery(method: String, card: SyncDeviceCard, settings: PhoneSyncSettings) {
+        val wait = offWait ?: return
+        val way = SyncMethod.fromCardMethod(method) ?: return
+        if (card.deviceId == identity.deviceId || wait.wasCarried(way, card.deviceId, card.writtenAt)) {
+            return
+        }
+
+        wait.markDelivered(way, settings)
     }
 
     /** One scanned QR link from the PC: e.g. "2 of 3 scanned", "Synced Work PC", or why not. */
@@ -774,6 +815,8 @@ class SyncCoordinator(
         later = runCatching { later() }.getOrNull(),
         // ADR 56: the past keys, for opening backups; sealed with the current key like everything else.
         pastKeys = pastKeys.forFile(),
+        // Null until the phone has its own task categories to publish (it has no list yet; the user knows). The PCs list theirs.
+        categories = runCatching { categories() }.getOrNull(),
     )
 
     /**
@@ -816,6 +859,9 @@ class SyncCoordinator(
     fun ownFolderFileName(): String? = identity.key.value?.let { SyncFolder.fileNameFor(it.groupId, identity.deviceId) }
 
     /** The card of a sealed file from this group, without taking it in; null when it can't be read. */
+    /** A sync file of another group (a leftover from before a device removal): to be skipped without a word. */
+    fun isOtherGroupsFile(bytes: ByteArray): Boolean = identity.key.value?.let { SyncFileCodec.isOtherGroups(bytes, it) } ?: false
+
     fun cardOf(bytes: ByteArray): SyncDeviceCard? = identity.key.value?.let { SyncFileCodec.open(bytes, it)?.device }
 
     /**
@@ -830,6 +876,8 @@ class SyncCoordinator(
             .filter { it.method != cameBy && it.carryable && it.file.device.deviceId !in removedIds() }
             .filter { device -> inFolder[device.file.device.deviceId]?.let { device.file.device.writtenAt > it } ?: true }
             .map { FolderFile(SyncFolder.fileNameFor(key.groupId, it.file.device.deviceId), it.file.device.deviceId, it.file.device.writtenAt, it.sealed) }
+        // Written to that place by this phone: reading them back is no proof that the place brings other devices' files (see noteDelivery).
+        SyncMethod.fromCardMethod(cameBy)?.let { way -> carried.forEach { offWait?.noteCarried(way, it.deviceId, it.writtenAt) } }
         val ownFile = if (gate.due(own, now(), inFocusSession())) {
             listOf(FolderFile(SyncFolder.fileNameFor(key.groupId, identity.deviceId), identity.deviceId, own.device.writtenAt, SyncFileCodec.seal(own, key), own = true))
         } else {

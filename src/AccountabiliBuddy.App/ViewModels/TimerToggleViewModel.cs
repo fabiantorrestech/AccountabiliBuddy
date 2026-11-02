@@ -6,7 +6,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// Session tab button that hides or shows the on-screen timer for the running session. Works during focus, since
-/// the timer is only a visual aid; it is on or off per profile in the Profiles tab.
+/// the timer is only a visual aid; it is on or off per profile in the Profiles tab. While Ctrl+Alt+H keeps the whole overlay hidden it
+/// says so and shows the overlay again instead, so the two never disagree about what the button does.
 /// </summary>
 public sealed partial class TimerToggleViewModel : ObservableObject
 {
@@ -29,12 +30,20 @@ public sealed partial class TimerToggleViewModel : ObservableObject
     [RelayCommand]
     private void Toggle()
     {
+        if (_overlay.IsHiddenByShortcut)
+        {
+            _overlay.ToggleHidden();
+            return;
+        }
+
         _overlay.SetHiddenForSession(!_overlay.IsHiddenForSession);
     }
 
     private void Refresh()
     {
         IsVisible = _overlay.IsOnForSession;
-        ButtonText = _overlay.IsHiddenForSession ? "Show on-screen timer" : "Hide on-screen timer for this session";
+        ButtonText = _overlay.IsHiddenByShortcut ? "Show on-screen overlay"
+            : _overlay.IsHiddenForSession ? "Show on-screen timer"
+            : "Hide on-screen timer for this session";
     }
 }

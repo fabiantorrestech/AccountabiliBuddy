@@ -54,6 +54,11 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="PeekKeysLocked">While the panel only peeks (Ctrl+Alt held), it registers no keyboard shortcuts at all; true by default and for saved settings without the field. Unlocked, a peek registers only the safe ones (hide, +10 min, up, down). The sticky panel takes its keys by focus either way.</param>
 /// <param name="PeekDelayMs">How long Ctrl+Alt is held before the peek opens (0 = at once, up to 600); 150 by default and for saved settings without the field. At 0 the panel flashes on every Ctrl+Alt+key shortcut of another app.</param>
 /// <param name="SideTileY">Where the vertical tile was dragged to along the screen edge (physical pixels from the top); null = the middle.</param>
+/// <param name="HideShortcutOn">Ctrl+Alt+H is registered system-wide and toggles <paramref name="HiddenByShortcut"/>. On by default and for saved settings without the field.</param>
+/// <param name="HiddenByShortcut">The overlay is hidden until Ctrl+Alt+H is pressed again; a held Ctrl+Alt still peeks. Kept across sessions and restarts, this PC only.</param>
+/// <param name="HideShortcutSeen">Ctrl+Alt+H was used at least once (the migration assistant's "set up?" check).</param>
+/// <param name="OverlayOn">The master switch: false = no tile, no timeline, no corner clock, no peek, and neither Ctrl+Alt+H nor Ctrl+Alt+Space is registered. On by default and for saved settings without the field.</param>
+/// <param name="OffFromPanel">The overlay was turned off with the Ctrl+Alt panel's Disable button (only meaningful while <paramref name="OverlayOn"/> is false); Today then shows a "Turn on" card. Turned off in Settings, it does not.</param>
 public sealed record OverlaySettings(
     OverlayStyle Style,
     double Opacity,
@@ -99,7 +104,12 @@ public sealed record OverlaySettings(
     bool PanelSeen = false,
     bool PlacementChosen = false,
     bool PeekKeysLocked = true,
-    int PeekDelayMs = OverlaySettings.DefaultPeekDelayMs)
+    int PeekDelayMs = OverlaySettings.DefaultPeekDelayMs,
+    bool HideShortcutOn = true,
+    bool HiddenByShortcut = false,
+    bool HideShortcutSeen = false,
+    bool OverlayOn = true,
+    bool OffFromPanel = false)
 {
     /// <summary>Default vertical distance for maximized apps from a top corner (clears tabs, toolbars, window buttons).</summary>
     public const int TopCornerDrop = 110;
@@ -127,7 +137,7 @@ public sealed record OverlaySettings(
     /// <summary>What the overlay shows and in what order, with every part listed once. Never saved: the default for this size and placement.</summary>
     public IReadOnlyList<OverlayItem> Items => ContentOrder is null
         ? OverlayContentOrder.DefaultFor(Size, EffectivePlacement)
-        : OverlayContentOrder.Complete(ContentOrder);
+        : OverlayContentOrder.Complete(ContentOrder, Progress);
 
     /// <summary>The per-app rules in force: the user's list, else the built-in one.</summary>
     public IReadOnlyList<OverlayAppRule> Rules => AppRules ?? OverlayAppRules.Defaults;

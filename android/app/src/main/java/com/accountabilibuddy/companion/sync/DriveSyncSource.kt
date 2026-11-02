@@ -39,6 +39,11 @@ class DriveSyncSource(
     // Files already read, by Drive id: the change time Drive gave then.
     private val seen = mutableMapOf<String, Instant>()
 
+    // The verdict per file id, kept because [seen] skips files already read: ids of other groups' files, and of this group's
+    // files from another device. Together they tell whether the other devices have moved to a newer key.
+    private val otherGroupIds = mutableSetOf<String>()
+    private val groupIds = mutableSetOf<String>()
+
     // Writes this phone's own file only when it changed (or on the slow heartbeat).
     private val ownGate = OwnFileWriteGate()
 
@@ -93,7 +98,7 @@ class DriveSyncSource(
                     // A rekey the coordinator applied in the background may have changed the key meanwhile: write for the key as it is now.
                     followKey()
                     write(token, listed)
-                    FolderStatus(Instant.now(), if (unreadable) "Can't read a file in Google Drive." else null)
+                    FolderStatus(Instant.now(), if (unreadable) "Can't read a file in Google Drive." else null, newerLink = otherGroupIds.isNotEmpty() && groupIds.isEmpty())
                 } catch (e: Exception) {
                     FolderStatus(_status.value.lastSyncAt, "Can't reach Google Drive right now.")
                 }
@@ -162,13 +167,19 @@ class DriveSyncSource(
     fun forget() {
         inDrive.clear()
         seen.clear()
+        otherGroupIds.clear()
+        groupIds.clear()
         ownGate.reset()
         _status.value = FolderStatus()
     }
 
-    // True when a file couldn't be read (another group's, or damaged).
+    // True when a file couldn't be read (damaged, or newer than this app; another group's files are skipped).
     private fun read(token: String, listed: List<DriveFileInfo>, ownName: String): Boolean {
         var unreadable = false
+        // Files that are gone no longer count.
+        val listedIds = listed.map { it.id }.toSet()
+        otherGroupIds.retainAll(listedIds)
+        groupIds.retainAll(listedIds)
         for (file in listed) {
             if (!SyncFolder.isOtherDevicesFile(file.name, ownName) || seen[file.id] == file.modifiedAt) {
                 continue
@@ -176,10 +187,18 @@ class DriveSyncSource(
 
             val bytes = files.download(token, file.id)
             seen[file.id] = file.modifiedAt
+            otherGroupIds.remove(file.id)
+            groupIds.remove(file.id)
             // The rekey file (ADR 54): handed to the coordinator, which applies it a few seconds later (the key change is then
             // picked up by followKey on the next pass).
             if (RekeyCodec.isRekey(bytes)) {
                 sync.acceptSealed(bytes, SyncDeviceCard.METHOD_DRIVE)
+                continue
+            }
+
+            // Another group's file (from before a device removal) is a leftover, not a problem.
+            if (sync.isOtherGroupsFile(bytes)) {
+                otherGroupIds.add(file.id)
                 continue
             }
 
@@ -189,6 +208,7 @@ class DriveSyncSource(
                 continue
             }
 
+            groupIds.add(file.id)
             inDrive[card.deviceId] = maxOf(card.writtenAt, inDrive[card.deviceId] ?: Instant.MIN)
             sync.acceptSealed(bytes, SyncDeviceCard.METHOD_DRIVE)
         }

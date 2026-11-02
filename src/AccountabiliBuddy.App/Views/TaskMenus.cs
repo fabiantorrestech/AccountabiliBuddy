@@ -1,4 +1,5 @@
 using AccountabiliBuddy.App.ViewModels;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -102,12 +103,12 @@ public static class TaskMenus
     // A category's dot before its text, a ✓ after the one the task has; plain text otherwise.
     private static object HeaderOf(TaskMenuEntry entry)
     {
-        if (entry.Dot is null && !entry.IsChecked)
+        if (entry.Dot is null && !entry.IsChecked && !entry.Indented && !entry.IsHeading)
         {
             return entry.Header;
         }
 
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(entry.Indented ? 14 : 0, 0, 0, 0) };
         if (entry.Dot is IBrush dot)
         {
             panel.Children.Add(new Avalonia.Controls.Shapes.Ellipse
@@ -121,7 +122,19 @@ public static class TaskMenus
             });
         }
 
-        panel.Children.Add(new TextBlock { Text = entry.Header, VerticalAlignment = VerticalAlignment.Center });
+        var text = new TextBlock
+        {
+            Text = entry.Header,
+            VerticalAlignment = VerticalAlignment.Center,
+            FontWeight = entry.IsHeading ? FontWeight.SemiBold : FontWeight.Normal,
+        };
+        if (entry.IsHeading)
+        {
+            // A heading is a disabled item, which the theme dims too far on Paper; the app's muted text colour (followed live) stays readable.
+            text.Bind(TextBlock.ForegroundProperty, text.GetResourceObservable("Ab.Muted"));
+        }
+
+        panel.Children.Add(text);
         if (entry.IsChecked)
         {
             panel.Children.Add(new TextBlock { Text = "✓", VerticalAlignment = VerticalAlignment.Center });
