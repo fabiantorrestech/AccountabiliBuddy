@@ -262,7 +262,10 @@
             <Style Selector="StackPanel.detailBody">
                 <Setter Property="Margin" Value="0,0,14,0" />
             </Style>
-            <!-- Rows: the status and category slots go, "Now" keeps only its own width and the gaps shrink, so the title keeps the room. -->
+        </ContainerQuery>
+        <!-- Rows: when the list card itself is narrow (the detail card beside it at the smallest window) the status and category slots go,
+             "Now" keeps only its own width and the gaps shrink, so the title keeps its room. A wide card keeps them. -->
+        <ContainerQuery Name="TaskList" Query="max-width:560">
             <Style Selector="Grid.rowGrid">
                 <Setter Property="ColumnSpacing" Value="4" />
             </Style>
@@ -351,7 +354,7 @@
 
     <Grid x:Name="Page" ColumnDefinitions="*,Auto" Container.Name="TasksPage" Container.Sizing="Width">
         <!-- The list card. -->
-        <Border Classes="card" Padding="0" ClipToBounds="True" MinWidth="320">
+        <Border Classes="card" Padding="0" ClipToBounds="True" MinWidth="320" Container.Name="TaskList" Container.Sizing="Width">
             <DockPanel>
                 <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="36,30,28,0">
                     <StackPanel Spacing="2">
