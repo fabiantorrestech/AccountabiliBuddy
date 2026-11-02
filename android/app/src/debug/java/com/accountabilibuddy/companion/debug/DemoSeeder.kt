@@ -59,6 +59,10 @@ class DemoSeeder(private val app: CompanionApp) {
         DemoSeedReceiver.MODE_FOLDER_DROP -> dropInFolder()
         DemoSeedReceiver.MODE_FOLDER_AGE -> ageFolder()
         DemoSeedReceiver.MODE_FOLDER_UPGRADE -> simulateUpgrade()
+        DemoSeedReceiver.MODE_FOLDER_CLEAR -> clearFolder()
+        DemoSeedReceiver.MODE_FOLDER_MIX -> clearFolder() + "; " + dropInFolder() + "; " + writeLeftovers(conflict = true, otherGroup = true, corrupt = false)
+        DemoSeedReceiver.MODE_FOLDER_CORRUPT -> clearFolder() + "; " + dropInFolder() + "; " + writeLeftovers(conflict = false, otherGroup = false, corrupt = true)
+        DemoSeedReceiver.MODE_FOLDER_OLD_ONLY -> clearFolder() + "; " + writeLeftovers(conflict = false, otherGroup = true, corrupt = false)
         DemoSeedReceiver.MODE_DUMP -> TasksDemo(app).dump()
         DemoSeedReceiver.MODE_MERGE_CHECK -> TasksDemo(app).mergeCheck()
         DemoSeedReceiver.MODE_HANDOFF_CHECK -> TasksDemo(app).handoffCheck()
@@ -127,6 +131,60 @@ class DemoSeeder(private val app: CompanionApp) {
         ) ?: return "could not create the file"
         app.contentResolver.openOutputStream(target, "wt")?.use { it.write(sealed) }
         return "dropped the Work PC's file in the folder as $name"
+    }
+
+    private fun folderChildren(tree: android.net.Uri): List<Pair<String, android.net.Uri>> {
+        val treeId = android.provider.DocumentsContract.getTreeDocumentId(tree)
+        val children = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(tree, treeId)
+        val found = mutableListOf<Pair<String, android.net.Uri>>()
+        app.contentResolver.query(children, arrayOf("document_id", "_display_name"), null, null, null)?.use { cursor ->
+            while (cursor.moveToNext()) {
+                found += cursor.getString(1) to android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, cursor.getString(0))
+            }
+        }
+
+        return found
+    }
+
+    private fun clearFolder(): String {
+        val tree = app.sync.settings.value.folderUri?.let(android.net.Uri::parse) ?: return "no folder chosen"
+        val files = folderChildren(tree)
+        files.forEach { (_, uri) -> android.provider.DocumentsContract.deleteDocument(app.contentResolver, uri) }
+        return "emptied the folder (${files.size} files)"
+    }
+
+    // Files a sync app and a device removal leave in the folder: a "(conflict ...)" copy of a valid file, a file sealed with another group's
+    // key, and a file that names this group but is damaged (its last byte flipped, so the tag fails).
+    private fun writeLeftovers(conflict: Boolean, otherGroup: Boolean, corrupt: Boolean): String {
+        val key = app.sync.key.value ?: return "no sync key"
+        val tree = app.sync.settings.value.folderUri?.let(android.net.Uri::parse) ?: return "no folder chosen"
+        val treeId = android.provider.DocumentsContract.getTreeDocumentId(tree)
+        val parent = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, treeId)
+        val file = DemoPcFile.build(Instant.now(), false, listOf(SyncDeviceCard.METHOD_FOLDER))
+        val written = mutableListOf<String>()
+        fun put(name: String, bytes: ByteArray) {
+            val target = android.provider.DocumentsContract.createDocument(app.contentResolver, parent, "application/octet-stream", name) ?: return
+            app.contentResolver.openOutputStream(target, "wt")?.use { it.write(bytes) }
+            written += name
+        }
+
+        val validName = com.accountabilibuddy.shared.sync.SyncFolder.fileNameFor(key.groupId, DemoPcFile.DEVICE_ID)
+        if (conflict) {
+            put(validName.removeSuffix(".absync") + " (conflict 2026-11-01).absync", SyncFileCodec.seal(file, key))
+        }
+
+        if (otherGroup) {
+            val other = com.accountabilibuddy.shared.sync.SyncKey.fromSecret(java.security.SecureRandom().let { random -> ByteArray(25).also(random::nextBytes) })
+            put("aaaaaaaaaaaa.absync", SyncFileCodec.seal(file, other))
+        }
+
+        if (corrupt) {
+            val sealed = SyncFileCodec.seal(file, key)
+            sealed[sealed.size - 1] = (sealed[sealed.size - 1].toInt() xor 0x55).toByte()
+            put("bbbbbbbbbbbb.absync", sealed)
+        }
+
+        return "wrote $written"
     }
 
     // The state an update from the version before the "delivered" rule leaves: the Work PC's file held as having come by the folder, the folder

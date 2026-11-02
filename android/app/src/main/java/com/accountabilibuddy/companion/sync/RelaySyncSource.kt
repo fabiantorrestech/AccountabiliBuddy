@@ -349,7 +349,7 @@ class RelaySyncSource(
         }
     }
 
-    // True when a file couldn't be read (another group's, or damaged).
+    // True when a file couldn't be read (damaged, or newer than this app; another group's files are skipped).
     private fun read(endpoint: RelayEndpoint, listed: List<RelayFileInfo>, ownName: String): Boolean {
         var unreadable = false
         var passBytes = 0L
@@ -374,9 +374,15 @@ class RelaySyncSource(
                 continue
             }
 
+            // Another group's file (from before a device removal) is a leftover, not a problem.
+            if (sync.isOtherGroupsFile(downloaded.bytes)) {
+                seen[file.name] = etag
+                continue
+            }
+
             val card = sync.cardOf(downloaded.bytes)
             if (card == null) {
-                // Another group's or damaged: not read again until it changes.
+                // Damaged: not read again until it changes.
                 seen[file.name] = etag
                 unreadable = true
                 continue

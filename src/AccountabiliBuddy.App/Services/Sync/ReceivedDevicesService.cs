@@ -45,7 +45,24 @@ public sealed class ReceivedDevicesService
     /// <summary>Why the last file couldn't be used, e.g. "Can't read a file from <folder>"; null when fine.</summary>
     public string? LastProblem { get; private set; }
 
-    /// <summary>Raised when a device's copy is added, changes or is forgotten, and when <see cref="LastProblem"/> changes.</summary>
+    /// <summary>The text shown when a place holds files of another group and none of this group from another device (the other devices are most likely on a newer link).</summary>
+    public const string NewerLinkText = "Your other devices seem to be on a newer link. Link this device again from one of them.";
+
+    private readonly HashSet<string> _newerLinkMethods = [];
+
+    /// <summary>True when the way <paramref name="method"/> (a <see cref="SyncDeviceCard"/> method) found only leftovers of another group. A soft hint, never a problem.</summary>
+    public bool NewerLinkOn(string method) => _newerLinkMethods.Contains(method);
+
+    /// <summary>Sets or clears the newer-link hint of one way; raises <see cref="Changed"/> when it changes.</summary>
+    public void SetNewerLink(string method, bool on)
+    {
+        if (on ? _newerLinkMethods.Add(method) : _newerLinkMethods.Remove(method))
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>Raised when a device's copy is added, changes or is forgotten, and when <see cref="LastProblem"/> or a newer-link hint changes.</summary>
     public event EventHandler? Changed;
 
     public void LoadBlocking()

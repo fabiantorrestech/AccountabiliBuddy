@@ -373,6 +373,13 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string? SyncProblem { get; set; }
 
+    /// <summary>Soft hints (never <see cref="SyncProblem"/>: that would turn the light red): the shared folder or Drive holds only files of another group.</summary>
+    [ObservableProperty]
+    public partial string? FolderNewerLinkText { get; set; }
+
+    [ObservableProperty]
+    public partial string? DriveNewerLinkText { get; set; }
+
     private string? DescribeSyncProblem(SyncSettings settings)
     {
         if (!InGroup)
@@ -431,6 +438,8 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         SnoozeIndex = Math.Max(0, Array.IndexOf(SnoozeChoices, settings.SnoozeMinutes));
         _loading = false;
         SyncProblem = DescribeSyncProblem(settings);
+        FolderNewerLinkText = settings.FolderOn && _received.NewerLinkOn(SyncDeviceCard.MethodFolder) ? ReceivedDevicesService.NewerLinkText : null;
+        DriveNewerLinkText = settings.DriveOn && _received.NewerLinkOn(SyncDeviceCard.MethodDrive) ? ReceivedDevicesService.NewerLinkText : null;
 
         DateTimeOffset now = _time.GetUtcNow();
         Rows.Clear();

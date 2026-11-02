@@ -62,6 +62,12 @@ class DemoSeedReceiver : BroadcastReceiver() {
         const val MODE_FOLDER_DROP = "folder-drop"
         const val MODE_FOLDER_AGE = "folder-age"
         const val MODE_FOLDER_UPGRADE = "folder-upgrade"
+        // Leftovers in the chosen folder (unreadable-leftovers fix): empty it; the Work PC's file + a (conflict) copy + another group's file;
+        // the same with a damaged file naming this group; only another group's file.
+        const val MODE_FOLDER_CLEAR = "folder-clear"
+        const val MODE_FOLDER_MIX = "folder-mix"
+        const val MODE_FOLDER_CORRUPT = "folder-corrupt"
+        const val MODE_FOLDER_OLD_ONLY = "folder-old-only"
         const val MODE_DUMP = "dump"
         const val MODE_MERGE_CHECK = "merge-check"
         const val MODE_HANDOFF_CHECK = "handoff-check"

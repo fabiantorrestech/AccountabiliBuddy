@@ -32,7 +32,12 @@ internal fun MethodStatusLine(status: FolderStatus, now: Instant) {
         style = Ab.type.small,
         color = if (status.problem != null) Ab.colors.drift else Ab.colors.muted,
     )
+    if (status.newerLink) {
+        Text(NEWER_LINK, style = Ab.type.small, color = Ab.colors.muted)
+    }
 }
+
+private const val NEWER_LINK = "Your other devices seem to be on a newer link. Link this device again from one of them."
 
 /** Google Drive (ADR 26): the app's own Drive folder, the one the PCs use; off until signed in. */
 @Composable
@@ -107,7 +112,7 @@ private const val ONLY_OWN_FILE = "Only this phone's file is in this folder. You
     "and that your sync app downloads to it."
 
 /** The last pass found this phone's own file in the folder and no file of another device: most likely the wrong (a sub-) folder. */
-private fun onlyOwnFile(status: FolderStatus): Boolean = status.problem == null && status.lastSyncAt != null && status.otherFiles == 0
+private fun onlyOwnFile(status: FolderStatus): Boolean = status.problem == null && !status.newerLink && status.lastSyncAt != null && status.otherFiles == 0
 
 /**
  * What the Shared folder row lets the user do right now, and why when it does not (the line under the buttons):

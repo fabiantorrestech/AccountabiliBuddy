@@ -48,6 +48,14 @@ public static class SyncFileCodec
         return HeaderBytes + Compress(file).Length + TagBytes;
     }
 
+    /// <summary>A sync file ("ABS1") whose header names another group than <paramref name="key"/>'s: a leftover (from before a device removal), not a problem.</summary>
+    public static bool IsOtherGroups(ReadOnlySpan<byte> sealedBytes, SyncKey key)
+    {
+        return sealedBytes.Length >= MagicBytes + GroupIdBytes
+            && sealedBytes[..MagicBytes].SequenceEqual(Magic)
+            && !sealedBytes.Slice(MagicBytes, GroupIdBytes).SequenceEqual(Convert.FromHexString(key.GroupId));
+    }
+
     /// <returns>
     /// The file, or null when it isn't one this group's devices wrote or can't be read: another group or key, a
     /// changed or cut-off file, a header other than "ABS1", JSON that isn't a complete sync file, or a format version

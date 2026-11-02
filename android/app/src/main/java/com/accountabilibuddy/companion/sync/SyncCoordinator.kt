@@ -859,6 +859,9 @@ class SyncCoordinator(
     fun ownFolderFileName(): String? = identity.key.value?.let { SyncFolder.fileNameFor(it.groupId, identity.deviceId) }
 
     /** The card of a sealed file from this group, without taking it in; null when it can't be read. */
+    /** A sync file of another group (a leftover from before a device removal): to be skipped without a word. */
+    fun isOtherGroupsFile(bytes: ByteArray): Boolean = identity.key.value?.let { SyncFileCodec.isOtherGroups(bytes, it) } ?: false
+
     fun cardOf(bytes: ByteArray): SyncDeviceCard? = identity.key.value?.let { SyncFileCodec.open(bytes, it)?.device }
 
     /**

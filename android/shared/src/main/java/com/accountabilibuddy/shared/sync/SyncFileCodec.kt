@@ -47,6 +47,12 @@ object SyncFileCodec {
         return magic + key.groupIdBytes + nonce + cipher.doFinal(compressed)
     }
 
+    /** A sync file ("ABS1") whose header names another group than [key]'s: a leftover (from before a device removal), not a problem. */
+    fun isOtherGroups(sealedBytes: ByteArray, key: SyncKey): Boolean =
+        sealedBytes.size >= MAGIC_BYTES + GROUP_ID_BYTES
+            && sealedBytes.startsWith(magic, 0)
+            && !sealedBytes.startsWith(key.groupIdBytes, MAGIC_BYTES)
+
     /**
      * The file, or null when it isn't one this group's devices wrote or can't be read: another group or key, a changed
      * or cut-off file, a header other than "ABS1", JSON that isn't UTF-8 or isn't a complete sync file, or a format
