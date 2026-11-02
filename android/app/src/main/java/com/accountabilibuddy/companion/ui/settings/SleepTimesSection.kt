@@ -1,15 +1,12 @@
 package com.accountabilibuddy.companion.ui.settings
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -18,8 +15,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
@@ -31,7 +26,11 @@ import com.accountabilibuddy.companion.model.SleepTimes
 import com.accountabilibuddy.companion.ui.Hint
 import com.accountabilibuddy.companion.ui.Section
 import com.accountabilibuddy.companion.ui.ToggleRow
+import com.accountabilibuddy.companion.ui.kit.AbSectionLabel
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.companion.ui.kit.AbValueButton
 import com.accountabilibuddy.companion.ui.kit.ChangeWaitsSheet
+import com.accountabilibuddy.companion.ui.kit.abTimePickerColors
 import com.accountabilibuddy.companion.ui.theme.Ab
 import java.time.Duration
 import java.time.Instant
@@ -97,7 +96,7 @@ internal fun SleepSection(saved: SleepSettings, clock: ClockFormat, onSave: (Sle
             )
         }
         if (offText != null) {
-            TextButton(onClick = { sleepSync.cancelPendingOff(); offText = null }) { Text("Cancel") }
+            AbTextButton("Cancel", onClick = { sleepSync.cancelPendingOff(); offText = null })
         }
         ToggleRow("Same every night", "Off: Friday and Saturday nights use the weekend times", saved.sameEveryNight) { onSave(saved.copy(sameEveryNight = it)) }
         NightRow(if (saved.sameEveryNight) "Every night" else "Weeknights (Sun–Thu)", saved.weeknights, clock,
@@ -129,22 +128,21 @@ internal fun SleepSection(saved: SleepSettings, clock: ClockFormat, onSave: (Sle
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun NightRow(label: String, times: SleepTimes, clock: ClockFormat, onBed: () -> Unit, onWake: () -> Unit) {
     val night = SleepSchedule(times, times).night(LocalDate.of(2026, 1, 5))
     val length = Duration.between(night.start, night.end)
     val suspicious = length < Duration.ofHours(3) || length > Duration.ofHours(16)
     Column {
-        Text(label, style = MaterialTheme.typography.bodyMedium)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = onBed) { Text("Bed ${clock.time(LocalDate.now().atTime(times.bedtime))}") }
-            Spacer(Modifier.width(8.dp))
-            OutlinedButton(onClick = onWake) { Text("Up ${clock.time(LocalDate.now().atTime(times.wake))}") }
-            Spacer(Modifier.width(10.dp))
+        AbSectionLabel(label)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AbValueButton("Bed ${clock.time(LocalDate.now().atTime(times.bedtime))}", onClick = onBed)
+            AbValueButton("Up ${clock.time(LocalDate.now().atTime(times.wake))}", onClick = onWake)
             Text(
                 if (suspicious) "⚠ ${DayBarBuilder.duration(length)}: check AM/PM" else "${DayBarBuilder.duration(length)} of sleep",
-                color = if (suspicious) Ab.colors.drift else MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
+                color = if (suspicious) Ab.colors.drift else Ab.colors.muted,
+                style = Ab.type.small,
             )
         }
     }
@@ -156,8 +154,9 @@ private fun TimeDialog(initial: LocalTime, is24Hour: Boolean, onDismiss: () -> U
     val picker = rememberTimePickerState(initialHour = initial.hour, initialMinute = initial.minute, is24Hour = is24Hour)
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = { onPick(LocalTime.of(picker.hour, picker.minute)) }) { Text("OK") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-        text = { TimePicker(state = picker) },
+        containerColor = Ab.colors.surface,
+        confirmButton = { AbTextButton("OK", onClick = { onPick(LocalTime.of(picker.hour, picker.minute)) }) },
+        dismissButton = { AbTextButton("Cancel", onClick = onDismiss) },
+        text = { TimePicker(state = picker, colors = abTimePickerColors()) },
     )
 }

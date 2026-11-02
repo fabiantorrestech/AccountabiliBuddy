@@ -2,11 +2,8 @@ package com.accountabilibuddy.companion.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -15,22 +12,28 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
-import com.accountabilibuddy.companion.ui.kit.AbTonalButton
 import com.accountabilibuddy.companion.essentials.EssentialsLaunch
 import com.accountabilibuddy.companion.session.TestSession
+import com.accountabilibuddy.companion.ui.kit.AbCard
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
+import com.accountabilibuddy.companion.ui.theme.Ab
 import java.time.Duration
 import java.time.Instant
 
 /**
- * Today → More options: the test session (1 minute by default, 1-60), to try the phone's settings (the essentials
- * screen, the LockMyPhone-Extended profile, Curbox hard mode, the notification) without a real session. Ends early
- * at once; can't start while a real session runs on another device.
+ * The test session (1 minute by default, 1-60), to try the phone's settings (the essentials screen, the LockMyPhone-Extended
+ * profile, Curbox hard mode, the notification) without a real session. Ends early at once; can't start while a real session runs
+ * on another device. On Today it is one of "More options" (a folding card); with [asPage] (Settings › Focus sessions) it is a card
+ * of its own.
  */
 @Composable
-fun TestSessionCard() {
+fun TestSessionCard(asPage: Boolean = false) {
     val app = LocalContext.current.applicationContext as CompanionApp
     val test = app.testSession
     val window by test.window.collectAsState()
@@ -49,35 +52,40 @@ fun TestSessionCard() {
         else -> "Test session · $minutes min"
     }
 
-    Section("More options", summary = summary) {
-        IconTitle("Test session", style = MaterialTheme.typography.titleSmall)
-        Text(
-            "Runs like a session on another device, on this phone only: never counted, not in History, not synced, not on the watch.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    val body: @Composable () -> Unit = {
+        if (!asPage) IconTitle("Test session", style = Ab.type.bodyMedium, fontWeight = FontWeight.SemiBold)
+        Note("Runs like a session on another device, on this phone only: never counted, not in History, not synced, not on the watch.")
         Hint("Try your settings: unlock the phone for the essentials screen, and see the LockMyPhone-Extended profile, Curbox hard mode and the notification react. Each follows its own switch in Settings. A real session on another device always comes first.")
         if (running != null) {
             val left = Duration.between(now, running.second).seconds.coerceAtLeast(0)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Test session · %d:%02d left".format(left / 60, left % 60), style = MaterialTheme.typography.bodyLarge, modifier = androidx.compose.ui.Modifier.weight(1f))
-                OutlinedButton(onClick = { test.endNow() }) { Text("End test") }
+                Text("Test session · %d:%02d left".format(left / 60, left % 60), style = Ab.type.body, color = Ab.colors.ink, modifier = Modifier.weight(1f))
+                AbTonalButton("End test", onClick = { test.endNow() })
             }
             if (realRunning) {
-                Text("A session on another device is running: it comes first.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Note("A session on another device is running: it comes first.")
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { minutes = shorter(minutes); test.minutes = minutes }, enabled = minutes > TestSession.MIN_MINUTES) { Text("−") }
-                Text("$minutes min", style = MaterialTheme.typography.bodyLarge)
-                TextButton(onClick = { minutes = longer(minutes); test.minutes = minutes }, enabled = minutes < TestSession.MAX_MINUTES) { Text("+") }
-                androidx.compose.foundation.layout.Spacer(androidx.compose.ui.Modifier.weight(1f))
+                AbTextButton("−", onClick = { minutes = shorter(minutes); test.minutes = minutes }, enabled = minutes > TestSession.MIN_MINUTES)
+                Text("$minutes min", style = Ab.type.body, color = Ab.colors.ink)
+                AbTextButton("+", onClick = { minutes = longer(minutes); test.minutes = minutes }, enabled = minutes < TestSession.MAX_MINUTES)
+                Spacer(Modifier.weight(1f))
                 AbTonalButton("Start test", onClick = { test.start(minutes) }, enabled = !realRunning)
             }
             if (realRunning) {
-                Text("A session is running on another device: the test can start when it ends.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Note("A session is running on another device: the test can start when it ends.")
             }
         }
+    }
+
+    if (asPage) {
+        AbCard(verticalSpacing = 8.dp) {
+            IconTitle("Test session", style = Ab.type.section, fontWeight = FontWeight.SemiBold)
+            body()
+        }
+    } else {
+        Section("More options", summary = summary) { body() }
     }
 }
 

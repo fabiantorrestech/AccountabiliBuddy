@@ -3,13 +3,12 @@ package com.accountabilibuddy.companion.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
  * The phone's Settings pages (boards 5e and 6b): a list of these, each opening its own page. [key] is what follows
@@ -51,11 +50,11 @@ internal fun NeedsLine(needs: List<Need>, forWhat: String? = null) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
             (forWhat?.let { "$it needs: " } ?: "Needs: ") + needs.joinToString(" · ") { "${it.label} ${if (it.ok) "✓" else "✗"}" },
-            style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFFFBBF24),
+            style = Ab.type.small,
+            color = Ab.colors.waiting,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            missing.forEach { need -> need.fix?.let { fix -> TextButton(onClick = fix) { Text("Set up ${need.label}") } } }
+            missing.forEach { need -> need.fix?.let { fix -> AbTextButton("Set up ${need.label}", onClick = fix) } }
         }
     }
 }

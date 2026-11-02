@@ -6,18 +6,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -27,10 +26,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.model.BedtimeReminder
 import com.accountabilibuddy.companion.model.BedtimeReminderSettings
+import com.accountabilibuddy.companion.ui.kit.AbChip
+import com.accountabilibuddy.companion.ui.kit.AbChipRow
+import com.accountabilibuddy.companion.ui.kit.AbSectionLabel
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
  * Settings → Sleep → Bedtime reminders (ADR 38): on/off and the list (shared with the PCs): each at some minutes before
@@ -63,24 +69,25 @@ internal fun BedtimeRemindersSection() {
         ordered.forEachIndexed { position, (index, reminder) ->
             // Keyed by the reminder, so an open one keeps its wheel when the list re-sorts.
             androidx.compose.runtime.key(index) {
-            HorizontalDivider()
+            HorizontalDivider(color = Ab.colors.line)
             val open = editing == index
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().clickable { editing = if (open) null else index }.padding(vertical = 6.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(role = Role.Button) { editing = if (open) null else index }.padding(vertical = 6.dp),
             ) {
-                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                Column(Modifier.weight(1f).padding(start = 4.dp)) {
                     Text("${position + 1}/${ordered.size} · ${whenText(reminder.minutesBefore)} · ${if (reminder.alarm) "Alarm" else "Notification"}",
-                        style = MaterialTheme.typography.bodyLarge)
-                    Text(devicesText(reminder.devices, pcs), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        style = Ab.type.body, fontWeight = FontWeight.Medium, color = Ab.colors.ink)
+                    Note(devicesText(reminder.devices, pcs))
                 }
-                IconButton(onClick = { editing = if (open) null else index }) {
-                    Icon(if (open) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown, contentDescription = if (open) "Collapse" else "Expand")
-                }
+                Icon(
+                    if (open) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = if (open) "Collapse" else "Expand", tint = Ab.colors.faint, modifier = Modifier.size(28.dp),
+                )
             }
             if (open) {
-                Column(Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("When", style = MaterialTheme.typography.labelLarge)
+                Column(Modifier.padding(start = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    AbSectionLabel("When")
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         WheelPicker(
                             items = minuteLabels,
@@ -89,47 +96,51 @@ internal fun BedtimeRemindersSection() {
                             width = 72.dp,
                         )
                         Text(if (reminder.minutesBefore == 0) "min before bedtime\n(at bedtime)" else "min before bedtime\n(${whenText(reminder.minutesBefore)})",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            style = Ab.type.bodyMedium, color = Ab.colors.muted)
                     }
                     ToggleRow("Ring as an alarm", "Else a notification", reminder.alarm) { on -> change(index) { it.copy(alarm = on) } }
-                    Text("On", style = MaterialTheme.typography.labelLarge)
+                    AbSectionLabel("On")
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         (listOf(BedtimeReminder.PHONE to "Phone", BedtimeReminder.WATCH to "Watch", BedtimeReminder.ALL_PCS to "All PCs") + pcs).forEach { (token, name) ->
-                            FilterChip(
+                            AbChip(
+                                name,
                                 selected = token in reminder.devices,
                                 onClick = { change(index) { it.copy(devices = if (token in it.devices) it.devices - token else it.devices + token) } },
-                                label = { Text(name) },
                             )
                         }
                     }
                     if (reminder.alarm) {
-                        Text("Sound", style = MaterialTheme.typography.labelLarge)
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        AbSectionLabel("Sound")
+                        AbChipRow {
                             listOf("bell" to "Alarm", "chime" to "Chime", "rising" to "Ringtone").forEach { (sound, name) ->
-                                FilterChip(selected = reminder.sound == sound, onClick = { change(index) { it.copy(sound = sound) } }, label = { Text(name) })
+                                AbChip(name, selected = reminder.sound == sound, onClick = { change(index) { it.copy(sound = sound) } })
                             }
                         }
-                        Text("Volume ${reminder.volume}%", style = MaterialTheme.typography.labelLarge)
+                        AbSectionLabel("Volume ${reminder.volume}%")
                         var volume by remember(index, reminder.volume) { mutableStateOf(reminder.volume.toFloat()) }
-                        Slider(value = volume, onValueChange = { volume = it }, valueRange = 0f..100f, steps = 9,
-                            onValueChangeFinished = { change(index) { it.copy(volume = volume.toInt()) } })
+                        Slider(
+                            value = volume, onValueChange = { volume = it }, valueRange = 0f..100f, steps = 9,
+                            onValueChangeFinished = { change(index) { it.copy(volume = volume.toInt()) } },
+                            colors = SliderDefaults.colors(
+                                thumbColor = Ab.colors.ink, activeTrackColor = Ab.colors.ink, inactiveTrackColor = Ab.colors.surface2,
+                                activeTickColor = Ab.colors.bg, inactiveTickColor = Ab.colors.faint,
+                            ),
+                        )
                         ToggleRow("Vibrate", "With the sound", reminder.vibrate) { on -> change(index) { it.copy(vibrate = on) } }
                     }
-                    TextButton(onClick = { save(settings.copy(list = settings.list.filterIndexed { i, _ -> i != index })); editing = null }) {
-                        Text("Delete reminder", color = MaterialTheme.colorScheme.error)
-                    }
+                    AbTextButton("Delete reminder", danger = true, onClick = { save(settings.copy(list = settings.list.filterIndexed { i, _ -> i != index })); editing = null })
                 }
             }
             }
         }
-        HorizontalDivider()
+        HorizontalDivider(color = Ab.colors.line)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = {
+            AbTextButton("Add a reminder", onClick = {
                 val used = settings.list.map { it.minutesBefore }.toSet()
                 val minutes = listOf(30, 60, 90, 120, 10, 5).firstOrNull { it !in used } ?: 20
                 save(settings.copy(list = settings.list + BedtimeReminder(minutes, false, listOf(BedtimeReminder.PHONE))))
-            }) { Text("Add a reminder") }
-            TextButton(onClick = { save(BedtimeReminderSettings.Default) }) { Text("Reset to the 3 defaults") }
+            })
+            AbTextButton("Reset to the 3 defaults", onClick = { save(BedtimeReminderSettings.Default) })
         }
     }
 }

@@ -4,22 +4,16 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -30,7 +24,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
@@ -38,11 +31,19 @@ import com.accountabilibuddy.companion.model.CategoryBehavior
 import com.accountabilibuddy.companion.noise.HeadphoneSchedule
 import com.accountabilibuddy.companion.noise.HeadphoneSettings
 import com.accountabilibuddy.companion.noise.HeadphoneWatcher
+import com.accountabilibuddy.companion.ui.kit.AbChip
+import com.accountabilibuddy.companion.ui.kit.AbCheckRow
+import com.accountabilibuddy.companion.ui.kit.AbInfoBanner
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
+import com.accountabilibuddy.companion.ui.kit.AbValueButton
+import com.accountabilibuddy.companion.ui.kit.abTimePickerColors
+import com.accountabilibuddy.companion.ui.theme.Ab
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** Settings → "Play when headphones connect": wired, and the chosen paired Bluetooth headphones. */
+/** Settings → Alerts & on-screen → "Play when headphones connect": wired, and the chosen paired Bluetooth headphones. */
 @Composable
 internal fun HeadphonesSection() {
     val context = LocalContext.current
@@ -62,15 +63,11 @@ internal fun HeadphonesSection() {
     ).joinToString(" · ").ifEmpty { "Off" }
 
     Section("Play when headphones connect", summary = summary) {
-        Text(
-            "The noise player starts its last file when these headphones connect, any time of day, and pauses when they disconnect.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
+        Note("The noise player starts its last file when these headphones connect, any time of day, and pauses when they disconnect.")
+        AbInfoBanner(
             "Tip: it really helps to have a dedicated pair of work/focus headphones, so putting them on means focus " +
                 "and it doesn't get in the way of your normal headphones.",
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.fillMaxWidth().background(Color(0x33F59E0B), RoundedCornerShape(8.dp)).padding(10.dp),
+            icon = Icons.Outlined.Headphones,
         )
         ToggleRow("Wired headphones", "Headphones or a headset in the jack or USB-C", settings.wired) {
             app.headphones.save(settings.copy(wired = it))
@@ -87,27 +84,18 @@ internal fun HeadphonesSection() {
             val all = paired + settings.devices.filter { chosen -> paired.none { it.address == chosen.address } }
             all.forEach { device ->
                 val ticked = settings.devices.any { it.address == device.address }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Checkbox(checked = ticked, onCheckedChange = { on ->
-                        val others = settings.devices.filter { it.address != device.address }
-                        app.headphones.save(settings.copy(devices = if (on) others + device else others))
-                    })
-                    Text(device.name, style = MaterialTheme.typography.bodyMedium)
-                }
+                AbCheckRow(device.name, checked = ticked, onCheckedChange = { on ->
+                    val others = settings.devices.filter { it.address != device.address }
+                    app.headphones.save(settings.copy(devices = if (on) others + device else others))
+                })
             }
             when {
-                all.isEmpty() -> Text(
-                    "No paired Bluetooth headphones. Pair them in Android's Bluetooth settings, or allow \"Nearby devices\".",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                settings.devices.isEmpty() -> Text(
-                    "Tick the headphones that should start the noise.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                all.isEmpty() -> Note("No paired Bluetooth headphones. Pair them in Android's Bluetooth settings, or allow \"Nearby devices\".")
+                settings.devices.isEmpty() -> Note("Tick the headphones that should start the noise.")
             }
-            OutlinedButton(onClick = {
+            AbTonalButton("Look again", onClick = {
                 if (needsPermission) permission.launch(Manifest.permission.BLUETOOTH_CONNECT) else paired = HeadphoneWatcher.pairedAudio(context)
-            }) { Text("Look again") }
+            })
         }
         ScheduleOptions(settings) { app.headphones.save(it) }
     }
@@ -130,49 +118,40 @@ private fun ScheduleOptions(settings: HeadphoneSettings, save: (HeadphoneSetting
     }
     if (!settings.onlyAtTimes) return
 
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Checkbox(checked = settings.duringPlanWindow, onCheckedChange = { save(settings.copy(duringPlanWindow = it)) })
-        Text("During a day plan window", style = MaterialTheme.typography.bodyMedium)
-    }
+    AbCheckRow("During a day plan window", checked = settings.duringPlanWindow, onCheckedChange = { save(settings.copy(duringPlanWindow = it)) })
     if (settings.duringPlanWindow) {
         val chosen = HeadphoneSchedule.chosenCategoryIds(settings, plan)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 16.dp)) {
             plan.categories.filter { it.behavior != CategoryBehavior.Sleep }.forEach { category ->
-                FilterChip(
+                AbChip(
+                    category.name,
                     selected = category.id in chosen,
                     onClick = { save(settings.copy(planCategoryIds = if (category.id in chosen) chosen - category.id else chosen + category.id)) },
-                    label = { Text(category.name) },
                 )
             }
         }
     }
 
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Checkbox(checked = settings.onDaysAndHours, onCheckedChange = { save(settings.copy(onDaysAndHours = it)) })
-        Text("On these days and hours", style = MaterialTheme.typography.bodyMedium)
-    }
+    AbCheckRow("On these days and hours", checked = settings.onDaysAndHours, onCheckedChange = { save(settings.copy(onDaysAndHours = it)) })
     if (settings.onDaysAndHours) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 16.dp)) {
             DayNames.forEach { (day, name) ->
-                FilterChip(
+                AbChip(
+                    name,
                     selected = day in settings.days,
                     onClick = { save(settings.copy(days = if (day in settings.days) settings.days - day else settings.days + day)) },
-                    label = { Text(name) },
                 )
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 16.dp)) {
-            OutlinedButton(onClick = { editing = true }) { Text(minuteText(settings.startMinute)) }
-            Text("to")
-            OutlinedButton(onClick = { editing = false }) { Text(minuteText(settings.endMinute)) }
+            AbValueButton(minuteText(settings.startMinute), onClick = { editing = true })
+            Text("to", style = Ab.type.bodyMedium, color = Ab.colors.muted)
+            AbValueButton(minuteText(settings.endMinute), onClick = { editing = false })
         }
     }
 
     if (!settings.duringPlanWindow && !settings.onDaysAndHours) {
-        Text(
-            "Nothing is ticked, so the noise will never start by itself. Tick at least one option.",
-            style = MaterialTheme.typography.bodySmall, color = Color(0xFFF59E0B),
-        )
+        Note("Nothing is ticked, so the noise will never start by itself. Tick at least one option.", color = Ab.colors.waiting)
     }
 
     editing?.let { isStart ->
@@ -191,8 +170,9 @@ private fun HeadphoneTimeDialog(initialMinute: Int, onDismiss: () -> Unit, onPic
     val picker = rememberTimePickerState(initialHour = initialMinute / 60, initialMinute = initialMinute % 60, is24Hour = false)
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = { onPick(picker.hour * 60 + picker.minute) }) { Text("OK") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-        text = { TimePicker(state = picker) },
+        containerColor = Ab.colors.surface,
+        confirmButton = { AbTextButton("OK", onClick = { onPick(picker.hour * 60 + picker.minute) }) },
+        dismissButton = { AbTextButton("Cancel", onClick = onDismiss) },
+        text = { TimePicker(state = picker, colors = abTimePickerColors()) },
     )
 }

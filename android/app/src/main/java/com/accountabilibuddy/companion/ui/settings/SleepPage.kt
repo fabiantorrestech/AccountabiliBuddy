@@ -2,9 +2,6 @@ package com.accountabilibuddy.companion.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
@@ -14,6 +11,7 @@ import com.accountabilibuddy.companion.essentials.EssentialsKind
 import com.accountabilibuddy.companion.model.SleepSettings
 import com.accountabilibuddy.companion.ui.BedtimeRemindersSection
 import com.accountabilibuddy.companion.ui.EssentialsSection
+import com.accountabilibuddy.companion.ui.HealthConnectSection
 import com.accountabilibuddy.companion.ui.HealthStatus
 import com.accountabilibuddy.companion.ui.Need
 import com.accountabilibuddy.companion.ui.NeedsLine
@@ -55,22 +53,7 @@ fun SleepPage(
                 EssentialsSection(EssentialsKind.Bedtime)
             }
         },
-        PageRow(SettingsAnchors.HEALTH_CONNECT) {
-            Section("Health Connect", summary = if (health == HealthStatus.Connected) "Reading your sleep" else "Not connected") {
-                Text(
-                    when (health) {
-                        HealthStatus.Connected -> "Health Connect: reading your measured sleep."
-                        HealthStatus.NeedsPermission -> "Health Connect: not connected (the timeline's sleep strip and smart bedtime use it)."
-                        HealthStatus.NotAvailable -> "Health Connect isn't available on this phone."
-                        HealthStatus.Checking -> "Health Connect: checking…"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                if (health == HealthStatus.NeedsPermission) {
-                    OutlinedButton(onClick = onConnectHealth) { Text("Connect Health Connect") }
-                }
-            }
-        },
+        PageRow(SettingsAnchors.HEALTH_CONNECT) { HealthConnectSection(health, onConnectHealth) },
     )
     SettingsPageList(rows, anchor)
 }

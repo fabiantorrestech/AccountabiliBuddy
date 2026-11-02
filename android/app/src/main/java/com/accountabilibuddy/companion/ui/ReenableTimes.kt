@@ -4,11 +4,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -18,8 +16,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.companion.ui.kit.AbDialog
+import com.accountabilibuddy.companion.ui.kit.AbSectionLabel
+import com.accountabilibuddy.companion.ui.theme.Ab
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -36,37 +39,34 @@ internal fun ReenableTimes(onSet: (Boolean, LocalTime) -> String?) {
     var error by remember { mutableStateOf<String?>(null) }
 
     Column {
-        Text("Blocks come back on at", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
+        AbSectionLabel("Blocks come back on at", Modifier.padding(top = 4.dp))
         listOf(false to "Workdays", true to "Off-Days").forEach { (offDay, name) ->
             val time = (plan.typicalTemplate(workday = !offDay) ?: if (offDay) plan.otherDay else plan.workday).rules.reenableAt
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().clickable(enabled = !LocalGuardsLocked.current) { editing = offDay }.padding(vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .clickable(enabled = !LocalGuardsLocked.current, role = Role.Button) { editing = offDay },
             ) {
-                Text(name, modifier = Modifier.weight(1f))
-                Text(timeText(time), color = MaterialTheme.colorScheme.primary)
+                Text(name, style = Ab.type.body, color = Ab.colors.ink, modifier = Modifier.weight(1f))
+                Text(timeText(time), style = Ab.type.body, fontWeight = FontWeight.SemiBold, color = Ab.colors.ink)
             }
         }
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        error?.let { Note(it, color = Ab.colors.drift) }
     }
 
     editing?.let { offDay ->
         var picked by remember(offDay) { mutableStateOf((plan.typicalTemplate(workday = !offDay) ?: if (offDay) plan.otherDay else plan.workday).rules.reenableAt) }
-        AlertDialog(
-            onDismissRequest = { editing = null },
-            title = { Text("${if (offDay) "Off-Days" else "Workdays"}: blocks back on at") },
-            text = {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    TimeWheel(picked, { picked = it })
-                    Text("12:00 AM = midnight, the end of the day.", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { error = onSet(offDay, picked); editing = null }) { Text("Save") }
-            },
-            dismissButton = { TextButton(onClick = { editing = null }) { Text("Cancel") } },
-        )
+        AbDialog(
+            title = "${if (offDay) "Off-Days" else "Workdays"}: blocks back on at",
+            onDismiss = { editing = null },
+            confirmText = "Save",
+            onConfirm = { error = onSet(offDay, picked); editing = null },
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                TimeWheel(picked, { picked = it })
+                Note("12:00 AM = midnight, the end of the day.", Modifier.padding(top = 8.dp))
+            }
+        }
     }
 }
 

@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -38,24 +36,6 @@ fun AbToggleRow(
             Text(title, style = Ab.type.body, fontWeight = FontWeight.Medium, color = if (enabled) colors.ink else colors.faint)
             if (subtitle != null) Text(subtitle, style = Ab.type.small, color = colors.muted)
         }
-        Switch(
-            checked = checked,
-            onCheckedChange = null,
-            enabled = enabled,
-            colors = SwitchDefaults.colors(
-                checkedTrackColor = colors.ink,
-                checkedThumbColor = colors.bg,
-                checkedBorderColor = colors.ink,
-                uncheckedTrackColor = colors.surface2,
-                uncheckedThumbColor = colors.muted,
-                uncheckedBorderColor = colors.line,
-                disabledCheckedTrackColor = colors.faint,
-                disabledCheckedThumbColor = colors.bg,
-                disabledCheckedBorderColor = colors.faint,
-                disabledUncheckedTrackColor = colors.surface2,
-                disabledUncheckedThumbColor = colors.faint,
-                disabledUncheckedBorderColor = colors.line,
-            ),
-        )
+        AbSwitch(checked = checked, enabled = enabled)
     }
 }

@@ -14,8 +14,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -24,14 +22,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.accountabilibuddy.companion.nudge.Takeover
+import com.accountabilibuddy.companion.ui.kit.AbValueButton
+import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.companion.usage.PhoneUsageReader
 
 /** One permission the app works better with: whether it's on, why it's wanted, and how to turn it on. */
@@ -94,13 +94,13 @@ fun PermissionsList(health: HealthStatus, onConnectHealth: () -> Unit, onAllowUs
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         rows.forEach { row ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                Text(if (row.granted) "✓" else "○", color = if (row.granted) Color(0xFF22C55E) else Color(0xFFF4A261), style = MaterialTheme.typography.titleMedium)
+                Text(if (row.granted) "✓" else "○", color = if (row.granted) Ab.colors.met else Ab.colors.waiting, style = Ab.type.body, fontWeight = FontWeight.Bold)
                 Column(Modifier.weight(1f)) {
-                    Text(row.title, style = MaterialTheme.typography.bodyLarge)
-                    Text(row.why, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(row.title, style = Ab.type.body, fontWeight = FontWeight.Medium, color = Ab.colors.ink)
+                    Note(row.why)
                 }
                 if (!row.granted) {
-                    OutlinedButton(onClick = row.onAllow) { Text("Allow") }
+                    AbValueButton("Allow", onClick = row.onAllow)
                 }
             }
         }

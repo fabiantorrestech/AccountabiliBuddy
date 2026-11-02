@@ -1,15 +1,6 @@
 package com.accountabilibuddy.companion.ui
 
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.material3.Button as M3Button
-import androidx.compose.material3.Checkbox as M3Checkbox
-import androidx.compose.material3.FilterChip as M3FilterChip
-import androidx.compose.material3.IconButton as M3IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton as M3OutlinedButton
-import androidx.compose.material3.RadioButton as M3RadioButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton as M3TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -19,7 +10,13 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import com.accountabilibuddy.companion.placement.GuardsLock
+import com.accountabilibuddy.companion.ui.kit.AbChip
+import com.accountabilibuddy.companion.ui.kit.AbChoiceRow
 import com.accountabilibuddy.companion.ui.kit.AbInfoBanner
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
+import com.accountabilibuddy.companion.ui.kit.AbValueButton
+import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
  * The guard lock as the screens see it: set while a focus session runs (see [GuardsLock]), null otherwise. The shell provides it
@@ -57,36 +54,33 @@ fun GuardsRestBanner(lock: GuardsLock, modifier: Modifier = Modifier) {
 @Composable
 fun GuardsRestNote() {
     val lock = LocalGuardsLock.current ?: return
-    Text(lock.sentence(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(lock.sentence(), style = Ab.type.small, color = Ab.colors.muted)
 }
 
-// The guard sections use these under the names Button, OutlinedButton, ... (an import alias), so each respects the lock without a
-// change at its call sites. Outside a [GuardsScope] they are the Material controls.
+// The guard sections use these kit controls: each is the kit's own with the lock added, so a section respects it without a check at
+// its call sites. Outside a [GuardsScope] they are the kit's controls as they are.
 
+/** A secondary button ([AbTonalButton]) that takes no tap while the guards rest. */
 @Composable
-fun GuardButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) =
-    M3Button(onClick = onClick, modifier = modifier, enabled = enabled && !LocalGuardsLocked.current, content = content)
+fun GuardTonalButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) =
+    AbTonalButton(text, onClick, modifier, enabled = enabled && !LocalGuardsLocked.current)
 
+/** A small outlined button ([AbValueButton]) that takes no tap while the guards rest. */
 @Composable
-fun GuardOutlinedButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) =
-    M3OutlinedButton(onClick = onClick, modifier = modifier, enabled = enabled && !LocalGuardsLocked.current, content = content)
+fun GuardValueButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) =
+    AbValueButton(text, onClick, modifier, enabled = enabled && !LocalGuardsLocked.current)
 
+/** A quiet text button ([AbTextButton]) that takes no tap while the guards rest. */
 @Composable
-fun GuardTextButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) =
-    M3TextButton(onClick = onClick, modifier = modifier, enabled = enabled && !LocalGuardsLocked.current, content = content)
+fun GuardTextButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) =
+    AbTextButton(text, onClick, modifier, enabled = enabled && !LocalGuardsLocked.current)
 
+/** A chip ([AbChip]) that takes no tap while the guards rest. */
 @Composable
-fun GuardIconButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable () -> Unit) =
-    M3IconButton(onClick = onClick, modifier = modifier, enabled = enabled && !LocalGuardsLocked.current, content = content)
+fun GuardChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) =
+    AbChip(label, selected, onClick, modifier, enabled = enabled && !LocalGuardsLocked.current)
 
+/** One option of a choice ([AbChoiceRow]) that takes no tap while the guards rest. */
 @Composable
-fun GuardFilterChip(selected: Boolean, onClick: () -> Unit, label: @Composable () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) =
-    M3FilterChip(selected = selected, onClick = onClick, label = label, modifier = modifier, enabled = enabled && !LocalGuardsLocked.current)
-
-@Composable
-fun GuardCheckbox(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier, enabled: Boolean = true) =
-    M3Checkbox(checked = checked, onCheckedChange = onCheckedChange, modifier = modifier, enabled = enabled && !LocalGuardsLocked.current)
-
-@Composable
-fun GuardRadioButton(selected: Boolean, onClick: (() -> Unit)?, modifier: Modifier = Modifier, enabled: Boolean = true) =
-    M3RadioButton(selected = selected, onClick = onClick, modifier = modifier, enabled = enabled && !LocalGuardsLocked.current)
+fun GuardChoiceRow(text: String, selected: Boolean, modifier: Modifier = Modifier, subtitle: String? = null, enabled: Boolean = true, onClick: () -> Unit) =
+    AbChoiceRow(text, selected, modifier, subtitle, enabled = enabled && !LocalGuardsLocked.current, onClick = onClick)
