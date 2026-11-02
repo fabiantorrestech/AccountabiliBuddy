@@ -1,221 +1,152 @@
 package com.accountabilibuddy.companion.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.data.CompanionState
 import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.engine.DayBarModel
-import com.accountabilibuddy.companion.engine.DayTimeline
 import com.accountabilibuddy.companion.engine.DayWorkWindows
-import com.accountabilibuddy.companion.engine.LegendEntry
-import com.accountabilibuddy.companion.model.CalendarEvent
-import com.accountabilibuddy.companion.model.LocalWindow
-import com.accountabilibuddy.companion.model.PendingDayPlan
-import com.accountabilibuddy.companion.model.PendingStatus
-import com.accountabilibuddy.companion.model.PlannedFocus
-import com.accountabilibuddy.companion.model.ProfileDocument
-import com.accountabilibuddy.companion.notify.TimelineNotifier
-import com.accountabilibuddy.companion.ui.kit.AbPageHeader
-import com.accountabilibuddy.companion.ui.theme.Ab
+import com.accountabilibuddy.companion.model.DayMode
+import com.accountabilibuddy.companion.notify.HeaderSource
+import com.accountabilibuddy.companion.placement.GuardsLock
+import com.accountabilibuddy.companion.sync.PlanWait
+import com.accountabilibuddy.companion.ui.plan.PlanDayCell
+import com.accountabilibuddy.companion.ui.plan.PlanDayNames
+import com.accountabilibuddy.companion.ui.plan.PlanPane
+import com.accountabilibuddy.companion.ui.plan.PlanPaneActions
+import com.accountabilibuddy.companion.ui.plan.PlanPaneModel
+import com.accountabilibuddy.companion.ui.plan.PlanTimelineBuilder
+import kotlinx.coroutines.delay
+import java.time.DayOfWeek
+import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAdjusters
+import java.util.Locale
 
 /**
- * Plan: the day bar with its sleep line and legend, today's blocks and events (tomorrow's late in the evening), the week
- * of the cycle, and the buttons that edit the plan or plan days ahead. Moved off Today by the five-tab shell.
+ * Plan (board 5c): the host of the redesigned pane. It reads the plan, the calendar and today's focus, keeps which day is
+ * picked (in memory and across rotation), works out what to say about that day and gives it to [PlanPane]. Every change goes
+ * out through the lambdas, which open the editors or send the edit to the PC exactly as before ([canChange] is false with no
+ * PC to take it, so the page is read-only and says why). Nothing here starts, ends or unlocks anything.
  */
 @Composable
 fun PlanScreen(
     state: CompanionState,
     model: DayBarModel,
     clock: ClockFormat,
-    /** Opens the day plan editor (ADR 19); null hides the button. */
-    onEditPlan: (() -> Unit)? = null,
-    onDiscardPlanEdit: () -> Unit = {},
-    /** Opens "Plan a day" (ADR 37); null hides the button. */
-    onPlanDay: (() -> Unit)? = null,
-    /** "This is week N of M" (ADR 47): picks the week of the cycle as a plan edit; null hides the card. */
-    onSetWeek: ((week: Int) -> Unit)? = null,
+    /** The PC that takes the plan edits (ADR 42); null when none is linked. */
+    pcName: String?,
+    canChange: Boolean,
+    /** Set while a focus session runs: a plan edit saved now waits for it to end. */
+    guardsLock: GuardsLock?,
+    /** A plan edit a PC took and is holding (ADR 28); null for none. */
+    planWait: PlanWait?,
+    /** "Change a day" (ADR 37). */
+    onChangeDay: () -> Unit,
+    /** "Templates": the day plan editor (ADR 19). */
+    onTemplates: () -> Unit,
+    onCategories: () -> Unit,
+    /** "This is week N of M" (ADR 47): picks the week of the cycle as a plan edit. */
+    onSetWeek: (week: Int) -> Unit,
+    onDiscardPlanEdit: () -> Unit,
 ) {
-    val dark = isSystemInDarkTheme()
-    val now = LocalDateTime.now()
-    val day = model.day
-    val tomorrowDate = day.start.toLocalDate().plusDays(1)
-    val tomorrow = LocalWindow(maxOf(day.end, tomorrowDate.atStartOfDay()), tomorrowDate.plusDays(1).atStartOfDay())
-    // Whole blocks touching the day (not cut to it), so an early block shows its real start. Worked out again only
-    // when the data or the day changes, not on every 30-second tick of the bar.
-    val todayBlocks = remember(state.document, day) { blocksTouching(state.document, state.sleep, day) }
-    val todayEvents = remember(state.events, day) { eventsIn(state.events, day) }
-    val nextBlocks = remember(state.document, tomorrow) { blocksTouching(state.document, state.sleep, tomorrow) }
-    val nextEvents = remember(state.events, tomorrow) { eventsIn(state.events, tomorrow) }
-
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item {
-            AbPageHeader("Plan") {
-                // Ink, not the accent: the accent is for progress and the one main button.
-                val ink = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = Ab.colors.ink)
-                onPlanDay?.let { TextButton(onClick = it, colors = ink) { Text("Plan day(s)") } }
-                onEditPlan?.let { TextButton(onClick = it, colors = ink) { Text("Edit plan") } }
-            }
-        }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(model.dateText, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                model.sleepLine?.let { line ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(8.dp).background(Color(TimelineNotifier.sleepColor(line.amount, dark)), CircleShape))
-                        Spacer(Modifier.width(6.dp))
-                        Text(line.text, color = Color(TimelineNotifier.sleepColor(line.amount, dark)), style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-                DayBar(model)
-                FocusLegend(model.focusLegend)
-                state.pendingPlan?.let { PlanEditStatus(it, onEditPlan, onDiscardPlanEdit) }
-                if (model.summaryText.isNotEmpty()) {
-                    Text(model.summaryText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
-
-        if (onSetWeek != null && state.document.dayPlan.cycle.weeks.size > 1) {
-            item { ThisWeekCard(state.document.dayPlan.cycle.weekNumberFor(now.toLocalDate()), state.document.dayPlan.cycle.weeks.size, onSetWeek) }
-        }
-
-        if (todayBlocks.isNotEmpty() || todayEvents.isNotEmpty()) {
-            item { IconTitle("Today", style = MaterialTheme.typography.titleSmall) }
-            todayBlocks.forEach { focus -> item { BlockRow(focus, clock, now) } }
-            todayEvents.forEach { event -> item { EventRow(event, clock) } }
-        }
-
-        // Nothing left today (e.g. late in the evening): what tomorrow holds.
-        if (todayBlocks.none { it.window.end.isAfter(now) }) {
-            if (nextBlocks.isNotEmpty() || nextEvents.isNotEmpty()) {
-                item {
-                    IconTitle(
-                        "Tomorrow · ${tomorrowDate.format(TOMORROW_FORMAT)}",
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                }
-                nextBlocks.forEach { focus -> item { BlockRow(focus, clock, now) } }
-                nextEvents.forEach { event -> item { EventRow(event, clock) } }
-            }
+    val app = LocalContext.current.applicationContext as CompanionApp
+    // Looked at again every half minute, so the "Now" rule moves and a day that ends is no longer today.
+    val now by produceState(LocalDateTime.now()) {
+        while (true) {
+            delay(30_000)
+            value = LocalDateTime.now()
         }
     }
-}
+    val today = now.toLocalDate()
+    var pickedDay by rememberSaveable { mutableLongStateOf(today.toEpochDay()) }
+    val selected = LocalDate.ofEpochDay(pickedDay)
+    val plan = state.document.dayPlan
 
-private val TOMORROW_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE M/d")
-
-private fun blocksTouching(document: ProfileDocument, sleep: com.accountabilibuddy.companion.model.SleepSettings, window: LocalWindow): List<PlannedFocus> {
-    val around = LocalWindow(window.start.minusDays(1), window.end.plusDays(1))
-    return DayWorkWindows.workWindows(document.dayPlan, around, LocalDateTime.now(), nightFallback = sleep::fallbackNightBefore).filter { DayTimeline.clip(it.window, window) != null }
-}
-
-private fun eventsIn(events: List<CalendarEvent>, window: LocalWindow): List<CalendarEvent> =
-    events.filter { DayTimeline.clip(LocalWindow(it.localStart, maxOf(it.localEnd, it.localStart.plusMinutes(1))), window) != null }
-        .sortedBy { it.localStart }
-
-@Composable
-private fun BlockRow(focus: PlannedFocus, clock: ClockFormat, now: LocalDateTime) {
-    val running = focus.window.contains(now)
-    val past = !focus.window.end.isAfter(now)
-    val color = if (past) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Box(Modifier.size(10.dp).background(Color(focus.argb), CircleShape))
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                focus.name,
-                fontWeight = if (running) FontWeight.SemiBold else FontWeight.Normal,
-                color = color,
-            )
-            Text(
-                "${clock.time(focus.window.start)} – ${clock.time(focus.window.end)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (running) {
-            Text("now", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
-        }
-    }
-}
-
-@Composable
-private fun EventRow(event: CalendarEvent, clock: ClockFormat) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Box(Modifier.size(width = 10.dp, height = 3.dp).background(Color(0xFF64748B)))
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(event.title)
-            Text(
-                if (event.isAllDay) "All day" else "${clock.time(event.localStart)} – ${clock.time(event.localEnd)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-/** Where a day plan edit made here stands (ADR 19), with what can be done about it. */
-@Composable
-private fun PlanEditStatus(pending: PendingDayPlan, onEdit: (() -> Unit)?, onDiscard: () -> Unit) {
-    val text = when (pending.status) {
-        PendingStatus.Waiting -> "Your plan edit is shown here and goes to the PC when they connect or sync."
-        PendingStatus.Locked -> pending.message ?: "It goes to the PC when its focus session ends."
-        PendingStatus.Invalid -> "The PC didn't take your plan edit: ${pending.message ?: "it broke a rule"}."
-        PendingStatus.NeedsPcUpdate -> pending.message ?: "Update AccountabiliBuddy on the PC to change the plan from here."
-    }
-    val problem = pending.status == PendingStatus.Invalid || pending.status == PendingStatus.NeedsPcUpdate
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text,
-            style = MaterialTheme.typography.bodySmall,
-            color = if (problem) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-            modifier = Modifier.weight(1f),
+    val minute = now.truncatedTo(ChronoUnit.MINUTES)
+    val focus = remember(model, minute) { HeaderSource.focus(app, now) }
+    val timeline = remember(plan, selected, minute, state.events, focus, model.today) {
+        val zone = ZoneId.systemDefault()
+        PlanTimelineBuilder.build(
+            plan = plan, date = selected, now = now, events = state.events,
+            focused = DayWorkWindows.focusedToday(focus, now, zone)?.invoke(selected) ?: Duration.ZERO,
+            goal = Duration.ofMinutes((model.today?.goalMinutes ?: 0).toLong()),
+            nightFallback = state.sleep::fallbackNightBefore, clock = clock,
         )
-        if (pending.status == PendingStatus.Invalid && onEdit != null) {
-            TextButton(onClick = onEdit) { Text("Fix") }
-        }
-        TextButton(onClick = onDiscard) { Text("Discard") }
     }
+
+    val weekStart = selected.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    val cells = (0L until 7L).map { offset ->
+        val date = weekStart.plusDays(offset)
+        PlanDayCell(
+            date = date, weekday = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.US), number = date.dayOfMonth.toString(),
+            type = PlanDayNames.short(plan, date), isToday = date == today, isSelected = date == selected,
+        )
+    }
+
+    val weeks = plan.cycle.weeks.size
+    val holding = planWait?.takeIf { it.appliesAt.isAfter(Instant.now()) }
+    val paneModel = PlanPaneModel(
+        title = "${selected.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.US)} · ${PlanDayNames.full(plan, selected)}",
+        cells = cells,
+        timeline = timeline,
+        modeLine = modeLine(state, model, selected, today, timeline.hasWork),
+        readOnlyNote = when {
+            !canChange -> "Read-only: this phone can't change the plan because no PC is linked to take the edit. Link one in Settings › Devices & sync."
+            selected.isBefore(today) -> "This day is over, so it can't be changed."
+            else -> null
+        },
+        lockNote = guardsLock?.takeIf { canChange }?.let {
+            "A focus session is on until ${it.untilText() ?: "it ends"}. A plan change you save now waits for ${pcName ?: "the PC"} to finish it."
+        },
+        waitNote = holding?.let { "${it.pcName} is holding your change and applies it at about ${CLOCK.format(it.appliesAt.atZone(ZoneId.systemDefault()))}." },
+        pending = state.pendingPlan,
+        weekLabel = if (weeks > 1) "Week ${plan.cycle.weekNumberFor(selected)} of $weeks" else null,
+        weekCount = weeks,
+        weekNumber = plan.cycle.weekNumberFor(today),
+        isToday = selected == today,
+        canChange = canChange,
+    )
+
+    PlanPane(
+        model = paneModel,
+        actions = PlanPaneActions(
+            onPick = { cell -> pickedDay = cell.date.toEpochDay() },
+            onShiftWeek = { by -> pickedDay = selected.plusWeeks(by.toLong()).toEpochDay() },
+            onToday = { pickedDay = today.toEpochDay() },
+            onChangeDay = onChangeDay,
+            onTemplates = onTemplates,
+            onCategories = onCategories,
+            onSetWeek = onSetWeek,
+            onDiscardEdit = onDiscardPlanEdit,
+        ),
+    )
 }
 
-/** Under the bar, like the PC's legend: each total with a dot in its colour on the bar. */
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-@Composable
-internal fun FocusLegend(entries: List<LegendEntry>) {
-    if (entries.isEmpty()) {
-        return
-    }
+private val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
 
-    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        for (entry in entries) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(8.dp).background(Color(entry.color), CircleShape))
-                Spacer(Modifier.width(5.dp))
-                Text(entry.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
+// How a day reads when it isn't an ordinary schedule (ADR 47), in the words of Today's headline: a Budget day says what is left
+// (today) or the hours it holds, a Free day says nothing is guarded, a day with no work blocks is a day off.
+private fun modeLine(state: CompanionState, model: DayBarModel, date: LocalDate, today: LocalDate, hasWork: Boolean): String? {
+    val template = state.document.dayPlan.templateFor(date)
+    return when (template.mode) {
+        DayMode.Free -> "Free day. Nothing is guarded."
+        DayMode.Budget ->
+            if (date == today) model.today?.next ?: "Budget day."
+            else "Budget day: ${hoursText(template.budgetMinutes ?: 0)} of focus."
+        DayMode.Schedule -> if (hasWork) null else "Day off."
     }
 }

@@ -83,6 +83,11 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     /** Both the PC and the phone changed the day plan (ADR 19); the dialog asks which to keep. Through the sync files (ADR 42). */
     val planConflict: StateFlow<DayPlanConflict?> = planFileSync.conflict
 
+    /** A plan edit a PC took and is holding for its wait (ADR 28), for the "change waits" sheet and Plan's quiet line. */
+    val planWait: StateFlow<com.accountabilibuddy.companion.sync.PlanWait?> = planFileSync.wait
+
+    fun planWaitSeen() = planFileSync.waitSeen()
+
     /** The PC the open plan conflict is with. */
     fun conflictPcName(): String? = planFileSync.conflictPcName.takeIf { planFileSync.conflict.value != null }
 

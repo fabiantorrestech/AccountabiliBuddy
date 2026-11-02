@@ -46,6 +46,16 @@ class DayPlanFileSync(
     var conflictPcName: String? = null
         private set
 
+    private val _wait = MutableStateFlow<PlanWait?>(null)
+
+    /** The newest plan edit a PC took and is holding for its wait (ADR 28); the phone shows when it applies. In memory only. */
+    val wait: StateFlow<PlanWait?> = _wait.asStateFlow()
+
+    /** The user has read the "change waits" sheet; the page keeps its quiet line until the time passes. */
+    fun waitSeen() {
+        _wait.value = _wait.value?.copy(seen = true)
+    }
+
     fun start() {
         scope.launch {
             combine(store.state, actions.pending, received) { state, pending, _ -> state.pendingPlan to pending }.collect { trySend() }
@@ -75,7 +85,10 @@ class DayPlanFileSync(
         val sent = Sent.read(action.text) ?: return
         val name = pc.file.device.name
         when (result?.status) {
-            SyncActionResult.STATUS_APPLIED -> store.finishPendingPlan(sent.editedAt, sent.plan, result.planVersion)
+            SyncActionResult.STATUS_APPLIED -> {
+                store.finishPendingPlan(sent.editedAt, sent.plan, result.planVersion)
+                holdFrom(result.message, name, pc.file.device.writtenAt)
+            }
             SyncActionResult.STATUS_LOCKED -> store.setPendingStatus(sent.editedAt, PendingStatus.Locked, result.message)
             SyncActionResult.STATUS_CONFLICT -> conflictFrom(sent, result, pc)
             // Arrived too late: it goes again with a new id (the edit is still waiting).
@@ -85,6 +98,12 @@ class DayPlanFileSync(
             )
             else -> store.setPendingStatus(sent.editedAt, PendingStatus.Invalid, result.message ?: "$name refused this plan.")
         }
+    }
+
+    // The PC answers "applied" with "On the PC: Waits 10 min: ..." when it is holding the edit (ADR 28); no wire change, the note is its text.
+    private fun holdFrom(message: String?, pcName: String, answeredAt: Instant) {
+        val minutes = message?.let { HELD.find(it) }?.groupValues?.get(1)?.toIntOrNull() ?: return
+        _wait.value = PlanWait(pcName, minutes, answeredAt.plusSeconds(minutes * 60L))
     }
 
     private fun trySend() {
@@ -140,6 +159,10 @@ class DayPlanFileSync(
             pcChanges = DayPlanChanges.describe(pending.basePlan, pcPlan),
             phoneChanges = DayPlanChanges.describe(pending.basePlan, pending.edited),
         )
+    }
+
+    private companion object {
+        val HELD = Regex("""Waits (\d+) min""")
     }
 
     /** The action's text: { "basedOn", "editedAt", "plan" } (ADR 42), and back. */
