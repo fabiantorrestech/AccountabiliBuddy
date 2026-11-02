@@ -18,10 +18,6 @@ namespace AccountabiliBuddy.App.Views;
 /// </summary>
 public partial class TaskbarOverlayWindow : Window
 {
-    // Heights in device-independent pixels where the taskbar doesn't give one (floating and side tiles).
-    private const double SmallHeight = 36;
-    private const double FloatingHeight = 56;
-    private const double LargeRise = 36;
     private const double DragStartPixels = 4;
 
     private readonly IOverlayWindowControl _control;
@@ -100,7 +96,7 @@ public partial class TaskbarOverlayWindow : Window
         _model.ApplyLayout(settings);
 
         string key = $"{target.Kind}|{target.CoversTray}|{target.AlignRight}|{settings.Size}|{settings.Progress}|{settings.Shape}|{string.Join(',', settings.Items)}";
-        double heightDips = HeightFor(target, settings);
+        double heightDips = OverlayTileGeometry.HeightFor(target, settings);
         if (key != _layoutKey)
         {
             _layoutKey = key;
@@ -118,18 +114,6 @@ public partial class TaskbarOverlayWindow : Window
         Reposition();
     }
 
-    private double HeightFor(OverlayTarget target, OverlaySettings settings)
-    {
-        double bar = target.TaskbarHeight > 0 ? target.TaskbarHeight / target.Scale : FloatingHeight;
-        return target.Kind == OverlayTargetKind.VerticalTile ? 110
-            : settings.Size switch
-            {
-                OverlaySize.Small => SmallHeight,
-                OverlaySize.Large => bar + LargeRise,
-                _ => bar,
-            };
-    }
-
     private void Reposition()
     {
         if (_target.Kind == OverlayTargetKind.Hidden || Bounds.Width <= 0)
@@ -140,37 +124,8 @@ public partial class TaskbarOverlayWindow : Window
         double scale = DesktopScaling;
         int width = (int)Math.Ceiling(Bounds.Width * scale);
         int height = (int)Math.Ceiling(Height * scale);
-        PixelBox band = _target.Band;
-        int x;
-        int y;
-        switch (_target.Kind)
-        {
-            case OverlayTargetKind.Docked:
-                x = _target.AlignRight ? band.Right - width : band.Left;
-                y = _settings.Size == OverlaySize.Small ? band.Top + ((_target.TaskbarHeight - height) / 2)
-                    : _settings.Size == OverlaySize.Large ? band.Top - (int)(LargeRise * scale)
-                    : band.Top;
-                break;
-            case OverlayTargetKind.VerticalTile:
-                int gap = OverlayPlacementCalculator.SideGap(scale);
-                x = _target.Edge == TaskbarEdge.Right ? band.Right - width - gap : band.Left + gap;
-                y = _settings.SideTileY ?? band.Top + ((band.Height - height) / 2);
-                y = Math.Clamp(y, band.Top, Math.Max(band.Top, band.Bottom - height));
-                break;
-            default:
-                (int side, int bottom) = OverlayPlacementCalculator.FloatingMargins(scale);
-                PixelBox area = _target.MonitorId is null ? PrimaryArea() : band;
-                x = _target.AlignRight ? area.Right - width - side : area.Left + side;
-                y = area.Bottom - height - bottom;
-                break;
-        }
-
-        if (_rule is { } rule && (_target.Kind == OverlayTargetKind.Floating || _settings.Size == OverlaySize.Large))
-        {
-            x += (int)(rule.OffsetX * scale);
-            y += (int)(rule.OffsetY * scale);
-        }
-
+        PixelBox fallbackArea = _target.MonitorId is null ? PrimaryArea() : _target.Band;
+        (int x, int y) = OverlayTileGeometry.PositionFor(_target, _settings, _rule, width, height, scale, fallbackArea);
         var next = new PixelPoint(x, y);
         if (Position != next)
         {

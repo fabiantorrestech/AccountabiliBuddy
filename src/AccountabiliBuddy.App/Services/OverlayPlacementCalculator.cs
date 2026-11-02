@@ -105,7 +105,9 @@ public static class OverlayPlacementCalculator
 
     private static OverlayTarget Floating(TaskbarInfo taskbar, bool alignRight)
     {
-        return new OverlayTarget(OverlayTargetKind.Floating, taskbar.MonitorId, taskbar.Scale, LiftedAboveHidingTaskbar(taskbar), alignRight, 0, false);
+        PixelBox band = LiftedAboveHidingTaskbar(taskbar);
+        return new OverlayTarget(
+            OverlayTargetKind.Floating, taskbar.MonitorId, taskbar.Scale, band, alignRight, 0, false, LiftPixels: taskbar.WorkArea.Bottom - band.Bottom);
     }
 
     /// <summary>
