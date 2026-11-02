@@ -10,11 +10,15 @@ namespace AccountabiliBuddy.Platform.Windows.Hotkeys;
 /// <summary>
 /// Ctrl+Alt held, from a low-level keyboard hook on its own message-loop thread: the hook only looks at whether Ctrl and Alt go down or up
 /// and passes every key on untouched (nothing is stored or logged). Installed only while <see cref="SetListening"/> is on.
+/// A key-up seen here isn't trusted on its own: a remapper's own hook can swallow it after this one (PowerToys, holding Caps Lock mapped
+/// to Ctrl with Alt, sends a Ctrl up on every key repeat that never reaches Windows), so the keyboard's real state decides, just after.
 /// </summary>
 public sealed unsafe class Win32CtrlAltWatcher : ICtrlAltWatcher, IDisposable
 {
     private static Win32CtrlAltWatcher? _instance;
     private static readonly HOOKPROC HookProcedure = OnKey;
+    private static readonly TimeSpan RecheckDelay = TimeSpan.FromMilliseconds(20);
+    private static readonly TimeSpan SlowRecheckDelay = TimeSpan.FromMilliseconds(100);
 
     private readonly ConcurrentQueue<Action> _requests = new();
     private readonly Thread _thread;
@@ -24,6 +28,7 @@ public sealed unsafe class Win32CtrlAltWatcher : ICtrlAltWatcher, IDisposable
     private bool _ctrl;
     private bool _alt;
     private volatile bool _held;
+    private bool _recheckPending;
 
     public Win32CtrlAltWatcher()
     {
@@ -131,14 +136,48 @@ public sealed unsafe class Win32CtrlAltWatcher : ICtrlAltWatcher, IDisposable
                 var key = (VIRTUAL_KEY)info->vkCode;
                 if (key is VIRTUAL_KEY.VK_CONTROL or VIRTUAL_KEY.VK_LCONTROL or VIRTUAL_KEY.VK_RCONTROL)
                 {
-                    self.Set(down, self._alt);
+                    self.OnModifier(down, () => self.Set(true, self._alt));
                 }
                 else if (key is VIRTUAL_KEY.VK_MENU or VIRTUAL_KEY.VK_LMENU or VIRTUAL_KEY.VK_RMENU)
                 {
-                    self.Set(self._ctrl, down);
+                    self.OnModifier(down, () => self.Set(self._ctrl, true));
                 }
             }
         }
+    }
+
+    private void OnModifier(bool down, Action setDown)
+    {
+        if (down)
+        {
+            setDown();
+            return;
+        }
+
+        // Windows updates its key state only after every hook has run, so the check comes a moment later, off the hook.
+        _requests.Enqueue(RecheckAfterKeyUp);
+        PInvoke.PostThreadMessage(_threadId, PInvoke.WM_APP, default, default);
+    }
+
+    private void RecheckAfterKeyUp()
+    {
+        if (_recheckPending)
+        {
+            return;
+        }
+
+        _recheckPending = true;
+        Task.Delay(RecheckDelay).ContinueWith(_ =>
+        {
+            Resync();
+
+            // Once more in case a busy PC had not caught up by then; a key that really stayed down keeps the state held.
+            Task.Delay(SlowRecheckDelay).ContinueWith(_ =>
+            {
+                _requests.Enqueue(() => _recheckPending = false);
+                Resync();
+            }, TaskScheduler.Default);
+        }, TaskScheduler.Default);
     }
 
     private void Set(bool ctrl, bool alt)
