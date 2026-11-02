@@ -99,6 +99,41 @@ public sealed class LaterStore
     }
 
     /// <summary>
+    /// Every item in the category <paramref name="oldName"/> takes the new name and colour, or none when <paramref name="newName"/> is null
+    /// (a renamed or deleted category): each is a normal stamped edit, saved once for all. Items already as asked are left alone.
+    /// </summary>
+    public Task RelabelAsync(string oldName, string? newName, string? newColor)
+    {
+        DateTimeOffset now = _time.GetUtcNow();
+        bool changed = false;
+        for (int index = 0; index < _all.Count; index++)
+        {
+            SyncLaterItem held = _all[index];
+            if (held.DeletedAt is not null || !string.Equals(held.Category, oldName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string? color = newName is null ? null : newColor;
+            if (held.Category == newName && held.CategoryColor == color)
+            {
+                continue;
+            }
+
+            _all[index] = held with { Category = newName, CategoryColor = color, EditedAt = SharedListMerge.NextStamp(now, held) };
+            changed = true;
+        }
+
+        return changed ? SaveAsync() : Task.CompletedTask;
+    }
+
+    /// <summary>How many live items are in the category <paramref name="name"/>.</summary>
+    public int CountInCategory(string name)
+    {
+        return _all.Count(item => item.DeletedAt is null && string.Equals(item.Category, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
     /// Deletes an item: its text goes at once and a tombstone stays for 30 days, so the user's other devices delete it
     /// too. An unknown id changes nothing.
     /// </summary>

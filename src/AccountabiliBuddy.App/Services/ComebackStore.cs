@@ -91,9 +91,15 @@ public sealed class ComebackStore
         return SaveAsync();
     }
 
+    /// <summary>How many live come-backs are in the category <paramref name="name"/>.</summary>
+    public int CountInCategory(string name)
+    {
+        return _all.Count(comeback => comeback.DeletedAt is null && string.Equals(comeback.Category, name, StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>
-    /// Every come-back in the category <paramref name="oldName"/> takes the new name and colour (a renamed or recoloured
-    /// category), or none when <paramref name="newName"/> is null (a deleted one): each is a normal edit that syncs.
+    /// Every come-back in the category <paramref name="oldName"/> takes the new name and colour (a renamed category), or none
+    /// when <paramref name="newName"/> is null (a deleted one): each is a normal edit that syncs. One already as asked is left alone.
     /// </summary>
     public async Task RelabelAsync(string oldName, string? newName, string? newColor)
     {
@@ -107,7 +113,13 @@ public sealed class ComebackStore
                 continue;
             }
 
-            _all[index] = held with { Category = newName, CategoryColor = newName is null ? null : newColor, EditedAt = EditStamp(now, held) };
+            string? color = newName is null ? null : newColor;
+            if (held.Category == newName && held.CategoryColor == color)
+            {
+                continue;
+            }
+
+            _all[index] = held with { Category = newName, CategoryColor = color, EditedAt = EditStamp(now, held) };
             changed = true;
         }
 

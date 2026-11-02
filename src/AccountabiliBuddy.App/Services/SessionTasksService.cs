@@ -316,7 +316,10 @@ public sealed partial class SessionTasksService : IDisposable
                 return RemoteTaskResult.Refused($"This session already has {TaskAllowance} tasks.");
             }
 
-            await Comebacks.AddAsync(steps.Count > 0 ? $"{title} (+{steps.Count} {(steps.Count == 1 ? "step" : "steps")})" : title);
+            // Parked with the category the phone sent, when it is a sane name and colour.
+            string? parkedCategory = request.Category?.Trim() is { Length: > 0 and <= MaxRemoteText } name ? name : null;
+            string? parkedColor = request.CategoryColor is { Length: 7 } hex && hex[0] == '#' && hex[1..].All(char.IsAsciiHexDigit) ? hex : null;
+            await Comebacks.AddAsync(steps.Count > 0 ? $"{title} (+{steps.Count} {(steps.Count == 1 ? "step" : "steps")})" : title, parkedCategory, parkedColor);
             return RemoteTaskResult.Applied($"Parked: {TaskAllowance} tasks this session");
         }
 
@@ -483,7 +486,7 @@ public sealed partial class SessionTasksService : IDisposable
         return SetCategoriesAsync([.. _categories, new TaskCategory(Guid.NewGuid(), trimmed, color)]);
     }
 
-    /// <summary>A blank name keeps the old one. Later items and come-backs in the category take the new name.</summary>
+    /// <summary>A blank name keeps the old one. Later items and come-backs in the category take the new name (and this PC's colour for it).</summary>
     public async Task RenameCategoryAsync(Guid id, string name)
     {
         string trimmed = name.Trim();
@@ -500,15 +503,30 @@ public sealed partial class SessionTasksService : IDisposable
         }
     }
 
-    /// <summary>Later items and come-backs in the category take the new colour too.</summary>
-    public async Task RecolorCategoryAsync(Guid id, string color)
+    /// <summary>
+    /// Changes this PC's colour for the category only. Later items and come-backs are not touched (that would re-stamp them on every
+    /// device); the Tasks page shows this PC's colour for an item whose category name matches.
+    /// </summary>
+    public Task RecolorCategoryAsync(Guid id, string color)
     {
-        TaskCategory? old = _categories.FirstOrDefault(category => category.Id == id);
-        await SetCategoriesAsync(_categories.Select(category => category.Id == id ? category with { Color = color } : category).ToList());
-        if (old is not null)
+        return SetCategoriesAsync(_categories.Select(category => category.Id == id ? category with { Color = color } : category).ToList());
+    }
+
+    /// <summary>
+    /// How many things hold the category: this checklist's tasks, Later items and come-backs. Deleting it takes the category off
+    /// every one of them (the Later items and come-backs on all the user's devices), so the editor asks first with this number.
+    /// </summary>
+    public int CategoryUseCount(Guid id)
+    {
+        TaskCategory? category = _categories.FirstOrDefault(candidate => candidate.Id == id);
+        if (category is null)
         {
-            await RelabelSharedListsAsync(old.Name, old.Name, color);
+            return 0;
         }
+
+        return Current.Tasks.Count(task => task.CategoryId == id)
+            + (Later?.CountInCategory(category.Name) ?? 0)
+            + (Comebacks?.CountInCategory(category.Name) ?? 0);
     }
 
     /// <summary>Its tasks, Later items and come-backs have no category after it (ended sessions' checklists keep the name and colour they had).</summary>
@@ -524,16 +542,14 @@ public sealed partial class SessionTasksService : IDisposable
         }
     }
 
-    // Later items and come-backs carry their category's name and colour themselves (they are shared with the other devices), so a
-    // renamed, recoloured or deleted category is carried over to them as ordinary edits; null new name: no category.
+    // Later items and come-backs carry their category's name themselves (they are shared with the other devices), so a renamed or
+    // deleted category is carried over to them as ordinary stamped edits (null new name: no category). A limit: merge works on whole
+    // items, so such an edit can win over an older edit made on a device that has not synced yet (see hard-rules.md).
     private async Task RelabelSharedListsAsync(string oldName, string? newName, string? newColor)
     {
         if (Later is not null)
         {
-            foreach (SyncLaterItem item in Later.Items.Where(item => string.Equals(item.Category, oldName, StringComparison.OrdinalIgnoreCase)))
-            {
-                await Later.EditAsync(item.Id, held => held with { Category = newName, CategoryColor = newName is null ? null : newColor });
-            }
+            await Later.RelabelAsync(oldName, newName, newColor);
         }
 
         if (Comebacks is not null)
