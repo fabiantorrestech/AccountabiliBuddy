@@ -13,7 +13,8 @@ object StatsDepth {
     /** The line to show when a view that looks back [wantedDays] days has less than that behind it; null when it has enough. */
     fun caption(data: StatsData, wantedDays: Int): String? {
         val have = historyDays(data)
-        if (!data.hasHistory || have >= wantedDays) return null
+        // The phone never holds more than it keeps, so a year-long range is "deep enough" once it has all of those days.
+        if (!data.hasHistory || have >= minOf(wantedDays, StatsData.KEPT_DAYS)) return null
         return "Only ${have} ${StatsFormat.plural(have, "day")} of history so far. Your PC syncs about 14 days to a new phone, and this phone keeps up to ${StatsData.KEPT_DAYS}."
     }
 }

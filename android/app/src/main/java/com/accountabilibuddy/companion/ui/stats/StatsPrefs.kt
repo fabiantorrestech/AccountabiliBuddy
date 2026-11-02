@@ -15,7 +15,6 @@ import com.accountabilibuddy.companion.stats.StatsViewsState
 class StatsPrefs(context: Context) {
     private val prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
-    /** The view last shown. */
     var view: StatsView by mutableStateOf(StatsView.fromKey(prefs.getString(KEY_VIEW, null)) ?: StatsView.Overview)
         private set
 

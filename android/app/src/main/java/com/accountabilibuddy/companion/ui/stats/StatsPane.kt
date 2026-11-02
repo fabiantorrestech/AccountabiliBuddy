@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -46,16 +47,27 @@ fun StatsPane(
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     // The day the Overview's Day range shows survives rotation; "follow today" moves on at midnight by itself.
     var pickedDay by rememberSaveable { mutableLongStateOf(FOLLOW_TODAY) }
+    // A tap on a bar, a heat cell or a day opens that day on Overview > Day for now only: it is not saved, so the next launch opens the
+    // view and range the person chose. Any choice of their own (a chip, a segment, a tile, the sheet) ends it.
+    var dayOpened by rememberSaveable { mutableStateOf(false) }
+    // A view chosen from outside (a route) ends it too.
+    LaunchedEffect(view) { dayOpened = false }
+    val shownView = if (dayOpened) StatsView.Overview else view
     val day = if (pickedDay == FOLLOW_TODAY) today else LocalDate.ofEpochDay(pickedDay).coerceIn(model.data.firstDay, today)
-    val shownRange = view.coerce(range)
+    val shownRange = if (dayOpened) StatsRange.Day else shownView.coerce(range)
 
     fun pick(date: LocalDate) {
         pickedDay = if (date == today) FOLLOW_TODAY else date.toEpochDay()
-        actions.onSelectView(StatsView.Overview)
-        actions.onSelectRange(StatsRange.Day)
+        dayOpened = true
     }
 
-    val chips = remember(views, view) { if (view in views.shown) views.shown else views.shown + view }
+    val own = remember(actions) {
+        StatsPaneActions(
+            { dayOpened = false; actions.onSelectView(it) }, { dayOpened = false; actions.onSelectRange(it) }, actions.onViewsChange,
+            actions.onConnectHealth, actions.onRefreshSleep, actions.onAllowUsage,
+        )
+    }
+    val chips = remember(views, shownView) { if (shownView in views.shown) views.shown else views.shown + shownView }
     LazyColumn(
         modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
@@ -65,21 +77,21 @@ fun StatsPane(
             AbPageHeader("Stats") { AbQuietIconButton(Icons.Outlined.Tune, "Choose and order the views", onClick = { sheetOpen = true }) }
         }
 
-        item { StatsViewChips(chips, view, onSelect = actions.onSelectView) }
-        if (view.ranges.isNotEmpty() && shownRange != null) {
+        item { StatsViewChips(chips, shownView, onSelect = own.onSelectView) }
+        if (shownView.ranges.isNotEmpty() && shownRange != null) {
             item {
-                AbSegmented(view.ranges.map { it.label }, view.ranges.indexOf(shownRange), onSelect = { actions.onSelectRange(view.ranges[it]) })
+                AbSegmented(shownView.ranges.map { it.label }, shownView.ranges.indexOf(shownRange), onSelect = { own.onSelectRange(shownView.ranges[it]) })
             }
         }
 
-        item { StatsViewContent(model, view, shownRange, day, actions, onPickDay = ::pick) }
+        item { StatsViewContent(model, shownView, shownRange, day, own, onPickDay = ::pick) }
     }
 
     if (sheetOpen) {
         StatsViewsSheet(
-            views, onChange = actions.onViewsChange,
+            views, onChange = own.onViewsChange,
             onOpen = { opened ->
-                actions.onSelectView(opened)
+                own.onSelectView(opened)
                 sheetOpen = false
             },
             onDismiss = { sheetOpen = false },

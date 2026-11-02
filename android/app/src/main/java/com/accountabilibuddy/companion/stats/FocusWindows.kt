@@ -41,7 +41,7 @@ object FocusWindows {
             val start = date.atStartOfDay()
             val day = LocalWindow(start, start.plusDays(1))
             val pieces = focused.mapNotNull { DayTimeline.clip(it, day) }.map { Duration.between(it.start, it.end) }
-            days += StatsDay(date, pieces.fold(Duration.ZERO) { sum, piece -> sum.plus(piece) }, pieces.maxOrNull() ?: Duration.ZERO)
+            days += StatsDay(date, pieces.fold(Duration.ZERO) { sum, piece -> sum.plus(piece) })
             date = date.plusDays(1)
         }
 

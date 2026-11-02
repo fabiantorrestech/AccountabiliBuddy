@@ -2,15 +2,6 @@ package com.accountabilibuddy.companion.stats
 
 import java.time.LocalDate
 
-/** What a bar of the 12 AM to 12 AM strip is. */
-enum class DayStripKind { Focus, Drift, Sleep }
-
-/** A stretch on the day strip: [from] and [to] are 0 (12 AM) to 1 (the next 12 AM). */
-data class DayStripSpan(val from: Float, val to: Float, val kind: DayStripKind, val description: String)
-
-/** A line of the day's list: a session or a stretch off track, with its time and length. */
-data class DayListRow(val time: String, val title: String, val length: String, val isDrift: Boolean)
-
 /**
  * One day in detail (board 5k's right column): the strip, deep work against the goal, drift, and the day's sessions.
  *
