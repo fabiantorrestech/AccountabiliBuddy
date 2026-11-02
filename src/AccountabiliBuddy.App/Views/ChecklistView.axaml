@@ -249,7 +249,7 @@
                     <KeyBinding Gesture="Enter" Command="{Binding AddTaskCommand}" />
                 </TextBox.KeyBindings>
             </TextBox>
-            <Button Grid.Column="2" x:Name="ListPullButton" Classes="small" Margin="4,0,0,0"
+            <Button Grid.Column="2" x:Name="ListPullButton" Classes="small" Margin="4,0,0,0" IsEnabled="{Binding !IsOverLimitPrompt}"
                     ToolTip.Tip="From your lists: take a task from Later or Come back to" AutomationProperties.Name="From your lists">
                 <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
                 <Button.Flyout>
@@ -264,11 +264,15 @@
             </Button>
         </Grid>
 
+        <TextBlock Text="{Binding PullNotice}" FontSize="11" Opacity="0.7" TextWrapping="Wrap"
+                   IsVisible="{Binding PullNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
         <!-- A 4th task: park it, or add it anyway with a reason (3 tasks per session). -->
         <Border IsVisible="{Binding IsOverLimitPrompt}" BorderBrush="#40808080" BorderThickness="1" CornerRadius="6" Padding="8,6">
             <StackPanel Spacing="6">
                 <TextBlock Text="{Binding OverLimitText}" TextWrapping="Wrap" FontWeight="SemiBold" />
-                <TextBox Text="{Binding OverLimitReason}" PlaceholderText="{Binding OverLimitReasonHint}" />
+                <!-- taskEntry: the quick-session popup lets only these boxes take typing (its Enter, B, 1-5 and arrows are shortcuts). -->
+                <TextBox Classes="taskEntry" Text="{Binding OverLimitReason}" PlaceholderText="{Binding OverLimitReasonHint}" />
                 <TextBlock Text="{Binding OverLimitError}" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap"
                            IsVisible="{Binding OverLimitError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 <StackPanel Orientation="Horizontal" Spacing="6">

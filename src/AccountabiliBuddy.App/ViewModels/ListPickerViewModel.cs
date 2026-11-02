@@ -143,9 +143,11 @@ public sealed partial class ListPickerViewModel : ObservableObject
             parts.Add($"Due {DayText(due, today)}");
         }
 
-        if (item.Subtasks is { Count: > 0 } steps)
+        // Only the open steps arrive when the item is taken (Add to Today drops the ticked ones), so only they are counted.
+        int openSteps = (item.Subtasks ?? []).Count(step => !step.IsDone);
+        if (openSteps > 0)
         {
-            parts.Add(steps.Count == 1 ? "1 step" : $"{steps.Count} steps");
+            parts.Add(openSteps == 1 ? "1 step" : $"{openSteps} steps");
         }
 
         return string.Join(" · ", parts);

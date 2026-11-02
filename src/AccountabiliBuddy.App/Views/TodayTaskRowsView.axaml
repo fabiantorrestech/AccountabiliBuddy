@@ -281,7 +281,7 @@
                         Click="OnNewTaskCategoryClick">
                     <Ellipse Width="12" Height="12" Fill="{Binding NewTaskCategoryBrush}" Stroke="#80808080" StrokeThickness="1" />
                 </Button>
-                <Button Grid.Column="4" x:Name="ListPullButton" Classes="small"
+                <Button Grid.Column="4" x:Name="ListPullButton" Classes="small" IsEnabled="{Binding !IsOverLimitPrompt}"
                         ToolTip.Tip="From your lists: take a task from Later or Come back to" AutomationProperties.Name="From your lists">
                     <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
                     <Button.Flyout>
@@ -297,11 +297,14 @@
             </Grid>
         </Border>
 
+        <TextBlock Text="{Binding PullNotice}" Classes="faint" FontSize="12" Margin="16,0,0,0" TextWrapping="Wrap"
+                   IsVisible="{Binding PullNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
         <!-- A 4th task: park it, or add it anyway with a reason (3 tasks per session). -->
         <Border Classes="addRow" IsVisible="{Binding IsOverLimitPrompt}" Padding="16,12">
             <StackPanel Spacing="8">
                 <TextBlock Text="{Binding OverLimitText}" TextWrapping="Wrap" FontWeight="SemiBold" />
-                <TextBox Text="{Binding OverLimitReason}" PlaceholderText="{Binding OverLimitReasonHint}" />
+                <TextBox Classes="taskEntry" Text="{Binding OverLimitReason}" PlaceholderText="{Binding OverLimitReasonHint}" />
                 <TextBlock Text="{Binding OverLimitError}" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap"
                            IsVisible="{Binding OverLimitError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 <StackPanel Orientation="Horizontal" Spacing="6">

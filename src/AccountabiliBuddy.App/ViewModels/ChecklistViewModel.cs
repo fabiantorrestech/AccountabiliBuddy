@@ -173,6 +173,10 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool IsOverLimitPrompt { get; set; }
 
+    /// <summary>A line under the add box when a pull did nothing ("That task is no longer there."); empty otherwise.</summary>
+    [ObservableProperty]
+    public partial string PullNotice { get; set; } = string.Empty;
+
     /// <summary>The held 4th item came "From your lists": it stays in its list unless added anyway, so there is nothing to park.</summary>
     public bool IsHeldPull => _heldPull is not null;
 
@@ -255,6 +259,7 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
             return;
         }
 
+        PullNotice = string.Empty;
         if (_tasks.IsAtTaskLimit)
         {
             // A 4th task: hold it and ask (park it, or add it anyway with a reason).
@@ -295,6 +300,7 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
             }
 
             CloseOverLimitPrompt();
+            NoteIfGone(result);
             return;
         }
 
@@ -319,7 +325,9 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
             return;
         }
 
+        PullNotice = string.Empty;
         (AddToTodayResult result, _) = await TakeFromListAsync(kind, id, null);
+        NoteIfGone(result);
         if (result == AddToTodayResult.AtLimit)
         {
             _heldPull = (kind, id);
@@ -328,6 +336,15 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
             OverLimitReason = string.Empty;
             OverLimitError = null;
             IsOverLimitPrompt = true;
+        }
+    }
+
+    // The item was removed or ticked by a sync while the picker was open: say so, as the Tasks page does.
+    private void NoteIfGone(AddToTodayResult result)
+    {
+        if (result == AddToTodayResult.NothingToAdd)
+        {
+            PullNotice = "That task is no longer there.";
         }
     }
 

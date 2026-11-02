@@ -6,7 +6,7 @@
     <!-- "From your lists": the open items of Later and Come back to, newest first, with a search box. Choosing one adds it to today's
          list the way "Add to Today" does on the Tasks page (the checklist's three-task prompt applies). -->
     <StackPanel Spacing="6" Width="340">
-        <TextBox x:Name="SearchBox" Text="{Binding Search}" PlaceholderText="Search Later and Come back to"
+        <TextBox x:Name="SearchBox" Classes="taskEntry" Text="{Binding Search}" PlaceholderText="Search Later and Come back to"
                  AutomationProperties.Name="Search your lists" />
         <TextBlock Text="{Binding EmptyText}" IsVisible="{Binding IsEmpty}" Foreground="{DynamicResource Ab.Muted}" FontSize="12" Margin="2,2,0,2" />
         <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto" IsVisible="{Binding !IsEmpty}">

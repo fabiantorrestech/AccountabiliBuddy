@@ -122,12 +122,19 @@ public static class TaskMenus
             });
         }
 
-        panel.Children.Add(new TextBlock
+        var text = new TextBlock
         {
             Text = entry.Header,
             VerticalAlignment = VerticalAlignment.Center,
             FontWeight = entry.IsHeading ? FontWeight.SemiBold : FontWeight.Normal,
-        });
+        };
+        if (entry.IsHeading)
+        {
+            // A heading is a disabled item, which the theme dims too far on Paper; the app's muted text colour (followed live) stays readable.
+            text.Bind(TextBlock.ForegroundProperty, text.GetResourceObservable("Ab.Muted"));
+        }
+
+        panel.Children.Add(text);
         if (entry.IsChecked)
         {
             panel.Children.Add(new TextBlock { Text = "✓", VerticalAlignment = VerticalAlignment.Center });
