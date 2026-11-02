@@ -40,6 +40,8 @@ class DemoSeedReceiver : BroadcastReceiver() {
         const val MODE_PLANNING = "planning"
         const val MODE_TWOPC = "twopc"
         const val MODE_AWAY = "away"
+        const val MODE_AWAY_PAST = "away-past"
+        const val MODE_AWAY_STALE = "away-stale"
         const val MODE_SESSION_BUDGET = "session-budget"
         const val MODE_BUDGET = "budget"
         const val MODE_FREE = "free"
