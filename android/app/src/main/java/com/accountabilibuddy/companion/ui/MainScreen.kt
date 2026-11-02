@@ -29,6 +29,9 @@ import com.accountabilibuddy.companion.ui.plan.PlanWaitSheet
 import com.accountabilibuddy.companion.ui.shell.AppDestination
 import com.accountabilibuddy.companion.ui.shell.AppScaffold
 import com.accountabilibuddy.companion.ui.shell.rememberAppNav
+import com.accountabilibuddy.companion.ui.settings.SettingsDetailHost
+import com.accountabilibuddy.companion.ui.settings.SettingsPageActions
+import com.accountabilibuddy.companion.ui.settings.SettingsPageInputs
 import com.accountabilibuddy.companion.ui.shell.rememberNavLayout
 import com.accountabilibuddy.shared.sync.SyncAction
 
@@ -98,6 +101,9 @@ fun MainScreen(
     val navLayout = rememberNavLayout()
     val syncNow = rememberSyncNow()
     val settingsListState = rememberLazyListState()
+    // The Settings search text: in memory only (never saved or sent), and gone when the user leaves Settings.
+    var settingsQuery by remember { mutableStateOf("") }
+    LaunchedEffect(nav.destination) { if (nav.destination != AppDestination.Settings) settingsQuery = "" }
     val planDraft by viewModel.planDraft.collectAsStateWithLifecycle()
     // The migration assistant (5 taps on About's logo, or the Today card).
     var whatsNewOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
@@ -347,18 +353,47 @@ fun MainScreen(
                         "relay".takeIf { syncSettings.relayOn },
                         pcName,
                     ).joinToString(" · ")
-                    when (category) {
-                        null -> SettingsList(
+                    if (category == null) {
+                        SettingsList(
                             SettingsListInputs(
                                 state = state, health = health, lunchLengthMinutes = lunchLength, pause = pauseState, takeoverOn = takeoverOn,
                                 curbox = curbox, devicesSummary = devicesSummary, appVersion = appVersion, guardsLock = guardsLock,
                             ),
                             onOpen = { nav.open(AppDestination.Settings, it.key) },
+                            query = settingsQuery,
+                            onQueryChange = { settingsQuery = it },
+                            onOpenResult = { nav.open(AppDestination.Settings, it.category.key, it.anchor) },
                             listState = settingsListState,
                         )
-                        SettingsCategory.Appearance -> AppearanceScreen(onBack = backToList)
-                        SettingsCategory.Devices -> SettingsPageFrame(category, backToList) {
-                            DevicesScreen(
+                    } else {
+                        SettingsDetailHost(
+                            category = category,
+                            anchor = shown.anchor,
+                            onBack = backToList,
+                            inputs = SettingsPageInputs(
+                                state = state, clock = viewModel.clock, health = health, importing = importing, curbox = curbox,
+                                noise = noise, noiseSettings = noiseSettings, pause = pauseState, guardsLock = guardsLock,
+                                pcName = pcName, pcState = pcState, deviceName = viewModel.deviceName,
+                                wakeAlarm = { WakeAlarmRows(syncSettings, viewModel.alarmApps(), viewModel.learnedAlarmApp(), viewModel::saveSyncSettings) },
+                                wakeAlarmSummary = if (syncSettings.alarmOn) "On: your next alarm is the wake time" else "Off: the Sleep part's wake time",
+                            ),
+                            actions = SettingsPageActions(
+                                onImport = onPickFile,
+                                onClearImport = viewModel::clearImport,
+                                onSaveSleep = viewModel::saveSleep,
+                                onTimelineNotification = onTimelineNotification,
+                                onConnectHealth = onConnectHealth,
+                                onAddWidget = onAddWidget,
+                                onConnectCurbox = onConnectCurbox,
+                                onAllowUsage = onAllowUsage,
+                                onOpenSetup = { showSetup = true },
+                                onOpenDevices = { nav.open(AppDestination.Settings, SettingsCategory.Devices.key) },
+                                onOpenPlan = { nav.select(AppDestination.Plan) },
+                                onOpenWhatsNew = { whatsNewOpen = true },
+                                onReenableTime = viewModel::setReenableTime,
+                                pause = pauseActions,
+                            ),
+                            devices = DevicesPageInputs(
                                 devices = DevicesState(
                                     deviceName = viewModel.deviceName,
                                     joined = syncKey != null,
@@ -372,6 +407,7 @@ fun MainScreen(
                                     learnedAlarmApp = viewModel.learnedAlarmApp(),
                                     removed = removedDevices,
                                     removalLocked = removalLocked,
+                                    appVersion = appVersion,
                                 ),
                                 actions = DevicesActions(
                                     onRemoveDevice = viewModel::openRemoveDevice,
@@ -400,48 +436,9 @@ fun MainScreen(
                                 pcChoices = pcChoices,
                                 chosenPcId = chosenPcId,
                                 onChoosePc = viewModel::choosePc,
-                            )
-                        }
-                        // The old Profiles tab (the PC's profiles, read only) below the phone's own guard switches.
-                        SettingsCategory.Guards -> SettingsPageFrame(category, backToList) {
-                            val usageNeed = Need("Usage access", remember(nav.route) { com.accountabilibuddy.companion.usage.PhoneUsageReader(context).hasAccess() }, onAllowUsage)
-                            ProfilesScreen(
-                                state,
-                                viewModel.clock,
-                                pcName = pcName,
-                                pcState = pcState,
-                                deviceName = viewModel.deviceName,
-                                curbox = curbox,
-                                header = { phoneGuardItems(pauseState, pauseActions, viewModel.clock, usageNeed, guardsLock) },
-                            )
-                        }
-                        SettingsCategory.About -> SettingsPageFrame(category, backToList) {
-                            AboutScreen(pcName = pcName, onOpenWhatsNew = { whatsNewOpen = true })
-                        }
-                        else -> SettingsPageFrame(category, backToList) {
-                            SettingsDetail(
-                                category = category,
-                                state = state, clock = viewModel.clock, health = health, importing = importing,
-                                onImport = onPickFile,
-                                onClearImport = viewModel::clearImport,
-                                onSaveSleep = viewModel::saveSleep,
-                                onTimelineNotification = onTimelineNotification,
-                                onBedtimeReminder = viewModel::setBedtimeReminder,
-                                onConnectHealth = onConnectHealth,
-                                onAddWidget = onAddWidget,
-                                curbox = curbox,
-                                onConnectCurbox = onConnectCurbox,
-                                noise = noise,
-                                noiseSettings = noiseSettings,
-                                onAllowUsage = onAllowUsage,
-                                onOpenSetup = { showSetup = true },
-                                onReenableTime = viewModel::setReenableTime,
-                                wakeAlarm = { WakeAlarmRows(syncSettings, viewModel.alarmApps(), viewModel.learnedAlarmApp(), viewModel::saveSyncSettings) },
-                                wakeAlarmSummary = if (syncSettings.alarmOn) "On: your next alarm is the wake time" else "Off: the Sleep part's wake time",
-                                onOpenDevices = { nav.open(AppDestination.Settings, SettingsCategory.Devices.key) },
-                                onOpenPlan = { nav.select(AppDestination.Plan) },
-                            )
-                        }
+                                syncNow = syncNow,
+                            ),
+                        )
                     }
                 }
             }
@@ -454,8 +451,8 @@ fun MainScreen(
         JoinPromptDialog(prompt, onContinue = viewModel::continueJoin, onCancel = viewModel::cancelJoin)
     }
 
-    removeState?.let { RemoveDeviceDialog(it, viewModel.removeDevice) }
-    restoreState?.let { RestoreBackupDialog(it, viewModel.restoreBackup) }
+    removeState?.let { RemoveDeviceSheet(it, viewModel.removeDevice) }
+    restoreState?.let { RestoreBackupSheet(it, viewModel.restoreBackup) }
 
     // A plan edit the PC took and is holding (ADR 28): says when it applies on its own. The wait is the PC's; there is no "apply now".
     planWait?.takeIf { !it.seen && it.appliesAt.isAfter(java.time.Instant.now()) }?.let { wait ->

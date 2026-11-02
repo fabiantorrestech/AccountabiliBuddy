@@ -2,38 +2,37 @@ package com.accountabilibuddy.companion.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.LinkOff
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.sync.DeviceBackups
 import com.accountabilibuddy.companion.sync.SyncShare
+import com.accountabilibuddy.companion.ui.kit.AbChoiceRow
+import com.accountabilibuddy.companion.ui.kit.AbInfoBanner
+import com.accountabilibuddy.companion.ui.kit.AbPageSheet
+import com.accountabilibuddy.companion.ui.kit.AbPrimaryButton
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
+import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
- * The "Remove this device" dialog (ADR 54, 55), the PC's five pages in one dialog: what removal does, keep or erase its data, a backup
- * first (Google Drive when it is a sync method here, else a file through the system file picker, or none), a warning about devices
- * on an older version, and the confirmation. The work and its order are in [RemoveDeviceFlow]. Minimal and functional; it gets
- * restyled in the phone UI run.
+ * The "Remove this device" pages (ADR 54, 55) as a full-height sheet, the PC's five pages in the PC's order: what removal does, keep or
+ * erase its data, a backup first (Google Drive when it is a sync method here, else a file through the system file picker, or none), a
+ * warning about devices on an older version, and the confirmation. The work, the order and the lock checks are in [RemoveDeviceFlow]
+ * (read again on every page and on confirm); this only draws what its state says and calls it.
  */
 @Composable
-internal fun RemoveDeviceDialog(state: RemoveDeviceState, flow: RemoveDeviceFlow) {
+internal fun RemoveDeviceSheet(state: RemoveDeviceState, flow: RemoveDeviceFlow) {
     val chooseFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(SyncShare.MIME_TYPE)) { uri ->
         if (uri != null) flow.onFilePicked(uri)
     }
@@ -44,67 +43,69 @@ internal fun RemoveDeviceDialog(state: RemoveDeviceState, flow: RemoveDeviceFlow
     // The Next button of the backup page needs a file when the backup goes to a file.
     val needsFile = state.step == RemoveStep.Backup && state.backup == RemoveBackupChoice.File && state.backupUri == null
 
-    AlertDialog(
-        // Not dismissed by a tap outside while the removal is working; elsewhere it closes without changing anything more.
-        onDismissRequest = { if (!working) flow.close() },
-        icon = { Icon(Icons.Outlined.LinkOff, contentDescription = null) },
-        title = {
-            Column {
-                Text("Remove ${state.name}", maxLines = 2)
-                if (state.stepText.isNotEmpty()) {
-                    Text(state.stepText, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                when (state.step) {
-                    RemoveStep.What -> WhatPage(state)
-                    RemoveStep.Data -> DataPage(state, flow)
-                    RemoveStep.Backup -> BackupPage(state, flow) { chooseFile.launch(state.suggestedFileName) }
-                    RemoveStep.Older -> OlderPage(state)
-                    RemoveStep.Confirm -> ConfirmPage(state)
-                    RemoveStep.Working -> Text("Removing it and making the backup…")
-                    RemoveStep.BackupProblem -> BackupProblemPage(state)
-                    RemoveStep.Done -> DonePage(state)
-                }
-            }
-        },
-        confirmButton = {
+    AbPageSheet(
+        title = "Remove ${state.name}",
+        icon = Icons.Outlined.LinkOff,
+        subtitle = state.stepText,
+        // Not dismissed while the removal is working; elsewhere it closes without changing anything more.
+        onDismiss = { if (!working) flow.close() },
+        dismissible = !working,
+        footer = {
             when {
-                state.isQuestionPage -> TextButton(
-                    onClick = flow::next,
-                    enabled = !needsFile && !(state.step == RemoveStep.Confirm && state.lockedReason != null),
-                ) { Text(if (state.step == RemoveStep.Confirm) "Remove ${state.name}" else "Next") }
-                state.step == RemoveStep.BackupProblem -> Column(horizontalAlignment = Alignment.End) {
-                    TextButton(onClick = flow::tryBackupAgain) { Text("Try again") }
+                state.isQuestionPage -> {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (state.step != RemoveStep.What) {
+                            AbTonalButton("Back", onClick = flow::back, modifier = Modifier.weight(1f))
+                        }
+                        AbPrimaryButton(
+                            if (state.step == RemoveStep.Confirm) "Remove ${state.name}" else "Next",
+                            onClick = flow::next,
+                            enabled = !needsFile && !(state.step == RemoveStep.Confirm && state.lockedReason != null),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    AbTextButton("Cancel", onClick = flow::close, modifier = Modifier.align(Alignment.CenterHorizontally))
+                }
+                state.step == RemoveStep.BackupProblem -> {
+                    AbPrimaryButton("Try again", onClick = flow::tryBackupAgain, modifier = Modifier.fillMaxWidth())
                     if (state.canSaveFileInstead) {
-                        TextButton(onClick = { saveFileInstead.launch(state.suggestedFileName) }) { Text("Save a file instead…") }
+                        AbTonalButton("Save a file instead…", onClick = { saveFileInstead.launch(state.suggestedFileName) }, modifier = Modifier.fillMaxWidth())
                     }
-                    TextButton(onClick = flow::goOnWithoutBackup) { Text("Go on without a backup") }
+                    AbTonalButton("Go on without a backup", onClick = flow::goOnWithoutBackup, modifier = Modifier.fillMaxWidth())
                 }
-                state.step == RemoveStep.Done -> TextButton(onClick = flow::close) { Text("Close") }
+                state.step == RemoveStep.Done -> AbPrimaryButton("Close", onClick = flow::close, modifier = Modifier.fillMaxWidth())
+                else -> Unit
             }
         },
-        dismissButton = {
-            if (state.isQuestionPage) {
-                Row {
-                    if (state.step != RemoveStep.What) {
-                        TextButton(onClick = flow::back) { Text("Back") }
-                    }
-                    TextButton(onClick = flow::close) { Text("Cancel") }
-                }
-            }
-        },
-    )
+    ) {
+        when (state.step) {
+            RemoveStep.What -> WhatPage(state)
+            RemoveStep.Data -> DataPage(state, flow)
+            RemoveStep.Backup -> BackupPage(state, flow) { chooseFile.launch(state.suggestedFileName) }
+            RemoveStep.Older -> OlderPage(state)
+            RemoveStep.Confirm -> ConfirmPage(state)
+            RemoveStep.Working -> WorkingPage()
+            RemoveStep.BackupProblem -> BackupProblemPage(state)
+            RemoveStep.Done -> DonePage(state)
+        }
+    }
 }
 
 @Composable
+private fun PageText(text: String) = Text(text, style = Ab.type.bodyMedium, color = Ab.colors.ink)
+
+@Composable
+private fun PageNote(text: String) = Text(text, style = Ab.type.small, color = Ab.colors.muted)
+
+@Composable
+private fun PageHeading(text: String) = Text(text, style = Ab.type.body, fontWeight = FontWeight.SemiBold, color = Ab.colors.ink)
+
+@Composable
 private fun WhatPage(state: RemoveDeviceState) {
-    Text("Removing a device locks it out. Your other devices switch to a new key, so it can't read anything new, even if it still has the old link code.")
-    Text("To use it again it has to be linked again, with a link code or QR from a device that is still linked. What it already received stays on it.")
+    PageText("Removing a device locks it out. Your other devices switch to a new key, so it can't read anything new, even if it still has the old link code.")
+    PageText("To use it again it has to be linked again, with a link code or QR from a device that is still linked. What it already received stays on it.")
     if (state.isPhone) {
-        Text("Its watch goes with it.")
+        PageText("Its watch goes with it.")
     }
 
     LockedLine(state)
@@ -112,99 +113,88 @@ private fun WhatPage(state: RemoveDeviceState) {
 
 @Composable
 private fun DataPage(state: RemoveDeviceState, flow: RemoveDeviceFlow) {
-    Text("What should happen to the data this phone got from it (focus sessions, pickups, sleep nights, drift)?")
-    ChoiceRow(!state.erase, "Keep it. Devices & sync shows it as \"(removed)\" after its name.") { flow.setErase(false) }
-    ChoiceRow(
-        state.erase,
-        "Erase it from every device: this phone once the backup is done, and each of your other devices when it applies the change. " +
+    PageText("What should happen to the data this phone got from it (focus sessions, pickups, sleep nights, drift)?")
+    AbChoiceRow("Keep it", selected = !state.erase, subtitle = "Devices & sync shows it as \"(removed)\" after its name.") { flow.setErase(false) }
+    AbChoiceRow(
+        "Erase it from every device", selected = state.erase,
+        subtitle = "This phone once the backup is done, and each of your other devices when it applies the change. " +
             "Items in shared lists (tasks, Later) stay, because they belong to everyone.",
     ) { flow.setErase(true) }
 }
 
 @Composable
 private fun BackupPage(state: RemoveDeviceState, flow: RemoveDeviceFlow, chooseFile: () -> Unit) {
-    Text("Back its data up first? The backup is a sealed file only your linked devices can open; a new setup can restore it.")
+    PageText("Back its data up first? The backup is a sealed file only your linked devices can open; a new setup can restore it.")
     if (state.driveAvailable) {
-        ChoiceRow(state.backup == RemoveBackupChoice.Drive, "Google Drive: in the app's own Drive folder, under Backups.") {
-            flow.setBackup(RemoveBackupChoice.Drive)
-        }
+        AbChoiceRow(
+            "Google Drive", selected = state.backup == RemoveBackupChoice.Drive,
+            subtitle = "In the app's own Drive folder, under Backups.",
+        ) { flow.setBackup(RemoveBackupChoice.Drive) }
     }
 
-    ChoiceRow(state.backup == RemoveBackupChoice.File, "Save a file on this phone.") { flow.setBackup(RemoveBackupChoice.File) }
+    AbChoiceRow("Save a file on this phone", selected = state.backup == RemoveBackupChoice.File) { flow.setBackup(RemoveBackupChoice.File) }
     if (state.backup == RemoveBackupChoice.File) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = chooseFile) { Text(if (state.backupUri == null) "Save a file…" else "Choose another…") }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            AbTonalButton(if (state.backupUri == null) "Save a file…" else "Choose another…", onClick = chooseFile)
             Text(
-                state.backupUri?.let { DeviceBackups.displayName(androidx.compose.ui.platform.LocalContext.current, it) } ?: "Choose where to save it first.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                state.backupUri?.let { DeviceBackups.displayName(LocalContext.current, it) } ?: "Choose where to save it first.",
+                style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.weight(1f),
             )
         }
     }
 
-    ChoiceRow(state.backup == RemoveBackupChoice.None, "No backup.") { flow.setBackup(RemoveBackupChoice.None) }
+    AbChoiceRow("No backup", selected = state.backup == RemoveBackupChoice.None) { flow.setBackup(RemoveBackupChoice.None) }
     if (!state.driveAvailable) {
-        Text(
-            "Google Drive isn't one of the ways this phone syncs, so the backup goes to a file.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        PageNote("Google Drive isn't one of the ways this phone syncs, so the backup goes to a file.")
     }
 }
 
 @Composable
 private fun OlderPage(state: RemoveDeviceState) {
-    Text("Some devices can't get the new key", fontWeight = FontWeight.SemiBold)
-    Text(
+    PageHeading("Some devices can't get the new key")
+    PageText(
         "These run an older version of AccountabiliBuddy, or this phone hasn't heard from them. They will be cut off too. " +
             "Update them first, or link them again afterwards:",
     )
-    state.notWrapped.forEach { Text("• $it") }
+    state.notWrapped.forEach { PageText("• $it") }
 }
 
 @Composable
 private fun ConfirmPage(state: RemoveDeviceState) {
-    Text("Remove ${state.name} from your synced devices now?")
-    Text(
-        "Your other devices switch to a new key. This can't be undone, except by linking the device again.",
-        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    PageText("Remove ${state.name} from your synced devices now?")
+    PageNote("Your other devices switch to a new key. This can't be undone, except by linking the device again.")
     LockedLine(state)
 }
 
 @Composable
+private fun WorkingPage() {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        CircularProgressIndicator(color = Ab.colors.ink, trackColor = Ab.colors.line, strokeWidth = 3.dp)
+        PageText("Removing it and making the backup…")
+    }
+}
+
+@Composable
 private fun BackupProblemPage(state: RemoveDeviceState) {
-    Text("The device is removed, but its backup wasn't saved", fontWeight = FontWeight.SemiBold)
-    Text(state.problem)
-    Text("Its data on this phone is untouched until you pick.", style = MaterialTheme.typography.bodySmall)
+    PageHeading("The device is removed, but its backup wasn't saved")
+    PageText(state.problem)
+    PageNote("Its data on this phone is untouched until you pick.")
     if (state.erase) {
-        Text(
+        PageNote(
             "You chose Erase: your other devices erase their copy as they apply the change, so this phone's copy is the only one left. " +
                 "Closing this window keeps it.",
-            style = MaterialTheme.typography.bodySmall,
         )
     }
 }
 
 @Composable
 private fun DonePage(state: RemoveDeviceState) {
-    Text(state.doneTitle, fontWeight = FontWeight.SemiBold)
-    state.summary.forEach { Text("• $it") }
+    PageHeading(state.doneTitle)
+    state.summary.forEach { PageText("• $it") }
 }
 
 // Why it can't be removed right now (a focus session the user started), as text.
 @Composable
 private fun LockedLine(state: RemoveDeviceState) {
-    state.lockedReason?.let {
-        Text("Locked: $it", color = MaterialTheme.colorScheme.error)
-    }
-}
-
-@Composable
-private fun ChoiceRow(selected: Boolean, text: String, onSelect: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onSelect),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RadioButton(selected = selected, onClick = onSelect)
-        Text(text, Modifier.weight(1f))
-    }
+    state.lockedReason?.let { AbInfoBanner("Locked: $it") }
 }
