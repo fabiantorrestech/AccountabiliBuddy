@@ -10,6 +10,8 @@ import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.sync.DriveFolderSource
 import com.accountabilibuddy.companion.sync.DriveSyncSource
 import com.accountabilibuddy.companion.sync.FolderStatus
+import com.accountabilibuddy.companion.sync.SyncMethod
+import com.accountabilibuddy.companion.sync.SyncOffWait
 import com.accountabilibuddy.companion.ui.kit.AbCard
 import com.accountabilibuddy.companion.ui.kit.AbChip
 import com.accountabilibuddy.companion.ui.kit.AbChipRow
@@ -72,6 +74,7 @@ private val SELF_HOSTED_STEPS = """
 @Composable
 internal fun FolderMethodCard(devices: DevicesState, actions: DevicesActions, now: Instant, onChoose: () -> Unit) {
     val settings = devices.settings
+    val change = FolderChange.of(devices, actions)
     AbCard(verticalSpacing = 8.dp) {
         AbSectionLabel("Shared folder")
         Hint(SELF_HOSTED_STEPS, label = "Sync with your own server (Syncthing, Nextcloud)")
@@ -86,10 +89,60 @@ internal fun FolderMethodCard(devices: DevicesState, actions: DevicesActions, no
                 }
             }
             MethodStatusLine(devices.folder, now)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Another folder while this one is in use is refused during a focus session.
-                AbTonalButton("Choose folder", onClick = onChoose, enabled = devices.removalLocked == null)
-                AbTonalButton("Sync now", onClick = actions.onSyncFolderNow, enabled = settings.folderUri != null)
+            // Not once the folder has brought a file: another way may have fetched it first, and the copy this phone then carried in is left out of the count.
+            if (onlyOwnFile(devices.folder) && !actions.hasDelivered(SyncMethod.Folder)) {
+                Text(ONLY_OWN_FILE, style = Ab.type.small, color = Ab.colors.drift)
+            }
+        }
+        // Always there, so a wrongly picked folder is never out of reach; when it is disabled, the reason is the line under it.
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AbTonalButton("Choose folder", onClick = onChoose, enabled = change.canChoose)
+            AbTonalButton("Sync now", onClick = actions.onSyncFolderNow, enabled = settings.folderOn && settings.folderUri != null)
+        }
+        change.note?.let { Text(it, style = Ab.type.small, color = Ab.colors.muted) }
+    }
+}
+
+private const val ONLY_OWN_FILE = "Only this phone's file is in this folder. Your other devices' files should be here: check you picked the shared folder, " +
+    "and that your sync app downloads to it."
+
+/** The last pass found this phone's own file in the folder and no file of another device: most likely the wrong (a sub-) folder. */
+private fun onlyOwnFile(status: FolderStatus): Boolean = status.problem == null && status.lastSyncAt != null && status.otherFiles == 0
+
+/**
+ * What the Shared folder row lets the user do right now, and why when it does not (the line under the buttons):
+ * - in a focus session: nothing, until it ends;
+ * - on and it brings other devices' files (counts) and is the only way that counts: turning it off waits 10 minutes and another folder is refused;
+ * - on, counts, with another way counting too: both at once;
+ * - on, has never brought another device's file: both at once (nothing depends on it).
+ */
+private class FolderChange(val canChoose: Boolean, val note: String?) {
+    companion object {
+        fun of(devices: DevicesState, actions: DevicesActions): FolderChange {
+            val settings = devices.settings
+            if (!settings.folderOn) return FolderChange(devices.joined, null)
+
+            devices.removalLocked?.let {
+                return FolderChange(false, "$it The folder can't be changed or turned off until the session ends.")
+            }
+
+            val wait = SyncOffWait.WAIT.toMinutes()
+            return when {
+                actions.repointWaits(SyncMethod.Folder) -> FolderChange(
+                    false,
+                    "This folder brings your other devices' files and is your only way of syncing, so turning it off waits $wait minutes and another folder " +
+                        "can't be chosen now. Turn another way on first; it counts after it has brought a file and been on for $wait minutes.",
+                )
+                actions.turnOffWaits(SyncMethod.Folder) -> FolderChange(
+                    true,
+                    "This folder is your only way of syncing, so turning it off waits $wait minutes. It reports a problem, so you can choose another folder now.",
+                )
+                actions.countsAsWay(SyncMethod.Folder) -> FolderChange(true, "Another way is syncing too, so you can choose another folder or turn this one off at once.")
+                else -> FolderChange(
+                    true,
+                    "Nothing depends on this folder yet (it counts once another device's file has come through it and it has been on for $wait minutes), " +
+                        "so you can choose another folder or turn it off at once.",
+                )
             }
         }
     }
