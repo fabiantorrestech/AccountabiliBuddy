@@ -101,7 +101,7 @@ class DayPlanFileSync(
     }
 
     // The PC answers "applied" with "On the PC: Waits 10 min: ..." when it is holding the edit (ADR 28); no wire change, the note is its text.
-    private fun holdFrom(message: String?, pcName: String, answeredAt: Instant) {
+    fun holdFrom(message: String?, pcName: String, answeredAt: Instant) {
         val minutes = message?.let { HELD.find(it) }?.groupValues?.get(1)?.toIntOrNull() ?: return
         _wait.value = PlanWait(pcName, minutes, answeredAt.plusSeconds(minutes * 60L))
     }

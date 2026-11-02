@@ -55,6 +55,9 @@ class SleepSettingsSync(context: Context, private val store: CompanionStore) {
     fun pendingOffText(): String? =
         pendingOffAt()?.let { "Sleep mode turns off at ${CLOCK.format(it.atZone(ZoneId.systemDefault()))}" }
 
+    /** How long turning sleep mode off waits (for the "change waits" sheet; the wait itself is unchanged). */
+    val offWait: Duration get() = OFF_WAIT
+
     /** True while a PC focus session runs: sleep mode can't be turned off then. */
     fun locked(now: Instant = Instant.now()): Boolean = PlacementSession.current(app, now) != null
 

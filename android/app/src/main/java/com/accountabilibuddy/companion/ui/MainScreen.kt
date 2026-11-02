@@ -25,7 +25,7 @@ import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accountabilibuddy.companion.sync.PcFileControl
 import com.accountabilibuddy.companion.sync.RunningTasks
-import com.accountabilibuddy.companion.ui.kit.ChangeWaitsSheet
+import com.accountabilibuddy.companion.ui.plan.PlanWaitSheet
 import com.accountabilibuddy.companion.ui.shell.AppDestination
 import com.accountabilibuddy.companion.ui.shell.AppScaffold
 import com.accountabilibuddy.companion.ui.shell.rememberAppNav
@@ -459,14 +459,7 @@ fun MainScreen(
 
     // A plan edit the PC took and is holding (ADR 28): says when it applies on its own. The wait is the PC's; there is no "apply now".
     planWait?.takeIf { !it.seen && it.appliesAt.isAfter(java.time.Instant.now()) }?.let { wait ->
-        ChangeWaitsSheet(
-            title = "Your plan change waits",
-            body = "${wait.pcName} is holding it for ${wait.minutes} minutes because it frees part of today's work hours. If you still want it then, it applies on its own.",
-            appliesAt = wait.appliesAt,
-            about = true,
-            cancelNote = "cancel it on ${wait.pcName} before then",
-            onDismiss = viewModel::planWaitSeen,
-        )
+        PlanWaitSheet(wait, onDismiss = viewModel::planWaitSeen)
     }
 
     planConflict?.let { conflict ->

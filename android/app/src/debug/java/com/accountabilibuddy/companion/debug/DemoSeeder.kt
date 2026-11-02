@@ -50,6 +50,9 @@ class DemoSeeder(private val app: CompanionApp) {
         // Idle days of another kind (ADR 47): the headline wording on a Budget day, a Free day and a day off.
         DemoSeedReceiver.MODE_BUDGET, DemoSeedReceiver.MODE_FREE, DemoSeedReceiver.MODE_DAYOFF -> seed(withSession = false, dayKind = mode)
         DemoSeedReceiver.MODE_CLEAR -> clear()
+        DemoSeedReceiver.MODE_PLAN -> seed(withSession = false, dayKind = "week").also { seedEvents() }
+        DemoSeedReceiver.MODE_PLAN_SESSION -> seed(withSession = true, dayKind = "week").also { seedEvents() }
+        DemoSeedReceiver.MODE_PLAN_WAIT -> holdPlanEdit()
         DemoSeedReceiver.MODE_TASKS -> TasksDemo(app).seed(seed(withSession = false))
         DemoSeedReceiver.MODE_TASKS_SESSION -> TasksDemo(app).seed(seed(withSession = true))
         DemoSeedReceiver.MODE_DUMP -> TasksDemo(app).dump()
@@ -98,6 +101,37 @@ class DemoSeeder(private val app: CompanionApp) {
         }
 
         return "seeded ${if (withSession) "session" else "idle"}: ${file.sessions.size} sessions, ${file.drift.size} drift marks"
+    }
+
+    // The standup and a review today, an all-day event tomorrow (the Calendar rows of the Plan timeline).
+    private fun seedEvents() {
+        val today = LocalDate.now()
+        fun event(id: String, title: String, day: LocalDate, from: LocalTime?, to: LocalTime?) = kotlinx.serialization.json.buildJsonObject {
+            put("id", kotlinx.serialization.json.JsonPrimitive(id))
+            put("calendarId", kotlinx.serialization.json.JsonPrimitive("demo"))
+            put("title", kotlinx.serialization.json.JsonPrimitive(title))
+            put("localStart", kotlinx.serialization.json.JsonPrimitive(day.atTime(from ?: LocalTime.MIDNIGHT).toString()))
+            put("localEnd", kotlinx.serialization.json.JsonPrimitive((if (to != null) day.atTime(to) else day.plusDays(1).atStartOfDay()).toString()))
+            put("isAllDay", kotlinx.serialization.json.JsonPrimitive(from == null))
+        }
+
+        val events = kotlinx.serialization.json.JsonArray(
+            listOf(
+                event("demo-1", "Standup", today, LocalTime.of(14, 30), LocalTime.of(15, 0)),
+                event("demo-2", "Design review", today, LocalTime.of(10, 0), LocalTime.of(10, 45)),
+                event("demo-3", "Team offsite", today.plusDays(1), null, null),
+            ),
+        )
+        app.store.eventsFromFile(events, Instant.now())
+    }
+
+    // A plan edit the PC took and holds for 10 minutes: what its "applied" answer says (ADR 28), fed through the phone's own parser.
+    private fun holdPlanEdit(): String {
+        app.planFileSync.holdFrom(
+            "On the PC: Waits 10 min: it frees part of today's work hours (work hours on this computer). The banner counts down and can cancel it.",
+            "Work PC", Instant.now(),
+        )
+        return "plan edit held for 10 minutes"
     }
 
     private fun clear(): String {

@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.notify.PinnedTimelineService
 import com.accountabilibuddy.companion.placement.PocketPenalty
+import com.accountabilibuddy.companion.ui.kit.ChangeWaitsSheet
 import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.ZoneId
@@ -131,7 +132,8 @@ private fun GuardSwitch(app: CompanionApp) {
         offAt != null -> "Turns off at ${CLOCK.format(offAt!!.atZone(ZoneId.systemDefault()))}"
         else -> "Reads the phone's sensors during PC focus sessions. Off: no sensors and the PC never nags about placement."
     }
-    ToggleRow("Phone placement guard", detail, on && offAt == null, enabled = !(locked && on)) { wantOn ->
+    var asking by remember { mutableStateOf(false) }
+    fun apply(wantOn: Boolean) {
         val now = Instant.now()
         if (wantOn) {
             guard.turnOn()
@@ -142,6 +144,18 @@ private fun GuardSwitch(app: CompanionApp) {
         on = guard.isOn(now)
         offAt = guard.pendingOffAt(now)
         PinnedTimelineService.checkPlacement()
+    }
+
+    ToggleRow("Phone placement guard", detail, on && offAt == null, enabled = !(locked && on)) { wantOn -> if (wantOn) apply(true) else asking = true }
+    // Turning it off is a looser change: it waits, then applies on its own (board 5h). "Queue it" starts that wait; nothing shortens it.
+    if (asking) {
+        ChangeWaitsSheet(
+            title = "Turn off the phone placement guard?",
+            body = "This waits ${guard.offWait.toMinutes()} minutes. If you still want it then, it turns off on its own.",
+            appliesAt = Instant.now().plus(guard.offWait),
+            onQueue = { apply(false) },
+            onDismiss = { asking = false },
+        )
     }
 }
 
@@ -171,7 +185,8 @@ private fun PenaltySwitch(app: CompanionApp, penalty: PocketPenalty, title: Stri
         offAt != null -> "Turns off at ${CLOCK.format(offAt!!.atZone(ZoneId.systemDefault()))}"
         else -> description
     }
-    ToggleRow(title, detail, on && offAt == null, enabled = !(locked && on)) { wantOn ->
+    var asking by remember { mutableStateOf(false) }
+    fun apply(wantOn: Boolean) {
         val now = Instant.now()
         if (wantOn) {
             store.turnOn(penalty)
@@ -181,5 +196,17 @@ private fun PenaltySwitch(app: CompanionApp, penalty: PocketPenalty, title: Stri
 
         on = store.isOn(penalty, now)
         offAt = store.pendingOffAt(penalty, now)
+    }
+
+    ToggleRow(title, detail, on && offAt == null, enabled = !(locked && on)) { wantOn -> if (wantOn) apply(true) else asking = true }
+    // Turning it off is a looser change: it waits, then applies on its own (board 5h). "Queue it" starts that wait; nothing shortens it.
+    if (asking) {
+        ChangeWaitsSheet(
+            title = "Turn off \"$title\"?",
+            body = "This waits ${store.offWait.toMinutes()} minutes. If you still want it then, it turns off on its own.",
+            appliesAt = Instant.now().plus(store.offWait),
+            onQueue = { apply(false) },
+            onDismiss = { asking = false },
+        )
     }
 }

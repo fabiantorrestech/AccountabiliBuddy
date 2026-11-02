@@ -506,9 +506,11 @@ private fun SleepSection(saved: SleepSettings, clock: ClockFormat, onSave: (Slee
             locked && saved.enabled -> "Locked during a focus session"
             else -> "Bedtime and wake time on the timeline"
         }
+        var asking by remember { mutableStateOf(false) }
         ToggleRow("Sleep mode", sleepDetail, saved.enabled && offText == null, enabled = !(locked && saved.enabled && offText == null)) { wantOn ->
             if (!wantOn) {
-                onSave(saved.copy(enabled = false))
+                // A looser change: it waits, then applies on its own (board 5h); the sheet asks before the wait starts.
+                asking = true
             } else if (offText != null) {
                 sleepSync.cancelPendingOff()
             } else {
@@ -517,6 +519,19 @@ private fun SleepSection(saved: SleepSettings, clock: ClockFormat, onSave: (Slee
 
             offText = sleepSync.pendingOffText()
             locked = sleepSync.locked()
+        }
+        if (asking) {
+            com.accountabilibuddy.companion.ui.kit.ChangeWaitsSheet(
+                title = "Turn off sleep mode?",
+                body = "This waits ${sleepSync.offWait.toMinutes()} minutes. If you still want it then, it turns off on its own.",
+                appliesAt = java.time.Instant.now().plus(sleepSync.offWait),
+                onQueue = {
+                    onSave(saved.copy(enabled = false))
+                    offText = sleepSync.pendingOffText()
+                    locked = sleepSync.locked()
+                },
+                onDismiss = { asking = false },
+            )
         }
         if (offText != null) {
             TextButton(onClick = { sleepSync.cancelPendingOff(); offText = null }) { Text("Cancel") }

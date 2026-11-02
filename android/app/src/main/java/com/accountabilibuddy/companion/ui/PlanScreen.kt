@@ -26,7 +26,6 @@ import com.accountabilibuddy.companion.ui.plan.PlanTimelineBuilder
 import kotlinx.coroutines.delay
 import java.time.DayOfWeek
 import java.time.Duration
-import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -62,10 +61,14 @@ fun PlanScreen(
     /** "This is week N of M" (ADR 47): picks the week of the cycle as a plan edit. */
     onSetWeek: (week: Int) -> Unit,
     onDiscardPlanEdit: () -> Unit,
+    /** For previews and the debug gallery only: a fixed "now" and today's counted focus. The app passes neither. */
+    nowOverride: LocalDateTime? = null,
+    focusedOverride: Duration? = null,
 ) {
     val app = LocalContext.current.applicationContext as CompanionApp
     // Looked at again every half minute, so the "Now" rule moves and a day that ends is no longer today.
-    val now by produceState(LocalDateTime.now()) {
+    val now by produceState(nowOverride ?: LocalDateTime.now(), nowOverride) {
+        if (nowOverride != null) return@produceState
         while (true) {
             delay(30_000)
             value = LocalDateTime.now()
@@ -82,7 +85,7 @@ fun PlanScreen(
         val zone = ZoneId.systemDefault()
         PlanTimelineBuilder.build(
             plan = plan, date = selected, now = now, events = state.events,
-            focused = DayWorkWindows.focusedToday(focus, now, zone)?.invoke(selected) ?: Duration.ZERO,
+            focused = focusedOverride?.takeIf { selected == today } ?: DayWorkWindows.focusedToday(focus, now, zone)?.invoke(selected) ?: Duration.ZERO,
             goal = Duration.ofMinutes((model.today?.goalMinutes ?: 0).toLong()),
             nightFallback = state.sleep::fallbackNightBefore, clock = clock,
         )
@@ -98,7 +101,7 @@ fun PlanScreen(
     }
 
     val weeks = plan.cycle.weeks.size
-    val holding = planWait?.takeIf { it.appliesAt.isAfter(Instant.now()) }
+    val holding = planWait?.takeIf { it.appliesAt.isAfter(now.atZone(ZoneId.systemDefault()).toInstant()) }
     val paneModel = PlanPaneModel(
         title = "${selected.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.US)} · ${PlanDayNames.full(plan, selected)}",
         cells = cells,

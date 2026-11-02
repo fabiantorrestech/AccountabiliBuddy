@@ -49,6 +49,12 @@ class DemoSeedReceiver : BroadcastReceiver() {
         const val MODE_DAYOFF = "dayoff"
         const val MODE_CLEAR = "clear"
 
+        // Part 4 (Plan): a mixed week (Workday, a Light Thursday, Off weekend) with calendar events (`plan`), the same with a
+        // running session (`plan-session`), and a plan edit the PC is holding for its wait (`plan-wait`, ADR 28).
+        const val MODE_PLAN = "plan"
+        const val MODE_PLAN_SESSION = "plan-session"
+        const val MODE_PLAN_WAIT = "plan-wait"
+
         // Part 3 (Tasks): the lists the board shows (`tasks`, `tasks-session`), a read of what the phone's own sync file carries
         // (ids and times only, never text) and a run of the Later merge rules against the real store.
         const val MODE_TASKS = "tasks"

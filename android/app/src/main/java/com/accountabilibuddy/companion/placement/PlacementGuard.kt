@@ -32,6 +32,9 @@ class PlacementGuard(context: Context) {
         return prefs.getLong(KEY_OFF_AT, 0L).takeIf { it > 0 }?.let(Instant::ofEpochMilli)
     }
 
+    /** How long turning it off waits (for the "change waits" sheet; the wait itself is unchanged). */
+    val offWait: Duration get() = OFF_WAIT
+
     /** True while a focus session runs: the switch can't be turned off then. */
     fun locked(now: Instant): Boolean = PlacementSession.current(app, now) != null
 
