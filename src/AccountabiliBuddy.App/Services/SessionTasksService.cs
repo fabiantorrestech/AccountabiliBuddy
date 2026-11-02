@@ -483,26 +483,63 @@ public sealed partial class SessionTasksService : IDisposable
         return SetCategoriesAsync([.. _categories, new TaskCategory(Guid.NewGuid(), trimmed, color)]);
     }
 
-    /// <summary>A blank name keeps the old one.</summary>
-    public Task RenameCategoryAsync(Guid id, string name)
+    /// <summary>A blank name keeps the old one. Later items and come-backs in the category take the new name.</summary>
+    public async Task RenameCategoryAsync(Guid id, string name)
     {
         string trimmed = name.Trim();
-        return trimmed.Length == 0
-            ? Task.CompletedTask
-            : SetCategoriesAsync(_categories.Select(category => category.Id == id ? category with { Name = trimmed } : category).ToList());
+        if (trimmed.Length == 0)
+        {
+            return;
+        }
+
+        TaskCategory? old = _categories.FirstOrDefault(category => category.Id == id);
+        await SetCategoriesAsync(_categories.Select(category => category.Id == id ? category with { Name = trimmed } : category).ToList());
+        if (old is not null)
+        {
+            await RelabelSharedListsAsync(old.Name, trimmed, old.Color);
+        }
     }
 
-    public Task RecolorCategoryAsync(Guid id, string color)
+    /// <summary>Later items and come-backs in the category take the new colour too.</summary>
+    public async Task RecolorCategoryAsync(Guid id, string color)
     {
-        return SetCategoriesAsync(_categories.Select(category => category.Id == id ? category with { Color = color } : category).ToList());
+        TaskCategory? old = _categories.FirstOrDefault(category => category.Id == id);
+        await SetCategoriesAsync(_categories.Select(category => category.Id == id ? category with { Color = color } : category).ToList());
+        if (old is not null)
+        {
+            await RelabelSharedListsAsync(old.Name, old.Name, color);
+        }
     }
 
-    /// <summary>Its tasks have no category after it (ended sessions' checklists keep the name and colour they had).</summary>
+    /// <summary>Its tasks, Later items and come-backs have no category after it (ended sessions' checklists keep the name and colour they had).</summary>
     public async Task DeleteCategoryAsync(Guid id)
     {
+        TaskCategory? old = _categories.FirstOrDefault(category => category.Id == id);
         _categories = _categories.Where(category => category.Id != id).ToList();
         await SaveCategoriesAsync();
         await SetAsync(Current.WithoutCategory(id));
+        if (old is not null)
+        {
+            await RelabelSharedListsAsync(old.Name, null, null);
+        }
+    }
+
+    // Later items and come-backs carry their category's name and colour themselves (they are shared with the other devices), so a
+    // renamed, recoloured or deleted category is carried over to them as ordinary edits; null new name: no category.
+    private async Task RelabelSharedListsAsync(string oldName, string? newName, string? newColor)
+    {
+        if (Later is not null)
+        {
+            foreach (SyncLaterItem item in Later.Items.Where(item => string.Equals(item.Category, oldName, StringComparison.OrdinalIgnoreCase)))
+            {
+                await Later.EditAsync(item.Id, held => held with { Category = newName, CategoryColor = newName is null ? null : newColor });
+            }
+        }
+
+        if (Comebacks is not null)
+        {
+            await Comebacks.RelabelAsync(oldName, newName, newColor);
+        }
     }
 
     /// <summary>The checklist's tasks with their category's name and colour, as paired devices get them (ADR 24).</summary>
@@ -563,12 +600,13 @@ public sealed partial class SessionTasksService : IDisposable
             return;
         }
 
-        await Comebacks.AddAsync(text);
+        SessionTask? labelled = Labelled(Current).FirstOrDefault(candidate => candidate.Id == taskId);
+        await Comebacks.AddAsync(text, labelled?.Category, labelled?.CategoryColor);
         await SetAsync(Current.Parked(taskId));
     }
 
     /// <summary>
-    /// A come-back becomes a task at the end of the checklist (no category) and is ticked off the come-backs. Past the
+    /// A come-back becomes a task at the end of the checklist (in its category, if it has one) and is ticked off the come-backs. Past the
     /// limit it needs an <paramref name="overLimitReason"/> (<see cref="MinOverLimitReasonLength"/> characters, counted
     /// like "Add anyway"); false when it was not added.
     /// </summary>
@@ -584,7 +622,10 @@ public sealed partial class SessionTasksService : IDisposable
             return false;
         }
 
-        await AddAsync(comeback.Text, null);
+        Guid? categoryId = comeback.Category is null
+            ? null
+            : await ResolveRemoteCategoryAsync(new SyncTaskRequest(Category: comeback.Category, CategoryColor: comeback.CategoryColor));
+        await AddAsync(comeback.Text, null, categoryId);
         await Comebacks.TickAsync(comebackId);
         return true;
     }

@@ -58,8 +58,8 @@ public sealed class ComebackStore
         }
     }
 
-    /// <summary>Adds one; a blank line adds nothing.</summary>
-    public Task AddAsync(string text)
+    /// <summary>Adds one, in a category (its name and colour) or none; a blank line adds nothing.</summary>
+    public Task AddAsync(string text, string? category = null, string? categoryColor = null)
     {
         string trimmed = text.Trim();
         if (trimmed.Length == 0)
@@ -69,8 +69,58 @@ public sealed class ComebackStore
 
         DateTimeOffset now = _time.GetUtcNow();
         double last = _all.Count == 0 ? 0 : _all.Max(comeback => comeback.Position);
-        _all.Add(new Comeback(Guid.NewGuid(), trimmed, now, EditedAt: now, Position: SharedListMerge.PositionBetween(last, null)));
+        string? name = CleanCategory(category);
+        _all.Add(new Comeback(
+            Guid.NewGuid(), trimmed, now, EditedAt: now, Position: SharedListMerge.PositionBetween(last, null),
+            Category: name, CategoryColor: name is null ? null : categoryColor));
         return SaveAsync();
+    }
+
+    /// <summary>Puts one in a category (its name and colour; null name: none), as a normal edit that syncs; an unknown id or no change does nothing.</summary>
+    public Task SetCategoryAsync(Guid id, string? category, string? categoryColor)
+    {
+        int index = IndexOfLive(id);
+        string? name = CleanCategory(category);
+        string? color = name is null ? null : categoryColor;
+        if (index < 0 || (_all[index].Category == name && _all[index].CategoryColor == color))
+        {
+            return Task.CompletedTask;
+        }
+
+        _all[index] = _all[index] with { Category = name, CategoryColor = color, EditedAt = EditStamp(_time.GetUtcNow(), _all[index]) };
+        return SaveAsync();
+    }
+
+    /// <summary>
+    /// Every come-back in the category <paramref name="oldName"/> takes the new name and colour (a renamed or recoloured
+    /// category), or none when <paramref name="newName"/> is null (a deleted one): each is a normal edit that syncs.
+    /// </summary>
+    public async Task RelabelAsync(string oldName, string? newName, string? newColor)
+    {
+        DateTimeOffset now = _time.GetUtcNow();
+        bool changed = false;
+        for (int index = 0; index < _all.Count; index++)
+        {
+            Comeback held = _all[index];
+            if (held.DeletedAt is not null || !string.Equals(held.Category, oldName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            _all[index] = held with { Category = newName, CategoryColor = newName is null ? null : newColor, EditedAt = EditStamp(now, held) };
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await SaveAsync();
+        }
+    }
+
+    private static string? CleanCategory(string? category)
+    {
+        string? trimmed = category?.Trim();
+        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
     }
 
     /// <summary>Ticks one: it leaves the list, keeping when (ticked ones are dropped after 90 days).</summary>
@@ -153,7 +203,7 @@ public sealed class ComebackStore
         }
 
         DateTimeOffset stamp = EditStamp(_time.GetUtcNow(), _all[index]);
-        _all[index] = _all[index] with { Text = string.Empty, DoneAt = null, EditedAt = stamp, DeletedAt = stamp };
+        _all[index] = _all[index] with { Text = string.Empty, DoneAt = null, Category = null, CategoryColor = null, EditedAt = stamp, DeletedAt = stamp };
         return SaveAsync();
     }
 
@@ -223,13 +273,17 @@ public sealed class ComebackStore
 
     private static SyncParked ToShared(Comeback comeback)
     {
-        return new SyncParked(comeback.Id, comeback.Text, comeback.CreatedAt, comeback.DoneAt, comeback.EditedAt, comeback.DeletedAt, comeback.Position);
+        return new SyncParked(
+            comeback.Id, comeback.Text, comeback.CreatedAt, comeback.DoneAt, comeback.EditedAt, comeback.DeletedAt, comeback.Position,
+            comeback.Category, comeback.CategoryColor);
     }
 
     private static Comeback FromShared(SyncParked item)
     {
         // A malformed file's null text becomes empty rather than throwing.
-        return new Comeback(item.Id, item.Text ?? string.Empty, item.CreatedAt, item.DoneAt, item.EditedAt, item.DeletedAt, item.Position);
+        return new Comeback(
+            item.Id, item.Text ?? string.Empty, item.CreatedAt, item.DoneAt, item.EditedAt, item.DeletedAt, item.Position,
+            item.Category, item.CategoryColor);
     }
 
     private Task SaveAsync()

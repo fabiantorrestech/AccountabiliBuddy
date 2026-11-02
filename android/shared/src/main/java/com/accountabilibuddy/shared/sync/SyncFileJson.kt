@@ -479,6 +479,8 @@ object SyncFileJson {
             put("editedAt", writeTime(parked.editedAt))
             parked.deletedAt?.let { put("deletedAt", writeTime(it)) }
             put("position", parked.position)
+            parked.category?.let { put("category", it) }
+            parked.categoryColor?.let { put("categoryColor", it) }
         }
     })
 
@@ -496,6 +498,8 @@ object SyncFileJson {
                     item.requiredTime("editedAt"),
                     item.optionalTime("deletedAt"),
                     item.position(),
+                    item.optionalString("category"),
+                    item.optionalString("categoryColor"),
                 )
             }.getOrNull()
         }

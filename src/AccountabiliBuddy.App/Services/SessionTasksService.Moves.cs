@@ -94,7 +94,8 @@ public sealed partial class SessionTasksService
             return (AddToTodayResult.NothingToAdd, null);
         }
 
-        (AddToTodayResult Result, Guid? TaskId) added = await AddToTodayAsync(new TodaySource(comeback.Text, []), overLimitReason);
+        (AddToTodayResult Result, Guid? TaskId) added = await AddToTodayAsync(
+            new TodaySource(comeback.Text, [], comeback.Category, comeback.CategoryColor), overLimitReason);
         if (added.Result == AddToTodayResult.Added)
         {
             await Comebacks.TickAsync(comebackId);
@@ -159,7 +160,8 @@ public sealed partial class SessionTasksService
             await RememberMovedAsync(taskId);
         }
 
-        await Comebacks.AddAsync(ParkTextOf(task.Title, SourceOfTask(task).Steps.Count));
+        TodaySource source = SourceOfTask(task);
+        await Comebacks.AddAsync(ParkTextOf(task.Title, source.Steps.Count), source.Category, source.CategoryColor);
         return true;
     }
 
@@ -172,7 +174,7 @@ public sealed partial class SessionTasksService
             return false;
         }
 
-        await Comebacks.AddAsync(ParkTextOf(item.Title, OpenStepsOf(item.Subtasks).Count));
+        await Comebacks.AddAsync(ParkTextOf(item.Title, OpenStepsOf(item.Subtasks).Count), item.Category, item.CategoryColor);
         await Later.DeleteAsync(laterId);
         return true;
     }
@@ -185,7 +187,7 @@ public sealed partial class SessionTasksService
             return null;
         }
 
-        SyncLaterItem? item = await Later.AddAsync(comeback.Text, null, null, null, null, null, null);
+        SyncLaterItem? item = await Later.AddAsync(comeback.Text, null, comeback.Category, comeback.CategoryColor, null, null, null);
         await Comebacks.DeleteAsync(comebackId);
         return item?.Id;
     }
