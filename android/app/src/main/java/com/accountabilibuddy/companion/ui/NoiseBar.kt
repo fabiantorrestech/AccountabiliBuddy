@@ -35,20 +35,13 @@ import com.accountabilibuddy.companion.noise.NoiseSettings
 import com.accountabilibuddy.companion.noise.NoiseState
 
 /**
- * The noise player above the tabs, as in the PC's sidebar: the sound's name, previous, play/pause, next and the player's
- * own volume, and the lock (plays only with headphones connected). Until a folder is chosen, one button to choose it.
+ * The noise player, as in the PC's sidebar: the sound's name, previous, play/pause, next and the player's own volume, and the
+ * lock (plays only with headphones connected). Today shows it as a card once a sound folder is set; the folder is chosen in
+ * Settings › Alerts & on-screen.
  */
 @Composable
-fun NoiseBar(state: NoiseState, settings: NoiseSettings, player: NoisePlayer, onMessage: (String) -> Unit) {
-    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        if (uri != null && !player.chooseFolder(uri)) onMessage("That folder can't be kept: choose a folder on the phone's storage.")
-    }
+fun NoiseBar(state: NoiseState, settings: NoiseSettings, player: NoisePlayer) {
     Surface(tonalElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
-        if (!state.hasFolder) {
-            TextButton(onClick = { pickFolder.launch(null) }, modifier = Modifier.padding(horizontal = 8.dp)) { Text("♪ Choose a folder of sounds") }
-            return@Surface
-        }
-
         var volume by remember(settings.volume) { mutableFloatStateOf(settings.volume.toFloat()) }
         Column(Modifier.padding(horizontal = 12.dp, vertical = 2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

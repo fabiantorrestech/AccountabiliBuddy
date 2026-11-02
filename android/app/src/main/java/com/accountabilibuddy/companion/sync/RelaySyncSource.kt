@@ -406,15 +406,15 @@ class RelaySyncSource(
     }
 
     private fun describe(problem: RelayProblem): String = when (problem) {
-        RelayProblem.Address -> "The relay's address isn't valid (Devices)."
+        RelayProblem.Address -> "The relay's address isn't valid (Settings › Devices & sync)."
         RelayProblem.Unreachable -> "Can't reach the relay right now."
         RelayProblem.Certificate ->
-            if (sync.settings.value.relayPin != null) "The relay's certificate doesn't match its pin. Check the address and pin (Devices)."
-            else "Android doesn't trust the relay's certificate. If it is self-signed, add its pin (Devices)."
+            if (sync.settings.value.relayPin != null) "The relay's certificate doesn't match its pin. Check the address and pin (Settings › Devices & sync)."
+            else "Android doesn't trust the relay's certificate. If it is self-signed, add its pin (Settings › Devices & sync)."
         RelayProblem.Unauthorized -> "The relay refused this phone's sign-in."
         RelayProblem.OtherGroup -> "This relay already holds a group made with a different link code."
         RelayProblem.AdmissionRequired ->
-            "This relay needs its admission key to start a new group. Add it in Devices (Own relay), or join with the link from a device that has it."
+            "This relay needs its admission key to start a new group. Add it in Settings › Devices & sync (Own relay), or join with the link from a device that has it."
         RelayProblem.Busy -> "The relay is busy; trying again later."
         RelayProblem.Refused -> "The relay refused a file (too big?)."
         RelayProblem.Server -> "The relay answered something unexpected."

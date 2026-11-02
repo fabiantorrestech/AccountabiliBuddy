@@ -30,7 +30,12 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.ui.DeviceKind
 import com.accountabilibuddy.companion.ui.SectionIcons
+import com.accountabilibuddy.companion.ui.SyncDot
+import com.accountabilibuddy.companion.ui.SyncLight
+import com.accountabilibuddy.companion.ui.SyncLightDevice
+import com.accountabilibuddy.companion.ui.SyncLightModel
 import com.accountabilibuddy.companion.ui.ThemedContent
 import com.accountabilibuddy.companion.ui.kit.AbCard
 import com.accountabilibuddy.companion.ui.kit.AbChip
@@ -78,6 +83,10 @@ class KitGalleryActivity : ComponentActivity() {
 
 @Composable
 private fun Gallery(show: String?) {
+    if (show == "sync") {
+        SyncLightStates()
+        return
+    }
     var segmented by remember { mutableStateOf(1) }
     var chip by remember { mutableStateOf(0) }
     var toggle by remember { mutableStateOf(true) }
@@ -152,6 +161,36 @@ private fun Gallery(show: String?) {
     if (dialog) {
         AbDialog(title = "AbDialog", onDismiss = { dialog = false }, confirmText = "Ok", onConfirm = { dialog = false }) {
             Text("A dialog in the theme's surface.", color = Ab.colors.ink)
+        }
+    }
+}
+
+/** Board 20a's five states of the sync light, each from a model (no real sync state needed), for screenshots. `--es show sync`. */
+@Composable
+private fun SyncLightStates() {
+    fun devices(pcDim: Boolean = false, phoneDim: Boolean = false, watchDim: Boolean = false) = listOf(
+        SyncLightDevice("Work PC", DeviceKind.PC, pcDim, "1 min ago"),
+        SyncLightDevice("This phone", DeviceKind.PHONE, false, "now"),
+        SyncLightDevice("Other phone", DeviceKind.PHONE, phoneDim, if (phoneDim) "3 h ago" else "2 min ago"),
+        SyncLightDevice("Pixel Watch", DeviceKind.WATCH, watchDim, if (watchDim) "not reachable" else "connected"),
+    )
+    val states = listOf(
+        "All in sync" to SyncLightModel(SyncDot.InSync, devices(), "Synced 1 min ago · Google Drive"),
+        "One behind" to SyncLightModel(SyncDot.InSync, devices(phoneDim = true), "Synced 1 min ago · Google Drive"),
+        "Syncing now" to SyncLightModel(SyncDot.Syncing, devices(), "Synced 1 min ago · Google Drive"),
+        "Several behind" to SyncLightModel(SyncDot.SeveralBehind, devices(phoneDim = true, watchDim = true), "Synced 3 h ago · Google Drive"),
+        "This device offline" to SyncLightModel(SyncDot.Offline, devices(pcDim = true, phoneDim = true, watchDim = true), "This phone can't sync: Google Drive: no connection"),
+    )
+    Column(
+        Modifier.fillMaxSize().background(Ab.colors.bg).safeDrawingPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        AbPageHeader("Sync light")
+        states.forEach { (name, model) ->
+            AbCard {
+                AbSectionLabel(name)
+                SyncLight(model, refreshing = model.dot == SyncDot.Syncing, onSyncNow = {}, onOpenDevices = {})
+            }
         }
     }
 }

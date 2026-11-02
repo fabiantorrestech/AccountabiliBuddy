@@ -24,11 +24,15 @@ import com.accountabilibuddy.companion.usage.PhoneUsageReader
 
 /** What phone placement needs and does, for Settings and the migration assistant. */
 @Composable
-private fun PlacementText() {
+private fun PlacementText() = GuardsScope { PlacementTextBody() }
+
+@Composable
+private fun PlacementTextBody() {
     val context = LocalContext.current
     val app = context.applicationContext as CompanionApp
     val timelineOn = app.store.state.collectAsState().value.timelineNotificationOn
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        GuardsRestNote()
         Text(
             "During a focus session on your PC the phone tells it where it is (in a bag, face down, face up, in a pocket or in use), " +
                 "from its own sensors, so the PC can ask you to put it away. Only that label, times and counts leave the phone, never sensor " +

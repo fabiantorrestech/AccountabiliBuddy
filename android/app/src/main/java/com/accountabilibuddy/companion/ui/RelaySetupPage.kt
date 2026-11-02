@@ -14,7 +14,7 @@ internal fun RelaySetupPage() {
         Text("Own relay", style = MaterialTheme.typography.headlineSmall)
         Text(
             "Optional: sync through a small relay you run yourself, without a Google account. Changes reach this phone in " +
-                "about a second while a session runs or the timeline is pinned. Set it up in Devices, under \"How this phone shares\" -> Own relay.",
+                "about a second while a session runs or the timeline is pinned. Set it up in Settings › Devices & sync, under \"How this phone shares\" -> Own relay.",
             style = MaterialTheme.typography.bodyMedium,
         )
         Text(RELAY_STEPS, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

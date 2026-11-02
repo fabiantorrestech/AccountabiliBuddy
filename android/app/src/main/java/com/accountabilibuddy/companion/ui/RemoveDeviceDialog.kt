@@ -113,7 +113,7 @@ private fun WhatPage(state: RemoveDeviceState) {
 @Composable
 private fun DataPage(state: RemoveDeviceState, flow: RemoveDeviceFlow) {
     Text("What should happen to the data this phone got from it (focus sessions, pickups, sleep nights, drift)?")
-    ChoiceRow(!state.erase, "Keep it. The Devices tab shows it as \"(removed)\" after its name.") { flow.setErase(false) }
+    ChoiceRow(!state.erase, "Keep it. Devices & sync shows it as \"(removed)\" after its name.") { flow.setErase(false) }
     ChoiceRow(
         state.erase,
         "Erase it from every device: this phone once the backup is done, and each of your other devices when it applies the change. " +

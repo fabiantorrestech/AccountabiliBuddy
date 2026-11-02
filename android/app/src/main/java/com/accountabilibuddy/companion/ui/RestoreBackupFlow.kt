@@ -102,7 +102,7 @@ class RestoreBackupFlow(
         }
 
         return sync.restoreBackup(file)
-            ?: "Restored ${file.device.name}: its history is back and shows as \"${file.device.name} (removed)\" in the Devices tab."
+            ?: "Restored ${file.device.name}: its history is back and shows as \"${file.device.name} (removed)\" in Settings › Devices & sync."
     }
 
     private fun finish(message: String) {

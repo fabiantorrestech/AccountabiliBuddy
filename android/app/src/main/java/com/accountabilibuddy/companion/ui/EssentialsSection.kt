@@ -9,18 +9,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
-import androidx.compose.material3.Checkbox
+import com.accountabilibuddy.companion.ui.GuardCheckbox as Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
+import com.accountabilibuddy.companion.ui.GuardFilterChip as FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.accountabilibuddy.companion.ui.GuardIconButton as IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
+import com.accountabilibuddy.companion.ui.GuardRadioButton as RadioButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.accountabilibuddy.companion.ui.GuardTextButton as TextButton
 import androidx.compose.runtime.Composable
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.outlined.Refresh
@@ -50,7 +50,11 @@ import java.util.UUID
  * the night's own list, screen and LockMyPhone-Extended profile (from bedtime until the wake time).
  */
 @Composable
-internal fun EssentialsSection(kind: EssentialsKind = EssentialsKind.Focus, startOpen: Boolean = false) {
+internal fun EssentialsSection(kind: EssentialsKind = EssentialsKind.Focus, startOpen: Boolean = false) =
+    GuardsScope { EssentialsSectionBody(kind, startOpen) }
+
+@Composable
+private fun EssentialsSectionBody(kind: EssentialsKind, startOpen: Boolean) {
     val context = LocalContext.current
     val app = context.applicationContext as CompanionApp
     val store = app.essentialsOf(kind)
@@ -81,6 +85,7 @@ internal fun EssentialsSection(kind: EssentialsKind = EssentialsKind.Focus, star
         "${essentials.apps.size} apps · ${essentials.folders.size} folders${if (store.useLockMyPhone && store.hardcoreProfile != null) " · hardcore on" else ""}"
     }
     Section(if (night) "Bedtime essentials" else "Essentials", summary = summary, startOpen = startOpen) {
+        GuardsRestNote()
         Text(
             if (night) "The apps for the night, from bedtime until your wake time: listed on a black screen that comes up when you unlock the phone at night. Everything else is behind a search that shows nothing until Enter. Nothing is blocked unless LockMyPhone-Extended locks the phone for the night (below)."
             else "Essentials are always allowed (no work card, not a pickup) and listed on the essentials screen, which comes up on unlocking during a session on another device or emergency time, and from the work card. Everything else is behind a search that shows nothing until Enter.",
@@ -124,7 +129,7 @@ internal fun EssentialsSection(kind: EssentialsKind = EssentialsKind.Focus, star
             )
         }
         // The real screen with ↑ ↓ on every row: the order of apps and folders, apps inside folders, the Phone corner.
-        androidx.compose.material3.Button(
+        com.accountabilibuddy.companion.ui.GuardButton(
             onClick = { context.startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.arrangeIntent(context, kind)) },
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Arrange the ${if (night) "bedtime " else ""}essentials screen") }
@@ -133,7 +138,7 @@ internal fun EssentialsSection(kind: EssentialsKind = EssentialsKind.Focus, star
         Text(if (night) "Lock for the night (LockMyPhone-Extended)" else "Hardcore (LockMyPhone-Extended)", style = MaterialTheme.typography.labelLarge)
         if (night) {
             if (!useLmp) {
-                Text("LockMyPhone-Extended is off (Phone guard → Essentials → Use LockMyPhone-Extended).", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("LockMyPhone-Extended is off (Settings › Guards › Essentials › Use LockMyPhone-Extended).", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else {
             ToggleRow(
@@ -162,7 +167,7 @@ internal fun EssentialsSection(kind: EssentialsKind = EssentialsKind.Focus, star
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (useLmp && canSync && EssentialsLaunch.lockMyPhoneInstalled(context) && hardcore != syncedName) {
-            androidx.compose.material3.TextButton(onClick = { hardcore = syncedName; store.hardcoreProfile = syncedName }) {
+            com.accountabilibuddy.companion.ui.GuardTextButton(onClick = { hardcore = syncedName; store.hardcoreProfile = syncedName }) {
                 Text("Use \"$syncedName\" (kept in sync with these essentials)")
             }
         }
@@ -310,7 +315,7 @@ private fun LockMyPhoneProfilePicker(selected: String?, enabled: Boolean, noneLa
 
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.weight(1f)) {
-            androidx.compose.material3.OutlinedButton(onClick = { open = true }, enabled = enabled && names != null, modifier = Modifier.fillMaxWidth()) {
+            com.accountabilibuddy.companion.ui.GuardOutlinedButton(onClick = { open = true }, enabled = enabled && names != null, modifier = Modifier.fillMaxWidth()) {
                 Text(selected?.let { "Profile: $it" } ?: "Profile: $noneLabel", maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             DropdownMenu(expanded = open, onDismissRequest = { open = false }) {

@@ -13,7 +13,7 @@ internal fun AppearanceSetupPage() {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Appearance", style = MaterialTheme.typography.headlineSmall)
         Text("The app now has three themes, the same ones as on your PC: Instrument (the default), Night Desk and Paper, each in a light and a dark version.")
-        Text("Settings → App → Appearance:", style = MaterialTheme.typography.titleSmall)
+        Text("Settings › Appearance:", style = MaterialTheme.typography.titleSmall)
         Text("• Light or dark: Light, Dark, System, At a set time, or After sunset.")
         Text("• After sunset needs a place. You type a latitude and longitude or pick a city from a list on the phone. There is no location permission.")
         Text("• Colour: Quiet keeps colour for progress and the one main button; Standard also colours what has a meaning.")

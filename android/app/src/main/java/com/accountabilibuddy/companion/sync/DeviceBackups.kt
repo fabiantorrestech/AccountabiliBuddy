@@ -122,7 +122,7 @@ object DeviceBackups {
 class DriveBackups(private val signIn: DriveSignIn, private val files: DriveFiles = DriveFiles(DriveNetwork)) {
     /** Writes [sealedBytes] to `Backups/[deviceFolder]/[fileName]` in the app's Drive folder. */
     suspend fun save(deviceFolder: String, fileName: String, sealedBytes: ByteArray): BackupOutcome {
-        val token = signIn.accessToken() ?: return BackupOutcome.failed("Google Drive isn't signed in (sign in again in Devices).")
+        val token = signIn.accessToken() ?: return BackupOutcome.failed("Google Drive isn't signed in (sign in again in Settings › Devices & sync).")
         return withContext(Dispatchers.IO) {
             try {
                 files.uploadBackup(token, deviceFolder, fileName, sealedBytes)
@@ -141,7 +141,7 @@ class DriveBackups(private val signIn: DriveSignIn, private val files: DriveFile
 
     /** The backups on Drive, newest first, or why they can't be listed. */
     suspend fun list(): DriveBackupList {
-        val token = signIn.accessToken() ?: return DriveBackupList(emptyList(), "Google Drive isn't signed in (sign in in Devices to see its backups).")
+        val token = signIn.accessToken() ?: return DriveBackupList(emptyList(), "Google Drive isn't signed in (sign in in Settings › Devices & sync to see its backups).")
         return withContext(Dispatchers.IO) {
             try {
                 // A file bigger than a backup can be isn't listed (it is never read into memory): the same cap the opener enforces.

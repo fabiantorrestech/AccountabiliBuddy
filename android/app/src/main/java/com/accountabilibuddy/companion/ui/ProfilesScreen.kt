@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Card
@@ -52,6 +53,8 @@ fun ProfilesScreen(
     pcState: PcState? = null,
     deviceName: String = "This phone",
     curbox: com.accountabilibuddy.companion.curbox.CurboxStatus = com.accountabilibuddy.companion.curbox.CurboxStatus(),
+    /** Rows put above the phone and PC profiles in the same list (Settings › Guards puts the phone's guard switches here). */
+    header: LazyListScope.() -> Unit = {},
 ) {
     var pcExpanded by remember { mutableStateOf(true) }
     var phoneExpanded by remember { mutableStateOf(true) }
@@ -59,6 +62,7 @@ fun ProfilesScreen(
     val guards = remember(curbox) { PhoneGuards.read(context, curbox) }
     val profiles = state.document.profiles
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        header()
         // This phone first: what actually guards it.
         item {
             DeviceRow(
@@ -74,7 +78,7 @@ fun ProfilesScreen(
         }
 
         if (profiles.isEmpty()) {
-            item { Text("No PC profiles yet. Sign in to Google Drive (Devices) or import a backup from the PC in Settings.", modifier = Modifier.padding(top = 8.dp)) }
+            item { Text("No PC profiles yet. Sign in to Google Drive in Settings › Devices & sync, or import a backup from the PC in Settings › App & data.", modifier = Modifier.padding(top = 8.dp)) }
             return@LazyColumn
         }
 

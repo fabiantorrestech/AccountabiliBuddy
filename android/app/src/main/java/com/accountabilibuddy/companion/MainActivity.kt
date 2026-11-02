@@ -22,6 +22,7 @@ import com.accountabilibuddy.companion.sync.SyncShare
 import com.accountabilibuddy.companion.ui.CompanionTheme
 import com.accountabilibuddy.companion.ui.CompanionViewModel
 import com.accountabilibuddy.companion.ui.MainScreen
+import com.accountabilibuddy.companion.ui.shell.AppNav
 import com.accountabilibuddy.companion.widget.TimelineWidgetReceiver
 
 // Play services (the watch link, ADR 21) brings an old androidx.fragment, which lint takes as this activity's; but this
@@ -92,6 +93,8 @@ class MainActivity : ComponentActivity() {
      */
     private fun handleLink(intent: Intent?) {
         intent ?: return
+        // A route to open (`--es ab.open settings/devices`): the shell navigates to it and does nothing else.
+        intent.getStringExtra(AppNav.EXTRA_OPEN)?.let { viewModel.openRequest.value = it }
         val data = intent.data
         when {
             data?.scheme == SCHEME && data.host == JoinLink.HOST ->

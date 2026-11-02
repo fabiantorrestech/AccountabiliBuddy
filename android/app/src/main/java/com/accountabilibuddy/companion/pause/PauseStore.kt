@@ -29,10 +29,28 @@ class PauseStore(context: Context) {
 
     val isQuiet: Boolean get() = PauseRules.isQuiet(advance())
 
-    /** Applies a request whose wait is over and ends a pause whose time is up. */
+    /** Whether a focus session runs at an instant (set by the app); a request whose wait is over is not applied while one does. */
+    @Volatile
+    var sessionRunning: (Instant) -> Boolean = { false }
+
+    /**
+     * Applies a request whose wait is over and ends a pause whose time is up. A request that falls due during a focus session waits
+     * for it to end (the guard settings rest then) and takes effect from the last moment the session was seen holding it.
+     */
     @Synchronized
     fun advance(now: Instant = Instant.now()): PauseState {
-        val next = PauseRules.advance(_state.value, now, ZoneId.systemDefault())
+        val running = sessionRunning(now)
+        val state = _state.value
+        if (running && PauseRules.due(state, now)) {
+            prefs.edit().putString(KEY_HELD_AT, now.toString()).apply()
+        }
+
+        val heldAt = prefs.getString(KEY_HELD_AT, null)?.let { runCatching { Instant.parse(it) }.getOrNull() }
+        val next = PauseRules.advance(state, now, ZoneId.systemDefault(), sessionRunning = running, heldUntil = heldAt)
+        if ((heldAt != null && state.requestedAt == null) || (next.pausedAt != null && state.pausedAt == null)) {
+            prefs.edit().remove(KEY_HELD_AT).apply()
+        }
+
         if (next != _state.value) save(next)
         return next
     }
@@ -86,6 +104,11 @@ class PauseStore(context: Context) {
             }))
         }
         prefs.edit().putString("state", json.toString()).apply()
+    }
+
+    private companion object {
+        /** When a focus session was last seen holding a due request (kept apart from the state: the request is unchanged). */
+        const val KEY_HELD_AT = "heldAt"
     }
 
     private fun load(): PauseState {

@@ -41,7 +41,7 @@ internal fun ReenableTimes(onSet: (Boolean, LocalTime) -> String?) {
             val time = (plan.typicalTemplate(workday = !offDay) ?: if (offDay) plan.otherDay else plan.workday).rules.reenableAt
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().clickable { editing = offDay }.padding(vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().clickable(enabled = !LocalGuardsLocked.current) { editing = offDay }.padding(vertical = 8.dp),
             ) {
                 Text(name, modifier = Modifier.weight(1f))
                 Text(timeText(time), color = MaterialTheme.colorScheme.primary)

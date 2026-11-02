@@ -56,12 +56,17 @@ object PauseRules {
     val WAITS: List<Int> = listOf(10, 30, 60, 24 * 60)
     private val KEPT: Duration = Duration.ofDays(14)
 
-    /** Applies a request whose wait is over, and ends a pause whose time is up; returns the state as it is now. */
-    fun advance(state: PauseState, now: Instant, zone: ZoneId): PauseState {
+    /**
+     * Applies a request whose wait is over, and ends a pause whose time is up; returns the state as it is now. While a focus session
+     * runs ([sessionRunning]) a request whose wait is over is not applied: it stays pending and applies once the session is over,
+     * the pause beginning no earlier than [heldUntil] (when the session was last seen holding it), so the session's pickups still count.
+     */
+    fun advance(state: PauseState, now: Instant, zone: ZoneId, sessionRunning: Boolean = false, heldUntil: Instant? = null): PauseState {
         var next = state
         val requested = next.requestedAt
-        if (requested != null && next.pausedAt == null && !now.isBefore(requested.plus(Duration.ofMinutes(next.waitMinutes.toLong())))) {
-            val pausedAt = requested.plus(Duration.ofMinutes(next.waitMinutes.toLong()))
+        if (requested != null && next.pausedAt == null && !sessionRunning && !now.isBefore(requested.plus(Duration.ofMinutes(next.waitMinutes.toLong())))) {
+            val due = requested.plus(Duration.ofMinutes(next.waitMinutes.toLong()))
+            val pausedAt = if (heldUntil != null && heldUntil.isAfter(due)) heldUntil else due
             next = next.copy(requestedAt = null, pausedAt = pausedAt, quiet = next.quiet + QuietStretch(pausedAt, null))
         }
 
@@ -71,6 +76,12 @@ object PauseRules {
         }
 
         return next.copy(quiet = next.quiet.filter { (it.end ?: now) >= now.minus(KEPT) })
+    }
+
+    /** A request whose wait is over and that has not been applied yet (it waits for a running focus session to end). */
+    fun due(state: PauseState, now: Instant): Boolean {
+        val requested = state.requestedAt ?: return false
+        return state.pausedAt == null && !now.isBefore(requested.plus(Duration.ofMinutes(state.waitMinutes.toLong())))
     }
 
     fun status(state: PauseState, now: Instant, zone: ZoneId): PauseStatus {

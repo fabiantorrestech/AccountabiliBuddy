@@ -20,7 +20,7 @@ fun BeeminderSection(connected: Boolean) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 "Your goals show on Today through your PC's sync file. The personal auth token goes on the PC: " +
-                    "Settings → Integrations → Beeminder. Signed in to Beeminder, the page below shows it at once.",
+                    "Settings › Connections › Beeminder. Signed in to Beeminder, the page below shows it at once.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -127,6 +127,12 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     /** A message after an import or another action, shown once. */
     val message = MutableStateFlow<String?>(null)
 
+    /**
+     * A route asked for by MainActivity's `ab.open` extra (`settings/devices`), waiting for the shell to take it. The shell only
+     * navigates to it: opening a page never starts, changes or unlocks anything.
+     */
+    val openRequest = MutableStateFlow<String?>(null)
+
     init {
         // A PC's answer through the sync files (ADR 42) shows once too.
         viewModelScope.launch {
@@ -380,6 +386,18 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
             .distinctUntilChanged()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), sync.removalLockedReason())
 
+    /**
+     * The guard lock (the guard settings are view-only while a focus session runs): the same session check as [removalLocked], with the
+     * session's end time for the banner. Looked at again when the other devices' files or the test session change and every few
+     * seconds, so a guard page that is open unlocks by itself when the session ends.
+     */
+    val guardsLock: StateFlow<com.accountabilibuddy.companion.placement.GuardsLock?> =
+        combine(sync.received, getApplication<CompanionApp>().testSession.window, flow { while (true) { emit(Unit); delay(GUARDS_RECHECK_MS) } }) { _, _, _ ->
+            com.accountabilibuddy.companion.placement.GuardsLock.at(getApplication(), java.time.Instant.now())
+        }
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.accountabilibuddy.companion.placement.GuardsLock.at(getApplication(), java.time.Instant.now()))
+
     fun openRemoveDevice(deviceId: java.util.UUID) = removeDevice.open(deviceId)
 
     /** "Continue unsynced here" (ADR 54): leaves the group, keeps all data. True when done; else the reason is shown. */
@@ -390,7 +408,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
             return false
         }
 
-        message.value = "You can link again from Devices."
+        message.value = "You can link again from Settings › Devices & sync."
         return true
     }
 
@@ -471,7 +489,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     /** Google's sign-in screen answered. */
     fun finishDriveSignIn(data: android.content.Intent?) {
         if (driveSignIn.tokenFrom(data) != null) turnDriveOn()
-        else message.value = "Google Drive wasn't allowed. Devices → Google Drive → \"How to set up Google Drive\" lists what the Google Cloud project needs."
+        else message.value = "Google Drive wasn't allowed. Settings › Devices & sync › Google Drive › \"How to set up Google Drive\" lists what the Google Cloud project needs."
     }
 
     private fun turnDriveOn() {
@@ -629,7 +647,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         planDraft.value = null
         message.value = when {
             pcRemote.target() != null -> "Saved; it goes to ${pcRemote.target()?.file?.device?.name} through the sync files."
-            else -> "Saved; it goes to the PC once a PC file is here (Devices → Google Drive)."
+            else -> "Saved; it goes to the PC once a PC file is here (Settings › Devices & sync › Google Drive)."
         }
         return true
     }
@@ -824,5 +842,6 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
         // How often the focus-session lock is looked at again for the screens that show it.
         const val LOCK_RECHECK_MS = 15_000L
+        const val GUARDS_RECHECK_MS = 5_000L
     }
 }

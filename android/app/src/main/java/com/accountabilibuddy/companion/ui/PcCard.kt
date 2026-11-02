@@ -53,7 +53,7 @@ fun PcMissingCard() {
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             IconTitle("PC", style = MaterialTheme.typography.titleMedium)
-            Text("Sign in to Google Drive (Devices) to see and control your PC.", style = MaterialTheme.typography.bodyMedium)
+            Text("Sign in to Google Drive (Settings › Devices & sync) to see and control your PC.", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

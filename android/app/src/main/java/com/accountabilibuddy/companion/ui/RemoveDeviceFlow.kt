@@ -280,7 +280,7 @@ class RemoveDeviceFlow(
             reason != null && erase -> "Its data was not erased on this phone: $reason"
             reason != null -> "The choice to keep its data could not be saved: $reason"
             erase -> "Its data was erased from this phone. Each of your other devices erases it when it applies the change (a PC in a focus session waits until it ends). Shared lists keep the items it added."
-            else -> "Its data is kept on every device. The Devices tab shows it as \"${state.name} (removed)\"."
+            else -> "Its data is kept on every device. Devices & sync shows it as \"${state.name} (removed)\"."
         }
         lines += if (backupWhere == null) {
             if (state.backup == RemoveBackupChoice.None) "No backup was made." else "It was removed without a backup."
