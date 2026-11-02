@@ -91,6 +91,8 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
         categoryColor: String? = null,
         steps: List<String> = emptyList(),
         taskId: UUID = UUID.randomUUID(),
+        estimateMinutes: Int? = null,
+        note: String? = null,
     ): String? {
         val name = title.trim()
         if (name.isEmpty()) {
@@ -106,6 +108,9 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
             if (steps.isNotEmpty()) {
                 put("steps", JsonArray(steps.map { step -> buildJsonObject { put("title", step.trim()) } }))
             }
+            // ADR 50: an estimate and a private note travel with the task; the pending action is sealed at rest (ActionStore).
+            TaskFields.cleanEstimate(estimateMinutes)?.let { put("estimateMinutes", it) }
+            TaskFields.cleanNote(note)?.let { put("note", it) }
         }
         actions.add(SyncAction.TASK_ADD, pc.file.device.deviceId, item = taskId.toString(), text = request.toString())
         return null

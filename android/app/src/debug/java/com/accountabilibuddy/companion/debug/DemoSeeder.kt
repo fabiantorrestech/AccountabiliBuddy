@@ -50,6 +50,10 @@ class DemoSeeder(private val app: CompanionApp) {
         // Idle days of another kind (ADR 47): the headline wording on a Budget day, a Free day and a day off.
         DemoSeedReceiver.MODE_BUDGET, DemoSeedReceiver.MODE_FREE, DemoSeedReceiver.MODE_DAYOFF -> seed(withSession = false, dayKind = mode)
         DemoSeedReceiver.MODE_CLEAR -> clear()
+        DemoSeedReceiver.MODE_TASKS -> TasksDemo(app).seed(seed(withSession = false))
+        DemoSeedReceiver.MODE_TASKS_SESSION -> TasksDemo(app).seed(seed(withSession = true))
+        DemoSeedReceiver.MODE_DUMP -> TasksDemo(app).dump()
+        DemoSeedReceiver.MODE_MERGE_CHECK -> TasksDemo(app).mergeCheck()
         else -> "unknown mode \"$mode\" (idle, session or clear)"
     }
 
@@ -98,8 +102,8 @@ class DemoSeeder(private val app: CompanionApp) {
         val now = Instant.now()
         DemoPcFile.PARKED_IDS.forEach(app.sharedLists::deleteParked)
         DemoPcFile.NEXT_TASK_IDS.forEach(app.sharedLists::deleteNextTask)
-        // The Later list has no delete on the phone: the items come back as tombstones, as another device's delete would.
-        app.sharedLists.receive(null, null, DemoPcFile.laterTombstones(now))
+        DemoPcFile.LATER_IDS.forEach { app.sharedLists.deleteLater(it) }
+        TasksDemo(app).clearLists()
         app.store.setSlept(emptyList())
         app.placementStore.end(now)
         // Leaving forgets every received device; it is only done for the group the seeder made.

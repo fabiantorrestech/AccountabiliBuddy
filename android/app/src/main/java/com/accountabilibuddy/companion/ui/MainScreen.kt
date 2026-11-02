@@ -162,8 +162,8 @@ fun MainScreen(
         // Hidden while the day plan editor is open (its own Save and Cancel lead out) and while the phone is unlinked (ADR 54):
         // that screen is the whole app until the user chooses. Every other screen, a running focus session included, has the bar.
         showNav = planDraft == null && unlinked == null,
-        // "Park a thought" sits above the bar on Today and Tasks only.
-        parkPill = if (nav.destination == AppDestination.Today || nav.destination == AppDestination.Tasks) {
+        // "Park a thought" sits above the bar on Today only: Tasks has its own "Add a task" field there (board 5v).
+        parkPill = if (nav.destination == AppDestination.Today) {
             { ParkPill() }
         } else {
             null
@@ -317,7 +317,7 @@ fun MainScreen(
                         banner = { WhatsNewCard(appVersion, onSetUp = { whatsNewOpen = true }, onDismissed = { whatsNewTick++ }) },
                     )
                 }
-                AppDestination.Tasks -> TasksScreen(runningTasks = runningTasks, comebacks = comebacks)
+                AppDestination.Tasks -> TasksScreen(controlPc = controlPc, snackbar = snackbar)
                 AppDestination.Plan -> PlanScreen(
                     state, model, viewModel.clock,
                     onEditPlan = if (!canControlPc) null else {

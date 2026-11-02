@@ -1,6 +1,7 @@
 package com.accountabilibuddy.companion.sync
 
 import android.content.Context
+import com.accountabilibuddy.shared.TokenVault
 import com.accountabilibuddy.shared.sync.SyncAction
 import com.accountabilibuddy.shared.sync.SyncActionResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,7 +20,8 @@ import java.util.UUID
 
 /**
  * What the user did on this phone for a PC (ADR 26: tick a task, park a thought, tick a come-back), waiting in this
- * phone's sync file until that PC lists the id in its acks (prefs "actions"). Dropped after 3 days unacknowledged.
+ * phone's sync file until that PC lists the id in its acks (prefs "actions", Keystore-sealed since a task's note can travel in
+ * one: ADR 50). Dropped after 3 days unacknowledged.
  * Since ADR 42 also start, end early and day plan edits, whose answers ([SyncActionResult]) go to [onAnswered].
  */
 class ActionStore(context: Context) {
@@ -99,11 +101,13 @@ class ActionStore(context: Context) {
                 put("at", action.at.toString())
             }
         })
-        prefs.edit().putString(KEY, json.toString()).apply()
+        prefs.edit().putString(KEY, TokenVault.seal(json.toString(), ALIAS)).apply()
     }
 
     private fun read(): List<SyncAction> = runCatching {
-        val text = prefs.getString(KEY, null) ?: return emptyList()
+        val stored = prefs.getString(KEY, null) ?: return emptyList()
+        // A list saved before it was sealed is plain JSON; it is sealed with the next change.
+        val text = if (stored.startsWith("[")) stored else TokenVault.open(stored, ALIAS) ?: return emptyList()
         (Json.parseToJsonElement(text) as JsonArray).mapNotNull { element ->
             val item = element as? JsonObject ?: return@mapNotNull null
             runCatching {
@@ -121,6 +125,7 @@ class ActionStore(context: Context) {
 
     private companion object {
         const val KEY = "pending"
+        const val ALIAS = "accountabilibuddy-actions"
         val KEPT: Duration = Duration.ofDays(3)
     }
 }
