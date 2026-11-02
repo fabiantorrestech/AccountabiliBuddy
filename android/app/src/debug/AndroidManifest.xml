@@ -19,5 +19,18 @@
                 <action android:name="com.accountabilibuddy.companion.debug.SEED" />
             </intent-filter>
         </receiver>
+        <!-- Sets the theme, light or dark mode, colour, set times and place from adb (see AppearanceDebugReceiver). -->
+        <receiver
+            android:name=".debug.AppearanceDebugReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.accountabilibuddy.companion.debug.APPEARANCE" />
+            </intent-filter>
+        </receiver>
+        <!-- The component kit on one page, in one theme (see KitGalleryActivity). -->
+        <activity
+            android:name=".debug.KitGalleryActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AccountabiliBuddy" />
     </application>
 </manifest>
