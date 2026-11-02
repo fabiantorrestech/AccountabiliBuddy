@@ -325,6 +325,12 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     /** Whether turning [method] off would wait 10 minutes (it is the only way that counts), so the page asks first. */
     fun turnOffWaits(method: com.accountabilibuddy.companion.sync.SyncMethod): Boolean = sync.turnOffWaits(method)
 
+    /** Whether pointing [method] somewhere else is refused now (it is the only way that counts and has no problem), so the page says so. */
+    fun repointWaits(method: com.accountabilibuddy.companion.sync.SyncMethod): Boolean = sync.repointWaits(method)
+
+    /** Whether [method] counts as a way of syncing now (it has brought another device's file), so the page can say what changing it does. */
+    fun countsAsWay(method: com.accountabilibuddy.companion.sync.SyncMethod): Boolean = sync.counts(method)
+
     /** Cancels the held turn-off (any time). */
     fun cancelSyncOff() = sync.cancelPendingSyncOff()
 

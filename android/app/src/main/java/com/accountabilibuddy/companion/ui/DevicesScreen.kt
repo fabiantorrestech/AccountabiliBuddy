@@ -119,6 +119,10 @@ data class DevicesActions(
     val onCancelSyncOff: () -> Unit = {},
     /** Whether turning a way off would wait 10 minutes (it is the only one that counts), so the sheet asks first. */
     val turnOffWaits: (SyncMethod) -> Boolean = { false },
+    /** Whether pointing a way somewhere else is refused now (it is the only one that counts and has no problem). */
+    val repointWaits: (SyncMethod) -> Boolean = { false },
+    /** Whether a way counts as a way of syncing: it has brought another device's file (a way that has not can be changed at once). */
+    val countsAsWay: (SyncMethod) -> Boolean = { false },
 )
 
 private enum class DevicesDialog { Scan, Picture, LinkDevice, Leave }

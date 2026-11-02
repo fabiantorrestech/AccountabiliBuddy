@@ -428,6 +428,8 @@ fun MainScreen(
                                     onSyncRelayNow = viewModel::syncRelayNow,
                                     onCancelSyncOff = viewModel::cancelSyncOff,
                                     turnOffWaits = viewModel::turnOffWaits,
+                                    repointWaits = viewModel::repointWaits,
+                                    countsAsWay = viewModel::countsAsWay,
                                 ),
                                 watch = WatchSectionState(watchSettings, detectedWatches),
                                 watchActions = WatchSectionActions(
