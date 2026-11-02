@@ -1,6 +1,7 @@
 package com.accountabilibuddy.companion.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -348,8 +349,9 @@ private fun AppDetails(item: LaunchableApp, entry: EssentialApp, folder: AppFold
 @Composable
 private fun AppIcon(item: LaunchableApp) {
     val bitmap: ImageBitmap? = remember(item.packageName) { item.icon?.let { runCatching { it.toBitmap(96, 96).asImageBitmap() }.getOrNull() } }
-    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-        if (bitmap != null) Image(bitmap, contentDescription = null, modifier = Modifier.size(32.dp))
+    Box(Modifier.size(36.dp).background(Ab.colors.surface2, Ab.shapes.smallShape), contentAlignment = Alignment.Center) {
+        if (bitmap != null) Image(bitmap, contentDescription = null, modifier = Modifier.size(28.dp))
+        else Text(item.name.take(1).uppercase(), style = Ab.type.bodyMedium, fontWeight = FontWeight.SemiBold, color = Ab.colors.muted)
     }
 }
 

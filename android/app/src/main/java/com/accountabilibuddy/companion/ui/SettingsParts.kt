@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -100,10 +101,12 @@ internal fun ToggleRow(title: String, detail: String, checked: Boolean, enabled:
                 Text(title, style = Ab.type.body, fontWeight = FontWeight.Medium, color = if (active) Ab.colors.ink else Ab.colors.faint)
                 if (long) {
                     // A 44 x 44 dp target: the glyph is narrow.
-                    Text(
-                        " ⓘ", style = Ab.type.body, color = Ab.colors.muted, textAlign = TextAlign.Center,
-                        modifier = Modifier.heightIn(min = 44.dp).widthIn(min = 44.dp).clickable(role = Role.Button) { explained = !explained }.padding(horizontal = 4.dp),
-                    )
+                    Box(
+                        Modifier.heightIn(min = 44.dp).widthIn(min = 44.dp).clickable(role = Role.Button) { explained = !explained },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("ⓘ", style = Ab.type.body, color = Ab.colors.muted, textAlign = TextAlign.Center)
+                    }
                 }
             }
             if (!long || explained) {
