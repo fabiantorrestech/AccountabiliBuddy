@@ -246,10 +246,11 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
         // A link from a device that uses its own relay (ADR 46) sets this phone's relay up the same way.
         if (offer.relayUrl != null) {
-            sync.saveSettings(
+            // Pointing a relay that is already on somewhere else is refused during a focus session (the same lock as the switch).
+            val refused = sync.saveSettings(
                 sync.settings.value.copy(relayOn = true, relayUrl = offer.relayUrl, relayPin = offer.relayPin, relayAdmission = offer.relayAdmission),
             )
-            message.value = "Joined ${offer.pcName}'s devices, through the relay."
+            message.value = refused ?: "Joined ${offer.pcName}'s devices, through the relay."
             return
         }
 
@@ -309,7 +310,23 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun ownQrLinks(): List<String> = sync.ownQrLinks()
 
-    fun saveSyncSettings(settings: PhoneSyncSettings) = sync.saveSettings(settings)
+    /**
+     * Saves the sharing settings. A change that turns a way of syncing off or elsewhere is refused during a focus session, and says why; turning
+     * off the last way of syncing between sessions is held for 10 minutes ([syncOffPending]) and says when.
+     */
+    fun saveSyncSettings(settings: PhoneSyncSettings) {
+        sync.saveSettings(settings)?.let { message.value = it }
+    }
+
+    /** The held turn-off of the last way of syncing, or null: the way's row says when it turns off and offers Cancel. */
+    val syncOffPending: kotlinx.coroutines.flow.StateFlow<com.accountabilibuddy.companion.sync.PendingSyncOff?> =
+        sync.offWait?.pending ?: kotlinx.coroutines.flow.MutableStateFlow<com.accountabilibuddy.companion.sync.PendingSyncOff?>(null)
+
+    /** Whether turning [method] off would wait 10 minutes (it is the only way that counts), so the page asks first. */
+    fun turnOffWaits(method: com.accountabilibuddy.companion.sync.SyncMethod): Boolean = sync.turnOffWaits(method)
+
+    /** Cancels the held turn-off (any time). */
+    fun cancelSyncOff() = sync.cancelPendingSyncOff()
 
     /** Apps seen setting alarms (id to name, newest first) for the wake-up alarm picker. */
     fun alarmApps(): List<Pair<String, String>> {
@@ -335,7 +352,8 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
             return
         }
 
-        sync.saveSettings(sync.settings.value.copy(folderOn = true, folderUri = uri.toString()))
+        // Choosing another folder while one is in use is refused during a focus session (turning the folder on is not).
+        sync.saveSettings(sync.settings.value.copy(folderOn = true, folderUri = uri.toString()))?.let { message.value = it }
     }
 
     private val pause = (application as CompanionApp).pause
@@ -499,8 +517,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun turnDriveOn() {
-        sync.saveSettings(sync.settings.value.copy(driveOn = true))
-        message.value = "Signed in: this phone syncs through Google Drive."
+        message.value = sync.saveSettings(sync.settings.value.copy(driveOn = true)) ?: "Signed in: this phone syncs through Google Drive."
     }
 
     fun syncDriveNow() {
@@ -819,10 +836,6 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     fun setTimelineNotification(on: Boolean) {
         store.setTimelineNotification(on)
         refreshOutside()
-    }
-
-    fun setBedtimeReminder(on: Boolean) {
-        store.setBedtimeReminder(on)
     }
 
     fun clearImport() {

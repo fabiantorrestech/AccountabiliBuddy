@@ -55,13 +55,15 @@ fun ProfilesScreen(
     curbox: com.accountabilibuddy.companion.curbox.CurboxStatus = com.accountabilibuddy.companion.curbox.CurboxStatus(),
     /** Rows put above the phone and PC profiles in the same list (Settings › Guards puts the phone's guard switches here). */
     header: LazyListScope.() -> Unit = {},
+    /** The list's scroll state (a search result scrolls Guards to its row). */
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
 ) {
     var pcExpanded by remember { mutableStateOf(true) }
     var phoneExpanded by remember { mutableStateOf(true) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val guards = remember(curbox) { PhoneGuards.read(context, curbox) }
     val profiles = state.document.profiles
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(state = listState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         header()
         // This phone first: what actually guards it.
         item {
@@ -146,7 +148,7 @@ private fun ProfileCard(profile: FocusProfile, state: CompanionState, clock: Clo
                         Text(
                             if (rule.verdict == RuleVerdict.Block) "Block" else "Allow",
                             modifier = Modifier.width(52.dp),
-                            color = if (rule.verdict == RuleVerdict.Block) Color(0xFFFCA5A5) else Color(0xFF86EFAC),
+                            color = if (rule.verdict == RuleVerdict.Block) com.accountabilibuddy.companion.ui.theme.Ab.colors.drift else com.accountabilibuddy.companion.ui.theme.Ab.colors.met,
                             style = MaterialTheme.typography.labelMedium,
                         )
                         Text(

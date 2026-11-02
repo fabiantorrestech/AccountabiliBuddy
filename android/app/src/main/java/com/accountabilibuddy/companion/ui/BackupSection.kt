@@ -35,6 +35,14 @@ internal fun BackupSection() {
     var folder by remember { mutableStateOf(app.autoBackup.folder) }
     var message by remember { mutableStateOf<String?>(null) }
     var toImport by remember { mutableStateOf<String?>(null) }
+    // Import is locked during a focus session the user started (looked at again while the page is open, and again by import itself).
+    var importLocked by remember { mutableStateOf(app.sync.removalLockedReason()) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            importLocked = app.sync.removalLockedReason()
+            kotlinx.coroutines.delay(2_000L)
+        }
+    }
 
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(PhoneBackup.MIME)) { uri ->
         if (uri != null) {
@@ -64,7 +72,10 @@ internal fun BackupSection() {
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { export.launch("AccountabiliBuddy-phone-settings.json") }) { Text("Export…") }
-            OutlinedButton(onClick = { import.launch(arrayOf("application/json", "text/plain", "*/*")) }) { Text("Import…") }
+            OutlinedButton(onClick = { import.launch(arrayOf("application/json", "text/plain", "*/*")) }, enabled = importLocked == null) { Text("Import…") }
+        }
+        importLocked?.let {
+            Text("Import rests while you focus. $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Text("Auto-backup", style = MaterialTheme.typography.labelLarge)
         Text(
@@ -87,7 +98,13 @@ internal fun BackupSection() {
         AlertDialog(
             onDismissRequest = { toImport = null },
             title = { Text("Import these settings?") },
-            text = { Text("They replace this phone's settings, then the app restarts. Folders (noise, sync, backup) may need choosing again.") },
+            text = {
+                val keepsSync = PhoneBackup.keepsSyncSettings(context, text)
+                Text(
+                    "They replace this phone's settings, then the app restarts. Folders (noise, sync, backup) may need choosing again." +
+                        if (keepsSync) " This phone's sync settings stay as they are: the file would leave it with no way of syncing." else "",
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     toImport = null

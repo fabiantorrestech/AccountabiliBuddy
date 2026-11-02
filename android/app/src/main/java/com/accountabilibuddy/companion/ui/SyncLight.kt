@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,7 +79,8 @@ fun rememberSyncNow(): SyncNow {
 
 /**
  * The sync light on Today's date line (board 20a): a 7 dp dot and a 13 dp glyph for each device, then the 44 dp refresh. Tap
- * the dot and glyphs for the popover. The light itself is hidden when this phone isn't linked to anything; the refresh stays.
+ * the dot and glyphs for the popover. The light itself is hidden when this phone isn't linked to anything, or when the setting in
+ * Devices & sync says so (Off, or Only when something's wrong while all is well); the refresh stays.
  */
 @Composable
 fun SyncLightHost(
@@ -103,13 +105,22 @@ fun SyncLightHost(
     // Worked out again only when something it reads changes or the tick moves on, not on every recomposition of Today.
     val refreshing = syncNow.refreshing
     val model = remember(devices, watch, detectedWatchIds, refreshing, now) { SyncLightRules.of(devices, watch, detectedWatchIds, refreshing, now) }
-    SyncLight(model, syncNow.refreshing, onSyncNow = syncNow::run, onOpenDevices = onOpenDevices, modifier = modifier)
+    val setting by UiPrefs.syncLight.collectAsState()
+    SyncLight(model, syncNow.refreshing, onSyncNow = syncNow::run, onOpenDevices = onOpenDevices, modifier = modifier, setting = setting)
 }
 
 @Composable
-fun SyncLight(model: SyncLightModel?, refreshing: Boolean, onSyncNow: () -> Unit, onOpenDevices: () -> Unit, modifier: Modifier = Modifier) {
+fun SyncLight(
+    model: SyncLightModel?,
+    refreshing: Boolean,
+    onSyncNow: () -> Unit,
+    onOpenDevices: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** The Settings › Devices & sync choice: it only hides the dot and glyphs. The ↻ stays, so nothing about syncing changes. */
+    setting: SyncLightSetting = SyncLightSetting.On,
+) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        if (model != null) {
+        if (model != null && setting.shows(model)) {
             var open by remember { mutableStateOf(false) }
             Box {
                 Row(

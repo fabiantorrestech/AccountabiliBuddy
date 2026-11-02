@@ -79,6 +79,7 @@ class KitGalleryActivity : ComponentActivity() {
             ThemedContent(theme, dark, quiet, 1f) { when (show) {
                 "plan" -> PlanGallery(intent)
                 "stats" -> StatsGallery(intent)
+                "devices", "remove", "restore" -> DevicesGallery(intent)
                 else -> Gallery(show)
             } }
         }

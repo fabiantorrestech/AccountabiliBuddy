@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.border
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import com.accountabilibuddy.companion.ui.settings.SettingsAnchors
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.ui.text.style.TextAlign
@@ -83,7 +86,7 @@ private enum class TimeField { DarkFrom, LightFrom }
  * typed or picked from a city list (no location permission), kept sealed on this phone and clearable here (ADR 49).
  */
 @Composable
-fun AppearanceScreen(onBack: () -> Unit) {
+fun AppearanceScreen(onBack: () -> Unit, anchor: String? = null) {
     val context = LocalContext.current
     val themeName by UiPrefs.themeName.collectAsState()
     val mode by UiPrefs.mode.collectAsState()
@@ -98,13 +101,20 @@ fun AppearanceScreen(onBack: () -> Unit) {
     var editingTime by remember { mutableStateOf<TimeField?>(null) }
     var pickingPlace by remember { mutableStateOf(false) }
 
+    // A search result scrolls to its card (the page is one scrolling column).
+    val cards = remember { mapOf(SettingsAnchors.THEME to BringIntoViewRequester(), SettingsAnchors.LIGHT_DARK to BringIntoViewRequester(), SettingsAnchors.COLOUR to BringIntoViewRequester(), SettingsAnchors.ANIMATIONS to BringIntoViewRequester()) }
+    LaunchedEffect(anchor) {
+        val key = if (anchor == SettingsAnchors.TIMELINE_LOOK) SettingsAnchors.ANIMATIONS else anchor
+        cards[key]?.bringIntoView()
+    }
+
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         AbSubpageHeader(crumb = "Settings", title = "Appearance", onBack = onBack)
 
-        AbCard {
+        AbCard(Modifier.bringIntoViewRequester(cards.getValue(SettingsAnchors.THEME))) {
             AbSectionLabel("Theme")
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ThemeName.entries.forEach { theme ->
@@ -119,7 +129,7 @@ fun AppearanceScreen(onBack: () -> Unit) {
             }
         }
 
-        AbCard {
+        AbCard(Modifier.bringIntoViewRequester(cards.getValue(SettingsAnchors.LIGHT_DARK))) {
             AbSectionLabel("Light or dark")
             val fixed = listOf(LightDarkMode.Light, LightDarkMode.Dark, LightDarkMode.System)
             val timed = listOf(LightDarkMode.SetTime, LightDarkMode.Sunset)
@@ -146,7 +156,7 @@ fun AppearanceScreen(onBack: () -> Unit) {
             }
         }
 
-        AbCard {
+        AbCard(Modifier.bringIntoViewRequester(cards.getValue(SettingsAnchors.COLOUR))) {
             AbSectionLabel("Colour")
             AbSegmented(ColourMode.entries.map { it.label }, ColourMode.entries.indexOf(colour), { UiPrefs.setColour(context, ColourMode.entries[it]) })
             Text(
@@ -156,7 +166,7 @@ fun AppearanceScreen(onBack: () -> Unit) {
             )
         }
 
-        AbCard {
+        AbCard(Modifier.bringIntoViewRequester(cards.getValue(SettingsAnchors.ANIMATIONS))) {
             AbSectionLabel("Animations")
             AbSegmented(MotionSpeed.entries.map { it.label }, MotionSpeed.entries.indexOf(motion), { UiPrefs.setMotion(context, MotionSpeed.entries[it]) })
             AbSectionLabel("Timeline look")

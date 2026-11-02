@@ -4,38 +4,26 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.LinkOff
-import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.outlined.QrCode2
+import androidx.compose.material.icons.outlined.SyncProblem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,34 +31,44 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import com.accountabilibuddy.companion.sync.DriveFolderSource
-import com.accountabilibuddy.companion.sync.DriveSyncSource
 import com.accountabilibuddy.companion.sync.FolderStatus
+import com.accountabilibuddy.companion.sync.PendingSyncOff
+import com.accountabilibuddy.companion.sync.SyncMethod
+import com.accountabilibuddy.companion.sync.SyncOffWait
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.companion.ui.kit.ChangeWaitsSheet
 import com.accountabilibuddy.companion.sync.PhoneSyncSettings
-import com.accountabilibuddy.companion.sync.RelayAddress
 import com.accountabilibuddy.companion.sync.ReceivedDevice
 import com.accountabilibuddy.companion.sync.RemovedDevice
-import com.accountabilibuddy.shared.sync.FocusDayCombine
-import com.accountabilibuddy.shared.sync.SyncDeviceCard
+import com.accountabilibuddy.companion.ui.kit.AbCard
+import com.accountabilibuddy.companion.ui.kit.AbChoiceRow
+import com.accountabilibuddy.companion.ui.kit.AbDialog
+import com.accountabilibuddy.companion.ui.kit.AbInfoBanner
+import com.accountabilibuddy.companion.ui.kit.AbPrimaryButton
+import com.accountabilibuddy.companion.ui.kit.AbSectionLabel
+import com.accountabilibuddy.companion.ui.kit.AbTextField
+import com.accountabilibuddy.companion.ui.kit.AbToggleRow
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
+import com.accountabilibuddy.companion.ui.settings.PageRow
+import com.accountabilibuddy.companion.ui.settings.SettingsAnchors
+import com.accountabilibuddy.companion.ui.settings.SettingsPageList
+import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.sync.SyncKeyCode
-import com.accountabilibuddy.shared.sync.SyncState
-import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.launch
 
-/** What the Devices tab shows (ADR 22): this phone, the other devices and how fresh each is, and today across them. */
+/** What Devices & sync shows (ADR 22): this phone, the other devices and how fresh each is, and today across them. */
 data class DevicesState(
     val deviceName: String,
     val joined: Boolean,
@@ -91,9 +89,13 @@ data class DevicesState(
     val removed: List<RemovedDevice> = emptyList(),
     /** Why devices can't be removed right now (a focus session the user started); null when they can. */
     val removalLocked: String? = null,
+    /** This phone's own app version, for its row ("AB 3.4.2 · …"); blank when not known. */
+    val appVersion: String = "",
+    /** The held turn-off of the last way of syncing (10 minutes), or null: its row says when it turns off and offers Cancel. */
+    val syncOffPending: PendingSyncOff? = null,
 )
 
-/** The Devices tab's actions. */
+/** Devices & sync's actions. */
 data class DevicesActions(
     /** "Remove this device…" on a device's row (ADR 54). */
     val onRemoveDevice: (UUID) -> Unit = {},
@@ -113,165 +115,317 @@ data class DevicesActions(
     val onDriveSignInResult: (android.content.Intent?) -> Unit = {},
     val onSyncDriveNow: () -> Unit = {},
     val onSyncRelayNow: () -> Unit = {},
+    /** Cancels the held turn-off of the last way of syncing. */
+    val onCancelSyncOff: () -> Unit = {},
+    /** Whether turning a way off would wait 10 minutes (it is the only one that counts), so the sheet asks first. */
+    val turnOffWaits: (SyncMethod) -> Boolean = { false },
 )
 
+private enum class DevicesDialog { Scan, Picture, LinkDevice, Leave }
+
 /**
- * The phone's Devices tab (ADR 22): this phone and every device in the group with a state pill, today's focus across
- * them, the sharing methods (safest first) and actions, then the Pixel Watch (moved from Settings).
+ * Settings › Devices & sync (board 5f, ADR 22): the devices in the group with how long ago each synced, a note when one is behind,
+ * "How they sync" (each method is its own switch, so several can be on at once), each method's own settings, what is shared by hand,
+ * the sync light setting, the PC this phone controls, linking, restoring, and the Pixel Watch. "Sync now" and a QR button to add a
+ * device stay at the bottom. No Scaffold and no fixed width; [anchor] scrolls to a row (a search result).
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun DevicesScreen(
-    devices: DevicesState,
-    actions: DevicesActions,
-    watch: WatchSectionState,
-    watchActions: WatchSectionActions,
-    /** The PCs whose files are here (sync device id to name, newest first), for picking the one to control (ADR 42). */
-    pcChoices: List<Pair<String, String>> = emptyList(),
-    /** The PC picked; null: the newest PC file's. */
-    chosenPcId: String? = null,
-    onChoosePc: (String?) -> Unit = {},
-) {
+fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
+    val devices = page.devices
+    val actions = page.actions
+    val settings = devices.settings
+    val context = LocalContext.current
     var dialog by remember { mutableStateOf<DevicesDialog?>(null) }
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri -> uri?.let(actions.onFolderChosen) }
+    val signIn = rememberDriveSignIn(actions)
+    val relayFields = rememberRelayFields(settings)
+    val lightSetting by UiPrefs.syncLight.collectAsState()
     val now = Instant.now()
     val zone = ZoneId.systemDefault()
+    val detectedIds = page.watch.detected.map { it.id }.toSet()
+    // During a focus session a way of syncing that is on can't be turned off or pointed elsewhere (turning one on stays allowed).
+    val locked = devices.removalLocked
+    // Turning off the LAST way that counts (on and unchanged for 10 minutes) waits 10 minutes (asked first, in a sheet); one of several turns off at once.
+    var askOff by remember { mutableStateOf<SyncMethod?>(null) }
+    val pendingOff = devices.syncOffPending
+    fun requestOff(method: SyncMethod) {
+        if (actions.turnOffWaits(method)) askOff = method else actions.onSettings(method.turnedOff(settings))
+    }
 
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        item {
-            Section("Your devices") {
-                DevicesModel.todayLine(devices, now, zone)?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-                // This phone first, its linked watch indented under it, then the other devices.
-                OwnDeviceRows.rows(devices.deviceName, devices.joined, watch.settings, watch.detected.map { it.id }.toSet())
-                    .forEach { row -> DeviceRowView(row) }
-                DevicesModel.rows(devices, now).forEach { row -> DeviceRowView(row, devices.removalLocked, actions.onRemoveDevice) }
-                devices.removalLocked?.let {
-                    Text("Removing a device: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val rows = buildList {
+        add(PageRow(SettingsAnchors.DEVICES) {
+            DevicesCard(devices, DevicesModel.allRows(devices, detectedIds, page.watch.settings, now), DevicesModel.staleNote(devices, now, zone, hideWatchCards = page.watch.settings.linkedNodeId != null), DevicesModel.todayLine(devices, now, zone), actions)
+        })
+
+        add(PageRow(SettingsAnchors.HOW_THEY_SYNC) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AbSectionLabel("How they sync", Modifier.padding(horizontal = 4.dp))
+                locked?.let { SharingLockNote(it) }
+                AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
+                    // Each is its own switch: several may be on at once (the sync files are the same for all of them).
+                    AbToggleRow(
+                        "Google Drive", settings.driveOn,
+                        { on -> if (on) signIn() else requestOff(SyncMethod.Drive) },
+                        subtitle = "Works anywhere · every 30 s in a session, else 15 min",
+                        enabled = devices.joined && !(settings.driveOn && locked != null) && pendingOff?.method != SyncMethod.Drive,
+                    )
+                    PendingOffRow(pendingOff, SyncMethod.Drive, zone, locked != null, actions.onCancelSyncOff)
+                    AbToggleRow(
+                        "Shared folder", settings.folderOn,
+                        { on ->
+                            if (!on) requestOff(SyncMethod.Folder)
+                            else if (settings.folderUri == null) pickFolder.launch(null)
+                            else actions.onSettings(settings.copy(folderOn = true))
+                        },
+                        subtitle = "A folder another app keeps in step (Autosync, Syncthing)",
+                        enabled = devices.joined && !(settings.folderOn && locked != null) && pendingOff?.method != SyncMethod.Folder,
+                    )
+                    PendingOffRow(pendingOff, SyncMethod.Folder, zone, locked != null, actions.onCancelSyncOff)
+                    AbToggleRow(
+                        "Own relay", settings.relayOn,
+                        { on ->
+                            if (!on) requestOff(SyncMethod.Relay) else relayFields.checked(settings)?.let { actions.onSettings(it.copy(relayOn = true)) }
+                        },
+                        subtitle = "A relay you run · about a second in a session",
+                        enabled = devices.joined && !(settings.relayOn && locked != null) && pendingOff?.method != SyncMethod.Relay,
+                    )
+                    PendingOffRow(pendingOff, SyncMethod.Relay, zone, locked != null, actions.onCancelSyncOff)
                 }
-                if (devices.joined && devices.received.isEmpty()) {
-                    Text("No other device yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Hint("Scan the PC's codes, open a sync file, or sign in to Google Drive below.", label = "How to bring them in")
+                // Why the switch did not move: the relay's address, pin or key did not pass (shown here, where the switch is).
+                relayFields.error?.let { Text(it, style = Ab.type.small, color = Ab.colors.drift, modifier = Modifier.padding(horizontal = 4.dp)) }
+                Hint(
+                    "Several can be on at once. Sync files are encrypted with your devices' link code; they hold focus times, " +
+                        "profile names and sites, never page titles, addresses or reasons.",
+                    label = "What's shared",
+                )
+            }
+        })
+        add(PageRow(SettingsAnchors.DRIVE) { DriveMethodCard(devices, actions, now, signIn) })
+        add(PageRow(SettingsAnchors.FOLDER) { FolderMethodCard(devices, actions, now) { pickFolder.launch(null) } })
+        add(PageRow(SettingsAnchors.RELAY) { RelayMethodCard(devices, actions, now, relayFields) })
+
+        add(PageRow(SettingsAnchors.BY_HAND) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AbSectionLabel("By hand", Modifier.padding(horizontal = 4.dp))
+                AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
+                    AbToggleRow(
+                        "QR codes", settings.qrOn, { actions.onSettings(settings.copy(qrOn = it)) },
+                        subtitle = "Scan the PC's codes with the camera; nothing travels but the picture.", enabled = !(settings.qrOn && locked != null),
+                    )
+                    AbToggleRow(
+                        "Sync files", settings.fileOn, { actions.onSettings(settings.copy(fileOn = it)) },
+                        subtitle = "Open or share a .absync file by hand (email, chat, a USB cable).", enabled = !(settings.fileOn && locked != null),
+                    )
+                    FlowRow(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AbTonalButton("Scan code", onClick = { dialog = DevicesDialog.Scan }, enabled = devices.joined && settings.qrOn)
+                        AbTonalButton("Share sync file", onClick = actions.onShare, enabled = devices.joined && settings.fileOn)
+                        AbTonalButton("Show as picture", onClick = { dialog = DevicesDialog.Picture }, enabled = devices.joined && settings.qrOn)
+                    }
                 }
             }
-        }
+        })
+
+        add(PageRow(SettingsAnchors.SYNC_LIGHT) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AbSectionLabel("Show the sync light", Modifier.padding(horizontal = 4.dp))
+                AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
+                    SyncLightSetting.entries.forEach { choice ->
+                        AbChoiceRow(choice.label, selected = lightSetting == choice, onClick = { UiPrefs.setSyncLight(context, choice) })
+                    }
+                }
+                Text(
+                    "The light is the dot and device icons next to the date on Today. This only hides it: syncing and the ↻ button work the same.",
+                    style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 4.dp),
+                )
+            }
+        })
 
         // ADR 42: with several PCs, which one Today's PC card starts, ends early and sends plan edits to.
-        if (pcChoices.size > 1) {
-            item {
-                val chosenName = pcChoices.firstOrNull { it.first == chosenPcId }?.second
-                Section("PC this phone controls", summary = chosenName ?: "The newest: ${pcChoices.first().second}") {
-                    Text(
-                        "Start, end early and plan edits from Today go to this PC through the sync files.",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    FlowChoices(
-                        listOf(null to "The newest PC file's") + pcChoices.map { (id, name) -> id to name },
-                        selected = chosenPcId?.takeIf { id -> pcChoices.any { it.first == id } },
-                        onSelect = onChoosePc,
-                    )
+        if (page.pcChoices.size > 1) {
+            add(PageRow(SettingsAnchors.PC_CONTROL) {
+                val chosen = page.chosenPcId?.takeIf { id -> page.pcChoices.any { it.first == id } }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AbSectionLabel("PC this phone controls", Modifier.padding(horizontal = 4.dp))
+                    AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp), verticalSpacing = 0.dp) {
+                        Text(
+                            "Start, end early and plan edits from Today go to this PC through the sync files.",
+                            style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.padding(vertical = 4.dp),
+                        )
+                        AbChoiceRow("The newest PC file's", selected = chosen == null, subtitle = page.pcChoices.first().second, onClick = { page.onChoosePc(null) })
+                        page.pcChoices.forEach { (id, name) ->
+                            AbChoiceRow(name, selected = chosen == id, onClick = { page.onChoosePc(id) })
+                        }
+                    }
                 }
-            }
+            })
         }
 
-        item {
-            Section("Link this phone", summary = if (devices.joined) "In your device group" else "Not linked yet", startOpen = !devices.joined) {
+        add(PageRow(SettingsAnchors.LINK) {
+            AbCard(verticalSpacing = 8.dp) {
+                AbSectionLabel("Link this phone")
+                Text(if (devices.joined) "In your device group" else "Not linked yet", style = Ab.type.bodyMedium, color = Ab.colors.ink)
                 if (devices.joined) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { dialog = DevicesDialog.LinkDevice }) { Text("Link a device") }
-                        OutlinedButton(onClick = { dialog = DevicesDialog.Leave }) { Text("Leave group") }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AbTonalButton("Link a device", onClick = { dialog = DevicesDialog.LinkDevice })
+                        AbTonalButton("Leave group", onClick = { dialog = DevicesDialog.Leave })
                     }
                 } else {
                     JoinWithCode(actions.onJoin)
                 }
             }
-        }
+        })
 
-        // ADR 55: a removed device's backup brings its history back (the setup assistant gets this step in the phone UI run).
+        // ADR 55: a removed device's backup brings its history back (the setup assistant gets this step in a later part).
         if (devices.joined) {
-            item {
-                Section("Restore from an older device", summary = "Bring back a removed device's history") {
+            add(PageRow(SettingsAnchors.RESTORE) {
+                AbCard(verticalSpacing = 8.dp) {
+                    AbSectionLabel("Restore from an older device")
                     Text(
                         "A backup is a sealed file made when a device was removed, on Google Drive (Backups) or in a file you saved. " +
                             "Restoring it brings that device's history back under its old name, marked (removed).",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = Ab.type.small, color = Ab.colors.muted,
                     )
-                    OutlinedButton(onClick = actions.onRestore) { Text("Restore from an older device…") }
+                    AbTonalButton("Restore from an older device…", onClick = actions.onRestore)
                 }
-            }
+            })
         }
 
-        item {
-            val methods = listOfNotNull(
-                "QR".takeIf { devices.settings.qrOn },
-                "files".takeIf { devices.settings.fileOn },
-                "Drive".takeIf { devices.settings.driveOn },
-                "relay".takeIf { devices.settings.relayOn },
-                "folder".takeIf { devices.settings.folderOn },
-            )
-            Section("How this phone shares", summary = if (methods.isEmpty()) "Nothing on" else methods.joinToString(" · ")) {
-                Hint(
-                    "Safest first. Sync files are encrypted with your devices' link code; they hold focus times, profile names and " +
-                        "sites, never page titles, addresses or reasons.",
-                    label = "What's shared",
-                )
-                ToggleRow("QR codes", "Scan the PC's codes with the camera; nothing travels but the picture.", devices.settings.qrOn) {
-                    actions.onSettings(devices.settings.copy(qrOn = it))
-                }
-                ToggleRow("Sync files", "Open or share a .absync file by hand (email, chat, a USB cable).", devices.settings.fileOn) {
-                    actions.onSettings(devices.settings.copy(fileOn = it))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { dialog = DevicesDialog.Scan }, enabled = devices.joined && devices.settings.qrOn) { Text("Scan code") }
-                    OutlinedButton(onClick = actions.onShare, enabled = devices.joined && devices.settings.fileOn) { Text("Share sync file") }
-                }
-                OutlinedButton(onClick = { dialog = DevicesDialog.Picture }, enabled = devices.joined && devices.settings.qrOn) {
-                    Text("Show as picture")
-                }
-                DriveSection(devices, actions, now)
-                RelaySection(devices, actions, now)
-                FolderSection(devices, actions, now) { pickFolder.launch(null) }
-            }
-        }
+        add(PageRow(SettingsAnchors.WATCH) { WatchSection(page.watch, page.watchActions) })
+    }
 
-        item { HorizontalDivider() }
-        item { WatchSection(watch, watchActions) }
+    Column(Modifier.fillMaxSize()) {
+        SettingsPageList(rows, anchor, Modifier.weight(1f))
+        DevicesBottomBar(page.syncNow, canAdd = devices.joined, onAdd = { dialog = DevicesDialog.LinkDevice })
+    }
+
+    askOff?.let { method ->
+        ChangeWaitsSheet(
+            title = "Turn off ${method.label}?",
+            body = "It is your last way of syncing, so this waits ${SyncOffWait.WAIT.toMinutes()} minutes. If you still want it then, it turns off on its own. " +
+                "Until then this phone keeps syncing.",
+            appliesAt = Instant.now().plus(SyncOffWait.WAIT),
+            onQueue = { actions.onSettings(method.turnedOff(settings)) },
+            onDismiss = { askOff = null },
+        )
     }
 
     when (dialog) {
-        DevicesDialog.Scan -> InfoDialog(
+        DevicesDialog.Scan -> InfoSheet(
             "Scan the PC's codes",
             "On the PC, open the codes (\"Sync phone\" by the search box, or QR in the on-screen window's Ctrl+Alt details), then " +
                 "point this phone's camera at each one. Each opens AccountabiliBuddy, which adds them up.",
         ) { dialog = null }
-        DevicesDialog.Picture -> QrDialog(
+        DevicesDialog.Picture -> QrSheet(
             "This phone's sync file",
             "Take a screenshot and drop it on the PC's window (a PC without a camera reads it from the picture).",
             actions.ownQrLinks(),
         ) { dialog = null }
         DevicesDialog.LinkDevice -> {
             val code = actions.linkCode()
-            QrDialog(
+            QrSheet(
                 "Link another device",
                 code?.let { "Scan this on the other device, or type the code there: ${SyncKeyCode.display(it)}. Never photograph, screen-share or post it: it is the key to all your synced data." } ?: "This phone isn't in a group.",
                 listOfNotNull(code?.let { joinLink(it, devices) }),
             ) { dialog = null }
         }
-        DevicesDialog.Leave -> AlertDialog(
-            onDismissRequest = { dialog = null },
-            title = { Text("Leave your device group?") },
-            text = { Text("This phone stops sharing, and what came from your other devices is removed from it.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    actions.onLeave()
-                    dialog = null
-                }) { Text("Leave") }
+        DevicesDialog.Leave -> AbDialog(
+            title = "Leave your device group?",
+            onDismiss = { dialog = null },
+            confirmText = "Leave",
+            onConfirm = {
+                actions.onLeave()
+                dialog = null
             },
-            dismissButton = { TextButton(onClick = { dialog = null }) { Text("Cancel") } },
-        )
+        ) {
+            Text("This phone stops sharing, and what came from your other devices is removed from it.", style = Ab.type.bodyMedium, color = Ab.colors.ink)
+        }
         null -> Unit
     }
 }
 
-private enum class DevicesDialog { Scan, Picture, LinkDevice, Leave }
+/** Under a way's switch while its turn-off waits: "Turns off at 4:05 PM" and Cancel (the way stays on until then). */
+@Composable
+private fun PendingOffRow(pending: PendingSyncOff?, method: SyncMethod, zone: ZoneId, inSession: Boolean, onCancel: () -> Unit) {
+    if (pending?.method != method) return
+
+    // A wait that ended in a focus session applies when the session ends.
+    val text = if (inSession && !pending.at.isAfter(Instant.now())) "Turns off when your session ends" else "Turns off at ${DevicesModel.clockText(pending.at, zone)}"
+
+    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(text, style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.weight(1f))
+        AbTextButton("Cancel", onClick = onCancel)
+    }
+}
+
+/** Why the sharing switches that are on do not move during a focus session, as visible text (the PC says the same on its Devices page). */
+@Composable
+private fun SharingLockNote(reason: String) {
+    Text(
+        "Ways of syncing that are on can't be turned off or pointed somewhere else right now. $reason Turning one on still works.",
+        style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 4.dp),
+    )
+}
+
+/** The signed-in dance for Drive (ADR 26): asks Google's screen to show, then hands its answer back. */
+@Composable
+private fun rememberDriveSignIn(actions: DevicesActions): () -> Unit {
+    val scope = rememberCoroutineScope()
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { actions.onDriveSignInResult(it.data) }
+    return {
+        scope.launch {
+            actions.beginDriveSignIn()?.let { ask.launch(IntentSenderRequest.Builder(it).build()) }
+        }
+    }
+}
+
+/** The list of devices (board 5f): one card with a row each, then the note about a device that is behind. */
+@Composable
+private fun DevicesCard(devices: DevicesState, rows: List<DeviceRow>, stale: StaleNote?, todayLine: String?, actions: DevicesActions) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        AbCard(contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
+            rows.forEachIndexed { index, row ->
+                DeviceRowView(row, divider = index < rows.lastIndex, removalLocked = devices.removalLocked, onRemove = actions.onRemoveDevice)
+            }
+        }
+        stale?.let { note ->
+            AbInfoBanner(
+                buildAnnotatedString {
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(note.name) }
+                    append(note.rest)
+                },
+                icon = Icons.Outlined.SyncProblem,
+            )
+        }
+        todayLine?.let { Text(it, style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 4.dp)) }
+        devices.removalLocked?.let {
+            Text("Removing a device: $it", style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 4.dp))
+        }
+        if (devices.joined && devices.received.isEmpty()) {
+            Text("No other device yet.", style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 4.dp))
+            Hint("Scan the PC's codes, open a sync file, or sign in to Google Drive below.", label = "How to bring them in")
+        }
+    }
+}
+
+/** The two buttons that stay at the bottom: a QR button to add a device, and Sync now. */
+@Composable
+private fun DevicesBottomBar(syncNow: SyncNow, canAdd: Boolean, onAdd: () -> Unit) {
+    val colors = Ab.colors
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Surface(
+            onClick = onAdd,
+            enabled = canAdd,
+            shape = CircleShape,
+            color = colors.surface2,
+            contentColor = if (canAdd) colors.ink else colors.faint,
+            modifier = Modifier.size(52.dp).semantics { contentDescription = if (canAdd) "Add a device" else "Add a device (link this phone first)" },
+        ) {
+            Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.QrCode2, contentDescription = null, modifier = Modifier.size(24.dp)) }
+        }
+        AbTonalButton(if (syncNow.refreshing) "Syncing…" else "Sync now", onClick = syncNow::run, enabled = !syncNow.refreshing, modifier = Modifier.weight(1f))
+    }
+}
 
 // The link another device scans to join: the code, this phone's name and, when the relay is on, its address, pin and
 // admission key (ADR 46). The whole link is a secret: whoever has it can read and write the group's files.
@@ -284,441 +438,17 @@ private fun joinLink(code: String, devices: DevicesState): String {
     return "accountabilibuddy://join?c=$code&n=${Uri.encode(devices.deviceName)}$relay"
 }
 
-/** Which app's alarms are the wake-up alarm: learned (calendar apps never count) or pinned. */
-/**
- * Settings → Sleep → Wake-up alarm (moved from Devices): the phone's next alarm as the wake time (ADR 23), here and
- * on the PCs, and which app's alarms count.
- */
-@Composable
-internal fun WakeAlarmRows(
-    settings: com.accountabilibuddy.companion.sync.PhoneSyncSettings,
-    alarmApps: List<Pair<String, String>>,
-    learnedAlarmApp: String?,
-    onSettings: (com.accountabilibuddy.companion.sync.PhoneSyncSettings) -> Unit,
-) {
-    ToggleRow(
-        "Next alarm as wake time",
-        "Your next alarm (Clock, QR Alarm…) is your wake time here and on your PCs, which get it in this phone's sync file. It wins over a one-night change.",
-        settings.alarmOn,
-    ) { onSettings(settings.copy(alarmOn = it)) }
-    if (settings.alarmOn) {
-        AlarmAppPicker(settings.alarmApp, alarmApps, learnedAlarmApp) { app -> onSettings(settings.copy(alarmApp = app)) }
-    }
-}
-
-@Composable
-private fun AlarmAppPicker(pinned: String?, alarmApps: List<Pair<String, String>>, learnedAlarmApp: String?, onPick: (String?) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    fun name(app: String?) = alarmApps.firstOrNull { it.first == app }?.second ?: app ?: "none yet"
-        val label = if (pinned != null) "Wake-up alarm: ${name(pinned)} (pinned)"
-    else "Wake-up alarm: Auto · ${learnedAlarmApp?.let(::name) ?: "learning (any alarm but calendars)"}"
-    Column {
-        TextButton(onClick = { open = true }) { Text("$label ▾") }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            DropdownMenuItem(text = { Text("Auto (learn from my mornings)") }, onClick = { open = false; onPick(null) })
-            alarmApps.filter { !it.first.contains("calendar", ignoreCase = true) }.forEach { (app, appName) ->
-                DropdownMenuItem(text = { Text(appName) }, onClick = { open = false; onPick(app) })
-            }
-        }
-    }
-}
-
-/** Google Drive (ADR 26): the app's own Drive folder, the one the PCs use; off until signed in. */
-@Composable
-private fun DriveSection(devices: DevicesState, actions: DevicesActions, now: Instant) {
-    val settings = devices.settings
-    val scope = rememberCoroutineScope()
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { actions.onDriveSignInResult(it.data) }
-    val signIn: () -> Unit = {
-        scope.launch {
-            actions.beginDriveSignIn()?.let { ask.launch(IntentSenderRequest.Builder(it).build()) }
-        }
-    }
-
-    ToggleRow(
-        "Google Drive",
-        "Sync through the app's own Drive folder, the one your PCs use, at home, at work or on mobile data. Every 30 s " +
-            "while a session runs or the timeline is pinned, else 15 min. The app sees only the files it made.",
-        settings.driveOn,
-        enabled = devices.joined,
-    ) { on ->
-        if (on) signIn() else actions.onSettings(settings.copy(driveOn = false))
-    }
-    // Open while Drive isn't on yet (or sign-in failed): the steps are what's usually missing.
-    DriveSetupHelp(startOpen = false)
-    if (!settings.driveOn) {
-        return
-    }
-
-    val status = devices.drive
-    Text(
-        status.problem ?: status.lastSyncAt?.let { "Synced ${DevicesModel.ago(Duration.between(it, now))}" } ?: "Not synced yet.",
-        style = MaterialTheme.typography.bodySmall,
-        color = if (status.problem != null) Color(0xFFFCA5A5) else MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = actions.onSyncDriveNow) { Text("Sync now") }
-        if (status.problem == DriveSyncSource.SIGN_IN_AGAIN) {
-            OutlinedButton(onClick = signIn) { Text("Sign in again") }
-        }
-    }
-}
-
-/** The short steps for the phone's own relay; the full guide is on the PC (Devices -> Own relay). */
-internal val RELAY_STEPS = """
-    1. Run the relay on a PC, a home server or a rented server (the PC's Devices page has the steps and the full guide).
-    2. Easiest: on a device that already uses the relay, show its link QR (Link a device) and scan it here: the address, pin and admission key come with it. Never photograph or post that QR: it is the key to all your synced data.
-    3. Or type the relay's https address here, its pin (43 characters) when the relay made its own certificate, and its admission key (43 characters, the relay prints it; it lets this phone start the group on the relay). No pin: the relay needs a normal certificate (a reverse proxy with Let's Encrypt).
-    4. Switch it on. This phone checks the pin on every connection and shows a problem instead of connecting if it doesn't match.
-    The relay stores only sealed files and your link code never reaches it. While a session runs or the timeline is pinned, a change arrives in about a second; otherwise this phone looks every 15 minutes.
-""".trimIndent()
-
-/** The user's own sealed relay (ADR 46): its https address and pin, and a switch. */
-@Composable
-private fun RelaySection(devices: DevicesState, actions: DevicesActions, now: Instant) {
-    val settings = devices.settings
-    var address by remember(settings.relayUrl) { mutableStateOf(settings.relayUrl.orEmpty()) }
-    var pin by remember(settings.relayPin) { mutableStateOf(settings.relayPin.orEmpty()) }
-    var admission by remember(settings.relayAdmission) { mutableStateOf(settings.relayAdmission.orEmpty()) }
-    var error by remember { mutableStateOf<String?>(null) }
-
-    // The fields as the settings would hold them, or null with the reason shown under them.
-    fun checked(): PhoneSyncSettings? {
-        val url = RelayAddress.normalize(address)
-        if (url == null) {
-            error = "Type the relay's address starting with https://, e.g. https://192.168.1.20:8743."
-            return null
-        }
-
-        val typedPin = pin.trim()
-        if (typedPin.isNotEmpty() && !RelayAddress.isPin(typedPin)) {
-            error = "The pin is 43 letters, digits, - and _ (leave it empty for a relay with a normal certificate)."
-            return null
-        }
-
-        val typedAdmission = admission.trim()
-        if (typedAdmission.isNotEmpty() && !RelayAddress.isAdmissionKey(typedAdmission)) {
-            error = "The admission key is 43 letters, digits, - and _ (leave it empty if the relay has none)."
-            return null
-        }
-
-        error = null
-        return settings.copy(relayUrl = url, relayPin = typedPin.ifEmpty { null }, relayAdmission = typedAdmission.ifEmpty { null })
-    }
-
-    ToggleRow(
-        "Own relay",
-        "Sync through a small relay you run yourself: changes arrive in about a second while a session runs or the " +
-            "timeline is pinned, with no Google account. It only ever holds sealed files.",
-        settings.relayOn,
-        enabled = devices.joined,
-    ) { on ->
-        if (!on) {
-            actions.onSettings(settings.copy(relayOn = false))
-        } else {
-            checked()?.let { actions.onSettings(it.copy(relayOn = true)) }
-        }
-    }
-    OutlinedTextField(
-        value = address,
-        onValueChange = { address = it },
-        label = { Text("Relay address (https://...)") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    OutlinedTextField(
-        value = pin,
-        onValueChange = { pin = it },
-        label = { Text("Certificate pin (empty: normal certificate)") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    OutlinedTextField(
-        value = admission,
-        onValueChange = { admission = it },
-        label = { Text("Admission key (from the relay)") },
-        singleLine = true,
-        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-        modifier = Modifier.fillMaxWidth(),
-    )
-    error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Color(0xFFFCA5A5)) }
-    val changed = RelayAddress.normalize(address) != settings.relayUrl || pin.trim().ifEmpty { null } != settings.relayPin ||
-        admission.trim().ifEmpty { null } != settings.relayAdmission
-    if (settings.relayOn && changed) {
-        OutlinedButton(onClick = { checked()?.let { actions.onSettings(it) } }) { Text("Use this address, pin and key") }
-    }
-    Hint(RELAY_STEPS, label = "Sync through your own relay")
-    if (!settings.relayOn) {
-        return
-    }
-
-    val status = devices.relay
-    Text(
-        status.problem ?: status.lastSyncAt?.let { "Synced ${DevicesModel.ago(Duration.between(it, now))}" } ?: "Not synced yet.",
-        style = MaterialTheme.typography.bodySmall,
-        color = if (status.problem != null) Color(0xFFFCA5A5) else MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    OutlinedButton(onClick = actions.onSyncRelayNow) { Text("Sync now") }
-}
-
-/** The short steps for a sync folder kept in step through the user's own server; the full guide is on the PC. */
-private val SELF_HOSTED_STEPS = """
-    1. Install Syncthing-Fork here and Syncthing on your computers. Or, with Nextcloud, a two-way sync app such as Autosync for Nextcloud or FolderSync (Nextcloud's own auto upload only uploads).
-    2. Connect the devices (Syncthing: Show ID on one, Add Remote Device on the other) and let the app ignore battery optimisation.
-    3. Share one folder, e.g. "AccountabiliBuddy sync", as Send & Receive. On the phone keep it in internal storage, not the top of Download.
-    4. Here: switch on Sync folder (backup) and pick that folder in Android's folder picker.
-    5. On the PC: Devices → Sync folder → choose the same folder.
-    6. Away from home, let Syncthing's relays or a mesh VPN (Tailscale, WireGuard) carry it. Never open a file share to the internet.
-    The files are sealed, so the tool and any server only carry scrambled bytes. The full guide (always-on computer, safe access from outside, a small rented server): on the PC, Devices → Sync with your own server → Open the full guide.
-""".trimIndent()
-
-/** The sync folder (backup, off by default): a folder another app such as Autosync keeps in step with Google Drive. */
-@Composable
-private fun FolderSection(devices: DevicesState, actions: DevicesActions, now: Instant, onChoose: () -> Unit) {
-    val settings = devices.settings
-    ToggleRow(
-        "Sync folder (backup)",
-        "A folder another app keeps in step with Google Drive (e.g. Autosync), the one your PC uses. Every 15 min; " +
-            "faster only while the timeline notification is pinned.",
-        settings.folderOn,
-        enabled = devices.joined,
-    ) { on ->
-        if (on && settings.folderUri == null) onChoose() else actions.onSettings(settings.copy(folderOn = on))
-    }
-    Hint(SELF_HOSTED_STEPS, label = "Sync with your own server (Syncthing, Nextcloud)")
-    if (!settings.folderOn) {
-        return
-    }
-
-    Text(
-        settings.folderUri?.let { "Folder: ${DriveFolderSource.displayName(it)}" } ?: "No folder chosen yet.",
-        style = MaterialTheme.typography.bodyMedium,
-    )
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(1, 5, 15).forEach { minutes ->
-            FilterChip(
-                selected = settings.folderMinutes == minutes,
-                onClick = { actions.onSettings(settings.copy(folderMinutes = minutes)) },
-                label = { Text("$minutes min") },
-            )
-        }
-    }
-    val status = devices.folder
-    Text(
-        status.problem ?: status.lastSyncAt?.let { "Synced ${DevicesModel.ago(Duration.between(it, now))}" } ?: "Not synced yet.",
-        style = MaterialTheme.typography.bodySmall,
-        color = if (status.problem != null) Color(0xFFFCA5A5) else MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = onChoose) { Text("Choose folder") }
-        OutlinedButton(onClick = actions.onSyncFolderNow, enabled = settings.folderUri != null) { Text("Sync now") }
-    }
-}
-
 @Composable
 private fun JoinWithCode(onJoin: (String) -> Boolean) {
     var code by remember { mutableStateOf("") }
     var wrong by remember { mutableStateOf(false) }
     Hint("On the PC: Settings › Devices & sync › Link a new device, then scan its code with this phone's camera, or type the code here.", label = "Where's the code?")
-    OutlinedTextField(
-        value = code,
-        onValueChange = {
-            code = it
-            wrong = false
-        },
-        label = { Text("Link code (40 characters)") },
-        singleLine = true,
-        isError = wrong,
-        modifier = Modifier.fillMaxWidth(),
+    AbTextField(
+        code, { code = it; wrong = false }, "Link code (40 characters)",
+        capitalization = KeyboardCapitalization.None, isError = wrong,
     )
-    Button(onClick = { wrong = !onJoin(code) }, enabled = code.isNotBlank()) { Text("Join") }
+    AbPrimaryButton("Join", onClick = { wrong = !onJoin(code) }, enabled = code.isNotBlank(), modifier = Modifier.fillMaxWidth())
     if (wrong) {
-        Text("That isn't a link code from your devices.", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFCA5A5))
-    }
-}
-
-/**
- * One device's row. A device that can be removed (ADR 54) has a ⋯ menu with "Remove this device…"; during a focus session the user
- * started the item is off and says why ([removalLocked]).
- */
-@Composable
-private fun DeviceRowView(row: DeviceRow, removalLocked: String? = null, onRemove: (UUID) -> Unit = {}) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier.fillMaxWidth().padding(start = if (row.indented) 28.dp else 0.dp),
-    ) {
-        DeviceKindIcon(row.kind)
-        Column(Modifier.weight(1f)) {
-            Text(row.name, style = MaterialTheme.typography.bodyLarge)
-            Text(row.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        // The state in words and colour, never colour alone.
-        Box(
-            Modifier
-                .background(pillColor(row.pillTone), RoundedCornerShape(10.dp))
-                .padding(horizontal = 8.dp, vertical = 2.dp),
-        ) {
-            Text(row.pillText, style = MaterialTheme.typography.labelSmall, color = Color.White)
-        }
-        row.removableId?.let { id ->
-            var open by remember { mutableStateOf(false) }
-            Box {
-                IconButton(onClick = { open = true }) {
-                    Icon(Icons.Outlined.MoreHoriz, contentDescription = "More for ${row.name}")
-                }
-                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                    DropdownMenuItem(
-                        text = {
-                            Column {
-                                Text("Remove this device…")
-                                if (removalLocked != null) {
-                                    Text("(Locked: $removalLocked)", style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
-                        },
-                        leadingIcon = { Icon(Icons.Outlined.LinkOff, contentDescription = null) },
-                        enabled = removalLocked == null,
-                        onClick = {
-                            open = false
-                            onRemove(id)
-                        },
-                    )
-                }
-            }
-        }
-    }
-}
-
-/** A small outline of the device (PC, phone or watch), drawn from [DeviceKind.iconPath] in a 16 × 16 box. */
-@Composable
-private fun DeviceKindIcon(kind: DeviceKind) {
-    val color = MaterialTheme.colorScheme.onSurfaceVariant
-    val path = remember(kind) { PathParser().parsePathString(kind.iconPath).toPath() }
-    Canvas(Modifier.size(22.dp)) {
-        scale(size.minDimension / 16f, pivot = Offset.Zero) {
-            drawPath(path, color, style = Stroke(width = 1.3f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        }
-    }
-}
-
-private fun pillColor(tone: PillTone): Color = when (tone) {
-    PillTone.UP_TO_DATE -> Color(0xFF047857)
-    PillTone.BEHIND -> Color(0xFFB45309)
-    PillTone.WAITING -> Color(0xFF475569)
-    PillTone.UNLINKED -> Color(0xFF7F1D1D)
-    PillTone.THIS_DEVICE -> Color(0xFF0F766E)
-}
-
-@Composable
-private fun InfoDialog(title: String, text: String, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = { Text(text) },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },
-    )
-}
-
-@Composable
-private fun QrDialog(title: String, text: String, links: List<String>, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(text)
-                links.forEachIndexed { index, link ->
-                    Image(QrPicture.render(link), contentDescription = "Code ${index + 1} of ${links.size}", modifier = Modifier.size(260.dp))
-                    if (links.size > 1) {
-                        Text("${index + 1} of ${links.size}", style = MaterialTheme.typography.labelSmall)
-                    }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
-    )
-}
-
-/** The Devices tab's rows and totals line, from what the phone has (no Android here). */
-object DevicesModel {
-    /** How often another device's file should come when nothing else says (the PC's default interval). */
-    val DEFAULT_INTERVAL: Duration = Duration.ofMinutes(15)
-
-    fun rows(devices: DevicesState, now: Instant): List<DeviceRow> = liveRows(devices, now) + removedRows(devices)
-
-    // The devices still in the group. Each can be removed (a ⋯ menu), except a watch row: those stay as they are.
-    private fun liveRows(devices: DevicesState, now: Instant): List<DeviceRow> = devices.received
-        .sortedByDescending { it.file.device.writtenAt }
-        .map { device ->
-            val card = device.file.device
-            val age = Duration.between(card.writtenAt, now).coerceAtLeast(Duration.ZERO)
-            val state = SyncState.of(age, DEFAULT_INTERVAL)
-            DeviceRow(
-                card.name,
-                "${kindName(card.kind)} · ${ago(age)} · ${methodName(device.method)}",
-                state.label,
-                OwnDeviceRows.tone(state),
-                DeviceKind.of(card.kind),
-                removableId = card.deviceId.takeIf { devices.joined && card.kind != SyncDeviceCard.KIND_WATCH },
-            )
-        }
-
-    // A removed device whose data was kept (ADR 54, 55): "<name> (removed)", no menu, nothing more expected from it.
-    private fun removedRows(devices: DevicesState): List<DeviceRow> =
-        devices.removed.mapNotNull { removed ->
-            val card = devices.allReceived.firstOrNull { it.file.device.deviceId == removed.deviceId }?.file?.device ?: return@mapNotNull null
-            DeviceRow(
-                "${removed.name} (removed)",
-                "${kindName(card.kind)} · removed ${REMOVED_ON.format(removed.removedAt.atZone(ZoneId.systemDefault()))} · its data is kept",
-                "Removed",
-                PillTone.UNLINKED,
-                DeviceKind.of(card.kind),
-            )
-        }
-
-    private fun kindName(kind: String): String = when (kind) {
-        SyncDeviceCard.KIND_PC -> "PC"
-        SyncDeviceCard.KIND_WATCH -> "Watch"
-        else -> "Phone"
-    }
-
-    // E.g. "Oct 28"; a date only, so the 12-hour rule has nothing to apply to.
-    private val REMOVED_ON: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d", Locale.US)
-
-    /** E.g. "Today: 5h 10m focused across 3 devices"; null when there's nothing to add up. */
-    fun todayLine(devices: DevicesState, now: Instant, zone: ZoneId): String? {
-        val today = now.atZone(zone).toLocalDate()
-        val combined = FocusDayCombine.combine(devices.allReceived.map { it.file.device.name to it.file }, today, zone, now) ?: return null
-        val count = combined.sessions.mapNotNull { it.device }.distinct().size
-        val minutes = combined.focusedMinutes
-        val time = if (minutes >= 60) "${minutes / 60}h ${"%02d".format(minutes % 60)}m" else "${minutes}m"
-        return if (count > 1) "Today: $time focused across $count devices" else "Today: $time focused"
-    }
-
-    fun ago(age: Duration): String = when {
-        age < Duration.ofMinutes(1) -> "just now"
-        age < Duration.ofHours(1) -> "${age.toMinutes()} min ago"
-        age < Duration.ofDays(1) -> "${age.toHours()} h ago"
-        else -> "${age.toDays()} days ago"
-    }
-
-    private fun methodName(method: String): String = when (method) {
-        SyncDeviceCard.METHOD_LINK -> "network link (old)"
-        SyncDeviceCard.METHOD_FOLDER -> "sync folder"
-        SyncDeviceCard.METHOD_QR -> "QR codes"
-        SyncDeviceCard.METHOD_DRIVE -> "Google Drive"
-        SyncDeviceCard.METHOD_RELAY -> "own relay"
-        else -> "sync file"
-    }
-}
-
-/** One chip per choice ([choices]: key to label), one under the other; [selected] is ticked. */
-@Composable
-private fun FlowChoices(choices: List<Pair<String?, String>>, selected: String?, onSelect: (String?) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        choices.forEach { (key, label) ->
-            FilterChip(selected = key == selected, onClick = { onSelect(key) }, label = { Text(label) })
-        }
+        Text("That isn't a link code from your devices.", style = Ab.type.small, color = Ab.colors.drift)
     }
 }

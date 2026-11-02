@@ -43,6 +43,7 @@ object PhoneBackup {
 
     /** Settings files under files/companion backed up (the phone's own; the PC's data and secrets aren't). */
     val FILES = listOf("phone.json", "sleep.json", "sync-settings.json", "watch.json")
+    private const val SYNC_SETTINGS = "sync-settings.json"
 
     fun export(context: Context, appVersion: String): String {
         val json = buildJsonObject {
@@ -71,8 +72,14 @@ object PhoneBackup {
         return json.toString()
     }
 
-    /** Writes a backup's settings over this phone's. Null when done; otherwise why not. The app restarts after. */
+    /**
+     * Writes a backup's settings over this phone's. Null when done; otherwise why not. The app restarts after. Locked during a focus session
+     * the user started, like every other restore: a file could carry a paused guard or switched-off sharing. Read here, first, so no screen
+     * can get around it; exporting and auto-backup are not affected.
+     */
     fun import(context: Context, text: String): String? {
+        (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).sync.removalLockedReason()?.let { return it }
+        val keepSync = keepsSyncSettings(context, text)
         val json = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return "That isn't an AccountabiliBuddy phone settings file."
         val format = runCatching { json.getValue("format").jsonPrimitive.int }.getOrNull() ?: return "That isn't an AccountabiliBuddy phone settings file."
         if (format > FORMAT) {
@@ -87,12 +94,24 @@ object PhoneBackup {
             editor.commit()
         }
         json["files"]?.jsonObject?.forEach { (name, value) ->
-            if (name in FILES) {
+            // A file that would leave this phone without its way of syncing does not replace the phone's sharing settings (see keepsSyncSettings).
+            if (name in FILES && !(keepSync && name == SYNC_SETTINGS)) {
                 File(context.filesDir, "companion").mkdirs()
                 File(context.filesDir, "companion/$name").writeText(value.toString())
             }
         }
         return null
+    }
+
+    /**
+     * Whether importing [text] leaves this phone's sharing settings (sync-settings.json) as they are: the file would leave none of the ways of
+     * syncing that count on, or pointed elsewhere ([com.accountabilibuddy.companion.sync.SyncCoordinator.leavesNoWay]). Importing is not a way
+     * round the 10 minutes turning off the last one waits. The rest of the file is imported as usual.
+     */
+    fun keepsSyncSettings(context: Context, text: String): Boolean {
+        val file = runCatching { Json.parseToJsonElement(text).jsonObject["files"]?.jsonObject?.get(SYNC_SETTINGS)?.jsonObject }.getOrNull() ?: return false
+        val sync = (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).sync
+        return sync.leavesNoWay(com.accountabilibuddy.companion.sync.PhoneSyncSettingsStore.parse(file))
     }
 
     // A preference value with its type, so it reads back the same.

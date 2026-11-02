@@ -12,22 +12,39 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.ui.theme.Ab
 
-/** A bottom sheet (Material 3's modal sheet) in the theme's surface, with its radius on the top corners. */
+/**
+ * A bottom sheet (Material 3's modal sheet) in the theme's surface, with its radius on the top corners. With [dismissible] false
+ * it stays: a swipe, a tap outside and Back leave it where it is (a sheet that is busy with work that must finish).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AbSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier, skipPartiallyExpanded: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
+fun AbSheet(
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    skipPartiallyExpanded: Boolean = true,
+    dismissible: Boolean = true,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     val shapes = Ab.shapes
     val colors = Ab.colors
+    // Read through a State so the sheet's state is made once (a new lambda each time would start the sheet over).
+    val canDismiss by rememberUpdatedState(dismissible)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = skipPartiallyExpanded),
+        sheetState = rememberModalBottomSheetState(
+            skipPartiallyExpanded = skipPartiallyExpanded,
+            confirmValueChange = { target -> canDismiss || target != SheetValue.Hidden },
+        ),
         shape = RoundedCornerShape(topStart = shapes.large, topEnd = shapes.large),
         containerColor = colors.surface,
         contentColor = colors.ink,

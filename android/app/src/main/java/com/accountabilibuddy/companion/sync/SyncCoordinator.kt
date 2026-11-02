@@ -92,7 +92,99 @@ class SyncCoordinator(
     val isJoined: Boolean
         get() = identity.key.value != null
 
-    fun saveSettings(settings: PhoneSyncSettings) = settingsStore.save(settings)
+    /** The wait for turning off the last way of syncing (prefs "syncOff"); set by the app. Without it a turn-off applies at once. */
+    var offWait: SyncOffWait? = null
+
+    /** Whether a way of syncing reports a problem right now (it can't open its folder, reach its relay, ...); set by the app. */
+    var hasProblem: (SyncMethod) -> Boolean = { false }
+
+    /**
+     * Saves the sharing settings. Null when saved as asked; otherwise a line for the user: why not, or when a held turn-off happens.
+     * - During a focus session the user started a way of syncing may be turned on but never off or pointed somewhere else
+     *   ([PhoneSyncSettings.narrowedBy], [removalLockedReason]), so a frozen session can still be recovered.
+     * - Between sessions the ways that count ([SyncOffWait.counted]: shared folder, Drive, own relay, on and unchanged for 10 minutes) are
+     *   guarded the same way. Turning off the last one that counts is a looser change: it is held for [SyncOffWait.WAIT] with the way still on
+     *   and applied by [applyPendingSyncOff]. Pointing the last one somewhere else is refused, unless it reports a problem (so a broken one can
+     *   be fixed). Turning off one of several, turning a way on, QR codes, Sync files and every other field apply at once.
+     */
+    @Synchronized
+    fun saveSettings(settings: PhoneSyncSettings): String? {
+        val current = settingsStore.settings.value
+        if (current.narrowedBy(settings)) {
+            removalLockedReason()?.let { return it }
+        }
+
+        var toSave = settings
+        var note: String? = null
+        val wait = offWait
+        if (wait != null) {
+            val time = now()
+            val counted = wait.countedWays(current, time)
+            val stays = counted.any { it.isLive(settings) && it.sameIn(current, settings) }
+            if (counted.isNotEmpty() && !stays) {
+                val repointed = counted.firstOrNull { it.isLive(settings) && !hasProblem(it) }
+                if (repointed != null) {
+                    return "${repointed.label} is your only way of syncing, so it can't be pointed somewhere else now. " +
+                        "Turn another way on first; it counts after ${SyncOffWait.WAIT.toMinutes()} minutes."
+                }
+
+                val turnedOff = counted.filter { !it.isLive(settings) }
+                if (turnedOff.isNotEmpty()) {
+                    val pending = wait.start(wait.pending.value?.method?.takeIf { it in turnedOff } ?: turnedOff.last(), time)
+                    toSave = pending.method.keptOn(toSave, current)
+                    note = "${pending.method.label} turns off at ${CLOCK.format(pending.at.atZone(java.time.ZoneId.systemDefault()))}"
+                }
+            }
+        }
+
+        settingsStore.save(toSave)
+        wait?.observe(toSave, now())
+        return note
+    }
+
+    /** Whether turning [method] off now would wait: it is the only way that counts. The Devices page asks before it asks the user. */
+    fun turnOffWaits(method: SyncMethod): Boolean {
+        val wait = offWait ?: return false
+        return wait.countedWays(settingsStore.settings.value, now()) == listOf(method)
+    }
+
+    /** Whether this file's settings would leave the ways that count without one (an import must not do that; see [saveSettings]). */
+    fun leavesNoWay(next: PhoneSyncSettings): Boolean {
+        val wait = offWait ?: return false
+        val current = settingsStore.settings.value
+        val counted = wait.countedWays(current, now())
+        return counted.isNotEmpty() && counted.none { it.isLive(next) && it.sameIn(current, next) }
+    }
+
+    /** Drops a held turn-off: the way simply stays on. Allowed at any time. */
+    fun cancelPendingSyncOff() {
+        offWait?.cancel()
+    }
+
+    /**
+     * Turns off the way whose wait is over, once no focus session runs (a wait that ends in a session applies after it). Nothing else
+     * applies it earlier. True when something was applied.
+     */
+    @Synchronized
+    fun applyPendingSyncOff(time: Instant = now()): Boolean {
+        val wait = offWait ?: return false
+        val pending = wait.pending.value ?: return false
+        val current = settingsStore.settings.value
+        if (!pending.method.isLive(current)) {
+            wait.cancel()
+            return false
+        }
+
+        if (time.isBefore(pending.at) || removalLockedReason() != null) {
+            return false
+        }
+
+        val next = pending.method.turnedOff(current)
+        settingsStore.save(next)
+        wait.observe(next, time)
+        wait.cancel()
+        return true
+    }
 
     /** The group's link code (to show so another device joins); null outside a group. */
     fun linkCode(): String? = identity.code()
@@ -768,3 +860,6 @@ class SyncCoordinator(
         const val REMOVED_DEVICE = "This file is from a device that was removed from your device group."
     }
 }
+
+// "4:05 PM": 12-hour whatever the system says.
+private val CLOCK: java.time.format.DateTimeFormatter = java.time.format.DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.US)

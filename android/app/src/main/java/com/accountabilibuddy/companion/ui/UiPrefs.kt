@@ -31,7 +31,7 @@ enum class BarLook(val label: String) { Color("Colour"), Grayscale("Grayscale (o
 
 /**
  * The phone app's look (preferences "ui"): theme, light or dark, colour, the set times and the After sunset place, plus
- * animation speed and timeline look. Per device and never synced (ADR 49). Loaded once at app start.
+ * animation speed, timeline look and whether the sync light shows. Per device and never synced (ADR 49). Loaded once at app start.
  */
 object UiPrefs {
     private const val FILE = "ui"
@@ -44,8 +44,12 @@ object UiPrefs {
     private val _lightAt = MutableStateFlow(LocalTime.of(7, 0))
     private val _place = MutableStateFlow<AppearancePlace?>(null)
     private val _barLook = MutableStateFlow(BarLook.Color)
+    private val _syncLight = MutableStateFlow(SyncLightSetting.On)
 
     val barLook: StateFlow<BarLook> = _barLook.asStateFlow()
+
+    /** Whether Today shows the sync light (Settings › Devices & sync). It only hides the light: syncing itself is never touched. */
+    val syncLight: StateFlow<SyncLightSetting> = _syncLight.asStateFlow()
     val motion: StateFlow<MotionSpeed> = _motion.asStateFlow()
     val themeName: StateFlow<ThemeName> = _themeName.asStateFlow()
     val mode: StateFlow<LightDarkMode> = _mode.asStateFlow()
@@ -62,6 +66,7 @@ object UiPrefs {
         val prefs = prefs(context)
         _motion.value = runCatching { MotionSpeed.valueOf(prefs.getString("motion", null) ?: "") }.getOrDefault(MotionSpeed.Normal)
         _barLook.value = runCatching { BarLook.valueOf(prefs.getString("barLook", null) ?: "") }.getOrDefault(BarLook.Color)
+        _syncLight.value = runCatching { SyncLightSetting.valueOf(prefs.getString("syncLight", null) ?: "") }.getOrDefault(SyncLightSetting.On)
         _themeName.value = runCatching { ThemeName.valueOf(prefs.getString("themeName", null) ?: "") }.getOrDefault(ThemeName.Instrument)
         _colour.value = ColourMode.fromCode(prefs.getInt("colour", ColourMode.Quiet.code))
         _darkAt.value = LocalTime.ofSecondOfDay(prefs.getInt("darkAtMin", 19 * 60).coerceIn(0, 1439) * 60L)
@@ -79,6 +84,11 @@ object UiPrefs {
         }
         prefs.edit().putInt("mode", mode.code).remove("theme").apply()
         return mode
+    }
+
+    fun setSyncLight(context: Context, setting: SyncLightSetting) {
+        _syncLight.value = setting
+        prefs(context).edit().putString("syncLight", setting.name).apply()
     }
 
     fun setBarLook(context: Context, look: BarLook) {

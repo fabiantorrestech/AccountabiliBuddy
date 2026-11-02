@@ -395,6 +395,19 @@ class CompanionApp : Application() {
         // ADR 54: removing a device writes the rekey file by these, and a new key clears the old group's files from them.
         sync.rekeyMethods = listOf(folderSource, driveSource, relaySource)
         sync.backgroundScope = appScope
+        // Turning off the last way of syncing waits 10 minutes (prefs "syncOff", so a restart does not skip it); applied here when due.
+        sync.offWait = com.accountabilibuddy.companion.sync.SyncOffWait(this).also { it.onStart = ::watchSyncOff }
+        // A way that has changed since the last run (an imported settings file) starts its 10 minutes from now.
+        sync.offWait?.observe(sync.settings.value, java.time.Instant.now())
+        // The ways of syncing that report a problem right now: only those may be pointed somewhere else while they are the last one that counts.
+        sync.hasProblem = {
+            when (it) {
+                com.accountabilibuddy.companion.sync.SyncMethod.Drive -> driveSource.status.value.problem != null
+                com.accountabilibuddy.companion.sync.SyncMethod.Folder -> folderSource.status.value.problem != null
+                com.accountabilibuddy.companion.sync.SyncMethod.Relay -> relaySource.status.value.problem != null
+            }
+        }
+        watchSyncOff()
         // No escape hatches (ADR 54): removing devices, leaving and erasing a removed device's data wait for a PC focus session to end.
         sync.removalLockedReason = {
             if (com.accountabilibuddy.companion.placement.PlacementSession.current(this, java.time.Instant.now()) != null) {
@@ -636,6 +649,32 @@ class CompanionApp : Application() {
         appScope.launch {
             runCatching { driveSource.syncNow() }
             Refresher.refresh(this@CompanionApp)
+        }
+    }
+
+    private var syncOffWatch: kotlinx.coroutines.Job? = null
+
+    /**
+     * Applies a held turn-off of the last way of syncing when its wait is over and no focus session runs (retried every 30 s then; a wait that
+     * ends in a session applies after it). When the wait comes due it syncs once first: the methods poll every 15 minutes, so a session that
+     * started during the wait may not be known yet, and letting go of the way that would show it must not hide it. One watcher at a time; it
+     * ends when nothing is pending. A restart starts it again from the saved time.
+     */
+    fun watchSyncOff() {
+        syncOffWatch?.cancel()
+        syncOffWatch = appScope.launch {
+            while (true) {
+                val pending = sync.offWait?.pending?.value ?: break
+                val wait = java.time.Duration.between(java.time.Instant.now(), pending.at).toMillis().coerceIn(1_000L, 30_000L)
+                delay(wait)
+                if (!java.time.Instant.now().isBefore(pending.at) && sync.removalLockedReason() == null) {
+                    // A failed sync is no reason to wait longer (the same as having no network).
+                    runCatching { folderSource.syncNow() }
+                    runCatching { driveSource.syncNow() }
+                    runCatching { relaySource.syncNow() }
+                }
+                sync.applyPendingSyncOff()
+            }
         }
     }
 
