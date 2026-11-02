@@ -209,7 +209,8 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
 
             bool unreadable = false;
             SyncKey? passKey = _identity.Key;
-            foreach (DriveFileInfo info in files.Where(info => info.Name.EndsWith(SyncFolderService.Extension, StringComparison.OrdinalIgnoreCase)))
+            foreach (DriveFileInfo info in files.Where(info => info.Name.EndsWith(SyncFolderService.Extension, StringComparison.OrdinalIgnoreCase)
+                && !SyncFolderService.IsConflictCopy(info.Name)))
             {
                 // A rekey (ADR 54) switched the group's key during this pass: the rest are the old group's, the next pass reads the new group's.
                 if (_identity.Key?.SameGroupAs(passKey) != true)
@@ -241,7 +242,7 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
                     string? reason = await _coordinator.AcceptSealedAsync(bytes, SyncDeviceCard.MethodDrive);
                     unreadable |= reason == SyncCoordinator.CannotReadReason;
                     if (reason is null || reason == SyncCoordinator.CannotReadReason || reason == SyncCoordinator.OwnFileReason
-                        || reason == SyncCoordinator.RemovedDeviceReason)
+                        || reason == SyncCoordinator.RemovedDeviceReason || reason == SyncCoordinator.OtherGroupReason)
                     {
                         _seen[info.Id] = info.ModifiedAt;
                     }

@@ -334,7 +334,7 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
                     string? reason = await _coordinator.AcceptSealedAsync(download.Bytes, SyncDeviceCard.MethodRelay);
                     unreadable |= reason == SyncCoordinator.CannotReadReason;
                     if (reason is null || reason == SyncCoordinator.CannotReadReason || reason == SyncCoordinator.OwnFileReason
-                        || reason == SyncCoordinator.RemovedDeviceReason)
+                        || reason == SyncCoordinator.RemovedDeviceReason || reason == SyncCoordinator.OtherGroupReason)
                     {
                         _seen[info.Name] = download.ETag ?? info.ETag;
                     }

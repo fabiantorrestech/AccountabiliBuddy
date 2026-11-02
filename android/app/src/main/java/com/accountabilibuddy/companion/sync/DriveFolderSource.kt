@@ -159,7 +159,7 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
     // How many readable files of other devices of the group the last read found (set by read, under the same lock).
     private var otherFilesSeen = 0
 
-    // True when a file couldn't be read (another group's, or damaged).
+    // True when a file couldn't be read (damaged, or newer than this app; another group's files are skipped).
     private fun read(tree: Uri, ownName: String): Boolean {
         var unreadable = false
         otherFilesSeen = 0
@@ -173,6 +173,11 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
             // picked up by followKey on the next pass).
             if (RekeyCodec.isRekey(bytes)) {
                 sync.acceptSealed(bytes, SyncDeviceCard.METHOD_FOLDER)
+                continue
+            }
+
+            // Another group's file (from before a device removal) is a leftover, not a problem.
+            if (sync.isOtherGroupsFile(bytes)) {
                 continue
             }
 

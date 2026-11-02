@@ -33,6 +33,9 @@ public sealed class SyncCoordinator
     /// <summary>Why a file was refused when it is from a device removed from the group (ADR 54).</summary>
     public const string RemovedDeviceReason = "This file is from a device that was removed from your device group.";
 
+    /// <summary>Why a file was skipped when its header names another device group: a leftover from before a device removal, no problem to show.</summary>
+    public const string OtherGroupReason = "This file belongs to another device group.";
+
     private const string NotInGroupReason = "This PC isn't linked to your other devices yet.";
 
     // The plan's sync state: its version, when it was last edited, and the newest version it shares with the others.
@@ -389,6 +392,11 @@ public sealed class SyncCoordinator
         if (RekeyCodec.IsRekey(sealedBytes))
         {
             return Removal is null ? CannotReadReason : await Removal.AcceptRekeyAsync(sealedBytes, key);
+        }
+
+        if (SyncFileCodec.IsOtherGroups(sealedBytes, key))
+        {
+            return OtherGroupReason;
         }
 
         if (SyncFileCodec.Open(sealedBytes, key) is not SyncFile file)

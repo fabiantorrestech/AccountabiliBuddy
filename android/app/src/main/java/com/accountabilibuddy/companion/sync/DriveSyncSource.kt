@@ -166,7 +166,7 @@ class DriveSyncSource(
         _status.value = FolderStatus()
     }
 
-    // True when a file couldn't be read (another group's, or damaged).
+    // True when a file couldn't be read (damaged, or newer than this app; another group's files are skipped).
     private fun read(token: String, listed: List<DriveFileInfo>, ownName: String): Boolean {
         var unreadable = false
         for (file in listed) {
@@ -180,6 +180,11 @@ class DriveSyncSource(
             // picked up by followKey on the next pass).
             if (RekeyCodec.isRekey(bytes)) {
                 sync.acceptSealed(bytes, SyncDeviceCard.METHOD_DRIVE)
+                continue
+            }
+
+            // Another group's file (from before a device removal) is a leftover, not a problem.
+            if (sync.isOtherGroupsFile(bytes)) {
                 continue
             }
 

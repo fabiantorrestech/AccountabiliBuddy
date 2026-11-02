@@ -216,7 +216,8 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
             {
                 files = await Task.Run(() => new DirectoryInfo(folder).GetFiles("*" + Extension)
                     .Where(file => file.Extension.Equals(Extension, StringComparison.OrdinalIgnoreCase)
-                        && !file.Name.Equals(ownName, StringComparison.OrdinalIgnoreCase))
+                        && !file.Name.Equals(ownName, StringComparison.OrdinalIgnoreCase)
+                        && !IsConflictCopy(file.Name))
                     .ToList());
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or System.Security.SecurityException)
@@ -315,12 +316,19 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
 
         bool unreadable = reason == SyncCoordinator.CannotReadReason;
         // Accepted, unreadable or this PC's own: the same bytes give the same answer. An older file is read again.
-        if (reason is null || unreadable || reason == SyncCoordinator.OwnFileReason || reason == SyncCoordinator.RemovedDeviceReason)
+        if (reason is null || unreadable || reason == SyncCoordinator.OwnFileReason || reason == SyncCoordinator.RemovedDeviceReason
+            || reason == SyncCoordinator.OtherGroupReason)
         {
             _seen[file.FullName] = new SeenFile(file.Length, file.LastWriteTimeUtc, unreadable);
         }
 
         return unreadable;
+    }
+
+    /// <summary>A copy Autosync or Drive made in a clash ("&lt;id&gt; (conflict &lt;date&gt;).absync"): never a device's file, which is named <c>&lt;12 hex&gt;.absync</c>.</summary>
+    public static bool IsConflictCopy(string name)
+    {
+        return name.Contains("(conflict", StringComparison.OrdinalIgnoreCase);
     }
 
     private bool TryGetFolder(out string folder, out string ownName, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out SyncKey? key)
