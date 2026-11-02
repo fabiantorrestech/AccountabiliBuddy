@@ -32,12 +32,16 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
             OnPropertyChanged(nameof(PeekKeysLocked));
             OnPropertyChanged(nameof(ShowsSafeHints));
             OnPropertyChanged(nameof(PeekKeysTip));
+            OnPropertyChanged(nameof(HideShortcutOn));
+            OnPropertyChanged(nameof(ShowsHideKey));
+            OnPropertyChanged(nameof(CompactHintText));
+            OnPropertyChanged(nameof(HideTip));
         };
     }
 
     /// <summary>The panel is the sticky one (Ctrl+Alt+Space), which takes every key by focus; false while it only peeks. Set by the overlay when it opens.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsAllHints), nameof(ShowsSafeHints), nameof(CompactHintText))]
+    [NotifyPropertyChangedFor(nameof(ShowsAllHints), nameof(ShowsSafeHints), nameof(CompactHintText), nameof(ShowsHideKey))]
     public partial bool IsSticky { get; set; }
 
     /// <summary>A peek registers no keys (<see cref="OverlaySettings.PeekKeysLocked"/>); read live so the panel and Settings stay in step.</summary>
@@ -49,7 +53,30 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
     /// <summary>Hints for the safe keys (hide, +10 min) also show in an unlocked peek.</summary>
     public bool ShowsSafeHints => IsSticky || !PeekKeysLocked;
 
-    public string CompactHintText => IsSticky ? "D done   P pause   T +10   B side task   H hide" : "T +10   H hide";
+    public string CompactHintText => IsSticky
+        ? $"D done   P pause   T +10   B side task   H {HideKeyWord}"
+        : $"T +10   H {HideKeyWord}";
+
+    /// <summary>Ctrl+Alt+H hides the overlay until it is pressed again, and so does the panel's H key; with that switch off, H is the short Hide.</summary>
+    public bool HideShortcutOn => _settings.Current.OverlayOn && _settings.Current.HideShortcutOn;
+
+    private string HideKeyWord => HideShortcutOn ? "hide/show" : "hide";
+
+    /// <summary>The "H" next to the Hide button: only where H is that button's own key (the Ctrl+Alt+H shortcut is off), and where the safe keys work.</summary>
+    public bool ShowsHideKey => ShowsSafeHints && !HideShortcutOn;
+
+    public string HideTip => HideShortcutOn
+        ? $"Hide for {_settings.Current.QuickHideSeconds} seconds. Ctrl+Alt+H hides it until you press it again."
+        : $"Hide for {_settings.Current.QuickHideSeconds} seconds";
+
+    /// <summary>Disable is refused during a focus session, like the Settings switch (the same rule as Settings: locked while a phase enforces).</summary>
+    public bool CanDisable => !_sessions.IsEnforcing;
+
+    public bool DisableLocked => !CanDisable;
+
+    public string DisableTip => CanDisable
+        ? "Turn the overlay off. Today or Settings turns it back on."
+        : "Can't turn the overlay off during a focus session";
 
     /// <summary>The lock button's tip.</summary>
     public string PeekKeysTip => PeekKeysLocked
@@ -151,6 +178,10 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
         ShowsReady = Model.PlanFirst is { InStage: true };
         GoalText = Model.GoalText;
         OnPropertyChanged(nameof(HasQr));
+        OnPropertyChanged(nameof(CanDisable));
+        OnPropertyChanged(nameof(DisableLocked));
+        OnPropertyChanged(nameof(DisableTip));
+        OnPropertyChanged(nameof(HideTip));
         CanSideTask = state.IsEnforcing && !state.IsPlanning && !state.IsAway;
         OnPropertyChanged(nameof(ShowsSideTaskButton));
         OnPropertyChanged(nameof(Tasks));
@@ -221,6 +252,18 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
     {
         CloseRequested?.Invoke(this, EventArgs.Empty);
         Model.HideRequested?.Invoke();
+    }
+
+    [RelayCommand]
+    private void Disable()
+    {
+        if (!CanDisable)
+        {
+            return;
+        }
+
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+        Model.DisableRequested?.Invoke();
     }
 
     [RelayCommand]
@@ -295,6 +338,10 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
                 return true;
             case "B" when CanSideTask:
                 SideTaskCommand.Execute(null);
+                return true;
+            case "H" when HideShortcutOn:
+                CloseRequested?.Invoke(this, EventArgs.Empty);
+                Model.ToggleHiddenRequested?.Invoke();
                 return true;
             case "H":
                 HideCommand.Execute(null);

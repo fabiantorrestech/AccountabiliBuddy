@@ -151,6 +151,12 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
     /// <summary>The panel's Hide: out of the way for a few seconds (set by the service).</summary>
     public Action? HideRequested { get; set; }
 
+    /// <summary>The panel's H key while Ctrl+Alt+H is on: hide until shown again, like the shortcut itself (set by the service).</summary>
+    public Action? ToggleHiddenRequested { get; set; }
+
+    /// <summary>The panel's Disable: turn the overlay off until Today turns it on (set by the service).</summary>
+    public Action? DisableRequested { get; set; }
+
     /// <summary>After a session ended: "Session done", shown for a few seconds when nothing else would show (set by the service).</summary>
     public string? DoneNotice { get; set; }
 

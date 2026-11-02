@@ -18,6 +18,9 @@ public sealed class OverlayActions
     /// <summary>Opens Settings at Alerts &amp; on-screen.</summary>
     public Action OpenSettings { get; set; } = () => { };
 
+    /// <summary>A short notice card (title, text), e.g. after the panel's Disable says where to turn the overlay back on.</summary>
+    public Action<string, string> Notify { get; set; } = (_, _) => { };
+
     /// <summary>Opens the capture box (Ctrl+Alt+N) to park a thought.</summary>
     public Action ParkThought { get; set; } = () => { };
 
