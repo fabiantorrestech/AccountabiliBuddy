@@ -26,7 +26,14 @@ import java.util.concurrent.TimeUnit
  * The sync folder's last result: when it last synced, and what went wrong (null when nothing did). [otherFiles] is how many files of other
  * devices of the group the last pass found in the folder (a count only, nothing of their content); null before a pass, and for Drive and the relay.
  */
-data class FolderStatus(val lastSyncAt: Instant? = null, val problem: String? = null, val otherFiles: Int? = null)
+data class FolderStatus(
+    val lastSyncAt: Instant? = null,
+    val problem: String? = null,
+    val otherFiles: Int? = null,
+    // The place holds files of another group and none of this group from another device: most likely the other devices are on a
+    // newer key (a soft hint, never a problem: a problem would open instant re-pointing and turn the light red).
+    val newerLink: Boolean = false,
+)
 
 /**
  * The phone's sync folder (ADR 22, way B): a folder another app (e.g. Autosync) keeps in step with Google Drive,
@@ -87,7 +94,7 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
                     // A rekey the coordinator applied in the background may have changed the key meanwhile: write for the key as it is now.
                     followKey()
                     write(tree)
-                    FolderStatus(Instant.now(), if (unreadable) "Can't read a file from the sync folder." else null, otherFilesSeen)
+                    FolderStatus(Instant.now(), if (unreadable) "Can't read a file from the sync folder." else null, otherFilesSeen, otherGroupFilesSeen > 0 && otherFilesSeen == 0)
                 } catch (e: Exception) {
                     // A folder whose permission was taken away, or a storage app that's gone.
                     FolderStatus(_status.value.lastSyncAt, "Can't open the sync folder: choose it again.")
@@ -159,10 +166,14 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
     // How many readable files of other devices of the group the last read found (set by read, under the same lock).
     private var otherFilesSeen = 0
 
+    // How many files of another group the last read skipped (same lock).
+    private var otherGroupFilesSeen = 0
+
     // True when a file couldn't be read (damaged, or newer than this app; another group's files are skipped).
     private fun read(tree: Uri, ownName: String): Boolean {
         var unreadable = false
         otherFilesSeen = 0
+        otherGroupFilesSeen = 0
         for ((name, uri) in children(tree)) {
             if (!SyncFolder.isOtherDevicesFile(name, ownName)) {
                 continue
@@ -178,6 +189,7 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
 
             // Another group's file (from before a device removal) is a leftover, not a problem.
             if (sync.isOtherGroupsFile(bytes)) {
+                otherGroupFilesSeen++
                 continue
             }
 

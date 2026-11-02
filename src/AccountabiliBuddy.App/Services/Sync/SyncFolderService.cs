@@ -46,6 +46,11 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
     // Read by the folder watcher's thread to skip this PC's own file.
     private volatile string? _ownName;
 
+    // Per file path: the verdict of the last read, kept because _seen skips files already read. Together they tell whether the
+    // other devices have moved to a newer key (only leftovers of another group here, none of this group from another device).
+    private readonly HashSet<string> _otherGroupFiles = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _groupFiles = new(StringComparer.OrdinalIgnoreCase);
+
     private string? _readProblem;
     private string? _writeProblem;
     private string? _shownProblem;
@@ -245,7 +250,11 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
             foreach (string gone in _seen.Keys.Where(path => files.All(file => !file.FullName.Equals(path, StringComparison.OrdinalIgnoreCase))).ToList())
             {
                 _seen.Remove(gone);
+                _otherGroupFiles.Remove(gone);
+                _groupFiles.Remove(gone);
             }
+
+            _received.SetNewerLink(SyncDeviceCard.MethodFolder, _otherGroupFiles.Count > 0 && _groupFiles.Count == 0);
 
             _readProblem = unreadable ? $"Can't read a file from {folder}" : null;
             UpdateProblem();
@@ -315,6 +324,17 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
         }
 
         bool unreadable = reason == SyncCoordinator.CannotReadReason;
+        _otherGroupFiles.Remove(file.FullName);
+        _groupFiles.Remove(file.FullName);
+        if (reason == SyncCoordinator.OtherGroupReason)
+        {
+            _otherGroupFiles.Add(file.FullName);
+        }
+        else if (!unreadable && reason != SyncCoordinator.OwnFileReason && reason != SyncCoordinator.RemovedDeviceReason)
+        {
+            // Opened with this group's key: a file of this group from another device (accepted, or an older copy of one held).
+            _groupFiles.Add(file.FullName);
+        }
         // Accepted, unreadable or this PC's own: the same bytes give the same answer. An older file is read again.
         if (reason is null || unreadable || reason == SyncCoordinator.OwnFileReason || reason == SyncCoordinator.RemovedDeviceReason
             || reason == SyncCoordinator.OtherGroupReason)
@@ -353,6 +373,9 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
     {
         StopWatching();
         _seen.Clear();
+        _otherGroupFiles.Clear();
+        _groupFiles.Clear();
+        _received.SetNewerLink(SyncDeviceCard.MethodFolder, false);
         _readProblem = null;
         _writeProblem = null;
         if (!TryGetFolder(out string folder, out string ownName, out _))

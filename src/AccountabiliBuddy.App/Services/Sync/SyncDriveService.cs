@@ -33,6 +33,10 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
 
     // The files read so far, by Drive id: one Drive says is unchanged isn't downloaded again.
     private readonly Dictionary<string, DateTimeOffset> _seen = [];
+
+    // Per file id: the verdict of the last read, kept because _seen skips files already read (see SyncFolderService).
+    private readonly HashSet<string> _otherGroupFiles = [];
+    private readonly HashSet<string> _groupFiles = [];
     private string? _ownId;
     private string? _problem;
     private DispatcherTimer? _timer;
@@ -240,6 +244,18 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
                 {
                     byte[] bytes = await _drive.DownloadAsync(info.Id, CancellationToken.None);
                     string? reason = await _coordinator.AcceptSealedAsync(bytes, SyncDeviceCard.MethodDrive);
+                    _otherGroupFiles.Remove(info.Id);
+                    _groupFiles.Remove(info.Id);
+                    if (reason == SyncCoordinator.OtherGroupReason)
+                    {
+                        _otherGroupFiles.Add(info.Id);
+                    }
+                    else if (reason != SyncCoordinator.CannotReadReason && reason != SyncCoordinator.OwnFileReason
+                        && reason != SyncCoordinator.RemovedDeviceReason)
+                    {
+                        _groupFiles.Add(info.Id);
+                    }
+
                     unreadable |= reason == SyncCoordinator.CannotReadReason;
                     if (reason is null || reason == SyncCoordinator.CannotReadReason || reason == SyncCoordinator.OwnFileReason
                         || reason == SyncCoordinator.RemovedDeviceReason || reason == SyncCoordinator.OtherGroupReason)
@@ -254,6 +270,11 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
             }
 
             SetProblem(unreadable ? "Can't read a file in Google Drive" : null);
+
+            // Files that are gone no longer count.
+            _otherGroupFiles.IntersectWith(files.Select(info => info.Id));
+            _groupFiles.IntersectWith(files.Select(info => info.Id));
+            _received.SetNewerLink(SyncDeviceCard.MethodDrive, _otherGroupFiles.Count > 0 && _groupFiles.Count == 0);
 
             // A lower goal that waited for work hours to end (also when no file changed).
             await _coordinator.RetryGoalAsync();
@@ -291,6 +312,9 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
         _timer?.Stop();
         _timer = null;
         _seen.Clear();
+        _otherGroupFiles.Clear();
+        _groupFiles.Clear();
+        _received.SetNewerLink(SyncDeviceCard.MethodDrive, false);
         _ownId = null;
         if (!TryGetName(out _, out _))
         {
