@@ -83,5 +83,12 @@ public static class SetupFeatures
             IsRelevant: () => true,
             IsSetUp: () => overlay.Current.PanelSeen,
             Step: ViewModels.AssistantStep.PanelCtrlAlt),
+        new SetupFeature(
+            "overlay.hide", "0.1.120",
+            "Ctrl+Alt+H: hide the overlay until you want it",
+            "Press Ctrl+Alt+H in any app to hide the overlay (it stays hidden until you press it again, even after a restart; holding Ctrl+Alt still shows it). The Ctrl+Alt panel also has a button that turns the overlay off, which only Today turns back on.",
+            IsRelevant: () => true,
+            IsSetUp: () => overlay.Current.HideShortcutSeen,
+            Step: ViewModels.AssistantStep.PanelCtrlAlt),
     };
 }
