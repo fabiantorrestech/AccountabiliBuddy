@@ -322,6 +322,9 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     val syncOffPending: kotlinx.coroutines.flow.StateFlow<com.accountabilibuddy.companion.sync.PendingSyncOff?> =
         sync.offWait?.pending ?: kotlinx.coroutines.flow.MutableStateFlow<com.accountabilibuddy.companion.sync.PendingSyncOff?>(null)
 
+    /** Whether turning [method] off would wait 10 minutes (it is the only way that counts), so the page asks first. */
+    fun turnOffWaits(method: com.accountabilibuddy.companion.sync.SyncMethod): Boolean = sync.turnOffWaits(method)
+
     /** Cancels the held turn-off (any time). */
     fun cancelSyncOff() = sync.cancelPendingSyncOff()
 

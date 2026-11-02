@@ -117,6 +117,8 @@ data class DevicesActions(
     val onSyncRelayNow: () -> Unit = {},
     /** Cancels the held turn-off of the last way of syncing. */
     val onCancelSyncOff: () -> Unit = {},
+    /** Whether turning a way off would wait 10 minutes (it is the only one that counts), so the sheet asks first. */
+    val turnOffWaits: (SyncMethod) -> Boolean = { false },
 )
 
 private enum class DevicesDialog { Scan, Picture, LinkDevice, Leave }
@@ -144,11 +146,11 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
     val detectedIds = page.watch.detected.map { it.id }.toSet()
     // During a focus session a way of syncing that is on can't be turned off or pointed elsewhere (turning one on stays allowed).
     val locked = devices.removalLocked
-    // Turning off the LAST way that brings the PC's file waits 10 minutes (asked first, in a sheet); one of several turns off at once.
+    // Turning off the LAST way that counts (on and unchanged for 10 minutes) waits 10 minutes (asked first, in a sheet); one of several turns off at once.
     var askOff by remember { mutableStateOf<SyncMethod?>(null) }
     val pendingOff = devices.syncOffPending
     fun requestOff(method: SyncMethod) {
-        if (SyncMethod.live(settings) == listOf(method)) askOff = method else actions.onSettings(method.turnedOff(settings))
+        if (actions.turnOffWaits(method)) askOff = method else actions.onSettings(method.turnedOff(settings))
     }
 
     val rows = buildList {
@@ -303,7 +305,6 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
             body = "It is your last way of syncing, so this waits ${SyncOffWait.WAIT.toMinutes()} minutes. If you still want it then, it turns off on its own. " +
                 "Until then this phone keeps syncing.",
             appliesAt = Instant.now().plus(SyncOffWait.WAIT),
-            about = true,
             onQueue = { actions.onSettings(method.turnedOff(settings)) },
             onDismiss = { askOff = null },
         )

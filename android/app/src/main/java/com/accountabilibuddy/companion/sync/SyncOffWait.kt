@@ -11,7 +11,11 @@ import java.time.Instant
  * The wait for turning off the last way of syncing (the pattern of `SleepSettingsSync` and `PlacementGuard`, a looser change): the user asks,
  * the way stays on and [pending] says when it turns off; [SyncCoordinator] applies it when the time has come and no focus session runs
  * (a wait that ends in a session applies after it). Kept in prefs "syncOff" (never synced), so a restart does not skip it. Cancelling works
- * at any time. There is no "apply now" and nothing shortens the wait.
+ * at any time. There is no "apply now": nothing shortens the wait, and turning another way on does not either.
+ *
+ * It also remembers since when each way has been on, unchanged ([observe]). A way only counts as a way of syncing ([counted]) after it has
+ * been on and pointing at the same place for [WAIT], so turning a dummy way on (an empty folder, an address that goes nowhere) does not make
+ * the real one "not the last".
  */
 class SyncOffWait(context: Context) {
     private val prefs = context.getSharedPreferences("syncOff", Context.MODE_PRIVATE)
@@ -35,6 +39,43 @@ class SyncOffWait(context: Context) {
         return started
     }
 
+    /**
+     * Brings the "on since" times in step with [settings]: a way that is off has none; a way that is on and was not (or points elsewhere now)
+     * starts at [now]. The first time this ever runs, what is on already counts (an update must not hold up an old install).
+     */
+    @Synchronized
+    fun observe(settings: PhoneSyncSettings, now: Instant) {
+        val first = !prefs.contains(KEY_SEEN)
+        val editor = prefs.edit()
+        for (method in SyncMethod.entries) {
+            val sinceKey = "since.${method.key}"
+            val pointsKey = "points.${method.key}"
+            if (!method.isLive(settings)) {
+                editor.remove(sinceKey).remove(pointsKey)
+                continue
+            }
+
+            // Hashed, so the relay's admission key is never written here in the clear.
+            val points = method.fingerprint(settings).hashCode().toString()
+            if (prefs.contains(sinceKey) && prefs.getString(pointsKey, null) == points) continue
+
+            editor.putLong(sinceKey, if (first) 0L else now.toEpochMilli()).putString(pointsKey, points)
+        }
+        editor.putBoolean(KEY_SEEN, true).apply()
+    }
+
+    /** Whether [method] is on in [settings] and has been, unchanged, for [WAIT] (the ones that count as a way of syncing). */
+    @Synchronized
+    fun counted(method: SyncMethod, settings: PhoneSyncSettings, now: Instant): Boolean {
+        observe(settings, now)
+        if (!method.isLive(settings)) return false
+
+        return !now.isBefore(Instant.ofEpochMilli(prefs.getLong("since.${method.key}", Long.MAX_VALUE)).plus(WAIT))
+    }
+
+    /** The ways of [settings] that count right now. */
+    fun countedWays(settings: PhoneSyncSettings, now: Instant): List<SyncMethod> = SyncMethod.entries.filter { counted(it, settings, now) }
+
     /** Drops the pending turn-off: the way simply stays on. */
     @Synchronized
     fun cancel() {
@@ -53,5 +94,6 @@ class SyncOffWait(context: Context) {
         val WAIT: Duration = Duration.ofMinutes(10)
         private const val KEY_METHOD = "method"
         private const val KEY_AT = "at"
+        private const val KEY_SEEN = "seen"
     }
 }

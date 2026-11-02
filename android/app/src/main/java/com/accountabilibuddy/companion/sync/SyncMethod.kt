@@ -31,6 +31,16 @@ enum class SyncMethod(val key: String, val label: String) {
         Relay -> settings.copy(relayOn = true, relayUrl = from.relayUrl, relayPin = from.relayPin, relayAdmission = from.relayAdmission)
     }
 
+    /** What this way points at, as text: two settings with the same value here are the same way (a new folder or relay is a different one). */
+    fun fingerprint(settings: PhoneSyncSettings): String = when (this) {
+        Drive -> "drive"
+        Folder -> settings.folderUri.orEmpty()
+        Relay -> "${settings.relayUrl}|${settings.relayPin}|${settings.relayAdmission}"
+    }
+
+    /** Whether this way points at the same place in [a] and [b]. */
+    fun sameIn(a: PhoneSyncSettings, b: PhoneSyncSettings): Boolean = fingerprint(a) == fingerprint(b)
+
     companion object {
         fun live(settings: PhoneSyncSettings): List<SyncMethod> = entries.filter { it.isLive(settings) }
 

@@ -427,6 +427,7 @@ fun MainScreen(
                                     onSyncDriveNow = viewModel::syncDriveNow,
                                     onSyncRelayNow = viewModel::syncRelayNow,
                                     onCancelSyncOff = viewModel::cancelSyncOff,
+                                    turnOffWaits = viewModel::turnOffWaits,
                                 ),
                                 watch = WatchSectionState(watchSettings, detectedWatches),
                                 watchActions = WatchSectionActions(
