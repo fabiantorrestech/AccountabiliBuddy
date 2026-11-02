@@ -310,10 +310,20 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun ownQrLinks(): List<String> = sync.ownQrLinks()
 
-    /** Saves the sharing settings; a change that turns a way of syncing off or elsewhere is refused during a focus session, and says why. */
+    /**
+     * Saves the sharing settings. A change that turns a way of syncing off or elsewhere is refused during a focus session, and says why; turning
+     * off the last way of syncing between sessions is held for 10 minutes ([syncOffPending]) and says when.
+     */
     fun saveSyncSettings(settings: PhoneSyncSettings) {
         sync.saveSettings(settings)?.let { message.value = it }
     }
+
+    /** The held turn-off of the last way of syncing, or null: the way's row says when it turns off and offers Cancel. */
+    val syncOffPending: kotlinx.coroutines.flow.StateFlow<com.accountabilibuddy.companion.sync.PendingSyncOff?> =
+        sync.offWait?.pending ?: kotlinx.coroutines.flow.MutableStateFlow<com.accountabilibuddy.companion.sync.PendingSyncOff?>(null)
+
+    /** Cancels the held turn-off (any time). */
+    fun cancelSyncOff() = sync.cancelPendingSyncOff()
 
     /** Apps seen setting alarms (id to name, newest first) for the wake-up alarm picker. */
     fun alarmApps(): List<Pair<String, String>> {

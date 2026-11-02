@@ -395,6 +395,9 @@ class CompanionApp : Application() {
         // ADR 54: removing a device writes the rekey file by these, and a new key clears the old group's files from them.
         sync.rekeyMethods = listOf(folderSource, driveSource, relaySource)
         sync.backgroundScope = appScope
+        // Turning off the last way of syncing waits 10 minutes (prefs "syncOff", so a restart does not skip it); applied here when due.
+        sync.offWait = com.accountabilibuddy.companion.sync.SyncOffWait(this).also { it.onStart = ::watchSyncOff }
+        watchSyncOff()
         // No escape hatches (ADR 54): removing devices, leaving and erasing a removed device's data wait for a PC focus session to end.
         sync.removalLockedReason = {
             if (com.accountabilibuddy.companion.placement.PlacementSession.current(this, java.time.Instant.now()) != null) {
@@ -636,6 +639,24 @@ class CompanionApp : Application() {
         appScope.launch {
             runCatching { driveSource.syncNow() }
             Refresher.refresh(this@CompanionApp)
+        }
+    }
+
+    private var syncOffWatch: kotlinx.coroutines.Job? = null
+
+    /**
+     * Applies a held turn-off of the last way of syncing when its wait is over and no focus session runs (retried every 30 s then; a wait that
+     * ends in a session applies after it). One watcher at a time; it ends when nothing is pending. A restart starts it again from the saved time.
+     */
+    fun watchSyncOff() {
+        syncOffWatch?.cancel()
+        syncOffWatch = appScope.launch {
+            while (true) {
+                val pending = sync.offWait?.pending?.value ?: break
+                val wait = java.time.Duration.between(java.time.Instant.now(), pending.at).toMillis().coerceIn(1_000L, 30_000L)
+                delay(wait)
+                sync.applyPendingSyncOff()
+            }
         }
     }
 

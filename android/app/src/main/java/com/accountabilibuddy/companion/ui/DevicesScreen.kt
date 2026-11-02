@@ -41,6 +41,11 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.sync.FolderStatus
+import com.accountabilibuddy.companion.sync.PendingSyncOff
+import com.accountabilibuddy.companion.sync.SyncMethod
+import com.accountabilibuddy.companion.sync.SyncOffWait
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.companion.ui.kit.ChangeWaitsSheet
 import com.accountabilibuddy.companion.sync.PhoneSyncSettings
 import com.accountabilibuddy.companion.sync.ReceivedDevice
 import com.accountabilibuddy.companion.sync.RemovedDevice
@@ -86,6 +91,8 @@ data class DevicesState(
     val removalLocked: String? = null,
     /** This phone's own app version, for its row ("AB 3.4.2 · …"); blank when not known. */
     val appVersion: String = "",
+    /** The held turn-off of the last way of syncing (10 minutes), or null: its row says when it turns off and offers Cancel. */
+    val syncOffPending: PendingSyncOff? = null,
 )
 
 /** Devices & sync's actions. */
@@ -108,6 +115,8 @@ data class DevicesActions(
     val onDriveSignInResult: (android.content.Intent?) -> Unit = {},
     val onSyncDriveNow: () -> Unit = {},
     val onSyncRelayNow: () -> Unit = {},
+    /** Cancels the held turn-off of the last way of syncing. */
+    val onCancelSyncOff: () -> Unit = {},
 )
 
 private enum class DevicesDialog { Scan, Picture, LinkDevice, Leave }
@@ -135,6 +144,12 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
     val detectedIds = page.watch.detected.map { it.id }.toSet()
     // During a focus session a way of syncing that is on can't be turned off or pointed elsewhere (turning one on stays allowed).
     val locked = devices.removalLocked
+    // Turning off the LAST way that brings the PC's file waits 10 minutes (asked first, in a sheet); one of several turns off at once.
+    var askOff by remember { mutableStateOf<SyncMethod?>(null) }
+    val pendingOff = devices.syncOffPending
+    fun requestOff(method: SyncMethod) {
+        if (SyncMethod.live(settings) == listOf(method)) askOff = method else actions.onSettings(method.turnedOff(settings))
+    }
 
     val rows = buildList {
         add(PageRow(SettingsAnchors.DEVICES) {
@@ -149,21 +164,31 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
                     // Each is its own switch: several may be on at once (the sync files are the same for all of them).
                     AbToggleRow(
                         "Google Drive", settings.driveOn,
-                        { on -> if (on) signIn() else actions.onSettings(settings.copy(driveOn = false)) },
-                        subtitle = "Works anywhere · every 30 s in a session, else 15 min", enabled = devices.joined && !(settings.driveOn && locked != null),
+                        { on -> if (on) signIn() else requestOff(SyncMethod.Drive) },
+                        subtitle = "Works anywhere · every 30 s in a session, else 15 min",
+                        enabled = devices.joined && !(settings.driveOn && locked != null) && pendingOff?.method != SyncMethod.Drive,
                     )
+                    PendingOffRow(pendingOff, SyncMethod.Drive, zone, locked != null, actions.onCancelSyncOff)
                     AbToggleRow(
                         "Shared folder", settings.folderOn,
-                        { on -> if (on && settings.folderUri == null) pickFolder.launch(null) else actions.onSettings(settings.copy(folderOn = on)) },
-                        subtitle = "A folder another app keeps in step (Autosync, Syncthing)", enabled = devices.joined && !(settings.folderOn && locked != null),
+                        { on ->
+                            if (!on) requestOff(SyncMethod.Folder)
+                            else if (settings.folderUri == null) pickFolder.launch(null)
+                            else actions.onSettings(settings.copy(folderOn = true))
+                        },
+                        subtitle = "A folder another app keeps in step (Autosync, Syncthing)",
+                        enabled = devices.joined && !(settings.folderOn && locked != null) && pendingOff?.method != SyncMethod.Folder,
                     )
+                    PendingOffRow(pendingOff, SyncMethod.Folder, zone, locked != null, actions.onCancelSyncOff)
                     AbToggleRow(
                         "Own relay", settings.relayOn,
                         { on ->
-                            if (!on) actions.onSettings(settings.copy(relayOn = false)) else relayFields.checked(settings)?.let { actions.onSettings(it.copy(relayOn = true)) }
+                            if (!on) requestOff(SyncMethod.Relay) else relayFields.checked(settings)?.let { actions.onSettings(it.copy(relayOn = true)) }
                         },
-                        subtitle = "A relay you run · about a second in a session", enabled = devices.joined && !(settings.relayOn && locked != null),
+                        subtitle = "A relay you run · about a second in a session",
+                        enabled = devices.joined && !(settings.relayOn && locked != null) && pendingOff?.method != SyncMethod.Relay,
                     )
+                    PendingOffRow(pendingOff, SyncMethod.Relay, zone, locked != null, actions.onCancelSyncOff)
                 }
                 // Why the switch did not move: the relay's address, pin or key did not pass (shown here, where the switch is).
                 relayFields.error?.let { Text(it, style = Ab.type.small, color = Ab.colors.drift, modifier = Modifier.padding(horizontal = 4.dp)) }
@@ -272,6 +297,18 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
         DevicesBottomBar(page.syncNow, canAdd = devices.joined, onAdd = { dialog = DevicesDialog.LinkDevice })
     }
 
+    askOff?.let { method ->
+        ChangeWaitsSheet(
+            title = "Turn off ${method.label}?",
+            body = "It is your last way of syncing, so this waits ${SyncOffWait.WAIT.toMinutes()} minutes. If you still want it then, it turns off on its own. " +
+                "Until then this phone keeps syncing.",
+            appliesAt = Instant.now().plus(SyncOffWait.WAIT),
+            about = true,
+            onQueue = { actions.onSettings(method.turnedOff(settings)) },
+            onDismiss = { askOff = null },
+        )
+    }
+
     when (dialog) {
         DevicesDialog.Scan -> InfoSheet(
             "Scan the PC's codes",
@@ -303,6 +340,20 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
             Text("This phone stops sharing, and what came from your other devices is removed from it.", style = Ab.type.bodyMedium, color = Ab.colors.ink)
         }
         null -> Unit
+    }
+}
+
+/** Under a way's switch while its turn-off waits: "Turns off at 4:05 PM" and Cancel (the way stays on until then). */
+@Composable
+private fun PendingOffRow(pending: PendingSyncOff?, method: SyncMethod, zone: ZoneId, inSession: Boolean, onCancel: () -> Unit) {
+    if (pending?.method != method) return
+
+    // A wait that ended in a focus session applies when the session ends.
+    val text = if (inSession && !pending.at.isAfter(Instant.now())) "Turns off when your session ends" else "Turns off at ${DevicesModel.clockText(pending.at, zone)}"
+
+    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(text, style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.weight(1f))
+        AbTextButton("Cancel", onClick = onCancel)
     }
 }
 

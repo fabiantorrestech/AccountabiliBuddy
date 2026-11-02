@@ -83,6 +83,9 @@ object DevicesModel {
         return StaleNote(oldest.name, " hasn't synced since $time. It catches up next time it's opened." + if (more > 0) " $more more are behind too." else "")
     }
 
+    /** "4:05 PM": a time of day in 12-hour, whatever the system says. */
+    fun clockText(at: Instant, zone: ZoneId): String = CLOCK.format(at.atZone(zone))
+
     private fun kindName(kind: String): String = when (kind) {
         SyncDeviceCard.KIND_PC -> "PC"
         SyncDeviceCard.KIND_WATCH -> "Watch"

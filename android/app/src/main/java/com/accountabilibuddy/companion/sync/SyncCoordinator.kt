@@ -92,17 +92,73 @@ class SyncCoordinator(
     val isJoined: Boolean
         get() = identity.key.value != null
 
+    /** The wait for turning off the last way of syncing (prefs "syncOff"); set by the app. Without it a turn-off applies at once. */
+    var offWait: SyncOffWait? = null
+
     /**
-     * Saves the sharing settings. Null when saved; otherwise why not: during a focus session the user started a way of syncing may be turned
-     * on but never off or pointed somewhere else ([PhoneSyncSettings.narrowedBy], [removalLockedReason]), so a frozen session can still be recovered.
+     * Saves the sharing settings. Null when saved as asked; otherwise a line for the user: why not, or when a held turn-off happens.
+     * - During a focus session the user started a way of syncing may be turned on but never off or pointed somewhere else
+     *   ([PhoneSyncSettings.narrowedBy], [removalLockedReason]), so a frozen session can still be recovered.
+     * - Between sessions turning off the LAST way that brings the PC's file ([SyncMethod]: shared folder, Drive, own relay) is a looser change:
+     *   it is held for [SyncOffWait.WAIT] with the way still on, and applied by [applyPendingSyncOff]. Turning off one of several, turning
+     *   a way on, QR codes, Sync files and every other field apply at once.
+     * - A way turned on while a turn-off waits makes that turn-off no longer the last one: it applies at once (or after the session).
      */
+    @Synchronized
     fun saveSettings(settings: PhoneSyncSettings): String? {
-        if (settingsStore.settings.value.narrowedBy(settings)) {
+        val current = settingsStore.settings.value
+        if (current.narrowedBy(settings)) {
             removalLockedReason()?.let { return it }
         }
 
-        settingsStore.save(settings)
-        return null
+        var toSave = settings
+        var note: String? = null
+        val wait = offWait
+        val before = SyncMethod.live(current)
+        val after = SyncMethod.live(settings)
+        if (wait != null && before.isNotEmpty() && after.isEmpty()) {
+            val held = before.last()
+            toSave = held.keptOn(settings, current)
+            val pending = wait.start(held, now())
+            note = "${held.label} turns off at ${CLOCK.format(pending.at.atZone(java.time.ZoneId.systemDefault()))}"
+        }
+
+        settingsStore.save(toSave)
+        applyPendingSyncOff()
+        return note
+    }
+
+    /** Drops a held turn-off: the way simply stays on. Allowed at any time. */
+    fun cancelPendingSyncOff() {
+        offWait?.cancel()
+    }
+
+    /**
+     * Turns off the way whose wait is over, once no focus session runs (a wait that ends in a session applies after it). Also applies it at once
+     * when another way is on, since it is no longer the last. True when something was applied.
+     */
+    @Synchronized
+    fun applyPendingSyncOff(time: Instant = now()): Boolean {
+        val wait = offWait ?: return false
+        val pending = wait.pending.value ?: return false
+        val current = settingsStore.settings.value
+        if (!pending.method.isLive(current)) {
+            wait.cancel()
+            return false
+        }
+
+        if (removalLockedReason() != null) {
+            return false
+        }
+
+        val another = SyncMethod.live(current).any { it != pending.method }
+        if (!another && time.isBefore(pending.at)) {
+            return false
+        }
+
+        settingsStore.save(pending.method.turnedOff(current))
+        wait.cancel()
+        return true
     }
 
     /** The group's link code (to show so another device joins); null outside a group. */
@@ -779,3 +835,6 @@ class SyncCoordinator(
         const val REMOVED_DEVICE = "This file is from a device that was removed from your device group."
     }
 }
+
+// "4:05 PM": 12-hour whatever the system says.
+private val CLOCK: java.time.format.DateTimeFormatter = java.time.format.DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.US)

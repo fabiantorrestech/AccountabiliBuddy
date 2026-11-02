@@ -81,6 +81,7 @@ fun MainScreen(
     // The guard settings are view-only while a focus session runs; null otherwise. Looked at again every few seconds.
     val guardsLock by viewModel.guardsLock.collectAsStateWithLifecycle()
     val removeState by viewModel.removeDevice.state.collectAsStateWithLifecycle()
+    val syncOffPending by viewModel.syncOffPending.collectAsStateWithLifecycle()
     val restoreState by viewModel.restoreBackup.state.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
     var nudgeRepeat by remember { mutableIntStateOf(com.accountabilibuddy.companion.notify.WorkStartNudge.repeatMinutes(context)) }
@@ -408,6 +409,7 @@ fun MainScreen(
                                     removed = removedDevices,
                                     removalLocked = removalLocked,
                                     appVersion = appVersion,
+                                    syncOffPending = syncOffPending,
                                 ),
                                 actions = DevicesActions(
                                     onRemoveDevice = viewModel::openRemoveDevice,
@@ -424,6 +426,7 @@ fun MainScreen(
                                     onDriveSignInResult = viewModel::finishDriveSignIn,
                                     onSyncDriveNow = viewModel::syncDriveNow,
                                     onSyncRelayNow = viewModel::syncRelayNow,
+                                    onCancelSyncOff = viewModel::cancelSyncOff,
                                 ),
                                 watch = WatchSectionState(watchSettings, detectedWatches),
                                 watchActions = WatchSectionActions(
