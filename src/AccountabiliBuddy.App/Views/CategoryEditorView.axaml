@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              x:Class="AccountabiliBuddy.App.Views.CategoryEditorView"
              x:DataType="vm:CategoryEditorViewModel">
@@ -12,7 +13,7 @@
         <ItemsControl ItemsSource="{Binding Rows}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:TaskCategoryRowViewModel">
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6" Margin="0,2">
+                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="6" Margin="0,2">
                         <ComboBox ItemsSource="{Binding Colors}" SelectedItem="{Binding SelectedColor}" MinWidth="0"
                                   AutomationProperties.Name="Colour">
                             <ComboBox.ItemTemplate>
@@ -27,8 +28,21 @@
                                 <KeyBinding Gesture="Enter" Command="{Binding SaveNameCommand}" />
                             </TextBox.KeyBindings>
                         </TextBox>
-                        <Button Grid.Column="2" Classes="quiet" Content="✕" Command="{Binding DeleteCommand}" Padding="8,4" ToolTip.Tip="Delete this category"
-                                AutomationProperties.Name="Delete this category" />
+                        <Button Grid.Column="2" Classes="quiet" Command="{Binding AskDeleteCommand}" Padding="8,4" ToolTip.Tip="Delete this category"
+                                AutomationProperties.Name="Delete this category">
+                            <mi:MaterialIcon Kind="Close" Width="14" Height="14" />
+                        </Button>
+                        <!-- The delete question: always asked, with how many items lose the category. -->
+                        <Border Grid.Row="1" Grid.ColumnSpan="3" IsVisible="{Binding IsConfirmingDelete}" Margin="0,2,0,4" Padding="10,8" CornerRadius="10"
+                                BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{Binding ConfirmText}" TextWrapping="Wrap" FontSize="13" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Classes="quiet" Content="Delete" Command="{Binding DeleteCommand}" AutomationProperties.Name="Confirm delete" />
+                                    <Button Classes="quiet" Content="Keep it" Command="{Binding CancelDeleteCommand}" AutomationProperties.Name="Keep this category" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
