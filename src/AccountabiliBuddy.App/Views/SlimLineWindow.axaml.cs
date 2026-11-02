@@ -36,7 +36,12 @@ public partial class SlimLineWindow : Window
 
             Reposition();
         };
-        SizeChanged += (_, _) => UpdateLine();
+        SizeChanged += (_, _) =>
+        {
+            // Windows may have made the window taller than asked (see Reposition), which only shows once it is sized.
+            Reposition();
+            UpdateLine();
+        };
     }
 
     public void Apply(PixelBox monitor)
@@ -61,7 +66,11 @@ public partial class SlimLineWindow : Window
         double scale = DesktopScaling;
         Width = _monitor.Width / scale;
         Height = HeightDips;
-        Position = new PixelPoint(_monitor.Left, _monitor.Bottom - (int)Math.Ceiling(HeightDips * scale));
+        // Windows will not size a window below its minimum track height (about 56 px at 150%), so the real window can be taller than the 26 dips
+        // asked for. The line and the minutes sit at the window's bottom edge, so what has to hold is that edge: place the window by the height it
+        // really has, not the height it was asked for.
+        double realDips = Math.Max(HeightDips, (FrameSize ?? ClientSize).Height);
+        Position = new PixelPoint(_monitor.Left, _monitor.Bottom - (int)Math.Ceiling(realDips * scale));
         if (TryGetPlatformHandle() is IPlatformHandle handle)
         {
             _control.KeepOnTop(handle.Handle);
