@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Debug builds only: writes a sample night into Health Connect to test reading it on an emulator. -->
+<!-- Debug builds only: a sample night for Health Connect, and the demo-data seeder for screenshots. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.health.WRITE_SLEEP" />
 
@@ -9,6 +9,14 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="com.accountabilibuddy.companion.debug.SAMPLE_SLEEP" />
+            </intent-filter>
+        </receiver>
+        <!-- Made-up data for screenshots on an emulator: the extra "mode" is idle, session or clear (see DemoSeeder). -->
+        <receiver
+            android:name=".debug.DemoSeedReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.accountabilibuddy.companion.debug.SEED" />
             </intent-filter>
         </receiver>
     </application>
