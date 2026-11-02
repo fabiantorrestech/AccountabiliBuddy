@@ -204,7 +204,7 @@ private fun PlanEditStatus(pending: PendingDayPlan, onEdit: (() -> Unit)?, onDis
 /** Under the bar, like the PC's legend: each total with a dot in its colour on the bar. */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun FocusLegend(entries: List<LegendEntry>) {
+internal fun FocusLegend(entries: List<LegendEntry>) {
     if (entries.isEmpty()) {
         return
     }

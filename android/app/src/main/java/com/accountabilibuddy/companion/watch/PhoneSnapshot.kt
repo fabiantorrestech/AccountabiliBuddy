@@ -82,7 +82,7 @@ object PhoneSnapshot {
                 val running = file.running!!
                 val tasks = file.sessions.lastOrNull { it.end == null }?.tasks.orEmpty()
                 RunningSession(
-                    running.profile, running.phaseStartedAt, running.phaseEndsAt, running.isBreak,
+                    running.profile, running.phaseStartedAt, running.phaseEndAt(now), running.isBreak,
                     planningStartedAt = running.planningStartedAt, planningEndsAt = running.planningEndsAt,
                 ).withTasks(tasks, running.currentTask) to file.device.writtenAt
             }

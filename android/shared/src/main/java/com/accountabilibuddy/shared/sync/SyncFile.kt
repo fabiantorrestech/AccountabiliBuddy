@@ -374,7 +374,34 @@ data class SyncRunning(
      */
     fun isLiveAt(now: java.time.Instant, grace: java.time.Duration): Boolean =
         if (planningEndsAt != null) now.isBefore(planningEndsAt.plus(com.accountabilibuddy.shared.PlanningBound.after(phaseStartedAt, phaseEndsAt)))
-        else phaseEndsAt?.let { end -> now.isBefore(end.plus(grace)) } ?: true
+        else phaseEndAt(now)?.let { end -> now.isBefore(end.plus(grace)) } ?: true
+
+    /**
+     * The end of the phase as the PC will set it when the user is back: while stepped away ([awaySince]) the countdown is paused and
+     * the PC moves the phase's start and end forward by the time away only on return, so the file keeps the old end. This is that
+     * end moved forward by the time away so far, so a step away (or a lunch) that crosses the old end does not end the session for a
+     * phone. Without a step away it is [phaseEndsAt]; null for a session with no set end. A paused session never ends by the clock:
+     * what stops a PC that really went away from holding a phone is the age of its file (the same limit as a session with no set
+     * end, `SnapshotBuilder.NO_END_LIMIT`), see `isAwayOverdue`.
+     */
+    fun phaseEndAt(now: java.time.Instant): java.time.Instant? {
+        val end = phaseEndsAt ?: return null
+        val since = awaySince?.takeIf { it.isBefore(now) } ?: return end
+        return end.plus(java.time.Duration.between(since, now))
+    }
+
+    /**
+     * True when this session is stepped away, its old end ([phaseEndsAt], which the file keeps while away) has passed, and its file
+     * ([writtenAt], when the PC wrote it) is older than the limit for a session with no set end: a paused session has no end to run
+     * out, so a PC that stopped writing (off, asleep, gone) must not hold a phone's guards for good. Before the old end the age does
+     * not count, so stepping away never releases the phone earlier than a session that did not step away would be released (a PC
+     * with no sync method on writes no file while away); after it, the phone holds until the file is 30 minutes old, or the 12-hour
+     * limit on any file. The age includes delivery, so a healthy PC's file can briefly look old past the old end; the next file clears it.
+     */
+    fun isAwayOverdue(writtenAt: java.time.Instant, now: java.time.Instant): Boolean =
+        awaySince != null &&
+            (phaseEndsAt == null || !now.isBefore(phaseEndsAt)) &&
+            java.time.Duration.between(writtenAt, now) > com.accountabilibuddy.shared.SnapshotBuilder.NO_END_LIMIT
 }
 
 /**

@@ -5,7 +5,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
@@ -20,12 +19,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accountabilibuddy.companion.sync.PcFileControl
+import com.accountabilibuddy.companion.sync.RunningTasks
 import com.accountabilibuddy.companion.ui.shell.AppDestination
 import com.accountabilibuddy.companion.ui.shell.AppScaffold
 import com.accountabilibuddy.companion.ui.shell.rememberAppNav
@@ -163,6 +162,12 @@ fun MainScreen(
         // Hidden while the day plan editor is open (its own Save and Cancel lead out) and while the phone is unlinked (ADR 54):
         // that screen is the whole app until the user chooses. Every other screen, a running focus session included, has the bar.
         showNav = planDraft == null && unlinked == null,
+        // "Park a thought" sits above the bar on Today and Tasks only.
+        parkPill = if (nav.destination == AppDestination.Today || nav.destination == AppDestination.Tasks) {
+            { ParkPill() }
+        } else {
+            null
+        },
     ) { padding ->
         Column(Modifier.padding(padding)) {
             // ADR 54: removed from the group, or cut off by a removal. Nothing syncs and no other screen shows until the user chooses.
@@ -237,60 +242,62 @@ fun MainScreen(
                 label = "places",
             ) { shown ->
             when (shown.destination) {
-                AppDestination.Today -> Column {
-                    WhatsNewCard(appVersion, onSetUp = { whatsNewOpen = true }, onDismissed = { whatsNewTick++ })
-                    DayOffCard()
-                    LunchCard(
+                AppDestination.Today -> {
+                    val app = context.applicationContext as com.accountabilibuddy.companion.CompanionApp
+                    // The PC whose session Today shows: the controlled PC while it runs one, else any other linked PC with a live session
+                    // (so a running session is never "Nothing running"); with none running, the controlled PC for Start. Looked at
+                    // again with the bar's model (every 30 s) and when the files change.
+                    val todayPc = remember(controlPc, syncReceived, model, pcWaiting, runningTasks) {
+                        val now = java.time.Instant.now()
+                        fun running(d: com.accountabilibuddy.companion.sync.ReceivedDevice) = PcFileControl.liveRunning(d.file, now) != null
+                        val device = controlPc?.takeIf { running(it) } ?: PcFileControl.pcs(syncReceived).firstOrNull { running(it) } ?: controlPc
+                        TodayPc(
+                            name = device?.file?.device?.name,
+                            pcId = device?.file?.device?.deviceId,
+                            state = device?.let { PcFileControl.stateOf(it.file, now) },
+                            awaySince = device?.let { PcFileControl.liveRunning(it.file, now)?.awaySince },
+                            updateNeeded = device?.let { PcFileControl.updateNeeded(it.file.device) },
+                            waiting = pcWaiting?.takeIf { it.target == device?.file?.device?.deviceId },
+                            // The shown PC's own checklist (from its file), not the newest file's, so two running PCs each keep theirs.
+                            tasks = device?.let { d -> PcFileControl.stateOf(d.file, now).takeIf { it.isActive && it.tasks.isNotEmpty() } }
+                                ?.let { RunningTasks(device.file.device.name, it.tasks, it.currentTask) },
+                        )
+                    }
+                    val todayLunch = TodayLunch(
                         workday = state.document.dayPlan.isWorkday(java.time.LocalDate.now()),
                         flex = state.document.dayPlan.flexibleBreakOn(java.time.LocalDate.now()),
                         fixed = state.document.dayPlan.fixedLunchOn(java.time.LocalDate.now()),
                         taken = lunchTaken?.takeIf { it.start.atZone(java.time.ZoneId.systemDefault()).toLocalDate() == java.time.LocalDate.now() },
                         lengthMinutes = lunchLength,
-                        clock = viewModel.clock,
-                        onStart = { (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.start() },
-                        onBack = { (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.endNow() },
-                        onAdjust = { longer -> (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.adjust(longer) },
+                        onStart = { app.lunch.start() },
+                        onBack = { app.lunch.endNow() },
+                        onAdjust = { longer -> app.lunch.adjust(longer) },
                     )
-                    TodayScreen(
-                        state, model, viewModel.clock, onPickFile,
-                        showsPcCard = true,
-                        pcCard = {
-                            val pc = controlPc
-                            if (pc == null) {
-                                PcMissingCard()
-                            } else {
-                                PcFileCard(
-                                    pcName = pc.file.device.name,
-                                    state = PcFileControl.stateOf(pc.file, java.time.Instant.now()),
-                                    writtenAt = pc.file.device.writtenAt,
-                                    updateNeeded = PcFileControl.updateNeeded(pc.file.device),
-                                    waiting = pcWaiting?.takeIf { it.target == pc.file.device.deviceId },
-                                    clock = viewModel.clock,
-                                    onStart = viewModel::startOnPc,
-                                    onEndEarly = viewModel::beginEndEarly,
-                                    onCancelWaiting = viewModel::cancelPcWaiting,
-                                    // Worked out again when the bar's model ticks or the plan changes.
-                                    pace = remember(model, state.document.dayPlan) {
-                                        BudgetPaceLine.today(context.applicationContext as com.accountabilibuddy.companion.CompanionApp, java.time.LocalDateTime.now())
-                                    },
-                                )
-                            }
-                        },
+                    TodayPane(
+                        state = state, model = model, clock = viewModel.clock,
+                        pc = todayPc,
+                        comebacks = comebacks,
+                        phoneUsage = phoneUsage,
+                        guardsLock = guardsLock,
+                        guardOn = !com.accountabilibuddy.companion.pause.PauseRules.isQuiet(pauseState),
+                        lunch = todayLunch,
                         beeminder = beeminder,
-                        timersCard = {
-                            TimersCard((context.applicationContext as com.accountabilibuddy.companion.CompanionApp).timers, viewModel.clock)
-                        },
                         // The noise player (it was a bar above the tabs): a card once a sound folder is set; the folder is chosen
                         // in Settings › Alerts & on-screen.
                         noiseCard = if (noiseState.hasFolder) {
-                            {
-                                androidx.compose.foundation.layout.Box(Modifier.clip(RoundedCornerShape(16.dp))) {
-                                    NoiseBar(noiseState, noiseSettings, noise)
-                                }
-                            }
+                            { NoiseCard(noiseState, noiseSettings, noise) }
                         } else {
                             null
                         },
+                        actions = TodayActions(
+                            onStartOnPc = viewModel::startOnPc,
+                            onEndEarly = { viewModel.beginEndEarly(todayPc.pcId) },
+                            onCancelWaiting = { viewModel.cancelPcWaiting(todayPc.pcId) },
+                            onImport = onPickFile,
+                            onOpenDevices = { nav.open(AppDestination.Settings, SettingsCategory.Devices.key) },
+                            onOpenTasks = { nav.select(AppDestination.Tasks) },
+                            onAllowUsage = onAllowUsage,
+                        ),
                         syncLight = {
                             // The light reads the group's files and the methods' last results; the alarm apps are not needed here.
                             val lightDevices = remember(viewModel.deviceName, syncKey, syncSettings, syncReceived, folderStatus, driveStatus, relayStatus) {
@@ -307,6 +314,7 @@ fun MainScreen(
                                 onOpenDevices = { nav.open(AppDestination.Settings, SettingsCategory.Devices.key) },
                             )
                         },
+                        banner = { WhatsNewCard(appVersion, onSetUp = { whatsNewOpen = true }, onDismissed = { whatsNewTick++ }) },
                     )
                 }
                 AppDestination.Tasks -> TasksScreen(runningTasks = runningTasks, comebacks = comebacks)

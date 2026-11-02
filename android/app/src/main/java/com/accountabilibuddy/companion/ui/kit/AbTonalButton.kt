@@ -29,12 +29,12 @@ fun AbTonalButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
         contentColor = if (enabled) colors.ink else colors.faint,
     ) {
         Row(
-            Modifier.heightIn(min = 52.dp).padding(horizontal = 24.dp),
+            Modifier.heightIn(min = 52.dp).padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         ) {
             if (icon != null) Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
-            Text(text, style = Ab.type.body, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(text, style = Ab.type.body, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
     }
 }

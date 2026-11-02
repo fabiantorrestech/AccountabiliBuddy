@@ -1,7 +1,6 @@
 package com.accountabilibuddy.companion.ui
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
@@ -14,7 +13,7 @@ import com.accountabilibuddy.companion.engine.DayBarModel
 /** The day bar on screen, drawn by the same painter as the widget and the notification. */
 @Composable
 fun DayBar(model: DayBarModel, modifier: Modifier = Modifier, compact: Boolean = false) {
-    val dark = isSystemInDarkTheme()
+    val dark = com.accountabilibuddy.companion.ui.theme.Ab.colors.isDark
     Canvas(modifier.fillMaxWidth().height(DayBarPainter.heightDp(compact).dp)) {
         drawIntoCanvas { canvas ->
             DayBarPainter.draw(canvas.nativeCanvas, model, size.width, density, dark, compact)

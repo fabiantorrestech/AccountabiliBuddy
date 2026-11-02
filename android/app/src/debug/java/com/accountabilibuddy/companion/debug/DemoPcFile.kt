@@ -36,6 +36,9 @@ import kotlin.random.Random
 object DemoPcFile {
     val DEVICE_ID: UUID = UUID.nameUUIDFromBytes("demo-work-pc".toByteArray())
 
+    /** The idle second PC of the `twopc` mode. */
+    val SECOND_DEVICE_ID: UUID = UUID.nameUUIDFromBytes("demo-desk-pc".toByteArray())
+
     private const val DAYS_OF_HISTORY = 60L
 
     // Newer than every version check the phone makes (remote control, noise, task edits), so the cards offer their buttons.
@@ -51,16 +54,41 @@ object DemoPcFile {
     val LATER_IDS = (1..3).map { UUID.nameUUIDFromBytes("demo-later-$it".toByteArray()).toString() }
 
     /** Every day follows the Workday template, so "today" always has a plan, whatever the weekday. */
-    val DAY_PLAN: DayPlan = DayPlan.fromWorkdayAndOffDay(
-        DayPlan.Default.categories, DayOfWeek.entries.toSet(), DayPlan.Default.workday, DayPlan.Default.workday,
-    )
+    val DAY_PLAN: DayPlan = dayPlan("schedule")
 
-    fun build(now: Instant, withSession: Boolean, methods: List<String>): SyncFile {
+    /**
+     * The demo plan by kind of day (ADR 47): `schedule` (the default), `budget` (4 hours to do, in the waking day), `free` (nothing
+     * guarded) or `dayoff` (no work blocks). Every day of the week follows it, so today always has this kind.
+     */
+    fun dayPlan(kind: String): DayPlan {
+        val workday = DayPlan.Default.workday
+        return when (kind) {
+            "budget" -> DayPlan.fromWorkdayAndOffDay(DayPlan.Default.categories, DayOfWeek.entries.toSet(), workday.copy(mode = com.accountabilibuddy.companion.model.DayMode.Budget, budgetMinutes = 240), workday)
+            "free" -> DayPlan.fromWorkdayAndOffDay(DayPlan.Default.categories, DayOfWeek.entries.toSet(), workday.copy(mode = com.accountabilibuddy.companion.model.DayMode.Free), workday)
+            "dayoff" -> DayPlan.fromWorkdayAndOffDay(DayPlan.Default.categories, emptySet(), workday, DayPlan.Default.workday.copy(parts = DayPlan.Default.workday.parts.filter { it.categoryId == DayPlan.Default.categories.first { c -> c.behavior == com.accountabilibuddy.companion.model.CategoryBehavior.Sleep }.id }))
+            else -> DayPlan.fromWorkdayAndOffDay(DayPlan.Default.categories, DayOfWeek.entries.toSet(), workday, workday)
+        }
+    }
+
+    fun build(now: Instant, withSession: Boolean, methods: List<String>, planning: Boolean = false, dayKind: String = "schedule", away: Boolean = false, pastOldEnd: Boolean = false, longSession: Boolean = false): SyncFile {
         val sessions = history(now).toMutableList()
-        val running = if (withSession) {
-            val start = now.minus(Duration.ofMinutes(25))
+        val running = if (withSession && planning) {
+            // The PC's planning stage: 2 minutes in, 4 left, then a 50-minute focus phase; no tasks picked yet.
+            val planStart = now.minus(Duration.ofMinutes(2))
+            val planEnd = now.plus(Duration.ofMinutes(4))
+            sessions += SyncSession(planStart, null, "Deep work", false, emptyList())
+            SyncRunning(
+                "Deep work", planEnd, planEnd.plus(Duration.ofMinutes(50)), false, null, profileId = DEEP_WORK_ID.toString(),
+                planningStartedAt = planStart, planningEndsAt = planEnd,
+            )
+        } else if (withSession) {
+            // [pastOldEnd]: stepped away 30 minutes ago, 5 minutes after the phase's (unmoved) end: the PC keeps the old end in its file.
+            val start = now.minus(Duration.ofMinutes(if (pastOldEnd) 60 else 25))
+            // [longSession]: a 90-minute session that began 5 minutes before the file was written, so its old end is far ahead.
+            val end = if (pastOldEnd) now.minus(Duration.ofMinutes(5)) else if (longSession) now.plus(Duration.ofMinutes(85)) else start.plus(Duration.ofMinutes(50))
+            val awayAt = if (pastOldEnd) now.minus(Duration.ofMinutes(30)) else now.minus(Duration.ofMinutes(3))
             sessions += SyncSession(start, null, "Deep work", false, runningTasks(now))
-            SyncRunning("Deep work", start, start.plus(Duration.ofMinutes(50)), false, null, currentTask = "demo-task-2", profileId = DEEP_WORK_ID.toString())
+            SyncRunning("Deep work", start, end, false, awayAt.takeIf { away }, currentTask = "demo-task-2", profileId = DEEP_WORK_ID.toString())
         } else {
             null
         }
@@ -72,7 +100,7 @@ object DemoPcFile {
             device = SyncDeviceCard(DEVICE_ID, DEMO_PC_NAME, SyncDeviceCard.KIND_PC, PC_VERSION, now, methods, false, emptyMap()),
             sessions = sessions,
             drift = drift(sessions),
-            dayPlan = SyncDayPlan(DayPlanJson.write(DAY_PLAN).toString(), "demo-plan-1", planEditedAt, "demo-plan-1"),
+            dayPlan = SyncDayPlan(DayPlanJson.write(dayPlan(dayKind)).toString(), "demo-plan-$dayKind", planEditedAt, "demo-plan-$dayKind"),
             documents = listOf(SyncDocument(SyncDocument.PROFILES_KEY, profilesJson(), planEditedAt)),
             coversFrom = now.minus(Duration.ofDays(DAYS_OF_HISTORY)),
             comebacks = parked.filter { it.doneAt == null }.map { SyncComeback(it.id, it.text, it.createdAt) },

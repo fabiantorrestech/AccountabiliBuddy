@@ -14,7 +14,8 @@ import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
+import com.accountabilibuddy.companion.ui.kit.AbCard
+import com.accountabilibuddy.companion.ui.theme.Ab
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -71,15 +72,15 @@ fun TimersCard(store: TimersStore, clock: ClockFormat) {
     var editingAlarm by remember { mutableStateOf<AlarmItem?>(null) }
     var addingAlarm by remember { mutableStateOf(false) }
 
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    AbCard(verticalSpacing = 8.dp) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             IconTitle("Timers", style = MaterialTheme.typography.titleMedium)
             QuickTimers(onPreset = { minutes -> store.addTimer(TimerItem.DEFAULT_NAME, minutes * 60_000L) }, onCustom = { addingTimer = true })
             timers.forEach { timer -> TimerRow(timer, now, store, onEdit = { editingTimer = timer }) }
 
             IconTitle("Alarms", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             alarms.forEach { alarm -> AlarmRow(alarm, clock, store, onEdit = { editingAlarm = alarm }) }
-            TextButton(onClick = { addingAlarm = true }) { Text("Add alarm") }
+            TextButton(onClick = { addingAlarm = true }) { Text("Add alarm", color = Ab.colors.ink) }
         }
     }
 

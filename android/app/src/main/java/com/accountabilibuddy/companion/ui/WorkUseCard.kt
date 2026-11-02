@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
+import com.accountabilibuddy.companion.ui.kit.AbCard
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
+import com.accountabilibuddy.companion.ui.theme.Ab
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -46,31 +48,31 @@ fun WorkUseCard() {
     val session = PlacementSession.current(app, now)?.takeUnless { it.onBreak } ?: return
     val active = app.workUse.active(now)
     val uses = app.workUse.usesIn(session.start)
-    Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    AbCard {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 if (active != null) {
                     val until = ClockFormat(is24Hour = false).time(LocalDateTime.ofInstant(active.end, ZoneId.systemDefault()))
-                    Text("Work use until $until", style = MaterialTheme.typography.bodyLarge)
+                    Text("Work use until $until", style = Ab.type.body, color = Ab.colors.ink)
                 } else {
-                    Text("Need the phone for work?", style = MaterialTheme.typography.bodyLarge)
+                    Text("Need the phone for work?", style = Ab.type.body, color = Ab.colors.ink)
                     Text(
                         if (uses == 0) "A call, 2FA or a work app. Say what for and how long."
                         else "Used $uses ${if (uses == 1) "time" else "times"} in this session.",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = Ab.type.small, color = Ab.colors.muted,
                     )
                 }
             }
             if (active != null) {
-                OutlinedButton(onClick = {
+                AbTonalButton("Done", onClick = {
                     app.workUse.endNow()
                     app.workUseChanged()
                     now = Instant.now()
-                }) { Text("Done") }
+                })
             } else {
-                OutlinedButton(onClick = {
+                AbTonalButton("Need it for work", onClick = {
                     context.startActivity(Intent(context, WorkUseActivity::class.java))
-                }) { Text("Need it for work") }
+                })
             }
         }
     }
