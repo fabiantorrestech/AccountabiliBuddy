@@ -2,6 +2,8 @@ package com.accountabilibuddy.companion.ui.tasks
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextDecoration
@@ -81,8 +86,36 @@ private fun TaskDetailSheetBody(
     // What the sheet opened with, and the copy being edited. A commit writes the difference and moves the base up to the copy.
     var base by remember { mutableStateOf(detail.fields) }
     var draft by remember { mutableStateOf(detail.fields) }
+    // A step typed in "Add a step" and not yet added still goes in when the sheet closes (the field keeps its text here).
+    val newStep = remember { mutableStateOf("") }
+    var stepsChangedElsewhere by remember { mutableStateOf(false) }
+
+    // The task as the lists have it now (a sync can change it while the sheet is open). A field the user has not touched follows it;
+    // a field they are editing keeps their edit. Steps are written as one list, so when the user has edited the steps and another
+    // device changed them too, the sheet says that saving replaces them.
+    LaunchedEffect(detail.fields) {
+        val live = detail.fields
+        if (live == base) return@LaunchedEffect
+        stepsChangedElsewhere = draft.steps != base.steps && live.steps != base.steps
+        fun <T> follow(held: T, edited: T, now: T): Pair<T, T> = if (edited == held) now to now else held to edited
+        val title = follow(base.title, draft.title, live.title)
+        val steps = follow(base.steps, draft.steps, live.steps)
+        val estimate = follow(base.estimateMinutes, draft.estimateMinutes, live.estimateMinutes)
+        val note = follow(base.note, draft.note, live.note)
+        val category = follow(base.category to base.categoryColor, draft.category to draft.categoryColor, live.category to live.categoryColor)
+        val due = follow(base.dueOn, draft.dueOn, live.dueOn)
+        base = TaskFields(title.first, steps.first, estimate.first, note.first, category.first.first, category.first.second, due.first)
+        draft = TaskFields(title.second, steps.second, estimate.second, note.second, category.second.first, category.second.second, due.second)
+    }
+
     fun commit() {
+        if (newStep.value.isNotBlank()) {
+            draft = draft.copy(steps = TaskSteps.added(draft.steps, newStep.value))
+            newStep.value = ""
+        }
+
         if (draft != base) {
+            stepsChangedElsewhere = false
             val before = base
             base = draft
             commitTo(before, draft)
@@ -117,7 +150,12 @@ private fun TaskDetailSheetBody(
                 }
             }
 
+            actions.onMarkDone?.let { run -> AbTonalButton("Mark done", onClick = { closeAfter(run) }, icon = Icons.Outlined.Check, modifier = Modifier.fillMaxWidth()) }
+
             AbSectionLabel("Steps")
+            if (stepsChangedElsewhere) {
+                Text("The steps changed on another device. Saving your step edits replaces them.", style = Ab.type.small, color = Ab.colors.waiting)
+            }
             val liveDone = detail.fields.steps.associate { it.id to it.isDone }
             draft.steps.forEachIndexed { index, step ->
                 val done = if (running) liveDone[step.id] == true || step.id in detail.sendingSteps else step.isDone
@@ -134,7 +172,7 @@ private fun TaskDetailSheetBody(
                     onDelete = { change(draft.copy(steps = TaskSteps.removed(draft.steps, step.id))) },
                 )
             }
-            AddField("Add a step", onSubmit = { text -> change(draft.copy(steps = TaskSteps.added(draft.steps, text))) })
+            AddField("Add a step", onSubmit = { text -> change(draft.copy(steps = TaskSteps.added(draft.steps, text))) }, typed = newStep)
 
             if (detail.editsDetails) {
                 AbSectionLabel("Estimate")
@@ -152,7 +190,6 @@ private fun TaskDetailSheetBody(
             detail.pcNote?.let { Text(it, style = Ab.type.small, color = colors.muted) }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                actions.onMarkDone?.let { run -> AbTonalButton("Mark done", onClick = { closeAfter(run) }, icon = Icons.Outlined.Check, modifier = Modifier.fillMaxWidth()) }
                 actions.onAddToToday?.let { run -> AbTonalButton("Move to This session", onClick = { closeAfter(run) }, icon = Icons.Outlined.CalendarToday, modifier = Modifier.fillMaxWidth()) }
                 actions.onMoveToLater?.let { run -> AbTonalButton("Move to Later", onClick = { closeAfter(run) }, icon = Icons.Outlined.Schedule, modifier = Modifier.fillMaxWidth()) }
                 actions.onDelete?.let { run -> AbTonalButton("Delete", onClick = { closeAfter(run) }, icon = Icons.Outlined.Delete, modifier = Modifier.fillMaxWidth()) }
@@ -175,10 +212,12 @@ private fun StepRow(
     onDelete: () -> Unit,
 ) {
     val colors = Ab.colors
-    AbInsetRow(contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 12.dp, end = 0.dp, top = 2.dp, bottom = 2.dp)) {
-        Row(
-            Modifier.clickable(enabled = canToggle, role = Role.Checkbox, onClick = onToggle).padding(vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    AbInsetRow(contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 4.dp, end = 0.dp, top = 2.dp, bottom = 2.dp)) {
+        Box(
+            Modifier.size(width = 44.dp, height = 48.dp)
+                .clickable(enabled = canToggle, role = Role.Checkbox, onClick = onToggle)
+                .semantics { contentDescription = if (done) "Step done" else "Tick step" },
+            contentAlignment = Alignment.Center,
         ) { AbCheck(done) }
         BasicTextField(
             value = step.title, onValueChange = onTitle, modifier = Modifier.weight(1f).onFocusChanged { if (!it.isFocused) onCommit() },

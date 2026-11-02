@@ -55,5 +55,7 @@ class DemoSeedReceiver : BroadcastReceiver() {
         const val MODE_TASKS_SESSION = "tasks-session"
         const val MODE_DUMP = "dump"
         const val MODE_MERGE_CHECK = "merge-check"
+        const val MODE_HANDOFF_CHECK = "handoff-check"
+        const val MODE_DONE_CHECK = "done-check"
     }
 }

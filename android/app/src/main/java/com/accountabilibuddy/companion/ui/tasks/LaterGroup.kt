@@ -55,13 +55,16 @@ fun LaterGroup(
 }
 
 /**
- * "Done today · 4", collapsed by default: what was ticked today (the running session's, the next session's and the Later items
- * ticked on this phone). A ticked task of this phone's lists can be put back from its ⋯ menu.
+ * "Done today · 4", collapsed by default: what was ticked (the running session's, the next session's and the Later items, on any
+ * device). When some were ticked on an earlier day it reads "Done" and each row says when. A ticked task of this phone's lists can
+ * be put back from its ⋯ menu.
+ *
+ * @param allToday Every row was ticked today.
  */
 @Composable
-fun DoneTodayGroup(rows: List<TaskRowModel>, expanded: Boolean, onToggle: () -> Unit, actions: TasksPaneActions) {
+fun DoneTodayGroup(rows: List<TaskRowModel>, allToday: Boolean, expanded: Boolean, onToggle: () -> Unit, actions: TasksPaneActions) {
     AbCard(contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
-        FoldHeader("Done today · ${rows.size}", null, expanded, onToggle)
+        FoldHeader("${if (allToday) "Done today" else "Done"} · ${rows.size}", null, expanded, onToggle)
         if (expanded) TaskRows(rows, actions, pc = null, reorder = false, modifier = Modifier.padding(bottom = 6.dp))
     }
 }

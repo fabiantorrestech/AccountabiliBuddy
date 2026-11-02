@@ -410,6 +410,7 @@ object SyncFileJson {
             item.deletedAt?.let { put("deletedAt", writeTime(it)) }
             put("position", item.position)
             item.plannedFor?.let { put("plannedFor", writePlannedFor(it)) }
+            item.doneAt?.let { put("doneAt", writeTime(it)) }
         }
     })
 
@@ -452,6 +453,7 @@ object SyncFileJson {
                     item.optionalTime("deletedAt"),
                     item.position(),
                     readPlannedFor(item["plannedFor"]),
+                    item.optionalTime("doneAt"),
                 )
             }.getOrNull()
         }

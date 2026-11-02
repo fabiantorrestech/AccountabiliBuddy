@@ -22,7 +22,7 @@ internal fun TaskRows(rows: List<TaskRowModel>, actions: TasksPaneActions, pc: T
             TaskRow(
                 row = row,
                 onOpen = { actions.onOpen(row) },
-                onTick = if (row.number == null && row.ref.kind != TaskKind.DoneRunning && !row.sending) ({ actions.onTick(row) }) else null,
+                onTick = if (row.number == null && row.ref.kind != TaskKind.DoneRunning && !row.sending && !(row.ref.kind == TaskKind.Later && row.done)) ({ actions.onTick(row) }) else null,
                 menu = TaskMenus.of(row, actions, pc, moves),
             )
         }

@@ -118,7 +118,7 @@ fun TasksPane(
                 }
             }
             if (model.doneToday.isNotEmpty()) {
-                item { DoneTodayGroup(model.doneToday, expanded = doneOpen, onToggle = { onDoneOpen(!doneOpen) }, actions = actions) }
+                item { DoneTodayGroup(model.doneToday, model.doneAllToday, expanded = doneOpen, onToggle = { onDoneOpen(!doneOpen) }, actions = actions) }
             }
         }
         AddField(

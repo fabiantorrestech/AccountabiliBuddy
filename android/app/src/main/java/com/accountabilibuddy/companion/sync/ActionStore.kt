@@ -28,6 +28,13 @@ class ActionStore(context: Context) {
     private val prefs = context.getSharedPreferences("actions", Context.MODE_PRIVATE)
     private val _pending = MutableStateFlow(read())
 
+    init {
+        // A list saved before it was sealed is plain JSON: seal it now rather than at the next change.
+        if (prefs.getString(KEY, null)?.startsWith("[") == true) {
+            save(_pending.value)
+        }
+    }
+
     /** Waiting for their PC. */
     val pending: StateFlow<List<SyncAction>> = _pending.asStateFlow()
 
@@ -101,7 +108,8 @@ class ActionStore(context: Context) {
                 put("at", action.at.toString())
             }
         })
-        prefs.edit().putString(KEY, TokenVault.seal(json.toString(), ALIAS)).apply()
+        // Never written in plain: if the Keystore can't seal it the action is still held in memory (and sent), but not kept on disk.
+        runCatching { TokenVault.seal(json.toString(), ALIAS) }.getOrNull()?.let { sealed -> prefs.edit().putString(KEY, sealed).apply() }
     }
 
     private fun read(): List<SyncAction> = runCatching {

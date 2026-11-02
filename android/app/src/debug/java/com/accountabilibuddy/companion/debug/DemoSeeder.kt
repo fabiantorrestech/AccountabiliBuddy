@@ -54,6 +54,8 @@ class DemoSeeder(private val app: CompanionApp) {
         DemoSeedReceiver.MODE_TASKS_SESSION -> TasksDemo(app).seed(seed(withSession = true))
         DemoSeedReceiver.MODE_DUMP -> TasksDemo(app).dump()
         DemoSeedReceiver.MODE_MERGE_CHECK -> TasksDemo(app).mergeCheck()
+        DemoSeedReceiver.MODE_HANDOFF_CHECK -> TasksDemo(app).handoffCheck()
+        DemoSeedReceiver.MODE_DONE_CHECK -> TasksDemo(app).doneCheck()
         else -> "unknown mode \"$mode\" (idle, session or clear)"
     }
 

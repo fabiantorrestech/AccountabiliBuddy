@@ -53,7 +53,6 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
     val nextTasks by app.sharedLists.nextTasks.collectAsState()
     val parked by app.sharedLists.parked.collectAsState()
     val later by app.sharedLists.later.collectAsState()
-    val laterDone by app.sharedLists.laterDone.collectAsState()
     val received by app.sync.received.collectAsState()
     val pending by app.actions.pending.collectAsState()
     // Looked at again every half minute: a session that ended on the PC stops being "running" here too.
@@ -76,7 +75,9 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
 
     val pc = TasksPc.of(controlPc, received, now, app.runningTaskEdits.isAvailable)
     val comebacks = OpenComebacks.of(parked, received, now)
-    val model = TasksModel.build(nextTasks, pc, pending, comebacks, parked, later, laterDone, received, category, search, now)
+    // Items whose "Add to Today" waits for a PC's answer: shown as sent, and not sent again.
+    val waiting = app.todayHandoff.waitingIds(pending)
+    val model = TasksModel.build(nextTasks, pc, pending, comebacks, parked, later, waiting, received, category, search, now)
     val chip = category?.let { name -> model.categories.firstOrNull { it.name.equals(name, ignoreCase = true) } }
 
     val controller = remember(app, snackbar) {
@@ -105,6 +106,8 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
         onEditComeback = { row -> editing = row },
         onPutBack = { row -> controller.putBack(row) },
         onDelete = { row -> controller.delete(row.ref) },
+        // Next to a PC older than the shared lists a come-back made here would never reach it, so Later can't move there.
+        canMoveToComeBack = comebacks.legacySource == null,
     )
 
     TasksPane(
@@ -158,7 +161,8 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
     held?.let { (text, chosen) ->
         OverLimitDialog(
             title = text,
-            onPark = { controller.park(text); held = null },
+            // Next to an older PC a parked thought would go to a list that PC never gets and this view does not show.
+            onPark = if (comebacks.legacySource == null) ({ controller.park(text); held = null }) else null,
             onAddAnyway = { reason ->
                 if (app.overLimit.record(reason)) {
                     controller.addNext(text, chosen)
@@ -179,7 +183,7 @@ private fun detailOf(ref: TaskRef, nextTasks: List<com.accountabilibuddy.shared.
                 isDone = false, editsDetails = true, hasDueDate = false,
             )
         }
-        TaskKind.Later -> later.firstOrNull { it.id == ref.id }?.let { item ->
+        TaskKind.Later -> later.firstOrNull { it.id == ref.id && it.doneAt == null }?.let { item ->
             TaskDetail(
                 ref, "Later", TaskFields(item.title, item.subtasks.orEmpty(), item.estimateMinutes, item.note.orEmpty(), item.category, item.categoryColor, item.dueOn),
                 isDone = false, editsDetails = true, hasDueDate = true,
@@ -215,7 +219,8 @@ private fun detailActions(
         )
         TaskKind.Running -> TaskDetailActions(
             onMarkDone = if (!detail.isDone && pc != null) ({ controller.tick(row, pc, null) }) else null,
-            onTickRunningStep = if (pc != null && pc.canEdit) ({ stepId -> controller.tickStep(pc, stepId) }) else null,
+            // Ticking is the old tickTask action (ADR 26): it works on any PC that took ticks before, edits or not.
+            onTickRunningStep = if (pc != null) ({ stepId -> controller.tickStep(pc, stepId) }) else null,
         )
         else -> TaskDetailActions()
     }

@@ -22,7 +22,6 @@ class TasksDemo(private val app: CompanionApp) {
 
     /** Tombstones every live item of the three lists (the seeder's own and any earlier extras). */
     fun clearLists() {
-        lists.laterDone.value.forEach { lists.untickLater(it.item.id) }
         lists.nextTasks.value.forEach { lists.deleteNextTask(it.id) }
         lists.parked.value.forEach { lists.deleteParked(it.id) }
         lists.later.value.forEach { lists.deleteLater(it.id) }
@@ -96,9 +95,82 @@ class TasksDemo(private val app: CompanionApp) {
         file.parked?.forEach { builder.append("\n  ${it.id.take(8)} edited=${stamp(it.editedAt)} deleted=${it.deletedAt != null} done=${it.doneAt != null} cat=${it.category != null}") }
         builder.append("\n later=${file.later?.size}")
         file.later?.forEach {
-            builder.append("\n  ${it.id.take(8)} edited=${stamp(it.editedAt)} deleted=${it.deletedAt != null} due=${it.dueOn != null} est=${it.estimateMinutes} steps=${it.subtasks?.size} note=${it.note != null} titleEmpty=${it.title.isEmpty()}")
+            builder.append("\n  ${it.id.take(8)} edited=${stamp(it.editedAt)} deleted=${it.deletedAt != null} done=${it.doneAt != null} due=${it.dueOn != null} est=${it.estimateMinutes} steps=${it.subtasks?.size} note=${it.note != null} titleEmpty=${it.title.isEmpty()}")
         }
         return builder.toString()
+    }
+
+    /**
+     * "Add to Today" at a PC's limit: runs the real hand-off (ids and flags only are printed). A PC that parked the task must leave the
+     * Later item with its note, steps, estimate and due date; a PC that added it takes the item off; a refusal leaves it; the hold
+     * is found again by a second instance reading the same prefs (a restart), and an item that waits is not sent twice.
+     */
+    fun handoffCheck(): String {
+        val pcId = UUID.randomUUID()
+        val pending = mutableListOf<com.accountabilibuddy.shared.sync.SyncAction>()
+        fun send(source: com.accountabilibuddy.companion.sync.TodayHandoff.Source, handoff: com.accountabilibuddy.companion.sync.TodayHandoff, edited: Instant?): String {
+            val taskId = UUID.randomUUID().toString()
+            handoff.hold(taskId, source, edited)
+            pending += com.accountabilibuddy.shared.sync.SyncAction(UUID.randomUUID().toString(), com.accountabilibuddy.shared.sync.SyncAction.TASK_ADD, pcId, taskId, null, Instant.now())
+            return taskId
+        }
+        fun item(id: String) = lists.later.value.firstOrNull { it.id == id }
+        fun answer(handoff: com.accountabilibuddy.companion.sync.TodayHandoff, taskId: String, ok: Boolean, status: String, message: String?) {
+            val action = pending.first { it.item == taskId }
+            pending.remove(action)
+            handoff.answered(action, com.accountabilibuddy.shared.sync.SyncActionResult(action.id, ok, status, message), "Check PC")
+        }
+
+        fun withDetails(): SyncLaterItem {
+            val id = lists.addLater("handoff check")!!
+            lists.updateLater(id) { it.copy(note = "n", estimateMinutes = 50, dueOn = LocalDate.now().plusDays(3).toString(), subtasks = listOf(SessionTaskItem(UUID.randomUUID().toString(), "s", null, emptyList()))) }
+            return item(id)!!
+        }
+
+        val handoff = com.accountabilibuddy.companion.sync.TodayHandoff(app, lists) { }
+        // 1. The PC parked it (new status, and the older "ok with a message"): the item stays with every detail.
+        val a = withDetails()
+        val taskA = send(com.accountabilibuddy.companion.sync.TodayHandoff.Source.Later(a.id), handoff, a.editedAt)
+        val waitsBefore = handoff.isWaiting(com.accountabilibuddy.companion.sync.TodayHandoff.Source.Later(a.id), pending)
+        // 2. A restart: a second instance on the same prefs still knows the hold, so a second send is refused.
+        val afterRestart = com.accountabilibuddy.companion.sync.TodayHandoff(app, lists) { }
+        val waitsAfterRestart = afterRestart.isWaiting(com.accountabilibuddy.companion.sync.TodayHandoff.Source.Later(a.id), pending)
+        answer(afterRestart, taskA, true, com.accountabilibuddy.shared.sync.SyncActionResult.STATUS_PARKED, "Parked: 3 tasks this session")
+        val parkedKept = item(a.id)?.let { it.note == "n" && it.estimateMinutes == 50 && it.dueOn != null && it.subtasks?.size == 1 } == true
+        val b = withDetails()
+        val taskB = send(com.accountabilibuddy.companion.sync.TodayHandoff.Source.Later(b.id), handoff, b.editedAt)
+        answer(handoff, taskB, true, "applied", "Parked: 3 tasks this session")
+        val oldPcParkedKept = item(b.id) != null
+        // 3. The PC refused: it stays. 4. The PC added it as a task: it goes. 5. Edited here after it was sent: it stays.
+        val c = withDetails()
+        answer(handoff, send(com.accountabilibuddy.companion.sync.TodayHandoff.Source.Later(c.id), handoff, c.editedAt), false, "refused", "Refused.")
+        val refusedKept = item(c.id) != null
+        val d = withDetails()
+        answer(handoff, send(com.accountabilibuddy.companion.sync.TodayHandoff.Source.Later(d.id), handoff, d.editedAt), true, "applied", null)
+        val addedGone = item(d.id) == null
+        val e = withDetails()
+        val taskE = send(com.accountabilibuddy.companion.sync.TodayHandoff.Source.Later(e.id), handoff, e.editedAt)
+        lists.updateLater(e.id) { it.copy(note = "changed") }
+        answer(handoff, taskE, true, "applied", null)
+        val editedKept = item(e.id) != null
+        listOf(a.id, b.id, c.id, e.id).forEach { lists.deleteLater(it) }
+        return "handoff-check: waitsBefore=$waitsBefore waitsAfterRestart=$waitsAfterRestart parkedKept=$parkedKept oldPcParkedKept=$oldPcParkedKept refusedKept=$refusedKept addedGone=$addedGone editedAfterSendKept=$editedKept"
+    }
+
+    /** A Later tick is a shared edit: the item keeps its text with a done time, Undo clears it, and the outgoing file carries both (flags only are printed). */
+    fun doneCheck(): String {
+        val id = lists.addLater("done check", "Work", "#2563EB") ?: return "could not add"
+        val before = lists.later.value.first { it.id == id }
+        lists.tickLater(id)
+        val ticked = lists.later.value.first { it.id == id }
+        val inFileDone = lists.laterForSync().first { it.id == id }
+        val keptText = ticked.title == "done check" && ticked.deletedAt == null
+        val stampMoved = ticked.editedAt.isAfter(before.editedAt)
+        lists.untickLater(id)
+        val reopened = lists.later.value.first { it.id == id }
+        val undoNewer = reopened.doneAt == null && reopened.editedAt.isAfter(ticked.editedAt)
+        lists.deleteLater(id)
+        return "done-check: doneAtSet=${ticked.doneAt != null} keptText=$keptText stampMoved=$stampMoved inOutgoingFile=${inFileDone.doneAt != null} undoClearsWithNewerStamp=$undoNewer"
     }
 
     /**

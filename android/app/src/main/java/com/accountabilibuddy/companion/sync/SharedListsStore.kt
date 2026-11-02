@@ -14,9 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -42,7 +40,6 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     private val _nextTasks = MutableStateFlow(liveNextTasks())
     private val _parked = MutableStateFlow(liveParked())
     private val _later = MutableStateFlow(liveLater())
-    private val _laterDone = MutableStateFlow(all.laterDone)
 
     /** The next session's tasks, in list order. */
     val nextTasks: StateFlow<List<SyncNextTask>> = _nextTasks.asStateFlow()
@@ -50,11 +47,8 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     /** The come-backs, open and recently ticked, in list order. */
     val parked: StateFlow<List<SyncParked>> = _parked.asStateFlow()
 
-    /** The Later list (ADR 50), live items only, in list order. */
+    /** The Later list (ADR 50), live items in list order: the open ones and the ticked-off ones ([SyncLaterItem.doneAt], kept 90 days). */
     val later: StateFlow<List<SyncLaterItem>> = _later.asStateFlow()
-
-    /** The Later items ticked off on this phone in the last two days (this phone only, never sent): "Done today" picks today's. */
-    val laterDone: StateFlow<List<LaterDone>> = _laterDone.asStateFlow()
 
     /** Set by the app: the user changed a list here, so it goes to the other devices soon. */
     var onChanged: () -> Unit = {}
@@ -238,12 +232,20 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     }
 
     /**
-     * Changes a next-session task through [change] (its fields as a whole: estimate, note, steps, title, category), stamping
-     * it once; a blank title or no change does nothing. The change gets the live task and returns the edited copy.
+     * Changes a next-session task through [change] (its fields as a whole: estimate, note, steps, title), stamping it once; a blank
+     * title or no change does nothing. The change gets the live task and returns the edited copy. [category] (name, colour), when
+     * given, moves the task to that category in the same edit.
      */
-    fun updateNextTask(id: String, change: (SyncNextTask) -> SyncNextTask) = changeNextTask(id) { task, time ->
-        val changed = change(task)
-        if (changed.title.isBlank() || changed == task) task else changed.copy(editedAt = SharedListMerge.nextStamp(time, task))
+    fun updateNextTask(id: String, category: Pair<String?, String?>? = null, change: (SyncNextTask) -> SyncNextTask) = edit { lists, time ->
+        val task = lists.nextTasks.firstOrNull { it.id == id && it.deletedAt == null } ?: return@edit lists
+        var changed = change(task)
+        if (category != null && category.first != task.category) {
+            // A task put in another category goes to the end of that category's tasks, in the same single edit.
+            val last = lists.nextTasks.filter { it.deletedAt == null && it.category == category.first }.maxOfOrNull { it.position }
+            changed = changed.copy(category = category.first, categoryColor = category.second, position = SharedListMerge.positionBetween(last, null))
+        }
+
+        if (changed.title.isBlank() || changed == task) lists else lists.replace(task, changed.copy(editedAt = SharedListMerge.nextStamp(time, task)))
     }
 
     /** Moves a come-back to the end of the next session's tasks (keeping its category) and ticks it, as "Add to Today" does on the PC. */
@@ -313,20 +315,17 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         lists.copy(later = if (held == null) lists.later + back else lists.later.map { if (it.id == item.id) back else it })
     }
 
-    /** Ticks a Later item off: it leaves the list as a deleted one and is kept on this phone for "Done today". */
-    fun tickLater(id: String) = edit { lists, time ->
-        val item = lists.later.firstOrNull { it.id == id && it.deletedAt == null } ?: return@edit lists
-        lists.copy(
-            later = lists.later.map { if (it.id == id) item.deleted(SharedListMerge.nextStamp(time, item)) else it },
-            laterDone = lists.laterDone.filter { it.item.id != id } + LaterDone(item, time),
-        )
+    /**
+     * Ticks a Later item off (ADR 50): it keeps its text and gets the done time as a normal stamped edit, so every device shows it as
+     * done (no tombstone). The PC records it once in its done tasks.
+     */
+    fun tickLater(id: String) = changeLater(id) { item, time ->
+        if (item.doneAt != null) item else item.copy(doneAt = time, editedAt = SharedListMerge.nextStamp(time, item))
     }
 
-    /** Un-ticks a Later item ticked here: it is back on the Later list. */
-    fun untickLater(id: String) {
-        val done = synchronized(this) { all.laterDone.firstOrNull { it.item.id == id } } ?: return
-        edit { lists, _ -> lists.copy(laterDone = lists.laterDone.filter { it.item.id != id }) }
-        restoreLater(done.item)
+    /** Opens a ticked Later item again (Undo, Put back): its done time goes with a newer stamp. */
+    fun untickLater(id: String) = changeLater(id) { item, time ->
+        if (item.doneAt == null) item else item.copy(doneAt = null, editedAt = SharedListMerge.nextStamp(time, item))
     }
 
     /**
@@ -336,7 +335,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     fun moveLaterToNext(id: String): String? {
         var newTaskId: String? = null
         edit { lists, time ->
-            val item = lists.later.firstOrNull { it.id == id && it.deletedAt == null } ?: return@edit lists
+            val item = lists.later.firstOrNull { it.id == id && it.deletedAt == null && it.doneAt == null } ?: return@edit lists
             val last = lists.nextTasks.filter { it.deletedAt == null && it.category == item.category }.maxOfOrNull { it.position }
             val task = SyncNextTask(
                 newId(), item.title, null, item.category, item.categoryColor, TaskSteps.reopened(item.subtasks).ifEmpty { null }, time, null,
@@ -392,7 +391,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     fun moveLaterToParked(id: String): String? {
         var newParkedId: String? = null
         edit { lists, time ->
-            val item = lists.later.firstOrNull { it.id == id && it.deletedAt == null } ?: return@edit lists
+            val item = lists.later.firstOrNull { it.id == id && it.deletedAt == null && it.doneAt == null } ?: return@edit lists
             val steps = TaskSteps.open(item.subtasks).size
             val text = if (steps > 0) "${item.title} (+$steps ${if (steps == 1) "step" else "steps"})" else item.title
             val last = lists.parked.maxOfOrNull { it.position }
@@ -444,14 +443,15 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         all = Lists(
             lists.nextTasks.filter { it.deletedAt?.isAfter(tombstonesFrom) ?: true }.sortedBy { it.position },
             lists.parked.filter { item -> item.deletedAt?.isAfter(tombstonesFrom) ?: item.doneAt?.isAfter(doneFrom) ?: true }.sortedBy { it.position },
-            lists.later.filter { it.deletedAt?.isAfter(tombstonesFrom) ?: true }.sortedBy { it.position },
-            lists.laterDone.filter { it.doneAt.isAfter(time.minus(LATER_DONE_KEPT)) },
+            // A ticked Later item older than the PC's records of done tasks goes the normal way: a tombstone with no text.
+            lists.later
+                .map { item -> if (item.deletedAt == null && item.doneAt?.isBefore(doneFrom) == true) item.deleted(SharedListMerge.nextStamp(time, item)) else item }
+                .filter { it.deletedAt?.isAfter(tombstonesFrom) ?: true }.sortedBy { it.position },
         )
         prefs.edit().putString(KEY, TokenVault.seal(write(all).toString(), ALIAS)).apply()
         _nextTasks.value = liveNextTasks()
         _parked.value = liveParked()
         _later.value = liveLater()
-        _laterDone.value = all.laterDone
     }
 
     private fun liveNextTasks() = all.nextTasks.filter { it.deletedAt == null }
@@ -466,45 +466,24 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         put("nextTasks", SyncFileJson.writeNextTasks(lists.nextTasks))
         put("parked", SyncFileJson.writeParked(lists.parked))
         put("later", SyncFileJson.writeLater(lists.later))
-        // This phone's own record of Later items ticked off (never in the sync file).
-        put("laterDone", JsonArray(lists.laterDone.map { done ->
-            buildJsonObject {
-                put("doneAt", done.doneAt.toString())
-                put("item", SyncFileJson.writeLater(listOf(done.item)).first())
-            }
-        }))
     }
 
     // Empty when nothing is stored or it can't be opened (the key goes with the app's data).
     private fun read(): Lists {
         val json = prefs.getString(KEY, null)?.let { TokenVault.open(it, ALIAS) }
-            ?.let { runCatching { Json.parseToJsonElement(it) as JsonObject }.getOrNull() } ?: return Lists(emptyList(), emptyList(), emptyList(), emptyList())
+            ?.let { runCatching { Json.parseToJsonElement(it) as JsonObject }.getOrNull() } ?: return Lists(emptyList(), emptyList(), emptyList())
         return Lists(
             SyncFileJson.readNextTasks(json["nextTasks"] as? JsonArray).orEmpty(),
             SyncFileJson.readParked(json["parked"] as? JsonArray).orEmpty(),
             SyncFileJson.readLater(json["later"] as? JsonArray).orEmpty(),
-            (json["laterDone"] as? JsonArray).orEmpty().mapNotNull { element ->
-                val entry = element as? JsonObject ?: return@mapNotNull null
-                val item = SyncFileJson.readLater(JsonArray(listOf(entry["item"] ?: return@mapNotNull null)))?.firstOrNull() ?: return@mapNotNull null
-                val at = (entry["doneAt"] as? JsonPrimitive)?.contentOrNull?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return@mapNotNull null
-                LaterDone(item, at)
-            },
         )
     }
 
-    private data class Lists(
-        val nextTasks: List<SyncNextTask>,
-        val parked: List<SyncParked>,
-        val later: List<SyncLaterItem>,
-        val laterDone: List<LaterDone>,
-    )
+    private data class Lists(val nextTasks: List<SyncNextTask>, val parked: List<SyncParked>, val later: List<SyncLaterItem>)
 
     companion object {
         private const val KEY = "lists"
         private const val ALIAS = "accountabilibuddy-shared-lists"
-
-        // How long the phone keeps a Later item it ticked off (Done today shows today's).
-        private val LATER_DONE_KEPT: java.time.Duration = java.time.Duration.ofDays(2)
 
         // Two positions closer than this are renumbered (halving a gap again and again runs out of precision).
         private const val MIN_POSITION_GAP = 1e-9

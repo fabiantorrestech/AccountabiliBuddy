@@ -1,6 +1,5 @@
 package com.accountabilibuddy.companion.ui.tasks
 
-import com.accountabilibuddy.companion.sync.LaterDone
 import com.accountabilibuddy.companion.sync.OpenComebacks
 import com.accountabilibuddy.companion.sync.ReceivedDevice
 import com.accountabilibuddy.companion.sync.TaskCategoryChoices
@@ -23,6 +22,7 @@ import java.time.ZoneId
  * @property nextDue The Later header's "Next due: Expense report, Fri"; null when no item has a due date.
  * @property categories Every category seen on a task, come-back or Later item, for the filter chips and the category menu.
  * @property sessionTotal How many tasks This session holds before the chip and the search (for its empty text).
+ * @property doneAllToday Every row of [doneToday] was ticked today (the group is then "Done today"; older ones make it "Done").
  */
 class TasksModel(
     val session: List<TaskRowModel>,
@@ -33,12 +33,15 @@ class TasksModel(
     val doneToday: List<TaskRowModel>,
     val categories: List<Choice>,
     val sessionTotal: Int,
+    val doneAllToday: Boolean,
 ) {
     companion object {
         /**
          * @param pc The PC with a running session, or null: This session is then the next session's list on this phone.
          * @param comebacks The come-backs as Today reads them: the shared list, or an older PC's own.
          * @param parked The shared come-back list (live items).
+         * @param later The Later list, live items: the open ones and the ticked ones (which show under Done).
+         * @param waiting Ids of Later items and come-backs whose "Add to Today" waits for the PC's answer.
          * @param category The chip picked (a category's name); null shows everything.
          * @param search What the user typed in the search; it matches titles, steps and notes.
          */
@@ -49,7 +52,7 @@ class TasksModel(
             comebacks: OpenComebacks,
             parked: List<SyncParked>,
             later: List<SyncLaterItem>,
-            laterDone: List<LaterDone>,
+            waiting: Set<String>,
             received: List<ReceivedDevice>,
             category: String?,
             search: String,
@@ -63,25 +66,28 @@ class TasksModel(
 
             val session = mutableListOf<TaskRowModel>()
             val done = mutableListOf<Pair<Instant, TaskRowModel>>()
+            // A done row says when: the time today, else the day and time ("Finished Mon 3:00 PM").
+            fun finished(at: Instant) = "Finished ${TaskText.whenText(at, today, zone)}"
             var sessionTotal = 0
             if (pc != null) {
                 val open = SessionTaskItem.openInShownOrder(pc.checklist.tasks)
                 val nowId = SessionTaskItem.shown(pc.checklist.tasks, pc.checklist.currentId)?.first?.id
                 sessionTotal = open.size
                 open.forEachIndexed { index, task ->
-                    val id = task.id ?: return@forEachIndexed
+                    // A task the PC sent with no id can't be ticked or edited from here: it is drawn, read-only.
+                    val id = task.id.orEmpty()
                     if (!filter.allows(task.category, task.title, *stepTitles(task.subtasks))) return@forEachIndexed
-                    val sending = pending.any { it.target == pc.pcId && it.item == id && it.kind == SyncAction.TICK_TASK }
+                    val sending = id.isNotEmpty() && pending.any { it.target == pc.pcId && it.item == id && it.kind == SyncAction.TICK_TASK }
                     session += TaskRowModel(
                         TaskRef(TaskKind.Running, id), task.title, TaskText.line(TaskText.stepsLeft(task.subtasks)), task.category, task.categoryColor,
-                        number = index + 1, done = sending, isNow = id == nowId, sending = sending,
+                        number = index + 1, done = sending, isNow = id.isNotEmpty() && id == nowId, sending = sending, readOnly = id.isEmpty(),
                     )
                 }
                 pc.checklist.tasks.filter { it.isDone && it.id != null }.forEach { task ->
                     if (!filter.allows(task.category, task.title, *stepTitles(task.subtasks))) return@forEach
                     val at = task.doneAt!!
                     done += at to TaskRowModel(
-                        TaskRef(TaskKind.DoneRunning, task.id!!), task.title, "Finished ${TaskText.clock(at, zone)}", task.category, task.categoryColor, done = true,
+                        TaskRef(TaskKind.DoneRunning, task.id!!), task.title, finished(at), task.category, task.categoryColor, done = true,
                     )
                 }
             } else {
@@ -95,27 +101,31 @@ class TasksModel(
                         task.category, task.categoryColor, number = index + 1,
                     )
                 }
-                nextTasks.filter { it.isDone && it.doneAt?.let(::isToday) == true }.forEach { task ->
+                // Every ticked task of the list shows, whatever its day: it still counts toward the 3 until a session takes the list.
+                nextTasks.filter { it.isDone }.forEach { task ->
                     if (!filter.allows(task.category, task.title, task.note, *stepTitles(task.subtasks))) return@forEach
                     val at = task.doneAt!!
                     done += at to TaskRowModel(
-                        TaskRef(TaskKind.DoneNext, task.id), task.title, "Finished ${TaskText.clock(at, zone)}", task.category, task.categoryColor, done = true,
+                        TaskRef(TaskKind.DoneNext, task.id), task.title, finished(at), task.category, task.categoryColor, done = true,
                     )
                 }
             }
 
-            val laterSorted = later.sortedWith(compareBy({ if (it.dueOn == null) 1 else 0 }, { it.dueOn.orEmpty() }))
+            val openLater = later.filter { it.doneAt == null }
+            val laterSorted = openLater.sortedWith(compareBy({ if (it.dueOn == null) 1 else 0 }, { it.dueOn.orEmpty() }))
             val laterRows = laterSorted.filter { item ->
                 filter.allows(item.category, item.title, item.note, *stepTitles(item.subtasks))
             }.map { item ->
-                TaskRowModel(TaskRef(TaskKind.Later, item.id), item.title, laterLine(item, today), item.category, item.categoryColor)
-            }
-            laterDone.filter { isToday(it.doneAt) }.forEach { entry ->
-                val item = entry.item
-                if (!filter.allows(item.category, item.title, item.note, *stepTitles(item.subtasks))) return@forEach
-                done += entry.doneAt to TaskRowModel(
-                    TaskRef(TaskKind.DoneLater, item.id), item.title, "Finished ${TaskText.clock(entry.doneAt, zone)}", item.category, item.categoryColor, done = true,
+                val sending = item.id in waiting
+                TaskRowModel(
+                    TaskRef(TaskKind.Later, item.id), item.title, TaskText.line(if (sending) "sent to the PC, waiting for its answer" else null, laterLine(item, today)),
+                    item.category, item.categoryColor, sending = sending,
                 )
+            }
+            later.filter { it.doneAt != null }.forEach { item ->
+                if (!filter.allows(item.category, item.title, item.note, *stepTitles(item.subtasks))) return@forEach
+                val at = item.doneAt!!
+                done += at to TaskRowModel(TaskRef(TaskKind.DoneLater, item.id), item.title, finished(at), item.category, item.categoryColor, done = true)
             }
 
             val categories = (
@@ -127,13 +137,14 @@ class TasksModel(
 
             return TasksModel(
                 session = session,
-                comeBacks = comebackRows(comebacks, parked, pending, received, today, zone, filter),
+                comeBacks = comebackRows(comebacks, parked, pending, received, waiting, today, zone, filter),
                 later = laterRows,
-                laterTotal = later.size,
-                nextDue = nextDue(later, today),
+                laterTotal = openLater.size,
+                nextDue = nextDue(openLater, today),
                 doneToday = done.sortedByDescending { it.first }.map { it.second },
                 categories = categories,
                 sessionTotal = sessionTotal,
+                doneAllToday = done.all { isToday(it.first) },
             )
         }
 
@@ -148,6 +159,7 @@ class TasksModel(
             parked: List<SyncParked>,
             pending: List<SyncAction>,
             received: List<ReceivedDevice>,
+            waiting: Set<String>,
             today: LocalDate,
             zone: ZoneId,
             filter: TaskFilter,
@@ -156,15 +168,23 @@ class TasksModel(
             if (oldPc != null) {
                 // An older PC's own come-backs: they can be ticked (an action for that PC) and nothing else.
                 val target = deviceIdOf(oldPc, received)
-                return comebacks.items.filter { filter.allows(null, it.text) }.map { row ->
+                val own = comebacks.items.filter { filter.allows(null, it.text) }.map { row ->
                     val sending = target != null && pending.any { it.target == target && it.item == row.id && it.kind == SyncAction.TICK_COMEBACK }
                     TaskRowModel(TaskRef(TaskKind.ComeBack, row.id), row.text, "", null, null, done = sending, sending = sending, readOnly = true)
                 }
+                // What was parked here for that PC and it has not answered yet.
+                val parkedHere = pending.filter { it.target == target && it.kind == SyncAction.PARK && it.text != null && filter.allows(null, it.text) }.map { action ->
+                    TaskRowModel(TaskRef(TaskKind.ComeBack, action.id), action.text!!, "sending to $oldPc…", null, null, sending = true, readOnly = true)
+                }
+                return own + parkedHere
             }
 
             return parked.filter { it.deletedAt == null && it.doneAt == null && filter.allows(it.category, it.text) }.map { item ->
+                val sending = item.id in waiting
                 TaskRowModel(
-                    TaskRef(TaskKind.ComeBack, item.id), item.text, "Parked ${TaskText.whenText(item.createdAt, today, zone)}", item.category, item.categoryColor,
+                    TaskRef(TaskKind.ComeBack, item.id), item.text,
+                    TaskText.line(if (sending) "sent to the PC, waiting for its answer" else null, "Parked ${TaskText.whenText(item.createdAt, today, zone)}"),
+                    item.category, item.categoryColor, sending = sending,
                 )
             }
         }

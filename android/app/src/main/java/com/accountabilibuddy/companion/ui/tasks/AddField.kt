@@ -17,6 +17,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,12 +35,20 @@ import com.accountabilibuddy.companion.ui.theme.Ab
  * "Add a task" (board 5v): a pill with a plus, the text and, once something is typed, a return button; the keyboard's Done
  * does the same. [onSubmit] gets the trimmed text and the field clears at once (the text is the user's private text: it is kept
  * in memory only, never in the saved state). The plus is the accent when [accentPlus] (the one accent of the pane); a field that
- * can't be used now says why in [placeholder] and is [enabled] = false.
+ * can't be used now says why in [placeholder] and is [enabled] = false. A caller that must keep a half-typed text (the sheet's
+ * step) passes its own [typed] state and reads it when it closes.
  */
 @Composable
-fun AddField(placeholder: String, onSubmit: (String) -> Unit, modifier: Modifier = Modifier, accentPlus: Boolean = false, enabled: Boolean = true) {
+fun AddField(
+    placeholder: String,
+    onSubmit: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    accentPlus: Boolean = false,
+    enabled: Boolean = true,
+    typed: MutableState<String> = remember { mutableStateOf("") },
+) {
     val colors = Ab.colors
-    var text by remember { mutableStateOf("") }
+    var text by typed
     fun submit() {
         val typed = text.trim()
         if (typed.isNotEmpty()) {

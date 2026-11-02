@@ -194,7 +194,7 @@ class CompanionApp : Application() {
     }
 
     /** Later items and come-backs sent to a running PC session, which leave their list once the PC takes them (Tasks, ADR 48). */
-    val todayHandoff by lazy { com.accountabilibuddy.companion.sync.TodayHandoff(sharedLists) }
+    val todayHandoff by lazy { com.accountabilibuddy.companion.sync.TodayHandoff(this, sharedLists) { message -> pcRemote.tell(message) } }
 
     /** "Play when headphones connect" (Settings → Noise player). */
     val headphones by lazy { com.accountabilibuddy.companion.noise.HeadphoneStore(this) }
@@ -267,7 +267,7 @@ class CompanionApp : Application() {
             pcRemote.answered(action, result, pc)
             planFileSync.answered(action, result, pc)
             pcNoise.answered(action, result, pc)
-            todayHandoff.answered(action, result)
+            todayHandoff.answered(action, result, pc.file.device.name)
         }
         // ADR 40: the PC's settings (profiles, day plan, sleep, day bar, events) from its sync file.
         appScope.launch { sync.received.collect { devices -> applyPcFileSettings(devices.map { it.file }) } }

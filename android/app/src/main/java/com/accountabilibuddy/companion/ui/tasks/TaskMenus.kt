@@ -33,28 +33,32 @@ internal object TaskMenus {
                 addMoves(items, row, actions, moves)
                 items += TaskMenuItem("Delete", Icons.Outlined.Delete) { actions.onDelete(row) }
             }
-            TaskKind.Running -> {
-                items += TaskMenuItem("Details", Icons.Outlined.Edit) { actions.onOpen(row) }
+            TaskKind.Running -> if (!row.readOnly) {
+                // Mark done is the most frequent thing to do during a session: first.
                 if (!row.sending) items += TaskMenuItem("Mark done", Icons.Outlined.Check) { actions.onTick(row) }
+                items += TaskMenuItem("Details", Icons.Outlined.Edit) { actions.onOpen(row) }
                 if (pc?.canEdit == true) addMoves(items, row, actions, moves)
             }
             TaskKind.ComeBack -> if (!row.readOnly) {
-                if (canAddToPc) items += TaskMenuItem("Add to Today", Icons.Outlined.CalendarToday) { actions.onAddToToday(row) }
+                if (canAddToPc && !row.sending) items += TaskMenuItem("Add to Today", Icons.Outlined.CalendarToday) { actions.onAddToToday(row) }
                 items += TaskMenuItem("Edit", Icons.Outlined.Edit) { actions.onEditComeback(row) }
                 items += TaskMenuItem("Move to Later", Icons.Outlined.Schedule) { actions.onMoveToLater(row) }
                 items += TaskMenuItem("Delete", Icons.Outlined.Delete) { actions.onDelete(row) }
             }
             TaskKind.Later -> {
-                if (canAddToPc) items += TaskMenuItem("Add to Today", Icons.Outlined.CalendarToday) { actions.onAddToToday(row) }
+                if (canAddToPc && !row.sending) items += TaskMenuItem("Add to Today", Icons.Outlined.CalendarToday) { actions.onAddToToday(row) }
                 items += TaskMenuItem("Details", Icons.Outlined.Edit) { actions.onOpen(row) }
-                items += TaskMenuItem("Move to Come back to", Icons.Outlined.Flag) { actions.onMoveToComeBack(row) }
+                if (actions.canMoveToComeBack) items += TaskMenuItem("Move to Come back to", Icons.Outlined.Flag) { actions.onMoveToComeBack(row) }
                 items += TaskMenuItem("Delete", Icons.Outlined.Delete) { actions.onDelete(row) }
             }
             TaskKind.DoneNext -> {
                 items += TaskMenuItem("Put back", Icons.Outlined.Restore) { actions.onPutBack(row) }
                 items += TaskMenuItem("Delete", Icons.Outlined.Delete) { actions.onDelete(row) }
             }
-            TaskKind.DoneLater -> items += TaskMenuItem("Put back", Icons.Outlined.Restore) { actions.onPutBack(row) }
+            TaskKind.DoneLater -> {
+                items += TaskMenuItem("Put back", Icons.Outlined.Restore) { actions.onPutBack(row) }
+                items += TaskMenuItem("Delete", Icons.Outlined.Delete) { actions.onDelete(row) }
+            }
             TaskKind.DoneRunning -> Unit
         }
         return items

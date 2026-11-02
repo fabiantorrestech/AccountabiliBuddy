@@ -47,7 +47,10 @@ class TasksController(private val app: CompanionApp, private val say: (message: 
                     deviceIdOf(legacyPc, app.sync.received.value)?.let { target -> if (!row.sending) app.actions.add(SyncAction.TICK_COMEBACK, target, item = id) }
                 }
             }
-            TaskKind.Later -> lists.tickLater(id)
+            TaskKind.Later -> {
+                lists.tickLater(id)
+                say("Marked done. It stays on your devices under Done.") { lists.untickLater(id) }
+            }
             TaskKind.DoneLater -> lists.untickLater(id)
             TaskKind.DoneRunning -> Unit
         }
@@ -94,9 +97,28 @@ class TasksController(private val app: CompanionApp, private val say: (message: 
 
         val taskId = UUID.randomUUID()
         val source: TodayHandoff.Source
+        var sentStamp: java.time.Instant? = null
+        val waitingFor = when (ref.kind) {
+            TaskKind.Later -> TodayHandoff.Source.Later(ref.id)
+            TaskKind.ComeBack -> TodayHandoff.Source.ComeBack(ref.id)
+            else -> return
+        }
+        // One send per item: a second tap while the PC has not answered would add the task twice.
+        if (app.todayHandoff.isWaiting(waitingFor, app.actions.pending.value)) {
+            say("Still waiting for ${pc.name}'s answer for this one.", null)
+            return
+        }
+
+        // A full checklist parks a 4th task as a bare come-back: a Later item's note, steps, estimate and due date would not go with it.
+        if (ref.kind == TaskKind.Later && pc.checklist.tasks.size >= OverLimitStore.MAX_TASKS) {
+            say("${pc.name}'s session already has ${OverLimitStore.MAX_TASKS} tasks. It would park this as a bare come-back, so it stays in Later.", null)
+            return
+        }
+
         val problem = when (ref.kind) {
             TaskKind.Later -> {
-                val item = lists.later.value.firstOrNull { it.id == ref.id } ?: return
+                val item = lists.later.value.firstOrNull { it.id == ref.id && it.doneAt == null } ?: return
+                sentStamp = item.editedAt
                 source = TodayHandoff.Source.Later(item.id)
                 app.pcRemote.addTask(
                     pc.pcId, item.title, category = item.category, categoryColor = item.categoryColor,
@@ -109,15 +131,14 @@ class TasksController(private val app: CompanionApp, private val say: (message: 
                 source = TodayHandoff.Source.ComeBack(item.id)
                 app.pcRemote.addTask(pc.pcId, item.text, category = item.category, categoryColor = item.categoryColor, taskId = taskId)
             }
-            else -> return
         }
         if (problem != null) {
             say(problem, null)
             return
         }
 
-        app.todayHandoff.hold(taskId.toString(), source)
-        say("Sent to ${pc.name}, which keeps ${OverLimitStore.MAX_TASKS} tasks and parks a 4th. It stays here until ${pc.name} takes it.", null)
+        app.todayHandoff.hold(taskId.toString(), source, sentStamp)
+        say("Sent to ${pc.name}. It stays here until ${pc.name} has added it as a task (a full list parks it instead, and then it stays).", null)
     }
 
     /** "Move to Later" for a next-session task or a come-back. */
@@ -147,8 +168,7 @@ class TasksController(private val app: CompanionApp, private val say: (message: 
         when (ref.kind) {
             TaskKind.Next, TaskKind.DoneNext -> lists.deleteNextTask(ref.id)
             TaskKind.ComeBack -> lists.deleteParked(ref.id)
-            TaskKind.Later -> lists.deleteLater(ref.id)?.let { item -> say("Deleted from Later.") { lists.restoreLater(item) } }
-            TaskKind.DoneLater -> Unit
+            TaskKind.Later, TaskKind.DoneLater -> lists.deleteLater(ref.id)?.let { item -> say("Deleted from Later.") { lists.restoreLater(item) } }
             TaskKind.Running, TaskKind.DoneRunning -> Unit
         }
     }
@@ -230,16 +250,9 @@ class TasksController(private val app: CompanionApp, private val say: (message: 
     }
 
     private fun commitNext(id: String, before: TaskFields, after: TaskFields) {
-        if (before.category != after.category && after.title.isNotBlank()) {
-            // A task in another category goes to the end of that category's tasks, which the store works out.
-            val held = lists.nextTasks.value.firstOrNull { it.id == id } ?: return
-            lists.editNextTask(
-                id, if (before.title != after.title) after.title else held.title, after.category, after.categoryColor,
-                if (before.steps != after.steps) after.steps else null,
-            )
-        }
-
-        lists.updateNextTask(id) { task -> applyFields(task, before, after) }
+        // One edit, one stamp: the fields and, when the category changed, the move to the end of the new category.
+        val category = if (before.category != after.category) after.category to after.categoryColor else null
+        lists.updateNextTask(id, category) { task -> applyFields(task, before, after) }
     }
 
     private fun applyFields(task: SyncNextTask, before: TaskFields, after: TaskFields): SyncNextTask {
@@ -267,16 +280,20 @@ class TasksController(private val app: CompanionApp, private val say: (message: 
     }
 
     private fun commitRunning(id: String, before: TaskFields, after: TaskFields, pc: TasksPc?) {
-        if (pc == null || !pc.canEdit) {
-            say("Update AccountabiliBuddy on ${pc?.name ?: "your PC"} to edit its tasks from here.", null)
+        if (pc == null) {
+            say("That session ended, so this edit wasn't sent.", null)
             return
         }
 
-        // Steps go with their ids, so the PC keeps the ticks of the ones that stay; only what changed is sent.
+        if (!pc.canEdit) {
+            say("Update AccountabiliBuddy on ${pc.name} to edit its tasks from here.", null)
+            return
+        }
+
+        // Steps go with their ids, so the PC keeps the ticks of the ones that stay, and a new step keeps the id the phone made for
+        // it (the PC takes a wanted id that is free), so a later edit and a tick name the same step. Only what changed is sent.
         val title = after.title.trim().takeIf { it.isNotEmpty() && it != before.title }
-        // A step the PC doesn't have yet goes without an id (the phone's own is only for its sheet).
-        val known = before.steps.mapNotNull { it.id }.toSet()
-        val steps = after.steps.filter { it.title.isNotBlank() }.map { PcFileRemote.TaskStep(it.id?.takeIf { id -> id in known }, it.title.trim()) }
+        val steps = after.steps.filter { it.title.isNotBlank() }.map { PcFileRemote.TaskStep(it.id, it.title.trim()) }
             .takeIf { before.steps != after.steps }
         if (title == null && steps == null) return
         app.runningTaskEdits.editTask(pc.pcId, id, title, steps)

@@ -14,4 +14,6 @@ class TasksPaneActions(
     val onEditComeback: (TaskRowModel) -> Unit,
     val onPutBack: (TaskRowModel) -> Unit,
     val onDelete: (TaskRowModel) -> Unit,
+    /** False next to a PC older than the shared lists: a Later item can't be moved to Come back to there (that list never reaches it). */
+    val canMoveToComeBack: Boolean = true,
 )
