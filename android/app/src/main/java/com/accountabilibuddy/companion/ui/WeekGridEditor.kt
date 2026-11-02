@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.DatePicker
@@ -13,11 +12,8 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,6 +26,10 @@ import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.engine.DayPlanEditing
 import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.companion.model.PlanCycle
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.companion.ui.kit.AbValueButton
+import com.accountabilibuddy.companion.ui.kit.abDatePickerColors
+import com.accountabilibuddy.companion.ui.theme.Ab
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -60,21 +60,23 @@ fun WeekGridEditor(plan: DayPlan, basePlan: DayPlan, onChange: (DayPlan) -> Unit
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 if (weekCount > 1) "Repeats every $weekCount weeks" else "The same every week",
-                style = MaterialTheme.typography.bodyLarge,
+                style = Ab.type.body, color = Ab.colors.ink,
                 modifier = Modifier.weight(1f),
             )
-            OutlinedButton(onClick = { onChange(DayPlanEditing.withWeekAdded(plan, today)) }, enabled = weekCount < PlanCycle.MAX_WEEKS) { Text("Add week") }
-            OutlinedButton(onClick = { onChange(DayPlanEditing.withLastWeekRemoved(plan, basePlan.cycle.startsOn)) }, enabled = weekCount > 1) { Text("Remove last") }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AbValueButton("Add week", onClick = { onChange(DayPlanEditing.withWeekAdded(plan, today)) }, enabled = weekCount < PlanCycle.MAX_WEEKS)
+            AbValueButton("Remove last", onClick = { onChange(DayPlanEditing.withLastWeekRemoved(plan, basePlan.cycle.startsOn)) }, enabled = weekCount > 1)
         }
         if (weekCount > 1) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Week 1 starts", style = MaterialTheme.typography.bodyMedium)
-                OutlinedButton(onClick = { pickingStart = true }) { Text(plan.cycle.startsOn.format(StartTitle)) }
+                Text("Week 1 starts", style = Ab.type.bodyMedium, color = Ab.colors.ink)
+                AbValueButton(plan.cycle.startsOn.format(StartTitle), onClick = { pickingStart = true })
             }
             Text(
-                "The weeks repeat from that Monday: it is week 1, the next week 2, and so on. \"This is week N of M\" on Today moves this start.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                "The weeks repeat from that Monday: it is week 1, the next week 2, and so on. \"This is week N of M\" on Plan moves this start.",
+                style = Ab.type.small,
+                color = Ab.colors.muted,
             )
         }
 
@@ -82,7 +84,11 @@ fun WeekGridEditor(plan: DayPlan, basePlan: DayPlan, onChange: (DayPlan) -> Unit
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("", Modifier.width(44.dp))
                 for (index in 0 until weekCount) {
-                    Text(if (weekCount > 1) "Week ${index + 1}" else "Every week", style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(WeekColumnWidth))
+                    Text(
+                        if (weekCount > 1) "Week ${index + 1}" else "Every week",
+                        style = Ab.type.small, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = Ab.colors.muted,
+                        modifier = Modifier.width(WeekColumnWidth),
+                    )
                 }
             }
             for (day in DayPlan.MONDAY_FIRST) {
@@ -103,14 +109,15 @@ fun WeekGridEditor(plan: DayPlan, basePlan: DayPlan, onChange: (DayPlan) -> Unit
         DatePickerDialog(
             onDismissRequest = { pickingStart = false },
             confirmButton = {
-                TextButton(onClick = {
+                AbTextButton("Week 1 starts here", onClick = {
                     pickingStart = false
                     state.selectedDateMillis?.let { onChange(DayPlanEditing.withStartsOn(plan, Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate())) }
-                }) { Text("Week 1 starts here") }
+                })
             },
-            dismissButton = { TextButton(onClick = { pickingStart = false }) { Text("Cancel") } },
+            dismissButton = { AbTextButton("Cancel", onClick = { pickingStart = false }) },
+            colors = abDatePickerColors(),
         ) {
-            DatePicker(state)
+            DatePicker(state, colors = abDatePickerColors())
         }
     }
 }
@@ -118,7 +125,7 @@ fun WeekGridEditor(plan: DayPlan, basePlan: DayPlan, onChange: (DayPlan) -> Unit
 @Composable
 private fun WeekRow(plan: DayPlan, day: DayOfWeek, onChange: (DayPlan) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(day.getDisplayName(TextStyle.SHORT, Locale.getDefault()), Modifier.width(44.dp), style = MaterialTheme.typography.bodyMedium)
+        Text(day.getDisplayName(TextStyle.SHORT, Locale.getDefault()), Modifier.width(44.dp), style = Ab.type.bodyMedium, color = Ab.colors.ink)
         for ((index, week) in plan.cycle.weeks.withIndex()) {
             TemplatePicker(plan, DayPlanEditing.templateIdOn(week, day), Modifier.width(WeekColumnWidth)) { onChange(DayPlanEditing.withWeekday(plan, index, day, it)) }
         }
@@ -130,12 +137,10 @@ private fun WeekRow(plan: DayPlan, day: DayOfWeek, onChange: (DayPlan) -> Unit) 
 private fun TemplatePicker(plan: DayPlan, selected: UUID, modifier: Modifier, onPick: (UUID) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box(modifier) {
-        OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) {
-            Text(plan.templates.firstOrNull { it.id == selected }?.name ?: "Off day", maxLines = 1)
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        AbValueButton(plan.templates.firstOrNull { it.id == selected }?.name ?: "Off day", onClick = { open = true }, modifier = Modifier.width(WeekColumnWidth))
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = Ab.colors.surface) {
             for (named in plan.templates) {
-                DropdownMenuItem(text = { Text(named.name) }, onClick = {
+                DropdownMenuItem(text = { Text(named.name, style = Ab.type.bodyMedium, color = Ab.colors.ink) }, onClick = {
                     open = false
                     onPick(named.id)
                 })

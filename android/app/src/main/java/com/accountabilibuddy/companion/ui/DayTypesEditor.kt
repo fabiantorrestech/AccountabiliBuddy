@@ -3,20 +3,13 @@ package com.accountabilibuddy.companion.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.engine.ClockFormat
@@ -25,6 +18,12 @@ import com.accountabilibuddy.companion.engine.NightKind
 import com.accountabilibuddy.companion.model.DayMode
 import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.companion.model.PlanTemplate
+import com.accountabilibuddy.companion.ui.kit.AbDialog
+import com.accountabilibuddy.companion.ui.kit.AbInsetRow
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.companion.ui.kit.AbTextField
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
+import com.accountabilibuddy.companion.ui.theme.Ab
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -53,28 +52,24 @@ fun DayTypesEditor(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             "A day type is how a day is planned: a schedule, a budget of focus hours, or free. The Week tab says which weekdays follow which.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = Ab.type.small,
+            color = Ab.colors.muted,
         )
         for (named in plan.templates) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            AbInsetRow(onClick = { openText = named.id.toString() }) {
                 Column(Modifier.weight(1f)) {
-                    Text(named.name, style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        summary(plan, named),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Text(named.name, style = Ab.type.body, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = Ab.colors.ink)
+                    Text(summary(plan, named), style = Ab.type.small, color = Ab.colors.muted)
                 }
-                TextButton(onClick = { openText = named.id.toString() }) { Text("Edit") }
+                Text("Edit", style = Ab.type.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = Ab.colors.ink)
             }
         }
 
-        Button(onClick = {
+        AbTonalButton("Add a day type", onClick = {
             val (added, id) = DayPlanEditing.addTemplate(plan)
             onChange(added)
             openText = id.toString()
-        }) { Text("Add a day type") }
+        })
     }
 }
 
@@ -90,42 +85,36 @@ private fun DayTypeDetail(
 ) {
     var deleting by remember { mutableStateOf(false) }
     if (deleting) {
-        AlertDialog(
-            onDismissRequest = { deleting = false },
-            title = { Text("Delete ${named.name}?") },
-            text = { Text("The weekdays that follow it will follow Off day instead.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    deleting = false
-                    onClose()
-                    onChange(DayPlanEditing.removeTemplate(plan, named.id))
-                }) { Text("Delete") }
+        AbDialog(
+            title = "Delete ${named.name}?",
+            onDismiss = { deleting = false },
+            confirmText = "Delete",
+            onConfirm = {
+                deleting = false
+                onClose()
+                onChange(DayPlanEditing.removeTemplate(plan, named.id))
             },
-            dismissButton = { TextButton(onClick = { deleting = false }) { Text("Keep it") } },
-        )
+            dismissText = "Keep it",
+        ) {
+            Text("The weekdays that follow it will follow Off day instead.", style = Ab.type.bodyMedium, color = Ab.colors.muted)
+        }
     }
 
     fun update(next: PlanTemplate) = onChange(plan.copy(templates = plan.templates.map { if (it.id == next.id) next else it }))
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
-            value = named.name,
-            onValueChange = { update(named.copy(name = it)) },
-            label = { Text("Name") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        AbTextField(value = named.name, onValueChange = { update(named.copy(name = it)) }, label = "Name")
         TemplateModeEditor(named.template, plan.categories, clock, onChange = { update(named.copy(template = it)) }, onMessage = onMessage, smartNote = smartNote)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = onClose) { Text("Done") }
-            TextButton(onClick = {
+            AbTextButton("Done", onClose)
+            AbTextButton("Duplicate", onClick = {
                 DayPlanEditing.duplicateTemplate(plan, named.id)?.let { (copied, id) ->
                     onChange(copied)
                     onMessage("Duplicated as ${copied.templates.first { it.id == id }.name}.")
                 }
-            }) { Text("Duplicate") }
+            })
             if (named.id != DayPlan.OFF_DAY_TEMPLATE_ID) {
-                TextButton(onClick = { deleting = true }) { Text("Delete") }
+                AbTextButton("Delete", onClick = { deleting = true }, danger = true)
             }
         }
     }

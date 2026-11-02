@@ -3,18 +3,16 @@ package com.accountabilibuddy.companion.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -32,6 +30,16 @@ import com.accountabilibuddy.companion.model.CategoryBehavior
 import com.accountabilibuddy.companion.model.DayCategory
 import com.accountabilibuddy.companion.model.DayTemplate
 import com.accountabilibuddy.companion.model.PlanPart
+import com.accountabilibuddy.companion.ui.kit.AbCheckRow
+import com.accountabilibuddy.companion.ui.kit.AbChip
+import com.accountabilibuddy.companion.ui.kit.AbChipRow
+import com.accountabilibuddy.companion.ui.kit.AbDialog
+import com.accountabilibuddy.companion.ui.kit.AbQuietIconButton
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.companion.ui.kit.AbTextField
+import com.accountabilibuddy.companion.ui.kit.AbValueButton
+import com.accountabilibuddy.companion.ui.kit.abTimePickerColors
+import com.accountabilibuddy.companion.ui.theme.Ab
 import java.time.LocalDate
 import java.time.LocalTime
 import java.util.UUID
@@ -61,8 +69,8 @@ fun DayTemplateEditor(
         DayPlanBarEditor(template, categories, selected, onSelect = { selected = it }, onChange = onChange, onRefused = onMessage)
         Text(
             "Tap empty space to add a part, tap a part to pick it, drag its edges or middle. A Sleep part that starts before midnight is the night before this day.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = Ab.type.small,
+            color = Ab.colors.muted,
         )
 
         val rows = if (selected != null) template.parts.filter { it.id == selected } else template.parts.sortedBy { if (it.crossesMidnight) -1 else DayTemplateEditing.minutesOf(it.start) }
@@ -79,9 +87,9 @@ fun DayTemplateEditor(
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (selected != null) {
-                TextButton(onClick = { selected = null }) { Text("Show all parts") }
+                AbTextButton("Show all parts", onClick = { selected = null })
             }
-            TextButton(onClick = {
+            AbTextButton("Add a part", onClick = {
                 // The first free quarter hour from 8 AM on (wrapping past midnight).
                 val category = categories.firstOrNull { it.behavior == CategoryBehavior.Rest } ?: categories.firstOrNull()
                 val added = category?.let { chosen ->
@@ -93,16 +101,17 @@ fun DayTemplateEditor(
                     onChange(added)
                     selected = added.parts.last().id
                 }
-            }) { Text("Add a part") }
+            })
         }
 
         DayPlanValidator.validate(template, categories)?.let {
-            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+            Text(it, color = Ab.colors.drift, style = Ab.type.bodyMedium)
         }
     }
 }
 
 /** One part: its name (optional, else the category's), category, start and end. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PartRow(part: PlanPart, categories: List<DayCategory>, clock: ClockFormat, smartNote: String?, onChange: (PlanPart) -> Unit, onDelete: () -> Unit) {
     var categoryMenu by remember { mutableStateOf(false) }
@@ -114,66 +123,60 @@ private fun PartRow(part: PlanPart, categories: List<DayCategory>, clock: ClockF
         .store.state.value.sleep.goal
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        OutlinedTextField(
+        AbTextField(
             value = part.label.orEmpty(),
             onValueChange = { onChange(part.copy(label = it.ifBlank { null })) },
-            label = { Text("Name (optional, else ${category?.name ?: "its category"})") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
+            label = "Name (optional, else ${category?.name ?: "its category"})",
         )
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        FlowRow(verticalArrangement = Arrangement.spacedBy(2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Box {
-                OutlinedButton(onClick = { categoryMenu = true }) { Text(category?.name ?: "Category") }
-                DropdownMenu(expanded = categoryMenu, onDismissRequest = { categoryMenu = false }) {
+                AbValueButton(category?.name ?: "Category", onClick = { categoryMenu = true })
+                DropdownMenu(expanded = categoryMenu, onDismissRequest = { categoryMenu = false }, containerColor = Ab.colors.surface) {
                     for (choice in categories) {
-                        DropdownMenuItem(text = { Text(choice.name) }, onClick = {
+                        DropdownMenuItem(text = { Text(choice.name, style = Ab.type.bodyMedium, color = Ab.colors.ink) }, onClick = {
                             onChange(part.copy(categoryId = choice.id, autoStart = part.autoStart && choice.behavior == CategoryBehavior.Rest))
                             categoryMenu = false
                         })
                     }
                 }
             }
-            OutlinedButton(onClick = { picking = "start" }) { Text(clock.time(part.start.atDate(LocalDate.now()))) }
-            Text("–")
-            OutlinedButton(onClick = { picking = "end" }, enabled = !(isSleep && part.wakeByAlarm)) {
-                Text(if (isSleep && part.wakeByAlarm) "alarm" else clock.time(part.end.atDate(LocalDate.now())))
-            }
-            TextButton(onClick = onDelete, modifier = Modifier.width(48.dp)) { Text("✕") }
+            AbValueButton(clock.time(part.start.atDate(LocalDate.now())), onClick = { picking = "start" })
+            Row(Modifier.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) { Text("–", style = Ab.type.bodyMedium, color = Ab.colors.muted) }
+            AbValueButton(
+                if (isSleep && part.wakeByAlarm) "alarm" else clock.time(part.end.atDate(LocalDate.now())),
+                onClick = { picking = "end" }, enabled = !(isSleep && part.wakeByAlarm),
+            )
+            AbQuietIconButton(Icons.Outlined.Close, "Delete this part", onClick = onDelete)
         }
         // A Sleep part woken by the alarm (ADR 33): only the bedtime is set; the end follows bedtime plus the goal.
         if (isSleep) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                androidx.compose.material3.Checkbox(
-                    checked = part.wakeByAlarm,
-                    onCheckedChange = { on -> onChange(part.copy(wakeByAlarm = on, end = if (on) part.start.plus(sleepGoal) else part.end)) },
-                )
-                Text("Wake = my alarm (none set: bedtime + sleep goal)", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
-            }
+            AbCheckRow(
+                "Wake = my alarm (none set: bedtime + sleep goal)", part.wakeByAlarm,
+                { on -> onChange(part.copy(wakeByAlarm = on, end = if (on) part.start.plus(sleepGoal) else part.end)) },
+            )
         }
         if (isSleep && smartNote != null) {
-            Text("Smart bedtime: $smartNote. This bedtime is used while it learns.",
-                style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Smart bedtime: $smartNote. This bedtime is used while it learns.", style = Ab.type.small, color = Ab.colors.muted)
         }
         // A flexible break (e.g. lunch): the times are its window, it starts when you press Start lunch.
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            androidx.compose.material3.Checkbox(
-                checked = part.isFlexible,
-                onCheckedChange = { on -> onChange(part.copy(flexMinutes = if (on) 60 else null, hintAt = if (on) LocalTime.of(13, 0) else null, autoStart = part.autoStart && !on)) },
-            )
-            Text("Flexible, for", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
-            listOf(30, 45, 60, 90).forEach { minutes ->
-                androidx.compose.material3.FilterChip(
-                    selected = part.flexMinutes == minutes, enabled = part.isFlexible,
-                    onClick = { onChange(part.copy(flexMinutes = minutes)) }, label = { Text("$minutes") },
-                )
+        AbCheckRow(
+            "Flexible break", part.isFlexible,
+            { on -> onChange(part.copy(flexMinutes = if (on) 60 else null, hintAt = if (on) LocalTime.of(13, 0) else null, autoStart = part.autoStart && !on)) },
+        )
+        if (part.isFlexible) {
+            AbChipRow {
+                Text("Lasts", style = Ab.type.bodyMedium, color = Ab.colors.muted)
+                listOf(30, 45, 60, 90).forEach { minutes ->
+                    AbChip("$minutes min", selected = part.flexMinutes == minutes, onClick = { onChange(part.copy(flexMinutes = minutes)) })
+                }
             }
         }
         // A fixed lunch period (schema v13): a Rest part with fixed hours starts lunch by itself at its start, for as long as it lasts.
         if (category?.behavior == CategoryBehavior.Rest && !part.isFlexible && !part.crossesMidnight) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                androidx.compose.material3.Checkbox(checked = part.autoStart, onCheckedChange = { on -> onChange(part.copy(autoStart = on)) })
-                Text("Starts by itself (lunch starts at its start, or at the first chance after, and ends when this part does)", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
-            }
+            AbCheckRow(
+                "Starts by itself (lunch starts at its start, or at the first chance after, and ends when this part does)", part.autoStart,
+                { on -> onChange(part.copy(autoStart = on)) },
+            )
         }
     }
 
@@ -202,17 +205,16 @@ private fun PartRow(part: PlanPart, categories: List<DayCategory>, clock: ClockF
 @Composable
 internal fun TimeDialog(title: String, initial: LocalTime, is24Hour: Boolean, isStart: Boolean, onPick: (LocalTime) -> Unit, onDismiss: () -> Unit) {
     val state = rememberTimePickerState(initial.hour, initial.minute, is24Hour)
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = { TimePicker(state) },
-        confirmButton = {
-            TextButton(onClick = {
-                // Snapped to 15 minutes, like the bar; a start stays before midnight (23:53 would round to 00:00).
-                val snapped = DayTemplateEditing.snap((state.hour * 60 + state.minute).toDouble())
-                onPick(DayTemplateEditing.timeOf(if (isStart) minOf(snapped, 23 * 60 + 45) else snapped))
-            }) { Text("OK") }
+    AbDialog(
+        title = title,
+        onDismiss = onDismiss,
+        confirmText = "OK",
+        onConfirm = {
+            // Snapped to 15 minutes, like the bar; a start stays before midnight (23:53 would round to 00:00).
+            val snapped = DayTemplateEditing.snap((state.hour * 60 + state.minute).toDouble())
+            onPick(DayTemplateEditing.timeOf(if (isStart) minOf(snapped, 23 * 60 + 45) else snapped))
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+    ) {
+        TimePicker(state, colors = abTimePickerColors())
+    }
 }

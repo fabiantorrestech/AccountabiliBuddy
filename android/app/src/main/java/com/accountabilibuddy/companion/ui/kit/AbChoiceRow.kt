@@ -21,7 +21,7 @@ import com.accountabilibuddy.companion.ui.theme.Ab
 
 /** One option of a single choice: a radio mark in ink (never accent), the text, and an optional muted line. The whole row selects. */
 @Composable
-fun AbChoiceRow(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, subtitle: String? = null, enabled: Boolean = true) {
+fun AbChoiceRow(text: String, selected: Boolean, modifier: Modifier = Modifier, subtitle: String? = null, enabled: Boolean = true, onClick: () -> Unit) {
     val colors = Ab.colors
     Row(
         modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick),
