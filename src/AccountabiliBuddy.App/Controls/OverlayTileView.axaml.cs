@@ -34,7 +34,8 @@ public partial class OverlayTileView : UserControl
         MainRow.HorizontalAlignment = target.Kind == OverlayTargetKind.VerticalTile ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         bool wide = settings.Size == OverlaySize.Wide;
         bool large = settings.Size == OverlaySize.Large && target.Kind != OverlayTargetKind.VerticalTile;
-        bool ownClock = wide || target.CoversTray;
+        // Time & date and Batteries draw at Medium and up; Small stays one line (over the tray it still brings its own clock).
+        bool ownClock = settings.Size != OverlaySize.Small || target.CoversTray;
         bool sessionAdded = false;
         bool clockAdded = false;
 

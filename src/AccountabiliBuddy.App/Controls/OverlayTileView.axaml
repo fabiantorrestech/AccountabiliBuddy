@@ -140,7 +140,7 @@
         </DataTemplate>
     </UserControl.Resources>
     <Panel>
-        <Border x:Name="Tile" Background="{DynamicResource Ab.Surface}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="10,0">
+        <Border x:Name="Tile" Background="{DynamicResource Ab.Surface}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="10,0" ClipToBounds="True">
             <StackPanel x:Name="Rows" VerticalAlignment="Center" Spacing="2">
                 <StackPanel x:Name="MainRow" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" />
                 <StackPanel x:Name="ExtraRow" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" IsVisible="False" />

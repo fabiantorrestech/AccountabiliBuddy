@@ -35,6 +35,9 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     private bool _loading;
     private bool _saving;
 
+    // The list was never saved: the rows show the default for the size and placement and follow them. The first change to a row saves the list.
+    private bool _usesDefaultOrder;
+
     public OverlaySettingsViewModel(OverlaySettingsService settings, Func<string?> stickyHotkeyError)
     {
         _settings = settings;
@@ -81,7 +84,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
             PeekDelayMs = PeekDelayIndex >= 0 ? PeekDelayValues[PeekDelayIndex] : current.PeekDelayMs,
             PanelSticky = PanelSticky,
             PeekKeysLocked = !PeekUsesKeys,
-            ContentOrder = Items.Select(row => row.ToItem()).ToList(),
+            ContentOrder = _usesDefaultOrder ? null : Items.Select(row => row.ToItem()).ToList(),
         });
     }
 
@@ -186,6 +189,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
         PanelSticky = settings.PanelSticky;
         PeekUsesKeys = !settings.PeekKeysLocked;
         UsesBuiltInRules = settings.AppRules is null;
+        _usesDefaultOrder = settings.ContentOrder is null;
         SetItems(settings.Items);
         Rules.Clear();
         foreach (OverlayAppRule rule in settings.Rules)
@@ -203,11 +207,44 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
         foreach (OverlayItem item in items)
         {
             var row = new OverlayItemRowViewModel(item);
-            row.PropertyChanged += (_, _) => SaveItems();
+            row.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(OverlayItemRowViewModel.IsOn))
+                {
+                    SaveItems();
+                }
+            };
             Items.Add(row);
         }
 
+        MarkSizeBoundRows();
         UpdatePreview();
+    }
+
+    // Time and date and Batteries need Medium or larger (Small is one line); the rows say so and are disabled there.
+    private void MarkSizeBoundRows()
+    {
+        bool small = SizeIndex == (int)OverlaySize.Small && PlacementIndex != (int)OverlayPlacement.CoverTray;
+        foreach (OverlayItemRowViewModel row in Items.Where(row => row.IsSizeBound))
+        {
+            row.NeedsMedium = small;
+        }
+    }
+
+    // A size or placement change moves the default list (clock and batteries on for Wide and Cover tray); a saved list stays as it is.
+    private void FollowDefaultOrder()
+    {
+        if (_usesDefaultOrder && !_loading)
+        {
+            OverlaySettings draft = Draft();
+            _loading = true;
+            SetItems(draft.Items);
+            _loading = false;
+        }
+        else
+        {
+            MarkSizeBoundRows();
+        }
     }
 
     private OverlayRuleRowViewModel Watched(OverlayRuleRowViewModel row)
@@ -228,6 +265,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
 
     partial void OnPlacementIndexChanged(int value)
     {
+        FollowDefaultOrder();
         Touch(OverlayPreviewScene.Taskbar);
         Save(s => s with { Placement = (OverlayPlacement)value, PlacementChosen = true });
     }
@@ -266,6 +304,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
 
     partial void OnSizeIndexChanged(int value)
     {
+        FollowDefaultOrder();
         Touch(OverlayPreviewScene.Taskbar);
         Save(s => s with { Size = (OverlaySize)value });
     }
@@ -325,6 +364,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
 
     private void SaveItems()
     {
+        _usesDefaultOrder = false;
         UpdatePreview();
         Touch(OverlayPreviewScene.Taskbar);
         Save(s => s with { ContentOrder = Items.Select(row => row.ToItem()).ToList() });
@@ -382,7 +422,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     private void JustTheEssentials() => ApplyPreset(OverlayContentOrder.Essentials);
 
     [RelayCommand]
-    private void ResetOrder() => ApplyPreset(OverlayContentOrder.FocusFirst);
+    private void ResetOrder() => _ = _settings.SaveLookAsync(s => s with { ContentOrder = null });
 
     private void ApplyPreset(IReadOnlyList<OverlayItem> preset)
     {
