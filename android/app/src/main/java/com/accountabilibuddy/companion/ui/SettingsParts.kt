@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.semantics.Role
+import com.accountabilibuddy.companion.ui.theme.Ab
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.outlined.ExpandLess
@@ -83,8 +86,8 @@ internal fun ToggleRow(title: String, detail: String, checked: Boolean, enabled:
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = MaterialTheme.typography.bodyLarge)
                 if (long) {
-                    Text(" ⓘ", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.clickable { explained = !explained })
+                    Text(" ⓘ", style = MaterialTheme.typography.bodyLarge, color = Ab.colors.muted,
+                        modifier = Modifier.heightIn(min = 44.dp).clickable(role = Role.Button) { explained = !explained }.padding(horizontal = 4.dp))
                 }
             }
             if (!long || explained) {
@@ -101,8 +104,10 @@ internal fun ToggleRow(title: String, detail: String, checked: Boolean, enabled:
 internal fun Hint(text: String, label: String = "How this works") {
     var open by remember { mutableStateOf(false) }
     Column {
-        Text("ⓘ $label", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable { open = !open }.padding(vertical = 2.dp))
+        // Quiet (never the accent) and a 44 dp target.
+        Row(Modifier.heightIn(min = 44.dp).clickable(role = Role.Button) { open = !open }, verticalAlignment = Alignment.CenterVertically) {
+            Text("ⓘ $label", style = MaterialTheme.typography.bodySmall, color = Ab.colors.muted)
+        }
         if (open) {
             Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }

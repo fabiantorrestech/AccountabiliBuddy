@@ -13,6 +13,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.sync.DeviceBackups
@@ -52,17 +54,21 @@ internal fun RemoveDeviceSheet(state: RemoveDeviceState, flow: RemoveDeviceFlow)
         dismissible = !working,
         footer = {
             when {
+                state.step == RemoveStep.Confirm -> {
+                    // The one destructive button gets a whole row, so its words never truncate; TalkBack hears the device's name too.
+                    AbPrimaryButton(
+                        "Remove device", onClick = flow::next, enabled = state.lockedReason == null,
+                        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Remove ${state.name}" },
+                    )
+                    AbTonalButton("Back", onClick = flow::back, modifier = Modifier.fillMaxWidth())
+                    AbTextButton("Cancel", onClick = flow::close, modifier = Modifier.align(Alignment.CenterHorizontally))
+                }
                 state.isQuestionPage -> {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (state.step != RemoveStep.What) {
                             AbTonalButton("Back", onClick = flow::back, modifier = Modifier.weight(1f))
                         }
-                        AbPrimaryButton(
-                            if (state.step == RemoveStep.Confirm) "Remove device" else "Next",
-                            onClick = flow::next,
-                            enabled = !needsFile && !(state.step == RemoveStep.Confirm && state.lockedReason != null),
-                            modifier = Modifier.weight(1f),
-                        )
+                        AbPrimaryButton("Next", onClick = flow::next, enabled = !needsFile, modifier = Modifier.weight(1f))
                     }
                     AbTextButton("Cancel", onClick = flow::close, modifier = Modifier.align(Alignment.CenterHorizontally))
                 }

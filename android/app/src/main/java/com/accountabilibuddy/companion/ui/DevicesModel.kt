@@ -14,6 +14,12 @@ object DevicesModel {
     /** How often another device's file should come when nothing else says (the PC's default interval). */
     val DEFAULT_INTERVAL: Duration = Duration.ofMinutes(15)
 
+    /** A phone's or watch's file is expected about once a day when nothing else says, as on the PC's light. */
+    private val SLOW_INTERVAL: Duration = Duration.ofDays(1)
+
+    /** How often a device of [kind] should write, the same for its row, the stale note and the sync light. */
+    fun intervalFor(kind: String): Duration = if (kind == SyncDeviceCard.KIND_PC) DEFAULT_INTERVAL else SLOW_INTERVAL
+
     /** This phone and its watch, then the other devices, then the removed ones whose data is kept. */
     fun allRows(devices: DevicesState, watchDetectedIds: Set<String>, watch: com.accountabilibuddy.shared.WatchLinkSettings, now: Instant): List<DeviceRow> {
         val watchVersion = devices.received.firstOrNull { it.file.device.kind == SyncDeviceCard.KIND_WATCH }?.file?.device?.appVersion
@@ -31,7 +37,7 @@ object DevicesModel {
         .map { device ->
             val card = device.file.device
             val age = Duration.between(card.writtenAt, now).coerceAtLeast(Duration.ZERO)
-            val state = SyncState.of(age, DEFAULT_INTERVAL)
+            val state = SyncState.of(age, intervalFor(card.kind))
             DeviceRow(
                 card.name,
                 listOfNotNull(OwnDeviceRows.versionPart(card.appVersion), kindName(card.kind), methodName(device.method)).joinToString(" · "),
@@ -65,8 +71,10 @@ object DevicesModel {
      * itself ("Galaxy Tab hasn't synced since 10:35 AM. It catches up next time it's opened."). A count of the others when there are
      * more. Null when none is behind. The time is 12-hour whatever the system says; another day adds its date.
      */
-    fun staleNote(devices: DevicesState, now: Instant, zone: ZoneId): StaleNote? {
-        val behind = devices.received.filter { SyncState.of(Duration.between(it.file.device.writtenAt, now).coerceAtLeast(Duration.ZERO), DEFAULT_INTERVAL) == SyncState.BEHIND }
+    fun staleNote(devices: DevicesState, now: Instant, zone: ZoneId, hideWatchCards: Boolean = false): StaleNote? {
+        val behind = devices.received
+            .filterNot { hideWatchCards && it.file.device.kind == SyncDeviceCard.KIND_WATCH }
+            .filter { SyncState.of(Duration.between(it.file.device.writtenAt, now).coerceAtLeast(Duration.ZERO), intervalFor(it.file.device.kind)) == SyncState.BEHIND }
         val oldest = behind.minByOrNull { it.file.device.writtenAt }?.file?.device ?: return null
         val at = oldest.writtenAt.atZone(zone)
         val today = now.atZone(zone).toLocalDate()
@@ -100,6 +108,7 @@ object DevicesModel {
         age < Duration.ofMinutes(1) -> "just now"
         age < Duration.ofHours(1) -> "${age.toMinutes()} min ago"
         age < Duration.ofDays(1) -> "${age.toHours()} h ago"
+        age < Duration.ofDays(2) -> "1 day ago"
         else -> "${age.toDays()} days ago"
     }
 
@@ -112,6 +121,3 @@ object DevicesModel {
         else -> "sync file"
     }
 }
-
-/** The stale note: the device [name] (shown in bold) and the [rest] of the sentence. */
-data class StaleNote(val name: String, val rest: String)

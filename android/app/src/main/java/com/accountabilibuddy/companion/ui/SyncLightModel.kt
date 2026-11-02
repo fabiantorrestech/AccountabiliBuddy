@@ -12,13 +12,10 @@ enum class SyncDot { InSync, Syncing, SeveralBehind, Offline }
 data class SyncLightDevice(val name: String, val kind: DeviceKind, val dimmed: Boolean, val detail: String)
 
 /** What the sync light draws: the dot, the glyphs, and the popover's headline. */
-data class SyncLightModel(val dot: SyncDot, val devices: List<SyncLightDevice>, val headline: String)
+data class SyncLightModel(val dot: SyncDot, val devices: List<SyncLightDevice>, val headline: String, val needsAttention: Boolean = false)
 
 /** Works the sync light out from the Devices & sync state (no Android here). */
 object SyncLightRules {
-    /** A phone's or watch's file is expected about once a day when nothing else says, as on the PC's light. */
-    private val SLOW_INTERVAL: Duration = Duration.ofDays(1)
-
     /** This many other devices more than [SEVERAL_EXTRA] past their expected interval make the dot lilac. */
     private const val SEVERAL_COUNT = 2
     private val SEVERAL_EXTRA: Duration = Duration.ofHours(1)
@@ -37,7 +34,7 @@ object SyncLightRules {
         val others = devices.received.map { received ->
             val card = received.file.device
             val age = Duration.between(card.writtenAt, now).coerceAtLeast(Duration.ZERO)
-            val interval = if (card.kind == SyncDeviceCard.KIND_PC) DevicesModel.DEFAULT_INTERVAL else SLOW_INTERVAL
+            val interval = DevicesModel.intervalFor(card.kind)
             Quad(card, age, SyncState.of(age, interval) == SyncState.BEHIND, age > interval + SEVERAL_EXTRA)
         }
         val linkedWatch = watch.settings.linkedNodeId != null
@@ -73,7 +70,7 @@ object SyncLightRules {
         }
         // Nothing leaves this phone: the other devices show as out of reach too.
         val shown = if (dot == SyncDot.Offline) glyphs.map { if (it.name == devices.deviceName) it else it.copy(dimmed = true) } else glyphs
-        return SyncLightModel(dot, shown, headline(devices, problem, failing.map { it.first }, now))
+        return SyncLightModel(dot, shown, headline(devices, problem, failing.map { it.first }, now), needsAttention = failing.isNotEmpty())
     }
 
     private fun headline(devices: DevicesState, problem: String?, failing: List<String>, now: Instant): String {

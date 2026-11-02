@@ -14,7 +14,9 @@ enum class SyncLightSetting(val label: String) {
         model == null -> false
         this == On -> true
         this == Off -> false
-        // Wrong: this phone can't sync, several devices are far behind, or a device's glyph is dimmed (behind or out of reach).
-        else -> model.dot == SyncDot.Offline || model.dot == SyncDot.SeveralBehind || model.devices.any { it.dimmed }
+        // Wrong: this phone can't sync, several devices are far behind, one way of syncing has a problem (the popover names it), or a device
+        // is behind. A watch out of Bluetooth range dims its glyph but is not "wrong" (it is a distance, not a fault).
+        else -> model.dot == SyncDot.Offline || model.dot == SyncDot.SeveralBehind || model.needsAttention ||
+            model.devices.any { it.dimmed && it.kind != DeviceKind.WATCH }
     }
 }

@@ -74,7 +74,7 @@ fun SettingsList(
             item { GuardsRestBanner(lock) }
         }
         if (searching) {
-            item { SearchResults(results, onOpenResult) }
+            item { SearchResults(results, inputs.guardsLock != null, onOpenResult) }
         } else {
             item { CategoryCard(SettingsCategory.Main, summaries, inputs.guardsLock != null, onOpen) }
             item { CategoryCard(SettingsCategory.Below, summaries, inputs.guardsLock != null, onOpen) }
@@ -91,7 +91,7 @@ fun SettingsList(
 
 /** What the search found: a row each with the page it is on, or a line saying nothing matched. */
 @Composable
-private fun SearchResults(results: List<SearchEntry>, onOpenResult: (SearchEntry) -> Unit) {
+private fun SearchResults(results: List<SearchEntry>, resting: Boolean, onOpenResult: (SearchEntry) -> Unit) {
     if (results.isEmpty()) {
         Text("Nothing in Settings matches that.", style = Ab.type.bodyMedium, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 4.dp))
         return
@@ -101,7 +101,7 @@ private fun SearchResults(results: List<SearchEntry>, onOpenResult: (SearchEntry
         results.forEachIndexed { index, entry ->
             AbListRow(
                 title = entry.title, icon = entry.category.icon, subtitle = "Settings › ${entry.category.title}",
-                onClick = { onOpenResult(entry) }, divider = index < results.lastIndex,
+                onClick = { onOpenResult(entry) }, locked = resting && entry.category == SettingsCategory.Guards, divider = index < results.lastIndex,
             )
         }
     }

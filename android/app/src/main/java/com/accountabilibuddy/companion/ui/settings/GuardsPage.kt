@@ -71,6 +71,9 @@ private fun guardKeys(pause: PauseState?, guardsLock: GuardsLock?): List<String>
     add(SettingsAnchors.ESSENTIALS)
     add(SettingsAnchors.EMERGENCY)
     add(SettingsAnchors.PLACEMENT)
+    // ProfilesScreen then draws this phone's row and its cards (open at first), and only then the PC's profiles.
+    add("this-phone")
+    add("this-phone-guards")
     add(SettingsAnchors.PROFILES)
 }
 
