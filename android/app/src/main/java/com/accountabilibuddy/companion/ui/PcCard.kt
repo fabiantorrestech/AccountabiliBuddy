@@ -54,7 +54,8 @@ fun PcMissingCard(onOpenDevices: () -> Unit) {
 internal fun StartOnPcDialog(state: PcState, pcName: String, onStart: (String?, Int?, Boolean) -> Unit, onCancel: () -> Unit) {
     var profileId by remember { mutableStateOf(state.profiles.firstOrNull()?.id) }
     var minutes by remember { mutableIntStateOf(LENGTHS.first()) }
-    AbDialog(title = "Start on $pcName", onDismiss = onCancel, confirmText = "Start", onConfirm = { if (profileId != null) onStart(profileId, minutes, false) }) {
+    // With no profile to pick there is no plain Start (only the PC's own quick starts below), so the button is not offered.
+    AbDialog(title = "Start on $pcName", onDismiss = onCancel, confirmText = "Start".takeIf { profileId != null }, onConfirm = { if (profileId != null) onStart(profileId, minutes, false) }) {
         if (state.profiles.isNotEmpty()) {
             AbSectionLabel("Profile")
             AbChipRow {

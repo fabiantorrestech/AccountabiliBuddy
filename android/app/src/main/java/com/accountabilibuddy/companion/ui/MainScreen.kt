@@ -243,15 +243,17 @@ fun MainScreen(
             when (shown.destination) {
                 AppDestination.Today -> {
                     val app = context.applicationContext as com.accountabilibuddy.companion.CompanionApp
-                    // The controlled PC's session as its file says, looked at again with the bar's model (every 30 s) and when the files change.
-                    val todayPc = remember(controlPc, model, pcWaiting, runningTasks) {
-                        val device = controlPc
+                    // The PC whose session Today shows: the controlled PC while it runs one, else any other linked PC with a live session
+                    // (so a running session is never "Nothing running"); with none running, the controlled PC for Start. Looked at
+                    // again with the bar's model (every 30 s) and when the files change.
+                    val todayPc = remember(controlPc, syncReceived, model, pcWaiting, runningTasks) {
                         val now = java.time.Instant.now()
+                        fun running(d: com.accountabilibuddy.companion.sync.ReceivedDevice) = PcFileControl.liveRunning(d.file, now) != null
+                        val device = controlPc?.takeIf { running(it) } ?: PcFileControl.pcs(syncReceived).firstOrNull { running(it) } ?: controlPc
                         TodayPc(
                             name = device?.file?.device?.name,
                             pcId = device?.file?.device?.deviceId,
                             state = device?.let { PcFileControl.stateOf(it.file, now) },
-                            writtenAt = device?.file?.device?.writtenAt,
                             awaySince = device?.let { PcFileControl.liveRunning(it.file, now)?.awaySince },
                             updateNeeded = device?.let { PcFileControl.updateNeeded(it.file.device) },
                             waiting = pcWaiting?.takeIf { it.target == device?.file?.device?.deviceId },
@@ -286,8 +288,8 @@ fun MainScreen(
                         },
                         actions = TodayActions(
                             onStartOnPc = viewModel::startOnPc,
-                            onEndEarly = viewModel::beginEndEarly,
-                            onCancelWaiting = viewModel::cancelPcWaiting,
+                            onEndEarly = { viewModel.beginEndEarly(todayPc.pcId) },
+                            onCancelWaiting = { viewModel.cancelPcWaiting(todayPc.pcId) },
                             onImport = onPickFile,
                             onOpenDevices = { nav.open(AppDestination.Settings, SettingsCategory.Devices.key) },
                             onOpenTasks = { nav.select(AppDestination.Tasks) },

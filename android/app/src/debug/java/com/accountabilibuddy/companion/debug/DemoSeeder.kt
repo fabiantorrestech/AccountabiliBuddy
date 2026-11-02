@@ -37,11 +37,13 @@ class DemoSeeder(private val app: CompanionApp) {
         DemoSeedReceiver.MODE_IDLE -> seed(withSession = false)
         DemoSeedReceiver.MODE_SESSION -> seed(withSession = true)
         DemoSeedReceiver.MODE_PLANNING -> seed(withSession = true, planning = true)
+        // Idle days of another kind (ADR 47): the headline wording on a Budget day, a Free day and a day off.
+        DemoSeedReceiver.MODE_BUDGET, DemoSeedReceiver.MODE_FREE, DemoSeedReceiver.MODE_DAYOFF -> seed(withSession = false, dayKind = mode)
         DemoSeedReceiver.MODE_CLEAR -> clear()
         else -> "unknown mode \"$mode\" (idle, session or clear)"
     }
 
-    private fun seed(withSession: Boolean, planning: Boolean = false): String {
+    private fun seed(withSession: Boolean, planning: Boolean = false, dayKind: String = "schedule"): String {
         if (app.sync.isJoined && !prefs.getBoolean(KEY_JOINED_BY_DEMO, false)) {
             return "refused: this phone is in a real sync group; the seeder only works in none or its own"
         }
@@ -56,7 +58,7 @@ class DemoSeeder(private val app: CompanionApp) {
 
         val key = app.sync.key.value ?: return "no sync key"
         val now = Instant.now()
-        val file = DemoPcFile.build(now, withSession, listOf(SyncDeviceCard.METHOD_QR), planning)
+        val file = DemoPcFile.build(now, withSession, listOf(SyncDeviceCard.METHOD_QR), planning, dayKind)
         val error = app.sync.acceptSealed(SyncFileCodec.seal(file, key), SyncDeviceCard.METHOD_QR)
         if (error != null) {
             return "the demo file was refused: $error"

@@ -20,6 +20,8 @@ data class TodayInfo(
     val next: String,
     val focusedMinutes: Int,
     val goalMinutes: Int?,
+    /** Today's Budget pace (ADR 47), for the session screen; null when today is not a Budget day. */
+    val pace: BudgetPace? = null,
 ) {
     companion object {
         const val NOTHING_RUNNING = "Nothing running."
@@ -46,17 +48,17 @@ data class TodayInfo(
             val counted = DayWorkWindows.focusedToday(focus, now, zone)?.invoke(date) ?: Duration.ZERO
             val mode = plan.templateFor(date).mode
 
-            fun info(suffix: String?, next: String) = TodayInfo(suffix, NOTHING_RUNNING, next, focusedMinutes, goal)
+            fun info(suffix: String?, next: String, pace: BudgetPace? = null) = TodayInfo(suffix, NOTHING_RUNNING, next, focusedMinutes, goal, pace)
 
             if (notWorkingToday) return info("not working today", "Not working today.")
             if (mode == DayMode.Free) return info("free day", "Free day. Nothing is guarded.")
             if (mode == DayMode.Budget) {
                 val pace = DayWorkWindows.pace(plan, date, counted, now, nightFallback)
                     ?: return info("budget day", "Budget day.")
-                if (pace.budgetLeft.isZero) return info("budget met", "Budget met for today.")
+                if (pace.budgetLeft.isZero) return info("budget met", "Budget met for today.", pace)
                 val left = DayBarBuilder.duration(pace.budgetLeft)
                 val tail = if (pace.behind) " Only ${DayBarBuilder.duration(pace.availableLeft)} of the day is left." else ""
-                return info("budget day", "Budget day: $left of focus to go.$tail")
+                return info("budget day", "Budget day: $left of focus to go.$tail", pace)
             }
 
             val windows = DayWorkWindows.workWindows(plan, date, counted, now, nightFallback)

@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
 import com.accountabilibuddy.companion.essentials.EssentialsLaunch
 import com.accountabilibuddy.companion.session.TestSession
 import java.time.Duration
@@ -71,7 +72,7 @@ fun TestSessionCard() {
                 Text("$minutes min", style = MaterialTheme.typography.bodyLarge)
                 TextButton(onClick = { minutes = longer(minutes); test.minutes = minutes }, enabled = minutes < TestSession.MAX_MINUTES) { Text("+") }
                 androidx.compose.foundation.layout.Spacer(androidx.compose.ui.Modifier.weight(1f))
-                Button(onClick = { test.start(minutes) }, enabled = !realRunning) { Text("Start test") }
+                AbTonalButton("Start test", onClick = { test.start(minutes) }, enabled = !realRunning)
             }
             if (realRunning) {
                 Text("A session is running on another device: the test can start when it ends.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

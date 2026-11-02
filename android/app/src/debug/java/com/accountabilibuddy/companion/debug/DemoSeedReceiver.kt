@@ -38,6 +38,9 @@ class DemoSeedReceiver : BroadcastReceiver() {
         const val MODE_IDLE = "idle"
         const val MODE_SESSION = "session"
         const val MODE_PLANNING = "planning"
+        const val MODE_BUDGET = "budget"
+        const val MODE_FREE = "free"
+        const val MODE_DAYOFF = "dayoff"
         const val MODE_CLEAR = "clear"
     }
 }

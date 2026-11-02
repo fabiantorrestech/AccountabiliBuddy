@@ -107,7 +107,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         (application as CompanionApp).actions.pending.map { pending -> pending.lastOrNull { it.kind in SyncAction.CONTROL_KINDS } }
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    fun cancelPcWaiting() = pcRemote.cancelWaiting()
+    fun cancelPcWaiting(pcId: java.util.UUID? = null) = pcRemote.cancelWaiting(pcId)
 
     private val now = MutableStateFlow(LocalDateTime.now())
 
@@ -587,8 +587,8 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         message.value = pcRemote.start(profileId, minutes, countUp) ?: "Sent to ${pcRemote.target()?.file?.device?.name ?: "the PC"}; it starts when the PC next syncs."
     }
 
-    fun beginEndEarly() {
-        pcRemote.beginEndEarly()?.let { message.value = it }
+    fun beginEndEarly(pcId: java.util.UUID? = null) {
+        pcRemote.beginEndEarly(pcId)?.let { message.value = it }
     }
 
     fun cancelEndEarly() {

@@ -36,7 +36,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
+import com.accountabilibuddy.companion.sync.OpenComebacks
+import com.accountabilibuddy.companion.sync.deviceIdOf
+import com.accountabilibuddy.shared.sync.SyncAction
+import java.time.Instant
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
@@ -90,16 +97,24 @@ fun rememberVoiceInput(onResult: (String) -> Unit): VoiceInput {
 fun ParkPill(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val app = context.applicationContext as CompanionApp
+    val received by app.sync.received.collectAsState()
     var open by remember { mutableStateOf(false) }
     // Not remembered across a recreation on purpose: the draft is plain text and stays out of the saved instance state.
-    var draft by remember { mutableStateOf("") }
+    var draft by remember { mutableStateOf(TextFieldValue("")) }
+    // What was heard goes after the text already there, with the cursor at the end, so a word typed next lands after it.
     val voice = rememberVoiceInput { heard ->
-        draft = if (draft.isBlank()) heard.trim() else draft.trimEnd() + " " + heard.trim()
+        val joined = if (draft.text.isBlank()) heard.trim() else draft.text.trimEnd() + " " + heard.trim()
+        draft = TextFieldValue(joined, TextRange(joined.length))
         open = true
     }
+    // A PC older than the shared lists (ADR 48) shows its own Come back to list, which this phone's parked list does not reach.
+    val legacyPc = OpenComebacks.pcWithoutSharedLists(received, Instant.now())
 
     Surface(
-        onClick = { open = true },
+        onClick = {
+            draft = draft.copy(selection = TextRange(draft.text.length))
+            open = true
+        },
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).heightIn(min = 52.dp),
         shape = Ab.shapes.pill,
         color = Ab.colors.surface2,
@@ -121,11 +136,32 @@ fun ParkPill(modifier: Modifier = Modifier) {
             draft = draft,
             onDraft = { draft = it },
             voice = voice,
+            legacyPc = legacyPc,
             onPark = {
-                app.sharedLists.addParked(draft)
-                draft = ""
-                open = false
-                Toast.makeText(context, "Parked", Toast.LENGTH_SHORT).show()
+                val thought = draft.text.trim()
+                val target = legacyPc?.let { deviceIdOf(it, received) }
+                val sent = when {
+                    legacyPc == null -> {
+                        app.sharedLists.addParked(thought)
+                        Toast.makeText(context, "Parked", Toast.LENGTH_SHORT).show()
+                        true
+                    }
+                    // The same route Come back to takes next to an older PC: a park action through the sync files.
+                    target != null -> {
+                        app.actions.add(SyncAction.PARK, target, text = thought)
+                        Toast.makeText(context, "Sent to $legacyPc. It shows there after its next sync.", Toast.LENGTH_LONG).show()
+                        true
+                    }
+                    else -> {
+                        // That PC's file is not here (yet): nothing is sent and the text stays in the box.
+                        Toast.makeText(context, "Update AccountabiliBuddy on $legacyPc to park from here.", Toast.LENGTH_LONG).show()
+                        false
+                    }
+                }
+                if (sent) {
+                    draft = TextFieldValue("")
+                    open = false
+                }
             },
             onDismiss = { open = false },
         )
@@ -133,7 +169,7 @@ fun ParkPill(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ParkSheet(draft: String, onDraft: (String) -> Unit, voice: VoiceInput, onPark: () -> Unit, onDismiss: () -> Unit) {
+private fun ParkSheet(draft: TextFieldValue, onDraft: (TextFieldValue) -> Unit, voice: VoiceInput, legacyPc: String?, onPark: () -> Unit, onDismiss: () -> Unit) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
     val colors = Ab.colors
@@ -148,7 +184,7 @@ private fun ParkSheet(draft: String, onDraft: (String) -> Unit, voice: VoiceInpu
             maxLines = 5,
             shape = Ab.shapes.mediumShape,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { if (draft.isNotBlank()) onPark() }),
+            keyboardActions = KeyboardActions(onDone = { if (draft.text.isNotBlank()) onPark() }),
             trailingIcon = if (voice.available) {
                 { AbQuietIconButton(Icons.Outlined.Mic, contentDescription = "Speak a thought", onClick = voice.launch) }
             } else {
@@ -162,13 +198,19 @@ private fun ParkSheet(draft: String, onDraft: (String) -> Unit, voice: VoiceInpu
         )
         if (voice.available) {
             Text(
-                "Voice uses your phone's voice service, which may be online. Typing stays on this phone.",
+                "Voice uses your phone's voice service, which may be online. Typed thoughts stay on your own devices.",
+                style = Ab.type.small, color = colors.muted,
+            )
+        }
+        if (legacyPc != null) {
+            Text(
+                "$legacyPc has an older version: this goes to its own Come back to list through the sync files.",
                 style = Ab.type.small, color = colors.muted,
             )
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             AbTonalButton("Cancel", onClick = onDismiss, modifier = Modifier.weight(1f))
-            AbPrimaryButton("Park it", onClick = onPark, enabled = draft.isNotBlank(), modifier = Modifier.weight(1f))
+            AbPrimaryButton("Park it", onClick = onPark, enabled = draft.text.isNotBlank(), modifier = Modifier.weight(1f))
         }
     }
 }

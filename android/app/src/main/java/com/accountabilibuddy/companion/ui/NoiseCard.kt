@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
@@ -83,7 +84,7 @@ fun NoiseCard(state: NoiseState, settings: NoiseSettings, player: NoisePlayer) {
                 valueRange = 0f..100f, modifier = Modifier.weight(1f),
                 colors = SliderDefaults.colors(thumbColor = colors.ink, activeTrackColor = colors.ink, inactiveTrackColor = colors.surface2),
             )
-            Text("${volume.toInt()}%", style = Ab.type.small, color = colors.muted, modifier = Modifier.size(width = 40.dp, height = 18.dp))
+            Text("${volume.toInt()}%", style = Ab.type.small, color = colors.muted, modifier = Modifier.width(40.dp))
         }
     }
 }

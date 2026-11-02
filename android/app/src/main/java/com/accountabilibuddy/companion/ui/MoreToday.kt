@@ -83,6 +83,9 @@ class MoreTodayContent(
     val lunch: TodayLunch,
     val beeminder: BeeminderGoals?,
     val onImport: () -> Unit,
+    val inSession: Boolean,
+    val showWorkUse: Boolean,
+    val showDayOff: Boolean,
 )
 
 /**
@@ -92,18 +95,21 @@ class MoreTodayContent(
 fun LazyListScope.moreTodayItems(content: MoreTodayContent) {
     val model = content.model
     item(key = "more-daybar") { DayBarCard(model) }
-    item(key = "more-workuse") { WorkUseCard() }
-    item(key = "more-lunch") { LunchCard(content.lunch, content.clock) }
+    // Each piece is an item only when it has something to draw, so no empty item leaves a double gap.
+    if (content.showWorkUse) item(key = "more-workuse") { WorkUseCard() }
+    val lunch = content.lunch
+    if (lunch.workday || lunch.flex != null || lunch.taken != null) item(key = "more-lunch") { LunchCard(lunch, content.clock) }
     content.beeminder?.let { goals -> item(key = "more-beeminder") { BeeminderCard(goals, content.clock) } }
     item(key = "more-timers") {
         val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as CompanionApp
         TimersCard(app.timers, content.clock)
     }
-    item(key = "more-dayoff") { DayOffCard() }
+    if (content.showDayOff) item(key = "more-dayoff") { DayOffCard() }
     if (!content.state.hasImport) {
         item(key = "more-import") { ImportCard(content.onImport) }
     }
-    item(key = "more-test") { TestSessionCard() }
+    // The test session cannot start while a real one runs, so it is not offered then.
+    if (!content.inSession) item(key = "more-test") { TestSessionCard() }
 }
 
 @Composable

@@ -51,11 +51,23 @@ object DemoPcFile {
     val LATER_IDS = (1..3).map { UUID.nameUUIDFromBytes("demo-later-$it".toByteArray()).toString() }
 
     /** Every day follows the Workday template, so "today" always has a plan, whatever the weekday. */
-    val DAY_PLAN: DayPlan = DayPlan.fromWorkdayAndOffDay(
-        DayPlan.Default.categories, DayOfWeek.entries.toSet(), DayPlan.Default.workday, DayPlan.Default.workday,
-    )
+    val DAY_PLAN: DayPlan = dayPlan("schedule")
 
-    fun build(now: Instant, withSession: Boolean, methods: List<String>, planning: Boolean = false): SyncFile {
+    /**
+     * The demo plan by kind of day (ADR 47): `schedule` (the default), `budget` (4 hours to do, in the waking day), `free` (nothing
+     * guarded) or `dayoff` (no work blocks). Every day of the week follows it, so today always has this kind.
+     */
+    fun dayPlan(kind: String): DayPlan {
+        val workday = DayPlan.Default.workday
+        return when (kind) {
+            "budget" -> DayPlan.fromWorkdayAndOffDay(DayPlan.Default.categories, DayOfWeek.entries.toSet(), workday.copy(mode = com.accountabilibuddy.companion.model.DayMode.Budget, budgetMinutes = 240), workday)
+            "free" -> DayPlan.fromWorkdayAndOffDay(DayPlan.Default.categories, DayOfWeek.entries.toSet(), workday.copy(mode = com.accountabilibuddy.companion.model.DayMode.Free), workday)
+            "dayoff" -> DayPlan.fromWorkdayAndOffDay(DayPlan.Default.categories, emptySet(), workday, DayPlan.Default.workday.copy(parts = DayPlan.Default.workday.parts.filter { it.categoryId == DayPlan.Default.categories.first { c -> c.behavior == com.accountabilibuddy.companion.model.CategoryBehavior.Sleep }.id }))
+            else -> DayPlan.fromWorkdayAndOffDay(DayPlan.Default.categories, DayOfWeek.entries.toSet(), workday, workday)
+        }
+    }
+
+    fun build(now: Instant, withSession: Boolean, methods: List<String>, planning: Boolean = false, dayKind: String = "schedule"): SyncFile {
         val sessions = history(now).toMutableList()
         val running = if (withSession && planning) {
             // The PC's planning stage: 2 minutes in, 4 left, then a 50-minute focus phase; no tasks picked yet.
@@ -81,7 +93,7 @@ object DemoPcFile {
             device = SyncDeviceCard(DEVICE_ID, DEMO_PC_NAME, SyncDeviceCard.KIND_PC, PC_VERSION, now, methods, false, emptyMap()),
             sessions = sessions,
             drift = drift(sessions),
-            dayPlan = SyncDayPlan(DayPlanJson.write(DAY_PLAN).toString(), "demo-plan-1", planEditedAt, "demo-plan-1"),
+            dayPlan = SyncDayPlan(DayPlanJson.write(dayPlan(dayKind)).toString(), "demo-plan-$dayKind", planEditedAt, "demo-plan-$dayKind"),
             documents = listOf(SyncDocument(SyncDocument.PROFILES_KEY, profilesJson(), planEditedAt)),
             coversFrom = now.minus(Duration.ofDays(DAYS_OF_HISTORY)),
             comebacks = parked.filter { it.doneAt == null }.map { SyncComeback(it.id, it.text, it.createdAt) },

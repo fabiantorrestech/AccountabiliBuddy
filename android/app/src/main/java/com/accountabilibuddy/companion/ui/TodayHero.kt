@@ -68,7 +68,7 @@ fun rememberTickingNow(): State<Instant> {
 
 /** Idle (board 5a): "Nothing running." in ink, what comes next in muted text, and the one way to start a session. */
 @Composable
-fun IdleHero(info: TodayInfo?, fallbackNext: String, pc: TodayPc, clock: ClockFormat, onStart: () -> Unit, onCancelWaiting: () -> Unit) {
+fun IdleHero(info: TodayInfo?, fallbackNext: String, pc: TodayPc, clock: ClockFormat, locked: Boolean, onStart: () -> Unit, onCancelWaiting: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(info?.headline ?: TodayInfo.NOTHING_RUNNING, style = Ab.type.title, color = Ab.colors.ink)
         Text(info?.next ?: fallbackNext, style = Ab.type.title, color = Ab.colors.muted)
@@ -76,6 +76,8 @@ fun IdleHero(info: TodayInfo?, fallbackNext: String, pc: TodayPc, clock: ClockFo
     Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when {
             !pc.hasPc -> MutedLine("Link a PC to start sessions from here.")
+            // The settings are resting for a session this screen does not show (a test session, or one the file no longer vouches for).
+            locked -> MutedLine("A session or a test session is on. Start comes back when it ends.")
             pc.updateNeeded != null -> MutedLine(pc.updateNeeded)
             pc.waiting != null -> WaitingLine(pc, clock, onCancelWaiting)
             else -> AbPrimaryButton("Start on ${pc.name}", onClick = onStart, modifier = Modifier.fillMaxWidth())
@@ -88,13 +90,19 @@ fun IdleHero(info: TodayInfo?, fallbackNext: String, pc: TodayPc, clock: ClockFo
  * [awayText] says that the session is stepped away or that a step away is on its way.
  */
 @Composable
-fun SessionHero(state: PcState, taskTitle: String?, clock: ClockFormat, awayText: String?) {
+fun SessionHero(state: PcState, taskTitle: String?, clock: ClockFormat, awayText: String?, awaySince: Instant?) {
     val zone = ZoneId.systemDefault()
     val end = state.phaseEndsAt?.toInstant()
-    val endText = end?.let { "ends ${clock.time(LocalDateTime.ofInstant(it, zone))}" } ?: "no set end"
+    // While stepped away the PC pauses the countdown (it moves the phase's start and end only on return): the timer holds at the
+    // moment of stepping away, and the end time is not a promise.
+    val endText = when {
+        awaySince != null -> "paused"
+        end != null -> "ends ${clock.time(LocalDateTime.ofInstant(end, zone))}"
+        else -> "no set end"
+    }
     val what = taskTitle ?: state.profileName ?: "Focus"
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        SessionTimer(startedAt = state.phaseStartedAt?.toInstant(), endsAt = end, isBreak = state.isBreak)
+        SessionTimer(startedAt = state.phaseStartedAt?.toInstant(), endsAt = end, isBreak = state.isBreak, awaySince = awaySince)
         Text("$what · $endText", style = Ab.type.bodyMedium, color = Ab.colors.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
         if (awayText != null) Text(awayText, style = Ab.type.small, color = Ab.colors.muted)
     }
@@ -102,8 +110,10 @@ fun SessionHero(state: PcState, taskTitle: String?, clock: ClockFormat, awayText
 
 /** The big timer: counts down to the phase's end, or up from its start when it has no set end; 0:00 once the end has passed. */
 @Composable
-private fun SessionTimer(startedAt: Instant?, endsAt: Instant?, isBreak: Boolean) {
-    val now by rememberTickingNow()
+private fun SessionTimer(startedAt: Instant?, endsAt: Instant?, isBreak: Boolean, awaySince: Instant?) {
+    val ticking by rememberTickingNow()
+    // Counts from the moment of stepping away while away (the PC's CountdownTime does the same).
+    val now = awaySince?.takeIf { it.isBefore(ticking) } ?: ticking
     val seconds = when {
         endsAt != null -> secondsLeft(now, endsAt)
         startedAt != null -> Duration.between(startedAt, now).seconds.coerceAtLeast(0)
@@ -117,7 +127,7 @@ private fun SessionTimer(startedAt: Instant?, endsAt: Instant?, isBreak: Boolean
  * past its time until "Ready?" is answered on the PC. [startedAt] and [endsAt] are the stage's own.
  */
 @Composable
-fun PlanningHero(startedAt: Instant?, endsAt: Instant) {
+fun PlanningHero(startedAt: Instant?, endsAt: Instant, profileName: String?) {
     val now by rememberTickingNow()
     val left = secondsLeft(now, endsAt)
     val span = startedAt?.let { Duration.between(it, endsAt).seconds.coerceAtLeast(1) } ?: 1L
@@ -128,8 +138,12 @@ fun PlanningHero(startedAt: Instant?, endsAt: Instant) {
             Box(Modifier.fillMaxHeight().fillMaxWidth(remaining).background(Ab.meaning(Ab.colors.sleep), CircleShape))
         }
         Text(
-            if (left == 0L) "Time is up. Say Ready on the PC when you are." else "left to plan. Pick at most 3 tasks for this session; even 1 is great.",
+            if (left == 0L) "Time is up. Say Ready on the PC when you are." else "left to plan · ${profileName ?: "Focus"}",
             style = Ab.type.bodyMedium, color = Ab.colors.muted,
+        )
+        Text(
+            "Write everything you need to do on paper first. Then pick at most 3 for this session; even 1 is great.",
+            style = Ab.type.small, color = Ab.colors.muted,
         )
     }
 }

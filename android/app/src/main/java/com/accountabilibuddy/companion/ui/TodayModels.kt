@@ -10,7 +10,7 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * The controlled PC as Today needs it (ADR 42, 45): its name and file age, its session from the file ([state], null with no PC),
+ * The PC Today is about (ADR 42, 45): the PC with a running session, else the controlled PC. Its name, its session from the file ([state], null with no PC),
  * what keeps this phone from starting or ending things ([updateNeeded], [waiting]) and the running session's checklist.
  * [name] is null while no PC file has reached this phone.
  */
@@ -18,14 +18,12 @@ class TodayPc(
     val name: String?,
     val pcId: UUID?,
     val state: PcState?,
-    val writtenAt: Instant?,
     val awaySince: Instant?,
     val updateNeeded: String?,
     val waiting: SyncAction?,
     val tasks: RunningTasks?,
 ) {
     val hasPc: Boolean get() = name != null
-    val inSession: Boolean get() = state?.isActive == true
 }
 
 /** What the Today buttons do. The shell wires each to the existing action; the pane never decides anything itself. */

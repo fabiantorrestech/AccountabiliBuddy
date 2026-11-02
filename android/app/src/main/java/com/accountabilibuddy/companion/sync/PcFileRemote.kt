@@ -152,9 +152,12 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
         return null
     }
 
-    /** The first step of ending early: the PC answers with its wait (or ends a break or a session with no set end at once). Null when sent. */
-    fun beginEndEarly(): String? {
-        val pc = controllable().getOrElse { return it.message }
+    /**
+     * The first step of ending early: the PC answers with its wait (or ends a break or a session with no set end at once). Null when sent.
+     * [pcId] is the PC whose session Today shows (a running one that is not the controlled PC); null: the controlled PC.
+     */
+    fun beginEndEarly(pcId: UUID? = null): String? {
+        val pc = controllable(pcId).getOrElse { return it.message }
         _offer.value = null
         actions.add(SyncAction.END_EARLY_BEGIN, pc.file.device.deviceId)
         return null
@@ -182,8 +185,8 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
     }
 
     /** Stops waiting for a start or end-early answer (it can't undo one the PC already applied) by taking it out of this phone's file. */
-    fun cancelWaiting() {
-        val pc = target() ?: return
+    fun cancelWaiting(pcId: UUID? = null) {
+        val pc = pcOf(pcId) ?: return
         waitingFor(pc.file.device.deviceId)?.let { actions.remove(it.id) }
     }
 
@@ -269,8 +272,8 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
     private fun updateTasksText(name: String): String = "Update AccountabiliBuddy on $name to change its session tasks from here."
 
     // The PC to control, if it can answer and isn't already busy with one of this phone's requests.
-    private fun controllable(): Result<ReceivedDevice> {
-        val pc = target() ?: return Result.failure(IllegalStateException("No PC has synced with this phone yet."))
+    private fun controllable(pcId: UUID? = null): Result<ReceivedDevice> {
+        val pc = pcOf(pcId) ?: return Result.failure(IllegalStateException("No PC has synced with this phone yet."))
         PcFileControl.updateNeeded(pc.file.device)?.let { return Result.failure(IllegalStateException(it)) }
         if (waitingFor(pc.file.device.deviceId) != null) {
             return Result.failure(IllegalStateException("Still waiting for ${pc.file.device.name}'s answer."))
@@ -278,6 +281,10 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
 
         return Result.success(pc)
     }
+
+    // The PC [pcId] when its file is here, else the controlled PC.
+    private fun pcOf(pcId: UUID?): ReceivedDevice? =
+        pcId?.let { id -> received.value.firstOrNull { it.file.device.deviceId == id && it.file.device.kind == SyncDeviceCard.KIND_PC } } ?: target()
 
     private fun nameOf(pcId: UUID): String = received.value.firstOrNull { it.file.device.deviceId == pcId }?.file?.device?.name ?: "The PC"
 

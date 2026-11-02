@@ -205,7 +205,8 @@ fun rememberHasTimerOrAlarm(): Boolean {
 fun SmallCardsRow(hasTimer: Boolean, phoneUsage: PhoneUsage?, clock: ClockFormat, onAllowUsage: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (hasTimer) NearestTimerCard(clock, Modifier.weight(1f))
-        if (phoneUsage != null || !hasTimer) PhoneUseCard(phoneUsage, onAllowUsage, Modifier.weight(1f))
+        // Without Usage access this card is the way to allow it (it was on the old Today).
+        PhoneUseCard(phoneUsage, onAllowUsage, Modifier.weight(1f))
     }
 }
 
