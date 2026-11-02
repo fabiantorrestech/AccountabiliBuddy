@@ -193,7 +193,7 @@ class SyncCoordinator(
     fun ownQrLinks(): List<String> {
         val key = identity.key.value ?: return emptyList()
         // The shared lists with their tombstones (ADR 48) stay out of QR codes, as on the PC: a file without them leaves them alone.
-        return SyncQr.links(SyncFileCodec.seal(ownFile().copy(nextTasks = null, parked = null, later = null, pastKeys = null), key), key.groupId)
+        return SyncQr.links(SyncFileCodec.seal(ownFile().copy(nextTasks = null, parked = null, later = null, pastKeys = null, categories = null), key), key.groupId)
     }
 
     // The methods on the phone's card: what's switched on.
@@ -246,6 +246,13 @@ class SyncCoordinator(
 
     /** The Later list with its tombstones (ADR 50); null before the app sets it. */
     var later: () -> List<com.accountabilibuddy.shared.sync.SyncLaterItem>? = { null }
+
+    /**
+     * This phone's own task categories, name and colour, for its file so the PCs can offer them. The phone keeps no category list of its
+     * own yet (its picker lists the categories it has seen on tasks), so this stays null until the phone gets one; the field and its JSON
+     * are in place.
+     */
+    var categories: () -> List<com.accountabilibuddy.shared.sync.SyncCategory>? = { null }
 
     /**
      * Another device's shared lists (ADR 48), from a file just taken in; a list the file doesn't carry is null. The app
@@ -774,6 +781,7 @@ class SyncCoordinator(
         later = runCatching { later() }.getOrNull(),
         // ADR 56: the past keys, for opening backups; sealed with the current key like everything else.
         pastKeys = pastKeys.forFile(),
+        categories = runCatching { categories() }.getOrNull(),
     )
 
     /**

@@ -63,6 +63,8 @@ object SyncMerge {
             drift = drift.filter { !it.end.isBefore(keptFrom) }.sortedBy { it.start },
             dayPlan = incoming.dayPlan ?: stored?.dayPlan,
             documents = mergeDocuments(stored?.documents.orEmpty(), incoming.documents),
+            // A file that carries no category list (a QR file, an older app) leaves the stored one alone.
+            categories = incoming.categories ?: stored?.categories,
         )
     }
 

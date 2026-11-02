@@ -105,7 +105,8 @@ public static class SyncFileBuilder
         // Calendar events stay out of QR codes (the phone reads its calendars from Drive instead).
         // The shared lists with their tombstones (ADR 48) stay out too: a QR file takes no part in them, and a file without them leaves them alone.
         // The past keys (ADR 56) stay out of QR codes too: they are only for the sealed files of the sync methods.
-        file = file with { Events = null, NextTasks = null, Parked = null, Later = null, PastKeys = null };
+        // The category list (name and colour per category) stays out too: the QR code's room goes to sessions, and a file without it leaves the receiver's copy alone.
+        file = file with { Events = null, NextTasks = null, Parked = null, Later = null, PastKeys = null, Categories = null };
         DateTimeOffset writtenAt = file.Device.WrittenAt;
         DateTimeOffset todayStart = StartOfDay(writtenAt, zone);
         List<SyncSession> sessions = file.Sessions
