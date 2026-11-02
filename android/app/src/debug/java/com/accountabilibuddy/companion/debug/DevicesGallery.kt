@@ -41,7 +41,8 @@ import java.util.UUID
 /**
  * Debug only: Settings > Devices & sync over made-up devices (a PC just now, a tablet three hours behind, a linked watch), and the
  * remove and restore sheets in every state, for screenshots on the emulator. Opened through [KitGalleryActivity]:
- * `--es show devices [--es anchor relay] [--es relay on|off] [--ez nowatch true] [--ez locked true]`, `--es show remove --es step what|data|backup|older|confirm|working|problem|done`
+ * `--es show devices [--es anchor relay] [--es relay on|off] [--ez nowatch true] [--ez locked true] [--es pending relay|folder|drive [--ez due true]]`
+ * (a turn-off of the last way of syncing that waits; `due` = its time has passed, in a session), `--es show remove --es step what|data|backup|older|confirm|working|problem|done`
  * (`--ez locked true` adds the session lock), `--es show restore [--es mode list|empty|problem]`.
  */
 @Composable
@@ -96,12 +97,17 @@ private fun DevicesPage(intent: Intent) {
     fun received(file: com.accountabilibuddy.shared.sync.SyncFile) = ReceivedDevice(file, file.device.writtenAt, SyncDeviceCard.METHOD_DRIVE, ByteArray(0))
     val noWatch = intent.getBooleanExtra("nowatch", false)
     val relayOn = intent.getStringExtra("relay") == "on"
-    val settings = PhoneSyncSettings(driveOn = true, relayOn = relayOn, relayUrl = "https://192.168.1.20:8743".takeIf { relayOn })
+    val pendingOff = com.accountabilibuddy.companion.sync.SyncMethod.fromKey(intent.getStringExtra("pending"))?.let {
+        com.accountabilibuddy.companion.sync.PendingSyncOff(it, if (intent.getBooleanExtra("due", false)) now.minus(Duration.ofMinutes(1)) else now.plus(Duration.ofMinutes(7)))
+    }
+    val settings = PhoneSyncSettings(driveOn = pendingOff == null || pendingOff.method == com.accountabilibuddy.companion.sync.SyncMethod.Drive, relayOn = relayOn || pendingOff?.method == com.accountabilibuddy.companion.sync.SyncMethod.Relay,
+        relayUrl = "https://192.168.1.20:8743".takeIf { relayOn || pendingOff?.method == com.accountabilibuddy.companion.sync.SyncMethod.Relay })
     val devices = DevicesState(
         deviceName = "Nothing Phone 3", joined = true, settings = settings,
         received = listOf(received(pc), received(tablet), received(watchCard)),
         drive = com.accountabilibuddy.companion.sync.FolderStatus(lastSyncAt = now.minus(Duration.ofMinutes(1))),
         appVersion = "3.4.2",
+        syncOffPending = pendingOff,
         removalLocked = "This is locked while a focus session is running.".takeIf { intent.getBooleanExtra("locked", false) },
     )
     val watch = if (noWatch) WatchSectionState() else WatchSectionState(WatchLinkSettings("node", "Pixel Watch 3"), listOf(WatchNode("node", "Pixel Watch 3", true)))
