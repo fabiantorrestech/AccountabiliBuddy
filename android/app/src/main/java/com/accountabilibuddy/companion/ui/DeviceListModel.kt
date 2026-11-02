@@ -22,18 +22,22 @@ enum class DeviceKind(val iconPath: String) {
     }
 }
 
-/** The pill's colour: a sync state, or this device itself. */
-enum class PillTone { UP_TO_DATE, BEHIND, WAITING, UNLINKED, THIS_DEVICE }
+/** The dot's colour on a device row: a sync state, or this device itself. The words beside it say the same, so colour is never alone. */
+enum class DeviceTone { UP_TO_DATE, BEHIND, WAITING, UNLINKED, THIS_DEVICE }
 
 /**
- * One device on the Devices tab: its icon, name, detail and pill. [indented] rows sit under the device above them (this
- * phone's linked watch).
+ * One device on Devices & sync: its icon, name, a detail line ("AB 3.4.2 · PC · Google Drive"), and its status at the right (a
+ * dot and a few words: how long ago, "Now", "Removed"). [indented] rows sit under the device above them (this phone's linked watch).
+ *
+ * @property status What the right side says: "1 min ago", "Now", "Connected", "Removed".
+ * @property stateLabel The sync state in words, for a screen reader ("Behind", "Up to date").
  */
 data class DeviceRow(
     val name: String,
     val detail: String,
-    val pillText: String,
-    val pillTone: PillTone,
+    val status: String,
+    val stateLabel: String,
+    val tone: DeviceTone,
     val kind: DeviceKind,
     val indented: Boolean = false,
     /** Set on a device that can be removed from the group (ADR 54): the row gets a ⋯ menu. Not on this phone, its watch, a watch or a removed device. */
@@ -42,32 +46,41 @@ data class DeviceRow(
 
 /** The rows for this phone and its linked watch (no Android here, so the checks can run them). */
 object OwnDeviceRows {
-    fun tone(state: SyncState): PillTone = when (state) {
-        SyncState.UP_TO_DATE -> PillTone.UP_TO_DATE
-        SyncState.BEHIND -> PillTone.BEHIND
-        SyncState.WAITING -> PillTone.WAITING
-        SyncState.UNLINKED -> PillTone.UNLINKED
+    fun tone(state: SyncState): DeviceTone = when (state) {
+        SyncState.UP_TO_DATE -> DeviceTone.UP_TO_DATE
+        SyncState.BEHIND -> DeviceTone.BEHIND
+        SyncState.WAITING -> DeviceTone.WAITING
+        SyncState.UNLINKED -> DeviceTone.UNLINKED
     }
+
+    /** "AB 3.4.2" for a version, nothing for a blank one. */
+    fun versionPart(appVersion: String): String? = appVersion.takeIf { it.isNotBlank() }?.let { "AB $it" }
 
     /**
      * This phone first, then its linked watch indented under it: "Connected" while the Data Layer sees it with the app
-     * ([detectedIds]), else "Not connected".
+     * ([detectedIds]), else "Not connected". [appVersion] is this phone's own; [watchVersion] the linked watch's when a file said.
      */
-    fun rows(deviceName: String, joined: Boolean, watch: WatchLinkSettings, detectedIds: Set<String>): List<DeviceRow> {
+    fun rows(deviceName: String, joined: Boolean, watch: WatchLinkSettings, detectedIds: Set<String>, appVersion: String = "", watchVersion: String? = null): List<DeviceRow> {
         val phone = DeviceRow(
             deviceName,
-            if (joined) "This phone · in your device group" else "This phone · not linked to your other devices yet",
+            listOfNotNull(versionPart(appVersion), if (joined) "this phone · in your device group" else "this phone · not linked to your other devices yet").joinToString(" · "),
+            "Now",
             "This phone",
-            PillTone.THIS_DEVICE,
+            DeviceTone.THIS_DEVICE,
             DeviceKind.PHONE,
         )
         val nodeId = watch.linkedNodeId ?: return listOf(phone)
         val connected = nodeId in detectedIds
         val watchRow = DeviceRow(
             watch.linkedName ?: "Pixel Watch",
-            if (connected) "Watch · linked to this phone" else "Watch · linked, not reachable right now",
+            listOfNotNull(
+                watchVersion?.let(::versionPart),
+                "Wear OS",
+                if (connected) "through this phone" else "linked, not reachable right now",
+            ).joinToString(" · "),
             if (connected) "Connected" else "Not connected",
-            if (connected) PillTone.UP_TO_DATE else PillTone.WAITING,
+            if (connected) "Connected" else "Not connected",
+            if (connected) DeviceTone.UP_TO_DATE else DeviceTone.WAITING,
             DeviceKind.WATCH,
             indented = true,
         )
