@@ -3,6 +3,7 @@ using AccountabiliBuddy.App.ViewModels;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -46,6 +47,7 @@ public partial class TodayTaskRowsView : UserControl
             _subscribed.FocusEntryRequested -= OnFocusEntryRequested;
             _subscribed.RowsRebuilding -= OnRowsRebuilding;
             _subscribed.PropertyChanged -= OnChecklistPropertyChanged;
+            _subscribed.ListPicker.Closed -= OnListPickerClosed;
         }
 
         _subscribed = DataContext as ChecklistViewModel;
@@ -54,7 +56,19 @@ public partial class TodayTaskRowsView : UserControl
             _subscribed.FocusEntryRequested += OnFocusEntryRequested;
             _subscribed.RowsRebuilding += OnRowsRebuilding;
             _subscribed.PropertyChanged += OnChecklistPropertyChanged;
+            _subscribed.ListPicker.Closed += OnListPickerClosed;
         }
+    }
+
+    // "From your lists": read Later and Come back to as the picker opens; an item chosen closes it.
+    private void OnListPickerOpening(object? sender, EventArgs e)
+    {
+        (DataContext as ChecklistViewModel)?.ListPicker.Open();
+    }
+
+    private void OnListPickerClosed(object? sender, EventArgs e)
+    {
+        ListPullButton.Flyout?.Hide();
     }
 
     // A row's flyout still open when its row is rebuilt makes Avalonia throw while the row detaches, so it closes first (a step added in it reopens it, see WatchForRebuild).
@@ -75,12 +89,12 @@ public partial class TodayTaskRowsView : UserControl
         Dispatcher.UIThread.Post(() => NewTaskBox.Focus(), DispatcherPriority.Background);
     }
 
-    // The new-task category picker: fill the menu from the current choices every time it opens.
-    private void OnNewTaskPickerOpening(object? sender, EventArgs e)
+    // The new-task category picker: the menu is built as it opens, from this PC's categories and the other devices'.
+    private void OnNewTaskCategoryClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is MenuFlyout flyout && DataContext is ChecklistViewModel viewModel)
+        if (sender is Button button && DataContext is ChecklistViewModel viewModel)
         {
-            flyout.ItemsSource = viewModel.NewTaskCategoryChoices.ToList();
+            TaskMenus.ShowEntries(button, viewModel.BuildNewTaskCategoryMenu(), PlacementMode.BottomEdgeAlignedLeft);
         }
     }
 

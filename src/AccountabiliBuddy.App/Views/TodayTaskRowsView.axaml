@@ -95,20 +95,6 @@
             <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
         </Style>
     </UserControl.Styles>
-    <UserControl.Resources>
-        <!-- A category menu's entries (the add row's dot). -->
-        <ControlTheme x:Key="CategoryMenuItem" TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"
-                      x:DataType="vm:TaskCategoryChoiceViewModel">
-            <Setter Property="Command" Value="{Binding PickCommand}" />
-        </ControlTheme>
-        <DataTemplate x:Key="CategoryChoiceTemplate" x:DataType="vm:TaskCategoryChoiceViewModel">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <Ellipse Width="10" Height="10" Fill="{Binding Brush}" Stroke="#80808080" StrokeThickness="1" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-                <TextBlock Text="✓" IsVisible="{Binding IsSelected}" VerticalAlignment="Center" />
-            </StackPanel>
-        </DataTemplate>
-    </UserControl.Resources>
     <StackPanel Spacing="8">
 
         <!-- The open tasks, numbered in the order they run, under their category (colour dot and name, tasks set in; "No category" last,
@@ -281,7 +267,7 @@
 
         <!-- The next empty row: numbered like the others, an input. Enter adds it; the dot picks its category, the tag opens the categories. -->
         <Border Classes="addRow" IsVisible="{Binding CanEdit}">
-            <Grid ColumnDefinitions="Auto,32,*,Auto,Auto" ColumnSpacing="4" Margin="8,0,12,0">
+            <Grid ColumnDefinitions="Auto,32,*,Auto,Auto,Auto" ColumnSpacing="4" Margin="8,0,12,0">
                 <Panel Width="18" />
                 <TextBlock Grid.Column="1" Classes="display muted" Text="{Binding AddRowNumber}" FontSize="16" VerticalAlignment="Center" />
                 <TextBox Grid.Column="2" x:Name="NewTaskBox" Classes="rowEntry" Text="{Binding NewTaskTitle}" PlaceholderText="{Binding AddPlaceholderText}"
@@ -291,30 +277,38 @@
                     </TextBox.KeyBindings>
                 </TextBox>
                 <Button Grid.Column="3" Classes="small" Padding="4,0" ToolTip.Tip="{Binding NewTaskCategoryTip}"
-                        AutomationProperties.Name="Category for new tasks" IsVisible="{Binding HasCategories}">
+                        AutomationProperties.Name="Category for new tasks" IsVisible="{Binding HasNewTaskCategoryChoices}"
+                        Click="OnNewTaskCategoryClick">
                     <Ellipse Width="12" Height="12" Fill="{Binding NewTaskCategoryBrush}" Stroke="#80808080" StrokeThickness="1" />
+                </Button>
+                <Button Grid.Column="4" x:Name="ListPullButton" Classes="small" IsEnabled="{Binding !IsOverLimitPrompt}"
+                        ToolTip.Tip="From your lists: take a task from Later or Come back to" AutomationProperties.Name="From your lists">
+                    <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
                     <Button.Flyout>
-                        <!-- Items are rebuilt each time it opens (OnNewTaskPickerOpening); a long-lived flyout whose ItemsSource is replaced kept the stale item set. -->
-                        <MenuFlyout Opening="OnNewTaskPickerOpening" ItemContainerTheme="{StaticResource CategoryMenuItem}"
-                                    ItemTemplate="{StaticResource CategoryChoiceTemplate}" />
+                        <Flyout Placement="BottomEdgeAlignedRight" Opening="OnListPickerOpening">
+                            <local:ListPickerView DataContext="{Binding ListPicker}" />
+                        </Flyout>
                     </Button.Flyout>
                 </Button>
-                <Button Grid.Column="4" Classes="small" Command="{Binding ToggleManageCategoriesCommand}"
+                <Button Grid.Column="5" Classes="small" Command="{Binding ToggleManageCategoriesCommand}"
                         ToolTip.Tip="Categories: group tasks under names with colours (e.g. Work, Personal)" AutomationProperties.Name="Categories">
                     <mi:MaterialIcon Kind="TagMultipleOutline" Width="16" Height="16" />
                 </Button>
             </Grid>
         </Border>
 
+        <TextBlock Text="{Binding PullNotice}" Classes="faint" FontSize="12" Margin="16,0,0,0" TextWrapping="Wrap"
+                   IsVisible="{Binding PullNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
         <!-- A 4th task: park it, or add it anyway with a reason (3 tasks per session). -->
         <Border Classes="addRow" IsVisible="{Binding IsOverLimitPrompt}" Padding="16,12">
             <StackPanel Spacing="8">
                 <TextBlock Text="{Binding OverLimitText}" TextWrapping="Wrap" FontWeight="SemiBold" />
-                <TextBox Text="{Binding OverLimitReason}" PlaceholderText="Or add it anyway: why? (10+ characters, stays on this PC)" />
+                <TextBox Classes="taskEntry" Text="{Binding OverLimitReason}" PlaceholderText="{Binding OverLimitReasonHint}" />
                 <TextBlock Text="{Binding OverLimitError}" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap"
                            IsVisible="{Binding OverLimitError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 <StackPanel Orientation="Horizontal" Spacing="6">
-                    <Button Content="Park it" Command="{Binding ParkHeldTaskCommand}" />
+                    <Button Content="Park it" Command="{Binding ParkHeldTaskCommand}" IsVisible="{Binding !IsHeldPull}" />
                     <Button Content="Add anyway" Command="{Binding AddHeldTaskAnywayCommand}" />
                     <Button Classes="quiet" Content="Cancel" Command="{Binding CancelHeldTaskCommand}" />
                 </StackPanel>

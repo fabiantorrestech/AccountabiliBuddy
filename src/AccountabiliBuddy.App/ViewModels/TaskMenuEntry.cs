@@ -13,6 +13,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="Dot">A category's colour dot before the text.</param>
 /// <param name="IsChecked">Marked with ✓ (the category or plan part the task has now).</param>
 /// <param name="Icon">A 16 px Material icon before the text (ADR 32: the same meaning has the same icon everywhere); null for none.</param>
+/// <param name="Indented">Set in under the heading above it (a category listed under its device).</param>
+/// <param name="IsHeading">A group's name above its entries: bold, and not clickable.</param>
 public sealed record TaskMenuEntry(
     string Header,
     ICommand? Command = null,
@@ -21,7 +23,9 @@ public sealed record TaskMenuEntry(
     IBrush? Dot = null,
     string? ViewAction = null,
     bool IsSeparator = false,
-    MaterialIconKind? Icon = null)
+    MaterialIconKind? Icon = null,
+    bool Indented = false,
+    bool IsHeading = false)
 {
     public static TaskMenuEntry Separator { get; } = new(string.Empty, IsSeparator: true);
 

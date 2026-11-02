@@ -472,6 +472,52 @@ public sealed partial class SessionTasksService : IDisposable
         return SetAsync(Current.SetCategory(taskId, categoryId));
     }
 
+    /// <summary>The other devices' task categories (only devices still in the group), asked for when a picker opens; set by the app. Null: none.</summary>
+    public Func<IReadOnlyList<DeviceCategories>>? OtherDeviceCategories { get; set; }
+
+    /// <summary>Raised when what <see cref="OtherDeviceCategories"/> gives has changed (a device's list, a device added or removed).</summary>
+    public event EventHandler? OtherCategoriesChanged;
+
+    private string _otherCategoriesSignature = string.Empty;
+
+    /// <summary>The other devices' categories right now, grouped by device.</summary>
+    public IReadOnlyList<DeviceCategories> OtherCategories()
+    {
+        return OtherDeviceCategories?.Invoke() ?? [];
+    }
+
+    /// <summary>Tells the pickers to look again, when the other devices' categories are not what they last showed. Call on the UI thread.</summary>
+    public void NotifyOtherCategoriesChanged()
+    {
+        string signature = string.Join(
+            "\u0001",
+            OtherCategories().Select(device => $"{device.DeviceId:N}\u0002{string.Join("\u0003", device.Categories.Select(category => $"{category.Name}\u0004{category.Color}"))}"));
+        if (signature == _otherCategoriesSignature)
+        {
+            return;
+        }
+
+        _otherCategoriesSignature = signature;
+        OtherCategoriesChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Takes a category another device lists into this PC's list: one with the same name (any case) is this PC's already and keeps its
+    /// colour; otherwise it is added with the colour the other device gave it. The id of this PC's category; null for a blank name.
+    /// </summary>
+    public async Task<Guid?> AdoptCategoryAsync(string name, string color)
+    {
+        int before = _categories.Count;
+        Guid? id = await ResolveRemoteCategoryAsync(new SyncTaskRequest(Category: name, CategoryColor: color));
+        if (_categories.Count != before)
+        {
+            // Set again so it's regrouped, the views see the new category and the sync file lists it.
+            await SetAsync(Current);
+        }
+
+        return id;
+    }
+
     /// <summary>A new category with <paramref name="name"/>, in the first palette colour no category has yet; a blank name adds nothing.</summary>
     public Task AddCategoryAsync(string name)
     {

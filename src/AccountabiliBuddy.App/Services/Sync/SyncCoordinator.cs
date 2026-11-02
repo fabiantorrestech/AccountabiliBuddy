@@ -267,7 +267,9 @@ public sealed class SyncCoordinator
                 // ADR 48, 50: the shared lists, each with its tombstones; sealed like everything in the file.
                 NextTasks = NextTasks?.Invoke(), Parked = Parked?.Invoke(), Later = Later?.Invoke(),
                 // ADR 56: the past keys, for opening backups; sealed with the current key like everything else.
-                PastKeys = PastKeys?.ForFile() };
+                PastKeys = PastKeys?.ForFile(),
+                // This PC's task categories, always listed (empty when it has none), sealed like everything else.
+                Categories = Categories?.Invoke() };
     }
 
     /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
@@ -299,6 +301,9 @@ public sealed class SyncCoordinator
 
     /// <summary>The Later list with its tombstones for this PC's sync file (ADR 50); set by the app.</summary>
     public Func<IReadOnlyList<SyncLaterItem>?>? Later { get; set; }
+
+    /// <summary>This PC's task categories (name and colour) for its sync file, so the other devices can offer them; set by the app.</summary>
+    public Func<IReadOnlyList<SyncCategory>?>? Categories { get; set; }
 
     /// <summary>
     /// Merges another device's next-session list into this PC's (ADR 48); true when it changed. A merge that changed it

@@ -805,6 +805,17 @@ public partial class App : Application
         _syncRemoval.Changed += (_, _) => Dispatcher.UIThread.Post(ShowUnlinkedIfNew);
         // A removed phone stops driving bedtime, wake and the alarm (ReceivedDevicesService.Active).
         _syncRemoval.Changed += (_, _) => Dispatcher.UIThread.Post(FollowPhoneAlarm);
+        // Task categories from every device: this PC lists its own in its sync file, and the "Add a task" pickers group the other
+        // devices' by name (a removed device's are gone: Active). The pickers look again when a device's list or the group changes.
+        syncCoordinator.Categories = () => sessionTasks.Categories.Select(category => new AccountabiliBuddy.Core.Sync.SyncCategory(category.Name, category.Color)).ToList();
+        sessionTasks.OtherDeviceCategories = () => receivedDevices.Active
+            .Where(device => device.File.Categories is { Count: > 0 })
+            .OrderBy(device => device.File.Device.Name, StringComparer.CurrentCultureIgnoreCase)
+            .Select(device => new DeviceCategories(device.File.Device.DeviceId, device.File.Device.Name, device.File.Categories!))
+            .ToList();
+        receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(sessionTasks.NotifyOtherCategoriesChanged);
+        _syncRemoval.Changed += (_, _) => Dispatcher.UIThread.Post(sessionTasks.NotifyOtherCategoriesChanged);
+        Dispatcher.UIThread.Post(sessionTasks.NotifyOtherCategoriesChanged);
 
         // Run a relay on this PC (ADR 46): the relay program ships next to the app, lives in the app's data folder and ends with the app.
         _relayHost = new AccountabiliBuddy.App.Services.Sync.RelayHostService(

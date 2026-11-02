@@ -76,6 +76,8 @@ public static class SyncMerge
             Drift = drift.Where(mark => mark.End >= keptFrom).OrderBy(mark => mark.Start).ToList(),
             DayPlan = incoming.DayPlan ?? stored?.DayPlan,
             Documents = MergeDocuments(stored?.Documents ?? [], incoming.Documents),
+            // A file that carries no category list (a QR file, an older app) leaves the stored one alone.
+            Categories = incoming.Categories ?? stored?.Categories,
         };
     }
 

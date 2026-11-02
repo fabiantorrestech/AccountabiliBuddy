@@ -85,11 +85,25 @@ data class SyncFile(
      * it. Never kept in the copy a receiver stores of this file.
      */
     val pastKeys: List<SyncPastKey>? = null,
+    /**
+     * This device's own task categories, name and colour only, so the other devices can offer them when adding a task. Null in a QR
+     * file and from an app that predates it; a device that knows it writes it, empty when it has none. A receiver keeps it in its copy
+     * of this device's file, and keeps the stored list when a file carries none. Optional in the JSON, so older apps ignore it.
+     */
+    val categories: List<SyncCategory>? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1
     }
 }
+
+/**
+ * One of a device's task categories as its sync file lists them (the PC's SyncCategory): the name and the colour only, since a
+ * category's id is local to a device. The name is the user's own text: sealed in the files, never logged.
+ *
+ * @property color "#RRGGBB".
+ */
+data class SyncCategory(val name: String, val color: String)
 
 /**
  * A past group key (ADR 56): the group id and AES-256-GCM key a group had before a removal re-keyed it. Devices keep a few of these
