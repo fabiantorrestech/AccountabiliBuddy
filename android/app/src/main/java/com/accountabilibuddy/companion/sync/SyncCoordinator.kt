@@ -92,7 +92,18 @@ class SyncCoordinator(
     val isJoined: Boolean
         get() = identity.key.value != null
 
-    fun saveSettings(settings: PhoneSyncSettings) = settingsStore.save(settings)
+    /**
+     * Saves the sharing settings. Null when saved; otherwise why not: during a focus session the user started a way of syncing may be turned
+     * on but never off or pointed somewhere else ([PhoneSyncSettings.narrowedBy], [removalLockedReason]), so a frozen session can still be recovered.
+     */
+    fun saveSettings(settings: PhoneSyncSettings): String? {
+        if (settingsStore.settings.value.narrowedBy(settings)) {
+            removalLockedReason()?.let { return it }
+        }
+
+        settingsStore.save(settings)
+        return null
+    }
 
     /** The group's link code (to show so another device joins); null outside a group. */
     fun linkCode(): String? = identity.code()

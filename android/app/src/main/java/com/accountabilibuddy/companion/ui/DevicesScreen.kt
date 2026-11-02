@@ -133,10 +133,12 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
     val now = Instant.now()
     val zone = ZoneId.systemDefault()
     val detectedIds = page.watch.detected.map { it.id }.toSet()
+    // During a focus session a way of syncing that is on can't be turned off or pointed elsewhere (turning one on stays allowed).
+    val locked = devices.removalLocked
 
     val rows = buildList {
         add(PageRow(SettingsAnchors.DEVICES) {
-            DevicesCard(devices, DevicesModel.allRows(devices, detectedIds, page.watch.settings, now), DevicesModel.staleNote(devices, now, zone), DevicesModel.todayLine(devices, now, zone), actions)
+            DevicesCard(devices, DevicesModel.allRows(devices, detectedIds, page.watch.settings, now), DevicesModel.staleNote(devices, now, zone, hideWatchCards = page.watch.settings.linkedNodeId != null), DevicesModel.todayLine(devices, now, zone), actions)
         })
 
         add(PageRow(SettingsAnchors.HOW_THEY_SYNC) {
@@ -147,23 +149,26 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
                     AbToggleRow(
                         "Google Drive", settings.driveOn,
                         { on -> if (on) signIn() else actions.onSettings(settings.copy(driveOn = false)) },
-                        subtitle = "Works anywhere · every 30 s in a session, else 15 min", enabled = devices.joined,
+                        subtitle = "Works anywhere · every 30 s in a session, else 15 min", enabled = devices.joined && !(settings.driveOn && locked != null),
                     )
                     AbToggleRow(
                         "Shared folder", settings.folderOn,
                         { on -> if (on && settings.folderUri == null) pickFolder.launch(null) else actions.onSettings(settings.copy(folderOn = on)) },
-                        subtitle = "OneDrive, Dropbox or a NAS path · every ${settings.folderMinutes} min", enabled = devices.joined,
+                        subtitle = "A folder another app keeps in step (Autosync, Syncthing)", enabled = devices.joined && !(settings.folderOn && locked != null),
                     )
                     AbToggleRow(
                         "Own relay", settings.relayOn,
                         { on ->
                             if (!on) actions.onSettings(settings.copy(relayOn = false)) else relayFields.checked(settings)?.let { actions.onSettings(it.copy(relayOn = true)) }
                         },
-                        subtitle = "A relay you run · about a second in a session", enabled = devices.joined,
+                        subtitle = "A relay you run · about a second in a session", enabled = devices.joined && !(settings.relayOn && locked != null),
                     )
                 }
+                // Why the switch did not move: the relay's address, pin or key did not pass (shown here, where the switch is).
+                relayFields.error?.let { Text(it, style = Ab.type.small, color = Ab.colors.drift, modifier = Modifier.padding(horizontal = 4.dp)) }
+                locked?.let { SharingLockNote(it) }
                 Hint(
-                    "Several can be on at once. Safest first. Sync files are encrypted with your devices' link code; they hold focus times, " +
+                    "Several can be on at once. Sync files are encrypted with your devices' link code; they hold focus times, " +
                         "profile names and sites, never page titles, addresses or reasons.",
                     label = "What's shared",
                 )
@@ -177,8 +182,14 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 AbSectionLabel("By hand", Modifier.padding(horizontal = 4.dp))
                 AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
-                    AbToggleRow("QR codes", settings.qrOn, { actions.onSettings(settings.copy(qrOn = it)) }, subtitle = "Scan the PC's codes with the camera; nothing travels but the picture.")
-                    AbToggleRow("Sync files", settings.fileOn, { actions.onSettings(settings.copy(fileOn = it)) }, subtitle = "Open or share a .absync file by hand (email, chat, a USB cable).")
+                    AbToggleRow(
+                        "QR codes", settings.qrOn, { actions.onSettings(settings.copy(qrOn = it)) },
+                        subtitle = "Scan the PC's codes with the camera; nothing travels but the picture.", enabled = !(settings.qrOn && locked != null),
+                    )
+                    AbToggleRow(
+                        "Sync files", settings.fileOn, { actions.onSettings(settings.copy(fileOn = it)) },
+                        subtitle = "Open or share a .absync file by hand (email, chat, a USB cable).", enabled = !(settings.fileOn && locked != null),
+                    )
                     FlowRow(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         AbTonalButton("Scan code", onClick = { dialog = DevicesDialog.Scan }, enabled = devices.joined && settings.qrOn)
                         AbTonalButton("Share sync file", onClick = actions.onShare, enabled = devices.joined && settings.fileOn)
@@ -293,6 +304,15 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
         }
         null -> Unit
     }
+}
+
+/** Why the sharing switches that are on do not move during a focus session, as visible text (the PC says the same on its Devices page). */
+@Composable
+private fun SharingLockNote(reason: String) {
+    Text(
+        "Ways of syncing that are on can't be turned off or pointed somewhere else right now. $reason Turning one on still works.",
+        style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 4.dp),
+    )
 }
 
 /** The signed-in dance for Drive (ADR 26): asks Google's screen to show, then hands its answer back. */

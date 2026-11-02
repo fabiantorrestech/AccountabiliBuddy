@@ -87,7 +87,8 @@ internal fun FolderMethodCard(devices: DevicesState, actions: DevicesActions, no
             }
             MethodStatusLine(devices.folder, now)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AbTonalButton("Choose folder", onClick = onChoose)
+                // Another folder while this one is in use is refused during a focus session.
+                AbTonalButton("Choose folder", onClick = onChoose, enabled = devices.removalLocked == null)
                 AbTonalButton("Sync now", onClick = actions.onSyncFolderNow, enabled = settings.folderUri != null)
             }
         }
@@ -110,16 +111,18 @@ internal val RELAY_STEPS = """
 @Composable
 internal fun RelayMethodCard(devices: DevicesState, actions: DevicesActions, now: Instant, fields: RelayFields) {
     val settings = devices.settings
+    // The address, pin and key of a relay that is on can't be changed during a focus session (the same lock as the switch).
+    val fieldsOpen = !(settings.relayOn && devices.removalLocked != null)
     AbCard(verticalSpacing = 8.dp) {
         AbSectionLabel("Own relay")
-        AbTextField(fields.address, { fields.address = it }, "Relay address (https://...)", capitalization = KeyboardCapitalization.None)
-        AbTextField(fields.pin, { fields.pin = it }, "Certificate pin (empty: normal certificate)", capitalization = KeyboardCapitalization.None)
+        AbTextField(fields.address, { fields.address = it }, "Relay address (https://...)", enabled = fieldsOpen, capitalization = KeyboardCapitalization.None)
+        AbTextField(fields.pin, { fields.pin = it }, "Certificate pin (empty: normal certificate)", enabled = fieldsOpen, capitalization = KeyboardCapitalization.None)
         AbTextField(
-            fields.admission, { fields.admission = it }, "Admission key (from the relay)",
+            fields.admission, { fields.admission = it }, "Admission key (from the relay)", enabled = fieldsOpen,
             capitalization = KeyboardCapitalization.None, visualTransformation = PasswordVisualTransformation(),
         )
         fields.error?.let { Text(it, style = Ab.type.small, color = Ab.colors.drift) }
-        if (settings.relayOn && fields.changed(settings)) {
+        if (settings.relayOn && fieldsOpen && fields.changed(settings)) {
             AbTonalButton("Use this address, pin and key", onClick = { fields.checked(settings)?.let { actions.onSettings(it) } })
         }
         Hint(RELAY_STEPS, label = "Sync through your own relay")

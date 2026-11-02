@@ -43,7 +43,17 @@ data class PhoneSyncSettings(
      * sealed by [TokenVault]; here it is the plain key.
      */
     val relayAdmission: String? = null,
-)
+) {
+    /**
+     * Whether [next] takes something away from how this phone shares: a way of syncing that is on goes off, or one that stays on is pointed
+     * somewhere else (another folder, another relay address, pin or key). Turning a way on, the folder's minutes and the alarm fields never
+     * narrow it. During a focus session the user started such a change is refused (the PC's rule: the sharing switches rest while you focus).
+     */
+    fun narrowedBy(next: PhoneSyncSettings): Boolean =
+        (qrOn && !next.qrOn) || (fileOn && !next.fileOn) || (folderOn && (!next.folderOn || next.folderUri != folderUri)) ||
+            (driveOn && !next.driveOn) ||
+            (relayOn && (!next.relayOn || next.relayUrl != relayUrl || next.relayPin != relayPin || next.relayAdmission != relayAdmission))
+}
 
 /** [PhoneSyncSettings] in sync-settings.json in the app's private folder. */
 class PhoneSyncSettingsStore(private val file: File) {
