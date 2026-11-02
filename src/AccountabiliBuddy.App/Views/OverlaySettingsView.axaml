@@ -186,7 +186,14 @@
                 <ItemsControl ItemsSource="{Binding Rules}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:OverlayRuleRowViewModel">
-                            <Grid ColumnDefinitions="180,Auto,Auto,Auto" ColumnSpacing="12" Margin="0,3">
+                            <!-- The app's name takes what the other three leave (up to 180), so a row fits the narrow page and its ✕ is never cut off. -->
+                            <Grid ColumnSpacing="12" Margin="0,3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" MinWidth="90" MaxWidth="180" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
                                 <TextBox Text="{Binding ProcessName}" PlaceholderText="App (process name)" />
                                 <NumericUpDown Grid.Column="1" Value="{Binding OffsetY}" Minimum="-400" Maximum="0" Increment="4" Width="130" FormatString="0" ToolTip.Tip="Move up by (pixels)" />
                                 <CheckBox Grid.Column="2" Content="Hide during calls" IsChecked="{Binding HideDuringCalls}" />
