@@ -83,7 +83,7 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
 
     /// <summary>Select mode: this row shows a selection circle (not the done tick) and a click on the row picks it.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsDoneTick), nameof(ShowsPickCircle), nameof(ShowsAddCategory))]
+    [NotifyPropertyChangedFor(nameof(ShowsDoneTick), nameof(ShowsPickCircle), nameof(ShowsAddCategory), nameof(ShowsSelected), nameof(ShowsRowTools), nameof(ShowsDragHandle))]
     public partial bool InSelectMode { get; set; }
 
     /// <summary>Select mode: this row is one of those picked for the bulk change.</summary>
@@ -95,6 +95,12 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
 
     /// <summary>The selection circle shows in select mode on rows that can take a category.</summary>
     public bool ShowsPickCircle => InSelectMode && CanLabel;
+
+    /// <summary>The ⋯ menu shows outside select mode (there a click means "pick", and nothing else should be one click away).</summary>
+    public bool ShowsRowTools => !InSelectMode;
+
+    /// <summary>The drag handle of This session's rows, outside select mode.</summary>
+    public bool ShowsDragHandle => CanDrag && !InSelectMode;
 
     /// <summary>The picker for this row's category (the same choices as ⋯ › Label), asked for each time it opens.</summary>
     public IReadOnlyList<TaskMenuEntry> BuildLabelMenu()
@@ -124,7 +130,11 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     public ICommand SelectCommand { get; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsSelected))]
     public partial bool IsSelected { get; set; }
+
+    /// <summary>The row shows as the one in the detail card; not in select mode, where the same background means "picked".</summary>
+    public bool ShowsSelected => IsSelected && !InSelectMode;
 
     /// <summary>Where a dragged row would land relative to this one: -1 above, 1 below, 0 none (draws a line).</summary>
     [ObservableProperty]

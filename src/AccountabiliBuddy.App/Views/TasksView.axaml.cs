@@ -31,6 +31,16 @@ public partial class TasksView : UserControl
         InitializeComponent();
     }
 
+    // The page stays alive while another tab shows: leaving it ends select mode, so it is not found half-done on return.
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == IsVisibleProperty && !IsVisible && DataContext is TasksViewModel page)
+        {
+            page.LeaveSelectMode();
+        }
+    }
+
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);

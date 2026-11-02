@@ -226,6 +226,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ToggleSelectMode() => IsSelectMode = !IsSelectMode;
 
+    /// <summary>The page was left (another tab): select mode ends, so it is not found half-done on return.</summary>
+    public void LeaveSelectMode() => IsSelectMode = false;
+
     /// <summary>Esc or Cancel in the select bar: back to the normal list, nothing changed.</summary>
     [RelayCommand]
     private void CancelSelect() => IsSelectMode = false;
@@ -988,7 +991,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             {
                 Guid id = comeback.Id;
                 otherRows.Add(MakeRow(
-                    new TaskRowKey(TaskRowKind.ComeBack, id), comeback.Text, $"Parked {When(comeback.CreatedAt, today)}", comeback.Category, comeback.CategoryColor,
+                    new TaskRowKey(TaskRowKind.ComeBack, id), comeback.Text, $"Parked {When(comeback.CreatedAt, today)}", comeback.Category, LocalColor(comeback.Category, comeback.CategoryColor),
                     toggle: () => _comebacks.TickAsync(id), statusTag: "Come back", sortTime: comeback.CreatedAt));
             }
         }
@@ -1004,7 +1007,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             Guid id = item.Id;
             string tag = item.DueOn is DateOnly due ? $"Later · {DayLabel(due, today)}" : "Later";
             otherRows.Add(MakeRow(
-                new TaskRowKey(TaskRowKind.Later, id), item.Title, LaterLine(item, today), item.Category, item.CategoryColor,
+                new TaskRowKey(TaskRowKind.Later, id), item.Title, LaterLine(item, today), item.Category, LocalColor(item.Category, item.CategoryColor),
                 toggle: () => _tasks.CompleteLaterAsync(id), statusTag: tag,
                 sortTime: item.EditedAt, dueOn: item.DueOn));
         }
@@ -1083,6 +1086,18 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasUnfinished));
         OnPropertyChanged(nameof(IsSessionLive));
         OnPropertyChanged(nameof(CanStartSession));
+    }
+
+    // A Later item or come-back carries its category's name and the colour it had when it was set; this PC's own colour for that name
+    // wins when it has one (a recolour here changes only this PC's list), else the item's own shows.
+    private string? LocalColor(string? categoryName, string? storedColor)
+    {
+        if (categoryName is null)
+        {
+            return storedColor;
+        }
+
+        return _tasks.Categories.FirstOrDefault(item => string.Equals(item.Name, categoryName, StringComparison.OrdinalIgnoreCase))?.Color ?? storedColor;
     }
 
     private TaskListRowViewModel MakeRow(

@@ -110,14 +110,17 @@
         <Style Selector="Button.catAdd">
             <Setter Property="Opacity" Value="0" />
             <Setter Property="IsHitTestVisible" Value="False" />
+            <Setter Property="Focusable" Value="False" />
         </Style>
         <Style Selector="Panel.listItem:pointerover Button.catAdd">
             <Setter Property="Opacity" Value="1" />
             <Setter Property="IsHitTestVisible" Value="True" />
+            <Setter Property="Focusable" Value="True" />
         </Style>
         <Style Selector="Button.listRow.selected Button.catAdd">
             <Setter Property="Opacity" Value="1" />
             <Setter Property="IsHitTestVisible" Value="True" />
+            <Setter Property="Focusable" Value="True" />
         </Style>
 
         <!-- A row's title: Ink; Muted once the task is ticked (the strike comes from the global TextBlock.done). -->
@@ -258,7 +261,7 @@
             <StackPanel Spacing="0">
                 <Border Classes="dropLine" IsVisible="{Binding ShowsLineAbove}" Margin="8,0" />
                 <Panel Classes="listItem">
-                    <Button Classes="listRow" Classes.selected="{Binding IsSelected}" Classes.picked="{Binding IsPicked}" Command="{Binding SelectCommand}"
+                    <Button Classes="listRow" Classes.selected="{Binding ShowsSelected}" Classes.picked="{Binding IsPicked}" Command="{Binding SelectCommand}"
                             AutomationProperties.Name="{Binding Title}">
                         <Grid ColumnDefinitions="Auto,*,Auto,92,40,Auto,22" ColumnSpacing="8" Margin="0,0,6,0">
                             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0" MinWidth="22" VerticalAlignment="Center">
@@ -284,7 +287,7 @@
                             </Border>
                             <!-- The category chip (a click opens the picker, the same as ⋯ › Label) or, on a row with none, the quiet "+ category". -->
                             <Panel Grid.Column="3" VerticalAlignment="Center">
-                                <Button Classes="catChip" IsVisible="{Binding HasCategory}" IsHitTestVisible="{Binding !InSelectMode}" Click="OnCategoryClick"
+                                <Button Classes="catChip" IsVisible="{Binding HasCategory}" IsHitTestVisible="{Binding !InSelectMode}" Focusable="{Binding !InSelectMode}" Click="OnCategoryClick"
                                         AutomationProperties.Name="Change category" ToolTip.Tip="Change category">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <Ellipse Width="8" Height="8" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" />
@@ -298,11 +301,11 @@
                                 </Button>
                             </Panel>
                             <TextBlock Grid.Column="4" Classes="muted" Text="Now" FontSize="13" VerticalAlignment="Center" IsVisible="{Binding IsNow}" />
-                            <Button Grid.Column="5" Classes="quiet" Padding="6" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                            <Button Grid.Column="5" Classes="quiet" Padding="6" MinHeight="0" MinWidth="0" VerticalAlignment="Center" IsVisible="{Binding ShowsRowTools}"
                                     AutomationProperties.Name="More actions" ToolTip.Tip="Rename, label, move, add a subtask, delete" Click="OnMoreClick">
                                 <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
                             </Button>
-                            <Border Grid.Column="6" Classes="dragHandle" IsVisible="{Binding CanDrag}" ToolTip.Tip="Drag to reorder"
+                            <Border Grid.Column="6" Classes="dragHandle" IsVisible="{Binding ShowsDragHandle}" ToolTip.Tip="Drag to reorder"
                                     AutomationProperties.Name="Drag to reorder"
                                     PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
                                     PointerCaptureLost="OnHandleCaptureLost">
@@ -433,7 +436,7 @@
                 <Border DockPanel.Dock="Bottom" Margin="36,0,28,10" Padding="18,8,10,8" CornerRadius="26" Background="{DynamicResource Ab.Surface2}"
                         IsVisible="{Binding IsSelectMode}">
                     <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                        <TextBlock Text="{Binding PickedText}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" AutomationProperties.Name="Selected count" />
+                        <TextBlock Text="{Binding PickedText}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
                         <Button Grid.Column="1" Classes="quiet" Padding="14,8" Content="Set category…" Click="OnSetPickedCategoryClick" IsEnabled="{Binding HasPicked}"
                                 FontSize="14" AutomationProperties.Name="Set category" />
                         <Button Grid.Column="2" Classes="quiet" Padding="14,8" Content="Cancel" Command="{Binding CancelSelectCommand}" FontSize="14"
