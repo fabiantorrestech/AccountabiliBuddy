@@ -86,9 +86,10 @@ fun TaskRow(row: TaskRowModel, onOpen: () -> Unit, onTick: (() -> Unit)?, menu: 
 @Composable
 fun CategoryLine(category: String?, categoryColor: String?, rest: String, modifier: Modifier = Modifier) {
     if (category == null && rest.isEmpty()) return
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+    // The dot sits at the first line, so a line that wraps (a large font) keeps it beside the category's name.
+    Row(modifier, verticalAlignment = Alignment.Top) {
         if (category != null) {
-            Box(Modifier.size(8.dp).background(parseCategoryColor(categoryColor) ?: Ab.colors.faint, CircleShape))
+            Box(Modifier.padding(top = 6.dp).size(8.dp).background(parseCategoryColor(categoryColor) ?: Ab.colors.faint, CircleShape))
             Spacer(Modifier.width(6.dp))
         }
         val text = if (category != null && rest.isNotEmpty()) "$category · $rest" else category ?: rest

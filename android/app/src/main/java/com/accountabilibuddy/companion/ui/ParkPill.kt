@@ -89,7 +89,7 @@ fun rememberVoiceInput(onResult: (String) -> Unit): VoiceInput {
 }
 
 /**
- * "Park a thought for later": the pill above the tab bar on Today and Tasks. It opens a text box and adds to the Come back to list
+ * "Park a thought for later": the pill above the tab bar on Today (Tasks has its own add field). It opens a text box and adds to the Come back to list
  * (the shared parked list, Keystore-sealed on this phone and never logged). The microphone on the pill speaks into the box; the
  * result waits there for the user to read and park, it never parks by itself.
  */

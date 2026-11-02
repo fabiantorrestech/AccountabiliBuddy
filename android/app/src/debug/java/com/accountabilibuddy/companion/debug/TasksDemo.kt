@@ -22,6 +22,7 @@ class TasksDemo(private val app: CompanionApp) {
 
     /** Tombstones every live item of the three lists (the seeder's own and any earlier extras). */
     fun clearLists() {
+        lists.laterDone.value.forEach { lists.untickLater(it.item.id) }
         lists.nextTasks.value.forEach { lists.deleteNextTask(it.id) }
         lists.parked.value.forEach { lists.deleteParked(it.id) }
         lists.later.value.forEach { lists.deleteLater(it.id) }

@@ -6,15 +6,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,6 +29,9 @@ import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.model.CategoryBehavior
 import com.accountabilibuddy.companion.model.DayCategory
 import com.accountabilibuddy.companion.model.DayPlan
+import com.accountabilibuddy.companion.ui.kit.AbQuietIconButton
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
+import com.accountabilibuddy.companion.ui.theme.Ab
 import java.util.UUID
 
 /** Colours a category can take (tap the dot to go to the next one). */
@@ -46,8 +51,8 @@ fun CategoriesEditor(plan: DayPlan, onChange: (DayPlan) -> Unit, onMessage: (Str
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             "Watch: the buddy asks about new sites and counts drift. Rest: no asking. Sleep: bedtime reminder and the shaded night.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = Ab.type.small,
+            color = Ab.colors.muted,
         )
         for (category in plan.categories) {
             var behaviourMenu by remember(category.id) { mutableStateOf(false) }
@@ -66,9 +71,17 @@ fun CategoriesEditor(plan: DayPlan, onChange: (DayPlan) -> Unit, onMessage: (Str
                     onValueChange = { update(category.copy(name = it)) },
                     singleLine = true,
                     modifier = Modifier.weight(1f),
+                    textStyle = Ab.type.body,
+                    shape = Ab.shapes.mediumShape,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Ab.colors.ink, unfocusedTextColor = Ab.colors.ink,
+                        focusedBorderColor = Ab.colors.ink, unfocusedBorderColor = Ab.colors.line, cursorColor = Ab.colors.ink,
+                    ),
                 )
                 Box {
-                    OutlinedButton(onClick = { behaviourMenu = true }) { Text(category.behavior.name) }
+                    Surface(onClick = { behaviourMenu = true }, shape = Ab.shapes.pill, color = Ab.colors.surface2, contentColor = Ab.colors.ink) {
+                        Text(category.behavior.name, style = Ab.type.small, modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp))
+                    }
                     DropdownMenu(expanded = behaviourMenu, onDismissRequest = { behaviourMenu = false }) {
                         for (behaviour in CategoryBehavior.entries) {
                             DropdownMenuItem(text = { Text(behaviour.name) }, onClick = {
@@ -78,19 +91,19 @@ fun CategoriesEditor(plan: DayPlan, onChange: (DayPlan) -> Unit, onMessage: (Str
                         }
                     }
                 }
-                TextButton(onClick = {
+                AbQuietIconButton(Icons.Outlined.Close, "Delete ${category.name}", onClick = {
                     if (used(category.id)) {
                         onMessage("'${category.name}' is used by a part of a day; give those parts another category first.")
                     } else {
                         onChange(plan.copy(categories = plan.categories.filter { it.id != category.id }))
                     }
-                }) { Text("✕") }
+                })
             }
         }
 
-        TextButton(onClick = {
+        AbTonalButton("Add a category", onClick = {
             val color = Palette.firstOrNull { candidate -> plan.categories.none { it.color.equals(candidate, ignoreCase = true) } } ?: Palette.first()
             onChange(plan.copy(categories = plan.categories + DayCategory(UUID.randomUUID(), "New category", color, CategoryBehavior.Rest)))
-        }) { Text("Add a category") }
+        })
     }
 }

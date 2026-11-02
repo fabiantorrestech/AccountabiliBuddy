@@ -12,7 +12,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.KeyboardReturn
+import androidx.compose.material.icons.automirrored.outlined.KeyboardReturn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -61,7 +61,7 @@ fun AddField(placeholder: String, onSubmit: (String) -> Unit, modifier: Modifier
                 )
             }
             if (text.isNotBlank()) {
-                AbQuietIconButton(Icons.Outlined.KeyboardReturn, "Add", onClick = { submit() })
+                AbQuietIconButton(Icons.AutoMirrored.Outlined.KeyboardReturn, "Add", onClick = { submit() })
             } else {
                 Box(Modifier.size(width = 4.dp, height = 44.dp))
             }
