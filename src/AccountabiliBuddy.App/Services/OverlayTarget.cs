@@ -14,6 +14,7 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="TaskbarHeight">The taskbar's thickness in physical pixels (the docked tile's height); 0 for floating.</param>
 /// <param name="CoversTray">The tile covers the tray, so it brings its own clock, batteries and ⌃ button.</param>
 /// <param name="Edge">The taskbar edge, for the vertical tile.</param>
+/// <param name="LiftPixels">How far a floating tile's band was raised (physical pixels) to clear a shown auto-hide taskbar; 0 otherwise. A per-app vertical offset does not add to it: the higher of the two wins.</param>
 public sealed record OverlayTarget(
     OverlayTargetKind Kind,
     string? MonitorId,
@@ -22,7 +23,8 @@ public sealed record OverlayTarget(
     bool AlignRight,
     int TaskbarHeight,
     bool CoversTray,
-    TaskbarEdge Edge = TaskbarEdge.Bottom)
+    TaskbarEdge Edge = TaskbarEdge.Bottom,
+    int LiftPixels = 0)
 {
     public static OverlayTarget Hidden { get; } = new(OverlayTargetKind.Hidden, null, 1, new PixelBox(0, 0, 0, 0), true, 0, false);
 }

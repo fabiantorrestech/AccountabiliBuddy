@@ -35,11 +35,6 @@ public partial class OverlayPreview : UserControl
     private const double MinCropHeight = 84;
     private const double MinCropWidth = 480;
 
-    // Mirrors TaskbarOverlayWindow.HeightFor and Reposition (heights, the rise of the Large size, the floating margins).
-    private const double SmallHeight = 36;
-    private const double FloatingHeight = 56;
-    private const double LargeRise = 36;
-
     private OverlayPreviewViewModel? _model;
     private bool _redrawing;
     private bool _wasVisible;
@@ -204,7 +199,7 @@ public partial class OverlayPreview : UserControl
 
     private void DrawTile(OverlayPreviewViewModel model, OverlayTarget target, OverlaySettings settings, bool iconsLeft)
     {
-        double height = TileHeight(target, settings);
+        double height = OverlayTileGeometry.HeightFor(target, settings);
         var tile = new OverlayTileView
         {
             DataContext = model.Tile,
@@ -228,7 +223,11 @@ public partial class OverlayPreview : UserControl
                 return;
             }
 
-            (double x, double y) = TilePosition(target, settings, e.NewSize.Width, height);
+            // The same maths as the overlay window (OverlayTileGeometry), at 100% scaling on the mock screen.
+            var screen = new PixelBox(0, 0, (int)ScreenWidth, (int)ScreenHeight);
+            (int tileX, int tileY) = OverlayTileGeometry.PositionFor(target, settings, null, (int)Math.Ceiling(e.NewSize.Width), (int)Math.Ceiling(height), 1.0, screen);
+            double x = tileX;
+            double y = tileY;
             Canvas.SetLeft(scope, x);
             Canvas.SetTop(scope, y);
             double extent = target.AlignRight ? ScreenWidth - x : x + e.NewSize.Width;
@@ -459,33 +458,6 @@ public partial class OverlayPreview : UserControl
         return new TaskbarInfo(
             "preview", true, monitor, hidden ? monitor : new PixelBox(0, 0, (int)ScreenWidth, top), 1.0, TaskbarEdge.Bottom,
             hidden ? new PixelBox(0, (int)ScreenHeight - 2, (int)ScreenWidth, (int)ScreenHeight) : bar, hidden, !hidden, free, tray, leftFree, iconsLeft);
-    }
-
-    private static double TileHeight(OverlayTarget target, OverlaySettings settings)
-    {
-        double bar = target.TaskbarHeight > 0 ? target.TaskbarHeight / target.Scale : FloatingHeight;
-        return settings.Size switch
-        {
-            OverlaySize.Small => SmallHeight,
-            OverlaySize.Large => bar + LargeRise,
-            _ => bar,
-        };
-    }
-
-    private static (double X, double Y) TilePosition(OverlayTarget target, OverlaySettings settings, double width, double height)
-    {
-        PixelBox band = target.Band;
-        if (target.Kind == OverlayTargetKind.Docked)
-        {
-            double x = target.AlignRight ? band.Right - width : band.Left;
-            double y = settings.Size == OverlaySize.Small ? band.Top + ((target.TaskbarHeight - height) / 2)
-                : settings.Size == OverlaySize.Large ? band.Top - LargeRise
-                : band.Top;
-            return (x, y);
-        }
-
-        (int side, int bottom) = OverlayPlacementCalculator.FloatingMargins(1.0);
-        return (target.AlignRight ? band.Right - width - side : band.Left + side, band.Bottom - height - bottom);
     }
 
     // ---- Cropping ----

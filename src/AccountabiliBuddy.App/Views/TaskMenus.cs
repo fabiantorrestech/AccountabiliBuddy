@@ -26,8 +26,26 @@ public static class TaskMenus
             return;
         }
 
-        var flyout = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight };
-        foreach (Control item in Build(source.BuildMenu(), viewAction))
+        ShowEntries(button, source.BuildMenu(), PlacementMode.BottomEdgeAlignedRight, viewAction);
+    }
+
+    /// <summary>
+    /// Opens the category picker of the row a chip or the "+ category" spot belongs to: the same choices as ⋯ › Label (the row is
+    /// the button's data context), asked for now so the one the row has is marked.
+    /// </summary>
+    public static void ShowCategoryPicker(Button button)
+    {
+        if (button.DataContext is TaskListRowViewModel { CanLabel: true } row)
+        {
+            ShowEntries(button, row.BuildLabelMenu(), PlacementMode.BottomEdgeAlignedLeft);
+        }
+    }
+
+    /// <summary>Opens a menu of <paramref name="entries"/> under or beside <paramref name="button"/>.</summary>
+    public static void ShowEntries(Control button, IEnumerable<TaskMenuEntry> entries, PlacementMode placement, Action<TaskMenuEntry>? viewAction = null)
+    {
+        var flyout = new MenuFlyout { Placement = placement };
+        foreach (Control item in Build(entries, viewAction))
         {
             flyout.Items.Add(item);
         }

@@ -277,7 +277,15 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
         ShowsInlineTimeline = settings.Progress == OverlayProgress.Timeline && ringItem;
         IsSmall = settings.Size == OverlaySize.Small;
         ShowsInlineDot = ShowsDriftDot && !ShowsRing;
+        if (IsPreview && IsSession)
+        {
+            // The sample's time left follows "Count seconds": "18 min" without it, "18:42" with it.
+            MinutesText = OverlayTimeText.Left(PreviewTimeLeft, settings.ShowSeconds);
+        }
     }
+
+    // The running sample's time left, so the preview can show it with or without seconds.
+    private static readonly TimeSpan PreviewTimeLeft = TimeSpan.FromMinutes(18) + TimeSpan.FromSeconds(42);
 
     [RelayCommand]
     private void OpenTrayOverflow()

@@ -325,11 +325,11 @@
         <Border Classes="addRow" IsVisible="{Binding IsManagingCategories}" Padding="16,12">
             <StackPanel Spacing="4">
                 <TextBlock Text="Categories" FontWeight="SemiBold" />
-                <TextBlock Classes="faint" Text="Deleting one leaves its tasks with no category." FontSize="12" TextWrapping="Wrap" />
+                <TextBlock Classes="faint" Text="Deleting one takes it off its tasks, Later items and come-backs." FontSize="12" TextWrapping="Wrap" />
                 <ItemsControl ItemsSource="{Binding CategoryRows}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:TaskCategoryRowViewModel">
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6" Margin="0,2">
+                            <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="6" Margin="0,2">
                                 <ComboBox ItemsSource="{Binding Colors}" SelectedItem="{Binding SelectedColor}" MinWidth="0"
                                           AutomationProperties.Name="Colour">
                                     <ComboBox.ItemTemplate>
@@ -344,7 +344,18 @@
                                         <KeyBinding Gesture="Enter" Command="{Binding SaveNameCommand}" />
                                     </TextBox.KeyBindings>
                                 </TextBox>
-                                <Button Grid.Column="2" Classes="small" Content="✕" Command="{Binding DeleteCommand}" ToolTip.Tip="Delete this category" />
+                                <Button Grid.Column="2" Classes="small" Content="✕" Command="{Binding AskDeleteCommand}" ToolTip.Tip="Delete this category" />
+                                <!-- The delete question: always asked, with how many items lose the category. -->
+                                <Border Grid.Row="1" Grid.ColumnSpan="3" IsVisible="{Binding IsConfirmingDelete}" Margin="0,2,0,4" Padding="8,6" CornerRadius="6"
+                                        BorderBrush="#40808080" BorderThickness="1">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="{Binding ConfirmText}" TextWrapping="Wrap" FontSize="12" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Button Classes="small" Content="Delete" Command="{Binding DeleteCommand}" AutomationProperties.Name="Confirm delete" />
+                                            <Button Classes="small" Content="Keep it" Command="{Binding CancelDeleteCommand}" AutomationProperties.Name="Keep this category" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

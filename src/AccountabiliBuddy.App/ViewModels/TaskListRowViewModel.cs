@@ -13,10 +13,12 @@ namespace AccountabiliBuddy.App.ViewModels;
 public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSource
 {
     private readonly Func<IReadOnlyList<TaskMenuEntry>>? _menu;
+    private readonly Func<IReadOnlyList<TaskMenuEntry>>? _labelMenu;
 
     public TaskListRowViewModel(
         TaskRowKey key, string title, string subText, Action<TaskListRowViewModel> select, int number = 0, bool isNow = false,
-        Func<Task>? toggle = null, bool isTicked = false, Func<IReadOnlyList<TaskMenuEntry>>? menu = null)
+        Func<Task>? toggle = null, bool isTicked = false, Func<IReadOnlyList<TaskMenuEntry>>? menu = null,
+        Func<IReadOnlyList<TaskMenuEntry>>? labelMenu = null)
     {
         Key = key;
         Title = title;
@@ -25,6 +27,7 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
         IsNow = isNow;
         IsTicked = isTicked;
         _menu = menu;
+        _labelMenu = labelMenu;
         SelectCommand = new RelayCommand(() => select(this));
         ToggleCommand = toggle is null ? null : new AsyncRelayCommand(toggle);
         CategoryBrush = Brushes.Transparent;
@@ -72,6 +75,39 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     /// <summary>The row shows a category dot and name.</summary>
     public bool HasCategory => !string.IsNullOrWhiteSpace(CategoryName);
 
+    /// <summary>The row can have a category (every kind but Auto-saved): its chip, or the quiet "+ category" spot, opens the picker.</summary>
+    public bool CanLabel => _labelMenu is not null;
+
+    /// <summary>The quiet "+ category" spot: a row that can take a category and has none (not in select mode).</summary>
+    public bool ShowsAddCategory => CanLabel && !HasCategory && !InSelectMode;
+
+    /// <summary>Select mode: this row shows a selection circle (not the done tick) and a click on the row picks it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsDoneTick), nameof(ShowsPickCircle), nameof(ShowsAddCategory), nameof(ShowsSelected), nameof(ShowsRowTools), nameof(ShowsDragHandle))]
+    public partial bool InSelectMode { get; set; }
+
+    /// <summary>Select mode: this row is one of those picked for the bulk change.</summary>
+    [ObservableProperty]
+    public partial bool IsPicked { get; set; }
+
+    /// <summary>The done tick shows where a row can be ticked, except in select mode (the selection circle takes its place).</summary>
+    public bool ShowsDoneTick => HasToggle && !InSelectMode;
+
+    /// <summary>The selection circle shows in select mode on rows that can take a category.</summary>
+    public bool ShowsPickCircle => InSelectMode && CanLabel;
+
+    /// <summary>The ⋯ menu shows outside select mode (there a click means "pick", and nothing else should be one click away).</summary>
+    public bool ShowsRowTools => !InSelectMode;
+
+    /// <summary>The drag handle of This session's rows, outside select mode.</summary>
+    public bool ShowsDragHandle => CanDrag && !InSelectMode;
+
+    /// <summary>The picker for this row's category (the same choices as ⋯ › Label), asked for each time it opens.</summary>
+    public IReadOnlyList<TaskMenuEntry> BuildLabelMenu()
+    {
+        return _labelMenu?.Invoke() ?? [];
+    }
+
     /// <summary>A Later item's own due date; null for every other row. The flat list's due-date sorts read it.</summary>
     public DateOnly? DueOn { get; init; }
 
@@ -94,7 +130,11 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     public ICommand SelectCommand { get; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsSelected))]
     public partial bool IsSelected { get; set; }
+
+    /// <summary>The row shows as the one in the detail card; not in select mode, where the same background means "picked".</summary>
+    public bool ShowsSelected => IsSelected && !InSelectMode;
 
     /// <summary>Where a dragged row would land relative to this one: -1 above, 1 below, 0 none (draws a line).</summary>
     [ObservableProperty]

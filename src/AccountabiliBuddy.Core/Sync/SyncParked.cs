@@ -8,6 +8,8 @@ namespace AccountabiliBuddy.Core.Sync;
 /// carry it; the text is never logged.
 /// </summary>
 /// <param name="DoneAt">When it was ticked; null while it is open.</param>
+/// <param name="Category">The category's name; null for none (optional: an app that predates it neither reads nor writes it).</param>
+/// <param name="CategoryColor">The category's colour, "#RRGGBB".</param>
 public sealed record SyncParked(
     Guid Id,
     string Text,
@@ -15,10 +17,16 @@ public sealed record SyncParked(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DoneAt,
     DateTimeOffset EditedAt,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt,
-    double Position) : ISharedItem
+    double Position,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Category = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CategoryColor = null) : ISharedItem
 {
+    // The category joins the tie-break only when there is one: a come-back without it breaks ties exactly as before, and a copy
+    // that kept its category beats the same come-back passed on by an app that dropped it (the longer text sorts later).
     [JsonIgnore]
-    public string TieBreak => string.Join("\u0001", Text, CreatedAt.UtcTicks.ToString(), DoneAt?.UtcTicks.ToString() ?? string.Empty);
+    public string TieBreak => Category is null && CategoryColor is null
+        ? string.Join("\u0001", Text, CreatedAt.UtcTicks.ToString(), DoneAt?.UtcTicks.ToString() ?? string.Empty)
+        : string.Join("\u0001", Text, CreatedAt.UtcTicks.ToString(), DoneAt?.UtcTicks.ToString() ?? string.Empty, Category ?? string.Empty, CategoryColor ?? string.Empty);
 
     public ISharedItem WithStamps(DateTimeOffset editedAt, DateTimeOffset? deletedAt)
     {

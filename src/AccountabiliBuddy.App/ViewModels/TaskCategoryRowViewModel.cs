@@ -54,6 +54,36 @@ public sealed partial class TaskCategoryRowViewModel : ObservableObject
         return _tasks.RenameCategoryAsync(Id, trimmed);
     }
 
+    /// <summary>The question that shows after the ✕: "Delete Work? 12 items lose this category, on all your devices."</summary>
+    [ObservableProperty]
+    public partial string ConfirmText { get; set; } = string.Empty;
+
+    /// <summary>The delete question is showing (Delete / Keep it).</summary>
+    [ObservableProperty]
+    public partial bool IsConfirmingDelete { get; set; }
+
+    /// <summary>The ✕: asks first, always, saying how many tasks, Later items and come-backs lose the category.</summary>
+    [RelayCommand]
+    private void AskDelete()
+    {
+        int count = _tasks.CategoryUseCount(Id);
+        string effect = count switch
+        {
+            0 => "Nothing uses it.",
+            1 => "1 item loses this category, on all your devices.",
+            _ => $"{count} items lose this category, on all your devices.",
+        };
+        ConfirmText = $"Delete {_savedName}? {effect}";
+        IsConfirmingDelete = true;
+    }
+
+    [RelayCommand]
+    private void CancelDelete()
+    {
+        IsConfirmingDelete = false;
+    }
+
+    /// <summary>The answer yes: the category goes, and with it from its tasks, Later items and come-backs.</summary>
     [RelayCommand]
     private Task DeleteAsync()
     {

@@ -1,6 +1,7 @@
 using AccountabiliBuddy.App.ViewModels;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -28,6 +29,16 @@ public partial class TasksView : UserControl
     public TasksView()
     {
         InitializeComponent();
+    }
+
+    // The page stays alive while another tab shows: leaving it ends select mode, so it is not found half-done on return.
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == IsVisibleProperty && !IsVisible && DataContext is TasksViewModel page)
+        {
+            page.LeaveSelectMode();
+        }
     }
 
     protected override void OnDataContextChanged(EventArgs e)
@@ -73,6 +84,37 @@ public partial class TasksView : UserControl
         if (sender is Button button)
         {
             TaskMenus.Show(button);
+            e.Handled = true;
+        }
+    }
+
+    // A row's category chip or "+ category" spot: the picker of ⋯ › Label. Handled here, so the click does not also select or tick the row.
+    private void OnCategoryClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button button)
+        {
+            TaskMenus.ShowCategoryPicker(button);
+            e.Handled = true;
+        }
+    }
+
+    // Select mode's "Set category…": the same choices, applied to every picked row.
+    private void OnSetPickedCategoryClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button button && DataContext is TasksViewModel page)
+        {
+            TaskMenus.ShowEntries(button, page.PickedCategoryEntries(), PlacementMode.TopEdgeAlignedRight);
+            e.Handled = true;
+        }
+    }
+
+    // Esc leaves select mode (the search box has its own Esc and handles it first).
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Key == Key.Escape && !e.Handled && DataContext is TasksViewModel { IsSelectMode: true } page)
+        {
+            page.CancelSelectCommand.Execute(null);
             e.Handled = true;
         }
     }

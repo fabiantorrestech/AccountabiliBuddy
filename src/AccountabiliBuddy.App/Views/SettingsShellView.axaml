@@ -144,11 +144,13 @@
                                  ScrollViewer.VerticalScrollBarVisibility="Disabled">
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="vm:SettingsRowViewModel">
-                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" AutomationProperties.Name="{Binding Name}"
+                                    <!-- No column spacing: it would still be taken for the lock's empty column, and a long name ("Alerts & on-screen")
+                                         clipped in the narrow rail. The gaps are margins that go with what they space. -->
+                                    <Grid ColumnDefinitions="Auto,*,Auto" AutomationProperties.Name="{Binding Name}"
                                           search:SearchArea.SettingsGroup="{Binding Index}">
                                         <mi:MaterialIcon Kind="{Binding Icon}" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
-                                        <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" />
-                                        <mi:MaterialIcon Grid.Column="2" Kind="LockOutline" Width="16" Height="16" IsVisible="{Binding IsResting}"
+                                        <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="12,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        <mi:MaterialIcon Grid.Column="2" Kind="LockOutline" Width="16" Height="16" Margin="8,0,0,0" IsVisible="{Binding IsResting}"
                                                          Foreground="{DynamicResource Ab.Faint}" ToolTip.Tip="Resting while you focus" />
                                     </Grid>
                                 </DataTemplate>
