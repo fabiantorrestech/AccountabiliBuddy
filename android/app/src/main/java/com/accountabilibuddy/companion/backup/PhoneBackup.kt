@@ -71,8 +71,13 @@ object PhoneBackup {
         return json.toString()
     }
 
-    /** Writes a backup's settings over this phone's. Null when done; otherwise why not. The app restarts after. */
+    /**
+     * Writes a backup's settings over this phone's. Null when done; otherwise why not. The app restarts after. Locked during a focus session
+     * the user started, like every other restore: a file could carry a paused guard or switched-off sharing. Read here, first, so no screen
+     * can get around it; exporting and auto-backup are not affected.
+     */
     fun import(context: Context, text: String): String? {
+        (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).sync.removalLockedReason()?.let { return it }
         val json = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return "That isn't an AccountabiliBuddy phone settings file."
         val format = runCatching { json.getValue("format").jsonPrimitive.int }.getOrNull() ?: return "That isn't an AccountabiliBuddy phone settings file."
         if (format > FORMAT) {
