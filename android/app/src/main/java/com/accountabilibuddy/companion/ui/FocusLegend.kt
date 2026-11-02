@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -16,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.engine.LegendEntry
+import com.accountabilibuddy.companion.ui.theme.Ab
 
 /** Under the day bar, like the PC's legend: each total with a dot in its colour on the bar. Today's "More" fold shows it. */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -30,7 +30,7 @@ internal fun FocusLegend(entries: List<LegendEntry>) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(8.dp).background(Color(entry.color), CircleShape))
                 Spacer(Modifier.width(5.dp))
-                Text(entry.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(entry.text, style = Ab.type.small, color = Ab.colors.muted)
             }
         }
     }

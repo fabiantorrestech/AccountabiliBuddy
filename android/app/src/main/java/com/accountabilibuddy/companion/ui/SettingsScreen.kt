@@ -525,6 +525,7 @@ private fun SleepSection(saved: SleepSettings, clock: ClockFormat, onSave: (Slee
                 title = "Turn off sleep mode?",
                 body = "This waits ${sleepSync.offWait.toMinutes()} minutes. If you still want it then, it turns off on its own.",
                 appliesAt = java.time.Instant.now().plus(sleepSync.offWait),
+                about = true,
                 onQueue = {
                     onSave(saved.copy(enabled = false))
                     offText = sleepSync.pendingOffText()

@@ -91,6 +91,7 @@ fun OneOffDaysEditor(plan: DayPlan, clock: ClockFormat, onChange: (DayPlan) -> U
                     Text(day.date.format(DayTitle), style = Ab.type.bodyMedium, fontWeight = FontWeight.Medium, color = Ab.colors.ink)
                     day.note?.let { Text(it, style = Ab.type.small, color = Ab.colors.muted) }
                 }
+                Text("Edit", style = Ab.type.bodyMedium, fontWeight = FontWeight.SemiBold, color = Ab.colors.ink)
                 AbQuietIconButton(Icons.Outlined.Close, "Remove ${day.date.format(DayTitle)}", onClick = {
                     onChange(plan.copy(oneOffDays = plan.oneOffDays.filter { it.id != day.id }))
                 })

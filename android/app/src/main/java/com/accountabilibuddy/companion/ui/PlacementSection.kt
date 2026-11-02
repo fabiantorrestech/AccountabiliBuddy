@@ -153,6 +153,7 @@ private fun GuardSwitch(app: CompanionApp) {
             title = "Turn off the phone placement guard?",
             body = "This waits ${guard.offWait.toMinutes()} minutes. If you still want it then, it turns off on its own.",
             appliesAt = Instant.now().plus(guard.offWait),
+            about = true,
             onQueue = { apply(false) },
             onDismiss = { asking = false },
         )
@@ -205,6 +206,7 @@ private fun PenaltySwitch(app: CompanionApp, penalty: PocketPenalty, title: Stri
             title = "Turn off \"$title\"?",
             body = "This waits ${store.offWait.toMinutes()} minutes. If you still want it then, it turns off on its own.",
             appliesAt = Instant.now().plus(store.offWait),
+            about = true,
             onQueue = { apply(false) },
             onDismiss = { asking = false },
         )
