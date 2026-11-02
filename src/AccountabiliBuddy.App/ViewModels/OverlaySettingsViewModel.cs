@@ -32,19 +32,31 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     private static readonly int[] PeekDelayValues = [0, 100, 150, 300];
 
     private readonly OverlaySettingsService _settings;
+    private readonly SessionController _sessions;
+    private readonly Action _turnOn;
     private bool _loading;
     private bool _saving;
 
     // The list was never saved: the rows show the default for the size and placement and follow them. The first change to a row saves the list.
     private bool _usesDefaultOrder;
 
-    public OverlaySettingsViewModel(OverlaySettingsService settings, Func<string?> stickyHotkeyError)
+    /// <param name="turnOn">The overlay service's turn-on (also forgets that it was turned off from the panel).</param>
+    public OverlaySettingsViewModel(
+        OverlaySettingsService settings, SessionController sessions, Action turnOn, Func<string?> stickyHotkeyError, Func<string?> hideHotkeyError)
     {
         _settings = settings;
+        _sessions = sessions;
+        _turnOn = turnOn;
         StickyHotkeyError = stickyHotkeyError() ?? string.Empty;
+        HideHotkeyError = hideHotkeyError() ?? string.Empty;
+        InFocus = sessions.IsEnforcing;
+        sessions.StateChanged += (_, _) => InFocus = sessions.IsEnforcing;
         Load(settings.Current);
         settings.Changed += (_, current) =>
         {
+            // The overlay service has registered (or released) the shortcuts by now; whether they worked is shown either way.
+            StickyHotkeyError = stickyHotkeyError() ?? string.Empty;
+            HideHotkeyError = hideHotkeyError() ?? string.Empty;
             if (!_saving)
             {
                 Load(current);
@@ -150,9 +162,36 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     public partial bool PeekUsesKeys { get; set; }
 
     /// <summary>Why Ctrl+Alt+Space could not be registered (another copy of the app holds it); empty when it works.</summary>
-    public string StickyHotkeyError { get; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStickyHotkeyError))]
+    public partial string StickyHotkeyError { get; set; }
 
     public bool HasStickyHotkeyError => StickyHotkeyError.Length > 0;
+
+    /// <summary>Why Ctrl+Alt+H could not be registered (another program holds it); empty when it works or is off.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasHideHotkeyError))]
+    public partial string HideHotkeyError { get; set; }
+
+    public bool HasHideHotkeyError => HideHotkeyError.Length > 0;
+
+    /// <summary>The master switch: off = no tile, timeline or corner clock, no peek, and no Ctrl+Alt+H or Ctrl+Alt+Space.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanChangeOverlayOn), nameof(ShowsOverlayLockedText))]
+    public partial bool OverlayOn { get; set; }
+
+    /// <summary>Ctrl+Alt+H hides the overlay until it is pressed again.</summary>
+    [ObservableProperty]
+    public partial bool HideShortcutOn { get; set; }
+
+    /// <summary>A focus session the user started is running: the overlay can't be turned off now (turning it on always works), like the panel's Disable.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanChangeOverlayOn), nameof(ShowsOverlayLockedText))]
+    public partial bool InFocus { get; set; }
+
+    public bool CanChangeOverlayOn => !InFocus || !OverlayOn;
+
+    public bool ShowsOverlayLockedText => InFocus && OverlayOn;
 
     public ObservableCollection<OverlayItemRowViewModel> Items { get; } = [];
 
@@ -171,6 +210,8 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     private void Load(OverlaySettings settings)
     {
         _loading = true;
+        OverlayOn = settings.OverlayOn;
+        HideShortcutOn = settings.HideShortcutOn;
         PlacementIndex = (int)settings.EffectivePlacement;
         AutoHideIndex = (int)settings.AutoHide;
         LeftAlignedIndex = (int)settings.LeftAligned;
@@ -261,6 +302,39 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
             _ = _settings.SaveLookAsync(change);
             _saving = false;
         }
+    }
+
+    partial void OnOverlayOnChanged(bool value)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        if (value)
+        {
+            _saving = true;
+            _turnOn();
+            _saving = false;
+            return;
+        }
+
+        if (_sessions.IsEnforcing)
+        {
+            // The same rule as the panel's Disable: not during a focus session. Put the switch back.
+            _loading = true;
+            OverlayOn = true;
+            _loading = false;
+            return;
+        }
+
+        Save(s => s with { OverlayOn = false, OffFromPanel = false });
+    }
+
+    partial void OnHideShortcutOnChanged(bool value)
+    {
+        // Switching it off while hidden shows the overlay again: with the shortcut gone there would be no way to bring it back.
+        Save(s => s with { HideShortcutOn = value, HiddenByShortcut = value && s.HiddenByShortcut });
     }
 
     partial void OnPlacementIndexChanged(int value)

@@ -13,7 +13,8 @@ namespace AccountabiliBuddy.App.Services;
 /// a session tick, a setting, a taskbar or display change, a new window in front. Display only: nothing here changes what is blocked; the
 /// buttons use the Today page's own commands. The timer shows while a session runs for a profile that has it on (its own choice or the default;
 /// it can be hidden for the rest of the session), between sessions on days with focus blocks, in the evening (sleep mode), and while this PC's
-/// timers and alarms run. Use from the UI thread only.
+/// timers and alarms run. Ctrl+Alt+H hides all of it until pressed again (a held Ctrl+Alt still peeks, a glow still shows), and the panel's
+/// Disable turns it off until the user turns it on in the app. Use from the UI thread only.
 /// </summary>
 public sealed class SessionOverlayService : IDisposable
 {
@@ -29,6 +30,7 @@ public sealed class SessionOverlayService : IDisposable
     private readonly ICtrlAltWatcher _ctrlAlt;
     private readonly IPanelKeys _panelKeys;
     private readonly IGlobalHotkey _stickyHotkey;
+    private readonly IGlobalHotkey _hideHotkey;
     private readonly DayBarViewModel _day;
     private readonly TaskbarOverlayViewModel _model;
     // The panel opens when Ctrl+Alt has been held for the "Peek opens after" delay (a tap of the two keys for something else doesn't flash it).
@@ -50,14 +52,23 @@ public sealed class SessionOverlayService : IDisposable
     private DateTimeOffset _hiddenUntil = DateTimeOffset.MinValue;
     private DateTimeOffset _doneUntil = DateTimeOffset.MinValue;
     private DateTimeOffset _lastShownAt = DateTimeOffset.MinValue;
-    private (bool On, bool Hidden) _lastStatus;
+    private (bool On, bool Hidden, bool HiddenByShortcut, bool OverlayOn) _lastStatus = (false, false, false, true);
     private bool _started;
 
     // The keyboard hook is installed only while hold-to-peek is on and the tile is on screen.
     private bool _hookOn;
 
-    // Ctrl+Alt+Space is held only while the sticky panel option is on.
+    // Ctrl+Alt+Space is held only while the sticky panel option is on and the overlay is not turned off.
     private bool _stickyRegistered;
+
+    // Ctrl+Alt+H is held while its switch is on and the overlay is not turned off.
+    private bool _hideRegistered;
+
+    // While the overlay is hidden by Ctrl+Alt+H: Ctrl+Alt is down and the keyboard hook sees it (the tile and panel show for as long), a sticky panel
+    // (Ctrl+Alt+Space) is open (the tile shows until it closes), and something is there to show if it were not hidden (the hook stays on for the peek).
+    private bool _revealedByHold;
+    private bool _stickyReveal;
+    private bool _hiddenButPeekable;
     private bool _sessionWasActive;
     private string? _panelKeyMode;
     private bool _disposed;
@@ -73,6 +84,7 @@ public sealed class SessionOverlayService : IDisposable
         ICtrlAltWatcher ctrlAlt,
         IPanelKeys panelKeys,
         IGlobalHotkey stickyHotkey,
+        IGlobalHotkey hideHotkey,
         DayBarViewModel timelineDay,
         SessionCueService cues)
     {
@@ -84,11 +96,14 @@ public sealed class SessionOverlayService : IDisposable
         _ctrlAlt = ctrlAlt;
         _panelKeys = panelKeys;
         _stickyHotkey = stickyHotkey;
+        _hideHotkey = hideHotkey;
         _day = timelineDay;
         Actions.PendingChangeAt = () => _configuration.Pending is { } pending && pending.ReadyAt > _sessions.Now ? pending.ReadyAt : null;
         _model = new TaskbarOverlayViewModel(sessions, configuration, settings, timelineDay, battery, visibility, Actions)
         {
             HideRequested = HideBriefly,
+            ToggleHiddenRequested = ToggleHidden,
+            DisableRequested = DisableFromPanel,
         };
         cues.Cued += (_, cue) => OnCue(cue.Cue, cue.SessionEnded);
         battery.Changed += (_, _) => Dispatcher.UIThread.Post(Update);
@@ -106,14 +121,22 @@ public sealed class SessionOverlayService : IDisposable
         _clockTimer.Tick += (_, _) => Update();
         _peekGuard.Tick += (_, _) =>
         {
-            if (_panel is not { IsSticky: false } || !_control.AreDragKeysHeld())
+            // Also guards the tile shown only for as long as Ctrl+Alt is held (hidden by Ctrl+Alt+H).
+            bool panelPeek = _panel is { IsSticky: false };
+            if ((panelPeek || _revealedByHold) && _control.AreDragKeysHeld())
             {
-                _peekGuard.Stop();
-                if (_panel is { IsSticky: false })
-                {
-                    ClosePanel();
-                    _ctrlAlt.Resync();
-                }
+                return;
+            }
+
+            _peekGuard.Stop();
+            if (panelPeek)
+            {
+                ClosePanel();
+            }
+
+            if (panelPeek || _revealedByHold)
+            {
+                _ctrlAlt.Resync();
             }
         };
     }
@@ -128,6 +151,19 @@ public sealed class SessionOverlayService : IDisposable
 
     /// <summary>Why Ctrl+Alt+Space could not be registered (another copy of the app or another program holds it); null when it works.</summary>
     public string? StickyHotkeyError { get; private set; }
+
+    /// <summary>Why Ctrl+Alt+H could not be registered (another program holds it); null when it works or is off.</summary>
+    public string? HideHotkeyError { get; private set; }
+
+    /// <summary>True while Ctrl+Alt+H keeps the overlay hidden (a held Ctrl+Alt still peeks). Never true with the overlay turned off or the shortcut switched off.</summary>
+    public bool IsHiddenByShortcut
+    {
+        get
+        {
+            OverlaySettings settings = _settings.Current;
+            return settings.OverlayOn && settings.HideShortcutOn && settings.HiddenByShortcut;
+        }
+    }
 
     /// <summary>Raised when the timer is shown, hidden or turned on or off for the session.</summary>
     public event EventHandler? Changed;
@@ -145,7 +181,8 @@ public sealed class SessionOverlayService : IDisposable
     /// <summary>
     /// True while a session runs whose profile has the timer on (shown or hidden for now), or a count-up session of the Quick Start profile.
     /// </summary>
-    public bool IsOnForSession => _sessions.State.IsActive
+    public bool IsOnForSession => _settings.Current.OverlayOn
+                                  && _sessions.State.IsActive
                                   && (_settings.Current.For(_sessions.State.ProfileId).Enabled || IsCountUp(_sessions.State));
 
     private static bool IsCountUp(SessionState state)
@@ -191,7 +228,8 @@ public sealed class SessionOverlayService : IDisposable
         _geometry.Changed += (_, _) => Dispatcher.UIThread.Post(Update);
         _ctrlAlt.HeldChanged += (_, held) => Dispatcher.UIThread.Post(() => OnCtrlAlt(held));
         _panelKeys.Pressed += (_, chord) => Dispatcher.UIThread.Post(() => _panelModel?.HandleKey(chord.Key == "Plus" ? "+" : chord.Key == "Minus" ? "-" : chord.Key));
-        _stickyHotkey.Pressed += (_, _) => Dispatcher.UIThread.Post(() => OpenPanel(sticky: true));
+        _stickyHotkey.Pressed += (_, _) => Dispatcher.UIThread.Post(OpenStickyPanel);
+        _hideHotkey.Pressed += (_, _) => Dispatcher.UIThread.Post(ToggleHidden);
         _day.Start();
         Update();
     }
@@ -285,7 +323,60 @@ public sealed class SessionOverlayService : IDisposable
     {
         _hiddenUntil = DateTimeOffset.MinValue;
         CloseWindows();
+        if (_settings.Current.HiddenByShortcut)
+        {
+            // Saving it runs Update. A turned-off overlay stays off: only Today (or Settings) turns it on.
+            _ = _settings.SaveLookAsync(current => current with { HiddenByShortcut = false });
+            return;
+        }
+
         Update();
+    }
+
+    /// <summary>Ctrl+Alt+H (and the panel's H key while that shortcut is on): hide the overlay until this is pressed again. Kept across sessions and restarts.</summary>
+    public void ToggleHidden()
+    {
+        OverlaySettings settings = _settings.Current;
+        if (!settings.OverlayOn || !settings.HideShortcutOn)
+        {
+            return;
+        }
+
+        bool hide = !settings.HiddenByShortcut;
+        if (hide)
+        {
+            ClosePanel();
+        }
+        else
+        {
+            // Showing it means showing it: a quick hide that is still running ends too.
+            _hiddenUntil = DateTimeOffset.MinValue;
+        }
+
+        _ = _settings.SaveLookAsync(current => current with { HiddenByShortcut = hide, HideShortcutSeen = true });
+    }
+
+    /// <summary>
+    /// The panel's Disable: the overlay is off (no tile, no peek, no shortcuts) until the user turns it on in the app. Refused during a focus
+    /// session, like the Settings switch.
+    /// </summary>
+    public void DisableFromPanel()
+    {
+        if (_sessions.IsEnforcing || !_settings.Current.OverlayOn)
+        {
+            return;
+        }
+
+        ClosePanel();
+        _ = _settings.SaveLookAsync(current => current with { OverlayOn = false, OffFromPanel = true, HiddenByShortcut = false });
+        Actions.Notify("Overlay turned off", "Turn it back on from the Today page in the app.");
+    }
+
+    /// <summary>Today's "Turn on", or the Settings switch: the overlay is back. Always allowed (it only adds to what shows).</summary>
+    public void TurnOn()
+    {
+        _hiddenUntil = DateTimeOffset.MinValue;
+        _ = _settings.SaveLookAsync(current => current with { OverlayOn = true, OffFromPanel = false });
     }
 
     /// <summary>The panel's "Hide": out of the way for a few seconds, then back on its own.</summary>
@@ -311,6 +402,7 @@ public sealed class SessionOverlayService : IDisposable
         _hookOn = false;
         _ctrlAlt.SetListening(false);
         _stickyHotkey.Unregister();
+        _hideHotkey.Unregister();
         _panelKeys.Unregister();
         CloseWindows();
         _day.Dispose();
@@ -350,6 +442,12 @@ public sealed class SessionOverlayService : IDisposable
 
     private void OnCtrlAlt(bool held)
     {
+        if (IsHiddenByShortcut)
+        {
+            // Hidden: the tile shows for as long as the keys are held (the panel follows after the peek delay) and hides again on release.
+            Update();
+        }
+
         if (held)
         {
             _peekTimer.Stop();
@@ -371,6 +469,23 @@ public sealed class SessionOverlayService : IDisposable
         if (_panel is { IsSticky: false })
         {
             ClosePanel();
+        }
+    }
+
+    // Ctrl+Alt+Space. While Ctrl+Alt+H keeps the overlay hidden, the tile shows for as long as this panel is open.
+    private void OpenStickyPanel()
+    {
+        if (IsHiddenByShortcut && _settings.Current.PanelSticky && _panel is null)
+        {
+            _stickyReveal = true;
+            Update();
+        }
+
+        OpenPanel(sticky: true);
+        if (_stickyReveal && _panel is not { IsSticky: true })
+        {
+            _stickyReveal = false;
+            Update();
         }
     }
 
@@ -417,6 +532,12 @@ public sealed class SessionOverlayService : IDisposable
                 _panelKeys.Unregister();
                 _panelKeyMode = null;
                 _panel = null;
+                if (_stickyReveal)
+                {
+                    // Posted: this runs inside a redraw that may be closing the panel.
+                    _stickyReveal = false;
+                    Dispatcher.UIThread.Post(Update);
+                }
             };
         }
 
@@ -448,8 +569,10 @@ public sealed class SessionOverlayService : IDisposable
     // A peek (Ctrl+Alt held) takes no system-wide keys while "peek keys locked" is on (the default), and otherwise only ones that cannot
     // start, end, lock or unlock anything: hide, +10 min (stricter only), up and down. Done can end a session, so it is not among them.
     // The sticky panel (Ctrl+Alt+Space) has the keyboard focus and takes its keys itself; its shortcuts stay registered as before.
-    private static readonly string[] PeekSafeKeys = ["T", "H", "Up", "Down"];
-    private static readonly string[] StickyKeys = ["D", "P", "T", "B", "H", "O", "M", "F", "L", "1", "2", "3", "Up", "Down", "Plus", "Minus"];
+    // H is not in these lists: with Ctrl+Alt+H on, the one system-wide registration of it is the hide shortcut's (the panel's H then does the same
+    // toggle; registering it twice would fail), and with it off the panel adds H itself (the short Hide) below.
+    private static readonly string[] PeekSafeKeys = ["T", "Up", "Down"];
+    private static readonly string[] StickyKeys = ["D", "P", "T", "B", "O", "M", "F", "L", "1", "2", "3", "Up", "Down", "Plus", "Minus"];
 
     private void SyncPanelKeys()
     {
@@ -458,19 +581,26 @@ public sealed class SessionOverlayService : IDisposable
             return;
         }
 
-        string mode = _panel.IsSticky ? "sticky" : _settings.Current.PeekKeysLocked ? "locked" : "safe";
+        OverlaySettings settings = _settings.Current;
+        bool panelOwnsH = !(settings.OverlayOn && settings.HideShortcutOn);
+        string mode = (_panel.IsSticky ? "sticky" : settings.PeekKeysLocked ? "locked" : "safe") + (panelOwnsH ? "+h" : string.Empty);
         if (mode == _panelKeyMode)
         {
             return;
         }
 
         _panelKeyMode = mode;
-        string[] keys = mode switch
+        string[] keys = mode.Split('+')[0] switch
         {
             "sticky" => StickyKeys,
             "safe" => PeekSafeKeys,
             _ => [],
         };
+        if (panelOwnsH && keys.Length > 0)
+        {
+            keys = [.. keys, "H"];
+        }
+
         const HotkeyModifiers modifiers = HotkeyModifiers.Ctrl | HotkeyModifiers.Alt;
         _panelKeys.Register(keys.Select(key => new HotkeyChord(modifiers, key)).ToList());
     }
@@ -496,8 +626,9 @@ public sealed class SessionOverlayService : IDisposable
         Show();
         SyncHook();
         SyncStickyHotkey();
+        SyncHideHotkey();
         SyncPanelKeys();
-        (bool, bool) status = (IsOnForSession, IsHiddenForSession);
+        (bool, bool, bool, bool) status = (IsOnForSession, IsHiddenForSession, IsHiddenByShortcut, _settings.Current.OverlayOn);
         if (status != _lastStatus)
         {
             _lastStatus = status;
@@ -507,7 +638,7 @@ public sealed class SessionOverlayService : IDisposable
 
     private void SyncStickyHotkey()
     {
-        bool want = _settings.Current.PanelSticky;
+        bool want = _settings.Current.PanelSticky && _settings.Current.OverlayOn;
         if (want == _stickyRegistered)
         {
             return;
@@ -526,9 +657,34 @@ public sealed class SessionOverlayService : IDisposable
         }
     }
 
+    private void SyncHideHotkey()
+    {
+        OverlaySettings settings = _settings.Current;
+        bool want = settings.HideShortcutOn && settings.OverlayOn;
+        if (want == _hideRegistered)
+        {
+            return;
+        }
+
+        _hideRegistered = want;
+        if (want)
+        {
+            _hideHotkey.TryRegister(new HotkeyChord(HotkeyModifiers.Ctrl | HotkeyModifiers.Alt, "H"), out string? error);
+            HideHotkeyError = error;
+        }
+        else
+        {
+            _hideHotkey.Unregister();
+            HideHotkeyError = null;
+        }
+    }
+
+    // The hook reads Ctrl and Alt for the peek. It is on while the tile shows, and while Ctrl+Alt+H keeps a tile hidden that would otherwise show
+    // (so a held Ctrl+Alt can bring it up); off when the overlay is turned off.
     private void SyncHook()
     {
-        bool want = _settings.Current.HoldToPeek && _tile is { IsVisible: true };
+        OverlaySettings settings = _settings.Current;
+        bool want = settings.OverlayOn && settings.HoldToPeek && (_tile is { IsVisible: true } || _hiddenButPeekable);
         if (want != _hookOn)
         {
             _hookOn = want;
@@ -541,6 +697,17 @@ public sealed class SessionOverlayService : IDisposable
         OverlaySettings settings = _settings.Current;
         SessionState state = _sessions.State;
         DateTimeOffset now = _sessions.Now;
+        if (!settings.OverlayOn)
+        {
+            // Turned off (Settings or the panel's Disable): nothing at all, no peek and no timers of its own.
+            _hiddenButPeekable = false;
+            _revealedByHold = false;
+            _stickyReveal = false;
+            CloseWindows();
+            StopClockTimer();
+            return;
+        }
+
         ForegroundScreenState foreground = _geometry.Foreground;
         OverlayAppRule? rule = OverlayAppRules.Find(settings.Rules, foreground.ProcessName);
 
@@ -557,7 +724,23 @@ public sealed class SessionOverlayService : IDisposable
         bool hasSomething = showsTimer || showsTimeline || _day.ShowsSleep || showsTimers || doneNotice;
         bool hiddenBriefly = now < _hiddenUntil;
         bool inCall = rule is { HideDuringCalls: true } && (foreground.IsFullScreen || (rule.CallClasses is { } classes && classes.Contains(foreground.ClassName ?? string.Empty)));
-        if (!hasSomething || hiddenBriefly || inCall)
+
+        // Hidden by Ctrl+Alt+H: it shows for a held Ctrl+Alt, for an open sticky panel, and for the glow of a time-up or alarm (the chime plays either way).
+        bool hiddenByUser = false;
+        _revealedByHold = false;
+        if (IsHiddenByShortcut)
+        {
+            _revealedByHold = _hookOn && _ctrlAlt.IsHeld;
+            hiddenByUser = !(_revealedByHold || _stickyReveal || now < _model.GlowUntil);
+        }
+
+        _hiddenButPeekable = IsHiddenByShortcut && hasSomething && !hiddenBriefly && !inCall;
+        if (_revealedByHold && !_peekGuard.IsEnabled)
+        {
+            _peekGuard.Start();
+        }
+
+        if (!hasSomething || hiddenBriefly || inCall || hiddenByUser)
         {
             CloseWindows();
             _clockTimer.Stop();

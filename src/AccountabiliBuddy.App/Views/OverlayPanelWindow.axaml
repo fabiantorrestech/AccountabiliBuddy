@@ -235,8 +235,11 @@
                         <Button Classes="foot" Command="{Binding SideTaskCommand}" IsVisible="{Binding ShowsSideTaskButton}">
                             <StackPanel Orientation="Horizontal" Spacing="6"><mi:MaterialIcon Kind="CoffeeOutline" Width="14" Height="14" /><TextBlock Text="Side task" /><TextBlock Text="B" Classes="key" IsVisible="{Binding ShowsAllHints}" /></StackPanel>
                         </Button>
-                        <Button Classes="foot" Command="{Binding HideCommand}">
-                            <StackPanel Orientation="Horizontal" Spacing="6"><mi:MaterialIcon Kind="EyeOffOutline" Width="14" Height="14" /><TextBlock Text="Hide" /><TextBlock Text="H" Classes="key" IsVisible="{Binding ShowsSafeHints}" /></StackPanel>
+                        <Button Classes="foot" Command="{Binding HideCommand}" ToolTip.Tip="{Binding HideTip}">
+                            <StackPanel Orientation="Horizontal" Spacing="6"><mi:MaterialIcon Kind="EyeOffOutline" Width="14" Height="14" /><TextBlock Text="Hide" /><TextBlock Text="H" Classes="key" IsVisible="{Binding ShowsHideKey}" /></StackPanel>
+                        </Button>
+                        <Button Classes="foot" Command="{Binding DisableCommand}" IsEnabled="{Binding CanDisable}" ToolTip.Tip="{Binding DisableTip}" AutomationProperties.Name="Turn the overlay off">
+                            <mi:MaterialIcon Kind="ToggleSwitchOffOutline" Width="16" Height="16" />
                         </Button>
                         <Button Classes="foot" Command="{Binding ShowQrCommand}" IsVisible="{Binding HasQr}" ToolTip.Tip="Show today's QR codes for your phone to scan">
                             <StackPanel Orientation="Horizontal" Spacing="6"><mi:MaterialIcon Kind="Qrcode" Width="14" Height="14" /><TextBlock Text="QR" /></StackPanel>
@@ -258,6 +261,7 @@
                         </Button>
                     </StackPanel>
                 </Grid>
+                <TextBlock Text="Can't turn the overlay off during a focus session" Classes="key" Foreground="{DynamicResource Ab.Muted}" TextWrapping="Wrap" Margin="16,0,16,8" IsVisible="{Binding DisableLocked}" />
             </StackPanel>
             <!-- Large: Come back to, Next up, Devices (timers stay in the main column, with their controls) -->
             <StackPanel Grid.Column="1" Width="300" IsVisible="{Binding IsLarge}" Margin="0">

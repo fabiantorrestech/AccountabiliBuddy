@@ -44,7 +44,21 @@
         </Style>
     </UserControl.Styles>
     <StackPanel Spacing="8">
-        <TextBlock Text="Placement" Classes="section" Margin="2,4,0,0" />
+        <TextBlock Text="Overlay" Classes="section" Margin="2,4,0,0" />
+        <Border Classes="row">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                    <TextBlock Text="Show the on-screen overlay" />
+                    <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                               Text="Off: no timer over the taskbar, no timeline, no corner clock, no Ctrl+Alt panel and no Ctrl+Alt+H or Ctrl+Alt+Space shortcuts. The chimes still play." />
+                    <TextBlock Classes="muted" FontSize="12" Foreground="{DynamicResource Ab.Waiting}" TextWrapping="Wrap"
+                               Text="Can't turn the overlay off during a focus session." IsVisible="{Binding ShowsOverlayLockedText}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding OverlayOn}" IsEnabled="{Binding CanChangeOverlayOn}" OnContent="" OffContent="" AutomationProperties.Name="Show the on-screen overlay" />
+            </Grid>
+        </Border>
+
+        <TextBlock Text="Placement" Classes="section" Margin="2,12,0,0" />
         <Border Classes="row">
             <StackPanel Spacing="10">
                 <TextBlock Text="Where it lives" />
@@ -238,6 +252,17 @@
         <Border Classes="row">
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel>
+                    <TextBlock Text="Ctrl+Alt+H hides the overlay" />
+                    <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                               Text="Press it to hide the overlay until you press it again, in any app, also between sessions and after a restart. While it is hidden, holding Ctrl+Alt still shows it, and Today says it is hidden." />
+                    <TextBlock Classes="muted" FontSize="12" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap" Text="{Binding HideHotkeyError}" IsVisible="{Binding HasHideHotkeyError}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding HideShortcutOn}" OnContent="" OffContent="" AutomationProperties.Name="Ctrl+Alt+H hides the overlay" />
+            </Grid>
+        </Border>
+        <Border Classes="row">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
                     <TextBlock Text="Ctrl+Alt+Space keeps it open" />
                     <TextBlock Classes="muted" FontSize="12" Text="Esc or a click elsewhere closes it" />
                     <TextBlock Classes="muted" FontSize="12" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap" Text="{Binding StickyHotkeyError}" IsVisible="{Binding HasStickyHotkeyError}" />
@@ -249,7 +274,7 @@
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel>
                     <TextBlock Text="Peek uses keyboard shortcuts" />
-                    <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="Off (the default): holding Ctrl+Alt takes no keys, so other apps keep all their shortcuts. On: Ctrl+Alt+H hides, T adds 10 minutes, Up and Down pick a task. Ctrl+Alt+Space has every key without this." />
+                    <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="Off (the default): holding Ctrl+Alt takes no keys, so other apps keep all their shortcuts. On: T adds 10 minutes, Up and Down pick a task, and H is the short Hide when the Ctrl+Alt+H shortcut above is off. Ctrl+Alt+Space has every key without this." />
                 </StackPanel>
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding PeekUsesKeys}" OnContent="" OffContent="" AutomationProperties.Name="Peek uses keyboard shortcuts" />
             </Grid>

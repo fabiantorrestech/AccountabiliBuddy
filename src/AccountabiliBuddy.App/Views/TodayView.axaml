@@ -123,11 +123,34 @@
                  and its action row stays in view: the page scrolls as one. -->
             <Grid RowDefinitions="Auto,*,Auto" RowSpacing="14" VerticalAlignment="Top" MinHeight="{Binding Viewport.Height, ElementName=PageScroll}">
 
-                <!-- The error text (a failed Pomodoro start, a read-only settings file). -->
-                <Border Classes="inner" Background="{DynamicResource Ab.InfoBg}" Padding="18,12"
-                        IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                    <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource Ab.InfoInk}" TextWrapping="Wrap" />
-                </Border>
+                <StackPanel Spacing="10">
+                    <!-- The error text (a failed Pomodoro start, a read-only settings file). -->
+                    <Border Classes="inner" Background="{DynamicResource Ab.InfoBg}" Padding="18,12"
+                            IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                        <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource Ab.InfoInk}" TextWrapping="Wrap" />
+                    </Border>
+
+                    <!-- The overlay was turned off with the Ctrl+Alt panel's Disable: this is the only way back (Settings has its own switch). -->
+                    <Border Classes="inner" DataContext="{Binding OverlayStatus}" x:DataType="vm:OverlayStatusViewModel"
+                            IsVisible="{Binding IsOffFromPanel, FallbackValue=False}">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                            <mi:MaterialIcon Kind="ToggleSwitchOffOutline" Width="20" Height="20" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="Overlay turned off from the panel" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="No timer over the taskbar and no Ctrl+Alt panel until you turn it on here." />
+                            </StackPanel>
+                            <Button Grid.Column="2" Content="Turn on" Command="{Binding TurnOnCommand}" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Ctrl+Alt+H keeps the overlay hidden: a quiet line, not a card. -->
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="4,0" DataContext="{Binding OverlayStatus}" x:DataType="vm:OverlayStatusViewModel"
+                          IsVisible="{Binding IsHidden, FallbackValue=False}">
+                        <mi:MaterialIcon Kind="EyeOffOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding HiddenText}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
+                        <Button Grid.Column="2" Classes="quiet" Content="Show" Command="{Binding ShowCommand}" Padding="8,2" MinHeight="0" />
+                    </Grid>
+                </StackPanel>
 
                 <Border Grid.Row="1" Classes="card mainCard">
                     <Panel>
