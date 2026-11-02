@@ -86,6 +86,39 @@
         <Style Selector="Button.listRow.selected /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
+        <Style Selector="Button.listRow.picked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+
+        <!-- A row's category chip (dot and name; a click opens the picker) and the quiet "+ category" spot on a row with none, which
+             shows while the pointer is on the row or the row is selected. Hidden, the spot takes no clicks. -->
+        <Style Selector="Button.catChip">
+            <Setter Property="Padding" Value="6,3" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.catChip /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <Style Selector="Button.catChip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.catAdd">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+        <Style Selector="Panel.listItem:pointerover Button.catAdd">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
+        </Style>
+        <Style Selector="Button.listRow.selected Button.catAdd">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
+        </Style>
 
         <!-- A row's title: Ink; Muted once the task is ticked (the strike comes from the global TextBlock.done). -->
         <Style Selector="TextBlock.rowTitle">
@@ -225,15 +258,21 @@
             <StackPanel Spacing="0">
                 <Border Classes="dropLine" IsVisible="{Binding ShowsLineAbove}" Margin="8,0" />
                 <Panel Classes="listItem">
-                    <Button Classes="listRow" Classes.selected="{Binding IsSelected}" Command="{Binding SelectCommand}"
+                    <Button Classes="listRow" Classes.selected="{Binding IsSelected}" Classes.picked="{Binding IsPicked}" Command="{Binding SelectCommand}"
                             AutomationProperties.Name="{Binding Title}">
                         <Grid ColumnDefinitions="Auto,*,Auto,92,40,Auto,22" ColumnSpacing="8" Margin="0,0,6,0">
                             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0" MinWidth="22" VerticalAlignment="Center">
                                 <TextBlock Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Center" MinWidth="16"
                                            IsVisible="{Binding IsNumbered}" />
-                                <CheckBox IsChecked="{Binding IsTicked, Mode=OneWay}" Command="{Binding ToggleCommand}" IsVisible="{Binding HasToggle}"
+                                <CheckBox IsChecked="{Binding IsTicked, Mode=OneWay}" Command="{Binding ToggleCommand}" IsVisible="{Binding ShowsDoneTick}"
                                           MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="Done"
                                           ToolTip.Tip="Tick it off (untick to open it again)" />
+                                <!-- Select mode: a round circle (a done tick is a square), filled when the row is picked. -->
+                                <Panel IsVisible="{Binding ShowsPickCircle}" VerticalAlignment="Center" Width="22" Height="22"
+                                       AutomationProperties.Name="Select this row">
+                                    <mi:MaterialIcon Kind="CircleOutline" Width="22" Height="22" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !IsPicked}" />
+                                    <mi:MaterialIcon Kind="CheckCircle" Width="22" Height="22" Foreground="{DynamicResource Ab.Ink}" IsVisible="{Binding IsPicked}" />
+                                </Panel>
                             </StackPanel>
                             <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center" Margin="0,9">
                                 <TextBlock Classes="rowTitle" Classes.done="{Binding IsTicked}" Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
@@ -243,11 +282,21 @@
                                     VerticalAlignment="Center" IsVisible="{Binding HasStatusTag}">
                                 <TextBlock Classes="muted" Text="{Binding StatusTag}" FontSize="12" HorizontalAlignment="Center" />
                             </Border>
-                            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" IsVisible="{Binding HasCategory}">
-                                <Ellipse Width="8" Height="8" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" />
-                                <TextBlock Classes="muted" Text="{Binding CategoryName}" FontSize="12" MaxWidth="72" TextTrimming="CharacterEllipsis"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
+                            <!-- The category chip (a click opens the picker, the same as ⋯ › Label) or, on a row with none, the quiet "+ category". -->
+                            <Panel Grid.Column="3" VerticalAlignment="Center">
+                                <Button Classes="catChip" IsVisible="{Binding HasCategory}" IsHitTestVisible="{Binding !InSelectMode}" Click="OnCategoryClick"
+                                        AutomationProperties.Name="Change category" ToolTip.Tip="Change category">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Ellipse Width="8" Height="8" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" />
+                                        <TextBlock Classes="muted" Text="{Binding CategoryName}" FontSize="12" MaxWidth="60" TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Classes="catChip catAdd" IsVisible="{Binding ShowsAddCategory}" Click="OnCategoryClick"
+                                        AutomationProperties.Name="Add category" ToolTip.Tip="Add a category">
+                                    <TextBlock Classes="faint" Text="+ category" FontSize="12" VerticalAlignment="Center" />
+                                </Button>
+                            </Panel>
                             <TextBlock Grid.Column="4" Classes="muted" Text="Now" FontSize="13" VerticalAlignment="Center" IsVisible="{Binding IsNow}" />
                             <Button Grid.Column="5" Classes="quiet" Padding="6" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
                                     AutomationProperties.Name="More actions" ToolTip.Tip="Rename, label, move, add a subtask, delete" Click="OnMoreClick">
@@ -322,6 +371,14 @@
                                 AutomationProperties.Name="Search tasks">
                             <mi:MaterialIcon Kind="Magnify" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
                         </Button>
+                        <Button Classes="quiet" Padding="8" Command="{Binding ToggleManageCategoriesCommand}"
+                                ToolTip.Tip="Categories: rename, recolour, add or delete (e.g. Work, Personal)" AutomationProperties.Name="Categories">
+                            <mi:MaterialIcon Kind="TagMultipleOutline" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
+                        </Button>
+                        <Button Classes="quiet" Padding="8" Command="{Binding ToggleSelectModeCommand}"
+                                ToolTip.Tip="Select several rows to give them a category" AutomationProperties.Name="Select">
+                            <mi:MaterialIcon Kind="CheckboxMultipleMarkedOutline" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
+                        </Button>
                         <ItemsControl ItemsSource="{Binding CategoryChips}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -371,6 +428,24 @@
 
                 <!-- The Undo bar after a delete (10 seconds); the item stays in Archive > Recently deleted. -->
                 <views:UndoBarView DockPanel.Dock="Bottom" DataContext="{Binding Undo}" Margin="36,6,28,16" />
+
+                <!-- Select mode: "N selected", Set category… and Cancel. Category only: no bulk delete or move. -->
+                <Border DockPanel.Dock="Bottom" Margin="36,0,28,10" Padding="18,8,10,8" CornerRadius="26" Background="{DynamicResource Ab.Surface2}"
+                        IsVisible="{Binding IsSelectMode}">
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                        <TextBlock Text="{Binding PickedText}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" AutomationProperties.Name="Selected count" />
+                        <Button Grid.Column="1" Classes="quiet" Padding="14,8" Content="Set category…" Click="OnSetPickedCategoryClick" IsEnabled="{Binding HasPicked}"
+                                FontSize="14" AutomationProperties.Name="Set category" />
+                        <Button Grid.Column="2" Classes="quiet" Padding="14,8" Content="Cancel" Command="{Binding CancelSelectCommand}" FontSize="14"
+                                AutomationProperties.Name="Cancel selecting" />
+                    </Grid>
+                </Border>
+
+                <!-- The Categories editor (the header's tag button). -->
+                <Border DockPanel.Dock="Top" Margin="36,14,28,0" Padding="18,14" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
+                        IsVisible="{Binding IsManagingCategories}">
+                    <views:CategoryEditorView DataContext="{Binding CategoryEditor}" />
+                </Border>
 
                 <!-- Why something was not done. -->
                 <Border DockPanel.Dock="Top" Margin="36,0,28,8" Padding="16,10,8,10" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"

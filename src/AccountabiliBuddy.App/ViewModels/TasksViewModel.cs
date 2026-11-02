@@ -35,6 +35,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     private bool _refreshing;
     private List<Guid> _unfinishedIds = [];
     private int _sessionRowCount;
+    private readonly HashSet<TaskRowKey> _picked = [];
 
     public TasksViewModel(
         SessionTasksService tasks, LaterStore later, ComebackStore comebacks, AutoSavedTaskStore autoSaved, NotebookViewModel archive,
@@ -49,6 +50,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         _configuration = configuration;
         _time = time;
         Undo = new UndoBarViewModel(tasks);
+        CategoryEditor = new CategoryEditorViewModel(tasks);
         Filter = new TaskFilterViewModel(viewStore);
         Filter.Changed += OnFilterChanged;
         CountsText = UnfinishedText = AddPlaceholder = SearchText = NewTaskText = Notice = string.Empty;
@@ -74,6 +76,30 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     /// <summary>The bar after a delete: "Deleted “…” · Undo".</summary>
     public UndoBarViewModel Undo { get; }
+
+    /// <summary>The Categories button's editor: rename, recolour, add and delete (the same rows as Today's tag button).</summary>
+    public CategoryEditorViewModel CategoryEditor { get; }
+
+    /// <summary>The Categories editor is open under the header.</summary>
+    [ObservableProperty]
+    public partial bool IsManagingCategories { get; set; }
+
+    /// <summary>
+    /// Select mode: the rows show selection circles (not the done ticks) and a bar at the bottom sets one category on all the
+    /// picked rows. Category only: no bulk delete and no bulk move.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsSelectMode { get; set; }
+
+    /// <summary>How many rows are picked in select mode.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PickedText), nameof(HasPicked))]
+    public partial int PickedCount { get; set; }
+
+    /// <summary>"3 selected".</summary>
+    public string PickedText => $"{PickedCount} selected";
+
+    public bool HasPicked => PickedCount > 0;
 
     /// <summary>This session's open tasks in session order (numbered), one flat block with no category headers.</summary>
     public ObservableCollection<TaskListRowViewModel> SessionRows { get; } = new();
@@ -195,6 +221,73 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     private void ToggleArchive() => IsArchiveOpen = !IsArchiveOpen;
 
     [RelayCommand]
+    private void ToggleManageCategories() => IsManagingCategories = !IsManagingCategories;
+
+    [RelayCommand]
+    private void ToggleSelectMode() => IsSelectMode = !IsSelectMode;
+
+    /// <summary>Esc or Cancel in the select bar: back to the normal list, nothing changed.</summary>
+    [RelayCommand]
+    private void CancelSelect() => IsSelectMode = false;
+
+    // Entering or leaving select mode starts from nothing picked.
+    partial void OnIsSelectModeChanged(bool value)
+    {
+        _picked.Clear();
+        PickedCount = 0;
+        foreach (TaskListRowViewModel row in SessionRows.Concat(OtherRows))
+        {
+            row.InSelectMode = value;
+            row.IsPicked = false;
+        }
+    }
+
+    /// <summary>The choices of the select bar's "Set category…": every category and "No category", applied to all the picked rows.</summary>
+    internal IReadOnlyList<TaskMenuEntry> PickedCategoryEntries()
+    {
+        return CategoryChoices(null, markCurrent: false, SetCategoryOfPickedAsync);
+    }
+
+    private bool IsPickedKey(TaskRowKey key) => IsSelectMode && _picked.Contains(key);
+
+    // A click on a row in select mode picks it or lets it go; the row's selection circle follows.
+    private void TogglePick(TaskListRowViewModel row)
+    {
+        if (!row.CanLabel)
+        {
+            return;
+        }
+
+        if (!_picked.Remove(row.Key))
+        {
+            _picked.Add(row.Key);
+        }
+
+        row.IsPicked = _picked.Contains(row.Key);
+        PickedCount = _picked.Count;
+    }
+
+    // The same relabel a single row's picker does, once per picked row; then select mode ends and a notice says how many.
+    private async Task SetCategoryOfPickedAsync(Guid? categoryId)
+    {
+        List<TaskRowKey> keys = SessionRows.Concat(OtherRows).Select(row => row.Key).Where(_picked.Contains).ToList();
+        if (keys.Count == 0)
+        {
+            return;
+        }
+
+        string? name = _tasks.Categories.FirstOrDefault(item => item.Id == categoryId)?.Name;
+        foreach (TaskRowKey key in keys)
+        {
+            await SetCategoryAsync(key, categoryId);
+        }
+
+        IsSelectMode = false;
+        string things = keys.Count == 1 ? "1 item" : $"{keys.Count} items";
+        Notice = name is null ? $"Category cleared on {things}." : $"Category set to {name} on {things}.";
+    }
+
+    [RelayCommand]
     private void DismissNotice() => Notice = string.Empty;
 
     /// <summary>
@@ -249,7 +342,17 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         ShowSelected();
     }
 
-    private void SelectRow(TaskListRowViewModel row) => Select(row.Key);
+    // A click on a row: it shows in the detail card, or (select mode) it is picked for the bulk category change.
+    private void SelectRow(TaskListRowViewModel row)
+    {
+        if (IsSelectMode)
+        {
+            TogglePick(row);
+            return;
+        }
+
+        Select(row.Key);
+    }
 
     /// <summary>A This-session row dropped by its handle: before or after another task (taking that task's category, as on Today).</summary>
     public Task MoveSessionRowAsync(Guid id, Guid targetId, bool after)
@@ -369,14 +472,15 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         return _later.EditAsync(id, change);
     }
 
-    /// <summary>Puts a task in a category (null: none), wherever it is.</summary>
+    /// <summary>Puts a task, Later item or come-back in a category (null: none), wherever it is. Nothing here is locked in a session: a relabel loosens nothing.</summary>
     internal Task SetCategoryAsync(TaskRowKey key, Guid? categoryId)
     {
         TaskCategory? category = _tasks.Categories.FirstOrDefault(item => item.Id == categoryId);
         return key.Kind switch
         {
             TaskRowKind.Later => EditLaterAsync(key.Id, item => item with { Category = category?.Name, CategoryColor = category?.Color }),
-            TaskRowKind.ComeBack or TaskRowKind.AutoSaved => Task.CompletedTask,
+            TaskRowKind.ComeBack => _comebacks.SetCategoryAsync(key.Id, category?.Name, category?.Color),
+            TaskRowKind.AutoSaved => Task.CompletedTask, // an Auto-saved row has no category
             _ => _tasks.IsInChecklist(key.Id) ? _tasks.SetCategoryAsync(key.Id, categoryId) : _tasks.SetHistoryCategoryAsync(key.Id, categoryId),
         };
     }
@@ -610,8 +714,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         if (key.Kind != TaskRowKind.ComeBack)
         {
             entries.Add(TaskMenuEntry.Do("Add subtask", addStep ?? (() => BeginDetailEdit(key, "step")), MaterialIconKind.PlaylistPlus));
-            entries.Add(TaskMenuEntry.Group("Label", LabelEntries(key), MaterialIconKind.TagMultipleOutline));
         }
+
+        entries.Add(TaskMenuEntry.Group("Label", LabelEntries(key), MaterialIconKind.TagMultipleOutline));
 
         List<TaskMenuEntry> moves = MoveEntries(key);
         if (moves.Count > 0)
@@ -695,24 +800,31 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         return entries;
     }
 
+    // The picker of ⋯ › Label and of a row's category chip: the one the row has is marked.
     private List<TaskMenuEntry> LabelEntries(TaskRowKey key)
     {
-        string? current = CategoryNameOf(key);
+        return CategoryChoices(CategoryNameOf(key), markCurrent: true, id => SetCategoryAsync(key, id));
+    }
+
+    // One entry per category (with its dot) and "No category"; <paramref name="apply"/> gets the choice (null: none).
+    // Select mode's bulk picker marks none, since the picked rows may differ.
+    private List<TaskMenuEntry> CategoryChoices(string? current, bool markCurrent, Func<Guid?, Task> apply)
+    {
         var entries = new List<TaskMenuEntry>();
         foreach (TaskCategory category in _tasks.Categories)
         {
             Guid id = category.Id;
             entries.Add(new TaskMenuEntry(
                 category.Name,
-                new AsyncRelayCommand(() => SetCategoryAsync(key, id)),
-                IsChecked: string.Equals(current, category.Name, StringComparison.OrdinalIgnoreCase),
+                new AsyncRelayCommand(() => apply(id)),
+                IsChecked: markCurrent && string.Equals(current, category.Name, StringComparison.OrdinalIgnoreCase),
                 Dot: TaskCategoryBrushes.Of(category.Color)));
         }
 
-        entries.Add(new TaskMenuEntry("No category", new AsyncRelayCommand(() => SetCategoryAsync(key, null)), IsChecked: current is null));
+        entries.Add(new TaskMenuEntry("No category", new AsyncRelayCommand(() => apply(null)), IsChecked: markCurrent && current is null));
         if (_tasks.Categories.Count == 0)
         {
-            entries.Add(new TaskMenuEntry("Add categories with the tag button on Today"));
+            entries.Add(new TaskMenuEntry("Add categories with the Categories button above"));
         }
 
         return entries;
@@ -725,7 +837,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             case TaskRowKind.Later:
                 return _later.Items.FirstOrDefault(item => item.Id == key.Id)?.Category;
             case TaskRowKind.ComeBack:
-                return null;
+                return _comebacks.All.FirstOrDefault(item => item.Id == key.Id)?.Category;
             default:
                 SessionTask? task = FindTask(key.Id);
                 return task is null ? null : task.Category ?? _tasks.Categories.FirstOrDefault(category => category.Id == task.CategoryId)?.Name;
@@ -844,6 +956,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         string search = SearchText.Trim();
         DateOnly today = DateOnly.FromDateTime(LocalNow());
         Filter.SetCategories(_tasks.Categories);
+        CategoryEditor.Refresh(_tasks.Categories);
         TaskDueFilter dueFilter = Filter.Due;
 
         // This session: the open tasks, numbered as the session runs them (the numbers don't change with a filter), in session order.
@@ -867,15 +980,15 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         _sessionRowCount = sessionRows.Count;
         Replace(SessionRows, sessionRows);
 
-        // Everything else in one flat list. Come back to: open come-backs; they have no category, so a category filter leaves them out.
+        // Everything else in one flat list. Come back to: open come-backs; a come-back's category is its own name and colour, like a Later item's.
         var otherRows = new List<TaskListRowViewModel>();
-        if (Filter.ShowsStatus(TaskStatusKind.ComeBack) && dueFilter == TaskDueFilter.Any && Filter.ShowsNoCategory)
+        if (Filter.ShowsStatus(TaskStatusKind.ComeBack) && dueFilter == TaskDueFilter.Any)
         {
-            foreach (Comeback comeback in _comebacks.Open.Where(item => Matches(search, item.Text, null, [])))
+            foreach (Comeback comeback in _comebacks.Open.Where(item => InFilter(null, item.Category) && Matches(search, item.Text, null, [])))
             {
                 Guid id = comeback.Id;
                 otherRows.Add(MakeRow(
-                    new TaskRowKey(TaskRowKind.ComeBack, id), comeback.Text, $"Parked {When(comeback.CreatedAt, today)}", null, null,
+                    new TaskRowKey(TaskRowKind.ComeBack, id), comeback.Text, $"Parked {When(comeback.CreatedAt, today)}", comeback.Category, comeback.CategoryColor,
                     toggle: () => _comebacks.TickAsync(id), statusTag: "Come back", sortTime: comeback.CreatedAt));
             }
         }
@@ -941,6 +1054,14 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
         Replace(OtherRows, Sorted(otherRows));
 
+        // A row picked in select mode that left the list (deleted, ticked, hidden by a filter) is no longer picked.
+        if (_picked.Count > 0)
+        {
+            HashSet<TaskRowKey> present = SessionRows.Concat(OtherRows).Select(row => row.Key).ToHashSet();
+            _picked.RemoveWhere(key => !present.Contains(key));
+            PickedCount = _picked.Count;
+        }
+
         int comeBacks = _comebacks.Open.Count;
         string estimate = EstimateText.Total(open.Select(task => task.EstimateMinutes));
         CountsText = string.Join(" · ", new[]
@@ -970,8 +1091,12 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         Func<IReadOnlyList<TaskMenuEntry>>? menu = null, bool selectable = true, DateTimeOffset sortTime = default, DateOnly? dueOn = null)
     {
         Action<TaskListRowViewModel> select = selectable ? SelectRow : _ => { };
-        return new TaskListRowViewModel(key, title, subText, select, number, isNow, toggle, isTicked, menu ?? (() => MenuFor(key)))
+        // Every kind of row but Auto-saved can have a category: its chip, or the quiet "+ category" spot, opens the picker.
+        Func<IReadOnlyList<TaskMenuEntry>>? labelMenu = key.Kind == TaskRowKind.AutoSaved ? null : () => LabelEntries(key);
+        return new TaskListRowViewModel(key, title, subText, select, number, isNow, toggle, isTicked, menu ?? (() => MenuFor(key)), labelMenu)
         {
+            IsPicked = IsPickedKey(key),
+            InSelectMode = IsSelectMode,
             CategoryId = categoryId,
             CategoryName = categoryName,
             CategoryColor = categoryColor,

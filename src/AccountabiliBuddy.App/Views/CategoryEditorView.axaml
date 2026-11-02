@@ -1,0 +1,42 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.CategoryEditorView"
+             x:DataType="vm:CategoryEditorViewModel">
+    <!-- The Categories editor of the Tasks page: the same rows as Today's tag button. Add (Enter), rename (Enter or click away),
+         recolour (8 colours) and delete. -->
+    <StackPanel Spacing="4">
+        <TextBlock Text="Categories" FontWeight="SemiBold" />
+        <TextBlock Classes="faint" Text="Deleting one leaves its tasks, Later items and come-backs with no category." FontSize="12" TextWrapping="Wrap" />
+        <TextBlock Classes="muted" Text="No categories yet. Add one below." FontSize="13" IsVisible="{Binding IsEmpty}" />
+        <ItemsControl ItemsSource="{Binding Rows}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:TaskCategoryRowViewModel">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6" Margin="0,2">
+                        <ComboBox ItemsSource="{Binding Colors}" SelectedItem="{Binding SelectedColor}" MinWidth="0"
+                                  AutomationProperties.Name="Colour">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ColorChoice">
+                                    <Ellipse Width="14" Height="14" Fill="{Binding Brush}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBox Grid.Column="1" Text="{Binding Name}" LostFocus="OnCategoryNameLostFocus"
+                                 AutomationProperties.Name="Category name">
+                            <TextBox.KeyBindings>
+                                <KeyBinding Gesture="Enter" Command="{Binding SaveNameCommand}" />
+                            </TextBox.KeyBindings>
+                        </TextBox>
+                        <Button Grid.Column="2" Classes="quiet" Content="✕" Command="{Binding DeleteCommand}" Padding="8,4" ToolTip.Tip="Delete this category"
+                                AutomationProperties.Name="Delete this category" />
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBox Text="{Binding NewCategoryName}" PlaceholderText="New category, e.g. Work (Enter)" AutomationProperties.Name="New category">
+            <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding AddCategoryCommand}" />
+            </TextBox.KeyBindings>
+        </TextBox>
+    </StackPanel>
+</UserControl>
