@@ -76,7 +76,7 @@ class KitGalleryActivity : ComponentActivity() {
         val quiet = intent.getBooleanExtra("quiet", true)
         val show = intent.getStringExtra("show")
         setContent {
-            ThemedContent(theme, dark, quiet, 1f) { Gallery(show) }
+            ThemedContent(theme, dark, quiet, 1f) { if (show == "plan") PlanGallery(intent) else Gallery(show) }
         }
     }
 }

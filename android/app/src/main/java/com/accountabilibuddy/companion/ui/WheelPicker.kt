@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,6 +26,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.ui.theme.Ab
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import java.time.LocalTime
@@ -69,7 +68,7 @@ fun WheelPicker(
     Box(modifier.width(width).height(rowHeight * visibleRows), contentAlignment = Alignment.Center) {
         Box(
             Modifier.fillMaxWidth().height(rowHeight)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f), RoundedCornerShape(10.dp)),
+                .background(Ab.colors.surface2, Ab.shapes.smallShape),
         )
         LazyColumn(state = state, flingBehavior = rememberSnapFlingBehavior(state), horizontalAlignment = Alignment.CenterHorizontally) {
             spacers(padding, rowHeight)
@@ -78,7 +77,8 @@ fun WheelPicker(
                 Box(Modifier.height(rowHeight), contentAlignment = Alignment.Center) {
                     Text(
                         label,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = Ab.type.section,
+                        color = Ab.colors.ink,
                         fontWeight = if (distance == 0) FontWeight.SemiBold else FontWeight.Normal,
                         modifier = Modifier.alpha(if (distance == 0) 1f else 0.4f),
                     )
@@ -110,7 +110,7 @@ fun TimeWheel(time: LocalTime, onChange: (LocalTime) -> Unit, modifier: Modifier
     }
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
         WheelPicker(hours, hour12 % 12, { set(if (it == 0) 12 else it, time.minute, pm) }, width = 56.dp)
-        Text(":", style = MaterialTheme.typography.titleLarge)
+        Text(":", style = Ab.type.section, color = Ab.colors.ink)
         WheelPicker(minutes, (time.minute / minuteStep).coerceIn(0, minutes.size - 1), { set(hour12, it * minuteStep, pm) }, width = 56.dp)
         WheelPicker(halves, if (pm) 1 else 0, { set(hour12, time.minute, it == 1) }, width = 64.dp)
     }

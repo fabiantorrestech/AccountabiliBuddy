@@ -38,6 +38,9 @@ class PhoneDownStore(context: Context) {
     /** True while a focus session runs: no switch can be turned off then. */
     fun locked(now: Instant): Boolean = app.placementGuard.locked(now)
 
+    /** How long turning a switch off waits (for the "change waits" sheet; the wait itself is unchanged). */
+    val offWait: Duration get() = OFF_WAIT
+
     /** Turning on applies at once and cancels a pending off. */
     @Synchronized
     fun turnOn(penalty: PocketPenalty) {

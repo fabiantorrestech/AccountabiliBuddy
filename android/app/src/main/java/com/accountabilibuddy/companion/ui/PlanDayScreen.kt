@@ -1,8 +1,10 @@
 package com.accountabilibuddy.companion.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
@@ -10,10 +12,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bedtime
@@ -25,23 +30,10 @@ import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Smartphone
 import androidx.compose.material.icons.outlined.WarningAmber
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Switch
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -52,9 +44,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
@@ -67,6 +59,20 @@ import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.companion.model.DeviceReenable
 import com.accountabilibuddy.companion.model.LocalWindow
 import com.accountabilibuddy.companion.model.SleepTimes
+import com.accountabilibuddy.companion.ui.kit.AbCard
+import com.accountabilibuddy.companion.ui.kit.AbCheck
+import com.accountabilibuddy.companion.ui.kit.AbCheckRow
+import com.accountabilibuddy.companion.ui.kit.AbChoiceRow
+import com.accountabilibuddy.companion.ui.kit.AbDialog
+import com.accountabilibuddy.companion.ui.kit.AbInfoBanner
+import com.accountabilibuddy.companion.ui.kit.AbPrimaryButton
+import com.accountabilibuddy.companion.ui.kit.AbQuietIconButton
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.companion.ui.kit.AbTextField
+import com.accountabilibuddy.companion.ui.kit.AbToggleRow
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
+import com.accountabilibuddy.companion.ui.kit.AbValueButton
+import com.accountabilibuddy.companion.ui.theme.Ab
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.LocalDate
@@ -182,51 +188,50 @@ fun PlanDayScreen(
     BackHandler { if (step > 1) step-- else onClose() }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Plan day(s)", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-            TextButton(onClick = onClose) { Text("Cancel") }
+            Column(Modifier.weight(1f)) {
+                Text("Plan day(s)", style = Ab.type.title, color = Ab.colors.ink)
+                Text(
+                    when (step) {
+                        1 -> "1 of 4 · What kind of day?"
+                        2 -> "2 of 4 · Sleep the night before"
+                        3 -> "3 of 4 · When blocks come back on"
+                        else -> "4 of 4 · Check and save"
+                    },
+                    style = Ab.type.bodyMedium,
+                    color = Ab.colors.muted,
+                )
+            }
+            AbTextButton("Cancel", onClose)
         }
-        Text(
-            when (step) {
-                1 -> "1 of 4 · What kind of day?"
-                2 -> "2 of 4 · Sleep the night before"
-                3 -> "3 of 4 · When blocks come back on"
-                else -> "4 of 4 · Check and save"
-            },
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.padding(4.dp))
+        Spacer(Modifier.padding(6.dp))
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (step) {
                 1 -> {
                     Panel {
-                        Choice("Adjusted workday (from your Workdays plan)", !offDay) { setKind(false) }
-                        Choice("Off-day (from your Off-Days plan)", offDay) { setKind(true) }
+                        AbChoiceRow("Adjusted workday (from your Workdays plan)", !offDay) { setKind(false) }
+                        AbChoiceRow("Off-day (from your Off-Days plan)", offDay) { setKind(true) }
                     }
                     Panel(title = "Dates", icon = Icons.Outlined.CalendarMonth) {
-                        Text("Tap one day or several.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Tap one day or several.", style = Ab.type.bodyMedium, color = Ab.colors.muted)
                         MonthCalendar(dates.toSet(), { date -> if (date in dates) dates.remove(date) else dates.add(date) }, from = today)
                         DateChips(dates.sorted())
                     }
-                    OutlinedTextField(note, { note = it }, label = { Text("Note (optional)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    AbTextField(note, { note = it }, "Note (optional)")
                 }
                 2 -> {
                     Panel(title = "How do you want to set it?", icon = Icons.Outlined.Bedtime) {
-                        Choice("Bed and wake times", sleepMode == SleepMode.Range) { sleepMode = SleepMode.Range }
-                        Choice("Hours of sleep + a wake time", sleepMode == SleepMode.HoursAndWake) { sleepMode = SleepMode.HoursAndWake }
-                        Choice("Hours of sleep + my alarm", sleepMode == SleepMode.HoursAndAlarm) { sleepMode = SleepMode.HoursAndAlarm }
-                        Choice("My measured sleep (Health Connect)", sleepMode == SleepMode.Measured) { sleepMode = SleepMode.Measured }
-                        Choice("Leave sleep blank (not recommended)", sleepMode == SleepMode.Blank) { sleepMode = SleepMode.Blank }
+                        AbChoiceRow("Bed and wake times", sleepMode == SleepMode.Range) { sleepMode = SleepMode.Range }
+                        AbChoiceRow("Hours of sleep + a wake time", sleepMode == SleepMode.HoursAndWake) { sleepMode = SleepMode.HoursAndWake }
+                        AbChoiceRow("Hours of sleep + my alarm", sleepMode == SleepMode.HoursAndAlarm) { sleepMode = SleepMode.HoursAndAlarm }
+                        AbChoiceRow("My measured sleep (Health Connect)", sleepMode == SleepMode.Measured) { sleepMode = SleepMode.Measured }
+                        AbChoiceRow("Leave sleep blank (not recommended)", sleepMode == SleepMode.Blank) { sleepMode = SleepMode.Blank }
                     }
                     Panel(tinted = true) {
                         when (sleepMode) {
                             SleepMode.Range -> {
                                 Labeled("Bed by") { TimeWheel(bedtime, { bedtime = it }) }
                                 Labeled("Up at") { TimeWheel(wake, { wake = it }) }
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Follow my alarm that morning", modifier = Modifier.weight(1f))
-                                    Switch(byAlarm, { byAlarm = it })
-                                }
+                                AbToggleRow("Follow my alarm that morning", byAlarm, { byAlarm = it })
                             }
                             SleepMode.HoursAndWake -> {
                                 Labeled("Hours of sleep") { HoursWheel(sleepMinutes) { sleepMinutes = it } }
@@ -236,14 +241,14 @@ fun PlanDayScreen(
                                 Labeled("Hours of sleep") { HoursWheel(sleepMinutes) { sleepMinutes = it } }
                                 if (alarmFor() == null) {
                                     Text("No alarm set for that morning yet: this bedtime holds until it's set, then it follows your alarm.",
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        style = Ab.type.bodyMedium, color = Ab.colors.muted)
                                 }
                             }
                             SleepMode.Measured -> if (measured() == null) {
                                 Text("No measured sleep for that night yet. Health Connect has it once the night is over (today and past days).",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    style = Ab.type.bodyMedium, color = Ab.colors.muted)
                             }
-                            SleepMode.Blank -> Text("No bedtime reminders, sleep count or smart bedtime for those nights.", color = MaterialTheme.colorScheme.error)
+                            SleepMode.Blank -> Text("No bedtime reminders, sleep count or smart bedtime for those nights.", style = Ab.type.bodyMedium, color = Ab.colors.drift)
                         }
                         sleep()?.let { NightLine(it) }
                     }
@@ -253,17 +258,17 @@ fun PlanDayScreen(
                         title = "Back on at",
                         icon = Icons.Outlined.Block,
                         action = {
-                            if (refreshing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                            else IconButton(onClick = { refresh() }) { Icon(Icons.Outlined.Refresh, contentDescription = "Look for new blocks") }
+                            if (refreshing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Ab.colors.ink)
+                            else AbQuietIconButton(Icons.Outlined.Refresh, "Look for new blocks", onClick = { refresh() })
                         },
                     ) {
                         Text("Ticked blocks come back on at their device's time. Untick one to give it its own time.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            style = Ab.type.bodyMedium, color = Ab.colors.muted)
                     }
                     if (blockList.isEmpty()) {
                         Panel(tinted = true) {
                             Text("No blocks seen yet: Curbox on this phone and Cold Turkey on your PCs show up once they've synced.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                style = Ab.type.bodyMedium, color = Ab.colors.muted)
                         }
                     }
                     blockList.groupBy { it.block.device to it.device }.forEach { (key, items) ->
@@ -276,15 +281,24 @@ fun PlanDayScreen(
                         ) {
                             items.forEach { item ->
                                 val own = ownTimes[item.block]
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 12.dp)) {
-                                    Checkbox(own == null, { ticked ->
-                                        if (ticked) ownTimes.remove(item.block) else ownTimes[item.block] = deviceTime(device)
-                                    })
-                                    Column(Modifier.weight(1f)) {
-                                        Text(item.block.name)
-                                        Text(if (item.on) "→ Enabled" else "→ Disabled",
-                                            color = if (item.on) Color(0xFF22C55E) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            style = MaterialTheme.typography.bodySmall)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Row(
+                                        Modifier.weight(1f).heightIn(min = 48.dp).toggleable(
+                                            value = own == null, role = Role.Checkbox,
+                                            onValueChange = { ticked -> if (ticked) ownTimes.remove(item.block) else ownTimes[item.block] = deviceTime(device) },
+                                        ),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    ) {
+                                        AbCheck(own == null)
+                                        Column(Modifier.weight(1f)) {
+                                            Text(item.block.name, style = Ab.type.bodyMedium, color = Ab.colors.ink)
+                                            Text(
+                                                if (item.on) "→ Enabled" else "→ Disabled",
+                                                style = Ab.type.small,
+                                                color = if (item.on) Ab.meaning(Ab.colors.met) else Ab.colors.muted,
+                                            )
+                                        }
                                     }
                                     if (own != null) TimeButton(own) { ownTimes[item.block] = it }
                                 }
@@ -292,55 +306,56 @@ fun PlanDayScreen(
                         }
                     }
                     Panel {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Heads-up 5 minutes before, on the device", modifier = Modifier.weight(1f))
-                            Switch(headsUp, { headsUp = it })
-                        }
-                        Text("12:00 AM = midnight, the end of the day.", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        AbToggleRow(
+                            "Heads-up 5 minutes before, on the device", headsUp, { headsUp = it },
+                            subtitle = "12:00 AM = midnight, the end of the day.",
+                        )
                     }
                     if (blockList.isNotEmpty()) {
                         Panel(tinted = true) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth().clickable { liftsOpen = !liftsOpen },
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { liftsOpen = !liftsOpen },
                             ) {
-                                Text("Lift some blocks for part of the day (optional)", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                                Icon(if (liftsOpen) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown, contentDescription = null)
+                                Text(
+                                    "Lift some blocks for part of the day (optional)",
+                                    style = Ab.type.bodyMedium, fontWeight = FontWeight.SemiBold, color = Ab.colors.ink, modifier = Modifier.weight(1f),
+                                )
+                                Icon(
+                                    if (liftsOpen) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
+                                    contentDescription = null, tint = Ab.colors.muted,
+                                )
                             }
                             if (liftsOpen) {
                                 blockList.forEach { item ->
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Checkbox(item.block in lifted, { on -> if (on) lifted.add(item.block) else lifted.remove(item.block) })
-                                        Text("${item.device} · ${item.block.name}")
-                                    }
+                                    AbCheckRow("${item.device} · ${item.block.name}", item.block in lifted, { on -> if (on) lifted.add(item.block) else lifted.remove(item.block) })
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("From")
+                                    Text("From", style = Ab.type.bodyMedium, color = Ab.colors.ink)
                                     TimeButton(liftFrom) { liftFrom = it }
-                                    Text("until")
+                                    Text("until", style = Ab.type.bodyMedium, color = Ab.colors.ink)
                                     TimeButton(liftTo) { liftTo = it }
                                 }
-                                Choice("Allow: I may turn them off myself then", !auto) { auto = false }
-                                Choice("Auto: turn them off for me when it starts", auto) { auto = true }
+                                AbChoiceRow("Allow: I may turn them off myself then", !auto) { auto = false }
+                                AbChoiceRow("Auto: turn them off for me when it starts", auto) { auto = true }
                             }
                         }
                     }
                 }
                 else -> Review(plan, request(), blockList, lifted)
             }
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            error?.let { Text(it, style = Ab.type.bodyMedium, color = Ab.colors.drift) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            if (step > 1) OutlinedButton(onClick = { step-- }) { Text("Back") }
+            if (step > 1) AbTonalButton("Back", onClick = { step-- })
             Spacer(Modifier.weight(1f))
             if (step < 4) {
-                Button(
-                    onClick = { step++ },
+                AbPrimaryButton(
+                    "Next", onClick = { step++ },
                     enabled = (step != 1 || dates.isNotEmpty()) && (step != 2 || sleepMode != SleepMode.Measured || measured() != null),
-                ) { Text("Next") }
+                )
             } else {
-                Button(onClick = { error = onSave(request()); if (error == null) onClose() }) { Text("Save") }
+                AbPrimaryButton("Save", onClick = { error = onSave(request()); if (error == null) onClose() })
             }
         }
     }
@@ -358,37 +373,37 @@ private fun Panel(
     action: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Card(
-        Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (tinted) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-        ),
-    ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (title != null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    icon?.let { Icon(it, contentDescription = null, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)) }
-                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    action?.invoke()
-                }
+    val body: @Composable ColumnScope.() -> Unit = {
+        if (title != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                icon?.let { Icon(it, contentDescription = null, tint = Ab.colors.muted, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)) }
+                Text(title, style = Ab.type.section, color = Ab.colors.ink, modifier = Modifier.weight(1f))
+                action?.invoke()
             }
-            content()
         }
+        content()
+    }
+    if (tinted) {
+        Surface(Modifier.fillMaxWidth(), shape = Ab.shapes.mediumShape, color = Ab.colors.surface2, contentColor = Ab.colors.ink) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = body)
+        }
+    } else {
+        AbCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(14.dp), verticalSpacing = 8.dp, content = body)
     }
 }
 
 /** One device: its icon and name, its agreed time, and its blocks under it. */
 @Composable
 private fun DeviceCard(name: String, isPhone: Boolean, time: LocalTime, onTime: (LocalTime) -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f))) {
+    Surface(Modifier.fillMaxWidth(), shape = Ab.shapes.mediumShape, color = Ab.colors.surface2, contentColor = Ab.colors.ink) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(if (isPhone) Icons.Outlined.Smartphone else Icons.Outlined.Computer, contentDescription = null, modifier = Modifier.size(22.dp))
+                Icon(if (isPhone) Icons.Outlined.Smartphone else Icons.Outlined.Computer, contentDescription = null, tint = Ab.colors.muted, modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(name.uppercase(Locale.getDefault()), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text(name.uppercase(Locale.getDefault()), style = Ab.type.small, fontWeight = FontWeight.Bold, color = Ab.colors.ink, modifier = Modifier.weight(1f))
                 TimeButton(time, onTime)
             }
-            HorizontalDivider()
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Ab.colors.line))
             content()
         }
     }
@@ -398,28 +413,28 @@ private fun DeviceCard(name: String, isPhone: Boolean, time: LocalTime, onTime: 
 @Composable
 private fun TimeButton(time: LocalTime, onChange: (LocalTime) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    OutlinedButton(onClick = { open = true }) { Text(timeText(time)) }
+    AbValueButton(timeText(time), onClick = { open = true })
     if (open) {
         var picked by remember(time) { mutableStateOf(time) }
-        AlertDialog(
-            onDismissRequest = { open = false },
-            title = { Text("Back on at") },
-            text = { Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) { TimeWheel(picked, { picked = it }) } },
-            confirmButton = { TextButton(onClick = { onChange(picked); open = false }) { Text("OK") } },
-            dismissButton = { TextButton(onClick = { open = false }) { Text("Cancel") } },
-        )
+        AbDialog(title = "Back on at", onDismiss = { open = false }, confirmText = "OK", onConfirm = { onChange(picked); open = false }) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { TimeWheel(picked, { picked = it }) }
+        }
     }
 }
 
 @Composable
 private fun DateChips(dates: List<LocalDate>) {
     if (dates.isEmpty()) {
-        Text("Pick at least one day.", color = MaterialTheme.colorScheme.error)
+        Text("Pick at least one day.", style = Ab.type.bodyMedium, color = Ab.colors.drift)
         return
     }
 
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        dates.forEach { AssistChip(onClick = {}, label = { Text(dateText(it)) }) }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        dates.forEach { date ->
+            Surface(shape = Ab.shapes.pill, color = Ab.colors.surface2, contentColor = Ab.colors.ink) {
+                Text(dateText(date), style = Ab.type.small, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+            }
+        }
     }
 }
 
@@ -427,9 +442,11 @@ private fun DateChips(dates: List<LocalDate>) {
 @Composable
 private fun NightLine(night: SleepTimes) {
     Column {
-        Text("${timeText(night.bedtime)} → ${timeText(night.wake)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-        Text(sleepText(night.bedtime, night.wake) + if (night.wakeByAlarm) " · follows your alarm" else "",
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("${timeText(night.bedtime)} → ${timeText(night.wake)}", style = Ab.type.head, color = Ab.colors.ink)
+        Text(
+            sleepText(night.bedtime, night.wake) + if (night.wakeByAlarm) " · follows your alarm" else "",
+            style = Ab.type.bodyMedium, color = Ab.colors.muted,
+        )
     }
 }
 
@@ -438,53 +455,49 @@ private fun NightLine(night: SleepTimes) {
 private fun Review(plan: DayPlan, request: DayPlanRequest, blocks: List<PlanDayBlock>, lifted: List<BlockRef>) {
     Panel(title = if (request.offDay) "Off-day" else "Adjusted workday", icon = Icons.Outlined.CalendarMonth) {
         DateChips(request.dates)
-        request.note?.takeIf { it.isNotBlank() }?.let { Text("“${it.trim()}”", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        request.note?.takeIf { it.isNotBlank() }?.let { Text("“${it.trim()}”", style = Ab.type.bodyMedium, color = Ab.colors.muted) }
     }
     Panel(title = "The night before", icon = Icons.Outlined.Bedtime) {
         if (request.noSleep) {
-            Text("No sleep planned", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+            Text("No sleep planned", style = Ab.type.bodyMedium, color = Ab.colors.drift, fontWeight = FontWeight.SemiBold)
         } else {
-            request.sleep?.let { NightLine(it) } ?: Text("As your plan has it")
+            request.sleep?.let { NightLine(it) } ?: Text("As your plan has it", style = Ab.type.bodyMedium, color = Ab.colors.ink)
         }
     }
     val rules = request.blocks!!
     Panel(title = "Blocks come back on", icon = Icons.Outlined.Block) {
-        if (blocks.isEmpty()) Text("${timeText(rules.reenableAt)} (no blocks seen yet)")
+        if (blocks.isEmpty()) Text("${timeText(rules.reenableAt)} (no blocks seen yet)", style = Ab.type.bodyMedium, color = Ab.colors.ink)
         blocks.groupBy { it.block.device to it.device }.forEach { (key, items) ->
             val (device, name) = key
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(if (device == BlockRef.PHONE) Icons.Outlined.Smartphone else Icons.Outlined.Computer, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(if (device == BlockRef.PHONE) Icons.Outlined.Smartphone else Icons.Outlined.Computer, contentDescription = null, tint = Ab.colors.muted, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text(name, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                Text(timeText(rules.reenableFor(device)), fontWeight = FontWeight.SemiBold)
+                Text(name, style = Ab.type.bodyMedium, fontWeight = FontWeight.SemiBold, color = Ab.colors.ink, modifier = Modifier.weight(1f))
+                Text(timeText(rules.reenableFor(device)), style = Ab.type.bodyMedium, fontWeight = FontWeight.SemiBold, color = Ab.colors.ink)
             }
             items.mapNotNull { item -> rules.blockTimes?.firstOrNull { it.block.same(item.block) }?.let { item.block.name to it.at } }.forEach { (block, at) ->
                 Row(Modifier.padding(start = 24.dp)) {
-                    Text(block, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(timeText(at), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(block, style = Ab.type.small, modifier = Modifier.weight(1f), color = Ab.colors.muted)
+                    Text(timeText(at), style = Ab.type.small, color = Ab.colors.muted)
                 }
             }
         }
-        rules.warnMinutes?.let { Text("Heads-up $it min before", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        rules.warnMinutes?.let { Text("Heads-up $it min before", style = Ab.type.small, color = Ab.colors.muted) }
         if (lifted.isNotEmpty()) {
             val lift = rules.lifts.first()
-            HorizontalDivider()
-            Text("Lifted ${timeText(lift.start)}–${timeText(lift.end)} · ${if (lift.mode == BlockLift.AUTO) "turned off for you" else "you may turn them off"}",
-                fontWeight = FontWeight.SemiBold)
-            Text(lifted.joinToString(", ") { it.name }, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Ab.colors.line))
+            Text(
+                "Lifted ${timeText(lift.start)}–${timeText(lift.end)} · ${if (lift.mode == BlockLift.AUTO) "turned off for you" else "you may turn them off"}",
+                style = Ab.type.bodyMedium, fontWeight = FontWeight.SemiBold, color = Ab.colors.ink,
+            )
+            Text(lifted.joinToString(", ") { it.name }, style = Ab.type.small, color = Ab.colors.muted)
         }
     }
     DayPlanner.clashes(plan, request.dates).takeIf { it.isNotEmpty() }?.let { clash ->
-        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.WarningAmber, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Replaces the plan already set for ${clash.joinToString(", ") { dateText(it) }}")
-            }
-        }
+        AbInfoBanner("Replaces the plan already set for ${clash.joinToString(", ") { dateText(it) }}", icon = Icons.Outlined.WarningAmber)
     }
     Text("Saving makes a one-off day for each date and sends it to your PC; Workdays and Off-Days stay as they are.",
-        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        style = Ab.type.small, color = Ab.colors.muted)
 }
 
 /** Hours of sleep on a wheel: 4 h to 12 h, a quarter hour apart. */
@@ -496,17 +509,9 @@ private fun HoursWheel(minutes: Int, onChange: (Int) -> Unit) {
 }
 
 @Composable
-private fun Choice(text: String, selected: Boolean, onClick: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        RadioButton(selected, onClick)
-        Text(text)
-    }
-}
-
-@Composable
 private fun Labeled(label: String, content: @Composable () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, modifier = Modifier.width(110.dp))
+        Text(label, style = Ab.type.bodyMedium, color = Ab.colors.ink, modifier = Modifier.width(110.dp))
         content()
     }
 }

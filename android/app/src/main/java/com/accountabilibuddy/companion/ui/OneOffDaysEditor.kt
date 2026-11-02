@@ -4,14 +4,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,11 +20,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.companion.model.DayTemplate
 import com.accountabilibuddy.companion.model.OneOffDay
+import com.accountabilibuddy.companion.ui.kit.AbInsetRow
+import com.accountabilibuddy.companion.ui.kit.AbQuietIconButton
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.companion.ui.kit.AbTextField
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
+import com.accountabilibuddy.companion.ui.kit.abDatePickerColors
+import com.accountabilibuddy.companion.ui.theme.Ab
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -53,21 +59,19 @@ fun OneOffDaysEditor(plan: DayPlan, clock: ClockFormat, onChange: (DayPlan) -> U
     val open = editing?.let { date -> plan.oneOffDays.firstOrNull { it.date == date } }
     if (open != null) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(open.date.format(DayTitle), style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(
+            Text(open.date.format(DayTitle), style = Ab.type.section, color = Ab.colors.ink)
+            AbTextField(
                 value = open.note.orEmpty(),
                 onValueChange = { replace(open.copy(note = it.ifBlank { null })) },
-                label = { Text("Note (optional), e.g. Day off") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                label = "Note (optional), e.g. Day off",
             )
             TemplateModeEditor(open.template, plan.categories, clock, onChange = { replace(open.copy(template = it)) }, onMessage = onMessage)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { editingText = null }) { Text("Done") }
-                TextButton(onClick = {
+                AbTextButton("Done", onClick = { editingText = null })
+                AbTextButton("Back to the usual plan", onClick = {
                     onChange(plan.copy(oneOffDays = plan.oneOffDays.filter { it.id != open.id }))
                     editingText = null
-                }) { Text("Back to the usual plan") }
+                })
             }
         }
         return
@@ -75,24 +79,26 @@ fun OneOffDaysEditor(plan: DayPlan, clock: ClockFormat, onChange: (DayPlan) -> U
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (plan.oneOffDays.isEmpty()) {
-            Text("No days planned differently.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("No days planned differently.", style = Ab.type.bodyMedium, color = Ab.colors.muted)
         }
 
         for (day in plan.oneOffDays.sortedBy { it.date }) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().alpha(if (day.date.isBefore(today)) 0.5f else 1f),
+            AbInsetRow(
+                modifier = Modifier.alpha(if (day.date.isBefore(today)) 0.5f else 1f),
+                onClick = { editingText = day.date.toString() },
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(day.date.format(DayTitle))
-                    day.note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    Text(day.date.format(DayTitle), style = Ab.type.bodyMedium, fontWeight = FontWeight.Medium, color = Ab.colors.ink)
+                    day.note?.let { Text(it, style = Ab.type.small, color = Ab.colors.muted) }
                 }
-                TextButton(onClick = { editingText = day.date.toString() }) { Text("Edit") }
-                TextButton(onClick = { onChange(plan.copy(oneOffDays = plan.oneOffDays.filter { it.id != day.id })) }) { Text("✕") }
+                Text("Edit", style = Ab.type.bodyMedium, fontWeight = FontWeight.SemiBold, color = Ab.colors.ink)
+                AbQuietIconButton(Icons.Outlined.Close, "Remove ${day.date.format(DayTitle)}", onClick = {
+                    onChange(plan.copy(oneOffDays = plan.oneOffDays.filter { it.id != day.id }))
+                })
             }
         }
 
-        Button(onClick = { picking = true }) { Text("Plan a day differently") }
+        AbTonalButton("Plan a day differently", onClick = { picking = true }, modifier = Modifier.fillMaxWidth())
     }
 
     if (picking) {
@@ -100,9 +106,9 @@ fun OneOffDaysEditor(plan: DayPlan, clock: ClockFormat, onChange: (DayPlan) -> U
         DatePickerDialog(
             onDismissRequest = { picking = false },
             confirmButton = {
-                TextButton(onClick = {
+                AbTextButton("Plan this day", onClick = {
                     picking = false
-                    val millis = state.selectedDateMillis ?: return@TextButton
+                    val millis = state.selectedDateMillis ?: return@AbTextButton
                     val date = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
                     if (plan.oneOffDays.none { it.date == date }) {
                         // Starts from that day's usual plan (a work window comes as the window, not also as its stand-in part).
@@ -111,11 +117,12 @@ fun OneOffDaysEditor(plan: DayPlan, clock: ClockFormat, onChange: (DayPlan) -> U
                         onChange(plan.copy(oneOffDays = plan.oneOffDays + OneOffDay(UUID.randomUUID(), date, start)))
                     }
                     editingText = date.toString()
-                }) { Text("Plan this day") }
+                })
             },
-            dismissButton = { TextButton(onClick = { picking = false }) { Text("Cancel") } },
+            dismissButton = { AbTextButton("Cancel", onClick = { picking = false }) },
+            colors = abDatePickerColors(),
         ) {
-            DatePicker(state)
+            DatePicker(state, colors = abDatePickerColors())
         }
     }
 }

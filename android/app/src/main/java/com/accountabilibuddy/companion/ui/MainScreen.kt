@@ -25,6 +25,7 @@ import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accountabilibuddy.companion.sync.PcFileControl
 import com.accountabilibuddy.companion.sync.RunningTasks
+import com.accountabilibuddy.companion.ui.plan.PlanWaitSheet
 import com.accountabilibuddy.companion.ui.shell.AppDestination
 import com.accountabilibuddy.companion.ui.shell.AppScaffold
 import com.accountabilibuddy.companion.ui.shell.rememberAppNav
@@ -84,6 +85,7 @@ fun MainScreen(
     var takeoverOn by remember { mutableStateOf(com.accountabilibuddy.companion.nudge.NudgeStore(context).load().takeoverOn) }
     val endEarlyTerms by viewModel.endEarlyTerms.collectAsStateWithLifecycle()
     val planConflict by viewModel.planConflict.collectAsStateWithLifecycle()
+    val planWait by viewModel.planWait.collectAsStateWithLifecycle()
     val controlPc by viewModel.controlPc.collectAsStateWithLifecycle()
     val pcWaiting by viewModel.pcWaiting.collectAsStateWithLifecycle()
     val pcChoices by viewModel.pcChoices.collectAsStateWithLifecycle()
@@ -320,16 +322,15 @@ fun MainScreen(
                 AppDestination.Tasks -> TasksScreen(controlPc = controlPc, snackbar = snackbar)
                 AppDestination.Plan -> PlanScreen(
                     state, model, viewModel.clock,
-                    onEditPlan = if (!canControlPc) null else {
-                        { viewModel.openPlanEditor()?.let { viewModel.message.value = it } }
-                    },
+                    pcName = pcName,
+                    canChange = canControlPc,
+                    guardsLock = guardsLock,
+                    planWait = planWait,
+                    onChangeDay = { viewModel.openPlanDay()?.let { viewModel.message.value = it } },
+                    onTemplates = { viewModel.openPlanEditor()?.let { viewModel.message.value = it } },
+                    onCategories = { viewModel.openPlanEditor(startTab = 3)?.let { viewModel.message.value = it } },
+                    onSetWeek = { week -> viewModel.setThisWeek(week)?.let { viewModel.message.value = it } },
                     onDiscardPlanEdit = viewModel::discardDayPlanEdit,
-                    onPlanDay = if (!canControlPc) null else {
-                        { viewModel.planDayOpen.value = true }
-                    },
-                    onSetWeek = if (!canControlPc) null else {
-                        { week -> viewModel.setThisWeek(week)?.let { viewModel.message.value = it } }
-                    },
                 )
                 AppDestination.Stats -> StatsScreen(state, viewModel.clock, health, onConnectHealth, viewModel::refreshSleep, phoneUsage, onAllowUsage)
                 AppDestination.Settings -> {
@@ -455,6 +456,11 @@ fun MainScreen(
 
     removeState?.let { RemoveDeviceDialog(it, viewModel.removeDevice) }
     restoreState?.let { RestoreBackupDialog(it, viewModel.restoreBackup) }
+
+    // A plan edit the PC took and is holding (ADR 28): says when it applies on its own. The wait is the PC's; there is no "apply now".
+    planWait?.takeIf { !it.seen && it.appliesAt.isAfter(java.time.Instant.now()) }?.let { wait ->
+        PlanWaitSheet(wait, onDismiss = viewModel::planWaitSeen)
+    }
 
     planConflict?.let { conflict ->
         DayPlanConflictDialog(conflict, viewModel.conflictPcName(), viewModel.clock, onKeepPc = viewModel::keepPcPlan, onUseMine = viewModel::useMyPlan)

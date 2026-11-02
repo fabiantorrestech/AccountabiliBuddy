@@ -3,7 +3,6 @@ package com.accountabilibuddy.companion.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.systemGestureExclusion
@@ -17,6 +16,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -31,6 +31,7 @@ import com.accountabilibuddy.companion.engine.DayTemplateEditing
 import com.accountabilibuddy.companion.model.CategoryBehavior
 import com.accountabilibuddy.companion.model.DayCategory
 import com.accountabilibuddy.companion.model.DayTemplate
+import com.accountabilibuddy.companion.ui.theme.Ab
 import java.util.UUID
 
 private const val MINUTES_PER_DAY = 24 * 60
@@ -61,9 +62,11 @@ fun DayPlanBarEditor(
     val refuse by rememberUpdatedState(onRefused)
     val drag = remember { arrayOfNulls<BarDrag>(1) }
     val measurer = rememberTextMeasurer()
-    val dark = isSystemInDarkTheme()
-    val track = if (dark) Color(0x28FFFFFF) else Color(0x1C000000)
-    val axisText = if (dark) Color(0xBEFFFFFF) else Color(0xAA000000)
+    // The theme's tones: the track is the second tone, the hour labels muted, the picked part ringed in ink.
+    val track = Ab.colors.surface2
+    val axisText = Ab.colors.muted
+    val ring = Ab.colors.ink
+    val fallback = Ab.colors.plan
     val edgeGrabPx = with(androidx.compose.ui.platform.LocalDensity.current) { 14.dp.toPx() }
 
     Canvas(
@@ -136,18 +139,19 @@ fun DayPlanBarEditor(
         for (piece in DayBarGrab.pieces(template)) {
             val part = template.parts.first { it.id == piece.partId }
             val category = categories.firstOrNull { it.id == part.categoryId }
-            val color = Color(((category?.argb ?: 0xFF64748BL) and 0x00FFFFFFL or 0xD9000000L).toInt())
+            // The category's own colour (the user chose it); a part with no category takes the plan tone.
+            val color = category?.let { Color((it.argb and 0x00FFFFFFL or 0xD9000000L).toInt()) } ?: fallback
             val left = xOf(piece.start)
             val width = (xOf(piece.end) - left).coerceAtLeast(1f)
             drawRoundRect(color, Offset(left, barTop), Size(width, barHeight), corner)
             if (part.id == selected) {
-                drawRoundRect(Color.White, Offset(left, barTop), Size(width, barHeight), corner, style = Stroke(2.dp.toPx()))
+                drawRoundRect(ring, Offset(left, barTop), Size(width, barHeight), corner, style = Stroke(2.dp.toPx()))
             }
 
             val name = part.label ?: category?.name.orEmpty()
             if (width > 28.dp.toPx() && name.isNotEmpty()) {
                 val layout = measurer.measure(
-                    name, TextStyle(color = Color.White, fontSize = 11.sp), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    name, TextStyle(color = if (color.luminance() > 0.5f) Color.Black else Color.White, fontSize = 11.sp), maxLines = 1, overflow = TextOverflow.Ellipsis,
                     constraints = Constraints(maxWidth = (width - 8.dp.toPx()).toInt().coerceAtLeast(0)),
                 )
                 drawText(layout, topLeft = Offset(left + 4.dp.toPx(), barTop + (barHeight - layout.size.height) / 2))

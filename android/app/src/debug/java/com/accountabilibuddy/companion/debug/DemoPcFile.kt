@@ -66,8 +66,28 @@ object DemoPcFile {
             "budget" -> DayPlan.fromWorkdayAndOffDay(DayPlan.Default.categories, DayOfWeek.entries.toSet(), workday.copy(mode = com.accountabilibuddy.companion.model.DayMode.Budget, budgetMinutes = 240), workday)
             "free" -> DayPlan.fromWorkdayAndOffDay(DayPlan.Default.categories, DayOfWeek.entries.toSet(), workday.copy(mode = com.accountabilibuddy.companion.model.DayMode.Free), workday)
             "dayoff" -> DayPlan.fromWorkdayAndOffDay(DayPlan.Default.categories, emptySet(), workday, DayPlan.Default.workday.copy(parts = DayPlan.Default.workday.parts.filter { it.categoryId == DayPlan.Default.categories.first { c -> c.behavior == com.accountabilibuddy.companion.model.CategoryBehavior.Sleep }.id }))
+            "week" -> mixedWeek(workday)
             else -> DayPlan.fromWorkdayAndOffDay(DayPlan.Default.categories, DayOfWeek.entries.toSet(), workday, workday)
         }
+    }
+
+    // Monday to Friday follow Workday except Thursday ("Light day": one afternoon work part); the weekend follows Off day.
+    private fun mixedWeek(workday: com.accountabilibuddy.companion.model.DayTemplate): DayPlan {
+        val categories = DayPlan.Default.categories
+        val work = categories.first { it.behavior == com.accountabilibuddy.companion.model.CategoryBehavior.Watch }
+        val sleep = categories.first { it.behavior == com.accountabilibuddy.companion.model.CategoryBehavior.Sleep }
+        val light = com.accountabilibuddy.companion.model.PlanTemplate(
+            UUID.nameUUIDFromBytes("demo-light-day".toByteArray()), "Light day",
+            com.accountabilibuddy.companion.model.DayTemplate(
+                listOf(
+                    com.accountabilibuddy.companion.model.PlanPart(UUID.nameUUIDFromBytes("demo-light-work".toByteArray()), work.id, LocalTime.of(13, 0), LocalTime.of(17, 0)),
+                    com.accountabilibuddy.companion.model.PlanPart(UUID.nameUUIDFromBytes("demo-light-sleep".toByteArray()), sleep.id, LocalTime.of(23, 0), LocalTime.of(7, 0)),
+                ),
+            ),
+        )
+        val base = DayPlan.fromWorkdayAndOffDay(categories, setOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY), workday, DayPlan.Default.otherDay)
+        val week = base.cycle.weeks.first().map { if (it.day == DayOfWeek.THURSDAY) it.copy(templateId = light.id) else it }
+        return base.copy(templates = base.templates + light, cycle = base.cycle.copy(weeks = listOf(week)))
     }
 
     fun build(now: Instant, withSession: Boolean, methods: List<String>, planning: Boolean = false, dayKind: String = "schedule", away: Boolean = false, pastOldEnd: Boolean = false, longSession: Boolean = false): SyncFile {

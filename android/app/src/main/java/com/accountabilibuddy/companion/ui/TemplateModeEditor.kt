@@ -3,12 +3,7 @@ package com.accountabilibuddy.companion.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +18,12 @@ import com.accountabilibuddy.companion.model.DayCategory
 import com.accountabilibuddy.companion.model.DayMode
 import com.accountabilibuddy.companion.model.DayTemplate
 import com.accountabilibuddy.companion.model.WorkWindow
+import com.accountabilibuddy.companion.ui.kit.AbChip
+import com.accountabilibuddy.companion.ui.kit.AbChipRow
+import com.accountabilibuddy.companion.ui.kit.AbDialog
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.companion.ui.kit.AbValueButton
+import com.accountabilibuddy.companion.ui.theme.Ab
 import java.time.LocalDate
 
 private const val BUDGET_STEP_MINUTES = 30
@@ -54,28 +55,30 @@ fun TemplateModeEditor(
     }
 
     confirming?.let { (next, what) ->
-        AlertDialog(
-            onDismissRequest = { confirming = null },
-            title = { Text("Replace the work parts?") },
-            text = { Text("This removes its $workParts work part${if (workParts == 1) "" else "s"}: $what") },
-            confirmButton = { TextButton(onClick = { confirming = null; onChange(next) }) { Text("Replace") } },
-            dismissButton = { TextButton(onClick = { confirming = null }) { Text("Keep them") } },
-        )
+        AbDialog(
+            title = "Replace the work parts?",
+            onDismiss = { confirming = null },
+            confirmText = "Replace",
+            onConfirm = { confirming = null; onChange(next) },
+            dismissText = "Keep them",
+        ) {
+            Text("This removes its $workParts work part${if (workParts == 1) "" else "s"}: $what", style = Ab.type.bodyMedium, color = Ab.colors.muted)
+        }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        AbChipRow {
             for (mode in DayMode.entries) {
-                FilterChip(
+                AbChip(
+                    mode.name,
                     selected = template.mode == mode,
                     onClick = {
-                        if (mode == template.mode) return@FilterChip
+                        if (mode == template.mode) return@AbChip
                         change(
                             DayPlanEditing.withMode(template, mode, categories),
                             if (mode == DayMode.Budget) "a Budget day only keeps rest, sleep and pre-work windows." else null,
                         )
                     },
-                    label = { Text(mode.name) },
                 )
             }
         }
@@ -85,8 +88,8 @@ fun TemplateModeEditor(
             DayMode.Budget -> BudgetEditor(template, categories, clock, onChange, onMessage, smartNote)
             DayMode.Free -> Text(
                 "Free day: the buddy doesn't guard it. Sleep and other parts still shape the night.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = Ab.type.small,
+                color = Ab.colors.muted,
             )
         }
     }
@@ -103,18 +106,18 @@ private fun ScheduleEditor(
     smartNote: String?,
 ) {
     val window = template.workWindow
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        FilterChip(
+    AbChipRow {
+        AbChip(
+            "Just a work window",
             selected = window != null,
             onClick = {
                 if (window == null) change(DayPlanEditing.asWorkWindow(template, categories), "they become one work window.")
             },
-            label = { Text("Just a work window") },
         )
-        FilterChip(
+        AbChip(
+            "Full timeline",
             selected = window == null,
             onClick = { if (window != null) onChange(DayPlanEditing.asFullTimeline(template, categories)) },
-            label = { Text("Full timeline") },
         )
     }
 
@@ -126,12 +129,12 @@ private fun ScheduleEditor(
     WorkWindowRow(window, clock) { onChange(template.copy(workWindow = it)) }
     Text(
         "The buddy guards this window. Add lunch, sleep or evenings below only if you want them on the bar.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = Ab.type.small,
+        color = Ab.colors.muted,
     )
 
     var showParts by rememberSaveable { mutableStateOf(template.parts.isNotEmpty()) }
-    TextButton(onClick = { showParts = !showParts }) { Text(if (showParts) "Hide other parts" else "Other parts (${template.parts.size})") }
+    AbTextButton(if (showParts) "Hide other parts" else "Other parts (${template.parts.size})", onClick = { showParts = !showParts })
     if (showParts) DayTemplateEditor(template, categories, clock, onChange, onMessage, smartNote)
 }
 
@@ -139,10 +142,10 @@ private fun ScheduleEditor(
 private fun WorkWindowRow(window: WorkWindow, clock: ClockFormat, onChange: (WorkWindow) -> Unit) {
     var picking by remember { mutableStateOf<String?>(null) }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Work", style = MaterialTheme.typography.labelLarge)
-        OutlinedButton(onClick = { picking = "start" }) { Text(clock.time(window.start.atDate(LocalDate.now()))) }
-        Text("–")
-        OutlinedButton(onClick = { picking = "end" }) { Text(clock.time(window.end.atDate(LocalDate.now()))) }
+        Text("Work", style = Ab.type.bodyMedium, color = Ab.colors.ink)
+        AbValueButton(clock.time(window.start.atDate(LocalDate.now())), onClick = { picking = "start" })
+        Text("–", style = Ab.type.bodyMedium, color = Ab.colors.muted)
+        AbValueButton(clock.time(window.end.atDate(LocalDate.now())), onClick = { picking = "end" })
     }
 
     picking?.let { which ->
@@ -173,18 +176,18 @@ private fun BudgetEditor(
     fun set(value: Int) = onChange(template.copy(budgetMinutes = value.coerceIn(MIN_BUDGET_MINUTES, MAX_BUDGET_MINUTES)))
 
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Focus hours", style = MaterialTheme.typography.labelLarge)
-        OutlinedButton(onClick = { set(minutes - BUDGET_STEP_MINUTES) }, enabled = minutes > MIN_BUDGET_MINUTES) { Text("−") }
-        Text(hoursText(minutes), style = MaterialTheme.typography.titleMedium)
-        OutlinedButton(onClick = { set(minutes + BUDGET_STEP_MINUTES) }, enabled = minutes < MAX_BUDGET_MINUTES) { Text("+") }
+        Text("Focus hours", style = Ab.type.bodyMedium, color = Ab.colors.ink)
+        AbValueButton("−", onClick = { set(minutes - BUDGET_STEP_MINUTES) }, enabled = minutes > MIN_BUDGET_MINUTES)
+        Text(hoursText(minutes), style = Ab.type.section, color = Ab.colors.ink)
+        AbValueButton("+", onClick = { set(minutes + BUDGET_STEP_MINUTES) }, enabled = minutes < MAX_BUDGET_MINUTES)
     }
     Text(
         "The buddy guards from wake to bedtime, minus the windows below (lunch counts as one), until this much focus is counted. " +
             "Test sessions, side tasks and planning don't count.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = Ab.type.small,
+        color = Ab.colors.muted,
     )
-    Text("Non-productive windows", style = MaterialTheme.typography.labelLarge)
+    Text("Non-productive windows", style = Ab.type.bodyMedium, color = Ab.colors.ink)
     // Only rest, sleep and pre-work categories: a budget day's parts are never work.
     DayTemplateEditor(template, categories.filter { !it.behavior.isWork }, clock, onChange, onMessage, smartNote)
 }
