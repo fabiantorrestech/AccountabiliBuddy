@@ -8,6 +8,14 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
+import androidx.compose.ui.Modifier
+import com.accountabilibuddy.companion.ui.kit.AbSearchField
+import com.accountabilibuddy.companion.ui.settings.SearchEntry
+import com.accountabilibuddy.companion.ui.settings.SettingsSearch
+import com.accountabilibuddy.companion.ui.theme.Ab
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.curbox.CurboxStatus
@@ -35,29 +43,65 @@ data class SettingsListInputs(
 )
 
 /**
- * Settings (boards 5e, 6b): the title, an optional "resting" line and the pages as rows with a one-line status. Eight pages in
- * the first card, then App & data, Setup and About below a gap. A page opens through [onOpen]; the list knows nothing of the
- * page's content, so a wide layout can show list and page side by side.
+ * Settings (boards 5e, 6b): the title, a search field, an optional "resting" line and the pages as rows with a one-line status.
+ * Eight pages in the first card, then App & data, Setup and About below a gap. A page opens through [onOpen]; the list knows nothing
+ * of the page's content, so a wide layout can show list and page side by side.
+ *
+ * Typing in the search field ([query], kept by the caller in memory only) swaps the pages for what [SettingsSearch] finds;
+ * a result opens its page at its row through [onOpenResult].
  */
 @Composable
-fun SettingsList(inputs: SettingsListInputs, onOpen: (SettingsCategory) -> Unit, listState: LazyListState = rememberLazyListState()) {
+fun SettingsList(
+    inputs: SettingsListInputs,
+    onOpen: (SettingsCategory) -> Unit,
+    query: String = "",
+    onQueryChange: (String) -> Unit = {},
+    onOpenResult: (SearchEntry) -> Unit = {},
+    listState: LazyListState = rememberLazyListState(),
+) {
     val context = LocalContext.current
     val theme by UiPrefs.themeName.collectAsState()
     val mode by UiPrefs.mode.collectAsState()
     val summaries = settingsSummaries(inputs, "${theme.label} · ${mode.label.lowercase()}", permissionsSummary(context, inputs.health))
 
+    val searching = query.isNotBlank()
+    val results = remember(query) { SettingsSearch.search(query) }
+
     LazyColumn(state = listState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { AbPageHeader("Settings") }
+        item { AbSearchField(query, onQueryChange, "Search settings") }
         inputs.guardsLock?.let { lock ->
             item { GuardsRestBanner(lock) }
         }
-        item { CategoryCard(SettingsCategory.Main, summaries, inputs.guardsLock != null, onOpen) }
-        item { CategoryCard(SettingsCategory.Below, summaries, inputs.guardsLock != null, onOpen) }
-        item {
-            Hint(
-                "Local only: the app talks only to your linked watch (through Google's encrypted relay only if you allow it in Devices & sync) " +
-                    "and, with Google Drive on, to the app's own Drive folder, where your devices' sealed sync files go. Nothing else goes to the internet.",
-                label = "Privacy: what leaves this phone",
+        if (searching) {
+            item { SearchResults(results, onOpenResult) }
+        } else {
+            item { CategoryCard(SettingsCategory.Main, summaries, inputs.guardsLock != null, onOpen) }
+            item { CategoryCard(SettingsCategory.Below, summaries, inputs.guardsLock != null, onOpen) }
+            item {
+                Hint(
+                    "Local only: the app talks only to your linked watch (through Google's encrypted relay only if you allow it in Devices & sync) " +
+                        "and, with Google Drive on, to the app's own Drive folder, where your devices' sealed sync files go. Nothing else goes to the internet.",
+                    label = "Privacy: what leaves this phone",
+                )
+            }
+        }
+    }
+}
+
+/** What the search found: a row each with the page it is on, or a line saying nothing matched. */
+@Composable
+private fun SearchResults(results: List<SearchEntry>, onOpenResult: (SearchEntry) -> Unit) {
+    if (results.isEmpty()) {
+        Text("Nothing in Settings matches that.", style = Ab.type.bodyMedium, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 4.dp))
+        return
+    }
+
+    AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
+        results.forEachIndexed { index, entry ->
+            AbListRow(
+                title = entry.title, icon = entry.category.icon, subtitle = "Settings › ${entry.category.title}",
+                onClick = { onOpenResult(entry) }, divider = index < results.lastIndex,
             )
         }
     }

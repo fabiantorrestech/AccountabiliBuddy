@@ -8,6 +8,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.VisualTransformation
 import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
@@ -22,6 +23,10 @@ fun AbTextField(
     modifier: Modifier = Modifier,
     singleLine: Boolean = true,
     enabled: Boolean = true,
+    /** Text that is not a sentence (an address, a key) turns the capital off. */
+    capitalization: KeyboardCapitalization = KeyboardCapitalization.Sentences,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    isError: Boolean = false,
 ) {
     val colors = Ab.colors
     OutlinedTextField(
@@ -33,7 +38,9 @@ fun AbTextField(
         textStyle = Ab.type.body,
         shape = Ab.shapes.mediumShape,
         singleLine = singleLine,
-        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+        keyboardOptions = KeyboardOptions(capitalization = capitalization),
+        visualTransformation = visualTransformation,
+        isError = isError,
         colors = OutlinedTextFieldDefaults.colors(
             focusedTextColor = colors.ink, unfocusedTextColor = colors.ink, disabledTextColor = colors.faint,
             focusedBorderColor = colors.ink, unfocusedBorderColor = colors.line, disabledBorderColor = colors.line,
