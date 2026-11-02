@@ -52,6 +52,11 @@
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
         </Style>
+        <!-- A footer button that can't be used now (Disable during a focus session): flat and dimmed, not a raised block. -->
+        <Style Selector="Button.foot:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Opacity" Value="0.45" />
+        </Style>
         <Style Selector="TextBlock.key">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
             <Setter Property="FontSize" Value="12" />

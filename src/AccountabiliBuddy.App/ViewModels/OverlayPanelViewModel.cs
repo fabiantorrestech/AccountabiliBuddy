@@ -60,7 +60,7 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
     /// <summary>Ctrl+Alt+H hides the overlay until it is pressed again, and so does the panel's H key; with that switch off, H is the short Hide.</summary>
     public bool HideShortcutOn => _settings.Current.OverlayOn && _settings.Current.HideShortcutOn;
 
-    private string HideKeyWord => HideShortcutOn ? "hide until shown" : "hide";
+    private string HideKeyWord => HideShortcutOn ? "hide/show" : "hide";
 
     /// <summary>The "H" next to the Hide button: only where H is that button's own key (the Ctrl+Alt+H shortcut is off), and where the safe keys work.</summary>
     public bool ShowsHideKey => ShowsSafeHints && !HideShortcutOn;

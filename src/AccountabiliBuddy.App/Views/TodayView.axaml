@@ -148,7 +148,7 @@
                           IsVisible="{Binding IsHidden, FallbackValue=False}">
                         <mi:MaterialIcon Kind="EyeOffOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                         <TextBlock Grid.Column="1" Classes="muted" Text="{Binding HiddenText}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        <Button Grid.Column="2" Classes="quiet" Content="Show" Command="{Binding ShowCommand}" Padding="8,2" MinHeight="0" />
+                        <Button Grid.Column="2" Classes="quiet" Content="Show" Command="{Binding ShowCommand}" FontSize="12" Padding="8,2" MinHeight="0" />
                     </Grid>
                 </StackPanel>
 
