@@ -17,13 +17,16 @@ object DevicesModel {
     /** This phone and its watch, then the other devices, then the removed ones whose data is kept. */
     fun allRows(devices: DevicesState, watchDetectedIds: Set<String>, watch: com.accountabilibuddy.shared.WatchLinkSettings, now: Instant): List<DeviceRow> {
         val watchVersion = devices.received.firstOrNull { it.file.device.kind == SyncDeviceCard.KIND_WATCH }?.file?.device?.appVersion
-        return OwnDeviceRows.rows(devices.deviceName, devices.joined, watch, watchDetectedIds, devices.appVersion, watchVersion) + rows(devices, now)
+        // The linked watch is drawn once, from the Data Layer under this phone; a watch card in a sync file is that same watch (as in the sync light).
+        return OwnDeviceRows.rows(devices.deviceName, devices.joined, watch, watchDetectedIds, devices.appVersion, watchVersion) +
+            rows(devices, now, hideWatchCards = watch.linkedNodeId != null)
     }
 
-    fun rows(devices: DevicesState, now: Instant): List<DeviceRow> = liveRows(devices, now) + removedRows(devices)
+    fun rows(devices: DevicesState, now: Instant, hideWatchCards: Boolean = false): List<DeviceRow> = liveRows(devices, now, hideWatchCards) + removedRows(devices)
 
     // The devices still in the group. Each can be removed (a ⋯ menu), except a watch row: those stay as they are.
-    private fun liveRows(devices: DevicesState, now: Instant): List<DeviceRow> = devices.received
+    private fun liveRows(devices: DevicesState, now: Instant, hideWatchCards: Boolean): List<DeviceRow> = devices.received
+        .filterNot { hideWatchCards && it.file.device.kind == SyncDeviceCard.KIND_WATCH }
         .sortedByDescending { it.file.device.writtenAt }
         .map { device ->
             val card = device.file.device

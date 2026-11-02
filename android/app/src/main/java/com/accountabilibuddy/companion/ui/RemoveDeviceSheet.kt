@@ -58,7 +58,7 @@ internal fun RemoveDeviceSheet(state: RemoveDeviceState, flow: RemoveDeviceFlow)
                             AbTonalButton("Back", onClick = flow::back, modifier = Modifier.weight(1f))
                         }
                         AbPrimaryButton(
-                            if (state.step == RemoveStep.Confirm) "Remove ${state.name}" else "Next",
+                            if (state.step == RemoveStep.Confirm) "Remove device" else "Next",
                             onClick = flow::next,
                             enabled = !needsFile && !(state.step == RemoveStep.Confirm && state.lockedReason != null),
                             modifier = Modifier.weight(1f),

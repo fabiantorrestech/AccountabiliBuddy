@@ -148,7 +148,7 @@ private fun ProfileCard(profile: FocusProfile, state: CompanionState, clock: Clo
                         Text(
                             if (rule.verdict == RuleVerdict.Block) "Block" else "Allow",
                             modifier = Modifier.width(52.dp),
-                            color = if (rule.verdict == RuleVerdict.Block) Color(0xFFFCA5A5) else Color(0xFF86EFAC),
+                            color = if (rule.verdict == RuleVerdict.Block) com.accountabilibuddy.companion.ui.theme.Ab.colors.drift else com.accountabilibuddy.companion.ui.theme.Ab.colors.met,
                             style = MaterialTheme.typography.labelMedium,
                         )
                         Text(
