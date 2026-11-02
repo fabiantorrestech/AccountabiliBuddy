@@ -54,7 +54,7 @@
         <DataTemplate x:Key="timelineSmall" x:DataType="vm:TaskbarOverlayViewModel">
             <controls:OverlayTimeline Done="{Binding TimelineDone}" Left="{Binding TimelineLeft}" Break="{Binding TimelineBreak}" Next="{Binding TimelineNext}"
                                       DoneBrush="{DynamicResource Ab.Accent}" LeftBrush="{DynamicResource Ab.Upcoming}" BreakBrush="{DynamicResource Ab.Sleep}"
-                                      NextBrush="{DynamicResource Ab.Plan}" TickBrush="{DynamicResource Ab.Ink}" Width="80" Margin="2,0,0,0" VerticalAlignment="Center" />
+                                      NextBrush="{DynamicResource Ab.Plan}" TickBrush="{DynamicResource Ab.Ink}" Width="80" Margin="8,0,0,0" VerticalAlignment="Center" />
         </DataTemplate>
         <DataTemplate x:Key="timelineLarge" x:DataType="vm:TaskbarOverlayViewModel">
             <controls:OverlayTimeline Done="{Binding TimelineDone}" Left="{Binding TimelineLeft}" Break="{Binding TimelineBreak}" Next="{Binding TimelineNext}"
@@ -164,7 +164,7 @@
         <Border x:Name="Tile" Background="{DynamicResource Ab.Surface}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="10,0" ClipToBounds="True">
             <StackPanel x:Name="Rows" VerticalAlignment="Center" Spacing="2">
                 <controls:PriorityRowPanel x:Name="MainRow" Spacing="12" VerticalAlignment="Center" />
-                <StackPanel x:Name="ExtraRow" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" IsVisible="False" />
+                <controls:PriorityRowPanel x:Name="ExtraRow" Spacing="12" VerticalAlignment="Center" IsVisible="False" />
             </StackPanel>
         </Border>
         <!-- 18d: a nudge went unread; the dot stays until the user looks. -->

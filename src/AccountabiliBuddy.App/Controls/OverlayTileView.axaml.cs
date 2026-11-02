@@ -63,6 +63,12 @@ public partial class OverlayTileView : UserControl
                 case OverlayItemKind.Ring when !timelineMode:
                     MainRow.Children.Add(Block(small ? "ringSmall" : "ring"));
                     ringAdded = true;
+                    if (large)
+                    {
+                        // Large keeps its second row: the whole-line timeline under the ring, tied to this same row (Wide has no extra one).
+                        ExtraRow.Children.Add(Block("timelineLarge"));
+                    }
+
                     break;
                 case OverlayItemKind.Ring:
                     // The timeline right before the text belongs to it (under it, or after it on Small), as the ring sits beside it. Anywhere else
@@ -106,18 +112,12 @@ public partial class OverlayTileView : UserControl
                     MainRow.Children.Add(Block("batteries", DropBatteries));
                     break;
                 case OverlayItemKind.Sound when large:
-                    ExtraRow.Children.Add(Block("sound"));
+                    ExtraRow.Children.Add(Block("sound", DropSound));
                     break;
                 case OverlayItemKind.Sound when wide:
                     MainRow.Children.Add(Block("sound", DropSound));
                     break;
             }
-        }
-
-        if (!ringAdded && !textAdded && MainRow.Children.Count > 0)
-        {
-            // Drift turns the ring into a dot; with no ring and no text to carry one, the dot stands alone.
-            MainRow.Children.Insert(0, Block("dot"));
         }
 
         if (target.CoversTray)
@@ -129,6 +129,12 @@ public partial class OverlayTileView : UserControl
             }
 
             MainRow.Children.Add(Block("tray"));
+        }
+
+        if (!ringAdded && !textAdded && MainRow.Children.Count > 0)
+        {
+            // Drift turns the ring into a dot; with no ring and no text to carry one, the dot stands alone (it takes no room until drift).
+            MainRow.Children.Insert(0, Block("dot"));
         }
 
         if (MainRow.Children.Count == 0 && ExtraRow.Children.Count == 0)

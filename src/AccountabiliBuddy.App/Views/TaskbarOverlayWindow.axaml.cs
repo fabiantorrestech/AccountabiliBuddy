@@ -140,7 +140,8 @@ public partial class TaskbarOverlayWindow : Window
         int width = (int)Math.Ceiling(Bounds.Width * scale);
         // The height the window really has: Windows keeps a window above a minimum height (about 56 px at 150%), so a short tile (Small) can come
         // out taller than asked, and it must be placed by what it is, or its bottom edge ends up off the spot it was meant for.
-        int height = (int)Math.Ceiling(Math.Max(Height, (FrameSize ?? ClientSize).Height) * scale);
+        // The small subtraction keeps a pixel count that went to dips and back (at 175%, say) from rounding up one pixel.
+        int height = (int)Math.Ceiling((Math.Max(Height, (FrameSize ?? ClientSize).Height) * scale) - 1e-6);
         PixelBox fallbackArea = _target.MonitorId is null ? PrimaryArea() : _target.Band;
         (int x, int y) = OverlayTileGeometry.PositionFor(_target, _settings, _rule, width, height, scale, fallbackArea);
         var next = new PixelPoint(x, y);

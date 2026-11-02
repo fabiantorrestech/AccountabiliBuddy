@@ -70,7 +70,7 @@ public partial class SlimLineWindow : Window
         // asked for. The line and the minutes sit at the window's bottom edge, so what has to hold is that edge: place the window by the height it
         // really has, not the height it was asked for.
         double realDips = Math.Max(HeightDips, (FrameSize ?? ClientSize).Height);
-        Position = new PixelPoint(_monitor.Left, _monitor.Bottom - (int)Math.Ceiling(realDips * scale));
+        Position = new PixelPoint(_monitor.Left, _monitor.Bottom - (int)Math.Ceiling((realDips * scale) - 1e-6));
         if (TryGetPlatformHandle() is IPlatformHandle handle)
         {
             _control.KeepOnTop(handle.Handle);

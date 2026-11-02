@@ -69,23 +69,32 @@ public static class OverlayContentOrder
         return list;
     }
 
+    /// <summary>True for a saved list from before Minutes existed: <see cref="OverlaySettingsService"/> migrates it once, at load, and saves the result.</summary>
+    public static bool NeedsMigration(IReadOnlyList<OverlayItem>? saved)
+    {
+        return saved is { Count: > 0 } && saved.All(item => item.Kind != OverlayItemKind.Minutes);
+    }
+
     /// <summary>
-    /// A list saved when "Ring and minutes" and "Timeline" were two rows. Minutes takes the old Ring row's switch and place; the one "Ring or
-    /// timeline" row sits right before it (where the ring always drew, left of the text) and is on if the old row for the current Progress setting
-    /// was on. The old Timeline row only mattered at Wide and Large, where it drew a second progress line; that line is gone.
+    /// A list saved when "Ring and minutes" and "Timeline" were two rows. The old tile drew its session block (ring, minutes, task) at the first
+    /// enabled Ring or Task row, and showed the minutes whenever either was on, so Minutes is on if Ring or Task was. The one "Ring or timeline"
+    /// row sits right before it (where the ring always drew, left of the text). It is on if the old Ring row was (that row decided the ring and
+    /// the timeline under the text), or, in Timeline mode, if the old Timeline row was (the second timeline at Wide and Large).
     /// </summary>
     private static IReadOnlyList<OverlayItem> Migrated(IReadOnlyList<OverlayItem> saved, OverlayProgress progress)
     {
         OverlayItem? oldRing = saved.FirstOrDefault(item => item.Kind == OverlayItemKind.Ring);
         OverlayItem? oldTimeline = saved.FirstOrDefault(item => item.Kind == OverlayItemKind.Timeline);
-        bool progressOn = progress == OverlayProgress.Ring ? oldRing?.Enabled ?? false : oldTimeline?.Enabled ?? false;
+        bool ringOn = oldRing?.Enabled ?? false;
+        bool taskOn = saved.Any(item => item.Kind == OverlayItemKind.Task && item.Enabled);
+        bool progressOn = ringOn || (progress == OverlayProgress.Timeline && (oldTimeline?.Enabled ?? false));
         var list = new List<OverlayItem>();
         foreach (OverlayItem item in saved)
         {
             if (item.Kind == OverlayItemKind.Ring)
             {
                 list.Add(new OverlayItem(OverlayItemKind.Ring, progressOn));
-                list.Add(new OverlayItem(OverlayItemKind.Minutes, item.Enabled));
+                list.Add(new OverlayItem(OverlayItemKind.Minutes, ringOn || taskOn));
             }
             else
             {
@@ -96,7 +105,7 @@ public static class OverlayContentOrder
         if (oldRing is null)
         {
             // No Ring row in the list: nothing to take the place from, so both go first.
-            list.InsertRange(0, [new OverlayItem(OverlayItemKind.Ring, progressOn), new OverlayItem(OverlayItemKind.Minutes, false)]);
+            list.InsertRange(0, [new OverlayItem(OverlayItemKind.Ring, progressOn), new OverlayItem(OverlayItemKind.Minutes, taskOn)]);
         }
 
         return list;

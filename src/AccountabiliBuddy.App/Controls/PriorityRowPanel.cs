@@ -144,7 +144,16 @@ public sealed class PriorityRowPanel : Panel
             }
         }
 
-        List<int> shown = Enumerable.Range(0, count).Where(i => Children[i].IsVisible).ToList();
+        // A part that takes no room right now (a drift dot while nothing drifts, a Pause that is hidden) is left out, with no gap either side.
+        for (int i = 0; i < count; i++)
+        {
+            if (Children[i].IsVisible && natural[i] <= 0)
+            {
+                _dropped[i] = true;
+            }
+        }
+
+        List<int> shown = Enumerable.Range(0, count).Where(i => Children[i].IsVisible && !_dropped[i]).ToList();
         double available = availableSize.Width;
         if (!double.IsInfinity(available))
         {
