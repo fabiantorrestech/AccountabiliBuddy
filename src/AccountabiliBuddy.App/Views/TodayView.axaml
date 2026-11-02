@@ -130,11 +130,11 @@
                         <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource Ab.InfoInk}" TextWrapping="Wrap" />
                     </Border>
 
-                    <!-- The overlay was turned off with the Ctrl+Alt panel's Disable: this is the only way back (Settings has its own switch). -->
+                    <!-- The overlay was turned off with the Ctrl+Alt panel's Disable: Turn on here, or the switch in Settings. -->
                     <Border Classes="inner" DataContext="{Binding OverlayStatus}" x:DataType="vm:OverlayStatusViewModel"
                             IsVisible="{Binding IsOffFromPanel, FallbackValue=False}">
                         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                            <mi:MaterialIcon Kind="ToggleSwitchOffOutline" Width="20" Height="20" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                            <mi:MaterialIcon Kind="Power" Width="20" Height="20" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock Text="Overlay turned off from the panel" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="No timer over the taskbar and no Ctrl+Alt panel until you turn it on here." />

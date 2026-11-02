@@ -75,7 +75,7 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
     public bool DisableLocked => !CanDisable;
 
     public string DisableTip => CanDisable
-        ? "Turn the overlay off. Only Today in the app turns it back on."
+        ? "Turn the overlay off. Today or Settings turns it back on."
         : "Can't turn the overlay off during a focus session";
 
     /// <summary>The lock button's tip.</summary>

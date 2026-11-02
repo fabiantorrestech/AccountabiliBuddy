@@ -48,7 +48,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
         _sessions = sessions;
         _turnOn = turnOn;
         StickyHotkeyError = stickyHotkeyError() ?? string.Empty;
-        HideHotkeyError = hideHotkeyError() ?? string.Empty;
+        HideHotkeyError = HideErrorText(hideHotkeyError());
         InFocus = sessions.IsEnforcing;
         sessions.StateChanged += (_, _) => InFocus = sessions.IsEnforcing;
         Load(settings.Current);
@@ -56,7 +56,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
         {
             // The overlay service has registered (or released) the shortcuts by now; whether they worked is shown either way.
             StickyHotkeyError = stickyHotkeyError() ?? string.Empty;
-            HideHotkeyError = hideHotkeyError() ?? string.Empty;
+            HideHotkeyError = HideErrorText(hideHotkeyError());
             if (!_saving)
             {
                 Load(current);
@@ -174,6 +174,12 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     public partial string HideHotkeyError { get; set; }
 
     public bool HasHideHotkeyError => HideHotkeyError.Length > 0;
+
+    // The shared message ends "Pick a different shortcut", which can't be done for this fixed chord.
+    private static string HideErrorText(string? error)
+    {
+        return error is null ? string.Empty : "Ctrl+Alt+H is already used by another app or by Windows, so it can't hide the overlay. Today's Show button and the tray bring it back.";
+    }
 
     /// <summary>The master switch: off = no tile, timeline or corner clock, no peek, and no Ctrl+Alt+H or Ctrl+Alt+Space.</summary>
     [ObservableProperty]
