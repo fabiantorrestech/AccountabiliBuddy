@@ -39,13 +39,16 @@ public sealed partial class NoisePlayerViewModel : ObservableObject
     public partial bool HasFiles { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PlayGlyph), nameof(PlayTip))]
+    [NotifyPropertyChangedFor(nameof(PlayGlyph), nameof(PlayTip), nameof(PlayIcon))]
     public partial bool IsPlaying { get; set; }
 
     /// <summary>Segoe Fluent Icons: Pause or Play.</summary>
     public string PlayGlyph => IsPlaying ? "" : "";
 
     public string PlayTip => IsPlaying ? "Pause the noise" : "Play the noise";
+
+    /// <summary>Material icon for what a press does now: Pause while playing, Play while paused (the overlay tile and panel).</summary>
+    public MaterialIconKind PlayIcon => IsPlaying ? MaterialIconKind.Pause : MaterialIconKind.Play;
 
     /// <summary>The lock: plays only while headphones are connected.</summary>
     [ObservableProperty]

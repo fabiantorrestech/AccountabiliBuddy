@@ -137,7 +137,7 @@ public sealed record OverlaySettings(
     /// <summary>What the overlay shows and in what order, with every part listed once. Never saved: the default for this size and placement.</summary>
     public IReadOnlyList<OverlayItem> Items => ContentOrder is null
         ? OverlayContentOrder.DefaultFor(Size, EffectivePlacement)
-        : OverlayContentOrder.Complete(ContentOrder);
+        : OverlayContentOrder.Complete(ContentOrder, Progress);
 
     /// <summary>The per-app rules in force: the user's list, else the built-in one.</summary>
     public IReadOnlyList<OverlayAppRule> Rules => AppRules ?? OverlayAppRules.Defaults;

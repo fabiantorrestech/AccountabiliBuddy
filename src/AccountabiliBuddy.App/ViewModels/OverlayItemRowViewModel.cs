@@ -12,9 +12,9 @@ public sealed partial class OverlayItemRowViewModel : ObservableObject
         IsOn = item.Enabled;
         (Name, Sample) = item.Kind switch
         {
-            OverlayItemKind.Ring => ("Ring and minutes", "18 min"),
+            OverlayItemKind.Ring => ("Ring or timeline", "drawn as the Progress setting says"),
+            OverlayItemKind.Minutes => ("Minutes", "18 min"),
             OverlayItemKind.Task => ("Task name", "Draft Q4 outline"),
-            OverlayItemKind.Timeline => ("Timeline", "done · left · break · next"),
             OverlayItemKind.Controls => ("Pause and done", "pause, check"),
             OverlayItemKind.TimeDate => ("Time and date", "1:38 PM · Tue, Oct 27"),
             OverlayItemKind.Batteries => ("Batteries", "this PC 82%"),

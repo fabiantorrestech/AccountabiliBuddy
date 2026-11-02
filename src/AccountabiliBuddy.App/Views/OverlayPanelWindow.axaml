@@ -227,7 +227,7 @@
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                         <Button Classes="foot" Command="{Binding Model.Noise.ToggleLockCommand}" ToolTip.Tip="{Binding Model.Noise.LockTip}" AutomationProperties.Name="Headphone lock"><mi:MaterialIcon Kind="{Binding Model.Noise.LockIcon}" Width="14" Height="14" /></Button>
                         <Button Classes="foot" Command="{Binding Model.Noise.PreviousCommand}" AutomationProperties.Name="Previous sound"><mi:MaterialIcon Kind="SkipPrevious" Width="16" Height="16" /></Button>
-                        <Button Classes="foot" Command="{Binding Model.Noise.PlayPauseCommand}" AutomationProperties.Name="Play or pause the noise"><mi:MaterialIcon Kind="PlayPause" Width="16" Height="16" /></Button>
+                        <Button Classes="foot" Command="{Binding Model.Noise.PlayPauseCommand}" ToolTip.Tip="{Binding Model.Noise.PlayTip}" AutomationProperties.Name="{Binding Model.Noise.PlayTip}"><mi:MaterialIcon Kind="{Binding Model.Noise.PlayIcon}" Width="16" Height="16" /></Button>
                         <Button Classes="foot" Command="{Binding Model.Noise.NextCommand}" AutomationProperties.Name="Next sound"><mi:MaterialIcon Kind="SkipNext" Width="16" Height="16" /></Button>
                         <TextBlock Text="M" Classes="key" Margin="4,0,0,0" IsVisible="{Binding ShowsAllHints}" />
                     </StackPanel>

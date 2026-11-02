@@ -139,7 +139,8 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
 
     public PlanFirstService? PlanFirst { get; set; }
 
-    public NoisePlayerViewModel? Noise { get; set; }
+    [ObservableProperty]
+    public partial NoisePlayerViewModel? Noise { get; set; }
 
     public OverlayTimersViewModel? Timers { get; set; }
 
@@ -251,37 +252,23 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial bool HasChangeWaiting { get; set; }
 
-    /// <summary>The settings say to draw a ring (not the timeline) and the state has an arc to draw.</summary>
+    /// <summary>The "Ring or timeline" row is on and the Progress setting is Ring: the ring is drawn (the view draws the timeline otherwise).</summary>
     [ObservableProperty]
     public partial bool ShowsRing { get; set; } = true;
-
-    [ObservableProperty]
-    public partial bool ShowsTask { get; set; } = true;
-
-    /// <summary>The timeline sits under the text (the Progress setting is Timeline).</summary>
-    [ObservableProperty]
-    public partial bool ShowsInlineTimeline { get; set; }
 
     /// <summary>Drift replaces the ring with a dot.</summary>
     [ObservableProperty]
     public partial bool ShowsDriftDot { get; set; }
 
-    /// <summary>The drift dot sits before the text (there is no ring slot to put it in).</summary>
+    /// <summary>The drift dot sits before the text (the ring is not drawn, so there is no ring slot to put it in).</summary>
     [ObservableProperty]
     public partial bool ShowsInlineDot { get; set; }
 
-    /// <summary>The tile is the one-line Small size: the second line is dropped.</summary>
-    [ObservableProperty]
-    public partial bool IsSmall { get; set; }
-
-    /// <summary>What the settings and the size let the tile show; set by <see cref="ApplyLayout"/> when they change.</summary>
+    /// <summary>What the settings let the tile show; set by <see cref="ApplyLayout"/> when they change. Which parts are drawn, and where, is the tile view's job.</summary>
     public void ApplyLayout(OverlaySettings settings)
     {
-        bool ringItem = settings.Items.Any(item => item.Kind == OverlayItemKind.Ring && item.Enabled);
-        ShowsRing = ringItem && settings.Progress == OverlayProgress.Ring;
-        ShowsTask = settings.Items.Any(item => item.Kind == OverlayItemKind.Task && item.Enabled);
-        ShowsInlineTimeline = settings.Progress == OverlayProgress.Timeline && ringItem;
-        IsSmall = settings.Size == OverlaySize.Small;
+        bool progressItem = settings.Items.Any(item => item.Kind == OverlayItemKind.Ring && item.Enabled);
+        ShowsRing = progressItem && settings.Progress == OverlayProgress.Ring;
         ShowsInlineDot = ShowsDriftDot && !ShowsRing;
         if (IsPreview && IsSession)
         {
