@@ -26,9 +26,9 @@ import java.util.UUID
  * devices' lists merge in item by item ([SharedListMerge], the same function the PC runs). Kept in the app's private
  * prefs, sealed with a key in the Android Keystore ([TokenVault]), never logged: task and thought text is only in
  * sealed files and sealed here, and so is a task's note (ADR 50). The running session's checklist is not one of these
- * lists; it belongs to its PC. The phone has no screen for a task's estimate, note or planned part, or for the Later list
- * yet: an edit here (a tick, a new title, a step) changes only the fields it names (the items are copied, never rebuilt),
- * so the newer item it stamps still carries them to the PC; the Later list is merged and passed on as it came.
+ * lists; it belongs to its PC. The phone edits all three lists, the Later list included: an edit changes only the fields it
+ * names (the items are copied, never rebuilt, so a field this phone has no screen for, like a planned day part, is carried
+ * on as it came), and the newer item it stamps reaches the PC. Items other devices have are never dropped when passing on.
  *
  * A change reads the clock once, and each item it touches is stamped with [SharedListMerge.nextStamp] (that time, or one
  * tick past the item's own newest time), so it always outranks what it changed. A task's position only means something
@@ -39,12 +39,16 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     private var all = read()
     private val _nextTasks = MutableStateFlow(liveNextTasks())
     private val _parked = MutableStateFlow(liveParked())
+    private val _later = MutableStateFlow(liveLater())
 
     /** The next session's tasks, in list order. */
     val nextTasks: StateFlow<List<SyncNextTask>> = _nextTasks.asStateFlow()
 
     /** The come-backs, open and recently ticked, in list order. */
     val parked: StateFlow<List<SyncParked>> = _parked.asStateFlow()
+
+    /** The Later list (ADR 50), live items in list order: the open ones and the ticked-off ones ([SyncLaterItem.doneAt], kept 90 days). */
+    val later: StateFlow<List<SyncLaterItem>> = _later.asStateFlow()
 
     /** Set by the app: the user changed a list here, so it goes to the other devices soon. */
     var onChanged: () -> Unit = {}
@@ -105,7 +109,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
             return false
         }
 
-        save(Lists(mergedTasks, mergedParked, mergedLater), time)
+        save(all.copy(nextTasks = mergedTasks, parked = mergedParked, later = mergedLater), time)
         return true
     }
 
@@ -227,6 +231,184 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         }
     }
 
+    /**
+     * Changes a next-session task through [change] (its fields as a whole: estimate, note, steps, title), stamping it once; a blank
+     * title or no change does nothing. The change gets the live task and returns the edited copy. [category] (name, colour), when
+     * given, moves the task to that category in the same edit.
+     */
+    fun updateNextTask(id: String, category: Pair<String?, String?>? = null, change: (SyncNextTask) -> SyncNextTask) = edit { lists, time ->
+        val task = lists.nextTasks.firstOrNull { it.id == id && it.deletedAt == null } ?: return@edit lists
+        var changed = change(task)
+        if (category != null && category.first != task.category) {
+            // A task put in another category goes to the end of that category's tasks, in the same single edit.
+            val last = lists.nextTasks.filter { it.deletedAt == null && it.category == category.first }.maxOfOrNull { it.position }
+            changed = changed.copy(category = category.first, categoryColor = category.second, position = SharedListMerge.positionBetween(last, null))
+        }
+
+        if (changed.title.isBlank() || changed == task) lists else lists.replace(task, changed.copy(editedAt = SharedListMerge.nextStamp(time, task)))
+    }
+
+    /** Moves a come-back to the end of the next session's tasks (keeping its category) and ticks it, as "Add to Today" does on the PC. */
+    fun moveParkedToNext(id: String): String? {
+        var newTaskId: String? = null
+        edit { lists, time ->
+            val parked = lists.parked.firstOrNull { it.id == id && it.deletedAt == null && it.doneAt == null } ?: return@edit lists
+            val last = lists.nextTasks.filter { it.deletedAt == null && it.category == parked.category }.maxOfOrNull { it.position }
+            val task = SyncNextTask(
+                newId(), parked.text, null, parked.category, parked.categoryColor, null, time, null, SharedListMerge.positionBetween(last, null),
+            )
+            newTaskId = task.id
+            lists.copy(
+                nextTasks = lists.nextTasks + task,
+                parked = lists.parked.map { if (it.id == id) it.copy(doneAt = time, editedAt = SharedListMerge.nextStamp(time, it)) else it },
+            )
+        }
+        return newTaskId
+    }
+
+    // ---- The Later list (ADR 50) ----
+
+    /** Adds an item at the end of the Later list; a blank title adds nothing. Returns its id. */
+    fun addLater(title: String, category: String? = null, categoryColor: String? = null, dueOn: String? = null): String? {
+        val trimmed = title.trim()
+        if (trimmed.isEmpty()) {
+            return null
+        }
+
+        val id = newId()
+        edit { lists, time ->
+            val last = lists.later.filter { it.deletedAt == null }.maxOfOrNull { it.position }
+            lists.copy(later = lists.later + SyncLaterItem(
+                id, trimmed, null, category, categoryColor, null, null, dueOn, time, null, SharedListMerge.positionBetween(last, null),
+            ))
+        }
+        return id
+    }
+
+    /**
+     * Changes a Later item through [change] (its fields as a whole), stamping it once so it outranks what it changed on every
+     * device; a blank title or no change does nothing. Fields the phone has no screen for are carried on by the copy.
+     */
+    fun updateLater(id: String, change: (SyncLaterItem) -> SyncLaterItem) = changeLater(id) { item, time ->
+        val changed = change(item)
+        if (changed.title.isBlank() || changed == item) item else changed.copy(editedAt = SharedListMerge.nextStamp(time, item))
+    }
+
+    /** Deletes a Later item: its text goes at once and a tombstone tells the other devices. Returns the item as it was, for Undo. */
+    fun deleteLater(id: String): SyncLaterItem? {
+        val held = synchronized(this) { all.later.firstOrNull { it.id == id && it.deletedAt == null } } ?: return null
+        changeLater(id) { item, time -> item.deleted(SharedListMerge.nextStamp(time, item)) }
+        return held
+    }
+
+    /**
+     * Puts a deleted Later item back (Undo, or un-ticking it): the same id, position and fields as a newer edit that beats its
+     * tombstone on every device. Nothing changes when the item is on the list already.
+     */
+    fun restoreLater(item: SyncLaterItem) = edit { lists, time ->
+        val held = lists.later.firstOrNull { it.id == item.id }
+        if (held != null && held.deletedAt == null) {
+            return@edit lists
+        }
+
+        val back = item.copy(editedAt = SharedListMerge.nextStamp(time, held), deletedAt = null)
+        lists.copy(later = if (held == null) lists.later + back else lists.later.map { if (it.id == item.id) back else it })
+    }
+
+    /**
+     * Ticks a Later item off (ADR 50): it keeps its text and gets the done time as a normal stamped edit, so every device shows it as
+     * done (no tombstone). The PC records it once in its done tasks.
+     */
+    fun tickLater(id: String) = changeLater(id) { item, time ->
+        if (item.doneAt != null) item else item.copy(doneAt = time, editedAt = SharedListMerge.nextStamp(time, item))
+    }
+
+    /** Opens a ticked Later item again (Undo, Put back): its done time goes with a newer stamp. */
+    fun untickLater(id: String) = changeLater(id) { item, time ->
+        if (item.doneAt == null) item else item.copy(doneAt = null, editedAt = SharedListMerge.nextStamp(time, item))
+    }
+
+    /**
+     * "Add to Today" for a Later item with no session running: it becomes the next session's task (its open steps, category,
+     * estimate and note; its due date and plan go) and leaves the Later list. Returns the new task's id.
+     */
+    fun moveLaterToNext(id: String): String? {
+        var newTaskId: String? = null
+        edit { lists, time ->
+            val item = lists.later.firstOrNull { it.id == id && it.deletedAt == null && it.doneAt == null } ?: return@edit lists
+            val last = lists.nextTasks.filter { it.deletedAt == null && it.category == item.category }.maxOfOrNull { it.position }
+            val task = SyncNextTask(
+                newId(), item.title, null, item.category, item.categoryColor, TaskSteps.reopened(item.subtasks).ifEmpty { null }, time, null,
+                SharedListMerge.positionBetween(last, null), item.estimateMinutes, item.note,
+            )
+            newTaskId = task.id
+            lists.copy(
+                nextTasks = lists.nextTasks + task,
+                later = lists.later.map { if (it.id == id) item.deleted(SharedListMerge.nextStamp(time, item)) else it },
+            )
+        }
+        return newTaskId
+    }
+
+    /** "Move to Later" for an open next-session task: it joins the Later list with its open steps, category, estimate and note. */
+    fun moveNextToLater(id: String): String? {
+        var newItemId: String? = null
+        edit { lists, time ->
+            val task = lists.nextTasks.firstOrNull { it.id == id && it.deletedAt == null && !it.isDone } ?: return@edit lists
+            val last = lists.later.filter { it.deletedAt == null }.maxOfOrNull { it.position }
+            val item = SyncLaterItem(
+                newId(), task.title, TaskSteps.open(task.subtasks).ifEmpty { null }, task.category, task.categoryColor, task.estimateMinutes,
+                task.note, null, time, null, SharedListMerge.positionBetween(last, null), task.plannedFor,
+            )
+            newItemId = item.id
+            lists.copy(
+                later = lists.later + item,
+                nextTasks = lists.nextTasks.map { if (it.id == id) task.deleted(SharedListMerge.nextStamp(time, task)) else it },
+            )
+        }
+        return newItemId
+    }
+
+    /** A come-back becomes a Later item (its text, category and colour) and leaves the come-backs. */
+    fun moveParkedToLater(id: String): String? {
+        var newItemId: String? = null
+        edit { lists, time ->
+            val parked = lists.parked.firstOrNull { it.id == id && it.deletedAt == null } ?: return@edit lists
+            val last = lists.later.filter { it.deletedAt == null }.maxOfOrNull { it.position }
+            val item = SyncLaterItem(
+                newId(), parked.text, null, parked.category, parked.categoryColor, null, null, null, time, null, SharedListMerge.positionBetween(last, null),
+            )
+            newItemId = item.id
+            lists.copy(
+                later = lists.later + item,
+                parked = lists.parked.map { if (it.id == id) parked.deleted(SharedListMerge.nextStamp(time, parked)) else it },
+            )
+        }
+        return newItemId
+    }
+
+    /** A Later item becomes a come-back (its title, with " (+N steps)", category and colour) and leaves the Later list. */
+    fun moveLaterToParked(id: String): String? {
+        var newParkedId: String? = null
+        edit { lists, time ->
+            val item = lists.later.firstOrNull { it.id == id && it.deletedAt == null && it.doneAt == null } ?: return@edit lists
+            val steps = TaskSteps.open(item.subtasks).size
+            val text = if (steps > 0) "${item.title} (+$steps ${if (steps == 1) "step" else "steps"})" else item.title
+            val last = lists.parked.maxOfOrNull { it.position }
+            val parked = SyncParked(newId(), text, time, null, time, null, SharedListMerge.positionBetween(last, null), item.category, item.categoryColor)
+            newParkedId = parked.id
+            lists.copy(
+                parked = lists.parked + parked,
+                later = lists.later.map { if (it.id == id) item.deleted(SharedListMerge.nextStamp(time, item)) else it },
+            )
+        }
+        return newParkedId
+    }
+
+    private fun changeLater(id: String, change: (SyncLaterItem, Instant) -> SyncLaterItem) = edit { lists, time ->
+        lists.copy(later = lists.later.map { if (it.id == id && it.deletedAt == null) change(it, time) else it })
+    }
+
     private fun changeParked(id: String, change: (SyncParked, Instant) -> SyncParked) = edit { lists, time ->
         lists.copy(parked = lists.parked.map { if (it.id == id && it.deletedAt == null) change(it, time) else it })
     }
@@ -261,16 +443,22 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         all = Lists(
             lists.nextTasks.filter { it.deletedAt?.isAfter(tombstonesFrom) ?: true }.sortedBy { it.position },
             lists.parked.filter { item -> item.deletedAt?.isAfter(tombstonesFrom) ?: item.doneAt?.isAfter(doneFrom) ?: true }.sortedBy { it.position },
-            lists.later.filter { it.deletedAt?.isAfter(tombstonesFrom) ?: true }.sortedBy { it.position },
+            // A ticked Later item older than the PC's records of done tasks goes the normal way: a tombstone with no text.
+            lists.later
+                .map { item -> if (item.deletedAt == null && item.doneAt?.isBefore(doneFrom) == true) item.deleted(SharedListMerge.nextStamp(time, item)) else item }
+                .filter { it.deletedAt?.isAfter(tombstonesFrom) ?: true }.sortedBy { it.position },
         )
         prefs.edit().putString(KEY, TokenVault.seal(write(all).toString(), ALIAS)).apply()
         _nextTasks.value = liveNextTasks()
         _parked.value = liveParked()
+        _later.value = liveLater()
     }
 
     private fun liveNextTasks() = all.nextTasks.filter { it.deletedAt == null }
 
     private fun liveParked() = all.parked.filter { it.deletedAt == null }
+
+    private fun liveLater() = all.later.filter { it.deletedAt == null }
 
     private fun newId(): String = UUID.randomUUID().toString()
 

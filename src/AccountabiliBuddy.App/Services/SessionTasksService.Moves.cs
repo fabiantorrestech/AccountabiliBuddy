@@ -230,8 +230,9 @@ public sealed partial class SessionTasksService
     }
 
     /// <summary>
-    /// A Later item is ticked off: it leaves the Later list and is kept as a task done now, in the day's "done outside a
-    /// session" record (it shows under Done today and in the Archive). Nothing about a session changes.
+    /// A Later item is ticked off (ADR 50): it stays on the shared list with its text and a done time, so every device shows it as
+    /// done, and is kept as a task done now in the day's "done outside a session" record (Done today, then the Archive). The record
+    /// has the Later item's id. Nothing about a session changes, and it never counts as focus.
     /// </summary>
     public async Task<bool> CompleteLaterAsync(Guid laterId)
     {
@@ -242,15 +243,61 @@ public sealed partial class SessionTasksService
         }
 
         DateTimeOffset now = _time.GetUtcNow();
-        List<SessionSubtask> steps = (item.Subtasks ?? []).Select(step => step with { DoneAt = step.DoneAt ?? now }).ToList();
-        var task = new SessionTask(Guid.NewGuid(), item.Title, now, steps, null, item.Category, item.CategoryColor, item.EstimateMinutes, item.Note);
-        int at = _history.FindIndex(checklist => checklist.OutsideSession && checklist.Tasks.Any(held => held.DoneAt is DateTimeOffset done && LocalDate(done) == LocalDate(now)));
+        await RecordLaterDoneAsync(item, now);
+        await Later.CompleteAsync(laterId, now);
+        return true;
+    }
+
+    // The "done outside a session" record of a ticked Later item: once only, under the item's id (an item already recorded is left alone).
+    private async Task RecordLaterDoneAsync(SyncLaterItem item, DateTimeOffset doneAt)
+    {
+        if (HistoryTaskOf(item.Id) is not null)
+        {
+            return;
+        }
+
+        List<SessionSubtask> steps = (item.Subtasks ?? []).Select(step => step with { DoneAt = step.DoneAt ?? doneAt }).ToList();
+        var task = new SessionTask(item.Id, item.Title, doneAt, steps, null, item.Category, item.CategoryColor, item.EstimateMinutes, item.Note);
+        int at = _history.FindIndex(checklist => checklist.OutsideSession && checklist.Tasks.Any(held => held.DoneAt is DateTimeOffset done && LocalDate(done) == LocalDate(doneAt)));
         _history = at >= 0
             ? _history.Select((checklist, index) => index == at ? checklist with { Tasks = [.. checklist.Tasks, task] } : checklist).ToList()
             : [.. _history, new SessionChecklist(null, false, [task], OutsideSession: true)];
         await SaveHistoryAsync();
-        await Later.DeleteAsync(laterId);
-        return true;
+    }
+
+    /// <summary>
+    /// What another device's tick (or Undo) did to Later items (ADR 50): an item ticked there gets its record here once; an item
+    /// that is open again loses it. Called only by a merge that changed something, so a restart makes no record again.
+    /// </summary>
+    private async Task ApplyLaterDoneChangeAsync(LaterDoneChange change)
+    {
+        DateTimeOffset keptFrom = _time.GetUtcNow() - HistoryKept;
+        foreach (SyncLaterItem item in change.NewlyDone)
+        {
+            if (item.DoneAt is DateTimeOffset doneAt && doneAt >= keptFrom)
+            {
+                await RecordLaterDoneAsync(item, doneAt);
+            }
+        }
+
+        foreach (Guid id in change.Reopened)
+        {
+            if (OutsideSessionTaskOf(id) is Guid recorded)
+            {
+                await RemoveOutsideTaskAsync(recorded);
+            }
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private async Task RemoveOutsideTaskAsync(Guid taskId)
+    {
+        _history = _history
+            .Select(checklist => checklist.OutsideSession ? checklist with { Tasks = checklist.Tasks.Where(held => held.Id != taskId).ToList() } : checklist)
+            .Where(checklist => !checklist.OutsideSession || checklist.Tasks.Count > 0)
+            .ToList();
+        await SaveHistoryAsync();
     }
 
     // The task of the "done outside a session" record that is <paramref name="id"/> or has a step with that id; null if none.
@@ -262,7 +309,9 @@ public sealed partial class SessionTasksService
             .FirstOrDefault(task => task.Id == id || task.Subtasks.Any(step => step.Id == id))?.Id;
     }
 
-    // Unticked again: the task is open and goes back to Later, with its steps open and its category, estimate and note.
+    // Unticked again: the task is open and goes back to Later. A ticked Later item (the record has its id) is opened again in place, as a
+    // newer edit every device takes; an older record (from before ticked items stayed on the list) comes back as a new item with its
+    // steps open and its category, estimate and note.
     private async Task ReopenOutsideTaskToLaterAsync(Guid taskId)
     {
         if (Later is null || HistoryTaskOf(taskId) is not SessionTask task)
@@ -270,12 +319,12 @@ public sealed partial class SessionTasksService
             return;
         }
 
-        await Later.AddAsync(task.Title, SourceOfTask(task).Steps, task.Category, task.CategoryColor, task.EstimateMinutes, task.Note, null);
-        _history = _history
-            .Select(checklist => checklist.OutsideSession ? checklist with { Tasks = checklist.Tasks.Where(held => held.Id != taskId).ToList() } : checklist)
-            .Where(checklist => !checklist.OutsideSession || checklist.Tasks.Count > 0)
-            .ToList();
-        await SaveHistoryAsync();
+        if (!await Later.ReopenAsync(taskId))
+        {
+            await Later.AddAsync(task.Title, SourceOfTask(task).Steps, task.Category, task.CategoryColor, task.EstimateMinutes, task.Note, null);
+        }
+
+        await RemoveOutsideTaskAsync(taskId);
     }
 
     // ---- An ended session's record ----

@@ -104,6 +104,7 @@ public sealed partial class SessionTasksService : IDisposable
             if (value is not null)
             {
                 value.Changed += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
+                value.DoneChanged += async (_, change) => await ApplyLaterDoneChangeAsync(change);
             }
         }
     }
@@ -320,7 +321,7 @@ public sealed partial class SessionTasksService : IDisposable
             string? parkedCategory = request.Category?.Trim() is { Length: > 0 and <= MaxRemoteText } name ? name : null;
             string? parkedColor = request.CategoryColor is { Length: 7 } hex && hex[0] == '#' && hex[1..].All(char.IsAsciiHexDigit) ? hex : null;
             await Comebacks.AddAsync(steps.Count > 0 ? $"{title} (+{steps.Count} {(steps.Count == 1 ? "step" : "steps")})" : title, parkedCategory, parkedColor);
-            return RemoteTaskResult.Applied($"Parked: {TaskAllowance} tasks this session");
+            return RemoteTaskResult.ParkedInstead($"Parked: {TaskAllowance} tasks this session");
         }
 
         Guid? categoryId = await ResolveRemoteCategoryAsync(request);
@@ -995,6 +996,11 @@ public sealed partial class SessionTasksService : IDisposable
         if (title is null)
         {
             await RecordHistoryDeletionAsync(id);
+            // A ticked Later item has the record's id: deleting the record deletes the item too, so nothing brings the record back.
+            if (Later is not null && Later.DoneItems.Any(item => item.Id == id))
+            {
+                await Later.DeleteAsync(id);
+            }
         }
 
         static SessionTask Apply(SessionTask task, Guid id, string? title) => task with

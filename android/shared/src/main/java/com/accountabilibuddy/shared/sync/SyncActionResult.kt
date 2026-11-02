@@ -24,6 +24,9 @@ data class SyncActionResult(
 ) {
     companion object {
         const val STATUS_APPLIED = "applied"
+
+        /** A task add the PC parked as a come-back instead of adding it (its checklist was full): ok, with the message. */
+        const val STATUS_PARKED = "parked"
         const val STATUS_CONFLICT = "conflict"
         const val STATUS_LOCKED = "locked"
         const val STATUS_INVALID = "invalid"

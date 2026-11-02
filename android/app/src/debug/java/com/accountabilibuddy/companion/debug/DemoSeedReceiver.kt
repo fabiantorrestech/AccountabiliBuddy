@@ -48,5 +48,14 @@ class DemoSeedReceiver : BroadcastReceiver() {
         const val MODE_FREE = "free"
         const val MODE_DAYOFF = "dayoff"
         const val MODE_CLEAR = "clear"
+
+        // Part 3 (Tasks): the lists the board shows (`tasks`, `tasks-session`), a read of what the phone's own sync file carries
+        // (ids and times only, never text) and a run of the Later merge rules against the real store.
+        const val MODE_TASKS = "tasks"
+        const val MODE_TASKS_SESSION = "tasks-session"
+        const val MODE_DUMP = "dump"
+        const val MODE_MERGE_CHECK = "merge-check"
+        const val MODE_HANDOFF_CHECK = "handoff-check"
+        const val MODE_DONE_CHECK = "done-check"
     }
 }

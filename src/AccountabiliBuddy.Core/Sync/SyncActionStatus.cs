@@ -6,6 +6,13 @@ public static class SyncActionStatus
     /// <summary>Applied, or nothing left to do (e.g. a task already ticked).</summary>
     public const string Applied = "applied";
 
+    /// <summary>
+    /// A task add that the PC parked as a come-back instead of adding (the checklist was full): <see cref="SyncActionResult.Ok"/> is true and
+    /// the message says so. A phone that predates this status shows the message and takes it as applied, as before; a newer one keeps the
+    /// details of what it sent (a Later item's note, steps, estimate and due date, which a parked come-back does not carry).
+    /// </summary>
+    public const string Parked = "parked";
+
     /// <summary>A day plan edit made from an older PC plan: the result carries the PC's version and edit time.</summary>
     public const string Conflict = "conflict";
 

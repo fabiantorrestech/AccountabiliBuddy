@@ -29,6 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.sync.TaskCategoryChoices.Choice
+import com.accountabilibuddy.companion.ui.tasks.TaskCategoryMenu
+import com.accountabilibuddy.companion.ui.tasks.subtaskLetter
 import com.accountabilibuddy.shared.sync.SessionTaskItem
 
 /**
