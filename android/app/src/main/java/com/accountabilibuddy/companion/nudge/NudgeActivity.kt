@@ -77,7 +77,7 @@ class NudgeActivity : ComponentActivity() {
             GoalBonus(goal, intent.getIntExtra(EXTRA_BONUS_FOCUSED, goal), intent.getIntExtra(EXTRA_BONUS_STREAK, 1))
         }
         setContent {
-            CompanionTheme {
+            CompanionTheme(systemBarIconsFollowTheme = false) {
                 NudgeCard(store, app.emergency, untilText, parked, bonus, onEssentials = {
                     startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.intent(this))
                 }, onDone = {

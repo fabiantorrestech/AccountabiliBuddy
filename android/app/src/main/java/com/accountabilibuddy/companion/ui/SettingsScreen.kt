@@ -97,6 +97,8 @@ fun SettingsScreen(
 
     // Appearance is its own page (until the 5-tab shell moves it); Back returns to the App page.
     var appearanceOpen by rememberSaveable { mutableStateOf(false) }
+    // Kept here so the list's scroll position survives a visit to the Appearance page.
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     androidx.activity.compose.BackHandler(enabled = appearanceOpen) { appearanceOpen = false }
     if (appearanceOpen) {
         AppearanceScreen(onBack = { appearanceOpen = false })
@@ -105,7 +107,7 @@ fun SettingsScreen(
 
     Column {
     category?.let { open -> Box(Modifier.padding(start = 8.dp, top = 8.dp)) { CategoryHeader(open) { category = null } } }
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    LazyColumn(state = listState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         when (val open = category) {
             null -> {
                 val sleep = state.sleep

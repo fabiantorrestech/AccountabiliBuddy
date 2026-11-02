@@ -18,6 +18,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.ui.theme.Ab
@@ -31,7 +35,7 @@ fun AbChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modi
     val colors = Ab.colors
     Surface(
         onClick = onClick,
-        modifier = modifier.minimumInteractiveComponentSize(),
+        modifier = modifier.minimumInteractiveComponentSize().semantics { this.selected = selected; role = Role.Tab },
         shape = Ab.shapes.pill,
         color = if (selected) colors.surface2 else colors.bg.copy(alpha = 0f),
         contentColor = if (selected) colors.ink else colors.muted,

@@ -13,6 +13,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -21,21 +24,21 @@ import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
  * A segmented control: a pill track with the options sharing its width equally; the selected one is a raised surface with
- * ink text. Labels never wrap, so keep them short. [selectedIndex] may be null (nothing selected), which lets two rows
- * show one choice between them.
+ * ink text. Each option is a 44 dp touch target. Labels never wrap, so keep them short. [selectedIndex] may be null
+ * (nothing selected), which lets two rows show one choice between them.
  */
 @Composable
 fun AbSegmented(options: List<String>, selectedIndex: Int?, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val colors = Ab.colors
     Row(
-        modifier.fillMaxWidth().height(48.dp).background(colors.surface2, Ab.shapes.pill).padding(4.dp),
+        modifier.fillMaxWidth().height(52.dp).background(colors.surface2, Ab.shapes.pill).padding(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         options.forEachIndexed { index, label ->
             val selected = index == selectedIndex
             Surface(
                 onClick = { onSelect(index) },
-                modifier = Modifier.weight(1f).height(40.dp),
+                modifier = Modifier.weight(1f).height(44.dp).semantics { this.selected = selected; role = Role.RadioButton },
                 shape = Ab.shapes.pill,
                 color = if (selected) colors.surface else colors.surface2,
                 contentColor = if (selected) colors.ink else colors.muted,

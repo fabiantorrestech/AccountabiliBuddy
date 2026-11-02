@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -105,7 +108,13 @@ fun AppearanceScreen(onBack: () -> Unit) {
             AbSectionLabel("Theme")
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ThemeName.entries.forEach { theme ->
-                    ThemeSwatch(theme, selected = theme == themeName, onClick = { UiPrefs.setThemeName(context, theme) }, modifier = Modifier.weight(1f))
+                    SwatchPreview(theme, selected = theme == themeName, onClick = { UiPrefs.setThemeName(context, theme) }, modifier = Modifier.weight(1f))
+                }
+            }
+            // The names are their own row, aligned on their text baselines, since each theme's font has its own metrics.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ThemeName.entries.forEach { theme ->
+                    SwatchName(theme, selected = theme == themeName, onClick = { UiPrefs.setThemeName(context, theme) }, modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -122,12 +131,15 @@ fun AppearanceScreen(onBack: () -> Unit) {
             )
             if (mode == LightDarkMode.SetTime || mode == LightDarkMode.Sunset) {
                 val label = if (mode == LightDarkMode.Sunset) "Used when the sun can't be worked out" else null
-                if (label != null) Text(label, style = Ab.type.small, color = Ab.colors.faint)
+                if (label != null) Text(label, style = Ab.type.small, color = Ab.colors.muted)
                 TimeRow("Dark from", darkAt) { editingTime = TimeField.DarkFrom }
                 TimeRow("Light from", lightAt) { editingTime = TimeField.LightFrom }
             }
-            if (mode == LightDarkMode.Sunset) {
+            // A stored place can be seen and forgotten in every mode, not only while After sunset is chosen.
+            if (mode == LightDarkMode.Sunset || place != null) {
                 PlaceRow(place, onChange = { pickingPlace = true }, onForget = { UiPrefs.setPlace(context, null) })
+            }
+            if (mode == LightDarkMode.Sunset) {
                 AppearanceSummary.sunsetNote(mode, place != null, plan, darkAt, lightAt)?.let {
                     Text(it, style = Ab.type.small, color = Ab.colors.muted)
                 }
@@ -189,29 +201,34 @@ fun AppearanceScreen(onBack: () -> Unit) {
     }
 }
 
-/** One theme as a card: a light half and a dark half with its colours, and its name in its own display font. */
+/** One theme's colours: a light half and a dark half. Selected is an ink edge (accent is kept for progress and the main button). */
 @Composable
-private fun ThemeSwatch(theme: ThemeName, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun SwatchPreview(theme: ThemeName, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val light = AbPalettes.of(theme, dark = false)
     val dark = AbPalettes.of(theme, dark = true)
     val shapes = AbShapes.of(theme)
-    val type = AbTypography.of(theme)
-    Column(
-        modifier.selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    val edge = if (selected) BorderStroke(2.dp, Ab.colors.ink) else BorderStroke(1.dp, Ab.colors.line)
+    Row(
+        modifier.height(96.dp).clip(shapes.mediumShape).border(edge, shapes.mediumShape)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
     ) {
-        // Selected is an ink edge (accent is kept for progress and the main button).
-        val edge = if (selected) BorderStroke(2.dp, Ab.colors.ink) else BorderStroke(1.dp, Ab.colors.line)
-        Row(Modifier.fillMaxWidth().height(96.dp).clip(shapes.mediumShape).border(edge, shapes.mediumShape)) {
-            SwatchHalf(light, shapes, Modifier.weight(1f).fillMaxHeight())
-            SwatchHalf(dark, shapes, Modifier.weight(1f).fillMaxHeight())
-        }
-        // A fixed-height line, so the three names share a baseline whatever their fonts.
-        Box(Modifier.height(24.dp), contentAlignment = Alignment.Center) {
-            Text(theme.label, style = type.section.copy(fontSize = 15.sp), color = Ab.colors.ink, fontWeight = if (selected) FontWeight.Bold else null, maxLines = 1)
-        }
+        SwatchHalf(light, shapes, Modifier.weight(1f).fillMaxHeight())
+        SwatchHalf(dark, shapes, Modifier.weight(1f).fillMaxHeight())
     }
+}
+
+/** A theme's name in its own display font; tapping it picks the theme too. */
+@Composable
+private fun RowScope.SwatchName(theme: ThemeName, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Text(
+        theme.label,
+        modifier = modifier.alignByBaseline().clickable(onClick = onClick).padding(vertical = 4.dp),
+        style = AbTypography.of(theme).section.copy(fontSize = 15.sp),
+        color = Ab.colors.ink,
+        fontWeight = if (selected) FontWeight.Bold else null,
+        textAlign = TextAlign.Center,
+        maxLines = 1,
+    )
 }
 
 @Composable
@@ -309,19 +326,19 @@ private fun PlaceSheet(onDismiss: () -> Unit, onPick: (AppearancePlace) -> Unit)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = latitude, onValueChange = { latitude = it; error = null }, singleLine = true, label = { Text("Latitude") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                     modifier = Modifier.weight(1f), colors = fieldColors(),
                 )
                 OutlinedTextField(
                     value = longitude, onValueChange = { longitude = it; error = null }, singleLine = true, label = { Text("Longitude") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                     modifier = Modifier.weight(1f), colors = fieldColors(),
                 )
             }
             error?.let { Text(it, style = Ab.type.small, color = Ab.colors.drift) }
             AbTonalButton("Use these numbers", onClick = {
-                val point = GeoPoint(latitude.trim().toDoubleOrNull() ?: Double.NaN, longitude.trim().toDoubleOrNull() ?: Double.NaN)
-                if (point.isValid) onPick(AppearancePlace(point, "Typed in")) else error = "Latitude is -90 to 90 and longitude -180 to 180."
+                val point = GeoPoint(parseDegrees(latitude), parseDegrees(longitude))
+                if (point.isValid) onPick(AppearancePlace(point, "Typed in")) else error = "Use numbers like 41.88 and -87.63: latitude from -90 to 90, longitude from -180 to 180."
             }, modifier = Modifier.fillMaxWidth())
         }
     }
@@ -339,3 +356,7 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedPlaceholderColor = Ab.colors.faint,
     unfocusedPlaceholderColor = Ab.colors.faint,
 )
+
+/** A typed degree value: a decimal comma or a typographic minus is accepted; NaN when it isn't a number. */
+private fun parseDegrees(text: String): Double =
+    text.trim().replace(',', '.').replace('−', '-').toDoubleOrNull() ?: Double.NaN

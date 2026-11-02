@@ -112,7 +112,7 @@ class EssentialsActivity : ComponentActivity() {
             window.decorView.postDelayed({ finish() }, Duration.between(Instant.now(), until).toMillis().coerceAtLeast(0))
         }
         setContent {
-            CompanionTheme {
+            CompanionTheme(systemBarIconsFollowTheme = false) {
                 androidx.compose.runtime.key(resetKey) {
                     EssentialsScreen(app, kind, arranging, onOpen = ::openApp, onDial = ::dial, onDone = ::finish, testUntil = testUntil)
                 }

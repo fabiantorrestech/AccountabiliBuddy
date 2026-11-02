@@ -50,7 +50,7 @@ class BedtimeAlarmActivity : ComponentActivity() {
         val label = intent.getStringExtra(EXTRA_LABEL) ?: "Bedtime"
         val text = intent.getStringExtra(EXTRA_TEXT).orEmpty()
         setContent {
-            CompanionTheme {
+            CompanionTheme(systemBarIconsFollowTheme = false) {
                 Column(
                     Modifier.fillMaxSize().background(Color(0xFF0B1020)).padding(32.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),

@@ -35,7 +35,7 @@ import com.accountabilibuddy.companion.ui.theme.rememberDarkNow
  * widgets follow the theme too (ADR 49).
  */
 @Composable
-fun CompanionTheme(content: @Composable () -> Unit) {
+fun CompanionTheme(systemBarIconsFollowTheme: Boolean = true, content: @Composable () -> Unit) {
     val themeName by UiPrefs.themeName.collectAsState()
     val mode by UiPrefs.mode.collectAsState()
     val colour by UiPrefs.colour.collectAsState()
@@ -45,7 +45,7 @@ fun CompanionTheme(content: @Composable () -> Unit) {
     val motion by UiPrefs.motion.collectAsState()
 
     val dark = rememberDarkNow(mode, darkAt, lightAt, place)
-    ThemedContent(themeName, dark, colour == ColourMode.Quiet, motion.scale, content)
+    ThemedContent(themeName, dark, colour == ColourMode.Quiet, motion.scale, systemBarIconsFollowTheme, content)
 }
 
 /**
@@ -53,19 +53,29 @@ fun CompanionTheme(content: @Composable () -> Unit) {
  * previews and the debug gallery use to show a theme other than the one in use.
  */
 @Composable
-fun ThemedContent(themeName: ThemeName, dark: Boolean, quiet: Boolean, motionScale: Float, content: @Composable () -> Unit) {
+fun ThemedContent(
+    themeName: ThemeName,
+    dark: Boolean,
+    quiet: Boolean,
+    motionScale: Float,
+    systemBarIconsFollowTheme: Boolean = true,
+    content: @Composable () -> Unit,
+) {
     val colors = AbPalettes.of(themeName, dark)
     val shapes = remember(themeName) { AbShapes.of(themeName) }
     val type = remember(themeName) { AbTypography.of(themeName) }
 
-    // The status and navigation bar icons follow the app's light or dark, not the phone's.
+    // The status and navigation bar icons follow the app's light or dark, not the phone's. The takeover screens that paint
+    // their own dark ground pass false and always get light icons, whatever the theme is.
     val view = LocalView.current
     if (!view.isInEditMode) {
+        val darkGround = if (systemBarIconsFollowTheme) dark else true
         SideEffect {
             val window = (view.context as? Activity)?.window ?: return@SideEffect
             val controller = WindowCompat.getInsetsController(window, view)
-            controller.isAppearanceLightStatusBars = !dark
-            controller.isAppearanceLightNavigationBars = !dark
+            // "Appearance light" means dark icons (for a light ground); a dark ground wants light icons.
+            controller.isAppearanceLightStatusBars = !darkGround
+            controller.isAppearanceLightNavigationBars = !darkGround
         }
     }
 
@@ -77,7 +87,7 @@ fun ThemedContent(themeName: ThemeName, dark: Boolean, quiet: Boolean, motionSca
         LocalQuietColour provides quiet,
     ) {
         MaterialTheme(
-            colorScheme = colors.toColorScheme(),
+            colorScheme = remember(colors) { colors.toColorScheme() },
             typography = type.material(),
             shapes = shapes.material(),
             content = content,
