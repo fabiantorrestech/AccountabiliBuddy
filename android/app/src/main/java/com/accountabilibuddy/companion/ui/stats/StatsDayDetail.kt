@@ -133,7 +133,7 @@ private fun DayRowLine(row: DayListRow) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(row.time, style = Ab.type.small, color = colors.muted, modifier = Modifier.widthIn(min = 68.dp), maxLines = 1, softWrap = false)
+        Text(row.time, style = Ab.type.small, color = colors.muted, modifier = Modifier.widthIn(min = 84.dp), maxLines = 1, softWrap = false)
         Box(Modifier.size(8.dp).background(if (row.isDrift) colors.drift else Ab.meaning(colors.met), CircleShape))
         Text(row.title, style = Ab.type.bodyMedium, color = colors.ink, modifier = Modifier.weight(1f))
         Text(row.length, style = Ab.type.small, color = colors.muted, textAlign = TextAlign.End, fontWeight = FontWeight.Medium)

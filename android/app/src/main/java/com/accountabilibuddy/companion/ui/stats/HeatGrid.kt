@@ -58,17 +58,23 @@ internal fun HeatGrid(
     val density = LocalDensity.current
     val byPlace = cells.associateBy { it.row to it.column }
     BoxWithConstraints(modifier.fillMaxWidth()) {
-        val labelWidth = if (rowLabels != null) ROW_LABEL_WIDTH else 0.dp
+        // The labels are three letters while a row is tall enough for a line of text; with large text the rows are shorter than a
+        // line, and each label shrinks to its first letter (a label may not run into the next row).
+        val line = with(density) { Ab.type.micro.lineHeight.toDp() }
+        val initials = rowLabels != null && (maxWidth - ROW_LABEL_WIDTH - gap * (columns - 1)) / columns + gap < line
+        val labelWidth = if (rowLabels == null) 0.dp else if (initials) INITIAL_LABEL_WIDTH else ROW_LABEL_WIDTH
         val cell = minOf(maxCell, (maxWidth - labelWidth - gap * (columns - 1)) / columns)
         val gridWidth = cell * columns + gap * (columns - 1)
-        val gridHeight = cell * rows + gap * (rows - 1)
+        // With large text a row is at least a line tall, so its letter fits: the squares become a little taller than wide.
+        val rowHeight = if (initials) maxOf(cell, line) else cell
+        val gridHeight = rowHeight * rows + gap * (rows - 1)
         Column(Modifier.clearAndSetSemantics { contentDescription = description }) {
             if (columnLabels != null && labelsOnTop) ColumnLabels(columnLabels, labelWidth, cell, gap, Modifier.padding(bottom = 4.dp))
             Row {
                 if (rowLabels != null) {
                     Column(Modifier.width(labelWidth)) {
-                        rowLabels.forEachIndexed { index, label ->
-                            Box(Modifier.height(if (index < rows - 1) cell + gap else cell), contentAlignment = Alignment.CenterStart) {
+                        rowLabels.map { if (initials) it.take(1) else it }.forEachIndexed { index, label ->
+                            Box(Modifier.height(if (index < rows - 1) rowHeight + gap else rowHeight), contentAlignment = Alignment.CenterStart) {
                                 Text(
                                     label, style = Ab.type.micro, color = Ab.colors.muted, maxLines = 1, softWrap = false,
                                     modifier = Modifier.wrapContentHeight(Alignment.CenterVertically, unbounded = true),
@@ -82,20 +88,21 @@ internal fun HeatGrid(
                     Modifier.size(gridWidth, gridHeight).pointerInput(cells, onCellClick) {
                         if (onCellClick == null) return@pointerInput
                         detectTapGestures { at ->
-                            val step = with(density) { (cell + gap).toPx() }
-                            val column = (at.x / step).toInt().coerceIn(0, columns - 1)
-                            val row = (at.y / step).toInt().coerceIn(0, rows - 1)
+                            val column = (at.x / with(density) { (cell + gap).toPx() }).toInt().coerceIn(0, columns - 1)
+                            val row = (at.y / with(density) { (rowHeight + gap).toPx() }).toInt().coerceIn(0, rows - 1)
                             byPlace[row to column]?.date?.let(onCellClick)
                         }
                     },
                 ) {
                     val side = cell.toPx()
+                    val tall = rowHeight.toPx()
                     val step = side + gap.toPx()
+                    val rowStep = tall + gap.toPx()
                     val radius = minOf(4.dp.toPx(), side * 0.28f)
                     for (heat in cells) {
                         if (heat.level < 0) continue
                         drawRoundRect(
-                            ramp[heat.level.coerceIn(0, ramp.lastIndex)], Offset(heat.column * step, heat.row * step), Size(side, side), CornerRadius(radius, radius),
+                            ramp[heat.level.coerceIn(0, ramp.lastIndex)], Offset(heat.column * step, heat.row * rowStep), Size(side, tall), CornerRadius(radius, radius),
                         )
                     }
                 }
@@ -131,3 +138,4 @@ internal fun HeatLegend(modifier: Modifier = Modifier) {
 }
 
 private val ROW_LABEL_WIDTH = 38.dp
+private val INITIAL_LABEL_WIDTH = 18.dp

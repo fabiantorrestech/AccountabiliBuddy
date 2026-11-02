@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -17,6 +19,7 @@ import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
@@ -49,7 +53,9 @@ import kotlin.math.roundToInt
 fun StatsViewsSheet(state: StatsViewsState, onChange: (StatsViewsState) -> Unit, onOpen: (StatsView) -> Unit, onDismiss: () -> Unit) {
     val colors = Ab.colors
     val type = Ab.type
-    val rowPx = with(LocalDensity.current) { ROW_HEIGHT.toPx() }
+    val density = LocalDensity.current
+    // The height of a row in pixels, as drawn (a subtitle may wrap with large text): one row is the step of a drag.
+    var rowPx by remember { mutableFloatStateOf(with(density) { ROW_HEIGHT.toPx() }) }
     // While a row is dragged, the order is worked out here; it is saved when the finger lifts.
     var working by remember(state) { mutableStateOf(state.order) }
     var dragging by remember { mutableStateOf<StatsView?>(null) }
@@ -58,68 +64,73 @@ fun StatsViewsSheet(state: StatsViewsState, onChange: (StatsViewsState) -> Unit,
     AbSheet(onDismiss = onDismiss) {
         Text("Stats views", style = type.head, color = colors.ink)
         Text("Drag to reorder. Hidden views stay one tap away here.", style = type.bodyMedium, color = colors.muted)
-        Column(Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             working.forEachIndexed { index, view ->
-                val hidden = view in state.hidden
-                val isDragged = dragging == view
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(ROW_HEIGHT)
-                        .zIndex(if (isDragged) 1f else 0f)
-                        .graphicsLayer { translationY = if (isDragged) offset else 0f }
-                        .semantics {
-                            customActions = listOf(
-                                CustomAccessibilityAction("Move up") { if (index > 0) onChange(state.copy(order = working.toMutableList().apply { add(index - 1, removeAt(index)) })); true },
-                                CustomAccessibilityAction("Move down") { if (index < working.lastIndex) onChange(state.copy(order = working.toMutableList().apply { add(index + 1, removeAt(index)) })); true },
+                // Keyed by the view, so a row that moves while it is dragged keeps its gesture.
+                key(view) {
+                    val hidden = view in state.hidden
+                    val isDragged = dragging == view
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = ROW_HEIGHT)
+                            .onSizeChanged { if (index == 0) rowPx = it.height.toFloat() }
+                            .padding(vertical = 4.dp)
+                            .zIndex(if (isDragged) 1f else 0f)
+                            .graphicsLayer { translationY = if (isDragged) offset else 0f }
+                            .semantics {
+                                customActions = listOf(
+                                    CustomAccessibilityAction("Move up") { if (index > 0) onChange(state.copy(order = working.toMutableList().apply { add(index - 1, removeAt(index)) })); true },
+                                    CustomAccessibilityAction("Move down") { if (index < working.lastIndex) onChange(state.copy(order = working.toMutableList().apply { add(index + 1, removeAt(index)) })); true },
+                                )
+                            }
+                            .clickable(role = Role.Button) { onOpen(view) },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Box(
+                            Modifier
+                                .size(44.dp)
+                                .pointerInput(view) {
+                                    detectDragGestures(
+                                        onDragStart = { dragging = view; offset = 0f },
+                                        onDragEnd = {
+                                            dragging = null
+                                            offset = 0f
+                                            onChange(state.copy(order = working))
+                                        },
+                                        onDragCancel = { dragging = null; offset = 0f; working = state.order },
+                                    ) { change, drag ->
+                                        change.consume()
+                                        offset += drag.y
+                                        val current = working.indexOf(view)
+                                        val target = (current + (offset / rowPx).roundToInt()).coerceIn(0, working.lastIndex)
+                                        if (target != current) {
+                                            working = working.toMutableList().apply { add(target, removeAt(current)) }
+                                            offset -= (target - current) * rowPx
+                                        }
+                                    }
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Outlined.DragIndicator, contentDescription = "Drag ${view.title} to reorder", tint = colors.faint, modifier = Modifier.size(22.dp))
+                        }
+
+                        Icon(view.icon(), contentDescription = null, tint = if (hidden) colors.faint else colors.ink, modifier = Modifier.size(22.dp))
+                        Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                            Text(view.title, style = type.body, fontWeight = FontWeight.Medium, color = if (hidden) colors.faint else colors.ink)
+                            Text(view.about, style = type.small, color = if (hidden) colors.faint else colors.muted)
+                        }
+
+                        Box(
+                            Modifier.size(44.dp).clickable(role = Role.Switch) { onChange(state.toggle(view)) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                if (hidden) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                contentDescription = if (hidden) "Show ${view.title}" else "Hide ${view.title}", tint = colors.muted, modifier = Modifier.size(22.dp),
                             )
                         }
-                        .clickable(role = Role.Button) { onOpen(view) },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Box(
-                        Modifier
-                            .size(44.dp)
-                            .pointerInput(view) {
-                                detectDragGestures(
-                                    onDragStart = { dragging = view; offset = 0f },
-                                    onDragEnd = {
-                                        dragging = null
-                                        offset = 0f
-                                        onChange(state.copy(order = working))
-                                    },
-                                    onDragCancel = { dragging = null; offset = 0f; working = state.order },
-                                ) { change, drag ->
-                                    change.consume()
-                                    offset += drag.y
-                                    val current = working.indexOf(view)
-                                    val target = (current + (offset / rowPx).roundToInt()).coerceIn(0, working.lastIndex)
-                                    if (target != current) {
-                                        working = working.toMutableList().apply { add(target, removeAt(current)) }
-                                        offset -= (target - current) * rowPx
-                                    }
-                                }
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Outlined.DragIndicator, contentDescription = "Drag ${view.title} to reorder", tint = colors.faint, modifier = Modifier.size(22.dp))
-                    }
-
-                    Icon(view.icon(), contentDescription = null, tint = if (hidden) colors.faint else colors.ink, modifier = Modifier.size(22.dp))
-                    Column(Modifier.weight(1f).padding(start = 8.dp)) {
-                        Text(view.title, style = type.body, fontWeight = FontWeight.Medium, color = if (hidden) colors.faint else colors.ink)
-                        Text(view.about, style = type.small, color = if (hidden) colors.faint else colors.muted)
-                    }
-
-                    Box(
-                        Modifier.size(44.dp).clickable(role = Role.Switch) { onChange(state.toggle(view)) },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            if (hidden) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                            contentDescription = if (hidden) "Show ${view.title}" else "Hide ${view.title}", tint = colors.muted, modifier = Modifier.size(22.dp),
-                        )
                     }
                 }
             }

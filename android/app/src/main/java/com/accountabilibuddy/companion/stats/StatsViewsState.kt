@@ -23,9 +23,6 @@ data class StatsViewsState(val order: List<StatsView> = StatsView.entries, val h
         else -> copy(hidden = hidden + view)
     }
 
-    /** The view to show when [current] is hidden or gone: [current] itself when shown, else the first shown one. */
-    fun resolve(current: StatsView): StatsView = if (current in shown) current else shown.first()
-
     /** The state as the prefs store it: view keys, comma separated. */
     fun orderText(): String = order.joinToString(",") { it.key }
 
