@@ -52,7 +52,7 @@ object PcFileControl {
 
     /**
      * The PC file's running session while it can still be running: written in the last 12 hours, its phase not over for 10
-     * minutes; a session with no set end only while the file is under [SnapshotBuilder.NO_END_LIMIT] old.
+     * minutes; a session with no set end, or one stepped away (paused: its end moves on return, [SyncRunning.phaseEndAt]), only while the file is under [SnapshotBuilder.NO_END_LIMIT] old.
      */
     fun liveRunning(file: SyncFile, now: Instant): com.accountabilibuddy.shared.sync.SyncRunning? {
         val running = file.running ?: return null
@@ -62,6 +62,11 @@ object PcFileControl {
 
         val noEnd = running.phaseEndsAt == null && running.planningEndsAt == null
         if (noEnd && Duration.between(file.device.writtenAt, now) > SnapshotBuilder.NO_END_LIMIT) {
+            return null
+        }
+
+        // A stepped-away session is paused and has no end to run out: like one with no set end, only a fresh file vouches for it.
+        if (running.isAwayOverdue(file.device.writtenAt, now)) {
             return null
         }
 

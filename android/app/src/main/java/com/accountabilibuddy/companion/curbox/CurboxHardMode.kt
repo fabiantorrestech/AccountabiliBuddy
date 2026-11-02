@@ -42,6 +42,8 @@ object CurboxHardMode {
         val ours = startedFor != null && endsAt?.isAfter(now) == true
         val curbox = CurboxClient(context)
         val running = EssentialsLaunch.runningSessionStart(app, now)
+        // The same session after the minutes we asked for ran out (its end moved: a step away or lunch past the old end) starts the
+        // group again for what is left, so a step away does not lift Curbox's blocks. A session with no set end gets its one hour only.
 
         if (ours && (running == null || running.first.toString() != startedFor || app.emergency.isActive(now))) {
             if (curbox.stopFocus()) Log.i(TAG, "stopped (session over or emergency time)")
@@ -50,7 +52,7 @@ object CurboxHardMode {
         }
 
         val group = group(context)
-        if (!enabled(context) || group == null || running == null || app.emergency.isActive(now) || running.first.toString() == startedFor) {
+        if (!enabled(context) || group == null || running == null || app.emergency.isActive(now) || (running.first.toString() == startedFor && (ours || running.second == null))) {
             return
         }
 

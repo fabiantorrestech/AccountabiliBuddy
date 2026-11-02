@@ -142,7 +142,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.idleItems(
     }
     item(key = "hero") {
         Column(Modifier.fillMaxWidth()) {
-            IdleHero(info, model.statusText, pc, clock, locked = guardsLock != null, onStart, actions.onCancelWaiting)
+            IdleHero(info, model.statusText, pc, clock, locked = guardsLock != null && !guardsLock.test, onStart, actions.onCancelWaiting)
         }
     }
     if (guardsLock != null) item(key = "guard") { GuardBanner(guardsLock, guardOn) }
@@ -211,7 +211,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sessionItems(
     info?.pace?.let { pace -> item(key = "pace") { Text(BudgetPaceLine.text(pace), style = Ab.type.bodyMedium, color = if (pace.behind) Ab.meaning(Ab.colors.waiting) else Ab.colors.muted) } }
     // Every task ticked: the phone's way out is still the PC's wait; the PC can end it at once.
     if (!planning && tasks != null && tasks.tasks.isNotEmpty() && tasks.tasks.all { it.isDone }) {
-        item(key = "all-done") { MutedLine("All tasks are ticked. On the PC you can end the session at once.") }
+        item(key = "all-done") { MutedLine("All tasks are ticked. On the PC, a finished session can usually end at once.") }
     }
     if (chip != null) item(key = "lunch-chip") { LunchChip(lunch, clock, chip) }
     if (guardsLock != null) item(key = "guard") { GuardBanner(guardsLock, guardOn) }

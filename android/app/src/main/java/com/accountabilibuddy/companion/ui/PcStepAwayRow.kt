@@ -1,5 +1,6 @@
 package com.accountabilibuddy.companion.ui
 
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -7,6 +8,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.shared.sync.SyncAction
+import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import java.time.LocalDateTime
 import java.time.ZoneId
 
@@ -36,7 +38,14 @@ fun rememberStepAway(pc: TodayPc, clock: ClockFormat): StepAwayState? {
         away && since != null -> "Away from ${pc.name} since $since"
         else -> null
     }
+    val context = LocalContext.current
     return StepAwayState(away, sending != null, text) {
-        app.actions.add(if (away) SyncAction.BACK else SyncAction.STEP_AWAY, target)
+        // The PC shown may have been removed since this screen was drawn: refuse, never send to a PC that is not here.
+        val here = app.sync.received.value.any { it.file.device.deviceId == target && it.file.device.kind == SyncDeviceCard.KIND_PC }
+        if (here) {
+            app.actions.add(if (away) SyncAction.BACK else SyncAction.STEP_AWAY, target)
+        } else {
+            Toast.makeText(context, "That PC isn't linked to this phone any more.", Toast.LENGTH_LONG).show()
+        }
     }
 }

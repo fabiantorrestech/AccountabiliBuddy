@@ -168,7 +168,7 @@ object EssentialsLaunch {
         app.sync.received.value
             .filter { it.file.device.kind == SyncDeviceCard.KIND_PC }
             .mapNotNull { PcFileControl.liveRunning(it.file, now) }
-            .filter { it.phaseEndsAt?.let { end -> now.isBefore(end) } ?: true }
+            .filter { it.phaseEndAt(now)?.let { end -> now.isBefore(end) } ?: true }
             .maxByOrNull { it.phaseStartedAt }?.isBreak == true
 
     // The newest PC file's running focus session (start, end), its phase not over. Counted by the same rule as the PC card
@@ -178,8 +178,8 @@ object EssentialsLaunch {
         return app.sync.received.value
             .filter { it.file.device.kind == SyncDeviceCard.KIND_PC }
             .mapNotNull { PcFileControl.liveRunning(it.file, now) }
-            .filter { it.phaseEndsAt?.let { end -> now.isBefore(end) } ?: true }
+            .filter { it.phaseEndAt(now)?.let { end -> now.isBefore(end) } ?: true }
             .maxByOrNull { it.phaseStartedAt }
-            ?.let { it.phaseStartedAt to it.phaseEndsAt }
+            ?.let { it.phaseStartedAt to it.phaseEndAt(now) }
     }
 }

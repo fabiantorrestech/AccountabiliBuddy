@@ -70,16 +70,18 @@ fun rememberTickingNow(): State<Instant> {
 @Composable
 fun IdleHero(info: TodayInfo?, fallbackNext: String, pc: TodayPc, clock: ClockFormat, locked: Boolean, onStart: () -> Unit, onCancelWaiting: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(info?.headline ?: TodayInfo.NOTHING_RUNNING, style = Ab.type.title, color = Ab.colors.ink)
-        Text(info?.next ?: fallbackNext, style = Ab.type.title, color = Ab.colors.muted)
+        // While the settings rest for a PC session this screen cannot see (its file is out of date), "Nothing running." would be untrue.
+        Text(if (locked) "Session running." else info?.headline ?: TodayInfo.NOTHING_RUNNING, style = Ab.type.title, color = Ab.colors.ink)
+        Text(if (locked) "Its PC has not synced for a while." else info?.next ?: fallbackNext, style = Ab.type.title, color = Ab.colors.muted)
     }
     Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when {
             !pc.hasPc -> MutedLine("Link a PC to start sessions from here.")
-            // The settings are resting for a session this screen does not show (a test session, or one the file no longer vouches for).
-            locked -> MutedLine("A session or a test session is on. Start comes back when it ends.")
             pc.updateNeeded != null -> MutedLine(pc.updateNeeded)
             pc.waiting != null -> WaitingLine(pc, clock, onCancelWaiting)
+            // The settings rest for a PC session whose file is out of date (not the phone's own test session: a real session comes
+            // first, so Start stays).
+            locked -> MutedLine("Start comes back when the session ends or the PC syncs.")
             else -> AbPrimaryButton("Start on ${pc.name}", onClick = onStart, modifier = Modifier.fillMaxWidth())
         }
     }

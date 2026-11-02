@@ -273,7 +273,9 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
 
     // The PC to control, if it can answer and isn't already busy with one of this phone's requests.
     private fun controllable(pcId: UUID? = null): Result<ReceivedDevice> {
-        val pc = pcOf(pcId) ?: return Result.failure(IllegalStateException("No PC has synced with this phone yet."))
+        val pc = pcOf(pcId) ?: return Result.failure(IllegalStateException(
+            if (pcId != null) "That PC's file isn't on this phone any more. Check Settings › Devices & sync." else "No PC has synced with this phone yet.",
+        ))
         PcFileControl.updateNeeded(pc.file.device)?.let { return Result.failure(IllegalStateException(it)) }
         if (waitingFor(pc.file.device.deviceId) != null) {
             return Result.failure(IllegalStateException("Still waiting for ${pc.file.device.name}'s answer."))
@@ -282,9 +284,9 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
         return Result.success(pc)
     }
 
-    // The PC [pcId] when its file is here, else the controlled PC.
+    // The PC [pcId] when its file is here (null when it is not: a named PC is never swapped for another); with no id, the controlled PC.
     private fun pcOf(pcId: UUID?): ReceivedDevice? =
-        pcId?.let { id -> received.value.firstOrNull { it.file.device.deviceId == id && it.file.device.kind == SyncDeviceCard.KIND_PC } } ?: target()
+        if (pcId == null) target() else received.value.firstOrNull { it.file.device.deviceId == pcId && it.file.device.kind == SyncDeviceCard.KIND_PC }
 
     private fun nameOf(pcId: UUID): String = received.value.firstOrNull { it.file.device.deviceId == pcId }?.file?.device?.name ?: "The PC"
 
@@ -296,7 +298,7 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
         /** The dialog's terms: the wait ends at the offer's allowed-from time on the PC's clock. */
         fun terms(): EndEarlyTerms = EndEarlyTerms(
             waitSeconds = 0, minReasonLength = offer.minReasonLength, note = offer.note,
-            receivedAtElapsed = SystemClock.elapsedRealtime(), allowedFrom = offer.allowedFrom,
+            receivedAtElapsed = SystemClock.elapsedRealtime(), allowedFrom = offer.allowedFrom, pcName = pcName,
         )
     }
 

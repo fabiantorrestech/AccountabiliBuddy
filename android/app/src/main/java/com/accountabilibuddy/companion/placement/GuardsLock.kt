@@ -12,7 +12,7 @@ import java.util.Locale
  * it has no set end. The live ways out (Emergency, "Need it for work", Essentials as a screen, the Phone down options, calls) are
  * not settings and are not touched by this.
  */
-data class GuardsLock(val until: Instant?) {
+data class GuardsLock(val until: Instant?, val test: Boolean = false) {
     /** "Settings rest until 2:20 PM." (12-hour, whatever the phone's clock setting), or until the session ends when it has no set end. */
     fun sentence(zone: ZoneId = ZoneId.systemDefault()): String = "Settings rest until ${untilText(zone) ?: "your session ends"}."
 
@@ -23,6 +23,6 @@ data class GuardsLock(val until: Instant?) {
         private val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
 
         /** The lock at [now]: set while the session the phone tracks runs ([PlacementSession.current], the check the removal lock uses). */
-        fun at(app: CompanionApp, now: Instant): GuardsLock? = PlacementSession.current(app, now)?.let { GuardsLock(it.endsAt) }
+        fun at(app: CompanionApp, now: Instant): GuardsLock? = PlacementSession.current(app, now)?.let { GuardsLock(it.endsAt, test = it.test) }
     }
 }

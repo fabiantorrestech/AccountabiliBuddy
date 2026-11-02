@@ -11,4 +11,6 @@ data class EndEarlyTerms(
     val note: String?,
     val receivedAtElapsed: Long,
     val allowedFrom: java.time.Instant? = null,
+    /** The PC the offer is from (it may not be the one picked in Devices); null when not known. */
+    val pcName: String? = null,
 )

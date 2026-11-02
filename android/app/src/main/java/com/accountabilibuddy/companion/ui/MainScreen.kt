@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accountabilibuddy.companion.sync.PcFileControl
+import com.accountabilibuddy.companion.sync.RunningTasks
 import com.accountabilibuddy.companion.ui.shell.AppDestination
 import com.accountabilibuddy.companion.ui.shell.AppScaffold
 import com.accountabilibuddy.companion.ui.shell.rememberAppNav
@@ -257,7 +258,9 @@ fun MainScreen(
                             awaySince = device?.let { PcFileControl.liveRunning(it.file, now)?.awaySince },
                             updateNeeded = device?.let { PcFileControl.updateNeeded(it.file.device) },
                             waiting = pcWaiting?.takeIf { it.target == device?.file?.device?.deviceId },
-                            tasks = runningTasks?.takeIf { it.source == device?.file?.device?.name },
+                            // The shown PC's own checklist (from its file), not the newest file's, so two running PCs each keep theirs.
+                            tasks = device?.let { d -> PcFileControl.stateOf(d.file, now).takeIf { it.isActive && it.tasks.isNotEmpty() } }
+                                ?.let { RunningTasks(device.file.device.name, it.tasks, it.currentTask) },
                         )
                     }
                     val todayLunch = TodayLunch(

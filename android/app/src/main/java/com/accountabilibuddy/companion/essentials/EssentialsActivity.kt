@@ -491,10 +491,10 @@ private fun timeLeft(app: CompanionApp, kind: EssentialsKind, now: Instant): Str
     val running = app.sync.received.value
         .filter { it.file.device.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC }
         .mapNotNull { it.file.running }
-        .filter { it.phaseEndsAt?.isAfter(now) ?: true }
+        .filter { it.phaseEndAt(now)?.isAfter(now) ?: true }
         .maxByOrNull { it.phaseStartedAt }
         ?: return app.testSession.running(now)?.let { (_, end) -> "Test session · ${minutes(Duration.between(now, end))} left" }
-    return running.phaseEndsAt?.let { "${if (running.isBreak) "Break" else "Focus"} · ${minutes(Duration.between(now, it))} left" } ?: "Session running"
+    return running.phaseEndAt(now)?.let { "${if (running.isBreak) "Break" else "Focus"} · ${minutes(Duration.between(now, it))} left" } ?: "Session running"
 }
 
 private fun minutes(left: Duration): String {

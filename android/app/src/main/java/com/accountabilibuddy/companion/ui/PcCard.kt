@@ -90,7 +90,7 @@ fun EndEarlyDialog(terms: EndEarlyTerms, onEnd: (String) -> Unit, onCancel: () -
 
     AlertDialog(
         onDismissRequest = onCancel,
-        title = { Text("End the PC's session early?") },
+        title = { Text("End ${terms.pcName ?: "the PC"}'s session early?") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 terms.note?.let { Text(it, style = androidx.compose.material3.MaterialTheme.typography.bodySmall) }
