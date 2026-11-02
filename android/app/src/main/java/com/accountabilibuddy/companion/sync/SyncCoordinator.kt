@@ -781,6 +781,7 @@ class SyncCoordinator(
         later = runCatching { later() }.getOrNull(),
         // ADR 56: the past keys, for opening backups; sealed with the current key like everything else.
         pastKeys = pastKeys.forFile(),
+        // Null until the phone has its own task categories to publish (it has no list yet; the user knows). The PCs list theirs.
         categories = runCatching { categories() }.getOrNull(),
     )
 

@@ -80,6 +80,7 @@ object DeviceBackups {
         later = null,
         comebacks = null,
         pastKeys = null,
+        categories = null,
     )
 
     /** Writes [bytes] to the file the user picked with the system file picker ([uri]). */
