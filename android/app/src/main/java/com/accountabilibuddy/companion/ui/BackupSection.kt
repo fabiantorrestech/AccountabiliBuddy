@@ -98,7 +98,13 @@ internal fun BackupSection() {
         AlertDialog(
             onDismissRequest = { toImport = null },
             title = { Text("Import these settings?") },
-            text = { Text("They replace this phone's settings, then the app restarts. Folders (noise, sync, backup) may need choosing again.") },
+            text = {
+                val keepsSync = PhoneBackup.keepsSyncSettings(context, text)
+                Text(
+                    "They replace this phone's settings, then the app restarts. Folders (noise, sync, backup) may need choosing again." +
+                        if (keepsSync) " This phone's sync settings stay as they are: the file would leave it with no way of syncing." else "",
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     toImport = null

@@ -90,7 +90,12 @@ class PhoneSyncSettingsStore(private val file: File) {
 
     private fun load(): PhoneSyncSettings {
         val json = runCatching { Json.parseToJsonElement(file.readText()) as JsonObject }.getOrNull() ?: return PhoneSyncSettings()
-        return PhoneSyncSettings(
+        return parse(json)
+    }
+
+    companion object {
+        /** The settings in a sync-settings.json (also one that came in a settings backup). */
+        fun parse(json: JsonObject): PhoneSyncSettings = PhoneSyncSettings(
             json.bool("qrOn", true), json.bool("fileOn", true), json.bool("folderOn", false),
             json.string("folderUri"), json.int("folderMinutes") ?: 15, json.bool("alarmOn", true), json.string("alarmApp"),
             json.bool("driveOn", false), json.bool("relayOn", false), json.string("relayUrl"), json.string("relayPin"),
