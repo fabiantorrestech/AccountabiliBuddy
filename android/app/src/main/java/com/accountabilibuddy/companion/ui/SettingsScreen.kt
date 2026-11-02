@@ -176,7 +176,7 @@ fun SettingsDetail(
                             if (state.hasImport) "${state.importedFrom}; imported ${state.importedAt}." else "Nothing imported. Linking your devices brings the PC's profiles by itself.",
                             style = MaterialTheme.typography.bodyMedium,
                         )
-                        Hint("On the PC: Settings → Backup → Export, without secrets or with a password. Open the .abbackup file here. The phone keeps it to itself.")
+                        Hint("On the PC: Settings › App & data › Backup › Export, without secrets or with a password. Open the .abbackup file here. The phone keeps it to itself.")
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(onClick = onImport, enabled = !importing) { Text(if (importing) "Importing…" else "Import backup file") }
                             if (state.hasImport) {

@@ -62,7 +62,7 @@ fun SetupScreen(
         Text("Set up AccountabiliBuddy", style = MaterialTheme.typography.headlineSmall)
         Text(
             "Allow what you want the phone to do. Each one opens Android's own screen; come back here afterwards. " +
-                "You can change any of them later in Settings → Permissions & setup.",
+                "You can change any of them later in Settings › Setup.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

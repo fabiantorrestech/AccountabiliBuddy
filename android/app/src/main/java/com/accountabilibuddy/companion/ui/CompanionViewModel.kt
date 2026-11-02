@@ -396,7 +396,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
             return false
         }
 
-        message.value = "You can link again from Devices."
+        message.value = "You can link again from Settings › Devices & sync."
         return true
     }
 
@@ -477,7 +477,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     /** Google's sign-in screen answered. */
     fun finishDriveSignIn(data: android.content.Intent?) {
         if (driveSignIn.tokenFrom(data) != null) turnDriveOn()
-        else message.value = "Google Drive wasn't allowed. Devices → Google Drive → \"How to set up Google Drive\" lists what the Google Cloud project needs."
+        else message.value = "Google Drive wasn't allowed. Settings › Devices & sync › Google Drive › \"How to set up Google Drive\" lists what the Google Cloud project needs."
     }
 
     private fun turnDriveOn() {
@@ -635,7 +635,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         planDraft.value = null
         message.value = when {
             pcRemote.target() != null -> "Saved; it goes to ${pcRemote.target()?.file?.device?.name} through the sync files."
-            else -> "Saved; it goes to the PC once a PC file is here (Devices → Google Drive)."
+            else -> "Saved; it goes to the PC once a PC file is here (Settings › Devices & sync › Google Drive)."
         }
         return true
     }

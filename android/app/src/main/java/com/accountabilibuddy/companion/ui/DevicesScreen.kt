@@ -519,7 +519,7 @@ private fun FolderSection(devices: DevicesState, actions: DevicesActions, now: I
 private fun JoinWithCode(onJoin: (String) -> Boolean) {
     var code by remember { mutableStateOf("") }
     var wrong by remember { mutableStateOf(false) }
-    Hint("On the PC: Devices → Link a new device, then scan its code with this phone's camera, or type the code here.", label = "Where's the code?")
+    Hint("On the PC: Settings › Devices & sync › Link a new device, then scan its code with this phone's camera, or type the code here.", label = "Where's the code?")
     OutlinedTextField(
         value = code,
         onValueChange = {

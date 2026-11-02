@@ -39,7 +39,7 @@ object PhoneGuards {
 
     private fun curbox(status: CurboxStatus): PhoneGuard = when {
         !status.installed -> PhoneGuard("Curbox", "Not installed")
-        !status.granted -> PhoneGuard("Curbox", "Installed · not connected (Settings → Curbox)")
+        !status.granted -> PhoneGuard("Curbox", "Installed · not connected (Settings › Connections)")
         else -> PhoneGuard(
             "Curbox",
             if (status.focusActive) "Focus on" + (status.focusGroup?.let { " · $it" } ?: "") + (status.focusRemainingMinutes?.let { " · ${it}m left" } ?: "")
@@ -56,7 +56,7 @@ object PhoneGuards {
         val profile = app.essentials.hardcoreProfile
         return when {
             !installed -> PhoneGuard("LockMyPhone-Extended", "Not installed")
-            profile.isNullOrBlank() -> PhoneGuard("LockMyPhone-Extended", "Installed · no hardcore profile set (Settings → Essentials)")
+            profile.isNullOrBlank() -> PhoneGuard("LockMyPhone-Extended", "Installed · no hardcore profile set (Settings › Guards)")
             else -> PhoneGuard("LockMyPhone-Extended", "Hardcore profile \"$profile\" starts with each PC session",
                 listOf("Its own blocks and allowed apps are set in LockMyPhone-Extended."))
         }
@@ -80,7 +80,7 @@ object PhoneGuards {
         val lock = store.hardcoreProfile?.takeIf { app.essentials.useLockMyPhone }
         val details = listOfNotNull(
             "${store.essentials.value.apps.size} apps",
-            if (store.onUnlockInSession) "Opens on unlock from bedtime until wake" else "Doesn't open by itself (Settings → Sleep)",
+            if (store.onUnlockInSession) "Opens on unlock from bedtime until wake" else "Doesn't open by itself (Settings › Sleep)",
             lock?.let { "LockMyPhone-Extended \"$it\" locks the phone for the night" },
         )
         val state = when {

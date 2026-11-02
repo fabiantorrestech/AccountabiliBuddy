@@ -20,7 +20,7 @@ internal fun BedtimeSetupPage() {
         Text(
             "From bedtime until your wake time the phone can have its own essentials: a short list for the night (the alarm, " +
                 "calls) on a black screen when you unlock it, and LockMyPhone-Extended can lock everything else. " +
-                "Bedtime and wake come from Sleep times and your day plan. All of it is in Settings → Sleep later.",
+                "Bedtime and wake come from Sleep times and your day plan. All of it is in Settings › Sleep later.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

@@ -105,7 +105,7 @@ private fun Choices(lockedReason: String?, onChoose: (UnlinkedMode) -> Unit, onC
     ) { onChoose(UnlinkedMode.AddAgain) }
     Choice(
         "Continue unsynced here",
-        "Keep everything on this phone, including what it received, and stop syncing. You can link again from Devices.",
+        "Keep everything on this phone, including what it received, and stop syncing. You can link again from Settings › Devices & sync.",
         enabled = lockedReason == null,
         onClick = onContinueUnsynced,
     )
@@ -133,7 +133,7 @@ private fun AddAgain(lockedReason: String?, onJoin: (String) -> Boolean, onBack:
     var code by rememberSaveable { mutableStateOf("") }
     var wrong by remember { mutableStateOf(false) }
     Text(
-        "On a device that is still linked, open Devices › Link a device. Scan its QR with this phone's camera (it opens this app), " +
+        "On a device that is still linked, open Settings › Devices & sync › Link a device. Scan its QR with this phone's camera (it opens this app), " +
             "or type its link code here.",
     )
     OutlinedTextField(

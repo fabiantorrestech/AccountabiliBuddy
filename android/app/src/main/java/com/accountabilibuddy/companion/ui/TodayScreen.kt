@@ -60,7 +60,7 @@ fun TodayScreen(
                         IconTitle("Bring your PC's profiles", style = MaterialTheme.typography.titleMedium)
                         Text("Sign in to Google Drive in Settings › Devices & sync, or import a backup.", style = MaterialTheme.typography.bodyMedium)
                         Button(onClick = onImport) { Text("Import backup file") }
-                        Hint("On the PC: Settings → Backup → Export (without secrets, or with a password). Put the .abbackup file on the phone, then import it here.", label = "How to export")
+                        Hint("On the PC: Settings › App & data › Backup › Export (without secrets, or with a password). Put the .abbackup file on the phone, then import it here.", label = "How to export")
                     }
                 }
             }

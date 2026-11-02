@@ -208,6 +208,6 @@ class DriveSyncSource(
     }
 
     companion object {
-        const val SIGN_IN_AGAIN = "Sign in to Google Drive again (Devices)."
+        const val SIGN_IN_AGAIN = "Sign in to Google Drive again (Settings › Devices & sync)."
     }
 }

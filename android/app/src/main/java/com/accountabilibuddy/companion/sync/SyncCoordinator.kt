@@ -594,7 +594,7 @@ class SyncCoordinator(
     fun acceptSealed(bytes: ByteArray, method: String): String? {
         val settings = settingsStore.settings.value
         when {
-            method == SyncDeviceCard.METHOD_FILE && !settings.fileOn -> return "Turn on \"Sync files\" in Devices to open sync files."
+            method == SyncDeviceCard.METHOD_FILE && !settings.fileOn -> return "Turn on \"Sync files\" in Settings › Devices & sync to open sync files."
             method == SyncDeviceCard.METHOD_FOLDER && !settings.folderOn -> return "The sync folder is off on this phone."
             method == SyncDeviceCard.METHOD_RELAY && !settings.relayOn -> return "The relay is off on this phone."
         }
@@ -647,10 +647,10 @@ class SyncCoordinator(
     /** One scanned QR link from the PC: e.g. "2 of 3 scanned", "Synced Work PC", or why not. */
     fun onQrLink(link: String): String {
         if (!settingsStore.settings.value.qrOn) {
-            return "Turn on \"QR codes\" in Devices to scan the PC's codes."
+            return "Turn on \"QR codes\" in Settings › Devices & sync to scan the PC's codes."
         }
 
-        val key = identity.key.value ?: return "Join your devices first: scan the PC's link code (Devices on the PC)."
+        val key = identity.key.value ?: return "Join your devices first: scan the PC's link code (Settings › Devices & sync on the PC)."
         val step = synchronized(scan) { scan.add(link, key.groupId) }
         if (step !is QrScanStep.Complete) {
             return step.text ?: ""
