@@ -3,6 +3,7 @@ package com.accountabilibuddy.companion.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -65,7 +66,7 @@ fun DayTypesEditor(
             }
         }
 
-        AbTonalButton("Add a day type", onClick = {
+        AbTonalButton("Add a day type", modifier = Modifier.fillMaxWidth(), onClick = {
             val (added, id) = DayPlanEditing.addTemplate(plan)
             onChange(added)
             openText = id.toString()

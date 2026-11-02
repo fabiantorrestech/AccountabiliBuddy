@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -83,14 +84,18 @@ private fun barColor(row: PlanTimelineRow): Color {
 private fun SubRow(line: PlanSubRow) {
     val colors = Ab.colors
     Surface(Modifier.fillMaxWidth(), shape = Ab.shapes.mediumShape, color = colors.surface2, contentColor = colors.ink) {
-        Row(
-            Modifier.heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        // The note at the end ("1h 10m done", "Calendar") sits at the right edge when there is room and drops to its own
+        // line under the title when there isn't (a narrow phone or a large font), so the title never wraps letter by letter.
+        FlowRow(
+            Modifier.heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(line.time, style = Ab.type.small, color = colors.muted, maxLines = 1)
-            Text(line.title, style = Ab.type.bodyMedium, color = if (line.isEvent) colors.ink else colors.muted, modifier = Modifier.weight(1f))
-            if (line.right != null) Text(line.right, style = Ab.type.small, color = colors.muted)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(line.time, style = Ab.type.small, color = colors.muted, maxLines = 1, modifier = Modifier.padding(top = 2.dp))
+                Text(line.title, style = Ab.type.bodyMedium, color = if (line.isEvent) colors.ink else colors.muted)
+            }
+            if (line.right != null) Text(line.right, style = Ab.type.small, color = colors.muted, modifier = Modifier.padding(top = 2.dp))
         }
     }
 }
