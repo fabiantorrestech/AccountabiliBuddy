@@ -455,7 +455,7 @@ public sealed class SyncActionsService
         };
         if (result.Ok)
         {
-            return Ok(action, result.Message);
+            return result.Parked ? new SyncActionResult(action.Id, true, SyncActionStatus.Parked, result.Message) : Ok(action, result.Message);
         }
 
         return result.Invalid ? Invalid(action, result.Message ?? "The PC couldn't read this request.") : Refused(action, result.Message ?? "Refused.");

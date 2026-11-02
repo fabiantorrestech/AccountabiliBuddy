@@ -37,10 +37,19 @@ public sealed class LaterStore
         _time = time;
     }
 
-    /// <summary>The items kept (never a tombstone), in list order.</summary>
-    public IReadOnlyList<SyncLaterItem> Items => _all.Where(item => item.DeletedAt is null).OrderBy(item => item.Position).ToList();
+    // A ticked item stays on the shared list (it keeps its text) for as long as the PC keeps its records of done tasks.
+    private static readonly TimeSpan DoneKept = TimeSpan.FromDays(90);
+
+    /// <summary>The open items (never a tombstone, never a ticked one), in list order.</summary>
+    public IReadOnlyList<SyncLaterItem> Items => _all.Where(item => item.DeletedAt is null && item.DoneAt is null).OrderBy(item => item.Position).ToList();
+
+    /// <summary>The ticked-off items still kept (90 days), newest first.</summary>
+    public IReadOnlyList<SyncLaterItem> DoneItems => _all.Where(item => item.DeletedAt is null && item.DoneAt is not null).OrderByDescending(item => item.DoneAt).ToList();
 
     public event EventHandler? Changed;
+
+    /// <summary>Raised after a merge that ticked items off, or opened ticked ones again, on another device (ADR 50).</summary>
+    public event EventHandler<LaterDoneChange>? DoneChanged;
 
     public void LoadBlocking()
     {
@@ -127,10 +136,10 @@ public sealed class LaterStore
         return changed ? SaveAsync() : Task.CompletedTask;
     }
 
-    /// <summary>How many live items are in the category <paramref name="name"/>.</summary>
+    /// <summary>How many open items are in the category <paramref name="name"/>.</summary>
     public int CountInCategory(string name)
     {
-        return _all.Count(item => item.DeletedAt is null && string.Equals(item.Category, name, StringComparison.OrdinalIgnoreCase));
+        return _all.Count(item => item.DeletedAt is null && item.DoneAt is null && string.Equals(item.Category, name, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -147,6 +156,40 @@ public sealed class LaterStore
 
         _all[index] = _all[index].Deleted(SharedListMerge.NextStamp(_time.GetUtcNow(), _all[index]));
         return SaveAsync();
+    }
+
+    /// <summary>
+    /// Ticks an open item off: it keeps its text and gets <paramref name="doneAt"/> as a normal stamped edit, so every device shows
+    /// it as done. Returns the ticked item; null when there is no open item with that id.
+    /// </summary>
+    public async Task<SyncLaterItem?> CompleteAsync(Guid id, DateTimeOffset doneAt)
+    {
+        int index = _all.FindIndex(item => item.Id == id && item.DeletedAt is null && item.DoneAt is null);
+        if (index < 0)
+        {
+            return null;
+        }
+
+        SyncLaterItem held = _all[index];
+        SyncLaterItem done = held with { DoneAt = doneAt, EditedAt = SharedListMerge.NextStamp(_time.GetUtcNow(), held) };
+        _all[index] = done;
+        await SaveAsync();
+        return done;
+    }
+
+    /// <summary>Opens a ticked item again (Undo, or un-ticking it in Done): <c>DoneAt</c> goes with a newer stamp. False when there is no such ticked item.</summary>
+    public async Task<bool> ReopenAsync(Guid id)
+    {
+        int index = _all.FindIndex(item => item.Id == id && item.DeletedAt is null && item.DoneAt is not null);
+        if (index < 0)
+        {
+            return false;
+        }
+
+        SyncLaterItem held = _all[index];
+        _all[index] = held with { DoneAt = null, EditedAt = SharedListMerge.NextStamp(_time.GetUtcNow(), held) };
+        await SaveAsync();
+        return true;
     }
 
     /// <summary>
@@ -200,15 +243,29 @@ public sealed class LaterStore
             return false;
         }
 
+        // Which items this merge ticked off or opened again, found by comparing before and after (never from the state alone).
+        HashSet<Guid> doneBefore = before.Where(item => item.DeletedAt is null && item.DoneAt is not null).Select(item => item.Id).ToHashSet();
+        List<SyncLaterItem> newlyDone = merged.Where(item => item.DeletedAt is null && item.DoneAt is not null && !doneBefore.Contains(item.Id)).ToList();
+        List<Guid> reopened = merged.Where(item => item.DeletedAt is null && item.DoneAt is null && doneBefore.Contains(item.Id)).Select(item => item.Id).ToList();
         _all = merged;
         await SaveAsync();
+        if (newlyDone.Count > 0 || reopened.Count > 0)
+        {
+            DoneChanged?.Invoke(this, new LaterDoneChange(newlyDone, reopened));
+        }
+
         return true;
     }
 
     private Task SaveAsync()
     {
         DateTimeOffset tombstonesFrom = _time.GetUtcNow() - SharedListMerge.TombstonesKept;
-        _all = _all.Where(item => item.DeletedAt is not DateTimeOffset deletedAt || deletedAt > tombstonesFrom).ToList();
+        // A ticked item older than the records of done tasks goes the normal way: a tombstone with no text, then gone after 30 days.
+        DateTimeOffset now = _time.GetUtcNow();
+        _all = _all
+            .Select(item => item.DeletedAt is null && item.DoneAt is DateTimeOffset doneAt && doneAt < now - DoneKept ? item.Deleted(SharedListMerge.NextStamp(now, item)) : item)
+            .Where(item => item.DeletedAt is not DateTimeOffset deletedAt || deletedAt > tombstonesFrom)
+            .ToList();
         Changed?.Invoke(this, EventArgs.Empty);
         string sealedList = Convert.ToBase64String(_protector.Protect(JsonSerializer.Serialize(_all, JsonOptions)));
         // After the saves asked for before it, whatever became of them, so an older list never overwrites a newer
@@ -227,6 +284,7 @@ public sealed class LaterStore
                 && left.EditedAt == right.EditedAt
                 && left.DeletedAt == right.DeletedAt
                 && left.Position == right.Position
+                && left.DoneAt == right.DoneAt
                 && left.TieBreak == right.TieBreak;
         }
 

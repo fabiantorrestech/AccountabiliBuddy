@@ -16,6 +16,8 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="Note">The user's private note; null for none.</param>
 /// <param name="DueOn">The local date it is due; null for none.</param>
 /// <param name="PlannedFor">The day part it was put in the plan for; null for none. When that part starts, the task moves to the next session's list.</param>
+/// <param name="DoneAt">When it was ticked off; null while it is open. A ticked item keeps its text and shows as done on every device; an app
+/// that predates the field ignores it and passes the item on without it (a newer edit there brings it back as open). It ages out after 90 days.</param>
 public sealed record SyncLaterItem(
     Guid Id,
     string Title,
@@ -28,17 +30,27 @@ public sealed record SyncLaterItem(
     DateTimeOffset EditedAt,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt,
     double Position,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlannedSlot? PlannedFor = null) : ISharedItem
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlannedSlot? PlannedFor = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DoneAt = null) : ISharedItem
 {
+    /// <summary>Whether it is ticked off.</summary>
+    [JsonIgnore]
+    public bool IsDone => DoneAt is not null;
+
+    // The done time joins the tie-break only when there is one, so an item without it breaks ties exactly as before (an app that
+    // predates the field), and a copy that kept it wins an equal-stamp tie against the same item passed on without it.
     [JsonIgnore]
     public string TieBreak => string.Join(
         "\u0001",
-        Title,
-        string.Join("\u0002", (Subtasks ?? []).Select(step => $"{step.Id:D}\u0003{step.Title}\u0003{step.DoneAt?.UtcTicks}")),
-        Category ?? string.Empty, CategoryColor ?? string.Empty,
-        EstimateMinutes?.ToString() ?? string.Empty, Note ?? string.Empty,
-        DueOn?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
-        PlannedFor?.TieText ?? string.Empty);
+        new[]
+        {
+            Title,
+            string.Join("\u0002", (Subtasks ?? []).Select(step => $"{step.Id:D}\u0003{step.Title}\u0003{step.DoneAt?.UtcTicks}")),
+            Category ?? string.Empty, CategoryColor ?? string.Empty,
+            EstimateMinutes?.ToString() ?? string.Empty, Note ?? string.Empty,
+            DueOn?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+            PlannedFor?.TieText ?? string.Empty,
+        }.Concat(DoneAt is DateTimeOffset done ? [done.UtcTicks.ToString(System.Globalization.CultureInfo.InvariantCulture)] : []));
 
     public ISharedItem WithStamps(DateTimeOffset editedAt, DateTimeOffset? deletedAt)
     {
@@ -51,7 +63,7 @@ public sealed record SyncLaterItem(
         return this with
         {
             Title = string.Empty, Subtasks = null, Category = null, CategoryColor = null, EstimateMinutes = null, Note = null,
-            DueOn = null, PlannedFor = null, EditedAt = at, DeletedAt = at,
+            DueOn = null, PlannedFor = null, DoneAt = null, EditedAt = at, DeletedAt = at,
         };
     }
 }
