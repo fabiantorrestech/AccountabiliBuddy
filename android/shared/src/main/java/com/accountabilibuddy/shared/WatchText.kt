@@ -60,6 +60,6 @@ object WatchText {
     fun notLinked(phoneReachable: Boolean?): Pair<String, String> = when (phoneReachable) {
         null -> "AccountabiliBuddy" to "Asking your phone…"
         false -> "Can't reach your phone" to "Keep it nearby with AccountabiliBuddy installed."
-        true -> "Not linked" to "On your phone: AccountabiliBuddy → Settings → Pixel Watch → Link this watch."
+        true -> "Not linked" to "On your phone: AccountabiliBuddy → Settings → Devices & sync → Pixel Watch → Link this watch."
     }
 }
