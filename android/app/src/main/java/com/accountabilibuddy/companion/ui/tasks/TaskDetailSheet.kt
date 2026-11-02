@@ -154,7 +154,7 @@ private fun TaskDetailSheetBody(
 
             AbSectionLabel("Steps")
             if (stepsChangedElsewhere) {
-                Text("The steps changed on another device. Saving your step edits replaces them.", style = Ab.type.small, color = Ab.colors.waiting)
+                Text("The steps also changed on another device. Closing this sheet writes your version of the steps and replaces theirs.", style = Ab.type.small, color = Ab.colors.waiting)
             }
             val liveDone = detail.fields.steps.associate { it.id to it.isDone }
             draft.steps.forEachIndexed { index, step ->

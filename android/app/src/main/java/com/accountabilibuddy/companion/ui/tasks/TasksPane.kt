@@ -48,6 +48,7 @@ import com.accountabilibuddy.companion.ui.theme.Ab
  *
  * @param pc The PC with a running session, or null (This session is then the next session's list on this phone).
  * @param comebackOldPc The name of an older PC (before shared lists, ADR 48) whose own come-backs are shown; null normally.
+ * @param laterOldPc The name of a PC that shares the lists but predates the Later list and the task details (before 0.1.114); null normally.
  * @param category The chip picked; null is All.
  * @param addPlaceholder The words in the add field, which also say why it can't be used now.
  */
@@ -56,6 +57,7 @@ fun TasksPane(
     model: TasksModel,
     pc: TasksPc?,
     comebackOldPc: String?,
+    laterOldPc: String?,
     category: String?,
     onCategory: (String?) -> Unit,
     search: String,
@@ -100,6 +102,10 @@ fun TasksPane(
             }
             comebackOldPc?.let { name ->
                 item { AbInfoBanner("$name has an older version, so these lists don't reach it. Update AccountabiliBuddy on it.", icon = Icons.Outlined.Info) }
+            }
+            // A PC that shares the lists but predates the Later list (0.1.114): the next session's tasks and come-backs reach it, Later does not.
+            if (comebackOldPc == null && laterOldPc != null) {
+                item { AbInfoBanner("$laterOldPc has an older version: Later items, notes and estimates don't reach it. Update AccountabiliBuddy on it.", icon = Icons.Outlined.Info) }
             }
             if (pc != null) {
                 item { TasksCard(model.session, model.sessionTotal, pc, filtering, actions) }

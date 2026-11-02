@@ -109,9 +109,19 @@ class TasksController(private val app: CompanionApp, private val say: (message: 
             return
         }
 
+        // A PC before 0.1.114 adds the task but ignores the note and the estimate, and answers a plain ok: the item would then be taken off
+        // Later with those gone for good. So an item that has either stays in Later, and nothing is sent.
+        if (ref.kind == TaskKind.Later && !pc.keepsDetails) {
+            val item = lists.later.value.firstOrNull { it.id == ref.id && it.doneAt == null }
+            if (item != null && (item.note != null || item.estimateMinutes != null)) {
+                say("${pc.name} is on an older version that drops a note and an estimate. Update AccountabiliBuddy on it first; this stays in Later.", null)
+                return
+            }
+        }
+
         // A full checklist parks a 4th task as a bare come-back: a Later item's note, steps, estimate and due date would not go with it.
         if (ref.kind == TaskKind.Later && pc.checklist.tasks.size >= OverLimitStore.MAX_TASKS) {
-            say("${pc.name}'s session already has ${OverLimitStore.MAX_TASKS} tasks. It would park this as a bare come-back, so it stays in Later.", null)
+            say("${pc.name}'s session already has ${OverLimitStore.MAX_TASKS} tasks. It may park this as a bare come-back, so it stays in Later.", null)
             return
         }
 

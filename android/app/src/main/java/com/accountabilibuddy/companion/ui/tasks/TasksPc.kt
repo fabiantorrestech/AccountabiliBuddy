@@ -12,8 +12,9 @@ import java.util.UUID
  *
  * @property checklist The running session's tasks (empty when it has none yet).
  * @property canEdit The PC is new enough to apply task adds, edits and reorders (ADR 48).
+ * @property keepsDetails The PC also applies a task's estimate and note (ADR 50); an older one adds the task and drops them.
  */
-class TasksPc(val name: String, val pcId: UUID, val checklist: RunningTasks, val canEdit: Boolean) {
+class TasksPc(val name: String, val pcId: UUID, val checklist: RunningTasks, val canEdit: Boolean, val keepsDetails: Boolean) {
     companion object {
         /**
          * The PC Today is about (the controlled PC while it runs a session, else any other linked PC with a live one) when it
@@ -29,6 +30,7 @@ class TasksPc(val name: String, val pcId: UUID, val checklist: RunningTasks, val
                 pcId = card.deviceId,
                 checklist = RunningTasks(card.name, state.tasks, state.currentTask),
                 canEdit = editsAvailable && PcFileControl.supportsTaskEdits(card),
+                keepsDetails = PcFileControl.supportsLaterDetails(card),
             )
         }
     }

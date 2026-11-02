@@ -112,6 +112,9 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
 
     TasksPane(
         model = model, pc = pc, comebackOldPc = comebacks.legacySource,
+        // The newest PC's version says whether Later reaches it (the received copy keeps no Later list to look at).
+        laterOldPc = com.accountabilibuddy.companion.sync.PcFileControl.pcs(received).firstOrNull()?.file?.device
+            ?.takeUnless { com.accountabilibuddy.companion.sync.PcFileControl.supportsLaterDetails(it) }?.name,
         category = category, onCategory = { category = it },
         search = search, onSearch = { search = it }, searching = searching, onSearching = { searching = it },
         laterOpen = laterOpen, onLaterOpen = { laterOpen = it }, doneOpen = doneOpen, onDoneOpen = { doneOpen = it },
