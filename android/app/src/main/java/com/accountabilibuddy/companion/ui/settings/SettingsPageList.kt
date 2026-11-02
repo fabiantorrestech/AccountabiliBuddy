@@ -11,6 +11,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
+/** The key of the "Settings rest until ..." banner row a Guards list puts first while a focus session runs. */
+const val REST_BANNER = "rest"
+
 /**
  * A Settings page as a scrolling list of [rows] (no Scaffold, no fixed width). With an [anchor] (a row's key) the list opens
  * scrolled to that row, which is how a search result lands on its row.
@@ -31,7 +34,9 @@ fun SettingsPageList(rows: List<PageRow>, anchor: String?, modifier: Modifier = 
 @Composable
 fun ScrollToAnchor(state: LazyListState, anchor: String?, keys: List<String>) {
     LaunchedEffect(anchor) {
-        val index = keys.indexOf(anchor).takeIf { anchor != null }
+        var index = keys.indexOf(anchor).takeIf { anchor != null }
+        // The "resting" banner right above a row stays in view with it.
+        if (index != null && index > 0 && keys[index - 1] == REST_BANNER) index -= 1
         if (index != null && index >= 0) state.scrollToItem(index)
     }
 }
