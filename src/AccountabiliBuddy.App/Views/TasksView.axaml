@@ -235,6 +235,13 @@
         <Style Selector="Border.detailCard">
             <Setter Property="Width" Value="360" />
         </Style>
+        <Style Selector="Button.closeDetail">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <!-- Beside the heading in the card's second column; the list-width query below moves it under the heading. -->
+        <Style Selector="WrapPanel.chipsHost">
+            <Setter Property="Grid.Column" Value="1" />
+        </Style>
 
         <!-- Row columns: the category slot is 92 wide and the "Now" slot 40, as before the slots were Panels. -->
         <Style Selector="Grid.rowGrid">
@@ -247,17 +254,20 @@
             <Setter Property="Width" Value="40" />
         </Style>
 
-        <!-- At 900 wide the page keeps the detail card at 320 and the list gives way; the chips drop under the title. -->
+        <!-- At 900 wide the page keeps the detail card at 320 and the list gives way. Under 980 the detail card shows only for a task the user opened (a close button, Esc), and the list takes the whole page otherwise. -->
         <ContainerQuery Name="TasksPage" Query="max-width:980">
-            <Style Selector="StackPanel.chipsHost">
-                <Setter Property="Grid.Row" Value="1" />
-                <Setter Property="Grid.Column" Value="0" />
-                <Setter Property="Grid.ColumnSpan" Value="2" />
-                <Setter Property="Margin" Value="0,12,0,0" />
-                <Setter Property="HorizontalAlignment" Value="Left" />
-            </Style>
             <Style Selector="Border.detailCard">
                 <Setter Property="Width" Value="320" />
+            </Style>
+            <Style Selector="Border.detailCard.closed">
+                <Setter Property="IsVisible" Value="False" />
+            </Style>
+            <Style Selector="Button.closeDetail">
+                <Setter Property="IsVisible" Value="True" />
+            </Style>
+            <!-- With the card closed no row is the selected one. -->
+            <Style Selector="Border.listCard.detailClosed Button.listRow.selected /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="Transparent" />
             </Style>
             <Style Selector="StackPanel.detailBody">
                 <Setter Property="Margin" Value="0,0,14,0" />
@@ -265,6 +275,23 @@
         </ContainerQuery>
         <!-- Rows: when the list card itself is narrow (the detail card beside it at the smallest window) the status and category slots go,
              "Now" keeps only its own width and the gaps shrink, so the title keeps its room. A wide card keeps them. -->
+        <!-- The category chips take their own row under the heading when the card is too narrow to hold them beside it. -->
+        <ContainerQuery Name="TaskList" Query="max-width:760">
+            <Style Selector="DockPanel.hasChips WrapPanel.chipsHost">
+                <Setter Property="Grid.Row" Value="1" />
+                <Setter Property="Grid.Column" Value="0" />
+                <Setter Property="Margin" Value="0,12,0,0" />
+                <Setter Property="HorizontalAlignment" Value="Left" />
+            </Style>
+        </ContainerQuery>
+        <ContainerQuery Name="TaskList" Query="max-width:660">
+            <Style Selector="WrapPanel.chipsHost">
+                <Setter Property="Grid.Row" Value="1" />
+                <Setter Property="Grid.Column" Value="0" />
+                <Setter Property="Margin" Value="0,12,0,0" />
+                <Setter Property="HorizontalAlignment" Value="Left" />
+            </Style>
+        </ContainerQuery>
         <ContainerQuery Name="TaskList" Query="max-width:560">
             <Style Selector="Grid.rowGrid">
                 <Setter Property="ColumnSpacing" Value="4" />
@@ -354,14 +381,14 @@
 
     <Grid x:Name="Page" ColumnDefinitions="*,Auto" Container.Name="TasksPage" Container.Sizing="Width">
         <!-- The list card. -->
-        <Border Classes="card" Padding="0" ClipToBounds="True" MinWidth="320" Container.Name="TaskList" Container.Sizing="Width">
-            <DockPanel>
+        <Border Classes="card listCard" Classes.detailClosed="{Binding !IsDetailOpen}" Padding="0" ClipToBounds="True" MinWidth="320" Container.Name="TaskList" Container.Sizing="Width">
+            <DockPanel Classes.hasChips="{Binding HasCategoryChips}">
                 <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="36,30,28,0">
                     <StackPanel Spacing="2">
                         <TextBlock Classes="display" Text="Tasks" FontSize="34" />
-                        <TextBlock Classes="muted" Text="{Binding CountsText}" FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock Classes="muted" Text="{Binding CountsText}" FontSize="14" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
-                    <StackPanel Classes="chipsHost" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Bottom">
+                    <WrapPanel Classes="chipsHost" ItemSpacing="8" LineSpacing="8" VerticalAlignment="Bottom">
                         <Button Classes="quiet" Padding="8" ToolTip.Tip="Filter and sort: status, category, due date" AutomationProperties.Name="Filter and sort">
                             <Panel>
                                 <mi:MaterialIcon Kind="FilterVariant" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
@@ -432,7 +459,7 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                    </StackPanel>
+                    </WrapPanel>
                 </Grid>
 
                 <!-- Search: opens under the title; searches titles, steps, notes, come-backs and the Archive. -->
@@ -569,7 +596,7 @@
         </Border>
 
         <!-- The detail card for the selected task, Later item or come-back. -->
-        <Border Grid.Column="1" Classes="card detailCard" Margin="14,0,0,0" Padding="28,26">
+        <Border x:Name="DetailCard" Grid.Column="1" Classes="card detailCard" Classes.closed="{Binding !IsDetailOpen}" Margin="14,0,0,0" Padding="28,26">
             <Panel>
                 <TextBlock Classes="muted" Text="Pick a task to see its steps, estimate and notes." TextWrapping="Wrap" FontSize="14"
                            IsVisible="{Binding !HasDetail}" />
@@ -756,6 +783,11 @@
                         </DataTemplate>
                     </ContentControl.DataTemplates>
                 </ContentControl>
+                <!-- Under 980 wide the card opens over the list's room only for the task the user picked: this (or Esc) closes it. -->
+                <Button Classes="quiet closeDetail" Padding="6" MinHeight="0" MinWidth="0" Margin="0,-12,-12,0" HorizontalAlignment="Right" VerticalAlignment="Top"
+                        Command="{Binding CloseDetailCommand}" AutomationProperties.Name="Close details" ToolTip.Tip="Close (Esc)">
+                    <mi:MaterialIcon Kind="Close" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
+                </Button>
             </Panel>
         </Border>
     </Grid>

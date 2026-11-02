@@ -112,7 +112,11 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     /// <summary>The category filter: All, then each category.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCategoryChips))]
     public partial IReadOnlyList<TaskChipViewModel> CategoryChips { get; set; } = [];
+
+    /// <summary>There is a chip besides "All": the chips need room, so the header gives them their own row sooner.</summary>
+    public bool HasCategoryChips => CategoryChips.Count > 1;
 
     /// <summary>E.g. "3 for this session · 2 to come back to · 11 later".</summary>
     [ObservableProperty]
@@ -157,6 +161,22 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     public bool HasPending => Pending is not null;
 
     public bool HasDetail => Detail is not null;
+
+    /// <summary>
+    /// The user opened the detail card (a row click, Rename, Add subtask). Only a page under 980 wide hides the card while this
+    /// is false; a wide page always shows it.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsDetailOpen { get; set; }
+
+    /// <summary>The detail card's close button and Esc (narrow pages): saves what is being edited, then hides the card and deselects.</summary>
+    [RelayCommand]
+    private void CloseDetail()
+    {
+        Detail?.Flush();
+        IsDetailOpen = false;
+        _selectedKey = null;
+    }
 
     public bool HasSessionRows => _sessionRowCount > 0;
 
@@ -354,6 +374,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             return;
         }
 
+        IsDetailOpen = true;
         Select(row.Key);
     }
 
@@ -734,6 +755,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     private void BeginDetailEdit(TaskRowKey key, string target)
     {
+        IsDetailOpen = true;
         Select(key);
         FocusRequested?.Invoke(this, target);
     }
