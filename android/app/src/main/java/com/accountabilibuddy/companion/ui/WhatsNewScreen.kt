@@ -20,6 +20,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.setup.SetupFeatures
+import com.accountabilibuddy.companion.ui.kit.AbCard
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
+import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
  * The migration assistant on the phone: the setup pages of features added since the last version that aren't set
@@ -67,16 +70,17 @@ fun WhatsNewCard(appVersion: String, onSetUp: () -> Unit, onDismissed: () -> Uni
     val context = LocalContext.current
     val news = remember { SetupFeatures.newSinceUpgrade(context) }
     if (!SetupFeatures.showsCard(context, appVersion) || news.isEmpty()) return
-    androidx.compose.material3.Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(if (news.size == 1) "New since your last version: ${news[0].title}" else "New since your last version: ${news.size} things to set up")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onSetUp) { Text("Set up") }
-                TextButton(onClick = {
-                    SetupFeatures.dismissCard(context, appVersion)
-                    onDismissed()
-                }) { Text("Not now") }
-            }
+    AbCard(Modifier.padding(top = 12.dp)) {
+        Text(
+            if (news.size == 1) "New since your last version: ${news[0].title}" else "New since your last version: ${news.size} things to set up",
+            style = Ab.type.bodyMedium, color = Ab.colors.ink,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AbTonalButton("Set up", onClick = onSetUp)
+            TextButton(onClick = {
+                SetupFeatures.dismissCard(context, appVersion)
+                onDismissed()
+            }) { Text("Not now", color = Ab.colors.muted) }
         }
     }
 }

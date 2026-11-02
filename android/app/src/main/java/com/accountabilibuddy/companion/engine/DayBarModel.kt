@@ -33,4 +33,6 @@ data class DayBarModel(
     val gaps: List<DayBarSpan> = emptyList(),
     /** Under the bar: focused, "Distracted 12m", "Not in a session 1h 20m"; empty without focus data. */
     val focusLegend: List<LegendEntry> = emptyList(),
+    /** The idle Today's lines and today's focus against the goal; null where the bar is built for other surfaces. */
+    val today: TodayInfo? = null,
 )

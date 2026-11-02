@@ -46,6 +46,10 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.HOME" />
         </intent>
+        <!-- The phone's own voice input for "Park a thought" (only asked whether one exists; the app has no microphone permission). -->
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
         <!-- Other blockers, shown as installed or not (Settings → Permissions & setup); nothing of theirs is read. -->
         <package android:name="cz.mobilesoft.appblock" />
         <package android:name="com.stayfocused" />

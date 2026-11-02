@@ -3,20 +3,9 @@ package com.accountabilibuddy.companion.ui
 import android.os.SystemClock
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,18 +15,18 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.accountabilibuddy.companion.engine.ClockFormat
-import com.accountabilibuddy.companion.engine.DayBarBuilder
 import com.accountabilibuddy.companion.sync.EndEarlyTerms
 import com.accountabilibuddy.companion.sync.PcState
-import com.accountabilibuddy.shared.sync.SyncAction
+import com.accountabilibuddy.companion.ui.kit.AbCard
+import com.accountabilibuddy.companion.ui.kit.AbChip
+import com.accountabilibuddy.companion.ui.kit.AbChipRow
+import com.accountabilibuddy.companion.ui.kit.AbDialog
+import com.accountabilibuddy.companion.ui.kit.AbSectionLabel
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
+import com.accountabilibuddy.companion.ui.theme.Ab
 import kotlinx.coroutines.delay
-import java.time.Duration
-import java.time.OffsetDateTime
-import java.time.ZoneId
 
 private val LENGTHS = listOf(25, 50, 90)
 
@@ -49,174 +38,34 @@ private const val SKEW_SECONDS = 3L
  * Google Drive (or the sync folder, a share or QR codes), so there is no "Not linked" state.
  */
 @Composable
-fun PcMissingCard() {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            IconTitle("PC", style = MaterialTheme.typography.titleMedium)
-            Text("Sign in to Google Drive (Settings › Devices & sync) to see and control your PC.", style = MaterialTheme.typography.bodyMedium)
-        }
+fun PcMissingCard(onOpenDevices: () -> Unit) {
+    AbCard {
+        AbSectionLabel("PC")
+        Text(
+            "No PC has synced with this phone yet. Link one in Settings › Devices & sync to see and control it from here.",
+            style = Ab.type.bodyMedium, color = Ab.colors.ink,
+        )
+        AbTonalButton("Devices & sync", onClick = onOpenDevices, modifier = Modifier.fillMaxWidth())
     }
 }
 
-/** The planning stage's own colour, the same as on the PC (a periwinkle blue). */
-private val PLANNING_COLOR = androidx.compose.ui.graphics.Color(0xFF7C9EF2)
-
-/**
- * The PC's session: the line [describe] gives, or, while the PC is planning (before its focus countdown; not focus time), "Planning · 3 min
- * left" with its own bar in the planning colour. Planning keeps counting past its time until the PC's "Ready?" card is answered there.
- */
+/** Start on the controlled PC (ADR 42): the profile and the length, or the PC's own Quick Start. */
 @Composable
-private fun SessionLine(state: PcState, clock: ClockFormat) {
-    val planningEnd = state.planningEndsAt
-    if (!state.isPlanning || planningEnd == null) {
-        Text(describe(state, clock), style = MaterialTheme.typography.bodyLarge)
-        return
-    }
-
-    var now by remember { mutableStateOf(OffsetDateTime.now()) }
-    LaunchedEffect(planningEnd) {
-        while (true) {
-            delay(1000)
-            now = OffsetDateTime.now()
-        }
-    }
-
-    val start = state.planningStartedAt ?: now
-    val left = Duration.between(now, planningEnd)
-    val span = Duration.between(start, planningEnd).seconds.coerceAtLeast(1)
-    val remaining = if (left.isNegative) 0f else (left.seconds.toFloat() / span).coerceIn(0f, 1f)
-    val minutes = Math.ceil(left.seconds / 60.0).toInt()
-    val what = if (left.isNegative || left.isZero) "time is up · waiting for Ready? on the PC" else "$minutes min left"
-    Text("Planning · ${state.profileName ?: "a profile"} · $what", style = MaterialTheme.typography.bodyLarge, color = PLANNING_COLOR)
-    LinearProgressIndicator(progress = { remaining }, color = PLANNING_COLOR, modifier = Modifier.fillMaxWidth())
-    Text(
-        "Write everything you need to do on paper first. Then pick at most 3 for this session — even 1 is great.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
-
-/** E.g. "Focus · Coding until 12:00 PM (24 min left)", "Blocks on · Work until 5:00 PM", "Focus · Quick Start · 1h 12m so far". */
-private fun describe(state: PcState, clock: ClockFormat): String {
-    if (!state.isActive) {
-        return "Nothing running on the PC."
-    }
-
-    val profile = state.profileName ?: "a profile"
-    val end = state.phaseEndsAt
-    val kind = when {
-        state.isBreak -> "Break"
-        state.isScheduledBlock -> "Blocks on · $profile"
-        else -> "Focus · $profile"
-    }
-    if (end == null) {
-        val since = state.phaseStartedAt ?: return kind
-        return "$kind · ${DayBarBuilder.duration(Duration.between(since, OffsetDateTime.now()))} so far"
-    }
-
-    val local = end.atZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime()
-    val left = Duration.between(OffsetDateTime.now(), end)
-    return "$kind until ${clock.time(local)} (${DayBarBuilder.duration(if (left.isNegative) Duration.ZERO else left)} left)"
-}
-
-@Composable
-private fun StartOnPcDialog(state: PcState, onStart: (String?, Int?, Boolean) -> Unit, onCancel: () -> Unit) {
+internal fun StartOnPcDialog(state: PcState, pcName: String, onStart: (String?, Int?, Boolean) -> Unit, onCancel: () -> Unit) {
     var profileId by remember { mutableStateOf(state.profiles.firstOrNull()?.id) }
     var minutes by remember { mutableIntStateOf(LENGTHS.first()) }
-    AlertDialog(
-        onDismissRequest = onCancel,
-        title = { Text("Start on the PC") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                state.profiles.forEach { profile ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().selectable(selected = profileId == profile.id, onClick = { profileId = profile.id }),
-                    ) {
-                        RadioButton(selected = profileId == profile.id, onClick = { profileId = profile.id })
-                        Text(profile.name)
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                    LENGTHS.forEach { length ->
-                        FilterChip(selected = minutes == length, onClick = { minutes = length }, label = { Text("$length min") })
-                    }
-                }
-                // No length: the PC runs its default profile for the length it remembers, counting down. Or explicitly with no set end.
-                TextButton(onClick = { onStart(null, null, false) }) { Text("Quick Start with the PC's default profile") }
-                TextButton(onClick = { onStart(null, null, true) }) { Text("No set end with the PC's default profile") }
-            }
-        },
-        confirmButton = { TextButton(onClick = { onStart(profileId, minutes, false) }, enabled = profileId != null) { Text("Start") } },
-        dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
-    )
-}
-
-/**
- * Today (ADR 42): the controlled PC's session as its sync file says, with Start or End early sent through the files,
- * the request still waiting for the PC's answer, and "Update AccountabiliBuddy on <PC>" for a PC too old to answer.
- */
-@Composable
-fun PcFileCard(
-    pcName: String,
-    state: PcState,
-    writtenAt: java.time.Instant,
-    updateNeeded: String?,
-    waiting: SyncAction?,
-    clock: ClockFormat,
-    onStart: (profileId: String?, minutes: Int?, countUp: Boolean) -> Unit,
-    onEndEarly: () -> Unit,
-    onCancelWaiting: () -> Unit,
-    /** Today's Budget pace (ADR 47); null when today isn't a Budget day. */
-    pace: com.accountabilibuddy.companion.engine.BudgetPace? = null,
-) {
-    var choosingStart by remember { mutableStateOf(false) }
-    val zone = ZoneId.systemDefault()
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            IconTitle("PC · $pcName", style = MaterialTheme.typography.titleMedium)
-            SessionLine(state, clock)
-            pace?.let {
-                Text(
-                    BudgetPaceLine.text(it),
-                    style = MaterialTheme.typography.bodyMedium,
-                    // Amber when behind, as on the PC.
-                    color = if (it.behind) androidx.compose.ui.graphics.Color(0xFFD97706) else MaterialTheme.colorScheme.onSurface,
-                )
-            }
-            Text(
-                "Through the sync files · as of ${clock.time(java.time.LocalDateTime.ofInstant(writtenAt, zone))}",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            when {
-                updateNeeded != null -> Text(updateNeeded, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-                waiting != null -> {
-                    val what = when (waiting.kind) {
-                        SyncAction.START -> "Starting on $pcName"
-                        SyncAction.END_EARLY_BEGIN -> "Asking $pcName to end early"
-                        else -> "Ending the session on $pcName"
-                    }
-                    Text(
-                        "$what… sent ${clock.time(java.time.LocalDateTime.ofInstant(waiting.at, zone))}; the PC answers when it next syncs.",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    TextButton(onClick = onCancelWaiting) { Text("Stop waiting") }
-                }
-                state.isActive -> OutlinedButton(onClick = onEndEarly) { Text("End early…") }
-                else -> Button(onClick = { choosingStart = true }) { Text("Start on the PC…") }
-            }
-
-            if (choosingStart) {
-                StartOnPcDialog(
-                    state = state,
-                    onStart = { profileId, minutes, countUp ->
-                        choosingStart = false
-                        onStart(profileId, minutes, countUp)
-                    },
-                    onCancel = { choosingStart = false },
-                )
+    AbDialog(title = "Start on $pcName", onDismiss = onCancel, confirmText = "Start", onConfirm = { if (profileId != null) onStart(profileId, minutes, false) }) {
+        if (state.profiles.isNotEmpty()) {
+            AbSectionLabel("Profile")
+            AbChipRow {
+                state.profiles.forEach { profile -> AbChip(profile.name, selected = profileId == profile.id, onClick = { profileId = profile.id }) }
             }
         }
+        AbSectionLabel("Length")
+        AbChipRow { LENGTHS.forEach { length -> AbChip("$length min", selected = minutes == length, onClick = { minutes = length }) } }
+        // No length: the PC runs its default profile for the length it remembers, counting down. Or explicitly with no set end.
+        TextButton(onClick = { onStart(null, null, false) }) { Text("Quick Start with the PC's default profile", color = Ab.colors.ink) }
+        TextButton(onClick = { onStart(null, null, true) }) { Text("No set end with the PC's default profile", color = Ab.colors.ink) }
     }
 }
 
@@ -243,7 +92,7 @@ fun EndEarlyDialog(terms: EndEarlyTerms, onEnd: (String) -> Unit, onCancel: () -
         title = { Text("End the PC's session early?") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                terms.note?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                terms.note?.let { Text(it, style = androidx.compose.material3.MaterialTheme.typography.bodySmall) }
                 Text(if (left > 0) "Wait ${left / 60}:${"%02d".format(left % 60)}, the PC's own wait." else "You can end it now.")
                 if (terms.minReasonLength > 0) {
                     OutlinedTextField(

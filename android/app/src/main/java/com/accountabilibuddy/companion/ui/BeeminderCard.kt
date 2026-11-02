@@ -5,7 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
+import com.accountabilibuddy.companion.ui.kit.AbCard
+import com.accountabilibuddy.companion.ui.theme.Ab
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,8 +33,8 @@ import java.util.Locale
 fun BeeminderCard(goals: BeeminderGoals, clock: ClockFormat) {
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now(zone)
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    AbCard(verticalSpacing = 6.dp) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             // When the PC wrote this summary, so an old one reads as old.
             val written = LocalDateTime.ofInstant(goals.writtenAt, zone)
             val writtenText = if (written.toLocalDate() == today) clock.time(written) else "${weekday(written)} ${clock.time(written)}"
@@ -70,7 +71,7 @@ private fun GoalRow(goal: SyncBeeminderGoal, due: LocalDateTime, today: LocalDat
                 safeText,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (dueToday) FontWeight.SemiBold else null,
-                color = if (dueToday) Color(0xFFEF4444) else Color.Unspecified,
+                color = if (dueToday) Ab.colors.drift else Color.Unspecified,
                 textAlign = TextAlign.End,
             )
             Text(dueText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
