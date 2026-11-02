@@ -15,6 +15,7 @@ import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material3.AlertDialog
 import com.accountabilibuddy.companion.ui.kit.AbCard
+import com.accountabilibuddy.companion.ui.theme.Ab
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -79,7 +80,7 @@ fun TimersCard(store: TimersStore, clock: ClockFormat) {
 
             IconTitle("Alarms", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             alarms.forEach { alarm -> AlarmRow(alarm, clock, store, onEdit = { editingAlarm = alarm }) }
-            TextButton(onClick = { addingAlarm = true }) { Text("Add alarm") }
+            TextButton(onClick = { addingAlarm = true }) { Text("Add alarm", color = Ab.colors.ink) }
         }
     }
 

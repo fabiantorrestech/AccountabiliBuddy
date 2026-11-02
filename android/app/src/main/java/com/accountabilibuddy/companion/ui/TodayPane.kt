@@ -71,7 +71,7 @@ fun TodayPane(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (session == null) {
-                idleItems(model, clock, pc, comebacks, phoneUsage, hasTimer, chip, lunch, guardsLock, guardOn, noiseCard, actions, syncLight, banner, onStart = { starting = true })
+                idleItems(state.hasImport, model, clock, pc, comebacks, phoneUsage, hasTimer, chip, lunch, guardsLock, guardOn, noiseCard, actions, syncLight, banner, onStart = { starting = true })
             } else {
                 sessionItems(model, clock, pc, session, stepAway?.text, guardsLock, guardOn, noiseCard, actions, syncLight, banner)
             }
@@ -103,6 +103,7 @@ private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, M
 
 // Nothing running (board 5a): date line, the two-line headline and the way to start, the cards, then the fold.
 private fun androidx.compose.foundation.lazy.LazyListScope.idleItems(
+    hasPlan: Boolean,
     model: DayBarModel,
     clock: ClockFormat,
     pc: TodayPc,
@@ -119,7 +120,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.idleItems(
     banner: @Composable () -> Unit,
     onStart: () -> Unit,
 ) {
-    val info = model.today
+    // A phone with no plan from the PC yet cannot say what is next (its default plan would read as a day off).
+    val info = model.today?.let { if (hasPlan) it else it.copy(dateSuffix = null, next = "No plan on this phone yet.") }
     item(key = "header") {
         Column {
             TodayHeader(listOfNotNull(LocalDate.now().format(DATE_FORMAT), info?.dateSuffix).joinToString(" · "), syncLight)

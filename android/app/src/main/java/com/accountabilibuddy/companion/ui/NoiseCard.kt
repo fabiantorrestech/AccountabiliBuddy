@@ -12,7 +12,7 @@ import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.outlined.VolumeUp
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -77,7 +77,7 @@ fun NoiseCard(state: NoiseState, settings: NoiseSettings, player: NoisePlayer) {
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(Icons.Outlined.VolumeUp, contentDescription = null, tint = colors.muted, modifier = Modifier.size(18.dp))
+            Icon(Icons.AutoMirrored.Outlined.VolumeUp, contentDescription = null, tint = colors.muted, modifier = Modifier.size(18.dp))
             Slider(
                 value = volume, onValueChange = { volume = it }, onValueChangeFinished = { player.setVolume(volume.toInt()) },
                 valueRange = 0f..100f, modifier = Modifier.weight(1f),

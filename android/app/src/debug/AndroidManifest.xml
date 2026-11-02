@@ -27,6 +27,24 @@
                 <action android:name="com.accountabilibuddy.companion.debug.APPEARANCE" />
             </intent-filter>
         </receiver>
+        <receiver
+            android:name=".debug.DebugVoiceSwitch"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.accountabilibuddy.companion.debug.VOICE" />
+            </intent-filter>
+        </receiver>
+        <!-- A stand-in voice service for the Park pill's microphone on an emulator; off until the VOICE broadcast turns it on (see DebugVoiceSwitch). -->
+        <activity
+            android:name=".debug.DebugVoiceActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
         <!-- The component kit on one page, in one theme (see KitGalleryActivity). -->
         <activity
             android:name=".debug.KitGalleryActivity"

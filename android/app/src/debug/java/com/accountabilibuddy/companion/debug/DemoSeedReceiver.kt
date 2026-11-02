@@ -37,6 +37,7 @@ class DemoSeedReceiver : BroadcastReceiver() {
         const val EXTRA_MODE = "mode"
         const val MODE_IDLE = "idle"
         const val MODE_SESSION = "session"
+        const val MODE_PLANNING = "planning"
         const val MODE_CLEAR = "clear"
     }
 }

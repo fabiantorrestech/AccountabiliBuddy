@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AlarmOn
@@ -126,7 +127,7 @@ fun ComebackCard(comebacks: OpenComebacks?, onOpenTasks: () -> Unit) {
         if (items.size > 2) {
             Text(
                 "${items.size - 2} more in Tasks", style = Ab.type.small, color = Ab.colors.muted,
-                modifier = Modifier.clickable(role = Role.Button, onClick = onOpenTasks).heightIn(min = 44.dp).padding(top = 8.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable(role = Role.Button, onClick = onOpenTasks).wrapContentHeight(Alignment.CenterVertically),
             )
         }
     }

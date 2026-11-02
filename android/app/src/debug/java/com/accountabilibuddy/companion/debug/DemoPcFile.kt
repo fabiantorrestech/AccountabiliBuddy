@@ -55,9 +55,18 @@ object DemoPcFile {
         DayPlan.Default.categories, DayOfWeek.entries.toSet(), DayPlan.Default.workday, DayPlan.Default.workday,
     )
 
-    fun build(now: Instant, withSession: Boolean, methods: List<String>): SyncFile {
+    fun build(now: Instant, withSession: Boolean, methods: List<String>, planning: Boolean = false): SyncFile {
         val sessions = history(now).toMutableList()
-        val running = if (withSession) {
+        val running = if (withSession && planning) {
+            // The PC's planning stage: 2 minutes in, 4 left, then a 50-minute focus phase; no tasks picked yet.
+            val planStart = now.minus(Duration.ofMinutes(2))
+            val planEnd = now.plus(Duration.ofMinutes(4))
+            sessions += SyncSession(planStart, null, "Deep work", false, emptyList())
+            SyncRunning(
+                "Deep work", planEnd, planEnd.plus(Duration.ofMinutes(50)), false, null, profileId = DEEP_WORK_ID.toString(),
+                planningStartedAt = planStart, planningEndsAt = planEnd,
+            )
+        } else if (withSession) {
             val start = now.minus(Duration.ofMinutes(25))
             sessions += SyncSession(start, null, "Deep work", false, runningTasks(now))
             SyncRunning("Deep work", start, start.plus(Duration.ofMinutes(50)), false, null, currentTask = "demo-task-2", profileId = DEEP_WORK_ID.toString())
