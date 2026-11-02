@@ -41,7 +41,7 @@ import java.util.UUID
 /**
  * Debug only: Settings > Devices & sync over made-up devices (a PC just now, a tablet three hours behind, a linked watch), and the
  * remove and restore sheets in every state, for screenshots on the emulator. Opened through [KitGalleryActivity]:
- * `--es show devices [--es anchor relay] [--es relay on|off] [--ez nowatch true]`, `--es show remove --es step what|data|backup|older|confirm|working|problem|done`
+ * `--es show devices [--es anchor relay] [--es relay on|off] [--ez nowatch true] [--ez locked true]`, `--es show remove --es step what|data|backup|older|confirm|working|problem|done`
  * (`--ez locked true` adds the session lock), `--es show restore [--es mode list|empty|problem]`.
  */
 @Composable
@@ -88,7 +88,7 @@ private fun DevicesPage(intent: Intent) {
     val now = remember { Instant.now() }
     val pc = remember { DemoPcFile.build(now.minus(Duration.ofMinutes(1)), withSession = false, methods = listOf("drive")) }
     val tablet = remember {
-        pc.copy(device = SyncDeviceCard(UUID.randomUUID(), "Galaxy Tab", SyncDeviceCard.KIND_PHONE, "3.3.9", now.minus(Duration.ofHours(3)), listOf("drive"), false, emptyMap()))
+        pc.copy(device = SyncDeviceCard(UUID.randomUUID(), "Galaxy Tab", SyncDeviceCard.KIND_PHONE, "3.3.9", now.minus(Duration.ofHours(30)), listOf("drive"), false, emptyMap()))
     }
     val watchCard = remember {
         pc.copy(device = SyncDeviceCard(UUID.randomUUID(), "Pixel Watch 3", SyncDeviceCard.KIND_WATCH, "3.4.1", now.minus(Duration.ofMinutes(1)), listOf("drive"), false, emptyMap()))
@@ -102,6 +102,7 @@ private fun DevicesPage(intent: Intent) {
         received = listOf(received(pc), received(tablet), received(watchCard)),
         drive = com.accountabilibuddy.companion.sync.FolderStatus(lastSyncAt = now.minus(Duration.ofMinutes(1))),
         appVersion = "3.4.2",
+        removalLocked = "This is locked while a focus session is running.".takeIf { intent.getBooleanExtra("locked", false) },
     )
     val watch = if (noWatch) WatchSectionState() else WatchSectionState(WatchLinkSettings("node", "Pixel Watch 3"), listOf(WatchNode("node", "Pixel Watch 3", true)))
     val page = DevicesPageInputs(

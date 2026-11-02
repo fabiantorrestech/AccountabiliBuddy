@@ -144,6 +144,7 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
         add(PageRow(SettingsAnchors.HOW_THEY_SYNC) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 AbSectionLabel("How they sync", Modifier.padding(horizontal = 4.dp))
+                locked?.let { SharingLockNote(it) }
                 AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
                     // Each is its own switch: several may be on at once (the sync files are the same for all of them).
                     AbToggleRow(
@@ -166,7 +167,6 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
                 }
                 // Why the switch did not move: the relay's address, pin or key did not pass (shown here, where the switch is).
                 relayFields.error?.let { Text(it, style = Ab.type.small, color = Ab.colors.drift, modifier = Modifier.padding(horizontal = 4.dp)) }
-                locked?.let { SharingLockNote(it) }
                 Hint(
                     "Several can be on at once. Sync files are encrypted with your devices' link code; they hold focus times, " +
                         "profile names and sites, never page titles, addresses or reasons.",
