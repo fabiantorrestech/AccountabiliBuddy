@@ -20,10 +20,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,10 +58,15 @@ fun StatsViewsSheet(state: StatsViewsState, onChange: (StatsViewsState) -> Unit,
     val density = LocalDensity.current
     // The height of a row in pixels, as drawn (a subtitle may wrap with large text): one row is the step of a drag.
     var rowPx by remember { mutableFloatStateOf(with(density) { ROW_HEIGHT.toPx() }) }
-    // While a row is dragged, the order is worked out here; it is saved when the finger lifts.
-    var working by remember(state) { mutableStateOf(state.order) }
+    // The row's gesture lives as long as the row, so it must read the newest state and callback, never the ones of the composition it began in.
+    val currentState by rememberUpdatedState(state)
+    val currentOnChange by rememberUpdatedState(onChange)
+    // While a row is dragged, the order is worked out here (one state object for the whole life of the sheet); it is saved when the finger lifts.
+    var working by remember { mutableStateOf(state.order) }
     var dragging by remember { mutableStateOf<StatsView?>(null) }
     var offset by remember { mutableFloatStateOf(0f) }
+    // A change made elsewhere (Move up, Move down, another saved order) shows here too, but never under a finger.
+    LaunchedEffect(state.order) { if (dragging == null) working = state.order }
 
     AbSheet(onDismiss = onDismiss) {
         Text("Stats views", style = type.head, color = colors.ink)
@@ -80,8 +87,8 @@ fun StatsViewsSheet(state: StatsViewsState, onChange: (StatsViewsState) -> Unit,
                             .graphicsLayer { translationY = if (isDragged) offset else 0f }
                             .semantics {
                                 customActions = listOf(
-                                    CustomAccessibilityAction("Move up") { if (index > 0) onChange(state.copy(order = working.toMutableList().apply { add(index - 1, removeAt(index)) })); true },
-                                    CustomAccessibilityAction("Move down") { if (index < working.lastIndex) onChange(state.copy(order = working.toMutableList().apply { add(index + 1, removeAt(index)) })); true },
+                                    CustomAccessibilityAction("Move up") { if (index > 0) currentOnChange(currentState.copy(order = working.toMutableList().apply { add(index - 1, removeAt(index)) })); true },
+                                    CustomAccessibilityAction("Move down") { if (index < working.lastIndex) currentOnChange(currentState.copy(order = working.toMutableList().apply { add(index + 1, removeAt(index)) })); true },
                                 )
                             }
                             .clickable(role = Role.Button) { onOpen(view) },
@@ -97,9 +104,9 @@ fun StatsViewsSheet(state: StatsViewsState, onChange: (StatsViewsState) -> Unit,
                                         onDragEnd = {
                                             dragging = null
                                             offset = 0f
-                                            onChange(state.copy(order = working))
+                                            currentOnChange(currentState.copy(order = working))
                                         },
-                                        onDragCancel = { dragging = null; offset = 0f; working = state.order },
+                                        onDragCancel = { dragging = null; offset = 0f; working = currentState.order },
                                     ) { change, drag ->
                                         change.consume()
                                         offset += drag.y
@@ -123,7 +130,7 @@ fun StatsViewsSheet(state: StatsViewsState, onChange: (StatsViewsState) -> Unit,
                         }
 
                         Box(
-                            Modifier.size(44.dp).clickable(role = Role.Switch) { onChange(state.toggle(view)) },
+                            Modifier.size(44.dp).clickable(role = Role.Switch) { currentOnChange(currentState.toggle(view)) },
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
