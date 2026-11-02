@@ -12,8 +12,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // Follows the PC app's version (0.1.55 → 155), shown in About.
-        versionCode = 167
-        versionName = "0.1.67"
+        versionCode = 168
+        versionName = "0.1.68"
     }
 
     buildTypes {
