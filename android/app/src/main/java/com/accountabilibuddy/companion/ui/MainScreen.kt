@@ -1,18 +1,16 @@
 package com.accountabilibuddy.companion.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -22,15 +20,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.accountabilibuddy.companion.R
 import com.accountabilibuddy.companion.sync.PcFileControl
+import com.accountabilibuddy.companion.ui.shell.AppDestination
+import com.accountabilibuddy.companion.ui.shell.AppScaffold
+import com.accountabilibuddy.companion.ui.shell.rememberAppNav
+import com.accountabilibuddy.companion.ui.shell.rememberNavLayout
 import com.accountabilibuddy.shared.sync.SyncAction
 
-/** The app header, three tabs (Today, Profiles, Settings), the import password dialog, and messages as snackbars. */
+/**
+ * The shell: the five places (Today, Tasks, Plan, Stats, Settings) with the bottom bar, the modal screens that take the whole app
+ * (Unlinked, Setup, Plan day, What's new, the plan editor), the dialogs, and messages as snackbars.
+ */
 @Composable
 fun MainScreen(
     viewModel: CompanionViewModel,
@@ -85,7 +90,11 @@ fun MainScreen(
     // ADR 42, 45: the PC card and plan edits go through the controlled PC's sync file.
     val pcName = controlPc?.file?.device?.name
     val canControlPc = controlPc != null
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    // Where the user is in the five places (the old `tab` number), kept across rotation and the process being recreated.
+    val nav = rememberAppNav()
+    val navLayout = rememberNavLayout()
+    val syncNow = rememberSyncNow()
+    val settingsListState = rememberLazyListState()
     val planDraft by viewModel.planDraft.collectAsStateWithLifecycle()
     // The migration assistant (5 taps on About's logo, or the Today card).
     var whatsNewOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
@@ -96,6 +105,7 @@ fun MainScreen(
     val noise = (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).noise
     val noiseState by noise.state.collectAsStateWithLifecycle()
     val noiseSettings by noise.settings.collectAsStateWithLifecycle()
+    val openRequest by viewModel.openRequest.collectAsStateWithLifecycle()
 
     LaunchedEffect(message) {
         message?.let {
@@ -104,30 +114,52 @@ fun MainScreen(
         }
     }
 
-    Scaffold(
-        topBar = { if (unlinked == null) AppHeader() },
-        snackbarHost = { SnackbarHost(snackbar) },
-        bottomBar = {
-            // Hidden while the day plan editor is open (its own Save and Cancel lead out) and while the phone is unlinked (ADR 54):
-            // that screen is the whole app until the user chooses.
-            if (planDraft == null && unlinked == null) Column {
-            NoiseBar(noiseState, noiseSettings, noise) { viewModel.message.value = it }
-            NavigationBar {
-                listOf(
-                    "Today" to R.drawable.ic_tab_today, "Profiles" to R.drawable.ic_tab_profiles,
-                    "Devices" to R.drawable.ic_tab_devices, "Settings" to R.drawable.ic_tab_settings, "About" to R.drawable.ic_tab_about,
-                )
-                    .forEachIndexed { index, (label, icon) ->
-                        NavigationBarItem(
-                            selected = tab == index,
-                            onClick = { tab = index },
-                            icon = { Icon(painterResource(icon), contentDescription = null) },
-                            label = { Text(label) },
-                        )
-                    }
-            }
-            }
+    // A route from MainActivity's `ab.open` extra. It only navigates: nothing is started or unlocked by it, and a phone that was
+    // removed from its group (the Unlinked screen has no way into a syncing page) takes no route at all.
+    LaunchedEffect(openRequest) {
+        val path = openRequest ?: return@LaunchedEffect
+        viewModel.openRequest.value = null
+        if (unlinked == null) nav.open(path)
+    }
+
+    // Back: out of a page inside a place, then to Today, then out of the app. The modal screens keep what they did before
+    // (Back leaves the app from them).
+    val modalOpen = unlinked != null || showSetup || planDayOpen || whatsNewOpen || planDraft != null
+    BackHandler(enabled = nav.canGoBack && !modalOpen) { nav.back() }
+
+    val pcState = controlPc?.let { PcFileControl.stateOf(it.file, java.time.Instant.now()) }
+
+    // The phone's guard switches (Settings › Guards), with the work-start nudge and the full-screen work card.
+    val pauseActions = PauseActions(
+        onRequestOff = viewModel::requestPause,
+        onTurnOn = viewModel::turnPauseOff,
+        onCarPause = viewModel::setCarPause,
+        onPlanOffDays = { viewModel.openPlanEditor(startTab = 2)?.let { viewModel.message.value = it } },
+        nudgeRepeat = nudgeRepeat,
+        takeoverOn = takeoverOn,
+        takeoverAllowed = com.accountabilibuddy.companion.nudge.Takeover.canShow(context),
+        onTakeover = { on ->
+            com.accountabilibuddy.companion.nudge.NudgeStore(context).update { it.copy(takeoverOn = on) }
+            takeoverOn = on
         },
+        onAllowTakeover = {
+            context.startActivity(
+                android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}")),
+            )
+        },
+        onNudgeRepeat = { minutes ->
+            com.accountabilibuddy.companion.notify.WorkStartNudge.setRepeatMinutes(context, minutes)
+            nudgeRepeat = minutes
+        },
+    )
+
+    AppScaffold(
+        nav = nav,
+        layout = navLayout,
+        snackbar = snackbar,
+        // Hidden while the day plan editor is open (its own Save and Cancel lead out) and while the phone is unlinked (ADR 54):
+        // that screen is the whole app until the user chooses. Every other screen, a running focus session included, has the bar.
+        showNav = planDraft == null && unlinked == null,
     ) { padding ->
         Column(Modifier.padding(padding)) {
             // ADR 54: removed from the group, or cut off by a removal. Nothing syncs and no other screen shows until the user chooses.
@@ -138,7 +170,7 @@ fun MainScreen(
                     onJoin = viewModel::joinWithCode,
                     onContinueUnsynced = {
                         // Lands on Today, with the one-time note shown as a message.
-                        if (viewModel.continueUnsynced()) tab = 0
+                        if (viewModel.continueUnsynced()) nav.select(AppDestination.Today)
                     },
                     onStartFromScratch = viewModel::startFromScratch,
                 )
@@ -186,17 +218,17 @@ fun MainScreen(
 
             val scale = LocalMotionScale.current
             androidx.compose.animation.AnimatedContent(
-                targetState = tab,
+                targetState = nav.destination,
                 transitionSpec = {
-                    val toRight = targetState > initialState
+                    val toRight = targetState.ordinal > initialState.ordinal
                     (androidx.compose.animation.fadeIn(motionSpec(scale, 220)) +
                         androidx.compose.animation.slideInHorizontally(motionSpec(scale, 220)) { width -> if (toRight) width / 8 else -width / 8 })
                         .togetherWith(androidx.compose.animation.fadeOut(motionSpec(scale, 150)))
                 },
-                label = "tabs",
+                label = "places",
             ) { shown ->
             when (shown) {
-                0 -> Column {
+                AppDestination.Today -> Column {
                     WhatsNewCard(appVersion, onSetUp = { whatsNewOpen = true }, onDismissed = { whatsNewTick++ })
                     DayOffCard()
                     LunchCard(
@@ -211,30 +243,66 @@ fun MainScreen(
                         onAdjust = { longer -> (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.adjust(longer) },
                     )
                     TodayScreen(
-                    state, model, viewModel.clock, health, onPickFile, onConnectHealth, viewModel::refreshSleep, phoneUsage, onAllowUsage,
-                    showsPcCard = true,
-                    pcCard = {
-                        val pc = controlPc
-                        if (pc == null) {
-                            PcMissingCard()
+                        state, model, viewModel.clock, onPickFile,
+                        showsPcCard = true,
+                        pcCard = {
+                            val pc = controlPc
+                            if (pc == null) {
+                                PcMissingCard()
+                            } else {
+                                PcFileCard(
+                                    pcName = pc.file.device.name,
+                                    state = PcFileControl.stateOf(pc.file, java.time.Instant.now()),
+                                    writtenAt = pc.file.device.writtenAt,
+                                    updateNeeded = PcFileControl.updateNeeded(pc.file.device),
+                                    waiting = pcWaiting?.takeIf { it.target == pc.file.device.deviceId },
+                                    clock = viewModel.clock,
+                                    onStart = viewModel::startOnPc,
+                                    onEndEarly = viewModel::beginEndEarly,
+                                    onCancelWaiting = viewModel::cancelPcWaiting,
+                                    // Worked out again when the bar's model ticks or the plan changes.
+                                    pace = remember(model, state.document.dayPlan) {
+                                        BudgetPaceLine.today(context.applicationContext as com.accountabilibuddy.companion.CompanionApp, java.time.LocalDateTime.now())
+                                    },
+                                )
+                            }
+                        },
+                        beeminder = beeminder,
+                        timersCard = {
+                            TimersCard((context.applicationContext as com.accountabilibuddy.companion.CompanionApp).timers, viewModel.clock)
+                        },
+                        // The noise player (it was a bar above the tabs): a card once a sound folder is set; the folder is chosen
+                        // in Settings › Alerts & on-screen.
+                        noiseCard = if (noiseState.hasFolder) {
+                            {
+                                androidx.compose.foundation.layout.Box(Modifier.clip(RoundedCornerShape(16.dp))) {
+                                    NoiseBar(noiseState, noiseSettings, noise) { viewModel.message.value = it }
+                                }
+                            }
                         } else {
-                            PcFileCard(
-                                pcName = pc.file.device.name,
-                                state = PcFileControl.stateOf(pc.file, java.time.Instant.now()),
-                                writtenAt = pc.file.device.writtenAt,
-                                updateNeeded = PcFileControl.updateNeeded(pc.file.device),
-                                waiting = pcWaiting?.takeIf { it.target == pc.file.device.deviceId },
-                                clock = viewModel.clock,
-                                onStart = viewModel::startOnPc,
-                                onEndEarly = viewModel::beginEndEarly,
-                                onCancelWaiting = viewModel::cancelPcWaiting,
-                                // Worked out again when the bar's model ticks or the plan changes.
-                                pace = remember(model, state.document.dayPlan) {
-                                    BudgetPaceLine.today(context.applicationContext as com.accountabilibuddy.companion.CompanionApp, java.time.LocalDateTime.now())
-                                },
+                            null
+                        },
+                        syncLight = {
+                            // The light reads the group's files and the methods' last results; the alarm apps are not needed here.
+                            val lightDevices = remember(viewModel.deviceName, syncKey, syncSettings, syncReceived, folderStatus, driveStatus, relayStatus) {
+                                DevicesState(
+                                    deviceName = viewModel.deviceName, joined = syncKey != null, settings = syncSettings, received = syncReceived,
+                                    folder = folderStatus, drive = driveStatus, relay = relayStatus,
+                                )
+                            }
+                            SyncLightHost(
+                                devices = lightDevices,
+                                watch = WatchSectionState(watchSettings, detectedWatches),
+                                detectedWatchIds = detectedWatches.map { it.id }.toSet(),
+                                syncNow = syncNow,
+                                onOpenDevices = { nav.open(AppDestination.Settings, SettingsCategory.Devices.key) },
                             )
-                        }
-                    },
+                        },
+                    )
+                }
+                AppDestination.Tasks -> TasksScreen(runningTasks = runningTasks, comebacks = comebacks)
+                AppDestination.Plan -> PlanScreen(
+                    state, model, viewModel.clock,
                     onEditPlan = if (!canControlPc) null else {
                         { viewModel.openPlanEditor()?.let { viewModel.message.value = it } }
                     },
@@ -245,122 +313,119 @@ fun MainScreen(
                     onSetWeek = if (!canControlPc) null else {
                         { week -> viewModel.setThisWeek(week)?.let { viewModel.message.value = it } }
                     },
-                    runningTasks = runningTasks,
-                    comebacks = comebacks,
-                    beeminder = beeminder,
-                    timersCard = {
-                        TimersCard((context.applicationContext as com.accountabilibuddy.companion.CompanionApp).timers, viewModel.clock)
-                    },
                 )
-                }
-                1 -> ProfilesScreen(
-                    state,
-                    viewModel.clock,
-                    pcName = pcName,
-                    pcState = controlPc?.let { PcFileControl.stateOf(it.file, java.time.Instant.now()) },
-                    deviceName = viewModel.deviceName,
-                    curbox = curbox,
-                )
-                2 -> DevicesScreen(
-                    devices = DevicesState(
-                        deviceName = viewModel.deviceName,
-                        joined = syncKey != null,
-                        settings = syncSettings,
-                        received = syncReceived,
-                        allReceived = syncAllReceived,
-                        folder = folderStatus,
-                        drive = driveStatus,
-                        relay = relayStatus,
-                        alarmApps = viewModel.alarmApps(),
-                        learnedAlarmApp = viewModel.learnedAlarmApp(),
-                        removed = removedDevices,
-                        removalLocked = removalLocked,
-                    ),
-                    actions = DevicesActions(
-                        onRemoveDevice = viewModel::openRemoveDevice,
-                        onRestore = viewModel.restoreBackup::open,
-                        onShare = { viewModel.shareSyncFiles(context) },
-                        ownQrLinks = viewModel::ownQrLinks,
-                        linkCode = viewModel::syncLinkCode,
-                        onJoin = viewModel::joinWithCode,
-                        onLeave = viewModel::leaveSyncGroup,
-                        onSettings = viewModel::saveSyncSettings,
-                        onFolderChosen = viewModel::chooseSyncFolder,
-                        onSyncFolderNow = viewModel::syncFolderNow,
-                        beginDriveSignIn = viewModel::beginDriveSignIn,
-                        onDriveSignInResult = viewModel::finishDriveSignIn,
-                        onSyncDriveNow = viewModel::syncDriveNow,
-                        onSyncRelayNow = viewModel::syncRelayNow,
-                    ),
-                    watch = WatchSectionState(watchSettings, detectedWatches),
-                    watchActions = WatchSectionActions(
-                        onFind = viewModel::findWatches,
-                        onLink = viewModel::linkWatch,
-                        onUnlink = viewModel::unlinkWatch,
-                        onDataLayer = viewModel::setWatchDataLayer,
-                        onRelay = viewModel::setWatchRelay,
-                    ),
-                    pcChoices = pcChoices,
-                    chosenPcId = chosenPcId,
-                    onChoosePc = viewModel::choosePc,
-                )
-                3 -> {
-                    // Curbox's status shows only here: ask it when Settings opens, or the app comes back to it.
+                AppDestination.Stats -> StatsScreen(state, viewModel.clock, health, onConnectHealth, viewModel::refreshSleep, phoneUsage, onAllowUsage)
+                AppDestination.Settings -> {
+                    // Curbox's status shows only in Settings (Connections): ask it when Settings opens, or the app comes back to it.
                     LifecycleStartEffect(Unit) {
                         viewModel.refreshCurbox()
                         onStopOrDispose { }
                     }
-                    SettingsScreen(
-                        state, viewModel.clock, health, importing,
-                        onImport = onPickFile,
-                        onClearImport = viewModel::clearImport,
-                        onSaveSleep = viewModel::saveSleep,
-                        onTimelineNotification = onTimelineNotification,
-                        onBedtimeReminder = viewModel::setBedtimeReminder,
-                        onReenableTime = viewModel::setReenableTime,
-                        onConnectHealth = onConnectHealth,
-                        onAddWidget = onAddWidget,
-                        curbox = curbox,
-                        onConnectCurbox = onConnectCurbox,
-                        noise = noise,
-                        noiseSettings = noiseSettings,
-                        pause = pauseState,
-                        onAllowUsage = onAllowUsage,
-                        onOpenSetup = { showSetup = true },
-                        wakeAlarm = { WakeAlarmRows(syncSettings, viewModel.alarmApps(), viewModel.learnedAlarmApp(), viewModel::saveSyncSettings) },
-                        wakeAlarmSummary = if (syncSettings.alarmOn) "On: your next alarm is the wake time" else "Off: the Sleep part's wake time",
-                        devicesSummary = listOfNotNull(
-                            if (syncKey != null) "In your device group" else "Not linked yet",
-                            "Drive".takeIf { syncSettings.driveOn },
-                            "relay".takeIf { syncSettings.relayOn },
-                            pcName,
-                        ).joinToString(" · "),
-                        onOpenDevices = { tab = 2 },
-                        pauseActions = PauseActions(
-                            onRequestOff = viewModel::requestPause,
-                            onTurnOn = viewModel::turnPauseOff,
-                            onCarPause = viewModel::setCarPause,
-                            onPlanOffDays = { viewModel.openPlanEditor(startTab = 2)?.let { viewModel.message.value = it } },
-                            nudgeRepeat = nudgeRepeat,
-                            takeoverOn = takeoverOn,
-                            takeoverAllowed = com.accountabilibuddy.companion.nudge.Takeover.canShow(context),
-                            onTakeover = { on ->
-                                com.accountabilibuddy.companion.nudge.NudgeStore(context).update { it.copy(takeoverOn = on) }
-                                takeoverOn = on
-                            },
-                            onAllowTakeover = {
-                                context.startActivity(
-                                    android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}")),
-                                )
-                            },
-                            onNudgeRepeat = { minutes ->
-                                com.accountabilibuddy.companion.notify.WorkStartNudge.setRepeatMinutes(context, minutes)
-                                nudgeRepeat = minutes
-                            },
-                        ),
-                    )
+                    val category = SettingsCategory.fromKey(nav.detail)
+                    val backToList = { nav.open(AppDestination.Settings) }
+                    val devicesSummary = listOfNotNull(
+                        if (syncKey != null) "In your device group" else "Not linked yet",
+                        "Drive".takeIf { syncSettings.driveOn },
+                        "relay".takeIf { syncSettings.relayOn },
+                        pcName,
+                    ).joinToString(" · ")
+                    when (category) {
+                        null -> SettingsList(
+                            SettingsListInputs(
+                                state = state, health = health, lunchLengthMinutes = lunchLength, pause = pauseState, takeoverOn = takeoverOn,
+                                curbox = curbox, devicesSummary = devicesSummary, appVersion = appVersion, resting = removalLocked != null,
+                            ),
+                            onOpen = { nav.open(AppDestination.Settings, it.key) },
+                            listState = settingsListState,
+                        )
+                        SettingsCategory.Appearance -> AppearanceScreen(onBack = backToList)
+                        SettingsCategory.Devices -> SettingsPageFrame(category, backToList) {
+                            DevicesScreen(
+                                devices = DevicesState(
+                                    deviceName = viewModel.deviceName,
+                                    joined = syncKey != null,
+                                    settings = syncSettings,
+                                    received = syncReceived,
+                                    allReceived = syncAllReceived,
+                                    folder = folderStatus,
+                                    drive = driveStatus,
+                                    relay = relayStatus,
+                                    alarmApps = viewModel.alarmApps(),
+                                    learnedAlarmApp = viewModel.learnedAlarmApp(),
+                                    removed = removedDevices,
+                                    removalLocked = removalLocked,
+                                ),
+                                actions = DevicesActions(
+                                    onRemoveDevice = viewModel::openRemoveDevice,
+                                    onRestore = viewModel.restoreBackup::open,
+                                    onShare = { viewModel.shareSyncFiles(context) },
+                                    ownQrLinks = viewModel::ownQrLinks,
+                                    linkCode = viewModel::syncLinkCode,
+                                    onJoin = viewModel::joinWithCode,
+                                    onLeave = viewModel::leaveSyncGroup,
+                                    onSettings = viewModel::saveSyncSettings,
+                                    onFolderChosen = viewModel::chooseSyncFolder,
+                                    onSyncFolderNow = viewModel::syncFolderNow,
+                                    beginDriveSignIn = viewModel::beginDriveSignIn,
+                                    onDriveSignInResult = viewModel::finishDriveSignIn,
+                                    onSyncDriveNow = viewModel::syncDriveNow,
+                                    onSyncRelayNow = viewModel::syncRelayNow,
+                                ),
+                                watch = WatchSectionState(watchSettings, detectedWatches),
+                                watchActions = WatchSectionActions(
+                                    onFind = viewModel::findWatches,
+                                    onLink = viewModel::linkWatch,
+                                    onUnlink = viewModel::unlinkWatch,
+                                    onDataLayer = viewModel::setWatchDataLayer,
+                                    onRelay = viewModel::setWatchRelay,
+                                ),
+                                pcChoices = pcChoices,
+                                chosenPcId = chosenPcId,
+                                onChoosePc = viewModel::choosePc,
+                            )
+                        }
+                        // The old Profiles tab (the PC's profiles, read only) below the phone's own guard switches.
+                        SettingsCategory.Guards -> SettingsPageFrame(category, backToList) {
+                            val usageNeed = Need("Usage access", remember(nav.route) { com.accountabilibuddy.companion.usage.PhoneUsageReader(context).hasAccess() }, onAllowUsage)
+                            ProfilesScreen(
+                                state,
+                                viewModel.clock,
+                                pcName = pcName,
+                                pcState = pcState,
+                                deviceName = viewModel.deviceName,
+                                curbox = curbox,
+                                header = { phoneGuardItems(pauseState, pauseActions, viewModel.clock, usageNeed) },
+                            )
+                        }
+                        SettingsCategory.About -> SettingsPageFrame(category, backToList) {
+                            AboutScreen(pcName = pcName, onOpenWhatsNew = { whatsNewOpen = true })
+                        }
+                        else -> SettingsPageFrame(category, backToList) {
+                            SettingsDetail(
+                                category = category,
+                                state = state, clock = viewModel.clock, health = health, importing = importing,
+                                onImport = onPickFile,
+                                onClearImport = viewModel::clearImport,
+                                onSaveSleep = viewModel::saveSleep,
+                                onTimelineNotification = onTimelineNotification,
+                                onBedtimeReminder = viewModel::setBedtimeReminder,
+                                onConnectHealth = onConnectHealth,
+                                onAddWidget = onAddWidget,
+                                curbox = curbox,
+                                onConnectCurbox = onConnectCurbox,
+                                noise = noise,
+                                noiseSettings = noiseSettings,
+                                onAllowUsage = onAllowUsage,
+                                onOpenSetup = { showSetup = true },
+                                onReenableTime = viewModel::setReenableTime,
+                                wakeAlarm = { WakeAlarmRows(syncSettings, viewModel.alarmApps(), viewModel.learnedAlarmApp(), viewModel::saveSyncSettings) },
+                                wakeAlarmSummary = if (syncSettings.alarmOn) "On: your next alarm is the wake time" else "Off: the Sleep part's wake time",
+                                onOpenDevices = { nav.open(AppDestination.Settings, SettingsCategory.Devices.key) },
+                                onOpenPlan = { nav.select(AppDestination.Plan) },
+                            )
+                        }
+                    }
                 }
-                else -> AboutScreen(pcName = pcName, onOpenWhatsNew = { whatsNewOpen = true })
             }
             }
         }

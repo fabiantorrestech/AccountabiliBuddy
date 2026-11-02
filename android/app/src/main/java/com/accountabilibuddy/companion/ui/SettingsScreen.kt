@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,17 +46,32 @@ import com.accountabilibuddy.companion.engine.DayBarBuilder
 import com.accountabilibuddy.companion.engine.SleepSchedule
 import com.accountabilibuddy.companion.model.SleepSettings
 import com.accountabilibuddy.companion.model.SleepTimes
-import com.accountabilibuddy.companion.ui.kit.AbCard
-import com.accountabilibuddy.companion.ui.kit.AbListRow
+import com.accountabilibuddy.companion.ui.kit.AbSubpageHeader
 import com.accountabilibuddy.shared.WatchLinkSettings
 import com.accountabilibuddy.shared.WatchNode
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 
-/** Import from the PC, sleep times, the timeline notification and bedtime reminder, Health Connect. */
+/**
+ * A Settings page's frame: the "← Settings" crumb and the page's title, then the page. Back goes to the list. (Appearance
+ * draws its own header, so it is not framed.)
+ */
 @Composable
-fun SettingsScreen(
+fun SettingsPageFrame(category: SettingsCategory, onBack: () -> Unit, content: @Composable () -> Unit) {
+    Column {
+        AbSubpageHeader(crumb = "Settings", title = category.title, onBack = onBack, modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp))
+        content()
+    }
+}
+
+/**
+ * One Settings page's content (the rows of the old sections, regrouped by the five-tab shell). Devices & sync, Guards and
+ * Appearance are drawn by the shell with their own screens; this draws the others. No Scaffold and no fixed width.
+ */
+@Composable
+fun SettingsDetail(
+    category: SettingsCategory,
     state: CompanionState,
     clock: ClockFormat,
     health: HealthStatus,
@@ -71,23 +87,17 @@ fun SettingsScreen(
     onConnectCurbox: () -> Unit,
     noise: com.accountabilibuddy.companion.noise.NoisePlayer? = null,
     noiseSettings: com.accountabilibuddy.companion.noise.NoiseSettings = com.accountabilibuddy.companion.noise.NoiseSettings(),
-    pause: com.accountabilibuddy.companion.pause.PauseState? = null,
-    pauseActions: PauseActions = PauseActions(),
     onAllowUsage: () -> Unit = {},
     onOpenSetup: () -> Unit = {},
     /** Sets when Workdays' (false) or Off-Days' (true) blocks come back on (ADR 37); null when saved, else why not. */
     onReenableTime: (Boolean, java.time.LocalTime) -> String? = { _, _ -> null },
-    /** The wake-up alarm rows (from the Devices tab's sync settings), shown on the Sleep page. */
+    /** The wake-up alarm rows (from the sync settings), shown on the Sleep page. */
     wakeAlarm: @Composable () -> Unit = {},
     /** "On · Clock" or "Off": the Wake-up alarm card's summary. */
     wakeAlarmSummary: String = "",
-    /** "Drive synced 2m ago · 1 PC": the Devices & sync row's status. */
-    devicesSummary: String = "",
     onOpenDevices: () -> Unit = {},
+    onOpenPlan: () -> Unit = {},
 ) {
-    // A list of categories, each opening its own page; Back returns to the list.
-    var category by rememberSaveable { mutableStateOf<SettingsCategory?>(null) }
-    androidx.activity.compose.BackHandler(enabled = category != null) { category = null }
     val context = androidx.compose.ui.platform.LocalContext.current
     val usageAccess = remember(category) { com.accountabilibuddy.companion.usage.PhoneUsageReader(context).hasAccess() }
     val healthOk = health == HealthStatus.Connected
@@ -95,182 +105,141 @@ fun SettingsScreen(
     val usageNeed = Need("Usage access", usageAccess, onAllowUsage)
     val lunchLength by (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.lengthMinutes.collectAsState()
 
-    // Appearance is its own page (until the 5-tab shell moves it); Back returns to the App page.
-    var appearanceOpen by rememberSaveable { mutableStateOf(false) }
-    // Kept here so the list's scroll position survives a visit to the Appearance page.
-    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
-    androidx.activity.compose.BackHandler(enabled = appearanceOpen) { appearanceOpen = false }
-    if (appearanceOpen) {
-        AppearanceScreen(onBack = { appearanceOpen = false })
-        return
-    }
-
-    Column {
-    category?.let { open -> Box(Modifier.padding(start = 8.dp, top = 8.dp)) { CategoryHeader(open) { category = null } } }
-    LazyColumn(state = listState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        when (val open = category) {
-            null -> {
-                val sleep = state.sleep
-                val summaries = mapOf(
-                    SettingsCategory.Sleep to listOfNotNull(
-                        if (sleep.enabled) "Sleep mode on" else "Sleep mode off",
-                        "smart bedtime on".takeIf { sleep.smartWorkdays || sleep.smartOffDays },
-                        "reminders".takeIf { sleep.reminders.on },
-                    ).joinToString(" · "),
-                    SettingsCategory.YourDay to "Lunch ${com.accountabilibuddy.companion.lunch.LunchStore.formatLength(lunchLength)}",
-                    SettingsCategory.PhoneGuard to listOfNotNull(
-                        pause?.let { if (it.pausedAt != null) "Paused" else "Guarding" },
-                        "work card".takeIf { pauseActions.takeoverOn },
-                        "Curbox".takeIf { curbox.granted },
-                    ).joinToString(" · "),
-                    SettingsCategory.Devices to devicesSummary,
-                    SettingsCategory.Notification to if (state.timelineNotificationOn) "Timeline pinned" else "Timeline off",
-                    SettingsCategory.Sound to (if (noise != null) "Noise player · headphones" else "Headphones"),
-                    SettingsCategory.Permissions to permissionsSummary(context, health),
-                    SettingsCategory.App to "Look · startup · backup",
-                )
-                SettingsCategory.entries.forEach { entry ->
-                    item(key = entry.name) {
-                        CategoryRow(entry, summaries[entry].orEmpty()) {
-                            if (entry == SettingsCategory.Devices) onOpenDevices() else category = entry
-                        }
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        when (category) {
+            SettingsCategory.YourDay -> {
+                item { LunchSection(lunchLength) }
+                item {
+                    Section("Work hours and day types", summary = "Edited in Plan") {
+                        Text("Your work hours, day types, day parts and days off are in Plan.", style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = onOpenPlan) { Text("Open Plan") }
+                    }
+                }
+            }
+            SettingsCategory.Sleep -> {
+                item { SleepSection(state.sleep, clock, onSaveSleep) }
+                item {
+                    Section("Wake-up alarm", summary = wakeAlarmSummary) { wakeAlarm() }
+                }
+                item {
+                    SmartBedtimeSection(clock) { if (state.sleep.smartWorkdays || state.sleep.smartOffDays) NeedsLine(listOf(healthNeed, usageNeed), forWhat = "Smart bedtime") }
+                }
+                item { BedtimeRemindersSection() }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        NeedsLine(listOf(usageNeed), forWhat = "Bedtime essentials")
+                        EssentialsSection(com.accountabilibuddy.companion.essentials.EssentialsKind.Bedtime)
                     }
                 }
                 item {
-                    Hint(
-                        "Local only: the app talks only to your linked watch (through Google's encrypted relay only if you allow it in Devices) " +
-                            "and, with Google Drive on, to the app's own Drive folder, where your devices' sealed sync files go. Nothing else goes to the internet.",
-                        label = "Privacy: what leaves this phone",
-                    )
+                    Section("Health Connect", summary = if (health == HealthStatus.Connected) "Reading your sleep" else "Not connected") {
+                        Text(
+                            when (health) {
+                                HealthStatus.Connected -> "Health Connect: reading your measured sleep."
+                                HealthStatus.NeedsPermission -> "Health Connect: not connected (the timeline's sleep strip and smart bedtime use it)."
+                                HealthStatus.NotAvailable -> "Health Connect isn't available on this phone."
+                                HealthStatus.Checking -> "Health Connect: checking…"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        if (health == HealthStatus.NeedsPermission) {
+                            OutlinedButton(onClick = onConnectHealth) { Text("Connect Health Connect") }
+                        }
+                    }
                 }
             }
-            else -> {
-                when (open) {
-                    SettingsCategory.Sleep -> {
-                        item { SleepSection(state.sleep, clock, onSaveSleep) }
-                        item {
-                            Section("Wake-up alarm", summary = wakeAlarmSummary) { wakeAlarm() }
-                        }
-                        item {
-                            SmartBedtimeSection(clock) { if (state.sleep.smartWorkdays || state.sleep.smartOffDays) NeedsLine(listOf(healthNeed, usageNeed), forWhat = "Smart bedtime") }
-                        }
-                        item { BedtimeRemindersSection() }
-                        item {
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                NeedsLine(listOf(usageNeed), forWhat = "Bedtime essentials")
-                                EssentialsSection(com.accountabilibuddy.companion.essentials.EssentialsKind.Bedtime)
-                            }
-                        }
-                        item {
-                            Section("Health Connect", summary = if (health == HealthStatus.Connected) "Reading your sleep" else "Not connected") {
-                                Text(
-                                    when (health) {
-                                        HealthStatus.Connected -> "Health Connect: reading your measured sleep."
-                                        HealthStatus.NeedsPermission -> "Health Connect: not connected (the timeline's sleep strip and smart bedtime use it)."
-                                        HealthStatus.NotAvailable -> "Health Connect isn't available on this phone."
-                                        HealthStatus.Checking -> "Health Connect: checking…"
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                                if (health == HealthStatus.NeedsPermission) {
-                                    OutlinedButton(onClick = onConnectHealth) { Text("Connect Health Connect") }
-                                }
+            SettingsCategory.FocusSessions -> {
+                // The test session (moved from the bottom of Today) tries the phone's settings without a real session.
+                item { TestSessionCard() }
+            }
+            SettingsCategory.Alerts -> {
+                item {
+                    Section("Timeline notification", summary = if (state.timelineNotificationOn) "Pinned" else "Off", startOpen = true) {
+                        ToggleRow("Timeline notification", "Always on, silent, pinned near the top", state.timelineNotificationOn, onChange = onTimelineNotification)
+                        OutlinedButton(onClick = onAddWidget) { Text("Add timeline widget to home screen") }
+                    }
+                }
+                noise?.let { player -> item { NoiseSection(player, noiseSettings) } }
+                item { HeadphonesSection() }
+            }
+            SettingsCategory.Connections -> {
+                item { BeeminderSection(connected = (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).sync.received.value.any { it.file.beeminder != null }) }
+                item { CurboxSection(curbox, onConnectCurbox, onReenableTime) }
+                item { OtherBlockersSection() }
+            }
+            SettingsCategory.AppAndData -> {
+                item { StartupSection() }
+                item { BackupSection() }
+                item {
+                    Section("Profiles from the PC", summary = if (state.hasImport) "Imported ${state.importedAt}" else "Old way: a backup file") {
+                        Text(
+                            if (state.hasImport) "${state.importedFrom}; imported ${state.importedAt}." else "Nothing imported. Linking your devices brings the PC's profiles by itself.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Hint("On the PC: Settings → Backup → Export, without secrets or with a password. Open the .abbackup file here. The phone keeps it to itself.")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = onImport, enabled = !importing) { Text(if (importing) "Importing…" else "Import backup file") }
+                            if (state.hasImport) {
+                                OutlinedButton(onClick = onClearImport) { Text("Remove") }
                             }
                         }
                     }
-                    SettingsCategory.YourDay -> {
-                        item { LunchSection(lunchLength) }
-                    }
-                    SettingsCategory.PhoneGuard -> {
-                        if (pause != null) {
-                            item {
-                                // Ticks the wait down while it's shown.
-                                var now by remember { mutableStateOf(java.time.Instant.now()) }
-                                LaunchedEffect(pause) {
-                                    while (true) {
-                                        now = java.time.Instant.now()
-                                        kotlinx.coroutines.delay(1_000)
-                                    }
-                                }
-                                PauseSection(pause, now, clock, pauseActions)
-                            }
-                        }
-                        item {
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                NeedsLine(listOf(usageNeed), forWhat = "Essentials")
-                                EssentialsSection()
-                            }
-                        }
-                        item { EmergencySection() }
-                        item { PlacementSection() }
-                        item { CurboxSection(curbox, onConnectCurbox, onReenableTime) }
-                    }
-                    SettingsCategory.Notification -> {
-                        item {
-                            Section("Timeline notification", summary = if (state.timelineNotificationOn) "Pinned" else "Off", startOpen = true) {
-                                ToggleRow("Timeline notification", "Always on, silent, pinned near the top", state.timelineNotificationOn, onChange = onTimelineNotification)
-                                OutlinedButton(onClick = onAddWidget) { Text("Add timeline widget to home screen") }
-                            }
-                        }
-                    }
-                    SettingsCategory.Sound -> {
-                        noise?.let { player -> item { NoiseSection(player, noiseSettings) } }
-                        item { HeadphonesSection() }
-                    }
-                    SettingsCategory.Permissions -> {
-                        item {
-                            Section("Permissions", summary = permissionsSummary(context, health), startOpen = true) {
-                                PermissionsList(health, onConnectHealth, onAllowUsage)
-                            }
-                        }
-                        item { OtherBlockersSection() }
-                        item { BeeminderSection(connected = (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).sync.received.value.any { it.file.beeminder != null }) }
-                        item {
-                            Section("Setup", summary = "The first-run questions", startOpen = true) {
-                                Text("Walks through linking, permissions and the basics again; nothing is lost.", style = MaterialTheme.typography.bodySmall)
-                                androidx.compose.material3.TextButton(onClick = onOpenSetup) { Text("Open the setup again") }
-                                androidx.compose.material3.TextButton(onClick = onOpenDevices) { Text("Google Drive setup (Devices → Google Drive)") }
-                            }
-                        }
-                    }
-                    SettingsCategory.App -> {
-                        item {
-                            val theme by UiPrefs.themeName.collectAsState()
-                            val mode by UiPrefs.mode.collectAsState()
-                            AbCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 4.dp)) {
-                                AbListRow(
-                                    title = "Appearance", icon = SectionIcons.of("Appearance"), subtitle = "${theme.label} · ${mode.label.lowercase()}",
-                                    onClick = { appearanceOpen = true },
-                                )
-                            }
-                        }
-                        item { StartupSection() }
-                        item { BackupSection() }
-                        item {
-                            Section("Profiles from the PC", summary = if (state.hasImport) "Imported ${state.importedAt}" else "Old way: a backup file") {
-                                Text(
-                                    if (state.hasImport) "${state.importedFrom}; imported ${state.importedAt}." else "Nothing imported. Linking your devices brings the PC's profiles by itself.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                )
-                                Hint("On the PC: Settings → Backup → Export, without secrets or with a password. Open the .abbackup file here. The phone keeps it to itself.")
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(onClick = onImport, enabled = !importing) { Text(if (importing) "Importing…" else "Import backup file") }
-                                    if (state.hasImport) {
-                                        OutlinedButton(onClick = onClearImport) { Text("Remove") }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    SettingsCategory.Devices -> Unit
                 }
             }
+            SettingsCategory.Setup -> {
+                item {
+                    Section("Permissions", summary = permissionsSummary(context, health), startOpen = true) {
+                        PermissionsList(health, onConnectHealth, onAllowUsage)
+                    }
+                }
+                item {
+                    Section("Setup", summary = "The first-run questions", startOpen = true) {
+                        Text("Walks through linking, permissions and the basics again; nothing is lost.", style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = onOpenSetup) { Text("Open the setup again") }
+                        TextButton(onClick = onOpenDevices) { Text("Google Drive setup (Settings › Devices & sync › Google Drive)") }
+                    }
+                }
+            }
+            // Drawn by the shell with their own screens.
+            SettingsCategory.Guards, SettingsCategory.Devices, SettingsCategory.Appearance, SettingsCategory.About -> Unit
         }
-    }
     }
 }
 
-/** The noise player's folder and switches (the bar above the tabs plays it). */
+/**
+ * Guards, the phone's half: the master switch with its wait, the work-start nudge and takeover, Essentials, emergency phone
+ * time and the parked-phone placement. The shell puts these above the profiles (the old Profiles tab) on the Guards page.
+ */
+internal fun LazyListScope.phoneGuardItems(
+    pause: com.accountabilibuddy.companion.pause.PauseState?,
+    pauseActions: PauseActions,
+    clock: ClockFormat,
+    usageNeed: Need,
+) {
+    if (pause != null) {
+        item {
+            // Ticks the wait down while it's shown.
+            var now by remember { mutableStateOf(java.time.Instant.now()) }
+            LaunchedEffect(pause) {
+                while (true) {
+                    now = java.time.Instant.now()
+                    kotlinx.coroutines.delay(1_000)
+                }
+            }
+            PauseSection(pause, now, clock, pauseActions)
+        }
+    }
+    item {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            NeedsLine(listOf(usageNeed), forWhat = "Essentials")
+            EssentialsSection()
+        }
+    }
+    item { EmergencySection() }
+    item { PlacementSection() }
+}
+
+/** The noise player's folder and switches (Today's noise card plays it once a folder is set). */
 @Composable
 private fun NoiseSection(player: com.accountabilibuddy.companion.noise.NoisePlayer, settings: com.accountabilibuddy.companion.noise.NoiseSettings) {
     val pickFolder = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()) { uri ->

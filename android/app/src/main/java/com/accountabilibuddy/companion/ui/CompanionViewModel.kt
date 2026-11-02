@@ -127,6 +127,12 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     /** A message after an import or another action, shown once. */
     val message = MutableStateFlow<String?>(null)
 
+    /**
+     * A route asked for by MainActivity's `ab.open` extra (`settings/devices`), waiting for the shell to take it. The shell only
+     * navigates to it: opening a page never starts, changes or unlocks anything.
+     */
+    val openRequest = MutableStateFlow<String?>(null)
+
     init {
         // A PC's answer through the sync files (ADR 42) shows once too.
         viewModelScope.launch {
