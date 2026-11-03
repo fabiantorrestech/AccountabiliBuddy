@@ -99,6 +99,16 @@ public partial class App : Application
     private PcOffSettingsService? _pcOff;
     private AccountabiliBuddy.App.Services.Sync.SyncCoordinator? _syncCoordinator;
     private bool _windowsEndingHandled;
+
+    // Avalonia 12 keeps ShutdownRequestedEventArgs.IsOSShutdown internal, so it is read by reflection; false if it ever goes away.
+    private static bool IsOsShutdown(ShutdownRequestedEventArgs e)
+    {
+        System.Reflection.PropertyInfo? property = typeof(ShutdownRequestedEventArgs).GetProperty("IsOSShutdown", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+        return property?.GetValue(e) is true;
+    }
+
+    /// <summary>True once Windows asked the app to shut down; Program.Main then checks whether the shutdown really happened.</summary>
+    public static bool WindowsShutdownRequested { get; private set; }
     private DateTimeOffset _lastSessionWrite = DateTimeOffset.MinValue;
     private QuitGuardViewModel? _quitGuardViewModel;
     private AccountabiliBuddy.App.Services.Setup.SetupFeaturesService? _setupFeatures;
@@ -195,7 +205,11 @@ public partial class App : Application
             // The app lives in the tray; only Quit ends it.
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             desktop.Exit += (_, _) => DisposeServices();
-            desktop.ShutdownRequested += (_, _) => OnWindowsEnding();
+            desktop.ShutdownRequested += (_, e) =>
+            {
+                WindowsShutdownRequested |= IsOsShutdown(e);
+                OnWindowsEnding();
+            };
 
             string? problem = BuildServicesAndWindow();
             if (problem is not null)
