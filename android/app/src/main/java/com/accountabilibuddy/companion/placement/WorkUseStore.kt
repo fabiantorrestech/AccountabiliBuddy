@@ -99,6 +99,14 @@ class WorkUseStore(context: Context) {
             PlacementSession.same(it.sessionStart, sessionStart) && !it.end.isAfter(now) && Duration.between(it.end, now) <= window
         }
 
+    /** Uses from a backup: added beside what the phone holds, so a restore can only add to a session's count. */
+    @Synchronized
+    fun mergeRestored(uses: List<WorkUse>, now: Instant = Instant.now()) {
+        val held = all(now)
+        val starts = held.map { it.start }.toSet()
+        save(held + uses.filter { it.start !in starts && it.start.isAfter(now.minus(KEPT)) })
+    }
+
     private fun save(uses: List<WorkUse>) {
         val array = JSONArray()
         uses.forEach { use ->

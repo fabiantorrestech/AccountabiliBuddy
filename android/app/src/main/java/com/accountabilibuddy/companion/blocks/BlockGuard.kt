@@ -55,6 +55,12 @@ object BlockGuard {
     fun history(context: Context): List<String> =
         prefs(context).getString("history", null)?.let { runCatching { (Json.parseToJsonElement(it) as JsonArray).map { e -> (e as JsonPrimitive).content } }.getOrNull() }.orEmpty()
 
+    /** The log from a backup, after what the phone holds. */
+    fun mergeRestoredHistory(context: Context, lines: List<String>) {
+        val list = (history(context) + lines).distinct().take(HISTORY_MAX)
+        prefs(context).edit().putString("history", buildJsonArray { list.forEach { add(JsonPrimitive(it)) } }.toString()).apply()
+    }
+
     suspend fun run(context: Context, now: LocalDateTime = LocalDateTime.now()) = mutex.withLock {
         val app = context.applicationContext as CompanionApp
         val prefs = prefs(context)
