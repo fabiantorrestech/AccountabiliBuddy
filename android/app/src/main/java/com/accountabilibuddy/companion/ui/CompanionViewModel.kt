@@ -212,6 +212,16 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         )
     }
 
+    /**
+     * Scanned or pasted text (ADR 57): offers the join when it is a join link, exactly as a link opened from outside does.
+     * False when it isn't one, so the caller can try it as a bare code or say so.
+     */
+    fun offerJoinText(text: String): Boolean {
+        val link = JoinLink.parse(text) ?: return false
+        offerJoin(link)
+        return true
+    }
+
     fun cancelJoin() {
         joinOffer.value = null
     }

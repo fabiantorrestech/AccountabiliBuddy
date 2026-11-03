@@ -52,6 +52,7 @@ fun UnlinkedScreen(
     state: UnlinkedState,
     lockedReason: String?,
     onJoin: (String) -> Boolean,
+    onJoinLink: (String) -> Boolean,
     onContinueUnsynced: () -> Unit,
     onStartFromScratch: (String) -> Unit,
 ) {
@@ -90,7 +91,7 @@ fun UnlinkedScreen(
 
         when (mode) {
             UnlinkedMode.Choices -> Choices(lockedReason, onChoose = { mode = it }, onContinueUnsynced)
-            UnlinkedMode.AddAgain -> AddAgain(lockedReason, onJoin, onBack = { mode = UnlinkedMode.Choices })
+            UnlinkedMode.AddAgain -> AddAgain(lockedReason, onJoin, onJoinLink, onBack = { mode = UnlinkedMode.Choices })
             UnlinkedMode.StartOver -> StartOverPage(lockedReason, onStartFromScratch, onBack = { mode = UnlinkedMode.Choices })
         }
     }
@@ -129,13 +130,14 @@ private fun Choice(title: String, detail: String, enabled: Boolean, onClick: () 
 }
 
 @Composable
-private fun AddAgain(lockedReason: String?, onJoin: (String) -> Boolean, onBack: () -> Unit) {
+private fun AddAgain(lockedReason: String?, onJoin: (String) -> Boolean, onJoinLink: (String) -> Boolean, onBack: () -> Unit) {
     var code by rememberSaveable { mutableStateOf("") }
     var wrong by remember { mutableStateOf(false) }
     Text(
-        "On a device that is still linked, open Settings › Devices & sync › Link a device. Scan its QR with this phone's camera (it opens this app), " +
-            "or type its link code here.",
+        "On a device that is still linked, open Settings › Devices & sync › Link a device. Scan its QR here, paste its link, " +
+            "or type its link code.",
     )
+    JoinScanPasteRow(onLink = onJoinLink, onCode = { code = it; wrong = false }, enabled = lockedReason == null)
     OutlinedTextField(
         value = code,
         onValueChange = {

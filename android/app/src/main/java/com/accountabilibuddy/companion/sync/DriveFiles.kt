@@ -214,7 +214,7 @@ class DriveFiles(private val transport: DriveTransport, private val api: String 
     private fun url(base: String, query: Map<String, String>): String =
         base + "?" + query.entries.joinToString("&") { (key, value) -> "${encode(key)}=${encode(value)}" }
 
-    private fun encode(text: String): String = URLEncoder.encode(text, Charsets.UTF_8).replace("+", "%20")
+    private fun encode(text: String): String = URLEncoder.encode(text, "UTF-8").replace("+", "%20")
 
     companion object {
         /** The same folder name as the PC's (App's GoogleDriveFiles.FolderName). */

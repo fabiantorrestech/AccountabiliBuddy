@@ -17,6 +17,12 @@
     <!-- "Pause in the car": tells a car's Bluetooth (by its class) from other devices; asked only when that switch is turned on. -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <!-- Scanning a link code (ADR 57): asked only when "Scan" is tapped; frames are decoded in memory, never saved or sent. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Not required: a phone without a camera still installs and can paste or type the code. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Holding the timeline notification pinned at the top (see PinnedTimelineService). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />

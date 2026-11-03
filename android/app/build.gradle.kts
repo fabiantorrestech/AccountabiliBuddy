@@ -65,5 +65,10 @@ dependencies {
     implementation(libs.play.services.auth)
     // QR codes drawn on the phone: its own sync file and the group's link code (ADR 22, user-approved 2026-10-21).
     implementation(libs.zxing.core)
+    // Scanning a link code with the camera (ADR 57, user-approved 2026-11-03): decoded in memory with the ZXing core above.
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
