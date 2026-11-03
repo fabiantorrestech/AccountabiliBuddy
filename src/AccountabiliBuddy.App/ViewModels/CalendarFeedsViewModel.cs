@@ -105,6 +105,13 @@ public sealed partial class CalendarFeedsViewModel : ObservableObject
     [RelayCommand]
     private async Task RemoveSourceAsync(CalendarSourceRowViewModel row)
     {
+        // Removing a source drops its events, which can loosen a guard (ADR 58): it rests while a focus session runs, like the other locked actions.
+        if (_sessions.IsEnforcing)
+        {
+            CalendarMessage = "Calendars can't be removed while you focus. Do it after the session.";
+            return;
+        }
+
         await _sync.RemoveSourceAsync(row.Id);
         CalendarMessage = $"{row.Name} removed.";
     }

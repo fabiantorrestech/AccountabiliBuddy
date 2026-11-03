@@ -43,6 +43,22 @@ public static class DayPlanCut
         return freed;
     }
 
+    /// <summary>
+    /// What a plan edit frees with calendar events laid over the plans (ADR 58): the larger of the time freed on the stored
+    /// plans and on the overlaid ones. Measuring only the overlaid plans would let a Work event hide a cut (the event keeps the
+    /// time guarded in both), and measuring only the stored ones would miss a deleted category that events use.
+    /// </summary>
+    /// <param name="beforeInForce">The plan before the edit with the events laid over it.</param>
+    /// <param name="afterInForce">The plan after the edit with the events laid over it.</param>
+    public static TimeSpan FreedTodayWithEvents(
+        DayPlan before, DayPlan after, DayPlan beforeInForce, DayPlan afterInForce, DateTime localNow,
+        Func<DateOnly, TimeSpan>? focusedOn = null, Func<DateOnly, SleepTimes?>? nightFallback = null, Func<DateOnly, SleepTimes?>? nightFallbackAfter = null)
+    {
+        TimeSpan onStored = FreedToday(before, after, localNow, focusedOn, nightFallback, nightFallbackAfter);
+        TimeSpan onOverlaid = FreedToday(beforeInForce, afterInForce, localNow, focusedOn, nightFallback, nightFallbackAfter);
+        return onOverlaid > onStored ? onOverlaid : onStored;
+    }
+
     private static IReadOnlyList<LocalWindow> Work(DayPlan plan, LocalWindow rest, DateTime localNow, Func<DateOnly, TimeSpan>? focusedOn, Func<DateOnly, SleepTimes?>? nightFallback)
     {
         return DayWorkWindows.WorkWindows(plan, rest, localNow, focusedOn, nightFallback).Select(focus => focus.Window).ToList();

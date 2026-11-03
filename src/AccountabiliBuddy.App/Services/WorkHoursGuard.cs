@@ -249,10 +249,11 @@ public sealed class WorkHoursGuard : IDisposable
             return null;
         }
 
-        // With the events laid over both plans, a category change or deletion that frees event-made work counts as freed.
+        // The larger of the time freed on the stored plans and on the plans with the calendar events laid over them: an event
+        // must neither hide a cut nor miss a deleted category that event parts use.
         DayPlan beforeInForce = WithCalendarEvents?.Invoke(before) ?? before;
         DayPlan afterInForce = WithCalendarEvents?.Invoke(after) ?? after;
-        TimeSpan freed = DayPlanCut.FreedToday(beforeInForce, afterInForce, LocalNow(), FocusedOn, NightFallback, NightFallbackFor?.Invoke(after));
+        TimeSpan freed = DayPlanCut.FreedTodayWithEvents(before, after, beforeInForce, afterInForce, LocalNow(), FocusedOn, NightFallback, NightFallbackFor?.Invoke(after));
         if (freed <= TimeSpan.Zero)
         {
             return null;

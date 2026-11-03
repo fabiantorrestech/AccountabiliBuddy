@@ -161,7 +161,11 @@ public sealed class EffectiveDayPlanProvider
             IReadOnlyList<EventClassification> after = removes
                 ? CalendarOverlayStore.Without(Store.Classifications, target)
                 : CalendarOverlayStore.With(Store.Classifications, target);
-            if (ClassificationGate.Loosens(calendarEvent, plan, Store.Classifications, after, Store.Rules.Active))
+            // A whole-series choice covers every kept occurrence of the series, not just the clicked one.
+            IEnumerable<CalendarEvent> covered = target.Scope == ClassificationScope.WholeSeries
+                ? _calendars.EventsOf(target.CalendarId).Where(candidate => candidate.SeriesId == target.Key).Append(calendarEvent)
+                : [calendarEvent];
+            if (ClassificationGate.Loosens(covered, plan, Store.Classifications, after, Store.Rules.Active))
             {
                 Store.SchedulePendingClassification(target, removes, _time.GetUtcNow() + _configuration.Current.Locks.LooseningDelay);
             }
