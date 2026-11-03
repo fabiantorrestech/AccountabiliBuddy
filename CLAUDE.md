@@ -16,26 +16,6 @@ Short version. The full text, with every stored document, synced field and edge 
 - Focus time counts only sessions the user starts and ones added by hand in History (ADR 20); no scheduled sessions (ADR 18).
 - Install and data safety (ADR 10): installed to `%LocalAppData%\AccountabiliBuddyApp`; data in `%LocalAppData%\AccountabiliBuddy` (dev builds: `AccountabiliBuddy-Dev`); DB backed up before migrations; a newer DB is refused.
 
-## Stack
-- .NET 10 (LTS), C#, Avalonia UI (ADR 3)
-- Windows platform project targets `net10.0-windows10.0.19041.0` (WinRT: Windows.Media.Ocr, Windows.Graphics.Capture)
-- Win32 interop via CsWin32; SQLite via Microsoft.Data.Sqlite (ADR 6); DI via Microsoft.Extensions.Hosting; MVVM via CommunityToolkit.Mvvm
-- Browser: one MV3 extension for Chromium (Chrome, Brave, Edge, Opera) + Firefox manifest; native messaging host ↔ App via named pipe (ADR 5)
-
-## Layout
-```
-src/AccountabiliBuddy.Core/              domain, engines, ports, storage; Sync/ the sealed sync files (ADR 22)
-src/AccountabiliBuddy.Platform.Windows/  Win32/WinRT adapters
-src/AccountabiliBuddy.App/               Avalonia tray app
-src/AccountabiliBuddy.NativeHost/        browser native messaging host
-extensions/                              browser extension (shared + per-browser manifests)
-android/                                 Android companion (Kotlin, Compose; doc/plans/android-companion.md)
-android/shared/                          code the phone and watch share (snapshot, focus day, certificate pinning for the relay; ADR 21); sync/ the sealed sync files (ADR 22)
-android/wear/                            Pixel Watch companion (rings, Tile, complication; ADR 21)
-doc/adr/                                 architecture decision records
-handoffContext/                          agent handoff (gitignored)
-```
-
 ## Commands
 ```
 dotnet build AccountabiliBuddy.sln
