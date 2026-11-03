@@ -146,6 +146,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.idleItems(
         }
     }
     if (guardsLock != null) item(key = "guard") { GuardBanner(guardsLock, guardOn) }
+    // ADR 58: what calendar events changed in the guards today, by category and time, never a title.
+    info?.calendar?.forEach { line -> item(key = "calendar-$line") { MutedLine(line) } }
     if (chip != null) item(key = "lunch-chip") { LunchChip(lunch, clock, chip) }
     if (!pc.hasPc) item(key = "pc-missing") { PcMissingCard(actions.onOpenDevices) }
     if (info != null && (info.goalMinutes != null || info.focusedMinutes > 0)) item(key = "ring") { RingCard(info.focusedMinutes, info.goalMinutes) }

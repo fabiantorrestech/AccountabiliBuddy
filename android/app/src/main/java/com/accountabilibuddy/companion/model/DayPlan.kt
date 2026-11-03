@@ -1,6 +1,7 @@
 package com.accountabilibuddy.companion.model
 
 import java.time.DayOfWeek
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -47,6 +48,11 @@ data class PlanPart(
      * start and lasts as long as the part does, as if "Start lunch" had been pressed. False = the user starts it, or it is just time in the plan.
      */
     val autoStart: Boolean = false,
+    /**
+     * Made by a calendar event (ADR 58): set only on a part of the effective plan, which exists in memory and never reaches the
+     * stored plan, its JSON or the sync file. Kept when a Free or Budget day's work parts are stripped. The PC's PlanPart.FromEvent.
+     */
+    val fromEvent: Boolean = false,
 ) {
     val endsAtMidnight: Boolean get() = end == LocalTime.MIDNIGHT
     val crossesMidnight: Boolean get() = !endsAtMidnight && !end.isAfter(start)
@@ -75,6 +81,11 @@ data class DayTemplate(
     val mode: DayMode = DayMode.Schedule,
     val workWindow: WorkWindow? = null,
     val budgetMinutes: Int? = null,
+    /**
+     * In memory only (ADR 58): what calendar Work events have already used of a Budget day's budget, so a meeting frees nothing
+     * before it happens; never stored, synced or counted as focus. The PC's DayTemplate.BudgetCredit.
+     */
+    val budgetCredit: Duration = Duration.ZERO,
 ) {
     val rules: BlockRules get() = blocks ?: BlockRules.Default
 

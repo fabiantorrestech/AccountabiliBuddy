@@ -104,7 +104,8 @@ object DayWorkWindows {
         val minutes = template.budgetMinutes
         if (template.mode != DayMode.Budget || minutes == null) return null
 
-        val left = Duration.ofMinutes(minutes.toLong()).minus(focusedSoFar).let { if (it.isNegative) Duration.ZERO else it }
+        // A calendar Work event's credit (ADR 58) counts like focus here, though it is never focus time.
+        val left = Duration.ofMinutes(minutes.toLong()).minus(focusedSoFar).minus(template.budgetCredit).let { if (it.isNegative) Duration.ZERO else it }
         val ahead = LocalWindow(now, LATEST)
         val available = budgetWindows(plan, viewOf(plan), date, null, now, nightFallback)
             .mapNotNull { DayTimeline.clip(it, ahead) }
@@ -135,7 +136,7 @@ object DayWorkWindows {
 
         val stretch = LocalWindow(start, end)
         var windows = DayTimeline.subtract(listOf(stretch), view.partsIn(stretch).map { it.window })
-        if (focusedOn != null && focusedOn(date) >= Duration.ofMinutes(budget.toLong())) {
+        if (focusedOn != null && focusedOn(date).plus(template.budgetCredit) >= Duration.ofMinutes(budget.toLong())) {
             windows = windows.mapNotNull { DayTimeline.clip(it, LocalWindow(EARLIEST, now)) }
         }
 
@@ -151,6 +152,21 @@ object DayWorkWindows {
         return (if (evening) nextMidnight.minusDays(1) else nextMidnight).with(next.bedtime)
     }
 
+    /**
+     * The Budget day whose stretch holds [time] (a stretch can run past midnight, so not always the time's own date), or null when no
+     * Budget day's stretch does. Used by the calendar overlay to credit a Work event to the right day. The PC's BudgetDayHolding.
+     */
+    internal fun budgetDayHolding(plan: DayPlan, time: LocalDateTime, nightFallback: ((LocalDate) -> SleepTimes?)?): LocalDate? {
+        val view = viewOf(plan)
+        val day = time.toLocalDate()
+        for (offset in 0 downTo -1) {
+            val date = day.plusDays(offset.toLong())
+            if (budgetWindows(plan, view, date, null, time, nightFallback).any { it.contains(time) }) return date
+        }
+
+        return null
+    }
+
     // The plan as the guards see it (Free and Budget templates without their work parts).
     private fun viewOf(plan: DayPlan): DayPlan {
         if (plan.templates.none { it.template.mode != DayMode.Schedule } && plan.oneOffDays.none { it.template.mode != DayMode.Schedule }) return plan
@@ -161,12 +177,13 @@ object DayWorkWindows {
     }
 
     // A Free day loses its work, Comms and Pre-Work parts; a Budget day its work and Comms parts and every Pre-Work part
-    // but the first (the warm-up before the day's first window).
-    private fun guarded(plan: DayPlan, template: DayTemplate): DayTemplate {
+    // but the first (the warm-up before the day's first window). A part a calendar event made (ADR 58) stays: the event
+    // overlay decides what an event does on those days.
+    internal fun guarded(plan: DayPlan, template: DayTemplate): DayTemplate {
         if (template.mode == DayMode.Schedule) return template
 
         fun behaviorOf(part: PlanPart) = plan.category(part.categoryId)?.behavior
-        val parts = template.parts.filter { part -> behaviorOf(part)?.let { !it.isWork && it != CategoryBehavior.PreWork } == true }.toMutableList()
+        val parts = template.parts.filter { part -> part.fromEvent || behaviorOf(part)?.let { !it.isWork && it != CategoryBehavior.PreWork } == true }.toMutableList()
         if (template.mode == DayMode.Budget) {
             template.parts
                 .filter { behaviorOf(it) == CategoryBehavior.PreWork && !it.crossesMidnight }

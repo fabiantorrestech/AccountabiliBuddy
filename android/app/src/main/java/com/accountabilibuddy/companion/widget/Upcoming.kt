@@ -12,9 +12,9 @@ import java.time.format.DateTimeFormatter
 object Upcoming {
     private val weekday: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE ")
 
-    fun items(now: LocalDateTime, state: CompanionState, clock: ClockFormat): List<String> {
+    fun items(now: LocalDateTime, state: CompanionState, clock: ClockFormat, plan: com.accountabilibuddy.companion.model.DayPlan = state.document.dayPlan): List<String> {
         val window = LocalWindow(now, now.plusHours(24))
-        val blocks = DayWorkWindows.workWindows(state.document.dayPlan, LocalWindow(now.minusDays(1), window.end), now, nightFallback = state.sleep::fallbackNightBefore)
+        val blocks = DayWorkWindows.workWindows(plan, LocalWindow(now.minusDays(1), window.end), now, nightFallback = state.sleep::fallbackNightBefore)
             .filter { it.window.end.isAfter(now) }
             .map { it.window.start to "${it.name}${if (it.window.contains(now)) " · now" else ""}" }
         val events = state.events

@@ -26,6 +26,7 @@ object SetupFeatures {
     const val RELAY = "sync.relay"
     const val DAY_PLAN_MODES = "dayplan.modes"
     const val APPEARANCE = "appearance.themes"
+    const val CALENDAR_EVENTS = "calendar.events"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
@@ -75,6 +76,12 @@ object SetupFeatures {
             relevant = { true },
             // Set up once seen in the assistant, or a theme was already picked in Settings › Appearance.
             setUp = { done(it, APPEARANCE) || it.getSharedPreferences("ui", Context.MODE_PRIVATE).contains("themeName") },
+        ),
+        SetupFeature(
+            CALENDAR_EVENTS, "0.1.73", "Calendar events in the day plan: events give the guards a category; asks to read the calendar when turned on",
+            relevant = { true },
+            // Set up once seen in the assistant, or the switch is already on (Settings › Your day). Reading the prefs file is a tiny disk read.
+            setUp = { done(it, CALENDAR_EVENTS) || (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).calendarRules.rules.value.active.enabled },
         ),
     )
 

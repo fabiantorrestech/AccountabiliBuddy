@@ -33,6 +33,8 @@ object PhoneSnapshot {
         received: List<Pair<String, SyncFile>> = emptyList(),
         /** Every device held, a kept removed one included (ADR 54): today's focus total counts their sessions as history, as the PC's goal does; [received] stays the live devices. */
         totals: List<Pair<String, SyncFile>> = received,
+        /** The plan the guards read (ADR 58: calendar events over the stored plan); the parts the watch shows follow it. Planned minutes stay on the stored plan. */
+        plan: DayPlan = state.document.dayPlan,
     ): SnapshotInput {
         val today = now.atZone(zone).toLocalDate()
         val fileRunning = runningFromFiles(received, now)
@@ -41,7 +43,7 @@ object PhoneSnapshot {
             zone = zone,
             linked = linked,
             pcName = pcName,
-            parts = todayParts(state.document.dayPlan, today, zone, state.sleep),
+            parts = todayParts(plan, today, zone, state.sleep),
             // The parts and planned minutes come from the imported plan (ADR 42).
             focusDay = FocusDayCombine.combine(totals, today, zone, now, planParts = { date -> todayParts(state.document.dayPlan, date, zone, state.sleep) }),
             sources = received.map { (name, file) -> DataSource(name, file.device.writtenAt) },
