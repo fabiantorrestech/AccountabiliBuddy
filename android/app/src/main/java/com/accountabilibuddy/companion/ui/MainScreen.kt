@@ -186,6 +186,7 @@ fun MainScreen(
                     state = state,
                     lockedReason = removalLocked,
                     onJoin = viewModel::joinWithCode,
+                    onJoinLink = viewModel::offerJoinText,
                     onContinueUnsynced = {
                         // Lands on Today, with the one-time note shown as a message.
                         if (viewModel.continueUnsynced()) nav.select(AppDestination.Today)
@@ -421,6 +422,7 @@ fun MainScreen(
                                     ownQrLinks = viewModel::ownQrLinks,
                                     linkCode = viewModel::syncLinkCode,
                                     onJoin = viewModel::joinWithCode,
+                                    onJoinLink = viewModel::offerJoinText,
                                     onLeave = viewModel::leaveSyncGroup,
                                     onSettings = viewModel::saveSyncSettings,
                                     onFolderChosen = viewModel::chooseSyncFolder,
