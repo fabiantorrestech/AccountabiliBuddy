@@ -712,8 +712,11 @@ public partial class App : Application
             remind: (title, message) => presenter.ShowReminder(title, message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#CA8A04"))));
         // Calendar events in this PC's file too (ADR 26), so the phone's Calendar row stays current on Drive alone.
         syncCoordinator.Events = () => System.Text.Json.JsonSerializer.SerializeToElement(
-            AccountabiliBuddy.App.Services.Sync.DeviceCalendarEvents.Build(calendars, DateOnly.FromDateTime(time.GetLocalNow().DateTime)));
+            AccountabiliBuddy.App.Services.Sync.DeviceCalendarEvents.Build(
+                calendars, DateOnly.FromDateTime(time.GetLocalNow().DateTime), _configuration!.Current.DayPlan, calendarOverlay));
         calendars.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
+        // A classification or rule that changes what the file says goes out soon (not for first-known stamps); posted because guards can raise it from other threads.
+        calendarOverlay.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(syncCoordinator.NotifyHistoryChanged);
         syncActions.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() => _ = syncActions.ApplyAsync());
         _lunch!.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
