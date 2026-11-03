@@ -624,9 +624,13 @@ public partial class App : Application
         syncSettings.LoadBlocking();
         var receivedDevices = new AccountabiliBuddy.App.Services.Sync.ReceivedDevicesService(documents, time);
         receivedDevices.LoadBlocking();
+        // The daily steps a paired phone read from Health Connect, from its sync file: this PC never reads Health Connect.
+        var dailySteps = new AccountabiliBuddy.App.Services.DailyStepsService(documents);
+        dailySteps.LoadBlocking();
         // A paired phone's next alarm (ADR 23): the newest phone file's, while it's still ahead.
         void FollowPhoneAlarm()
         {
+            dailySteps.Follow(receivedDevices.Active);
             sleepSettings.SetPhoneAlarm(AccountabiliBuddy.App.Services.Sync.PhoneAlarm.Of(receivedDevices.Active, time));
             // ADR 34: the phone's smart bedtime, from the same files.
             sleepSettings.SetPhoneBedtime(AccountabiliBuddy.App.Services.Sync.PhoneBedtime.Of(receivedDevices.Active));
@@ -970,6 +974,7 @@ public partial class App : Application
         sessionViewModel.Comebacks = new ComebacksViewModel(_comebacks!, sessionTasks);
         sessionViewModel.Timers = new TimersViewModel(_timers!, _sessions);
         sessionViewModel.Lunch = new LunchCardViewModel(_lunch!, _sessions);
+        sessionViewModel.Steps = new StepsCardViewModel(dailySteps, time);
         sessionViewModel.DayOff = new DayOffCardViewModel(_preWork!);
         var beeminderViewModel = new BeeminderViewModel(_beeminder!, time);
         sessionViewModel.Beeminder = beeminderViewModel;
