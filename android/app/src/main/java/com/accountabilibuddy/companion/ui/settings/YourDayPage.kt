@@ -1,19 +1,18 @@
 package com.accountabilibuddy.companion.ui.settings
 
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.ui.LunchSection
-import com.accountabilibuddy.companion.ui.Section
-import com.accountabilibuddy.companion.ui.theme.Ab
+import com.accountabilibuddy.companion.ui.SectionIcons
+import com.accountabilibuddy.companion.ui.kit.AbCard
+import com.accountabilibuddy.companion.ui.kit.AbListRow
 
-/** Settings › Your day: lunch, and a pointer to Plan for work hours and day types. */
+/** Settings › Your day: lunch, and a link to Plan for work hours and day types. */
 @Composable
 fun YourDayPage(anchor: String?, onOpenPlan: () -> Unit) {
     val app = LocalContext.current.applicationContext as CompanionApp
@@ -22,9 +21,13 @@ fun YourDayPage(anchor: String?, onOpenPlan: () -> Unit) {
         listOf(
             PageRow(SettingsAnchors.LUNCH) { LunchSection(lunchLength) },
             PageRow(SettingsAnchors.WORK_HOURS) {
-                Section("Work hours and day types", summary = "Edited in Plan") {
-                    Text("Your work hours, day types, day parts and days off are in Plan.", style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = onOpenPlan, colors = ButtonDefaults.textButtonColors(contentColor = Ab.colors.ink)) { Text("Open Plan") }
+                AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
+                    AbListRow(
+                        "Work hours and day types",
+                        icon = SectionIcons.Plan,
+                        subtitle = "Work hours, day types, day parts and days off are edited in Plan",
+                        onClick = onOpenPlan,
+                    )
                 }
             },
         ),

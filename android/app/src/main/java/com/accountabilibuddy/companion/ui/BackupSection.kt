@@ -5,11 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -21,6 +17,11 @@ import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.MainActivity
 import com.accountabilibuddy.companion.backup.PhoneBackup
+import com.accountabilibuddy.companion.ui.kit.AbDialog
+import com.accountabilibuddy.companion.ui.kit.AbSectionLabel
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
+import com.accountabilibuddy.companion.ui.theme.Ab
 import kotlin.system.exitProcess
 
 /**
@@ -68,57 +69,51 @@ internal fun BackupSection() {
     }
 
     Section("Backup", summary = if (folder != null) "Auto-backup on" else "Export or import this phone's settings") {
-        Text("This phone's settings in one file: essentials, emergency time, headphones, noise, pause, work card, startup, sync switches and sleep. Never the device group's code or the Drive sign-in.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Note("This phone's settings in one file: essentials, emergency time, headphones, noise, pause, work card, startup, sync switches and sleep. Never the device group's code or the Drive sign-in.")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { export.launch("AccountabiliBuddy-phone-settings.json") }) { Text("Export…") }
-            OutlinedButton(onClick = { import.launch(arrayOf("application/json", "text/plain", "*/*")) }, enabled = importLocked == null) { Text("Import…") }
+            AbTonalButton("Export…", onClick = { export.launch("AccountabiliBuddy-phone-settings.json") })
+            AbTonalButton("Import…", onClick = { import.launch(arrayOf("application/json", "text/plain", "*/*")) }, enabled = importLocked == null)
         }
-        importLocked?.let {
-            Text("Import rests while you focus. $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Text("Auto-backup", style = MaterialTheme.typography.labelLarge)
-        Text(
+        importLocked?.let { Note("Import rests while you focus. $it") }
+        AbSectionLabel("Auto-backup")
+        Note(
             if (folder == null) "Off. Choose a folder: a backup lands there whenever the app updates and a minute after a setting changes (the 10 newest kept)."
             else "To ${com.accountabilibuddy.companion.sync.DriveFolderSource.displayName(folder.toString())}: when the app updates and a minute after a setting changes.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { pickFolder.launch(null) }) { Text(if (folder == null) "Choose folder" else "Change folder") }
+            AbTonalButton(if (folder == null) "Choose folder" else "Change folder", onClick = { pickFolder.launch(null) })
             if (folder != null) {
-                OutlinedButton(onClick = { app.autoBackup.backUpNow("by hand") }) { Text("Back up now") }
-                TextButton(onClick = { app.autoBackup.folder = null; folder = null }) { Text("Turn off") }
+                AbTonalButton("Back up now", onClick = { app.autoBackup.backUpNow("by hand") })
+                AbTextButton("Turn off", onClick = { app.autoBackup.folder = null; folder = null })
             }
         }
-        status?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-        message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        status?.let { Note(it) }
+        message?.let { Note(it) }
     }
 
     toImport?.let { text ->
-        AlertDialog(
-            onDismissRequest = { toImport = null },
-            title = { Text("Import these settings?") },
-            text = {
-                val keepsSync = PhoneBackup.keepsSyncSettings(context, text)
-                Text(
-                    "They replace this phone's settings, then the app restarts. Folders (noise, sync, backup) may need choosing again." +
-                        if (keepsSync) " This phone's sync settings stay as they are: the file would leave it with no way of syncing." else "",
-                )
+        val keepsSync = PhoneBackup.keepsSyncSettings(context, text)
+        AbDialog(
+            title = "Import these settings?",
+            onDismiss = { toImport = null },
+            confirmText = "Import and restart",
+            onConfirm = {
+                toImport = null
+                val problem = PhoneBackup.import(context, text)
+                if (problem != null) {
+                    message = problem
+                } else {
+                    // A fresh start reads the imported settings everywhere.
+                    context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+                    exitProcess(0)
+                }
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    toImport = null
-                    val problem = PhoneBackup.import(context, text)
-                    if (problem != null) {
-                        message = problem
-                    } else {
-                        // A fresh start reads the imported settings everywhere.
-                        context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
-                        exitProcess(0)
-                    }
-                }) { Text("Import and restart") }
-            },
-            dismissButton = { TextButton(onClick = { toImport = null }) { Text("Cancel") } },
-        )
+        ) {
+            Text(
+                "They replace this phone's settings, then the app restarts. Folders (noise, sync, backup) may need choosing again." +
+                    if (keepsSync) " This phone's sync settings stay as they are: the file would leave it with no way of syncing." else "",
+                style = Ab.type.bodyMedium, color = Ab.colors.ink,
+            )
+        }
     }
 }

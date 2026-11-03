@@ -3,10 +3,8 @@ package com.accountabilibuddy.companion.ui
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -16,6 +14,8 @@ import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.curbox.CurboxStatus
 import com.accountabilibuddy.companion.essentials.EssentialsLaunch
 import com.accountabilibuddy.companion.nudge.NudgeStore
+import com.accountabilibuddy.companion.ui.kit.AbCard
+import com.accountabilibuddy.companion.ui.theme.Ab
 import java.time.LocalDate
 
 /** One guardrail on this phone: its name, what it's doing now, and details. */
@@ -56,7 +56,7 @@ object PhoneGuards {
         val profile = app.essentials.hardcoreProfile
         return when {
             !installed -> PhoneGuard("LockMyPhone-Extended", "Not installed")
-            profile.isNullOrBlank() -> PhoneGuard("LockMyPhone-Extended", "Installed · no hardcore profile set (Settings › Guards)")
+            profile.isNullOrBlank() -> PhoneGuard("LockMyPhone-Extended", "Installed · no hardcore profile set (Guards › Phone guard › Essentials)")
             else -> PhoneGuard("LockMyPhone-Extended", "Hardcore profile \"$profile\" starts with each PC session",
                 listOf("Its own blocks and allowed apps are set in LockMyPhone-Extended."))
         }
@@ -99,7 +99,7 @@ object PhoneGuards {
 
     private fun workCard(context: Context): PhoneGuard {
         val on = NudgeStore(context).load().takeoverOn
-        return PhoneGuard("Work card", if (on) "Ready: covers the phone during work time with no session" else "Off (Settings › Guards)")
+        return PhoneGuard("Work card", if (on) "Ready: covers the phone during work time with no session" else "Off (Settings › Focus sessions)")
     }
 }
 
@@ -108,17 +108,12 @@ object PhoneGuards {
 internal fun PhoneGuardCards(guards: List<PhoneGuard>, pcName: String?) {
     Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         guards.forEach { guard ->
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(guard.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    Text(guard.state, style = MaterialTheme.typography.bodyMedium)
-                    guard.details.forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                }
+            AbCard(contentPadding = PaddingValues(12.dp), verticalSpacing = 2.dp) {
+                Text(guard.name, style = Ab.type.bodyMedium, fontWeight = FontWeight.SemiBold, color = Ab.colors.ink)
+                Text(guard.state, style = Ab.type.bodyMedium, color = Ab.colors.ink)
+                guard.details.forEach { Note(it) }
             }
         }
-        Text(
-            "AccountabiliBuddy doesn't block anything on the phone; these are what does." + (pcName?.let { " $it's profiles guard the PC." } ?: ""),
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Note("AccountabiliBuddy doesn't block anything on the phone; these are what does." + (pcName?.let { " $it's profiles guard the PC." } ?: ""))
     }
 }

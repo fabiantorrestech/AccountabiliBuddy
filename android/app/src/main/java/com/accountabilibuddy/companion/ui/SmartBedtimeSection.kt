@@ -1,10 +1,5 @@
 package com.accountabilibuddy.companion.ui
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -12,10 +7,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.engine.NightKind
+import com.accountabilibuddy.companion.ui.kit.AbChip
+import com.accountabilibuddy.companion.ui.kit.AbChipRow
+import com.accountabilibuddy.companion.ui.kit.AbSectionLabel
 
 /**
  * Settings → Smart bedtime (ADR 34): a switch per kind of night, the minimum and maximum sleep, and what it learned.
@@ -42,27 +39,24 @@ internal fun SmartBedtimeSection(clock: ClockFormat, needs: @Composable () -> Un
     val on = NightKind.entries.filter { sleep.smartOn(it) }
     Section("Smart bedtime", summary = if (on.isEmpty()) "Off" else on.joinToString(" · ") { label(it) }) {
         version.let { } // read so changes redraw
-        Text(
-            "Learns how long you really sleep (Health Connect) and when you put the phone down, then sets tonight's bedtime from tomorrow's wake time. It starts from what you do now and moves 15 minutes earlier after each week you made it on most nights: first to your minimum, then toward your goal.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Note("Learns how long you really sleep (Health Connect) and when you put the phone down, then sets tonight's bedtime from tomorrow's wake time. It starts from what you do now and moves 15 minutes earlier after each week you made it on most nights: first to your minimum, then toward your goal.")
         NightKind.entries.forEach { kind ->
             val on = sleep.smartOn(kind)
             ToggleRow(label(kind), if (on) "On" else "Off", on) { value -> save(sleep.withSmart(kind, value)) }
             // What it learned, in full (not behind ⓘ): the point of the switch.
-            if (on) Text(service.status(kind, clock), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (on) Note(service.status(kind, clock))
         }
         needs()
-        Text("Minimum sleep", style = MaterialTheme.typography.labelLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        AbSectionLabel("Minimum sleep")
+        AbChipRow {
             listOf(5.5, 6.0, 6.5, 7.0, 7.5).forEach { hours ->
-                FilterChip(selected = sleep.minHours == hours, onClick = { save(sleep.copy(minHours = hours)) }, label = { Text(hoursText(hours)) })
+                AbChip(hoursText(hours), selected = sleep.minHours == hours, onClick = { save(sleep.copy(minHours = hours)) })
             }
         }
-        Text("Maximum sleep", style = MaterialTheme.typography.labelLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        AbSectionLabel("Maximum sleep")
+        AbChipRow {
             listOf(8.0, 8.5, 9.0, 9.5, 10.0).forEach { hours ->
-                FilterChip(selected = sleep.maxHours == hours, onClick = { save(sleep.copy(maxHours = hours)) }, label = { Text(hoursText(hours)) })
+                AbChip(hoursText(hours), selected = sleep.maxHours == hours, onClick = { save(sleep.copy(maxHours = hours)) })
             }
         }
     }

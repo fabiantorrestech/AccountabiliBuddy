@@ -1,38 +1,33 @@
 package com.accountabilibuddy.companion.ui
 
-import android.Manifest
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import com.accountabilibuddy.companion.ui.GuardButton as Button
-import com.accountabilibuddy.companion.ui.GuardFilterChip as FilterChip
-import androidx.compose.material3.MaterialTheme
-import com.accountabilibuddy.companion.ui.GuardOutlinedButton as OutlinedButton
-import com.accountabilibuddy.companion.ui.GuardRadioButton as RadioButton
 import androidx.compose.material3.Text
-import com.accountabilibuddy.companion.ui.GuardTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.pause.PauseLength
 import com.accountabilibuddy.companion.pause.PauseRules
 import com.accountabilibuddy.companion.pause.PauseState
 import com.accountabilibuddy.companion.pause.PauseStatus
+import com.accountabilibuddy.companion.ui.kit.AbCard
+import com.accountabilibuddy.companion.ui.kit.AbChip
+import com.accountabilibuddy.companion.ui.kit.AbChipRow
+import com.accountabilibuddy.companion.ui.kit.AbChoiceRow
+import com.accountabilibuddy.companion.ui.kit.AbDialog
+import com.accountabilibuddy.companion.ui.kit.AbSectionLabel
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.companion.ui.theme.Ab
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
@@ -56,8 +51,9 @@ data class PauseActions(
 )
 
 /**
- * Settings → "AccountabiliBuddy on this phone": the master switch (like Curbox's: turning it off waits first, then it
- * stays off for the chosen time) and "Pause in the car". Turning it back on is at once.
+ * Settings → Guards → Phone guard: the master switch "AccountabiliBuddy on this phone" (like Curbox's: turning it off waits first,
+ * then it stays off for the chosen time). Turning it back on is at once. Pause in the car and the work-start nudge are in
+ * [PauseAdvancedControls].
  */
 @Composable
 fun PauseSection(state: PauseState, now: Instant, clock: ClockFormat, actions: PauseActions) =
@@ -79,49 +75,18 @@ private fun PauseSectionBody(state: PauseState, now: Instant, clock: ClockFormat
         is PauseStatus.Waiting -> if (resting && status.left.isZero) "Turns off when your session ends" else "Turns off in ${left(status.left)}"
         is PauseStatus.Paused -> status.until?.let { "Off until ${clock.time(LocalDateTime.ofInstant(it, zone))}" } ?: "Off until you turn it on"
     }
-    Section("AccountabiliBuddy on this phone", summary = summary, startOpen = status != PauseStatus.On) {
+    AbCard(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp), verticalSpacing = 8.dp) {
+        IconTitle("AccountabiliBuddy on this phone", style = Ab.type.body, fontWeight = FontWeight.SemiBold)
         GuardsRestNote()
-        Text(summary, style = MaterialTheme.typography.titleMedium, color = if (status == PauseStatus.On) Color.Unspecified else Color(0xFFF4A261))
+        // Off or waiting to be off is the waiting tone: it is a state to notice, not an error.
+        Text(summary, style = Ab.type.section, color = if (status == PauseStatus.On) Ab.colors.ink else Ab.colors.waiting)
         when (status) {
-            PauseStatus.On -> OutlinedButton(onClick = { choosing = true }) { Text("Turn off…") }
+            PauseStatus.On -> GuardTonalButton("Turn off…", onClick = { choosing = true })
             is PauseStatus.Waiting -> {
-                Text("Nudges, the parked phone and pickups stop when the wait is over.", style = MaterialTheme.typography.bodySmall)
-                Button(onClick = actions.onTurnOn) { Text("Cancel, keep it on") }
+                Note("Nudges, the parked phone and pickups stop when the wait is over.")
+                GuardTonalButton("Cancel, keep it on", onClick = actions.onTurnOn)
             }
-            is PauseStatus.Paused -> Button(onClick = actions.onTurnOn) { Text("Turn back on") }
-        }
-
-        Text("Work-start nudge: again every", style = MaterialTheme.typography.bodyMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf(5, 10, 15, 0).forEach { minutes ->
-                FilterChip(
-                    selected = actions.nudgeRepeat == minutes,
-                    onClick = { actions.onNudgeRepeat(minutes) },
-                    label = { Text(if (minutes == 0) "Once" else "$minutes min") },
-                )
-            }
-        }
-
-        ToggleRow(
-            "Take over the screen",
-            "During work time with no session, unlocking the phone shows a full-screen card: plan 3 tasks and start. " +
-                "\"I'm starting\" gives 10 minutes, snoozing is free twice a day, then needs a reason.",
-            actions.takeoverOn,
-        ) { actions.onTakeover(it) }
-        if (actions.takeoverOn && !actions.takeoverAllowed) {
-            OutlinedButton(onClick = actions.onAllowTakeover) { Text("Allow \"Display over other apps\"") }
-        }
-
-        val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> actions.onCarPause(granted) }
-        ToggleRow(
-            "Pause in the car",
-            "While the phone is connected to a car (its Bluetooth says car audio or hands-free, not just its name) or Android Auto runs: no nudges or parked phone, and unlocks don't count as pickups.",
-            state.carPause,
-        ) { on ->
-            if (on && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) permission.launch(Manifest.permission.BLUETOOTH_CONNECT) else actions.onCarPause(on)
-        }
-        if (state.carPause && state.inCar) {
-            Text("In the car now.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            is PauseStatus.Paused -> GuardTonalButton("Turn back on", onClick = actions.onTurnOn)
         }
     }
 
@@ -145,46 +110,38 @@ private fun TurnOffDialog(onDismiss: () -> Unit, onPlanOffDays: () -> Unit, onCo
     var length by remember { mutableStateOf(PauseLength.RestOfDay) }
     var time by remember { mutableStateOf(LocalTime.of(2, 0)) }
     var wait by remember { mutableIntStateOf(PauseRules.WAITS.first()) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Turn AccountabiliBuddy off?") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("For how long?", style = MaterialTheme.typography.titleSmall)
-                LengthRow("The rest of today (back on at midnight)", length == PauseLength.RestOfDay) { length = PauseLength.RestOfDay }
-                LengthRow("Until a time tonight", length == PauseLength.UntilTime) { length = PauseLength.UntilTime }
-                if (length == PauseLength.UntilTime) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                        listOf(1, 2, 4, 6).forEach { hour ->
-                            FilterChip(selected = time.hour == hour, onClick = { time = LocalTime.of(hour, 0) }, label = { Text("$hour AM") })
-                        }
-                    }
-                }
-                LengthRow("Until I turn it back on (remind me each morning)", length == PauseLength.UntilOnRemind) { length = PauseLength.UntilOnRemind }
-                LengthRow("Until I turn it back on (no reminders)", length == PauseLength.UntilOnQuiet) { length = PauseLength.UntilOnQuiet }
-                TextButton(onClick = onPlanOffDays) { Text("Plan off days in the day plan instead…") }
-                Text("Wait before it turns off", style = MaterialTheme.typography.titleSmall)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    PauseRules.WAITS.forEach { minutes ->
-                        FilterChip(
-                            selected = wait == minutes,
-                            onClick = { wait = minutes },
-                            label = { Text(if (minutes >= 24 * 60) "1 day" else if (minutes >= 60) "${minutes / 60} h" else "$minutes min") },
-                        )
+    AbDialog(
+        title = "Turn AccountabiliBuddy off?",
+        onDismiss = onDismiss,
+        confirmText = "Start the wait",
+        onConfirm = { onConfirm(length, wait, time) },
+        dismissText = "Keep it on",
+    ) {
+        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            AbSectionLabel("For how long?")
+            AbChoiceRow("The rest of today (back on at midnight)", length == PauseLength.RestOfDay) { length = PauseLength.RestOfDay }
+            AbChoiceRow("Until a time tonight", length == PauseLength.UntilTime) { length = PauseLength.UntilTime }
+            if (length == PauseLength.UntilTime) {
+                AbChipRow {
+                    listOf(1, 2, 4, 6).forEach { hour ->
+                        AbChip("$hour AM", selected = time.hour == hour, onClick = { time = LocalTime.of(hour, 0) })
                     }
                 }
             }
-        },
-        confirmButton = { Button(onClick = { onConfirm(length, wait, time) }) { Text("Start the wait") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Keep it on") } },
-    )
-}
-
-@Composable
-private fun LengthRow(label: String, selected: Boolean, onClick: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected = selected, onClick = onClick)
-        Text(label, style = MaterialTheme.typography.bodyMedium)
+            AbChoiceRow("Until I turn it back on (remind me each morning)", length == PauseLength.UntilOnRemind) { length = PauseLength.UntilOnRemind }
+            AbChoiceRow("Until I turn it back on (no reminders)", length == PauseLength.UntilOnQuiet) { length = PauseLength.UntilOnQuiet }
+            AbTextButton("Plan off days in the day plan instead…", onClick = onPlanOffDays)
+            AbSectionLabel("Wait before it turns off")
+            AbChipRow {
+                PauseRules.WAITS.forEach { minutes ->
+                    AbChip(
+                        if (minutes >= 24 * 60) "1 day" else if (minutes >= 60) "${minutes / 60} h" else "$minutes min",
+                        selected = wait == minutes,
+                        onClick = { wait = minutes },
+                    )
+                }
+            }
+        }
     }
 }
 

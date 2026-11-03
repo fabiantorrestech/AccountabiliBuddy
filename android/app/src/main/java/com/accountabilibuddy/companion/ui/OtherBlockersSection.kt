@@ -2,7 +2,6 @@ package com.accountabilibuddy.companion.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -14,10 +13,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.accountabilibuddy.companion.blockers.OtherBlockers
+import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
- * Settings → Permissions & setup: other blockers on this phone (AppBlock, StayFocused, Freedom), status only.
- * Checked again whenever the app comes back to the front, like the permissions above it.
+ * Settings → Connections: other blockers on this phone (AppBlock, StayFocused, Freedom), status only.
+ * Checked again whenever the app comes back to the front, like the permissions.
  */
 @Composable
 fun OtherBlockersSection() {
@@ -28,15 +28,11 @@ fun OtherBlockersSection() {
 
     Section("Other blockers", summary = if (found.isEmpty()) "None found" else found.joinToString(", ") { it.name }) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                "AppBlock, StayFocused and Freedom, if installed. AccountabiliBuddy only notices them: their lists and blocks are theirs.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Note("AppBlock, StayFocused and Freedom, if installed. AccountabiliBuddy only notices them: their lists and blocks are theirs.")
             if (found.isEmpty()) {
-                Text("None found on this phone.", style = MaterialTheme.typography.bodyMedium)
+                Text("None found on this phone.", style = Ab.type.bodyMedium, color = Ab.colors.ink)
             } else {
-                found.forEach { Text(OtherBlockers.line(it), style = MaterialTheme.typography.bodyMedium) }
+                found.forEach { Text(OtherBlockers.line(it), style = Ab.type.bodyMedium, color = Ab.colors.ink) }
             }
         }
     }

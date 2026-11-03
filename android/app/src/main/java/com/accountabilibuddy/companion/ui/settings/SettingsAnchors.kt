@@ -18,13 +18,19 @@ object SettingsAnchors {
     const val HEALTH_CONNECT = "health-connect"
 
     // Focus sessions
+    const val START_NUDGE = "start-nudge"
     const val TEST_SESSION = "test-session"
+    const val SESSION_LENGTHS = "session-lengths"
 
-    // Guards
+    // Guards: the list, then the Phone guard page (PHONE_GUARD to ADVANCED and what is inside it), Essentials and Curbox setup
     const val PHONE_GUARD = "phone-guard"
+    const val PHONE_DOWN = "phone-down"
     const val ESSENTIALS = "essentials"
-    const val EMERGENCY = "emergency"
     const val PLACEMENT = "placement"
+    const val EMERGENCY = "emergency"
+    const val ADVANCED = "advanced"
+    const val CURBOX_SETUP = "curbox-setup"
+    const val LOCKMYPHONE = "lockmyphone"
     const val PROFILES = "profiles"
 
     // Alerts & on-screen

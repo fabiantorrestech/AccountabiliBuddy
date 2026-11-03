@@ -4,13 +4,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.accountabilibuddy.companion.sync.PhoneSyncSettings
+import com.accountabilibuddy.companion.ui.kit.AbValueButton
 
 /**
  * Settings → Sleep → Wake-up alarm (it was on Devices): the phone's next alarm as the wake time (ADR 23), here and on the PCs,
@@ -40,7 +40,7 @@ private fun AlarmAppPicker(pinned: String?, alarmApps: List<Pair<String, String>
     val label = if (pinned != null) "Wake-up alarm: ${name(pinned)} (pinned)"
     else "Wake-up alarm: Auto · ${learnedAlarmApp?.let(::name) ?: "learning (any alarm but calendars)"}"
     Column {
-        TextButton(onClick = { open = true }) { Text("$label ▾") }
+        AbValueButton("$label ▾", onClick = { open = true })
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(text = { Text("Auto (learn from my mornings)") }, onClick = { open = false; onPick(null) })
             alarmApps.filter { !it.first.contains("calendar", ignoreCase = true) }.forEach { (app, appName) ->

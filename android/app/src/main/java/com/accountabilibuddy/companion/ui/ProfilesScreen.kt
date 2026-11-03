@@ -1,26 +1,17 @@
 package com.accountabilibuddy.companion.ui
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Computer
-import androidx.compose.material.icons.outlined.Smartphone
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,132 +21,65 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.accountabilibuddy.companion.sync.PcState
-import com.accountabilibuddy.companion.data.CompanionState
-import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.engine.ProfileColors
 import com.accountabilibuddy.companion.model.FocusProfile
 import com.accountabilibuddy.companion.model.MatchTarget
 import com.accountabilibuddy.companion.model.RuleVerdict
+import com.accountabilibuddy.companion.ui.kit.AbCard
+import com.accountabilibuddy.companion.ui.kit.AbListRow
+import com.accountabilibuddy.companion.ui.theme.Ab
 
-/**
- * Profiles by device, read only: this phone first with what actually guards it ([PhoneGuards]: Curbox, LockMyPhone,
- * essentials, emergency time, the work card), then the PC's profiles (colour and rules; tap to see the rules; profile
- * count, what it's running, when they synced).
- */
+// The pieces of Settings › Guards' profiles, read only: a device's row (this phone, then the PC) and one PC profile as a card (colour
+// and rules; tap to see the rules). The page that lists them is settings/GuardsPage.
+
+/** A device's row: its name, a line about its profiles and ▾/▴; tap to open or close what is under it. */
 @Composable
-fun ProfilesScreen(
-    state: CompanionState,
-    clock: ClockFormat,
-    pcName: String? = null,
-    pcState: PcState? = null,
-    deviceName: String = "This phone",
-    curbox: com.accountabilibuddy.companion.curbox.CurboxStatus = com.accountabilibuddy.companion.curbox.CurboxStatus(),
-    /** Rows put above the phone and PC profiles in the same list (Settings › Guards puts the phone's guard switches here). */
-    header: LazyListScope.() -> Unit = {},
-    /** The list's scroll state (a search result scrolls Guards to its row). */
-    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
-) {
-    var pcExpanded by remember { mutableStateOf(true) }
-    var phoneExpanded by remember { mutableStateOf(true) }
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val guards = remember(curbox) { PhoneGuards.read(context, curbox) }
-    val profiles = state.document.profiles
-    LazyColumn(state = listState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        header()
-        // This phone first: what actually guards it.
-        item {
-            DeviceRow(
-                title = "$deviceName (this phone)",
-                icon = Icons.Outlined.Smartphone,
-                detail = PhoneGuards.summary(guards),
-                expanded = phoneExpanded,
-                onToggle = { phoneExpanded = !phoneExpanded },
-            )
-        }
-        if (phoneExpanded) {
-            item { PhoneGuardCards(guards, pcName) }
-        }
-
-        if (profiles.isEmpty()) {
-            item { Text("No PC profiles yet. Sign in to Google Drive in Settings › Devices & sync, or import a backup from the PC in Settings › App & data.", modifier = Modifier.padding(top = 8.dp)) }
-            return@LazyColumn
-        }
-
-        if (pcName == null) {
-            item {
-                Text(
-                    "${state.importedFrom ?: "From the PC"}; imported ${state.importedAt ?: ""}. Edit profiles on the PC and import again.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+internal fun ProfileDeviceRow(title: String, icon: ImageVector, detail: String, expanded: Boolean, onToggle: () -> Unit) {
+    AbCard(onClick = onToggle, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
+        AbListRow(
+            title,
+            icon = icon,
+            subtitle = detail,
+            showChevron = false,
+            trailing = {
+                Icon(
+                    if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                    contentDescription = if (expanded) "Fold" else "Open", tint = Ab.colors.faint, modifier = Modifier.size(24.dp),
                 )
-            }
-            items(profiles, key = { it.id }) { profile -> ProfileCard(profile, state, clock) }
-            return@LazyColumn
-        }
-
-        val running = when {
-            pcState == null -> "no session data yet"
-            pcState.isScheduledBlock -> "blocks on: ${pcState.profileName ?: "a profile"}"
-            pcState.isActive -> "running: ${pcState.profileName ?: "a profile"}"
-            else -> "nothing running"
-        }
-        item {
-            DeviceRow(
-                title = pcName,
-                icon = Icons.Outlined.Computer,
-                detail = "${profiles.size} profile${if (profiles.size == 1) "" else "s"} · $running · synced ${state.importedAt ?: "not yet"}",
-                expanded = pcExpanded,
-                onToggle = { pcExpanded = !pcExpanded },
-            )
-        }
-        if (pcExpanded) {
-            items(profiles, key = { it.id }) { profile ->
-                Column(Modifier.padding(start = 16.dp)) { ProfileCard(profile, state, clock) }
-            }
-        }
-
+            },
+        )
     }
 }
 
-/** A device's row: ▾/▸, its name, and a line about its profiles; tap to open or close. */
+/** One PC profile: its colour dot, its name and how many sites and apps it blocks and allows; a tap lists the rules. */
 @Composable
-private fun DeviceRow(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, detail: String, expanded: Boolean, onToggle: () -> Unit) {
-    Column(Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 4.dp)) {
-        IconTitle("${if (expanded) "▾" else "▸"} $title", style = MaterialTheme.typography.titleMedium, icon = icon, fontWeight = FontWeight.SemiBold)
-        Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 46.dp))
-    }
-}
-
-@Composable
-private fun ProfileCard(profile: FocusProfile, state: CompanionState, clock: ClockFormat) {
+internal fun ProfileCard(profile: FocusProfile) {
     var expanded by remember { mutableStateOf(false) }
     val blocked = profile.rules.count { it.verdict == RuleVerdict.Block }
     val allowed = profile.rules.size - blocked
 
-    Card(Modifier.fillMaxWidth().clickable { expanded = !expanded }) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(12.dp).background(Color(ProfileColors.argbFor(profile.id)), CircleShape))
-                Spacer(Modifier.width(10.dp))
-                Text(profile.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            }
-            Text("$blocked blocked · $allowed allowed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (expanded) {
-                profile.rules.forEach { rule ->
-                    Row {
-                        Text(
-                            if (rule.verdict == RuleVerdict.Block) "Block" else "Allow",
-                            modifier = Modifier.width(52.dp),
-                            color = if (rule.verdict == RuleVerdict.Block) com.accountabilibuddy.companion.ui.theme.Ab.colors.drift else com.accountabilibuddy.companion.ui.theme.Ab.colors.met,
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                        Text(
-                            "${targetName(rule.target)}: ${rule.pattern}",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
+    AbCard(onClick = { expanded = !expanded }, verticalSpacing = 6.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // The profile's own colour, as the PC shows it.
+            Box(Modifier.size(12.dp).background(Color(ProfileColors.argbFor(profile.id)), CircleShape))
+            Spacer(Modifier.width(10.dp))
+            Text(profile.name, style = Ab.type.body, fontWeight = FontWeight.SemiBold, color = Ab.colors.ink)
+        }
+        Note("$blocked blocked · $allowed allowed")
+        if (expanded) {
+            profile.rules.forEach { rule ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        if (rule.verdict == RuleVerdict.Block) "Block" else "Allow",
+                        modifier = Modifier.width(52.dp),
+                        color = if (rule.verdict == RuleVerdict.Block) Ab.colors.drift else Ab.colors.met,
+                        style = Ab.type.small,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text("${targetName(rule.target)}: ${rule.pattern}", style = Ab.type.small, color = Ab.colors.ink)
                 }
             }
         }

@@ -29,6 +29,7 @@ import com.accountabilibuddy.companion.ui.plan.PlanWaitSheet
 import com.accountabilibuddy.companion.ui.shell.AppDestination
 import com.accountabilibuddy.companion.ui.shell.AppScaffold
 import com.accountabilibuddy.companion.ui.shell.rememberAppNav
+import com.accountabilibuddy.companion.ui.settings.SettingsAnchors
 import com.accountabilibuddy.companion.ui.settings.SettingsDetailHost
 import com.accountabilibuddy.companion.ui.settings.SettingsPageActions
 import com.accountabilibuddy.companion.ui.settings.SettingsPageInputs
@@ -390,6 +391,7 @@ fun MainScreen(
                                 onOpenSetup = { showSetup = true },
                                 onOpenDevices = { nav.open(AppDestination.Settings, SettingsCategory.Devices.key) },
                                 onOpenPlan = { nav.select(AppDestination.Plan) },
+                                onOpenCurboxSetup = { nav.open(AppDestination.Settings, SettingsCategory.Guards.key, SettingsAnchors.CURBOX_SETUP) },
                                 onOpenWhatsNew = { whatsNewOpen = true },
                                 onReenableTime = viewModel::setReenableTime,
                                 pause = pauseActions,

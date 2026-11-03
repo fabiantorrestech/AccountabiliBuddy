@@ -34,13 +34,19 @@ object SettingsSearch {
         SearchEntry("Health Connect", Sleep, A.HEALTH_CONNECT, listOf("measured sleep", "connect", "sleep strip")),
 
         // Focus sessions
+        SearchEntry("Work-start nudge and takeover screen", FocusSessions, A.START_NUDGE, listOf("nudge", "start nudge", "repeat", "again every", "work card", "full-screen", "take over the screen", "display over other apps", "unlock")),
         SearchEntry("Test session", FocusSessions, A.TEST_SESSION, listOf("try", "practice", "session", "more options")),
+        SearchEntry("Session length, breaks and Pomodoro", FocusSessions, A.SESSION_LENGTHS, listOf("length", "break", "breaks", "pomodoro", "set on the pc", "timer")),
 
         // Guards
-        SearchEntry("Phone guard (AccountabiliBuddy on this phone)", Guards, A.PHONE_GUARD, listOf("master switch", "turn off", "pause", "nudge", "work card", "takeover", "car", "wait", "guard", "paused")),
-        SearchEntry("Essentials", Guards, A.ESSENTIALS, listOf("allowed apps", "lockmyphone", "focus essentials", "essentials screen", "app icons")),
-        SearchEntry("Emergency phone time", Guards, A.EMERGENCY, listOf("emergency", "daily minutes")),
-        SearchEntry("Phone placement", Guards, A.PLACEMENT, listOf("parked", "put down", "pocket", "phone down", "pickups", "pickup")),
+        SearchEntry("Phone guard (AccountabiliBuddy on this phone)", Guards, A.PHONE_GUARD, listOf("master switch", "turn off", "pause", "wait", "guard", "paused", "on this phone", "keep it on")),
+        SearchEntry("Phone down on unlock", Guards, A.PHONE_DOWN, listOf("unlock", "put it away", "need it for work", "emergency", "unlock friction", "pocket", "phone-free credit", "penalty", "penalties", "phone down")),
+        SearchEntry("Essentials", Guards, A.ESSENTIALS, listOf("allowed apps", "focus essentials", "essentials screen", "app icons", "folders", "add an app", "hide", "parts")),
+        SearchEntry("Sense where the phone is", Guards, A.PLACEMENT, listOf("phone placement", "parked", "put down", "pocket", "bag", "desk", "pickups", "pickup", "sensors", "guard")),
+        SearchEntry("Emergency phone time", Guards, A.EMERGENCY, listOf("emergency", "daily minutes", "I need my phone")),
+        SearchEntry("Advanced: car pause, takeover screen, nudge repeat", Guards, A.ADVANCED, listOf("pause in the car", "car", "android auto", "bluetooth", "takeover", "take over the screen", "work card", "nudge", "repeat", "again every")),
+        SearchEntry("Curbox setup", Guards, A.CURBOX_SETUP, listOf("curbox", "hard mode", "focus group", "blocks back on", "re-enable", "checklist")),
+        SearchEntry("LockMyPhone-Extended", Guards, A.LOCKMYPHONE, listOf("lockmyphone", "lock my phone", "hardcore", "profile", "lock for sessions", "lift the lock for lunch", "intent api", "token")),
         SearchEntry("PC profiles and rules", Guards, A.PROFILES, listOf("profiles", "rules", "pc", "focus profile")),
 
         // Alerts & on-screen
@@ -63,8 +69,9 @@ object SettingsSearch {
 
         // Connections
         SearchEntry("Beeminder", Connections, A.BEEMINDER, listOf("goals", "goal", "bee")),
-        SearchEntry("Curbox", Connections, A.CURBOX, listOf("blocks", "blocking", "re-enable", "turn blocks back on", "screen time")),
-        SearchEntry("Other blockers", Connections, A.OTHER_BLOCKERS, listOf("blockers", "block", "focus apps", "app blockers")),
+        SearchEntry("Curbox", Connections, A.CURBOX, listOf("blocks", "blocking", "re-enable", "turn blocks back on", "screen time", "status", "connect to curbox")),
+        SearchEntry("Other blockers", Connections, A.OTHER_BLOCKERS, listOf("blockers", "block", "focus apps", "app blockers", "appblock", "stayfocused", "freedom")),
+        SearchEntry("Health Connect", Connections, A.HEALTH_CONNECT, listOf("measured sleep", "connect", "sleep strip", "health")),
 
         // Appearance
         SearchEntry("Theme", Appearance, A.THEME, listOf("theme", "look", "instrument", "night desk", "paper", "style", "colours")),

@@ -1,15 +1,17 @@
 package com.accountabilibuddy.companion.ui.settings
 
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import com.accountabilibuddy.companion.noise.NoisePlayer
 import com.accountabilibuddy.companion.noise.NoiseSettings
 import com.accountabilibuddy.companion.ui.HeadphonesSection
 import com.accountabilibuddy.companion.ui.Section
 import com.accountabilibuddy.companion.ui.ToggleRow
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
 
-/** Settings › Alerts & on-screen: the timeline notification and widget, the noise player and the headphones switches. */
+/**
+ * Settings › Alerts & on-screen: the timeline notification and widget, the noise player and the headphones switches. (The
+ * timeline's look, outlined or grayscale, is in Appearance.)
+ */
 @Composable
 fun AlertsPage(
     anchor: String?,
@@ -23,7 +25,7 @@ fun AlertsPage(
         add(PageRow(SettingsAnchors.TIMELINE) {
             Section("Timeline notification", summary = if (timelineNotificationOn) "Pinned" else "Off", startOpen = true) {
                 ToggleRow("Timeline notification", "Always on, silent, pinned near the top", timelineNotificationOn, onChange = onTimelineNotification)
-                OutlinedButton(onClick = onAddWidget) { Text("Add timeline widget to home screen") }
+                AbTonalButton("Add timeline widget to home screen", onClick = onAddWidget)
             }
         })
         if (noise != null) add(PageRow(SettingsAnchors.NOISE) { NoiseSection(noise, noiseSettings) })

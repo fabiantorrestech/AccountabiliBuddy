@@ -31,14 +31,15 @@ import com.accountabilibuddy.companion.ui.theme.Ab
  * is muted with a hairline. The touch target is 48 dp even though the chip is shorter.
  */
 @Composable
-fun AbChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null) {
+fun AbChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, enabled: Boolean = true) {
     val colors = Ab.colors
     Surface(
         onClick = onClick,
+        enabled = enabled,
         modifier = modifier.minimumInteractiveComponentSize().semantics { this.selected = selected; role = Role.Tab },
         shape = Ab.shapes.pill,
         color = if (selected) colors.surface2 else colors.bg.copy(alpha = 0f),
-        contentColor = if (selected) colors.ink else colors.muted,
+        contentColor = if (!enabled) colors.faint else if (selected) colors.ink else colors.muted,
         border = if (selected) null else BorderStroke(1.dp, colors.line),
     ) {
         Row(
