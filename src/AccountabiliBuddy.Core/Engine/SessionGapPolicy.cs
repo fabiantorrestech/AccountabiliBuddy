@@ -11,14 +11,14 @@ public static class SessionGapPolicy
     /// <summary>Under this it carries on without a notice.</summary>
     public static readonly TimeSpan ShortGap = TimeSpan.FromMinutes(2);
 
-    /// <summary>From this on (or on a new local day) the session closes when the PC went off.</summary>
+    /// <summary>From this on (or on a new local day, once past the short gap) the session closes when the PC went off.</summary>
     public static readonly TimeSpan LongGap = TimeSpan.FromHours(4);
 
     /// <param name="session">The session as it was saved, with its end not moved.</param>
     public static SessionGapOutcome Decide(SessionState session, DateTimeOffset lastAliveAt, DateTimeOffset now, TimeZoneInfo zone, PcOffSettings settings)
     {
         TimeSpan gap = now > lastAliveAt ? now - lastAliveAt : TimeSpan.Zero;
-        if (gap >= LongGap || LocalDate(lastAliveAt, zone) != LocalDate(now, zone))
+        if (gap >= LongGap || (gap >= ShortGap && LocalDate(lastAliveAt, zone) != LocalDate(now, zone)))
         {
             return SessionGapOutcome.ClosedLongGap;
         }
