@@ -29,7 +29,7 @@ internal fun StepsSection(steps: StepsState) {
         Note("Reads your steps from Health Connect at most every few minutes: while the app is open, and in the background too when Health Connect lets you allow that. The count shows on Today and in Stats, and goes to your own devices in the sealed sync file; nowhere else, and not to the watch.")
         AbToggleRow("Track daily steps", steps.enabled, onCheckedChange = store::setEnabled, subtitle = "Asks Health Connect for the steps permission")
         if (steps.enabled && steps.problem == StepsProblem.NeedsPermission) {
-            Note("Health Connect hasn't allowed steps yet.")
+            Note("Health Connect hasn't allowed steps yet. If the button does nothing, allow steps in Health Connect's settings (it opens them).")
             AbTonalButton("Allow Health Connect steps", onClick = store::askAgain)
         }
         if (steps.enabled && steps.problem == StepsProblem.NotAvailable) Note("Health Connect isn't available on this phone.")

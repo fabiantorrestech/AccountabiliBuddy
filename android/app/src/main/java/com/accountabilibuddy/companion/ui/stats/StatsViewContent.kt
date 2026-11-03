@@ -114,7 +114,7 @@ fun StatsViewContent(
                 } else if (steps.problem != StepsProblem.None) {
                     // The card above says why.
                 } else if (!steps.enabled) {
-                    StatsEmptyCard("Daily steps are off", "Turn on \"Track daily steps\" in Settings › Your day. Steps come from Health Connect and are read while the app is open.")
+                    StatsEmptyCard("Daily steps are off", "Turn on \"Track daily steps\" in Settings › Your day. Steps come from Health Connect, read about every 3 minutes while the app is on screen, and in the background while a sync switch is on and Health Connect lets you allow that.")
                 } else {
                     StatsEmptyCard("No steps yet", "Steps show up here after the next read from Health Connect. Days it has no steps for stay empty.")
                 }

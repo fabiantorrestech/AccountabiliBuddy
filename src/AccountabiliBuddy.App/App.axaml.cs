@@ -625,7 +625,7 @@ public partial class App : Application
         var receivedDevices = new AccountabiliBuddy.App.Services.Sync.ReceivedDevicesService(documents, time);
         receivedDevices.LoadBlocking();
         // The daily steps a paired phone read from Health Connect, from its sync file: this PC never reads Health Connect.
-        var dailySteps = new AccountabiliBuddy.App.Services.DailyStepsService(documents);
+        var dailySteps = new AccountabiliBuddy.App.Services.DailyStepsService(documents, time);
         dailySteps.LoadBlocking();
         // A paired phone's next alarm (ADR 23): the newest phone file's, while it's still ahead.
         void FollowPhoneAlarm()

@@ -15,15 +15,18 @@ public sealed class DailyStepsService
     private const string DocumentKey = "dailySteps";
 
     private readonly SqliteJsonDocumentStore _store;
+    private readonly TimeProvider _time;
+    private SyncSteps? _latest;
     private DailyStepsSettings _settings = new();
 
-    public DailyStepsService(SqliteJsonDocumentStore store)
+    public DailyStepsService(SqliteJsonDocumentStore store, TimeProvider time)
     {
         _store = store;
+        _time = time;
     }
 
     /// <summary>The newest phone's counts; null while no phone's file carries steps (the card then doesn't show).</summary>
-    public SyncSteps? Current { get; private set; }
+    public SyncSteps? Current => _latest is { } steps && PhoneSteps.IsFresh(steps, _time.GetUtcNow()) ? steps : null;
 
     /// <summary>The user hid the card on this PC.</summary>
     public bool Hidden => _settings.Hidden;
@@ -45,13 +48,13 @@ public sealed class DailyStepsService
     /// <summary>Takes the counts of the newest phone file that has them (null when none does); raises <see cref="Changed"/> when they differ.</summary>
     public void Follow(IReadOnlyList<ReceivedDevice> devices)
     {
-        SyncSteps? steps = PhoneSteps.Of(devices);
-        if (steps == Current || (steps is not null && Current is not null && SameSteps(steps, Current)))
+        SyncSteps? steps = PhoneSteps.Of(devices, _time.GetUtcNow());
+        if (steps == _latest || (steps is not null && _latest is not null && SameSteps(steps, _latest)))
         {
             return;
         }
 
-        Current = steps;
+        _latest = steps;
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

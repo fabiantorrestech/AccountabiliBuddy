@@ -12,7 +12,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 import java.time.Duration
 import java.time.Instant
@@ -91,25 +92,49 @@ class StepsStore(private val context: Context) {
      */
     suspend fun readIfDue(now: Instant = Instant.now(), force: Boolean = false, inBackground: Boolean = false, notify: Boolean = true): String? {
         if (!_state.value.enabled) return null
-        return readLock.withLock {
-            if (!_state.value.enabled || !(force || isDue(now))) return@withLock null
-            if (!reader.isAvailable()) {
-                setProblem(StepsProblem.NotAvailable)
-                return@withLock null
-            }
-
-            val granted = runCatching { reader.grantedPermissions() }.getOrDefault(emptySet())
-            if (!granted.containsAll(reader.permissions)) {
-                setProblem(StepsProblem.NeedsPermission)
-                return@withLock null
-            }
-
-            if (inBackground && !granted.containsAll(reader.backgroundPermissions)) return@withLock null
+        // A read already running means a tick or the worker would only queue behind it: skip.
+        if (!readLock.tryLock()) return null
+        try {
+            if (!_state.value.enabled || !(force || isDue(now))) return null
             lastAttemptAt = now
-            runCatching { withContext(Dispatchers.IO) { reader.readDays(KEPT_DAYS) } }
-                .onSuccess { record(it, now, notify) }
-                .exceptionOrNull()?.let { if (force) "Couldn't read steps: ${it.message}" else null }
+            // A hung Health Connect must not hold the sync worker: past the timeout this is a failed read (the last counts stay, and no
+            // "needs permission" is claimed).
+            val outcome = withTimeoutOrNull(READ_TIMEOUT_MS) {
+                try {
+                    attempt(now, inBackground, notify)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    "Couldn't read steps: ${e.message}"
+                }
+            }
+            return when {
+                outcome == null -> if (force) "Health Connect didn't answer; the last counts stay." else null
+                outcome.isEmpty() -> null
+                else -> if (force) outcome else null
+            }
+        } finally {
+            readLock.unlock()
         }
+    }
+
+    // One check and read; "" when nothing failed (including when it set a problem or skipped), else the failure.
+    private suspend fun attempt(now: Instant, inBackground: Boolean, notify: Boolean): String {
+        if (!reader.isAvailable()) {
+            setProblem(StepsProblem.NotAvailable)
+            return ""
+        }
+
+        // A binder error here throws (a failed read), it is not "needs permission"; only a granted-set without steps is.
+        val granted = reader.grantedPermissions()
+        if (!granted.containsAll(reader.permissions)) {
+            setProblem(StepsProblem.NeedsPermission)
+            return ""
+        }
+
+        if (inBackground && !granted.containsAll(reader.backgroundPermissions)) return ""
+        record(withContext(Dispatchers.IO) { reader.readDays(KEPT_DAYS) }, now, notify)
+        return ""
     }
 
     private fun isDue(now: Instant): Boolean {
@@ -122,6 +147,7 @@ class StepsStore(private val context: Context) {
     }
 
     // Keeps what Health Connect gave; tells the PCs only when something changed.
+    @Synchronized
     private fun record(days: List<SyncStepDay>, readAt: Instant, notify: Boolean) {
         val current = _state.value
         if (!current.enabled) return
@@ -176,5 +202,8 @@ class StepsStore(private val context: Context) {
 
         /** The least time between two reads: 3 minutes less a little, for the timing of the 30-second tick and the worker. */
         val MIN_GAP: Duration = Duration.ofSeconds(170)
+
+        /** The most one check and read may take, so a hung Health Connect cannot stall the sync worker. */
+        const val READ_TIMEOUT_MS = 15_000L
     }
 }

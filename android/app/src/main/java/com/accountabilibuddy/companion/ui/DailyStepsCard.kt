@@ -65,7 +65,7 @@ fun DailyStepsCard(steps: StepsState, clock: ClockFormat) {
                 }
                 Text(title, style = Ab.type.section, color = Ab.colors.ink)
                 val caption = when {
-                    needsPermission -> "Tap to allow it" + steps.readAt?.let { " · last read ${updated(it, clock)}" }.orEmpty()
+                    needsPermission -> "Tap to allow it, or allow steps in Health Connect's settings" + steps.readAt?.let { " · last read ${updated(it, clock)}" }.orEmpty()
                     steps.problem == StepsProblem.NotAvailable -> "Install or update it to count steps"
                     steps.readAt == null -> "from Health Connect"
                     done -> "Goal met · updated ${updated(steps.readAt, clock)}"
