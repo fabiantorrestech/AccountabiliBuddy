@@ -898,8 +898,9 @@ public sealed class SessionOverlayService : IDisposable
         }
 
         // Set before Apply, which puts the tile back in front: not over a Windows flyout that is open (it climbs back once the flyout closes).
-        _tile.YieldsToShellFlyout = _geometry.Foreground.IsShellFlyout;
-        if (_tile.YieldsToShellFlyout)
+        bool shellFlyout = _geometry.Foreground.IsShellFlyout;
+        _tile.YieldsToShellFlyout = shellFlyout || _control.IsPopupMenuInFront();
+        if (shellFlyout)
         {
             // Read the foreground again with each update while a flyout is up (no new timer: the per-second update already runs), so a flyout
             // that closes without a foreground event does not leave the tile waiting; Changed follows only if something differs.

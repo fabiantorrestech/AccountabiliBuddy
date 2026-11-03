@@ -65,8 +65,9 @@ class PinnedTimelineService : Service() {
         // Exported: SystemUI sends USER_PRESENT and isn't the system user, so a not-exported receiver never got it (the
         // essentials screen never came up on unlocking). Both actions are protected broadcasts no app can send.
         ContextCompat.registerReceiver(this, screenOn, filter, ContextCompat.RECEIVER_EXPORTED)
-        // The sync folder at its chosen 1 or 5 minutes, which Android allows only while this service runs (ADR 22).
-        scope.launch { (application as CompanionApp).folderSource.syncWhilePinned() }
+        // The sync folder at its chosen 1 or 5 minutes, which Android allows only while this service runs (ADR 22); every minute while lunch runs.
+        val app = application as CompanionApp
+        scope.launch { app.folderSource.syncWhilePinned(lunchRunning = { app.lunch.isOnLunch() }, beforeRead = app::nudgeBeforeFolderRead) }
         placement = PlacementDetector(this).also {
             detector = it
             it.start()

@@ -369,7 +369,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         Redraw();
     }
 
-    private void Redraw()
+    public void Redraw()
     {
         if (_paused)
         {

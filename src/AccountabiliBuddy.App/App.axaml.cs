@@ -739,12 +739,31 @@ public partial class App : Application
         calendarOverlay.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(syncCoordinator.NotifyHistoryChanged);
         syncActions.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() => _ = syncActions.ApplyAsync());
-        _lunch!.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
+        // A lunch change (started, +5/−5, ended here, or taken from another device's file) also writes the sync folder soon, whatever the
+        // interval. Only when the lunch itself changed, and a received lunch that is already ours changes nothing, so two devices can't ping-pong.
+        AccountabiliBuddy.Core.Sync.SyncLunch? lastLunch = _lunch!.Taken;
+        _lunch.Changed += (_, _) =>
+        {
+            syncCoordinator.NotifyHistoryChanged();
+            AccountabiliBuddy.Core.Sync.SyncLunch? taken = _lunch.Taken;
+            if (taken != lastLunch)
+            {
+                lastLunch = taken;
+                _syncFolder?.WriteSoon();
+            }
+        };
         receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
+            bool taken = false;
             foreach (AccountabiliBuddy.Core.Sync.SyncLunch lunch in receivedDevices.Active.Select(device => device.File.Lunch).OfType<AccountabiliBuddy.Core.Sync.SyncLunch>())
             {
-                _lunch.Receive(lunch);
+                taken |= _lunch.Receive(lunch);
+            }
+
+            // The day bar redrew when the file arrived, before the lunch was taken: once more now, not at its next 30-second redraw.
+            if (taken)
+            {
+                _dayBar?.Redraw();
             }
         });
         _dayBar.Lunch = () => _lunch.Taken;
@@ -973,8 +992,16 @@ public partial class App : Application
         // Focus mode: the Today page while a session runs (the main window's day bar is the one it reads).
         sessionViewModel.Comebacks = new ComebacksViewModel(_comebacks!, sessionTasks);
         sessionViewModel.Timers = new TimersViewModel(_timers!, _sessions);
-        sessionViewModel.Lunch = new LunchCardViewModel(_lunch!, _sessions);
         sessionViewModel.Steps = new StepsCardViewModel(dailySteps, time);
+        sessionViewModel.Lunch = new LunchCardViewModel(_lunch!, _sessions)
+        {
+            // The lunch card's "On all your devices" line: the other PCs' and phones' latest files (a watch writes none; removed devices are not in Active).
+            Peers = () => receivedDevices.Active
+                .Where(device => device.File.Device.Kind != AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindWatch)
+                .Select(device => new AccountabiliBuddy.Core.Sync.LunchPeer(device.File.Device.Name, device.File.Device.WrittenAt, device.File.Lunch))
+                .ToList(),
+        };
+        receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(sessionViewModel.Lunch.Refresh);
         sessionViewModel.DayOff = new DayOffCardViewModel(_preWork!);
         var beeminderViewModel = new BeeminderViewModel(_beeminder!, time);
         sessionViewModel.Beeminder = beeminderViewModel;

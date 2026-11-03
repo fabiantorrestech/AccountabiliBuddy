@@ -21,6 +21,11 @@ public interface IOverlayWindowControl
     void KeepOnTop(nint windowHandle);
 
     /// <summary>
+    /// True while another app's popup menu is up, such as a tray icon's right-click menu: the overlay must not climb over it.
+    /// </summary>
+    bool IsPopupMenuInFront();
+
+    /// <summary>
     /// Keeps the window out of Alt+Tab (a tool window) and lets it take the keyboard focus, or not (a peek never takes it).
     /// </summary>
     void SetActivatable(nint windowHandle, bool activatable);

@@ -28,6 +28,7 @@ object SetupFeatures {
     const val APPEARANCE = "appearance.themes"
     const val CALENDAR_EVENTS = "calendar.events"
     const val DAILY_STEPS = "steps.daily"
+    const val AUTOSYNC_NUDGE = "sync.autosyncNudge"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
@@ -89,6 +90,12 @@ object SetupFeatures {
             relevant = { true },
             // Set up once seen in the assistant, or the switch is already on (Settings › Your day).
             setUp = { done(it, DAILY_STEPS) || (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).steps.state.value.enabled },
+        ),
+        SetupFeature(
+            AUTOSYNC_NUDGE, "0.1.73", "Tell Autosync to sync: lunch timers reach your other devices sooner (needs Automation switched on in Autosync)",
+            // Only for a phone that syncs through the shared folder; set up once seen in the assistant, or the switch is on.
+            relevant = { (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).sync.settings.value.folderOn },
+            setUp = { done(it, AUTOSYNC_NUDGE) || (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).autosyncNudger.isReady() },
         ),
     )
 

@@ -637,6 +637,8 @@
                                     <mi:MaterialIcon Kind="SilverwareForkKnife" Width="16" Height="16" VerticalAlignment="Top" Margin="0,2,0,0" Foreground="{DynamicResource Ab.Muted}" />
                                     <TextBlock Text="{Binding Text}" FontSize="15" TextWrapping="Wrap" MaxWidth="240" />
                                 </StackPanel>
+                                <TextBlock Text="{Binding DeliveryText}" IsVisible="{Binding DeliveryText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                           FontSize="12" Foreground="{DynamicResource Ab.Muted}" TextWrapping="Wrap" MaxWidth="260" />
                                 <WrapPanel ItemSpacing="6" LineSpacing="6">
                                     <Button Classes="quiet" Content="Start lunch" Command="{Binding StartCommand}" IsVisible="{Binding CanStart}" />
                                     <Button Classes="quiet" Content="−5 min" Command="{Binding ShorterCommand}" IsVisible="{Binding IsOnLunch}" IsEnabled="{Binding CanShorten}"

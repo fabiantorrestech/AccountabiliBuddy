@@ -51,4 +51,6 @@ class TodayLunch(
     val onStart: () -> Unit,
     val onBack: () -> Unit,
     val onAdjust: (longer: Boolean) -> Unit,
+    /** The other active devices' latest files (watches and removed devices left out), for "On all your devices". */
+    val peers: List<com.accountabilibuddy.shared.sync.LunchPeer> = emptyList(),
 )
