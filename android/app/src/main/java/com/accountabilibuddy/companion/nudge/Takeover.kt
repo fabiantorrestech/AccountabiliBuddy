@@ -27,6 +27,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -68,6 +69,22 @@ object Takeover {
         }
     }
 
+    // The app that came to the front last. The usage log only holds the moment an app came forward, so an app open for a long time
+    // is found by looking back an hour the first time; after that only the time since the last read is queried (every 3 s while the
+    // card waits) and the last answer stands until something else comes forward.
+    private var frontCheckedAt: Instant? = null
+    private var front: Pair<String, String?>? = null
+
+    private fun appInFront(context: Context, now: Instant): Pair<String, String?>? {
+        val sinceLast = frontCheckedAt?.let { Duration.between(it, now).seconds + 1 }
+        val fresh = sinceLast == null || sinceLast < 0 || sinceLast > FRONT_LOOKBACK_SECONDS
+        if (fresh) front = null
+        val lookback = if (fresh) FRONT_LOOKBACK_SECONDS else sinceLast!!
+        com.accountabilibuddy.companion.usage.PhoneUsageReader(context).foregroundApp(now, lookback)?.let { front = it }
+        frontCheckedAt = now
+        return front
+    }
+
     fun stopWatchingUnanswered() {
         returnWatch?.cancel()
         returnWatch = null
@@ -95,7 +112,7 @@ object Takeover {
             return
         }
         // Emergency time, or unlocked into an always-allowed app (a call, a text, directions): no card.
-        val inFront = com.accountabilibuddy.companion.usage.PhoneUsageReader(context).foregroundApp(now)
+        val inFront = appInFront(context, now)
         // Lunch (from any device) is a break: no card, as on the PC.
         if (app.emergency.isActive(now) || app.essentialsOnScreen || app.lunch.isOnLunch(now) || (inFront != null && app.essentials.isAllowed(inFront.first, inFront.second))) {
             Log.d(TAG, "not shown: emergency, lunch or allowed app ($inFront)")
@@ -168,6 +185,7 @@ object Takeover {
 
     private const val TAG = "Takeover"
     private const val RETURN_CHECK_MS = 3_000L
+    private const val FRONT_LOOKBACK_SECONDS = 3_600L
     private const val WINDOW_SETTLE_MS = 150L
     private const val WINDOW_KEPT_MS = 1_500L
 
