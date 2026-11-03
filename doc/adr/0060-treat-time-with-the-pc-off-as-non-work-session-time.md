@@ -29,3 +29,10 @@ Shutting down no longer shortens a session or earns focus, and totals are honest
 A power cut releases the phone at about 15 minutes, not 10, since it has to be noticed first. Slow sync can delay that further, and a phone that cannot read keeps its old limits. The heartbeat adds a small sync write every 5 minutes during a session. The last file is best effort: Windows may not allow time for it, and Drive is the least likely to finish.
 
 Sleep and a killed app follow the same rules, since both were the same way out. A new way of ending a session early must not bypass this.
+
+## Amendment 2026-11-03
+
+- A phone whose only way of syncing is the shared folder no longer calls a PC quiet at about 15 minutes: the folder is local, so a pass "reads" with no network. Only a Drive or relay read counts. A signalled shutdown still frees the guards after 10 minutes.
+- An unsignalled power cut therefore holds the guards until the phase end or the 12 hour file-fresh limit, with Emergency, "Need it for work" and Essentials still usable. This is the safe way to fail.
+- Settings locks (device removal, restore, leaving a group, turning a guard off, the Guards page, Essentials, Curbox, the plan, placement and sleep switches, calendar rule edits) do not follow the 10-minute release: the session resumes when the PC is back, so they stay locked while the PC is off. Only the guards themselves let go.
+- Closing a session at a new local day needs a gap of at least the short gap (2 minutes); a quicker restart across midnight carries on.
