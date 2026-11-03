@@ -16,6 +16,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.health.connect.client.PermissionController
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import com.accountabilibuddy.companion.notify.TimelineNotifier
 import com.accountabilibuddy.companion.sync.JoinLink
 import com.accountabilibuddy.companion.sync.SyncShare
@@ -39,6 +43,11 @@ class MainActivity : ComponentActivity() {
         viewModel.onHealthPermissionResult()
     }
 
+    // Daily steps: the switch in Settings > Your day asks for the steps permission only when it is turned on.
+    private val stepsPermission = registerForActivityResult(PermissionController.createRequestPermissionResultContract()) {
+        viewModel.onStepsPermissionResult()
+    }
+
     private val curboxPermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         viewModel.refreshCurbox()
     }
@@ -53,6 +62,18 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                (application as CompanionApp).steps.permissionRequests.collect {
+                    if (viewModel.stepsAvailable()) {
+                        stepsPermission.launch(viewModel.stepsPermissions)
+                    } else {
+                        (application as CompanionApp).steps.permissionDenied()
+                        viewModel.message.value = "Health Connect isn't available on this phone."
+                    }
+                }
+            }
+        }
         setContent {
             CompanionTheme {
                 MainScreen(

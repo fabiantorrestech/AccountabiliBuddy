@@ -16,8 +16,8 @@ enum class BackupGroup(
     ),
     WorkCard("Work card and nudges", "The full-screen work card and the start nudge", prefs = setOf("takeover", "nudges")),
     Sleep(
-        "Sleep and bedtime", "Sleep times, reminders, smart bedtime and lunch length",
-        prefs = setOf("smartBedtime", "lunchSettings"), files = setOf("sleep.json", "phone.json"),
+        "Sleep and bedtime", "Sleep times, reminders, smart bedtime, lunch length and the daily steps switch and goal",
+        prefs = setOf("smartBedtime", "lunchSettings", "stepsSettings"), files = setOf("sleep.json", "phone.json"),
     ),
     Noise("Noise and headphones", "The noise player and its headphone rules", prefs = setOf("noise", "headphones")),
     Look("Look", "Theme, motion and the bar's style", prefs = setOf("ui")),

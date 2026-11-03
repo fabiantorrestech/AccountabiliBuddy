@@ -23,6 +23,7 @@ object SettingsSearch {
     val index: List<SearchEntry> = listOf(
         // Your day
         SearchEntry("Lunch length", YourDay, A.LUNCH, listOf("lunch", "break", "meal", "flexible break")),
+        SearchEntry("Daily steps", YourDay, A.DAILY_STEPS, listOf("steps", "step count", "walk", "walking", "health connect", "goal", "track daily steps", "ring")),
         SearchEntry("Work hours and day types", YourDay, A.WORK_HOURS, listOf("work hours", "day types", "days off", "day parts", "plan", "workday")),
         SearchEntry("Calendar events in the day plan", YourDay, A.CALENDAR_EVENTS, listOf("calendar", "events", "meeting", "meetings", "keywords", "rules", "comms", "calendar permission")),
 

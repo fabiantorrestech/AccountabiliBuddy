@@ -18,9 +18,11 @@ import com.accountabilibuddy.companion.ui.kit.AbListRow
 fun YourDayPage(anchor: String?, onOpenPlan: () -> Unit) {
     val app = LocalContext.current.applicationContext as CompanionApp
     val lunchLength by app.lunch.lengthMinutes.collectAsState()
+    val stepsState by app.steps.state.collectAsState()
     SettingsPageList(
         listOf(
             PageRow(SettingsAnchors.LUNCH) { LunchSection(lunchLength) },
+            PageRow(SettingsAnchors.DAILY_STEPS) { com.accountabilibuddy.companion.ui.StepsSection(stepsState) },
             PageRow(SettingsAnchors.CALENDAR_EVENTS) { CalendarRulesSection() },
             PageRow(SettingsAnchors.WORK_HOURS) {
                 AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp), verticalSpacing = 0.dp) {

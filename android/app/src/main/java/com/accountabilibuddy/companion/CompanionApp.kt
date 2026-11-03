@@ -101,6 +101,9 @@ class CompanionApp : Application() {
     /** Today's flexible lunch, the same on every device (schema v8). */
     val lunch by lazy { com.accountabilibuddy.companion.lunch.LunchStore(this) }
 
+    /** Daily steps from Health Connect: off by default; the counts go to the user's own devices in this phone's sync file. */
+    val steps by lazy { com.accountabilibuddy.companion.steps.StepsStore(this) }
+
     /** ADR 58: the phone's own calendar rules; they stay on this phone (never synced, backed up or sent to the watch). */
     val calendarRules by lazy { com.accountabilibuddy.companion.calendar.CalendarRulesStore(this) }
 
@@ -374,6 +377,15 @@ class CompanionApp : Application() {
         }
         // Lunch is the user's: this phone's goes out in its file; one from another device is taken here.
         sync.lunch = { lunch.today() }
+        // Daily steps (only while the switch is on): this phone's read goes out in its file, and a new count reaches the PCs at once.
+        sync.steps = { steps.forSync() }
+        steps.onChanged = {
+            relaySoon()
+            appScope.launch {
+                runCatching { folderSource.syncNow() }
+                driveSource.syncNow()
+            }
+        }
         sync.actions = { actions.pending.value }
         // A tick or a parked thought goes to the PC at once (Drive), and shows ticked here meanwhile.
         actions.onChanged = {

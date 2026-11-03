@@ -30,6 +30,8 @@
     <!-- The noise player keeps playing in the background like any music app. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
+    <!-- Daily steps (Settings > Your day > Track daily steps); asked for only when that switch is turned on. -->
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
     <!-- Keeps LockMyPhone-Extended's "Accountabilibuddy" profile in sync with the essentials (ProfileSync). Granted only when
          LockMyPhone-Extended, signed with the same key, was installed first. -->
     <uses-permission android:name="com.fabiantorrestech.lockmyphone_extended.permission.MANAGE_PROFILES" />

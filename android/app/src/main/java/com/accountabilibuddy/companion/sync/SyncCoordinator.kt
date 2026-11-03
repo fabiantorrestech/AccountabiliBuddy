@@ -207,7 +207,7 @@ class SyncCoordinator(
     fun ownQrLinks(): List<String> {
         val key = identity.key.value ?: return emptyList()
         // The shared lists with their tombstones (ADR 48) stay out of QR codes, as on the PC: a file without them leaves them alone.
-        return SyncQr.links(SyncFileCodec.seal(ownFile().copy(nextTasks = null, parked = null, later = null, pastKeys = null, categories = null), key), key.groupId)
+        return SyncQr.links(SyncFileCodec.seal(ownFile().copy(nextTasks = null, parked = null, later = null, pastKeys = null, categories = null, steps = null), key), key.groupId)
     }
 
     // The methods on the phone's card: what's switched on.
@@ -251,6 +251,9 @@ class SyncCoordinator(
 
     /** Today's flexible lunch (schema v8), when started here or taken from another device. */
     var lunch: () -> com.accountabilibuddy.shared.sync.SyncLunch? = { null }
+
+    /** This phone's daily step counts; null while "Track daily steps" is off or before the first read. */
+    var steps: () -> com.accountabilibuddy.shared.sync.SyncSteps? = { null }
 
     /** The next session's task list with its tombstones (ADR 48); null before the app sets it. */
     var nextTasks: () -> List<com.accountabilibuddy.shared.sync.SyncNextTask>? = { null }
@@ -817,6 +820,7 @@ class SyncCoordinator(
         pastKeys = pastKeys.forFile(),
         // Null until the phone has its own task categories to publish (it has no list yet; the user knows). The PCs list theirs.
         categories = runCatching { categories() }.getOrNull(),
+        steps = runCatching { steps() }.getOrNull(),
     )
 
     /**

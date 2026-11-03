@@ -32,7 +32,7 @@ object PhoneBackup {
 
     /** Preference files backed up: the user's settings. */
     val PREFS = listOf(
-        "ui", "emergency", "essentials", "bedtimeEssentials", "headphones", "noise", "pause", "startup", "nudges", "takeover", "smartBedtime", "lunchSettings",
+        "ui", "emergency", "essentials", "bedtimeEssentials", "headphones", "noise", "pause", "startup", "nudges", "takeover", "smartBedtime", "lunchSettings", "stepsSettings",
         "timers", "curbox", "blockGuard", "lunchLockLift", "phoneDown",
     )
 

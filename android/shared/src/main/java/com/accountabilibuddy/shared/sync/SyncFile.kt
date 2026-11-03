@@ -91,6 +91,11 @@ data class SyncFile(
      * of this device's file, and keeps the stored list when a file carries none. Optional in the JSON, so older apps ignore it.
      */
     val categories: List<SyncCategory>? = null,
+    /**
+     * A phone's daily step counts (the goal, when Health Connect was read, the last days), only while "Track daily steps" is on there.
+     * Null from a PC, from a QR file and from an app that predates it. Optional in the JSON, so older apps ignore it.
+     */
+    val steps: SyncSteps? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1

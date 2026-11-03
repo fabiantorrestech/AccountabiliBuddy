@@ -62,6 +62,9 @@ import java.time.LocalDateTime
 class CompanionViewModel(application: Application) : AndroidViewModel(application) {
     private val store = (application as CompanionApp).store
     private val sleepReader = SleepReader(application)
+    private val stepsReader = com.accountabilibuddy.companion.health.StepsReader(application)
+    private val steps = (application as CompanionApp).steps
+    private var stepsReading = false
     private val usageReader = PhoneUsageReader(application)
     val curboxClient = CurboxClient(application)
     private val watchBridge = (application as CompanionApp).watchBridge
@@ -175,6 +178,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         now.value = LocalDateTime.now()
         checkHealth()
         refreshPhoneUsage()
+        refreshSteps()
         ticker?.cancel()
         ticker = viewModelScope.launch {
             var ticks = 0
@@ -184,6 +188,10 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
                 pcRemote.expire()
                 if (++ticks % 10 == 0) {
                     refreshPhoneUsage()
+                }
+                // Steps: only while on screen (Health Connect's rule), and at most every few minutes (StepsStore.MIN_GAP).
+                if (ticks % 6 == 0) {
+                    refreshSteps()
                 }
             }
         }
@@ -865,6 +873,39 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun onHealthPermissionResult() {
         checkHealth(readAfter = true)
+    }
+
+    /** The steps permission was answered: read at once when it was granted, else the switch goes back off. */
+    fun onStepsPermissionResult() {
+        viewModelScope.launch {
+            if (runCatching { stepsReader.hasPermission() }.getOrDefault(false)) {
+                refreshSteps(force = true)
+            } else {
+                steps.permissionDenied()
+                message.value = "Daily steps need Health Connect's steps permission."
+            }
+        }
+    }
+
+    /** True when Health Connect is on this phone (the switch can't work without it). */
+    fun stepsAvailable(): Boolean = stepsReader.isAvailable()
+
+    val stepsPermissions: Set<String> get() = stepsReader.permissions
+
+    /** Reads today's steps and the days before, when the switch is on and the last read is older than a few minutes. */
+    fun refreshSteps(force: Boolean = false) {
+        if (stepsReading || !steps.shouldRead(Instant.now(), force)) return
+        stepsReading = true
+        viewModelScope.launch {
+            try {
+                if (!runCatching { stepsReader.hasPermission() }.getOrDefault(false)) return@launch
+                runCatching { withContext(Dispatchers.IO) { stepsReader.readDays(com.accountabilibuddy.companion.steps.StepsStore.KEPT_DAYS) } }
+                    .onSuccess { steps.record(it, Instant.now()) }
+                    .onFailure { if (force) message.value = "Couldn't read steps: ${it.message}" }
+            } finally {
+                stepsReading = false
+            }
+        }
     }
 
     /** Reads last night's sleep again (when connected). */
