@@ -507,14 +507,15 @@ class CompanionApp : Application() {
         watchSyncOff()
         // No escape hatches (ADR 54): removing devices, leaving and erasing a removed device's data wait for a PC focus session to end.
         sync.removalLockedReason = {
-            if (com.accountabilibuddy.companion.placement.PlacementSession.current(this, java.time.Instant.now()) != null) {
+            // ignoreOff: a PC off for 10 minutes mid-session frees the guards (ADR 60) but not these locks, since the session resumes.
+            if (com.accountabilibuddy.companion.placement.PlacementSession.current(this, java.time.Instant.now(), ignoreOff = true) != null) {
                 "This is locked while a focus session is running."
             } else {
                 null
             }
         }
         // The guard settings rest during a focus session: a "turn off" whose wait runs out then waits for the session to end.
-        pause.sessionRunning = { now -> com.accountabilibuddy.companion.placement.PlacementSession.current(this, now) != null }
+        pause.sessionRunning = { now -> com.accountabilibuddy.companion.placement.PlacementSession.current(this, now, ignoreOff = true) != null }
         // An erase that could not be finished last run (a PC session was running) is retried now, and every minute while one still runs.
         // Posted, so it runs after onCreate: the session check reads services that are made further down.
         android.os.Handler(mainLooper).post { sync.applyPendingErases() }
