@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0058](0058-let-calendar-events-shape-the-days-guarded-windows.md) | Let calendar events shape the day's guarded windows | Accepted | — |
 | [0056](0056-keep-past-group-keys-for-opening-backups.md) | Keep past group keys for opening backups | Accepted | — |
 | [0055](0055-backups-of-a-removed-devices-data.md) | Backups of a removed device's data | Accepted | — |
 | [0054](0054-per-device-keys-and-re-keying-on-device-removal.md) | Per-device keys and re-keying on device removal | Accepted | — |
