@@ -583,7 +583,7 @@ public sealed class SessionOverlayService : IDisposable
             OverlayPanelWindow opened = _panel;
             _panel.Closed += (_, _) =>
             {
-                if (!ReferenceEquals(_panel, opened))
+                if (_panel is not null && !ReferenceEquals(_panel, opened))
                 {
                     // A newer panel is current; this old one closing late must not clear it.
                     return;
