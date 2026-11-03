@@ -24,6 +24,7 @@ object SettingsSearch {
         // Your day
         SearchEntry("Lunch length", YourDay, A.LUNCH, listOf("lunch", "break", "meal", "flexible break")),
         SearchEntry("Work hours and day types", YourDay, A.WORK_HOURS, listOf("work hours", "day types", "days off", "day parts", "plan", "workday")),
+        SearchEntry("Calendar events in the day plan", YourDay, A.CALENDAR_EVENTS, listOf("calendar", "events", "meeting", "meetings", "keywords", "rules", "comms", "calendar permission")),
 
         // Sleep
         SearchEntry("Sleep times", Sleep, A.SLEEP_TIMES, listOf("sleep mode", "bedtime", "wake time", "weeknights", "weekend", "same every night", "night")),

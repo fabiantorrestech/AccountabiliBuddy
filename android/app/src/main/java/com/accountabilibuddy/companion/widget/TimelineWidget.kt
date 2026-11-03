@@ -45,9 +45,9 @@ class TimelineWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val state = (context.applicationContext as CompanionApp).store.state.value
         val clock = ClockFormat(is24Hour = false) /* always 12-hour AM/PM (project convention) */
-        val model = DayBarBuilder(clock).build(LocalDateTime.now(), state.document, state.events, state.dayBar, state.sleep, state.slept)
+        val model = DayBarBuilder(clock).build(LocalDateTime.now(), state.document, state.events, state.dayBar, state.sleep, state.slept, plan = (context.applicationContext as CompanionApp).effectivePlan(state))
         val density = context.resources.displayMetrics.density
-        val upcoming = Upcoming.items(LocalDateTime.now(), state, clock)
+        val upcoming = Upcoming.items(LocalDateTime.now(), state, clock, (context.applicationContext as CompanionApp).effectivePlan(state))
         val noise = (context.applicationContext as CompanionApp).noise
         val noiseState = noise.state.value
         val noiseSettings = noise.settings.value

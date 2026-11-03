@@ -8,6 +8,7 @@ object SettingsAnchors {
     // Your day
     const val LUNCH = "lunch"
     const val WORK_HOURS = "work-hours"
+    const val CALENDAR_EVENTS = "calendar-events"
 
     // Sleep
     const val SLEEP_TIMES = "sleep-times"

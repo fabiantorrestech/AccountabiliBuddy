@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.companion.ui.CalendarRulesSection
 import com.accountabilibuddy.companion.ui.LunchSection
 import com.accountabilibuddy.companion.ui.SectionIcons
 import com.accountabilibuddy.companion.ui.kit.AbCard
@@ -20,6 +21,7 @@ fun YourDayPage(anchor: String?, onOpenPlan: () -> Unit) {
     SettingsPageList(
         listOf(
             PageRow(SettingsAnchors.LUNCH) { LunchSection(lunchLength) },
+            PageRow(SettingsAnchors.CALENDAR_EVENTS) { CalendarRulesSection() },
             PageRow(SettingsAnchors.WORK_HOURS) {
                 AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
                     AbListRow(

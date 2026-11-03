@@ -118,7 +118,8 @@ internal fun PlanScreenBody(
     fun pick(date: LocalDate) {
         pickedDay = if (date == today) FOLLOW_TODAY else date.toEpochDay()
     }
-    val plan = state.document.dayPlan
+    // ADR 58: the timeline shows the plan the guards read (calendar events over the stored plan); editing stays on the stored one.
+    val plan = (LocalContext.current.applicationContext as CompanionApp).effectivePlan(state)
 
     val minute = now.truncatedTo(ChronoUnit.MINUTES)
     val timeline = remember(plan, selected, minute, state.events, focusedToday, model.today) {
@@ -135,14 +136,14 @@ internal fun PlanScreenBody(
         val date = weekStart.plusDays(offset)
         PlanDayCell(
             date = date, weekday = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.US), number = date.dayOfMonth.toString(),
-            type = PlanDayNames.short(plan, date), isToday = date == today, isSelected = date == selected,
+            type = PlanDayNames.short(state.document.dayPlan, date), isToday = date == today, isSelected = date == selected,
         )
     }
 
     val weeks = plan.cycle.weeks.size
     val holding = planWait?.takeIf { it.appliesAt.isAfter(now.atZone(ZoneId.systemDefault()).toInstant()) }
     val paneModel = PlanPaneModel(
-        title = "${selected.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.US)} · ${PlanDayNames.full(plan, selected)}",
+        title = "${selected.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.US)} · ${PlanDayNames.full(state.document.dayPlan, selected)}",
         cells = cells,
         timeline = timeline,
         modeLine = modeLine(state, model, selected, today, timeline.hasWork),

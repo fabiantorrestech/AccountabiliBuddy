@@ -4,6 +4,8 @@
     <!-- Only to Google Drive (ADR 26): TLS, no cleartext (network_security_config). -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- ADR 58: read-only, asked for only when "Calendar events in the day plan" is turned on; what is read stays on the phone. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
     <!-- Bedtime reminders that ring (ADR 38): exact alarms, over the lock screen, with vibration. -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />

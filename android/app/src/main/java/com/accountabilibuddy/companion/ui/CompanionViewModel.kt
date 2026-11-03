@@ -798,7 +798,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
             val state = store.state.value
             val day = builder.dayAt(LocalDateTime.now(), state.dayBar, state.sleep, state.document.dayPlan)
-            val focus = DayWorkWindows.workWindows(state.document.dayPlan, day, LocalDateTime.now(), nightFallback = state.sleep::fallbackNightBefore).map { it.window }
+            val focus = DayWorkWindows.workWindows(getApplication<CompanionApp>().effectivePlan(state), day, LocalDateTime.now(), nightFallback = state.sleep::fallbackNightBefore).map { it.window }
             phoneUsage.value = runCatching { withContext(Dispatchers.IO) { usageReader.read(day, focus) } }.getOrNull()
         }
     }
@@ -899,10 +899,12 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         val app = getApplication<CompanionApp>()
         val focus = HeaderSource.focus(app, time)
         val header = HeaderSource.header(app, time, clock, phoneUsage.value?.total?.toMinutes()?.toInt(), focus)
-        val bar = builder.build(time, state.document, state.events, state.dayBar, state.sleep, state.slept, header, focus, (app.lunch.today()?.let { com.accountabilibuddy.companion.model.LocalWindow(java.time.LocalDateTime.ofInstant(it.start, java.time.ZoneId.systemDefault()), java.time.LocalDateTime.ofInstant(it.end, java.time.ZoneId.systemDefault())) }))
+        val bar = builder.build(time, state.document, state.events, state.dayBar, state.sleep, state.slept, header, focus, (app.lunch.today()?.let { com.accountabilibuddy.companion.model.LocalWindow(java.time.LocalDateTime.ofInstant(it.start, java.time.ZoneId.systemDefault()), java.time.LocalDateTime.ofInstant(it.end, java.time.ZoneId.systemDefault())) }), plan = app.effectivePlan(state))
         // Today's headline lines and the ring's numbers, from the same focus as the bar.
         val notWorking = com.accountabilibuddy.companion.nudge.NudgeStore(app).load().dayOff == time.toLocalDate()
-        return bar.copy(today = TodayInfo.of(state.document.dayPlan, time, focus, clock, state.sleep::fallbackNightBefore, notWorking))
+        val effective = app.effectivePlan(state)
+        val calendarLines = com.accountabilibuddy.companion.calendar.CalendarTodayLines.of(state.document.dayPlan, effective, time.toLocalDate())
+        return bar.copy(today = TodayInfo.of(effective, time, focus, clock, state.sleep::fallbackNightBefore, notWorking).copy(calendar = calendarLines))
     }
 
     private companion object {

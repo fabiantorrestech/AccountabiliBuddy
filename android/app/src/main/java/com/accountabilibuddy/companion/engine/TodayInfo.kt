@@ -22,6 +22,8 @@ data class TodayInfo(
     val goalMinutes: Int?,
     /** Today's Budget pace (ADR 47), for the session screen; null when today is not a Budget day. */
     val pace: BudgetPace? = null,
+    /** What calendar events changed in the guards today (ADR 58), e.g. "Comms from calendar: 2:00-3:00 PM"; no titles. Empty when none. */
+    val calendar: List<String> = emptyList(),
 ) {
     companion object {
         const val NOTHING_RUNNING = "Nothing running."

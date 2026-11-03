@@ -28,7 +28,7 @@ object HeaderSource {
     fun header(app: CompanionApp, now: LocalDateTime, clock: ClockFormat, phoneMinutes: Int?, focus: WatchSnapshot? = focus(app, now)): HeaderText {
         val state = app.store.state.value
         val zone = ZoneId.systemDefault()
-        val plan = state.document.dayPlan
+        val plan = app.effectivePlan(state)
         val start = now.toLocalDate().atStartOfDay()
         val schedule = state.sleep.toSchedule(plan)
         val night = if (state.sleep.enabled) schedule.nightAround(now) else null
@@ -49,8 +49,9 @@ object HeaderSource {
             return null
         }
 
-        val day = builder.dayAt(now, state.dayBar, state.sleep, state.document.dayPlan)
-        val focus = DayWorkWindows.workWindows(state.document.dayPlan, day, now, nightFallback = state.sleep::fallbackNightBefore).map { it.window }
+        val plan = (context.applicationContext as CompanionApp).effectivePlan(state)
+        val day = builder.dayAt(now, state.dayBar, state.sleep, plan)
+        val focus = DayWorkWindows.workWindows(plan, day, now, nightFallback = state.sleep::fallbackNightBefore).map { it.window }
         return runCatching { reader.read(day, focus).total.toMinutes().toInt() }.getOrNull()
     }
 
@@ -67,7 +68,7 @@ object HeaderSource {
         return SnapshotBuilder.build(
             PhoneSnapshot.input(
                 state, linked = true, PcFileControl.target(app.sync.received.value, app.pcRemote.chosenPcId.value)?.file?.device?.name, now.atZone(zone).toInstant(), zone,
-                received = received, totals = totals,
+                received = received, totals = totals, plan = app.effectivePlan(state),
             ),
         )
     }
