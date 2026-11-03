@@ -156,7 +156,7 @@ public sealed class ShutdownService : IDisposable
             .ToList();
         List<ShutdownTaskGroup> unfinished = GroupByCategory(unfinishedRows);
         List<ShutdownComebackRow> comebacks = _comebacks.Open.Select(comeback => new ShutdownComebackRow(comeback.Id, comeback.Text)).ToList();
-        Current = new ShutdownCardViewModel(comebacks, unfinished, card => ApplyAsync(card, date), CloseAsync);
+        Current = new ShutdownCardViewModel(comebacks, unfinished, card => ApplyAsync(card, date), CloseAsync, _tasks);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -170,11 +170,20 @@ public sealed class ShutdownService : IDisposable
         string tomorrow = card.TomorrowTask.Trim();
         if (tomorrow.Length > 0)
         {
-            // Tomorrow's first task goes to the top of the checklist.
-            await _tasks.AddFirstAsync(tomorrow);
+            // Tomorrow's first task goes to the top of the checklist; one chosen from a list moves there with its steps and leaves that list.
+            if (card.TomorrowSource is (PulledListKind kind, Guid id))
+            {
+                await _tasks.TakeFirstFromListAsync(kind, id, tomorrow);
+            }
+            else
+            {
+                await _tasks.AddFirstAsync(tomorrow);
+            }
         }
 
-        foreach (ShutdownTaskRow row in card.Unfinished.Where(row => !row.IsDone))
+        // One of today's unfinished chosen as tomorrow's first isn't carried over a second time.
+        string? chosenFirst = card.TomorrowSource is not null ? tomorrow : null;
+        foreach (ShutdownTaskRow row in card.Unfinished.Where(row => !row.IsDone && row.Title != chosenFirst))
         {
             await _tasks.AddAsync(row.Title, null, ExistingCategory(row.CategoryId));
         }

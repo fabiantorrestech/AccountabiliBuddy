@@ -357,6 +357,33 @@ public sealed class SessionEngine
     }
 
     /// <summary>
+    /// Lunch starts during a break phase: the break is cut short. The next focus phase comes up already stepped away, in one change so
+    /// no focus runs and no "break over" cue sounds, and <see cref="Return"/> after lunch gives it its full length. After a session's
+    /// last break the session ends.
+    /// </summary>
+    /// <returns>False when no break phase is running.</returns>
+    public bool EndBreakForLunch()
+    {
+        if (State.Phase is not (SessionPhase.ShortBreak or SessionPhase.LongBreak) || _pomodoroSettings is not PomodoroSettings settings)
+        {
+            return false;
+        }
+
+        DateTimeOffset now = Now;
+        SessionState before = State;
+        SessionState next = NextPomodoroPhase(before, settings, now, _breakAfterLastCycle);
+        if (!next.IsActive)
+        {
+            SetState(SessionState.Idle);
+            SessionCompleted?.Invoke(this, before);
+            return true;
+        }
+
+        SetState(next with { Away = AwayKind.Break, AwaySince = now, AwayEndsAt = null, AwayAtDesk = false, SideTaskExtensions = 0 });
+        return true;
+    }
+
+    /// <summary>
     /// The PC was off for <paramref name="gap"/> and the timer pauses for it (ADR 60): the phase's start and end move later, as on a
     /// return from a step away. A session already stepped away moves when the user is back, so it stays as it is.
     /// </summary>

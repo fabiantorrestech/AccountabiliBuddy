@@ -12,6 +12,24 @@ public partial class TodayView : UserControl
     private SessionViewModel? _subscribed;
     private TodayCardState? _shownState;
 
+    // "From your lists" by tomorrow's first task: read the lists as the picker opens; an item chosen closes it.
+    private void OnTomorrowPickerOpening(object? sender, EventArgs e)
+    {
+        if (sender is not Flyout { Target.DataContext: ViewModels.ShutdownCardViewModel { TomorrowPicker: { } picker } } flyout)
+        {
+            return;
+        }
+
+        picker.Open();
+        EventHandler? closeOnPick = null;
+        closeOnPick = (_, _) =>
+        {
+            picker.Closed -= closeOnPick;
+            flyout.Hide();
+        };
+        picker.Closed += closeOnPick;
+    }
+
     public TodayView()
     {
         InitializeComponent();
