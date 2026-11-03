@@ -54,14 +54,17 @@ public static class CalendarFeedParser
                 localEnd = isAllDay ? localStart.AddDays(1) : localStart;
             }
 
-            string uid = string.IsNullOrEmpty(source.Uid) ? Guid.NewGuid().ToString("N") : source.Uid;
+            string? sourceUid = string.IsNullOrEmpty(source.Uid) ? null : source.Uid;
+            string uid = sourceUid ?? Guid.NewGuid().ToString("N");
             events.Add(new CalendarEvent(
                 $"{uid}@{localStart:yyyyMMddTHHmm}",
                 calendarId,
                 string.IsNullOrWhiteSpace(source.Summary) ? "(no title)" : source.Summary.Trim(),
                 localStart,
                 localEnd,
-                isAllDay));
+                isAllDay,
+                sourceUid,
+                sourceUid is null ? null : OccurrenceKeyOf(source, start, zone)));
 
             if (events.Count >= MaxEvents)
             {
@@ -70,6 +73,19 @@ public static class CalendarFeedParser
         }
 
         return new CalendarFeed(name, events);
+    }
+
+    // Which occurrence of a repeating event this is, by its original time (ADR 58): an overridden occurrence's RECURRENCE-ID, else
+    // the occurrence's own start. A single event has none, so moving it doesn't change what it is called.
+    private static string? OccurrenceKeyOf(IcalEvent source, CalDateTime occurrenceStart, TimeZoneInfo zone)
+    {
+        if (source.RecurrenceIdentifier?.StartTime is CalDateTime original)
+        {
+            return $"{ToLocal(original, zone):yyyyMMddTHHmm}";
+        }
+
+        bool repeats = source.Properties.Any(property => property.Name is "RRULE" or "RDATE");
+        return repeats ? $"{ToLocal(occurrenceStart, zone):yyyyMMddTHHmm}" : null;
     }
 
     private static DateTime ToLocal(CalDateTime value, TimeZoneInfo zone)

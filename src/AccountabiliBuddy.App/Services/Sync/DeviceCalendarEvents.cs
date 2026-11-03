@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Sync;
 
 namespace AccountabiliBuddy.App.Services.Sync;
@@ -22,7 +23,9 @@ public static class DeviceCalendarEvents
             {
                 if (seen.Add((entry.Event.CalendarId, entry.Event.Id)))
                 {
-                    JsonObject json = JsonSerializer.SerializeToNode(entry.Event, SyncJson.Options)!.AsObject();
+                    // The series and occurrence keys stay on this computer (ADR 58); a later decision adds the fields the phone needs.
+                    CalendarEvent shared = entry.Event with { SeriesId = null, OccurrenceKey = null };
+                    JsonObject json = JsonSerializer.SerializeToNode(shared, SyncJson.Options)!.AsObject();
                     json["color"] = entry.Calendar.Color;
                     events.Add(json);
                 }

@@ -138,6 +138,7 @@
                             <TextBox.InnerLeftContent>
                                 <mi:MaterialIcon Kind="Magnify" Width="18" Height="18" Margin="10,0,0,0" Foreground="{DynamicResource Ab.Muted}" />
                             </TextBox.InnerLeftContent>
+                            <TextBox.InnerRightContent><controls:ClearTextButton /></TextBox.InnerRightContent>
                         </TextBox>
                         <ListBox x:Name="RowList" Classes="settingsList" ItemsSource="{Binding Settings.Rows}"
                                  SelectedIndex="{Binding Settings.SelectedRowIndex}" SelectionMode="AlwaysSelected"

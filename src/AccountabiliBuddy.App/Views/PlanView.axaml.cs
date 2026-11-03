@@ -185,9 +185,20 @@ public partial class PlanView : UserControl
         e.Handled = true;
     }
 
+    private void OnPickerScrimPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _subscribed?.CloseEventPicker();
+        e.Handled = true;
+    }
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && _subscribed?.IsSheetOpen == true)
+        if (e.Key == Key.Escape && _subscribed?.IsEventPickerOpen == true)
+        {
+            _subscribed.CloseEventPicker();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && _subscribed?.IsSheetOpen == true)
         {
             _subscribed.CloseSheet();
             e.Handled = true;

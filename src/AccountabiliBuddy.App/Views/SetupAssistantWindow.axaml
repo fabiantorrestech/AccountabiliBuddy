@@ -440,6 +440,15 @@
                                Text="Ctrl+Alt+H hides the overlay until you press it again, in any app, also after a restart; holding Ctrl+Alt still shows it, and Today says it is hidden. The panel's Disable button turns the overlay off until you turn it on from Today or in Settings (not during a focus session). Both are in Settings › Alerts &amp; on-screen › PC overlay too." />
                 </StackPanel>
 
+                <!-- ADR 58: calendar events shape the day's guarded windows -->
+                <StackPanel IsVisible="{Binding IsCalendarRules}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="A calendar event can now carry a day plan category, so the guards follow the real day: a meeting becomes Comms or Work for its hours, and moves or goes away with the event. Click an event on the Plan page to choose its category (a repeating event: this one or the whole series), or give a whole calendar a rule under it in Settings › Connections: keywords, or every event." />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="Nothing changes until you set one. A change that makes the day stricter applies at once; a looser one, and any rule change, waits first and is refused during a focus session you started. Today says which parts came from the calendar. Hidden calendars still count." />
+                    <Button Content="Open the calendar rules" Command="{Binding OpenCalendarRulesPageCommand}" HorizontalAlignment="Left" Classes="accent" />
+                </StackPanel>
+
                 <!-- ADR 49: the look, a theme and light or dark -->
                 <StackPanel IsVisible="{Binding IsAppearance}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
                     <TextBlock Classes="body" TextWrapping="Wrap"

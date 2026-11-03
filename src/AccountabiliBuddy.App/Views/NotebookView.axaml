@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              x:Class="AccountabiliBuddy.App.Views.NotebookView"
              x:DataType="vm:NotebookViewModel">
@@ -9,7 +10,9 @@
          a check box and a ⋯ menu; "Recently deleted" (30 days) is the group at the top. It sits in the page's scroll. -->
     <StackPanel Margin="4,2,4,8" Spacing="10">
         <StackPanel Orientation="Horizontal" Spacing="8">
-            <TextBox Text="{Binding Search}" Width="240" PlaceholderText="Search the Archive" AutomationProperties.Name="Search the Archive" />
+            <TextBox Text="{Binding Search}" Width="240" PlaceholderText="Search the Archive" AutomationProperties.Name="Search the Archive">
+                <TextBox.InnerRightContent><controls:ClearTextButton /></TextBox.InnerRightContent>
+            </TextBox>
             <ComboBox ItemsSource="{x:Static vm:NotebookViewModel.Filters}" SelectedItem="{Binding Filter}" MinWidth="160" AutomationProperties.Name="Archive filter" />
         </StackPanel>
         <TextBlock Classes="muted" Text="Parked ideas, notes from sessions and tasks, newest first. Written down means you can stop holding it."

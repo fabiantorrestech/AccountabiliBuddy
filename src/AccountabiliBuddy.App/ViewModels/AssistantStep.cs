@@ -52,6 +52,9 @@ public enum AssistantStep
     /// <summary>The Ctrl+Alt panel that rises from the overlay: hold to peek, Ctrl+Alt+Space to keep it open (only in the migration assistant).</summary>
     PanelCtrlAlt,
 
+    /// <summary>ADR 58: calendar events shaping the day's guarded windows, a pointer to Settings › Connections (only in the migration assistant).</summary>
+    CalendarRules,
+
     /// <summary>The first run's last question: how much focus a day (redesign phase 2).</summary>
     Goal,
     Done,

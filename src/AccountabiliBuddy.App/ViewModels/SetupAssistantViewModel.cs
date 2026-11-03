@@ -91,6 +91,15 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         OpenDpAssistant?.Invoke();
     }
 
+    /// <summary>Opens Settings › Connections, where the calendar rules are (the migration assistant's pointer page); set by the app.</summary>
+    public Action? OpenCalendarRules { get; init; }
+
+    [RelayCommand]
+    private void OpenCalendarRulesPage()
+    {
+        OpenCalendarRules?.Invoke();
+    }
+
     /// <summary>Computer types and applying one (ADR 22); null skips the type step.</summary>
     public ComputerTypeService? Types { get; init; }
 
@@ -331,7 +340,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsLinkFirst), nameof(IsRestore), nameof(IsComputerType), nameof(IsImport), nameof(IsUsage), nameof(IsReview), nameof(IsBrowsers),
-        nameof(IsBasics), nameof(IsWorkdays), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsDpAssistant), nameof(IsStartOfDay), nameof(IsTasks), nameof(IsPlanHelper), nameof(IsOverlayTaskbar), nameof(IsPanelCtrlAlt), nameof(IsAppearance), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
+        nameof(IsBasics), nameof(IsWorkdays), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsDpAssistant), nameof(IsStartOfDay), nameof(IsTasks), nameof(IsPlanHelper), nameof(IsOverlayTaskbar), nameof(IsPanelCtrlAlt), nameof(IsCalendarRules), nameof(IsAppearance), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(BackCommand))]
     public partial AssistantStep Step { get; set; }
 
@@ -604,6 +613,8 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     public bool IsPanelCtrlAlt => Step == AssistantStep.PanelCtrlAlt;
 
+    public bool IsCalendarRules => Step == AssistantStep.CalendarRules;
+
     public bool IsAppearance => Step == AssistantStep.Appearance;
 
     public bool IsGoal => Step == AssistantStep.Goal;
@@ -631,6 +642,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.PlanHelper => "Plan helper: suggestions on the Plan page",
         AssistantStep.OverlayTaskbar => "The overlay moved onto the taskbar",
         AssistantStep.PanelCtrlAlt => "The Ctrl+Alt panel",
+        AssistantStep.CalendarRules => "Calendar events can shape your guarded windows",
         AssistantStep.Appearance => "Appearance: three themes, light and dark on a schedule",
         AssistantStep.Goal => "How much focus a day?",
         _ => "All set",
@@ -663,6 +675,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.PlanHelper => "Finish",
         AssistantStep.OverlayTaskbar => "Finish",
         AssistantStep.PanelCtrlAlt => "Finish",
+        AssistantStep.CalendarRules => "Finish",
         AssistantStep.Appearance => "Finish",
         AssistantStep.Goal => "Finish",
         AssistantStep.Done => "Close",
@@ -851,6 +864,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
             case AssistantStep.PlanHelper:
             case AssistantStep.OverlayTaskbar:
             case AssistantStep.PanelCtrlAlt:
+            case AssistantStep.CalendarRules:
                 GoToNextQuickStep();
                 break;
             case AssistantStep.Appearance:

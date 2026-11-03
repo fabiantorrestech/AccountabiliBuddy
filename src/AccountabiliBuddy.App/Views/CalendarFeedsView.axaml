@@ -29,16 +29,75 @@
                             <ItemsControl ItemsSource="{Binding Calendars}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:CalendarRowViewModel">
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,3">
-                                            <CheckBox Classes="sw" IsChecked="{Binding IsVisible}" ToolTip.Tip="Show on the Plan page's month view"
-                                                      AutomationProperties.Name="{Binding Name, StringFormat='Show {0}'}">
-                                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" />
-                                            </CheckBox>
-                                            <Button Grid.Column="1" Width="22" Height="22" Padding="0" CornerRadius="11"
-                                                    Background="{Binding Brush}" ToolTip.Tip="Change colour"
-                                                    AutomationProperties.Name="Change colour"
-                                                    Command="{Binding NextColorCommand}" />
-                                        </Grid>
+                                        <StackPanel Spacing="4" Margin="0,3">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                                <CheckBox Classes="sw" IsChecked="{Binding IsVisible}" ToolTip.Tip="Show on the Plan page's month view"
+                                                          AutomationProperties.Name="{Binding Name, StringFormat='Show {0}'}">
+                                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" />
+                                                </CheckBox>
+                                                <Button Grid.Column="1" Width="22" Height="22" Padding="0" CornerRadius="11"
+                                                        Background="{Binding Brush}" ToolTip.Tip="Change colour"
+                                                        AutomationProperties.Name="Change colour"
+                                                        Command="{Binding NextColorCommand}" />
+                                            </Grid>
+
+                                            <!-- The calendar's rule (ADR 58), indented under it; the rows show only when it isn't Off. Disabled during a focus session. -->
+                                            <StackPanel Margin="28,0,0,4" Spacing="6" DataContext="{Binding Rule}" x:DataType="vm:CalendarRuleViewModel"
+                                                        IsEnabled="{Binding Owner.IsUnlocked}">
+                                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                                    <TextBlock Classes="sHint" Text="Day plan category" VerticalAlignment="Center" />
+                                                    <ComboBox ItemsSource="{Binding Modes}" SelectedItem="{Binding SelectedMode}" MinWidth="200"
+                                                              AutomationProperties.Name="{Binding CalendarName, StringFormat='Rule for {0}'}">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:RuleModeChoice">
+                                                                <TextBlock Text="{Binding Text}" />
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                </StackPanel>
+                                                <TextBlock Classes="sHint" Text="{Binding WaitingText}" IsVisible="{Binding HasWaiting}" TextWrapping="Wrap" />
+
+                                                <!-- Every event gets one category. -->
+                                                <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsEveryEvent}">
+                                                    <TextBlock Classes="sHint" Text="Category" VerticalAlignment="Center" />
+                                                    <ComboBox ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}" MinWidth="160"
+                                                              AutomationProperties.Name="{Binding CalendarName, StringFormat='Category for every event of {0}'}">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:RuleCategoryChoice">
+                                                                <TextBlock Text="{Binding Name}" />
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                </StackPanel>
+
+                                                <!-- Keywords to categories: the shared list or this calendar's own. -->
+                                                <StackPanel Spacing="6" IsVisible="{Binding IsKeywords}">
+                                                    <CheckBox Classes="sw" IsChecked="{Binding UsesOwnList}" Content="This calendar has its own keyword list"
+                                                              AutomationProperties.Name="{Binding CalendarName, StringFormat='Own keyword list for {0}'}" />
+                                                    <TextBlock Classes="sHint" Text="{Binding ListHint}" TextWrapping="Wrap" />
+                                                    <ItemsControl ItemsSource="{Binding ShownKeywords}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:KeywordRowViewModel">
+                                                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0,2">
+                                                                    <TextBox Text="{Binding Keyword}" PlaceholderText="Word in the title" AutomationProperties.Name="Keyword" />
+                                                                    <ComboBox Grid.Column="1" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}" MinWidth="140"
+                                                                              AutomationProperties.Name="Category for this keyword">
+                                                                        <ComboBox.ItemTemplate>
+                                                                            <DataTemplate x:DataType="vm:RuleCategoryChoice">
+                                                                                <TextBlock Text="{Binding Name}" />
+                                                                            </DataTemplate>
+                                                                        </ComboBox.ItemTemplate>
+                                                                    </ComboBox>
+                                                                    <Button Grid.Column="2" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this keyword"
+                                                                            AutomationProperties.Name="Remove keyword" />
+                                                                </Grid>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                    <Button Content="Add keyword" Command="{Binding AddKeywordCommand}" HorizontalAlignment="Left" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </StackPanel>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -47,6 +106,24 @@
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
+
+        <!-- Calendar rules (ADR 58): the choice under each calendar above is a draft; Save queues the whole set. -->
+        <Border Classes="sRow" DataContext="{Binding Rules}" x:DataType="vm:CalendarRulesViewModel">
+            <StackPanel Spacing="8">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="sTitle" Text="Calendar rules" />
+                    <TextBlock Classes="sHint" TextWrapping="Wrap"
+                               Text="A rule under a calendar gives its events a day plan category, so the guards follow the real day. A saved rule always waits before it takes effect, and the rules in force stay until then. Hidden calendars still count: hiding only changes what the Plan page shows." />
+                </StackPanel>
+                <TextBlock Text="{Binding LockText}" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource Ab.Waiting}" IsVisible="{Binding IsLocked}" />
+                <TextBlock Text="{Binding PendingText}" TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Waiting}" IsVisible="{Binding HasPending}" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Save rules" Command="{Binding SaveCommand}" />
+                    <Button Content="Discard changes" Command="{Binding DiscardCommand}" />
+                </StackPanel>
+                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="12" IsVisible="{Binding HasMessage}" />
+            </StackPanel>
+        </Border>
 
         <Border Classes="sRow">
             <StackPanel Spacing="8">

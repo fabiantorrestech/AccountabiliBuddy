@@ -201,6 +201,9 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Today's "Next up" card: the next two plan parts (set by the app).</summary>
     public NextUpViewModel? NextUp { get; set; }
 
+    /// <summary>Today's quiet "from calendar" lines: what calendar events changed in the guarded windows (ADR 58; set by the app).</summary>
+    public CalendarTodayViewModel? CalendarToday { get; set; }
+
     /// <summary>"Seen while planning": the sites and apps with no rule noticed during the planning stage (set by the app).</summary>
     public SeenWhilePlanningViewModel? SeenWhilePlanning { get; set; }
 

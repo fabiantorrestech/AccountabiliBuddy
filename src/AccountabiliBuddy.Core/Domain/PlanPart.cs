@@ -35,6 +35,15 @@ public sealed record PlanPart(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool WakeByAlarm = false,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool AutoStart = false)
 {
+    /// <summary>
+    /// True for a part a calendar event made (ADR 58): it exists only in the in-memory effective plan
+    /// (<see cref="Engine.CalendarDayOverlay"/>), is never written to JSON (so the stored plan, its version hash and the sync
+    /// file don't change and no schema version is needed) and survives the Free and Budget days' stripping of work parts.
+    /// A saved plan never contains one.
+    /// </summary>
+    [JsonIgnore]
+    public bool FromEvent { get; init; }
+
     /// <summary>A flexible break: its times are a window, it lasts <see cref="FlexMinutes"/> once started.</summary>
     [JsonIgnore]
     public bool IsFlexible => FlexMinutes is > 0;

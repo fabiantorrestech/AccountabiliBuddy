@@ -16,20 +16,28 @@ public sealed partial class CalendarFeedsViewModel : ObservableObject
     private readonly CalendarService _calendars;
     private readonly CalendarSyncService _sync;
     private readonly SessionController _sessions;
+    private readonly EffectiveDayPlanProvider _overlay;
     private readonly Func<Uri, bool> _openBrowser;
 
+    /// <param name="overlay">Holds the per-calendar rules (ADR 58) and says whether a session forbids changing them.</param>
     /// <param name="openBrowser">Opens Google's sign-in page in the browser.</param>
-    public CalendarFeedsViewModel(CalendarService calendars, CalendarSyncService sync, SessionController sessions, Func<Uri, bool> openBrowser)
+    public CalendarFeedsViewModel(
+        CalendarService calendars, CalendarSyncService sync, SessionController sessions, ConfigurationService configuration, EffectiveDayPlanProvider overlay, Func<Uri, bool> openBrowser)
     {
         _calendars = calendars;
         _sync = sync;
         _sessions = sessions;
+        _overlay = overlay;
         _openBrowser = openBrowser;
+        Rules = new CalendarRulesViewModel(overlay, configuration, sessions);
         _calendars.Changed += (_, _) => Refresh();
         Refresh();
     }
 
     public ObservableCollection<CalendarSourceRowViewModel> CalendarSources { get; } = new();
+
+    /// <summary>The rules that give a calendar's events a day plan category (ADR 58): the draft, Save and the wait.</summary>
+    public CalendarRulesViewModel Rules { get; }
 
     [ObservableProperty]
     public partial string? NewLinkAddress { get; set; }
@@ -105,21 +113,56 @@ public sealed partial class CalendarFeedsViewModel : ObservableObject
     [RelayCommand]
     private async Task RemoveSourceAsync(CalendarSourceRowViewModel row)
     {
+        // Removing a source drops its events, which can loosen a guard (ADR 58): it rests while a focus session runs, like the other locked actions.
+        if (_overlay.SessionRuns)
+        {
+            CalendarMessage = "Calendars can't be removed while you focus. Do it after the session.";
+            return;
+        }
+
+        // Its calendars' rules and event choices go with it: nothing is left to read them.
+        List<string> calendarIds = row.Calendars.Select(calendar => calendar.CalendarId).ToList();
         await _sync.RemoveSourceAsync(row.Id);
+        _overlay.TryForgetCalendars(calendarIds);
         CalendarMessage = $"{row.Name} removed.";
     }
 
+    // What the rows are built from: the sources and their calendars. When only a status, a colour or a visibility changed (the
+    // calendar reports a status check about every 30 seconds) the rows are updated in place, so focus, open boxes and a rule
+    // being edited stay.
+    private string _shape = string.Empty;
+
     private void Refresh()
     {
+        string shape = string.Join(
+            ";", _calendars.Sources.Select(source => $"{source.Id}|{source.Kind}|{source.Name}|{string.Join(",", source.Calendars.Select(calendar => calendar.Id + "=" + calendar.Name))}"));
+        if (shape == _shape && CalendarSources.Count == _calendars.Sources.Count)
+        {
+            for (int index = 0; index < CalendarSources.Count; index++)
+            {
+                CalendarSource source = _calendars.Sources[index];
+                CalendarSources[index].Update(source, _calendars.StatusOf(source.Id), IsFetchingFirstTime(source), _sessions.TimeProvider.LocalTimeZone);
+            }
+
+            return;
+        }
+
+        _shape = shape;
         CalendarSources.Clear();
+        Rules.KeepOnly(_calendars.Sources.SelectMany(source => source.Calendars).Select(calendar => calendar.Id).ToList());
         foreach (CalendarSource source in _calendars.Sources)
         {
             CalendarSources.Add(new CalendarSourceRowViewModel(
                 source,
                 _calendars.StatusOf(source.Id),
-                _sync.IsFetching && source.Kind != CalendarSourceKind.Local && _calendars.StatusOf(source.Id).LastAttemptAt is null,
-                source.Calendars.Select(calendar => new CalendarRowViewModel(_calendars, source, calendar)).ToList(),
+                IsFetchingFirstTime(source),
+                source.Calendars.Select(calendar => new CalendarRowViewModel(_calendars, source, calendar, Rules.For(calendar.Id, calendar.Name))).ToList(),
                 _sessions.TimeProvider.LocalTimeZone));
         }
+    }
+
+    private bool IsFetchingFirstTime(CalendarSource source)
+    {
+        return _sync.IsFetching && source.Kind != CalendarSourceKind.Local && _calendars.StatusOf(source.Id).LastAttemptAt is null;
     }
 }
