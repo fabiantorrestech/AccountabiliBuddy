@@ -78,6 +78,13 @@ object Takeover {
     private var front: Pair<String, String?>? = null
 
     private fun appInFront(context: Context, now: Instant): Pair<String, String?>? {
+        // Usage access taken away after a read: the cached answer is stale and nothing can refresh it.
+        if (!com.accountabilibuddy.companion.usage.PhoneUsageReader(context).hasAccess()) {
+            front = null
+            frontCheckedAt = null
+            return null
+        }
+
         val sinceLast = frontCheckedAt?.let { Duration.between(it, now).seconds + 1 }
         val fresh = sinceLast == null || sinceLast < 0 || sinceLast > FRONT_LOOKBACK_SECONDS
         if (fresh) front = null
