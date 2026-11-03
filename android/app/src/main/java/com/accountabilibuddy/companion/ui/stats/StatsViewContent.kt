@@ -3,9 +3,14 @@ package com.accountabilibuddy.companion.ui.stats
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.companion.stats.StepsPanels
 import com.accountabilibuddy.companion.stats.ConsistencyPanels
 import com.accountabilibuddy.companion.stats.DayPanels
 import com.accountabilibuddy.companion.stats.DriftPanels
@@ -91,6 +96,19 @@ fun StatsViewContent(
                 val panel = remember(model) { PhonePanels.build(model.phoneDays, data.today) }
                 if (panel != null) BarPanelCard(panel)
                 StatsPhoneCard(model.phoneToday, actions.onAllowUsage)
+            }
+
+            StatsView.Steps -> {
+                val app = LocalContext.current.applicationContext as CompanionApp
+                val steps by app.steps.state.collectAsState()
+                val panel = remember(steps) { StepsPanels.build(steps, data.today) }
+                if (panel != null) {
+                    BarPanelCard(panel)
+                } else if (!steps.enabled) {
+                    StatsEmptyCard("Daily steps are off", "Turn on \"Track daily steps\" in Settings › Your day. Steps come from Health Connect and are read while the app is open.")
+                } else {
+                    StatsEmptyCard("No steps yet", "Steps show up here after the next read from Health Connect. Days it has no steps for stay empty.")
+                }
             }
         }
     }
