@@ -5,14 +5,19 @@ namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
 /// Updates through Velopack from the public releases repository on GitHub (ADR 12): no token, read-only. The
-/// download is checked against the release feed's checksum before it is installed.
+/// feed and packages are read from the latest release's download address, not api.github.com, so the check isn't
+/// subject to the API's 60-requests-per-hour limit per IP. The download is checked against the release feed's
+/// checksum before it is installed.
 /// </summary>
 public sealed class VelopackUpdater : IAppUpdater
 {
     /// <summary>Holds only installers and update packages, never source code.</summary>
     public const string ReleasesRepository = "https://github.com/fabiantorrestech/AccountabiliBuddy-releases";
 
-    private readonly UpdateManager _manager = new(new GithubSource(ReleasesRepository, null, false));
+    /// <summary>Where the latest release's files (releases.win.json and the packages it lists) are served from.</summary>
+    private const string LatestReleaseDownloadAddress = ReleasesRepository + "/releases/latest/download/";
+
+    private readonly UpdateManager _manager = new(new SimpleWebSource(LatestReleaseDownloadAddress));
     private UpdateInfo? _found;
 
     public bool IsInstalled => AppPaths.IsInstalled && _manager.IsInstalled;
