@@ -1,0 +1,39 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:search="using:AccountabiliBuddy.App.Services.Search"
+             x:Class="AccountabiliBuddy.App.Views.PcOffSettingsCard"
+             x:DataType="vm:PcOffSettingsViewModel">
+    <!-- What happens to a session when the PC goes off during it (ADR 60). -->
+    <StackPanel Spacing="6" search:SearchArea.Name="When this PC goes off">
+        <TextBlock Classes="sGroup" Text="When this PC goes off" />
+        <Border Classes="sPanel">
+            <StackPanel Margin="0,0,0,-1">
+                <Border Classes="sRow">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Classes="sTitle" Text="During a session" />
+                                <TextBlock Classes="sHint" TextWrapping="Wrap"
+                                           Text="Shut down, restarted, asleep or out of power. Time off is never counted as focus either way. After 4 hours off, or the next day, the session ends at the moment the PC went off." />
+                            </StackPanel>
+                            <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:PcOffSettingsViewModel.ChoiceNames}" SelectedIndex="{Binding ChoiceIndex}"
+                                      IsEnabled="{Binding CanEdit}" VerticalAlignment="Center" AutomationProperties.Name="When this PC goes off during a session" />
+                        </Grid>
+                        <TextBlock Classes="sHint" Text="{Binding PendingText}" IsVisible="{Binding HasPending}" TextWrapping="Wrap" />
+                        <TextBlock Classes="sHint" Text="Keeping the end time is locked while a focus session is running." IsVisible="{Binding InFocus}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+                <Border Classes="sRow">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                        <StackPanel Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Classes="sTitle" Text="Tell me when this happens" />
+                            <TextBlock Classes="sHint" TextWrapping="Wrap" Text="When the PC comes back, a notice says how long it was off and what happened to your timer." />
+                        </StackPanel>
+                        <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding TellMe}" VerticalAlignment="Center" AutomationProperties.Name="Tell me when this happens" />
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

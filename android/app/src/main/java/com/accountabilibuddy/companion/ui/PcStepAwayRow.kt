@@ -25,6 +25,8 @@ class StepAwayState(val away: Boolean, val sending: Boolean, val text: String?, 
 fun rememberStepAway(pc: TodayPc, clock: ClockFormat): StepAwayState? {
     val app = LocalContext.current.applicationContext as CompanionApp
     val pending by app.actions.pending.collectAsState()
+    // ADR 60: nothing to send to a PC that is off.
+    if (pc.state?.pcOff == true) return null
     val target = pc.pcId ?: return null
     val sending = pending.lastOrNull { it.target == target && (it.kind == SyncAction.STEP_AWAY || it.kind == SyncAction.BACK) }
     val away = when (sending?.kind) {

@@ -335,6 +335,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public IntegrationsViewModel Integrations { get; }
 
+    /// <summary>The quit safeguard's card on the Guards page (ADR 59).</summary>
+    [ObservableProperty]
+    public partial QuitGuardViewModel? QuitGuard { get; set; }
+
     public SettingsViewModel Settings { get; }
 
     public ActivityDebugViewModel Activity { get; }

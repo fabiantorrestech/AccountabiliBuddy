@@ -44,6 +44,11 @@ object WatchGlance {
         if (running != null) {
             val title = if (running.onBreak) "Break" else running.profile ?: "Focus"
             val detail = "${WatchText.duration(focused)} focused today"
+            if (running.pcOff) {
+                // ADR 60: nothing is counting down until the PC is back.
+                return Glance(0f, 1f, "PC off", "PC off", "Paused", detail)
+            }
+
             val planningEnd = running.planningEndsAt?.takeIf { running.isPlanning }
             if (planningEnd != null) {
                 // The PC's planning stage (not focus time): its own countdown, "Planning" for the title.

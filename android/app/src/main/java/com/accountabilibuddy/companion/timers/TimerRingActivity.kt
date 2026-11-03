@@ -29,6 +29,16 @@ import com.accountabilibuddy.companion.ui.CompanionTheme
  * with Dismiss and +1 min (a timer) or Snooze 9 min (an alarm). It closes when nothing rings any more.
  */
 class TimerRingActivity : ComponentActivity() {
+    override fun onStart() {
+        super.onStart()
+        (application as com.accountabilibuddy.companion.CompanionApp).ringOnScreen = true
+    }
+
+    override fun onStop() {
+        (application as com.accountabilibuddy.companion.CompanionApp).ringOnScreen = false
+        super.onStop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setShowWhenLocked(true)

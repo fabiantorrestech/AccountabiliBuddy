@@ -35,6 +35,8 @@ object PlacementSession {
         val file = app.sync.received.value
             .filter { it.file.device.kind == SyncDeviceCard.KIND_PC && Duration.between(it.file.device.writtenAt, now) <= FILE_FRESH_FOR }
             .filter { it.file.running?.isLiveAt(now, Duration.ZERO) == true }
+            // ADR 60: a PC that went off holds the phone for 10 minutes, then lets go until it's back.
+            .filter { com.accountabilibuddy.companion.sync.PcFileControl.guardsHold(it.file, now) }
             // A stepped-away session holds the guards (its end moves on return) only while its file is fresh: a PC that went away
             // for real stops holding the phone after the no-set-end limit (ADR 45).
             .filter { it.file.running?.isAwayOverdue(it.file.device.writtenAt, now) != true }

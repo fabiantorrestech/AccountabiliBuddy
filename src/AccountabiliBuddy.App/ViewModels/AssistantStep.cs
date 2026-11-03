@@ -55,6 +55,9 @@ public enum AssistantStep
     /// <summary>ADR 58: calendar events shaping the day's guarded windows, a pointer to Settings › Connections (only in the migration assistant).</summary>
     CalendarRules,
 
+    /// <summary>ADR 59: the quit safeguard, set up here or in Settings › Guards (only as a new feature, not in the first run).</summary>
+    QuitSafeguard,
+
     /// <summary>The first run's last question: how much focus a day (redesign phase 2).</summary>
     Goal,
     Done,

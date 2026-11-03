@@ -50,11 +50,13 @@ object SnapshotBuilder {
         }
 
         // Nothing runs (any more): an open session ends at the known end, else now.
-        val closeAt = lastRunning?.takeIf { !it.isPlanning }?.endsAt?.let { minOf(it, input.now) } ?: input.now
+        // ADR 60: with the PC off it ended when the file was last written, and nothing counts on from there.
+        val pcOffAt = running?.takeIf { it.pcOff }?.let { input.runningAt ?: input.now }
+        val closeAt = pcOffAt ?: lastRunning?.takeIf { !it.isPlanning }?.endsAt?.let { minOf(it, input.now) } ?: input.now
         val sessions = current?.sessions.orEmpty().map { session ->
-            if (session.end == null && running == null) session.copy(end = maxOf(session.start, closeAt)) else session
+            if (session.end == null && (running == null || pcOffAt != null)) session.copy(end = maxOf(session.start, closeAt)) else session
         }.toMutableList()
-        if (running != null && sessions.none { it.end == null } && running.startedAt.isBefore(input.now)) {
+        if (running != null && pcOffAt == null && sessions.none { it.end == null } && running.startedAt.isBefore(input.now)) {
             // The PC says a session runs that its focus day doesn't have yet.
             sessions += FocusSession(maxOf(running.startedAt, dayStart), null, running.profile, added = false, device = input.pcName.takeIf { input.sources.isNotEmpty() })
         }

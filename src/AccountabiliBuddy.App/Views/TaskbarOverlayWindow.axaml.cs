@@ -87,6 +87,12 @@ public partial class TaskbarOverlayWindow : Window
         }
     }
 
+    /// <summary>How solid the tile looks (Settings › Overlay). Its content only: clicks and the panel are not affected.</summary>
+    public void SetTileOpacity(double opacity)
+    {
+        TileView.Opacity = opacity;
+    }
+
     public void Apply(OverlayTarget target, OverlaySettings settings, OverlayAppRule? rule)
     {
         bool monitorChanged = _target.MonitorId != target.MonitorId || Math.Abs(_target.Scale - target.Scale) > 0.001;

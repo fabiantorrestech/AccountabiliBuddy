@@ -1,12 +1,13 @@
 using AccountabiliBuddy.App.Services;
+using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Sync;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// "From your lists": a searchable picker of the open items of Later and Come back to (newest first), for the "Add a task" box on
-/// Today, in the quick-session popup and in the start of your day. Choosing one hands it to the checklist, which adds it the way
+/// "From your lists": a searchable picker of the open items of Later, Come back to, Unfinished and Auto-saved (newest first), the open
+/// lists of the Tasks page, for the "Add a task" box on Today, in the quick-session popup and in the start of your day. Choosing one hands it to the checklist, which adds it the way
 /// "Add to Today" does on the Tasks page. Done items are not listed. Task text is never logged.
 /// </summary>
 public sealed partial class ListPickerViewModel : ObservableObject
@@ -33,7 +34,7 @@ public sealed partial class ListPickerViewModel : ObservableObject
     [ObservableProperty]
     public partial IReadOnlyList<ListPickRowViewModel> Rows { get; set; }
 
-    /// <summary>Nothing to show: both lists are empty, or the search matches nothing.</summary>
+    /// <summary>Nothing to show: every list is empty, or the search matches nothing.</summary>
     [ObservableProperty]
     public partial bool IsEmpty { get; set; }
 
@@ -48,7 +49,7 @@ public sealed partial class ListPickerViewModel : ObservableObject
         Refresh();
     }
 
-    /// <summary>Called as the picker opens: clears the search and reads both lists again.</summary>
+    /// <summary>Called as the picker opens: clears the search and reads the lists again.</summary>
     public void Open()
     {
         if (Search.Length > 0)
@@ -99,9 +100,56 @@ public sealed partial class ListPickerViewModel : ObservableObject
             }
         }
 
+        // Unfinished from past sessions: the same two weeks the Tasks page lists.
+        DateTimeOffset unfinishedFrom = _time.GetUtcNow() - TasksViewModel.PastShown;
+        IReadOnlyList<PastTask> unfinished = _tasks.PastUnfinished()
+            .Where(item => item.SessionStart >= unfinishedFrom)
+            .Where(item => Matches(search, item.Task.Title, CategoryNameOf(item.Task), item.Task.Note, item.Task.Subtasks.Select(step => step.Title)))
+            .OrderByDescending(item => item.SessionStart)
+            .ToList();
+        if (unfinished.Count > 0)
+        {
+            rows.Add(new ListPickRowViewModel("Unfinished"));
+            foreach (PastTask item in unfinished)
+            {
+                Guid id = item.Task.Id;
+                string title = item.Task.Title;
+                string session = $"Session of {DayText(LocalDay(item.SessionStart), today)}";
+                rows.Add(new ListPickRowViewModel(
+                    title, session, BrushOf(CategoryNameOf(item.Task), item.Task.CategoryColor), CategoryNameOf(item.Task), () => Choose(PulledListKind.Unfinished, id, title)));
+            }
+        }
+
+        IReadOnlyList<AutoSavedTask> autoSaved = (_tasks.AutoSaved?.Items ?? [])
+            .Where(item => Matches(search, item.Title, null, null, []))
+            .OrderByDescending(item => item.SavedAt)
+            .ToList();
+        if (autoSaved.Count > 0)
+        {
+            rows.Add(new ListPickRowViewModel("Auto-saved"));
+            foreach (AutoSavedTask item in autoSaved)
+            {
+                Guid id = item.Id;
+                string title = item.Title;
+                string saved = $"Saved {DayText(LocalDay(item.SavedAt), today)}";
+                rows.Add(new ListPickRowViewModel(title, saved, null, null, () => Choose(PulledListKind.AutoSaved, id, title)));
+            }
+        }
+
         Rows = rows;
         IsEmpty = rows.Count == 0;
-        EmptyText = search.Length > 0 ? "Nothing matches." : "Nothing in Later or Come back to.";
+        EmptyText = search.Length > 0 ? "Nothing matches." : "Nothing in your lists.";
+    }
+
+    private DateOnly LocalDay(DateTimeOffset time)
+    {
+        return DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time, _time.LocalTimeZone).DateTime);
+    }
+
+    // A past task's category name: the one its record kept, else this PC's category of that id.
+    private string? CategoryNameOf(SessionTask task)
+    {
+        return task.Category ?? _tasks.Categories.FirstOrDefault(category => category.Id == task.CategoryId)?.Name;
     }
 
     private Task Choose(PulledListKind kind, Guid id, string title)

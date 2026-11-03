@@ -104,6 +104,12 @@ public static class SessionHistoryBuilder
                     if (interruptedAt is DateTimeOffset since && sessionEvent.At > since)
                     {
                         closedFor += sessionEvent.At - since;
+
+                        // ADR 60: not focus. An open step away or planning stage already covers this time.
+                        if (awaySince is null && planningSince is null)
+                        {
+                            (away ??= []).Add(new AwayStretch(since, sessionEvent.At, AwayKind.DeviceOff));
+                        }
                     }
 
                     interruptedAt = null;

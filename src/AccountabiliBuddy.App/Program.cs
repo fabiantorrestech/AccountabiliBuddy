@@ -25,6 +25,13 @@ public static class Program
 
         StartupOptions options = StartupOptions.Parse(args);
 
+        // Before the single-instance check and Avalonia: the watchdog only waits for the app to end (ADR 59).
+        if (options.Watchdog)
+        {
+            AccountabiliBuddy.Platform.Windows.Startup.QuitWatchdogRunner.Run(InstanceName, AppPaths.LaunchPath, StartupOptions.MinimizedArgument);
+            return;
+        }
+
         using SingleInstanceGuard? guard = options.Restarted
             ? SingleInstanceGuard.TryAcquire(InstanceName, RestartWait)
             : SingleInstanceGuard.TryAcquire(InstanceName);

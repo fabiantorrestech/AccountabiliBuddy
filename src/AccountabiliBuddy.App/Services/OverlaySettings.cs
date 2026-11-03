@@ -139,6 +139,12 @@ public sealed record OverlaySettings(
         ? OverlayContentOrder.DefaultFor(Size, EffectivePlacement)
         : OverlayContentOrder.Complete(ContentOrder, Progress);
 
+    /// <summary>How solid the tile is now: the session's pair while a session runs, the timeline's otherwise, each at rest or while Ctrl+Alt is held.</summary>
+    public double TileOpacity(bool inSession, bool held)
+    {
+        return inSession ? (held ? HeldOpacity : Opacity) : (held ? TimelineHeldOpacity : TimelineOpacity);
+    }
+
     /// <summary>The per-app rules in force: the user's list, else the built-in one.</summary>
     public IReadOnlyList<OverlayAppRule> Rules => AppRules ?? OverlayAppRules.Defaults;
 

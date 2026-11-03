@@ -5,4 +5,6 @@ public enum PulledListKind
 {
     Later,
     ComeBack,
+    Unfinished,
+    AutoSaved,
 }

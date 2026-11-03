@@ -18,6 +18,7 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <see cref="PhaseStartedAt"/> and <see cref="PhaseEndsAt"/> are the focus phase's projected start and end (planning's end and its full
 /// length after it), so a build that doesn't know planning still shows a sensible countdown. Older builds leave it out.</param>
 /// <param name="PlanningEndsAt">Phase 11: when planning ends (time up); it keeps counting past it until the user answers "Ready?".</param>
+/// <param name="OffSince">ADR 60: the PC signalled it was going off with this session running. Older builds leave it out.</param>
 public sealed record SyncRunning(
     string? Profile,
     DateTimeOffset PhaseStartedAt,
@@ -28,4 +29,5 @@ public sealed record SyncRunning(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? ProfileId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? CountUpProfileId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? PlanningStartedAt = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? PlanningEndsAt = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? PlanningEndsAt = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? OffSince = null);

@@ -24,6 +24,8 @@ data class PcState(
     val tasks: List<SessionTaskItem> = emptyList(),
     /** The task or subtask picked on the PC to show; null for none (the first open task shows). */
     val currentTask: String? = null,
+    /** ADR 60: the PC went off with this session running. */
+    val pcOff: Boolean = false,
     /** The PC's open come-backs (ADR 30); empty when it has none open, null from an older PC that doesn't send them. */
     val comebacks: List<com.accountabilibuddy.shared.sync.SyncComeback>? = null,
     /**

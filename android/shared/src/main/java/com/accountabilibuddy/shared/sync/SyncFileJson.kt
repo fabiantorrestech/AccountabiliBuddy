@@ -129,6 +129,7 @@ object SyncFileJson {
                 // Optional (phase 11): the PC's planning stage.
                 running.planningStartedAt?.let { put("planningStartedAt", writeTime(it)) }
                 running.planningEndsAt?.let { put("planningEndsAt", writeTime(it)) }
+                running.offSince?.let { put("offSince", writeTime(it)) }
             })
         }
         // Optional (ADR 42): a PC's answers, its end-early offer, its goal and its profiles for the start picker.
@@ -256,6 +257,7 @@ object SyncFileJson {
         if (session.tasks.isNotEmpty()) {
             put("tasks", SessionTaskItem.write(session.tasks, ::writeTime))
         }
+        session.offMinutesBefore?.let { put("offMinutesBefore", it) }
     }
 
     private fun writeDrift(drift: SyncDrift): JsonObject = buildJsonObject {
@@ -313,6 +315,7 @@ object SyncFileJson {
                         optionalText(running, "countUpProfileId"),
                         running.optionalTime("planningStartedAt"),
                         running.optionalTime("planningEndsAt"),
+                        running.optionalTime("offSince"),
                     )
                 }.getOrNull()
             },
@@ -722,6 +725,7 @@ object SyncFileJson {
         json.optionalString("profile"),
         json.flag("added"),
         SessionTaskItem.read(json["tasks"] as? JsonArray),
+        json.optionalInt("offMinutesBefore"),
     )
 
     private fun readDrift(json: JsonObject): SyncDrift = SyncDrift(

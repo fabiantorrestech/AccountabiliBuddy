@@ -98,6 +98,7 @@ fun SessionHero(state: PcState, taskTitle: String?, clock: ClockFormat, awayText
     // While stepped away the PC pauses the countdown (it moves the phase's start and end only on return): the timer holds at the
     // moment of stepping away, and the end time is not a promise.
     val endText = when {
+        state.pcOff -> "PC off · paused"
         awaySince != null -> "paused"
         end != null -> "ends ${clock.time(LocalDateTime.ofInstant(end, zone))}"
         else -> "no set end"

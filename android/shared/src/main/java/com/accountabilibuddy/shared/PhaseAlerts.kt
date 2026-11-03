@@ -21,6 +21,9 @@ object PhaseAlerts {
      * the next snapshot brings the focus phase's real end.
      */
     fun due(running: RunningSession?, now: Instant, warning: Boolean): List<PhaseAlert> {
+        // ADR 60: with the PC off nothing is running out.
+        if (running?.pcOff == true) return emptyList()
+
         if (running != null && running.isPlanning) {
             return listOfNotNull(running.planningEndsAt?.takeIf { it.isAfter(now) }?.let { PhaseAlert(it, PhaseAlert.Kind.PlanningEnd, onBreak = false) })
         }

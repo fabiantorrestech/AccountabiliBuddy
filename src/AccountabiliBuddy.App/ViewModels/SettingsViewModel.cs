@@ -1240,6 +1240,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial OverlaySettingsViewModel? OverlayPage { get; set; }
 
+    /// <summary>The "When this PC goes off" settings (ADR 60), on the Focus sessions page; set once they have loaded.</summary>
+    [ObservableProperty]
+    public partial PcOffSettingsViewModel? PcOffPage { get; set; }
+
     [ObservableProperty]
     public partial string EnforceSeconds { get; set; }
 
