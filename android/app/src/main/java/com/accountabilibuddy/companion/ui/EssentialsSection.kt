@@ -58,6 +58,7 @@ import com.accountabilibuddy.companion.ui.kit.AbCheckRow
 import com.accountabilibuddy.companion.ui.kit.AbSearchField
 import com.accountabilibuddy.companion.ui.kit.AbSectionLabel
 import com.accountabilibuddy.companion.ui.kit.AbSwitch
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
 import com.accountabilibuddy.companion.ui.kit.AbTextField
 import com.accountabilibuddy.companion.usage.PhoneUsageReader
 import com.accountabilibuddy.companion.ui.theme.Ab
@@ -161,7 +162,7 @@ private fun EssentialsSectionBody(kind: EssentialsKind, startOpen: Boolean, scro
             // What a session will look like, for one minute: LockMyPhone-Extended's real lock with the chosen profile when
             // it's used (that's the lock a session gets), else this app's essentials screen (it closes by itself).
             val lmpTest = useLmp && hardcore.isNotBlank() && EssentialsLaunch.lockMyPhoneInstalled(context)
-            GuardTonalButton(
+            AbTonalButton(
                 if (lmpTest) "Try LockMyPhone-Extended's \"$hardcore\" lock for 1 minute" else "Try the ${if (night) "bedtime " else ""}essentials screen for 1 minute",
                 onClick = {
                     if (lmpTest) EssentialsLaunch.startTestLock(context, hardcore)

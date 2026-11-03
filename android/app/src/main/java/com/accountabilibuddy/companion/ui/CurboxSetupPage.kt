@@ -26,6 +26,7 @@ import com.accountabilibuddy.companion.curbox.CurboxHardMode
 import com.accountabilibuddy.companion.model.BlockRef
 import com.accountabilibuddy.companion.ui.kit.AbCard
 import com.accountabilibuddy.companion.ui.kit.AbSectionLabel
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
 import com.accountabilibuddy.companion.ui.kit.AbTextButton
 import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.sync.SyncBlocker
@@ -81,7 +82,7 @@ private fun CurboxSetupBody(onConnectCurbox: () -> Unit, onReenableTime: (Boolea
             CheckLine("A keyword group (optional)", blockers.any { it.kind == BlockRef.CURBOX_KEYWORD_GROUP })
             CheckLine("A focus group with exit off (for hard mode)", groups.any { !it.exitable })
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (installed && !granted) GuardTonalButton("Allow AccountabiliBuddy", onClick = onConnectCurbox)
+                if (installed && !granted) AbTonalButton("Allow AccountabiliBuddy", onClick = onConnectCurbox)
                 AbTextButton("Check again", onClick = { check++ })
             }
         }

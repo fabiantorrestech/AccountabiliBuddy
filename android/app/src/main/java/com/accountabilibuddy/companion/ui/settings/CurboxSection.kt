@@ -11,7 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.accountabilibuddy.companion.blocks.BlockGuard
 import com.accountabilibuddy.companion.curbox.CurboxStatus
-import com.accountabilibuddy.companion.ui.GuardTonalButton
+import com.accountabilibuddy.companion.ui.kit.AbTonalButton
 import com.accountabilibuddy.companion.ui.GuardsRestNote
 import com.accountabilibuddy.companion.ui.GuardsScope
 import com.accountabilibuddy.companion.ui.Hint
@@ -45,7 +45,7 @@ private fun CurboxSectionBody(curbox: CurboxStatus, onConnect: () -> Unit, onRee
             !curbox.installed -> Note("Not installed (or too old for its API).")
             !curbox.granted -> {
                 Note("Allow AccountabiliBuddy in Curbox to show its status here.")
-                GuardTonalButton("Connect to Curbox", onClick = onConnect)
+                AbTonalButton("Connect to Curbox", onClick = onConnect)
             }
             else -> {
                 Text(
