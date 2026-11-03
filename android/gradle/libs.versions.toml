@@ -12,6 +12,8 @@ healthConnect = "1.1.0"
 work = "2.12.0"
 # ADR 21 (user-approved 2026-10-21): the phone-watch link and the watch app.
 zxingCore = "3.5.3"
+# ADR 57 (user-approved 2026-11-03): the in-app camera that scans a link code.
+camerax = "1.6.2"
 playServicesWearable = "20.0.1"
 # ADR 26 (user-approved 2026-10-23): the phone's Google sign-in for Drive sync.
 playServicesAuth = "22.0.0"
@@ -35,6 +37,10 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
 androidx-health-connect = { group = "androidx.health.connect", name = "connect-client", version.ref = "healthConnect" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
+androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
+androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
+androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
+androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
 play-services-wearable = { group = "com.google.android.gms", name = "play-services-wearable", version.ref = "playServicesWearable" }

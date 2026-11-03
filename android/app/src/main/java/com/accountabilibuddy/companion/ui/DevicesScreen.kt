@@ -105,6 +105,8 @@ data class DevicesActions(
     val ownQrLinks: () -> List<String> = { emptyList() },
     val linkCode: () -> String? = { null },
     val onJoin: (String) -> Boolean = { false },
+    /** A scanned or pasted join link (ADR 57): offers the join; false when the text isn't a join link. */
+    val onJoinLink: (String) -> Boolean = { false },
     val onLeave: () -> Unit = {},
     val onSettings: (PhoneSyncSettings) -> Unit = {},
     /** A folder chosen with Android's folder picker (a tree uri). */
@@ -277,7 +279,7 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
                         AbTonalButton("Leave group", onClick = { dialog = DevicesDialog.Leave })
                     }
                 } else {
-                    JoinWithCode(actions.onJoin)
+                    JoinWithCode(actions.onJoin, actions.onJoinLink)
                 }
             }
         })
@@ -445,10 +447,11 @@ private fun joinLink(code: String, devices: DevicesState): String {
 }
 
 @Composable
-private fun JoinWithCode(onJoin: (String) -> Boolean) {
+private fun JoinWithCode(onJoin: (String) -> Boolean, onJoinLink: (String) -> Boolean) {
     var code by remember { mutableStateOf("") }
     var wrong by remember { mutableStateOf(false) }
-    Hint("On the PC: Settings › Devices & sync › Link a new device, then scan its code with this phone's camera, or type the code here.", label = "Where's the code?")
+    Hint("On the PC: Settings › Devices & sync › Link a new device, then scan its code here, paste its link, or type the code.", label = "Where's the code?")
+    JoinScanPasteRow(onLink = onJoinLink, onCode = { code = it; wrong = false })
     AbTextField(
         code, { code = it; wrong = false }, "Link code (40 characters)",
         capitalization = KeyboardCapitalization.None, isError = wrong,
