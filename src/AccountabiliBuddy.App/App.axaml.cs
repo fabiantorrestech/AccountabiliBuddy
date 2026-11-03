@@ -1162,7 +1162,7 @@ public partial class App : Application
         var statsViewModel = new StatsViewModel(
             historyViewModel, activityLog, _recorder,
             async (from, to) => sessionGaps.Apply(SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(from, to))),
-            receivedDevices, omittedSessions, deletedUsage, displayNames, goal, _configuration, sleepSettings, _phonePickups!, privacy, documents, time,
+            receivedDevices, omittedSessions, deletedUsage, displayNames, goal, _configuration, sleepSettings, _phonePickups!, dailySteps, privacy, documents, time,
             () => _sessions!.State.IsRealSession);
         var mainViewModel = new MainWindowViewModel(
             sessionViewModel,
