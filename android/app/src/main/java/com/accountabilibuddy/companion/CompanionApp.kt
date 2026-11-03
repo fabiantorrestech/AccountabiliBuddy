@@ -44,6 +44,9 @@ import java.io.File
 // How often a waiting PC command is checked against its 10 minutes (PcFileRemote.GIVE_UP_AFTER) when no file arrives.
 private const val EXPIRE_TICK_MS = 60_000L
 
+// The lunch folder loop's step: one folder read a minute while lunch runs.
+private const val LUNCH_FOLDER_TICK_MS = 60_000L
+
 // Unlocking the phone syncs at most this often ([CompanionApp.syncOnUnlock]).
 private val UNLOCK_SYNC_GAP: java.time.Duration = java.time.Duration.ofMinutes(1)
 
@@ -100,6 +103,9 @@ class CompanionApp : Application() {
 
     /** Today's flexible lunch, the same on every device (schema v8). */
     val lunch by lazy { com.accountabilibuddy.companion.lunch.LunchStore(this) }
+
+    /** "Tell Autosync to sync" (off until set up): nudges the app that moves the sync folder, only for lunch ([AutosyncNudgePolicy]). */
+    val autosyncNudger by lazy { com.accountabilibuddy.companion.sync.AutosyncNudger(this) }
 
     /** ADR 58: the phone's own calendar rules; they stay on this phone (never synced, backed up or sent to the watch). */
     val calendarRules by lazy { com.accountabilibuddy.companion.calendar.CalendarRulesStore(this) }
@@ -400,13 +406,28 @@ class CompanionApp : Application() {
             appScope.launch {
                 // The sync folder too: a lunch started here reaches the PCs without waiting for the next folder sync.
                 runCatching { folderSource.syncNow() }
+                // Our file is written: tell Autosync to move it, then read the folder again a little later for what came back.
+                nudgeAfterOwnLunchChange()
                 driveSource.syncNow()
                 Refresher.refresh(this@CompanionApp)
             }
         }
+        // While lunch runs, or while a lunch started on another device is expected: the folder is read every minute (lunch running)
+        // by this loop when the pinned timeline's own loop isn't doing it; it asks nothing of a lunch-less day beyond a clock check.
+        // Best effort: without the timeline's foreground service Android may freeze this process, and the tick with it.
+        appScope.launch {
+            while (true) {
+                delay(LUNCH_FOLDER_TICK_MS)
+                runCatching { lunchFolderTick() }
+            }
+        }
         appScope.launch {
             sync.received.collect { devices ->
-                devices.mapNotNull { it.file.lunch }.forEach { lunch.receive(it) }
+                // A lunch taken from another device's file: the notification and widget now, not at the 2-second redraw below.
+                val lunchTaken = devices.mapNotNull { it.file.lunch }.map { lunch.receive(it) }.any { it }
+                if (lunchTaken) {
+                    launch { runCatching { Refresher.refresh(this@CompanionApp) } }
+                }
                 runCatching { com.accountabilibuddy.companion.essentials.LunchLockLift.check(this@CompanionApp) }
                 actions.prune(devices)
                 pcRemote.expire()
@@ -547,6 +568,89 @@ class CompanionApp : Application() {
             driveSource.syncNow()
             Refresher.refresh(this@CompanionApp)
         }
+    }
+
+    // After a lunch change here: Autosync is told once (when set up), and the folder is read again about 20 s and 60 s later.
+    private fun nudgeAfterOwnLunchChange() {
+        if (!autosyncNudger.isReady() || !folderSource.active) {
+            return
+        }
+
+        // Null: a nudge is already waiting out the 10 s gap and covers this change; else wait (maybe zero) and tell Autosync.
+        val wait = autosyncNudger.policy.afterOwnChange(java.time.Instant.now()) ?: return
+        appScope.launch {
+            if (!wait.isZero) {
+                delay(wait.toMillis())
+            }
+
+            autosyncNudger.send()
+            var waited = java.time.Duration.ZERO
+            for (at in com.accountabilibuddy.companion.sync.AutosyncNudgePolicy.FOLLOW_UPS) {
+                delay((at - waited).toMillis())
+                waited = at
+                runCatching { folderSource.syncNow() }
+            }
+        }
+    }
+
+    /** Before a folder read: tells Autosync to sync when [AutosyncNudgePolicy] says it is due (also used by the pinned timeline's loop). */
+    fun nudgeBeforeFolderRead() {
+        if (!autosyncNudger.isReady() || !folderSource.active) {
+            return
+        }
+
+        val now = java.time.Instant.now()
+        val running = lunch.isOnLunch(now)
+        if (autosyncNudger.policy.beforeFolderRead(now, running, !running && lunchStartExpected(now))) {
+            autosyncNudger.send()
+        }
+    }
+
+    // Once a minute: while lunch runs, one folder read (the pinned timeline's loop does it when that runs); while a lunch from another
+    // device is expected, the nudge and a read 20 s later (at most every 5 minutes).
+    private suspend fun lunchFolderTick() {
+        val now = java.time.Instant.now()
+        val running = lunch.isOnLunch(now)
+        val expected = !running && lunchStartExpected(now)
+        if (!running && !expected || !folderSource.active) {
+            return
+        }
+
+        val pinned = com.accountabilibuddy.companion.notify.PinnedTimelineService.isRunning
+        if (running) {
+            if (!pinned) {
+                nudgeBeforeFolderRead()
+                folderSource.syncNow()
+            }
+
+            return
+        }
+
+        val before = autosyncNudger.policy
+        if (autosyncNudger.isReady() && before.beforeFolderRead(now, lunchRunning = false, lunchExpected = true)) {
+            autosyncNudger.send()
+            appScope.launch {
+                delay(com.accountabilibuddy.companion.sync.AutosyncNudgePolicy.FOLLOW_UPS.first().toMillis())
+                runCatching { folderSource.syncNow() }
+            }
+        }
+    }
+
+    // The phone's lunch hint window, or a plan's lunch part on a workday, with no lunch taken yet: a lunch may be started on the PC.
+    private fun lunchStartExpected(now: java.time.Instant): Boolean {
+        val plan = store.state.value.document.dayPlan
+        if (!lunch.canStart(plan, now)) {
+            return false
+        }
+
+        val local = java.time.LocalDateTime.ofInstant(now, java.time.ZoneId.systemDefault())
+        val flex = plan.flexibleBreakOn(local.toLocalDate())
+        if (flex != null && !local.isBefore(flex.hintAt ?: flex.window.start) && local.isBefore(flex.window.end)) {
+            return true
+        }
+
+        val fixed = plan.fixedLunchOn(local.toLocalDate())
+        return fixed != null && !local.isBefore(fixed.window.start) && local.isBefore(fixed.window.end)
     }
 
     // A session runs somewhere (a device's file from the last 12 hours), the timeline is pinned, or a PC's answer to a

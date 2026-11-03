@@ -19,6 +19,9 @@ object TokenVault {
     /** The key for LockMyPhone-Extended's Intent API token (a separate key from the sync code's). */
     const val LMPE_TOKEN_ALIAS = "accountabilibuddy-lmpe-token"
 
+    /** The Autosync Automation secret code ("Tell Autosync to sync"). */
+    const val AUTOSYNC_CODE_ALIAS = "accountabilibuddy-autosync-code"
+
     /** The key that seals this phone's sync key pair (ADR 54), a separate key from the sync code's. */
     const val DEVICE_KEY_ALIAS = "accountabilibuddy-sync-device-key"
 

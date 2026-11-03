@@ -43,6 +43,16 @@ public sealed partial class LunchCardViewModel : ObservableObject
     [ObservableProperty]
     public partial string Text { get; set; }
 
+    /// <summary>
+    /// While lunch runs and another device is around: "On all your devices" or "Not on Laptop yet · last heard 12:03 PM" (<see cref="LunchDelivery"/>);
+    /// empty otherwise. Read from the latest file received from each device whenever the card refreshes: no timer of its own.
+    /// </summary>
+    [ObservableProperty]
+    public partial string DeliveryText { get; set; } = string.Empty;
+
+    /// <summary>The other active devices' latest files as lunch peers (watches and removed devices left out); set by the app.</summary>
+    public Func<IReadOnlyCollection<LunchPeer>>? Peers { get; set; }
+
     public void Refresh()
     {
         FlexibleBreak? today = _lunch.Today;
@@ -51,6 +61,9 @@ public sealed partial class LunchCardViewModel : ObservableObject
         CanStart = _lunch.CanStart;
         CanShorten = _lunch.CanShorten;
         IsVisible = CanStart || taken is not null;
+        DeliveryText = IsOnLunch && taken is not null && Peers is not null
+            ? LunchDelivery.Line(taken, Peers(), _sessions.Now, time => TimeZoneInfo.ConvertTime(time, _sessions.TimeProvider.LocalTimeZone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)) ?? string.Empty
+            : string.Empty;
         TimeZoneInfo zone = _sessions.TimeProvider.LocalTimeZone;
         string length = LunchService.FormatLength(_lunch.Length);
         if (IsOnLunch && taken is not null)

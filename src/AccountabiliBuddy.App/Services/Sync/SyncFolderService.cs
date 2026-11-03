@@ -503,6 +503,15 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
         }
     }
 
+    /// <summary>
+    /// Writes this PC's file in about 5 seconds whatever the interval (a lunch changed here, or one taken from another device), so the
+    /// other devices have it as soon as the folder's own sync moves it. Repeated calls join into one write.
+    /// </summary>
+    public void WriteSoon()
+    {
+        _pendingWrite = Schedule(_pendingWrite, OwnChangeDelay, WriteNowAsync);
+    }
+
     /// <summary>Always written when a session ends, once its end is in the history.</summary>
     private void OnSessionStateChanged(object? sender, SessionState state)
     {

@@ -99,14 +99,18 @@ class LunchStore(private val context: Context) {
         _lengthMinutes.value = clamped
     }
 
-    /** A lunch from another device's file: taken when it's today's and its edit is newer than ours. */
+    /**
+     * A lunch from another device's file: taken when it's today's and its edit is newer than ours. True when it was taken: [lunch] and
+     * the watch's flow follow at once, the "Lunch over!" alarm is set again by [save], and the caller redraws the notification and widget.
+     */
     @Synchronized
-    fun receive(received: SyncLunch, now: Instant = Instant.now()) {
-        if (!isToday(received.start, now)) return
+    fun receive(received: SyncLunch, now: Instant = Instant.now()): Boolean {
+        if (!isToday(received.start, now)) return false
         val lunch = clamped(received)
         val ours = today(now)
-        if (ours != null && (ours.lastEdit >= lunch.lastEdit || (ours.start == lunch.start && ours.end == lunch.end))) return
+        if (ours != null && (ours.lastEdit >= lunch.lastEdit || (ours.start == lunch.start && ours.end == lunch.end))) return false
         save(lunch, overTold = now >= lunch.end)
+        return true
     }
 
     /** Today's lunch for the watch's Lunch page: shown on a workday (or a day with a flexible break), or while lunch runs. */

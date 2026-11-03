@@ -3,6 +3,7 @@ package com.accountabilibuddy.companion.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -17,6 +18,7 @@ import com.accountabilibuddy.companion.lunch.LunchStore
 import com.accountabilibuddy.companion.ui.kit.AbCard
 import com.accountabilibuddy.companion.ui.kit.AbTonalButton
 import com.accountabilibuddy.shared.WatchLunch
+import com.accountabilibuddy.shared.sync.LunchDelivery
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
@@ -65,6 +67,12 @@ fun LunchCard(lunch: TodayLunch, clock: ClockFormat) {
             when {
                 onLunch -> AbTonalButton("I'm back", onClick = lunch.onBack)
                 taken == null -> AbTonalButton("Start lunch", onClick = lunch.onStart)
+            }
+        }
+        // While lunch runs: whether the other devices have it, from their latest files (this card's own refresh, no loop of its own).
+        if (onLunch) {
+            LunchDelivery.line(taken, lunch.peers, now) { clock.time(LocalDateTime.ofInstant(it, zone)) }?.let {
+                Text(it, style = com.accountabilibuddy.companion.ui.theme.Ab.type.small, color = com.accountabilibuddy.companion.ui.theme.Ab.colors.muted)
             }
         }
         if (onLunch) {

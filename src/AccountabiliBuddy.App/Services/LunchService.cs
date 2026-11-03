@@ -213,12 +213,12 @@ public sealed class LunchService
         }
     }
 
-    /// <summary>A lunch another device started or changed (its sync file): taken here when it's today's and its edit is newer than ours.</summary>
-    public void Receive(SyncLunch lunch)
+    /// <summary>A lunch another device started or changed (its sync file): taken here when it's today's and its edit is newer than ours. True when it was taken (the card and the sync file follow at once; the caller redraws the day bar).</summary>
+    public bool Receive(SyncLunch lunch)
     {
         if (!IsToday(lunch.Start))
         {
-            return;
+            return false;
         }
 
         if (lunch.End > lunch.Start + MaxLength)
@@ -229,16 +229,20 @@ public sealed class LunchService
 
         if (Taken is SyncLunch ours && (ours.LastEdit >= lunch.LastEdit || (ours.Start == lunch.Start && ours.End == lunch.End)))
         {
-            return;
+            return false;
         }
 
+        bool wasOnLunch = IsOnLunch;
         _ = SaveAsync(_state with { Start = lunch.Start, End = lunch.End, EditedAt = lunch.EditedAt, OverTold = _sessions.Now >= lunch.End });
 
-        // Started on another device during this PC's break: the same as pressing Start lunch here.
-        if (IsOnLunch)
+        // Started on another device (not a +5 or −5 on a lunch already running here): the same as pressing Start lunch here, so a break
+        // ends and a running focus session steps away as a Break, as StartForAsync does. A received end changes nothing in the session.
+        if (IsOnLunch && !wasOnLunch && !_sessions.EndBreakForLunch() && _sessions.State.IsActive && !_sessions.State.IsAway)
         {
-            _sessions.EndBreakForLunch();
+            _sessions.StepAway(AwayKind.Break);
         }
+
+        return true;
     }
 
     /// <summary>The hint, and "Lunch over!" once. Runs every second.</summary>
