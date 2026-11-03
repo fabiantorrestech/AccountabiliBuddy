@@ -30,7 +30,9 @@ public sealed partial class PlanViewModel : ObservableObject
     private readonly Func<TimeSpan> _goal;
     private readonly Func<DateOnly, TimeSpan> _focusedOn;
     private readonly Func<DateOnly, SleepTimes?> _nightFallback;
+    private readonly Func<DayPlan, DayPlan> _withCalendarEvents;
 
+    /// <param name="withCalendarEvents">Lays the classified calendar events over a plan (ADR 58), for the timeline only.</param>
     public PlanViewModel(
         ConfigurationService configuration,
         SessionController sessions,
@@ -40,7 +42,8 @@ public sealed partial class PlanViewModel : ObservableObject
         PlanHelperDismissals dismissals,
         Func<TimeSpan> goal,
         Func<DateOnly, TimeSpan> focusedOn,
-        Func<DateOnly, SleepTimes?> nightFallback)
+        Func<DateOnly, SleepTimes?> nightFallback,
+        Func<DayPlan, DayPlan> withCalendarEvents)
     {
         _configuration = configuration;
         _sessions = sessions;
@@ -51,6 +54,7 @@ public sealed partial class PlanViewModel : ObservableObject
         _goal = goal;
         _focusedOn = focusedOn;
         _nightFallback = nightFallback;
+        _withCalendarEvents = withCalendarEvents;
 
         SelectedDate = Today;
         WeekStart = WeekSwitch.MondayOf(SelectedDate);
@@ -199,7 +203,7 @@ public sealed partial class PlanViewModel : ObservableObject
     private IReadOnlyList<PlanTimelineRowViewModel> BuildRows()
     {
         return PlanTimelineBuilder.Build(
-            _configuration.Editing.DayPlan, SelectedDate, LocalNow, _calendars.EventsOn(SelectedDate), _focusedOn(SelectedDate), _goal(), _nightFallback, OpenPart);
+            _withCalendarEvents(_configuration.Editing.DayPlan), SelectedDate, LocalNow, _calendars.EventsOn(SelectedDate), _focusedOn(SelectedDate), _goal(), _nightFallback, OpenPart);
     }
 
     [RelayCommand]

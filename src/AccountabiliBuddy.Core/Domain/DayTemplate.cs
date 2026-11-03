@@ -16,6 +16,14 @@ public sealed record DayTemplate(
 {
     public static DayTemplate Empty { get; } = new(Array.Empty<PlanPart>());
 
+    /// <summary>
+    /// Budget time that Work calendar events already used up on this Budget day (ADR 58), counted like focus wherever the budget
+    /// is compared (<see cref="Engine.DayWorkWindows"/>, <see cref="Engine.DayPlanCut"/>). In memory only: never written to
+    /// JSON, not in the plan hash, and never part of focus totals or Stats. Zero in every stored plan.
+    /// </summary>
+    [JsonIgnore]
+    public TimeSpan BudgetCredit { get; init; }
+
     /// <summary>The block rules this day follows.</summary>
     [JsonIgnore]
     public BlockRules Rules => Blocks ?? BlockRules.Default;

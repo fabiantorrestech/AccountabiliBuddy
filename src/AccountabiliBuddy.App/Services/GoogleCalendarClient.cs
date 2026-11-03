@@ -206,7 +206,10 @@ public sealed class GoogleCalendarClient
                     && TryReadTime(item, "end", zone, out DateTime end, out _))
                 {
                     string title = OptionalString(item, "summary")?.Trim() is { Length: > 0 } summary ? summary : "(no title)";
-                    events.Add(new CalendarEvent(id, appCalendarId, title, start, end > start ? end : start, isAllDay));
+                    // A repeating event's occurrence: its series and its original start (ADR 58), which stay when one occurrence moves.
+                    string? seriesId = OptionalString(item, "recurringEventId");
+                    string? occurrenceKey = seriesId is null ? null : OriginalStart(item) ?? id;
+                    events.Add(new CalendarEvent(id, appCalendarId, title, start, end > start ? end : start, isAllDay, seriesId, occurrenceKey));
                 }
             }
 
@@ -315,6 +318,14 @@ public sealed class GoogleCalendarClient
         return root.TryGetProperty("items", out JsonElement items) && items.ValueKind == JsonValueKind.Array
             ? items.EnumerateArray()
             : Enumerable.Empty<JsonElement>();
+    }
+
+    // The time a repeating event's occurrence was first scheduled for, as Google writes it (ADR 58).
+    private static string? OriginalStart(JsonElement item)
+    {
+        return item.TryGetProperty("originalStartTime", out JsonElement original)
+            ? OptionalString(original, "dateTime") ?? OptionalString(original, "date")
+            : null;
     }
 
     private static string? OptionalString(JsonElement element, string property)

@@ -21,6 +21,11 @@ public sealed partial class NextUpViewModel : ObservableObject
     private readonly DayBarViewModel? _day;
     private readonly SessionTasksService? _tasks;
 
+    /// <summary>The day plan the guards read: the stored plan with calendar events laid over it (ADR 58). Set by the app; null = the stored plan.</summary>
+    public Func<DayPlan>? GuardedPlan { get; set; }
+
+    private DayPlan PlanInForce => GuardedPlan?.Invoke() ?? _configuration.Current.DayPlan;
+
     /// <param name="day">Today's bar, for the focus and night inputs a Budget day needs; null reads the plan without them.</param>
     /// <param name="tasks">The tasks put in the plan (ADR 50) show under their part's row; null shows none.</param>
     public NextUpViewModel(ConfigurationService configuration, TimeProvider time, DayBarViewModel? day, SessionTasksService? tasks = null)
@@ -59,7 +64,7 @@ public sealed partial class NextUpViewModel : ObservableObject
     {
         DateTime now = _time.GetLocalNow().DateTime;
         var day = new LocalWindow(now.Date, now.Date.AddDays(1));
-        var rows = DayWorkWindows.PartsIn(_configuration.Current.DayPlan, day, now, _day?.FocusedOn, _day?.NightFallback)
+        var rows = DayWorkWindows.PartsIn(PlanInForce, day, now, _day?.FocusedOn, _day?.NightFallback)
             .Where(part => part.Window.End > now && part.Category.Behavior != CategoryBehavior.Sleep)
             .Take(MaxRows)
             .Select(part => new NextUpRow(

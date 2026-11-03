@@ -138,6 +138,11 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     /// <summary>The night before a date from the sleep settings, for a Budget day whose plan has no Sleep part. Set by the app.</summary>
     public Func<DateOnly, SleepTimes?>? NightFallback { get; set; }
 
+    /// <summary>The day plan the guards read: the stored plan with calendar events laid over it (ADR 58). Set by the app; null = the stored plan.</summary>
+    public Func<DayPlan>? GuardedPlan { get; set; }
+
+    private DayPlan PlanInForce => GuardedPlan?.Invoke() ?? _configuration.Current.DayPlan;
+
     [ObservableProperty]
     public partial DayBarLayout Layout { get; set; }
 
@@ -380,7 +385,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 
         DateTime now = LocalNow();
         (LocalWindow day, LocalWindow span) = CurrentDay();
-        IReadOnlyList<PlannedFocus> planned = DayWorkWindows.WorkWindows(_configuration.Current.DayPlan, span, now, FocusedOn, NightFallback);
+        IReadOnlyList<PlannedFocus> planned = DayWorkWindows.WorkWindows(PlanInForce, span, now, FocusedOn, NightFallback);
         // A lunch taken (flexible break, schema v8) isn't work: it comes out of the planned work it lies in.
         TimelineItem? lunch = TakenLunch();
         if (lunch is not null)
@@ -420,7 +425,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         IReadOnlyList<TimelineItem> phoneFree = PhoneFreeMarks(sessions, range);
         var timelineDay = new TimelineDay(
             range,
-            TimelineRowsBuilder.PartsAround(_configuration.Current.DayPlan, span, now, FocusedOn, NightFallback),
+            TimelineRowsBuilder.PartsAround(PlanInForce, span, now, FocusedOn, NightFallback),
             // The other devices' first, so this PC's own sessions draw on top where they overlap.
             received.Concat(sessions).ToList(),
             drift,

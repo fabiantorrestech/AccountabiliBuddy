@@ -29,6 +29,7 @@ public sealed class DeepWorkService : IDisposable
     private DateOnly _countedDay;
     private TimeSpan _countedToday;
     private TimeSpan _countedYesterday;
+    private IReadOnlyList<LocalWindow> _countedWindows = Array.Empty<LocalWindow>();
 
     /// <param name="loadRecords">This PC's sessions around today, newest first (<see cref="SessionHistoryBuilder.Build"/>).</param>
     /// <param name="others">The other devices' sessions (ADR 22).</param>
@@ -69,6 +70,13 @@ public sealed class DeepWorkService : IDisposable
             : date == _countedDay.AddDays(-1) ? _countedYesterday
             : TimeSpan.Zero;
     }
+
+    /// <summary>
+    /// The stretches of focus a Budget counts (the same sessions as <see cref="FocusedOn"/>, the running one's span so far
+    /// included) as local windows, earliest first; empty before the first read. The calendar overlay leaves them out of a Work
+    /// event's Budget credit so no time counts twice (ADR 58).
+    /// </summary>
+    public IReadOnlyList<LocalWindow> CountedWindows => _countedWindows;
 
     /// <summary>Raised when <see cref="Progress"/> changes (at most once a minute while a session runs).</summary>
     public event EventHandler? Changed;
@@ -126,8 +134,10 @@ public sealed class DeepWorkService : IDisposable
         // time stepped away (breaks, side tasks, planning) is already out of every session. Yesterday too: a Budget day
         // that runs past midnight is still counted against yesterday (see FocusedOn).
         IReadOnlyList<SessionRecord> ran = _records.Where(record => record.Mode != SessionMode.Added).ToList();
-        IReadOnlyList<DeepWorkDay> budgetDays = DeepWork.Days(
-            ran, others.Where(session => !session.Added), _isOmitted, _sessions.State.IsRealSession, today.AddDays(-1), today, now, zone);
+        IReadOnlyList<LocalWindow> countedWindows = DeepWork.Windows(
+            ran, others.Where(session => !session.Added), _isOmitted, _sessions.State.IsRealSession, now, zone);
+        IReadOnlyList<DeepWorkDay> budgetDays = DeepWork.DaysIn(countedWindows, today.AddDays(-1), today);
+        _countedWindows = countedWindows;
         _countedDay = today;
         _countedToday = TimeSpan.FromMinutes(Math.Floor(budgetDays[1].Focused.TotalMinutes));
         _countedYesterday = TimeSpan.FromMinutes(Math.Floor(budgetDays[0].Focused.TotalMinutes));
