@@ -7,7 +7,9 @@ import android.graphics.PixelFormat
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.provider.AlarmClock
 import android.provider.Settings
+import android.telecom.TelecomManager
 import android.util.Log
 import android.view.Gravity
 import android.view.View
@@ -85,6 +87,15 @@ object Takeover {
         return front
     }
 
+    // The phone's own dialer (a call that is not connected yet, so not "in call") and its clock (a ringing alarm or timer of
+    // another app) in front: never covered, even when they are not on the Essentials list. Both lookups need no permission;
+    // the clock's is found through the manifest's <queries> entry for SHOW_ALARMS, plus the known clock apps.
+    private fun isDialerOrClock(context: Context, packageName: String): Boolean {
+        if (packageName == context.getSystemService(TelecomManager::class.java)?.defaultDialerPackage) return true
+        if (packageName in CLOCK_PACKAGES) return true
+        return context.packageManager.resolveActivity(Intent(AlarmClock.ACTION_SHOW_ALARMS), 0)?.activityInfo?.packageName == packageName
+    }
+
     fun stopWatchingUnanswered() {
         returnWatch?.cancel()
         returnWatch = null
@@ -114,8 +125,8 @@ object Takeover {
         // Emergency time, or unlocked into an always-allowed app (a call, a text, directions): no card.
         val inFront = appInFront(context, now)
         // Lunch (from any device) is a break: no card, as on the PC.
-        if (app.emergency.isActive(now) || app.essentialsOnScreen || app.lunch.isOnLunch(now) || (inFront != null && app.essentials.isAllowed(inFront.first, inFront.second))) {
-            Log.d(TAG, "not shown: emergency, lunch or allowed app ($inFront)")
+        if (app.emergency.isActive(now) || app.essentialsOnScreen || app.lunch.isOnLunch(now) || (inFront != null && (app.essentials.isAllowed(inFront.first, inFront.second) || isDialerOrClock(context, inFront.first)))) {
+            Log.d(TAG, "not shown: emergency, lunch, allowed app, dialer or clock ($inFront)")
             return
         }
 
@@ -185,6 +196,7 @@ object Takeover {
 
     private const val TAG = "Takeover"
     private const val RETURN_CHECK_MS = 3_000L
+    private val CLOCK_PACKAGES = setOf("com.google.android.deskclock", "com.android.deskclock", "com.sec.android.app.clockpackage")
     private const val FRONT_LOOKBACK_SECONDS = 3_600L
     private const val WINDOW_SETTLE_MS = 150L
     private const val WINDOW_KEPT_MS = 1_500L
