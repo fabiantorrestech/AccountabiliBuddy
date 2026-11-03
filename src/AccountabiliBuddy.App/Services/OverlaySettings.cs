@@ -132,7 +132,13 @@ public sealed record OverlaySettings(
     public const int MaxQuickHideSeconds = 600;
 
     /// <summary>Where the overlay lives: the saved choice, else over the taskbar.</summary>
-    public OverlayPlacement EffectivePlacement => Placement ?? OverlayPlacement.OverTaskbar;
+    // Cover tray is retired: the overlay must never sit over the tray icons. A saved Cover tray now means Beside tray.
+    public OverlayPlacement EffectivePlacement => Placement switch
+    {
+        null => OverlayPlacement.OverTaskbar,
+        OverlayPlacement.CoverTray => OverlayPlacement.BesideTray,
+        { } chosen => chosen,
+    };
 
     /// <summary>What the overlay shows and in what order, with every part listed once. Never saved: the default for this size and placement.</summary>
     public IReadOnlyList<OverlayItem> Items => ContentOrder is null

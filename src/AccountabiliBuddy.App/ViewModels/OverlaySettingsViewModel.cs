@@ -13,7 +13,20 @@ namespace AccountabiliBuddy.App.ViewModels;
 public sealed partial class OverlaySettingsViewModel : ObservableObject
 {
     public static IReadOnlyList<string> PlacementNames { get; } =
-        ["Over taskbar", "Cover tray", "Taskbar left", "Beside tray", "Float right", "Float left"];
+        ["Over taskbar", "Taskbar left", "Beside tray", "Float right", "Float left"];
+
+    // The placement each entry of PlacementNames stands for. Cover tray is retired, so a list position no longer equals the stored number.
+    private static readonly OverlayPlacement[] PlacementChoices =
+    [
+        OverlayPlacement.OverTaskbar, OverlayPlacement.TaskbarLeft, OverlayPlacement.BesideTray,
+        OverlayPlacement.FloatBottomRight, OverlayPlacement.FloatBottomLeft,
+    ];
+
+    /// <summary>The name shown for a placement.</summary>
+    public static string PlacementName(OverlayPlacement placement)
+    {
+        return PlacementNames[Array.IndexOf(PlacementChoices, placement)];
+    }
 
     public static IReadOnlyList<string> AutoHideNames { get; } = ["Float", "Slim line", "Hide with it"];
 
@@ -82,7 +95,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
                                  | (ClockDate ? CornerClockParts.Date : 0) | (ClockBattery ? CornerClockParts.Battery : 0);
         return _settings.Normalized(current with
         {
-            Placement = PlacementIndex >= 0 ? (OverlayPlacement)PlacementIndex : current.Placement,
+            Placement = PlacementIndex >= 0 ? PlacementChoices[PlacementIndex] : current.Placement,
             AutoHide = AutoHideIndex >= 0 ? (AutoHideMode)AutoHideIndex : current.AutoHide,
             LeftAligned = LeftAlignedIndex >= 0 ? (LeftAlignedMode)LeftAlignedIndex : current.LeftAligned,
             CornerClock = CornerClock,
@@ -238,7 +251,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
         _loading = true;
         OverlayOn = settings.OverlayOn;
         HideShortcutOn = settings.HideShortcutOn;
-        PlacementIndex = (int)settings.EffectivePlacement;
+        PlacementIndex = Array.IndexOf(PlacementChoices, settings.EffectivePlacement);
         AutoHideIndex = (int)settings.AutoHide;
         LeftAlignedIndex = (int)settings.LeftAligned;
         CornerClock = settings.CornerClock;
@@ -295,7 +308,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     // Time and date and Batteries need Medium or larger (Small is one line); the rows say so and are disabled there.
     private void MarkSizeBoundRows()
     {
-        bool small = SizeIndex == (int)OverlaySize.Small && PlacementIndex != (int)OverlayPlacement.CoverTray;
+        bool small = SizeIndex == (int)OverlaySize.Small;
         foreach (OverlayItemRowViewModel row in Items.Where(row => row.IsSizeBound))
         {
             row.NeedsMedium = small;
@@ -371,7 +384,12 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     {
         FollowDefaultOrder();
         Touch(OverlayPreviewScene.Taskbar);
-        Save(s => s with { Placement = (OverlayPlacement)value, PlacementChosen = true });
+        if (value < 0)
+        {
+            return;
+        }
+
+        Save(s => s with { Placement = PlacementChoices[value], PlacementChosen = true });
     }
 
     partial void OnAutoHideIndexChanged(int value)
