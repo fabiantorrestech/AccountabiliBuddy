@@ -63,6 +63,7 @@ public sealed class EffectiveDayPlanProvider
     public void Start()
     {
         Restamp();
+        PruneStaleChoices();
     }
 
     /// <summary>Says that the saved session (if any) has been put back, so <see cref="SessionRuns"/> follows the real state from now on.</summary>
@@ -73,6 +74,78 @@ public sealed class EffectiveDayPlanProvider
             _sessionStateKnown = true;
             Interlocked.Increment(ref _calendarVersion);
         }
+
+        SessionStateKnown?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Raised once the saved session has been put back (<see cref="SessionRuns"/> now follows the real state), possibly on
+    /// another thread: subscribers post to the UI thread and read the provider from there.
+    /// </summary>
+    public event EventHandler? SessionStateKnown;
+
+    /// <summary>The looser-change delay in force: how long before it starts an event must be known to loosen the day.</summary>
+    public TimeSpan LooseningDelay => _configuration.Current.Locks.LooseningDelay;
+
+    /// <summary>When the app first saw the event as it is now with this category; null if it has not (yet). Read-only.</summary>
+    public DateTimeOffset? KnownSince(CalendarEvent calendarEvent, DayCategory category)
+    {
+        return FirstKnownTimes.KnownAt(FirstKnownTimes.ByEvent(Store.FirstKnown), calendarEvent, category);
+    }
+
+    /// <summary>
+    /// How much of the event the overlay let in for <paramref name="category"/>. Not strictly read-only: reading
+    /// <see cref="Current"/> runs <see cref="Of"/>, which can promote a change that is due and stamp first-known times.
+    /// Time over a Budget day's productive stretch is never a part, so for a Work choice there it counts only when the overlay
+    /// would credit it: it asks the overlay itself, on this event alone, as if the event were over (so a meeting that hasn't
+    /// started has earned nothing yet, but will count).
+    /// </summary>
+    public EventForceResult ForceOf(CalendarEvent calendarEvent, DayCategory category)
+    {
+        DateTime nowLocal = _time.GetLocalNow().DateTime;
+        DayPlan stored = _configuration.Current.DayPlan;
+        var window = new LocalWindow(calendarEvent.LocalStart, calendarEvent.LocalEnd);
+
+        // The overlay looks at the stored plan this way to tell the Budget stretch (DayWorkWindows.PartsIn on the stored plan).
+        IReadOnlyList<LocalWindow> stretch = category.Behavior == CategoryBehavior.Watch
+            ? DayWorkWindows.PartsIn(stored, window, nowLocal, null, NightFallback)
+                .Where(part => part.Part.Id == DayWorkWindows.BudgetWindowPartId)
+                .Select(part => part.Window)
+                .ToList()
+            : [];
+        IReadOnlyList<LocalWindow> rest = DayTimeline.Subtract([window], stretch);
+        IReadOnlyList<LocalWindow> held = DayWorkWindows.PartsIn(Current, window, nowLocal, null, NightFallback)
+            .Where(part => part.Category.Behavior == category.Behavior && part.Part.Id != DayWorkWindows.BudgetWindowPartId)
+            .Select(part => part.Window)
+            .ToList();
+
+        bool credited = stretch.Count > 0 && WouldCredit(calendarEvent, stored);
+        TimeSpan inForce = Length(rest) - Length(DayTimeline.Subtract(rest, held)) + (credited ? Length(stretch) : TimeSpan.Zero);
+        ForceLevel level = inForce <= TimeSpan.Zero ? ForceLevel.No : inForce >= Length([window]) ? ForceLevel.Yes : ForceLevel.Partly;
+        return new EventForceResult(level, credited, stretch.Count > 0);
+    }
+
+    // Runs the overlay on this event alone with the clock at its end, so what it would credit over a Budget stretch shows.
+    private bool WouldCredit(CalendarEvent calendarEvent, DayPlan stored)
+    {
+        DateTime end = DateTime.SpecifyKind(calendarEvent.LocalEnd, DateTimeKind.Unspecified);
+        var at = new DateTimeOffset(end, _time.LocalTimeZone.GetUtcOffset(end));
+        DayPlan effective = CalendarDayOverlay.Apply(stored, new CalendarOverlayInput(
+            [calendarEvent], Store.Classifications, Store.Rules.Active, Store.FirstKnown, at, _time.LocalTimeZone, SessionRuns, LooseningDelay, NightFallback, CountedFocus?.Invoke()));
+        for (DateOnly date = DateOnly.FromDateTime(calendarEvent.LocalStart); date <= DateOnly.FromDateTime(calendarEvent.LocalEnd.AddTicks(-1)); date = date.AddDays(1))
+        {
+            if (effective.TemplateFor(date).BudgetCredit > TimeSpan.Zero)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static TimeSpan Length(IEnumerable<LocalWindow> windows)
+    {
+        return windows.Aggregate(TimeSpan.Zero, (sum, window) => sum + (window.End - window.Start));
     }
 
     /// <summary>The effective plan of <paramref name="stored"/> (the plan the app holds, or one being edited or proposed).</summary>
@@ -148,6 +221,25 @@ public sealed class EffectiveDayPlanProvider
         return TryChangeClassification(CalendarOverlayStore.TargetFor(calendarEvent, scope, null), calendarEvent, removes: true);
     }
 
+    /// <summary>
+    /// Forgets the rules and choices of calendars that were removed with their source (ADR 58). Refused, and nothing is
+    /// changed, while a session is running, like removing the source itself.
+    /// </summary>
+    /// <returns>False while a session is running.</returns>
+    public bool TryForgetCalendars(IReadOnlyCollection<string> calendarIds)
+    {
+        lock (_gate)
+        {
+            if (SessionRuns)
+            {
+                return false;
+            }
+
+            Store.ForgetCalendars(calendarIds);
+            return true;
+        }
+    }
+
     private bool TryChangeClassification(EventClassification target, CalendarEvent calendarEvent, bool removes)
     {
         lock (_gate)
@@ -193,7 +285,22 @@ public sealed class EffectiveDayPlanProvider
             _seenEventLists = lists;
             Interlocked.Increment(ref _calendarVersion);
             Stamp(_time.GetUtcNow());
+            PruneStaleChoices();
         }
+    }
+
+    // Forgets "this one" choices whose event ended long ago (ClassificationPruning); none of them can be read by a guard any more.
+    private void PruneStaleChoices()
+    {
+        if (Store.Classifications.Count == 0 && Store.PendingClassifications.Count == 0)
+        {
+            return;
+        }
+
+        DateTime localNow = TimeZoneInfo.ConvertTime(_time.GetUtcNow(), _time.LocalTimeZone).DateTime;
+        IReadOnlyList<EventClassification> stale = ClassificationPruning.Stale(
+            Store.Classifications.Concat(Store.PendingClassifications.Select(pending => pending.Change)), _calendars.EventsOf, localNow);
+        Store.RemoveStale(stale);
     }
 
     private static bool HasBudgetDay(DayPlan plan)

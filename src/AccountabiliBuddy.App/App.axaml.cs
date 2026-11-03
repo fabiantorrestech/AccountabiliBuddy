@@ -152,6 +152,7 @@ public partial class App : Application
     private Func<SetupAssistantViewModel>? _createAssistant;
     private SetupAssistantWindow? _assistantWindow;
     private Action? _showDpAssistant;
+    private Action? _showCalendarRules;
     private TrayIcon? _trayIcon;
     private NativeMenuItem? _endSessionMenuItem;
     private NativeMenuItem? _stepAwayMenuItem;
@@ -875,6 +876,7 @@ public partial class App : Application
             ColdTurkey = _coldTurkey,
             OtherBlockers = new WindowsOtherBlockerDetector(),
             OpenDpAssistant = () => _showDpAssistant?.Invoke(),
+            OpenCalendarRules = () => _showCalendarRules?.Invoke(),
         };
         setupViewModel.OpenAssistant = () => ShowSetupAssistant(quick: false);
 
@@ -1115,14 +1117,14 @@ public partial class App : Application
         sessionViewModel.Focus.Capture = new CaptureBoxViewModel(_sessionNotes!, _comebacks!);
         var notebook = new NotebookViewModel(_comebacks!, _sessionNotes!, sessionTasks, time);
         // The Plan page (design 5o): the editors (day plan, month view) are sheets over it; the helper remembers what "Leave it" dismissed.
-        var calendarFeeds = new CalendarFeedsViewModel(calendars, _calendarSync, _sessions, OpenInBrowser);
+        var calendarFeeds = new CalendarFeedsViewModel(calendars, _calendarSync, _sessions, _configuration, effectivePlan, OpenInBrowser);
         DayPlanViewModel dayPlanViewModel = WithSleepGoal(new DayPlanViewModel(_configuration, _sessions) { Today = () => DateOnly.FromDateTime(time.GetLocalNow().DateTime) }, sleepSettings);
         var exceptionsViewModel = new ExceptionsViewModel(_configuration, _sessions, calendars, calendarFeeds, pendingChanges);
         var planHelperDismissals = new PlanHelperDismissals(documents, () => DateOnly.FromDateTime(time.GetLocalNow().DateTime));
         planHelperDismissals.LoadBlocking();
         var planViewModel = new PlanViewModel(
             _configuration, _sessions, calendars, dayPlanViewModel, exceptionsViewModel, planHelperDismissals,
-            () => TimeSpan.FromMinutes(goal.Current.DailyMinutes), countedFocus, nightFallback, effectivePlan.Of);
+            () => TimeSpan.FromMinutes(goal.Current.DailyMinutes), countedFocus, nightFallback, effectivePlan);
         _deepWork.Changed += (_, _) => Dispatcher.UIThread.Post(planViewModel.NotifyFocusChanged);
         var historyViewModel = new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time,
             _programPaths, desktopShell, isSessionRunning: () => _sessions!.State.IsRealSession)
@@ -1184,6 +1186,7 @@ public partial class App : Application
         planViewModel.OpenDpAssistant = mainViewModel.OpenDpAssistantCommand;
         planViewModel.WorkHoursGuardOn = () => _workHours?.Settings.On == true;
         planViewModel.ShowToday = () => mainViewModel.SelectedTab = MainWindowViewModel.TodayTab;
+        exceptionsViewModel.PickEventCategory = planViewModel.OpenEventPicker;
         exceptionsViewModel.OpenConnections = () =>
         {
             planViewModel.CloseSheet();
@@ -1282,7 +1285,7 @@ public partial class App : Application
 
         // The migration assistant: features added since the last version that aren't set up yet.
         var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
-            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks, planHelperDismissals, overlaySettings), BackupService.AppVersion);
+            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks, planHelperDismissals, overlaySettings, calendarOverlay), BackupService.AppVersion);
         setupFeatures.LoadBlocking();
         _setupFeatures = setupFeatures;
         coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();
@@ -1290,8 +1293,11 @@ public partial class App : Application
         sessionTasks.Changed += (_, _) => setupFeatures.Refresh();
         syncSettings.Changed += (_, _) => setupFeatures.Refresh();
         _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
+        // The store raises this on any thread, inside a lock: only post.
+        calendarOverlay.Changed += (_, _) => Dispatcher.UIThread.Post(setupFeatures.Refresh);
         sessionViewModel.WhatsNew = new WhatsNewCardViewModel(setupFeatures, ShowWhatsNew);
         sessionViewModel.NextUp = new NextUpViewModel(_configuration, time, sessionViewModel.Day, sessionTasks) { GuardedPlan = guardedPlan };
+        sessionViewModel.CalendarToday = new CalendarTodayViewModel(_configuration, effectivePlan, calendars, time, sessionViewModel.Day);
         sessionViewModel.SeenWhilePlanning = new SeenWhilePlanningViewModel(_planFirst!, displayNames.NameFor);
         sessionViewModel.MoreToday = new MoreTodayViewModel(sessionViewModel);
         mainViewModel.Settings.Updates.OpenWhatsNew = ShowWhatsNew;
@@ -1350,6 +1356,11 @@ public partial class App : Application
         }
 
         _showDpAssistant = ShowDpAssistant;
+        _showCalendarRules = () =>
+        {
+            ShowMainWindow();
+            mainViewModel.OpenSettings(SettingsSection.Connections);
+        };
         mainViewModel.ShowDpAssistant = ShowDpAssistant;
         sessionViewModel.ShowPlanDay = ShowPlanDay;
         mainViewModel.DayPlan.ShowPlanDay = ShowPlanDay;

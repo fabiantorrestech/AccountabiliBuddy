@@ -108,6 +108,21 @@
         <Style Selector="Button.rowHit:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
+        <!-- A calendar event line inside a work part: looks like the other lines, lifts on hover (ADR 58). -->
+        <Style Selector="Button.eventRow">
+            <Setter Property="Padding" Value="14,10" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+        <Style Selector="Button.eventRow /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="12" />
+        </Style>
+        <Style Selector="Button.eventRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
 
         <Style Selector="TextBlock.timeCol">
             <Setter Property="Width" Value="112" />
@@ -151,12 +166,13 @@
                 <Panel>
                     <Button Classes="rowHit" Command="{Binding OpenCommand}" AutomationProperties.Name="{Binding Title}"
                             ToolTip.Tip="Open this part in its editor" />
-                    <Grid ColumnDefinitions="Auto,6,*" Margin="0,12" IsHitTestVisible="False">
-                        <TextBlock Classes="muted timeCol" Text="{Binding TimeText}" FontSize="13" VerticalAlignment="Top" Margin="8,3,0,0" />
-                        <Border Grid.Column="1" Classes="bar" Classes.sleep="{Binding IsSleep}" CornerRadius="3" Margin="0,2" />
+                    <!-- Only the sub-rows of calendar events take clicks of their own (ADR 58); everything else passes the click to the button behind. -->
+                    <Grid ColumnDefinitions="Auto,6,*" Margin="0,12">
+                        <TextBlock Classes="muted timeCol" Text="{Binding TimeText}" FontSize="13" VerticalAlignment="Top" Margin="8,3,0,0" IsHitTestVisible="False" />
+                        <Border Grid.Column="1" Classes="bar" Classes.sleep="{Binding IsSleep}" CornerRadius="3" Margin="0,2" IsHitTestVisible="False" />
                         <StackPanel Grid.Column="2" Margin="16,0,8,0" Spacing="1">
-                            <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Ink}" TextWrapping="Wrap" />
-                            <TextBlock Classes="muted" Text="{Binding SubText}" FontSize="13" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Ink}" TextWrapping="Wrap" IsHitTestVisible="False" />
+                            <TextBlock Classes="muted" Text="{Binding SubText}" FontSize="13" TextWrapping="Wrap" IsHitTestVisible="False" />
                             <ItemsControl ItemsSource="{Binding SubRows}" IsVisible="{Binding HasSubRows}" Margin="0,12,0,0">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -167,7 +183,7 @@
                                     <DataTemplate x:DataType="vm:PlanSubRowViewModel">
                                         <Panel>
                                             <!-- A part inside the work row. -->
-                                            <Border IsVisible="{Binding IsRow}" Background="{DynamicResource Ab.Surface2}" CornerRadius="12" Padding="14,10">
+                                            <Border IsVisible="{Binding IsPlainRow}" IsHitTestVisible="False" Background="{DynamicResource Ab.Surface2}" CornerRadius="12" Padding="14,10">
                                                 <Grid ColumnDefinitions="76,*,Auto">
                                                     <TextBlock Classes="muted" Text="{Binding TimeText}" FontSize="13" VerticalAlignment="Center" />
                                                     <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="15" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
@@ -175,8 +191,18 @@
                                                     <TextBlock Grid.Column="2" Classes="muted" Text="{Binding RightText}" FontSize="13" VerticalAlignment="Center" Margin="10,0,0,0" />
                                                 </Grid>
                                             </Border>
+                                            <!-- A timed calendar event: a click picks its category (ADR 58). -->
+                                            <Button IsVisible="{Binding IsClickable}" Classes="eventRow" Command="{Binding OpenCommand}" HorizontalAlignment="Stretch"
+                                                    HorizontalContentAlignment="Stretch" AutomationProperties.Name="{Binding Title, StringFormat='Pick a category for {0}'}"
+                                                    ToolTip.Tip="Pick a day plan category for this event">
+                                                <Grid ColumnDefinitions="76,*,Auto">
+                                                    <TextBlock Classes="muted" Text="{Binding TimeText}" FontSize="13" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="15" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="2" Classes="muted" Text="{Binding RightText}" FontSize="13" VerticalAlignment="Center" Margin="10,0,0,0" />
+                                                </Grid>
+                                            </Button>
                                             <!-- The Now line: the page's one use of the accent. -->
-                                            <Grid IsVisible="{Binding IsNowLine}" ColumnDefinitions="Auto,Auto,*" Height="14" Margin="0,2">
+                                            <Grid IsVisible="{Binding IsNowLine}" IsHitTestVisible="False" ColumnDefinitions="Auto,Auto,*" Height="14" Margin="0,2">
                                                 <Border Width="12" Height="1" Background="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
                                                 <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Accent}"
                                                            VerticalAlignment="Center" Margin="8,0" />
@@ -379,6 +405,61 @@
                         </ScrollViewer>
                     </Panel>
                 </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- The category picker on one calendar event (ADR 58). Esc, the scrim or Close closes it. -->
+        <Grid x:Name="EventPickerLayer" IsVisible="{Binding IsEventPickerOpen}">
+            <Border Background="{DynamicResource Ab.Bg}" Opacity="0.72" PointerPressed="OnPickerScrimPressed" />
+            <Border Classes="card" DataContext="{Binding EventPicker}" x:DataType="vm:CalendarEventPickerViewModel" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Width="420" MaxHeight="620" Padding="0" ClipToBounds="True" AutomationProperties.Name="Pick a category for this event">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="10" Margin="26,22,26,22">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="display" Text="{Binding Title}" FontSize="22" TextWrapping="Wrap" />
+                            <TextBlock Classes="muted" Text="{Binding WhenText}" FontSize="13" />
+                            <TextBlock Classes="muted" Text="{Binding CalendarName}" FontSize="13" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+
+                        <!-- A repeating event: the choice covers the whole series (default) or just this one. -->
+                        <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding IsSeries}">
+                            <RadioButton GroupName="eventScope" Content="Whole series" IsChecked="{Binding IsWholeSeries}" />
+                            <RadioButton GroupName="eventScope" Content="This one" IsChecked="{Binding IsThisOne}" />
+                        </StackPanel>
+
+                        <TextBlock Classes="muted" Text="{Binding NowText}" FontSize="13" TextWrapping="Wrap" />
+                        <TextBlock Classes="muted" Text="This event can't carry a category: it has no length or is longer than a week." FontSize="13" TextWrapping="Wrap"
+                                   IsVisible="{Binding CannotClassify}" />
+                        <TextBlock Text="{Binding LockText}" FontSize="13" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Waiting}" IsVisible="{Binding IsLocked}" />
+
+                        <ItemsControl ItemsSource="{Binding Choices}" IsEnabled="{Binding !IsLocked}" IsVisible="{Binding CanClassify}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:EventCategoryChoiceViewModel">
+                                    <Button Classes="listRow" Classes.selected="{Binding IsCurrent}" Command="{Binding ChooseCommand}" AutomationProperties.Name="{Binding Text}">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Margin="14,9,12,9">
+                                            <Ellipse Width="10" Height="10" Fill="{Binding Brush}" IsVisible="{Binding HasBrush}" VerticalAlignment="Center" />
+                                            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Text}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Ink}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Classes="muted" Text="{Binding WaitText}" FontSize="12" IsVisible="{Binding IsWaiting}" />
+                                            </StackPanel>
+                                            <mi:MaterialIcon Grid.Column="2" Kind="Check" Width="18" Height="18" Foreground="{DynamicResource Ab.Ink}" IsVisible="{Binding IsCurrent}" />
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="{Binding Message}" FontSize="13" TextWrapping="Wrap" IsVisible="{Binding HasMessage}" />
+
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <Button Classes="quiet" Command="{Binding OpenChangeADayCommand}" Padding="10,6" FontSize="13" AutomationProperties.Name="Change a day"
+                                    ToolTip.Tip="Open this day in the month view">
+                                <TextBlock Classes="muted" Text="Change a day…" />
+                            </Button>
+                            <Button Grid.Column="2" Classes="softPill" Command="{Binding CloseCommand}" Content="Close" AutomationProperties.Name="Close" />
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
             </Border>
         </Grid>
     </Grid>
