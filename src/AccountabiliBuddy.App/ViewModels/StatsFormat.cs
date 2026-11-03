@@ -15,24 +15,6 @@ internal static class StatsFormat
     /// <summary>Monday = 0 to Sunday = 6.</summary>
     public static int RowOf(DateOnly date) => ((int)date.DayOfWeek + 6) % 7;
 
-    /// <summary>The first and last date the range covers: this week, this month, the last 365 days, or just today.</summary>
-    public static (DateOnly From, DateOnly To) Bounds(StatsRange range, DateOnly today)
-    {
-        switch (range)
-        {
-            case StatsRange.Week:
-                DateOnly monday = MondayOf(today);
-                return (monday, monday.AddDays(6));
-            case StatsRange.Month:
-                var first = new DateOnly(today.Year, today.Month, 1);
-                return (first, first.AddMonths(1).AddDays(-1));
-            case StatsRange.Year:
-                return (today.AddDays(-364), today);
-            default:
-                return (today, today);
-        }
-    }
-
     /// <summary>"Oct 26 – Nov 1".</summary>
     public static string DatesText(DateOnly from, DateOnly to)
     {

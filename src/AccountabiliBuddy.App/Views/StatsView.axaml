@@ -349,6 +349,42 @@
                     <StackPanel VerticalAlignment="Center" Spacing="2">
                         <TextBlock Classes="display pageTitle" Text="Stats" />
                         <TextBlock Classes="muted" Text="{Binding Subtitle}" FontSize="14" TextWrapping="Wrap" />
+                        <!-- The period bar: back / the dates (a click returns to now) / forward, the rolling chips, and the pickers of a custom range. -->
+                        <WrapPanel ItemSpacing="6" LineSpacing="6" Margin="0,8,0,0" IsVisible="{Binding ShowsPeriodBar}">
+                            <Button Classes="quiet" Padding="6" Command="{Binding PreviousPeriodCommand}" IsEnabled="{Binding CanStepBack}" ToolTip.Tip="Earlier"
+                                    AutomationProperties.Name="Earlier period">
+                                <mi:MaterialIcon Kind="ChevronLeft" Width="20" Height="20" Foreground="{DynamicResource Ab.Muted}" />
+                            </Button>
+                            <Button Classes="quiet" Padding="8,6" Command="{Binding ResetPeriodCommand}" Content="{Binding PeriodLabel}" ToolTip.Tip="Back to now"
+                                    AutomationProperties.Name="Back to the current period" />
+                            <Button Classes="quiet" Padding="6" Command="{Binding NextPeriodCommand}" IsEnabled="{Binding CanStepForward}" ToolTip.Tip="Later"
+                                    AutomationProperties.Name="Later period">
+                                <mi:MaterialIcon Kind="ChevronRight" Width="20" Height="20" Foreground="{DynamicResource Ab.Muted}" />
+                            </Button>
+                            <Border Background="{DynamicResource Ab.Surface2}" CornerRadius="999" Padding="4">
+                                <ItemsControl ItemsSource="{Binding RollingOptions}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:StatsRangeOptionViewModel">
+                                            <Button Classes="segment" Classes.selected="{Binding IsSelected}" IsVisible="{Binding IsShown}" Content="{Binding Text}"
+                                                    AutomationProperties.Name="{Binding Text}"
+                                                    Command="{Binding $parent[views:StatsView].((vm:StatsViewModel)DataContext).SelectRangeCommand}" CommandParameter="{Binding Range}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsCustomPickers}">
+                                <CalendarDatePicker SelectedDate="{Binding CustomFrom, Mode=TwoWay}" DisplayDateStart="{Binding CustomMin}" DisplayDateEnd="{Binding CustomMax}"
+                                                    AutomationProperties.Name="From date" />
+                                <TextBlock Classes="muted" Text="to" VerticalAlignment="Center" />
+                                <CalendarDatePicker SelectedDate="{Binding CustomTo, Mode=TwoWay}" DisplayDateStart="{Binding CustomMin}" DisplayDateEnd="{Binding CustomMax}"
+                                                    AutomationProperties.Name="To date" />
+                            </StackPanel>
+                        </WrapPanel>
                     </StackPanel>
                     <Border Grid.Column="1" Background="{DynamicResource Ab.Surface2}" CornerRadius="999" Padding="4" VerticalAlignment="Top" IsVisible="{Binding ShowsRange}">
                         <ItemsControl ItemsSource="{Binding RangeOptions}">
