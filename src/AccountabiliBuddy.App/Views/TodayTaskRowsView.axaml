@@ -128,9 +128,10 @@
                                                     PointerCaptureLost="OnHandleCaptureLost">
                                                 <TextBlock Text="⠿" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                             </Border>
-                                            <TextBlock Grid.Column="1" Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Center" />
+                                            <!-- The number stays level with the title's first line when the title wraps; the same top margin keeps a one-line row centred. -->
+                                            <TextBlock Grid.Column="1" Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Top" Margin="0,15,0,0" />
                                             <TextBlock Grid.Column="2" Classes="rowTitle" Classes.stepDone="{Binding IsDone}" Text="{Binding Title}" FontSize="16" FontWeight="Normal"
-                                                       TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                       TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,15" />
                                             <TextBlock Grid.Column="3" Classes="muted" Text="{Binding StepsText}" FontSize="13" VerticalAlignment="Center" Margin="12,0,0,0" />
                                             <!-- Live mode only (planning, running): ticking the first task during planning begins the focus, like "I'm ready". -->
                                             <CheckBox Grid.Column="4" IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="12,0,0,0" VerticalAlignment="Center"
@@ -282,7 +283,7 @@
                     <Ellipse Width="12" Height="12" Fill="{Binding NewTaskCategoryBrush}" Stroke="#80808080" StrokeThickness="1" />
                 </Button>
                 <Button Grid.Column="4" x:Name="ListPullButton" Classes="small" IsEnabled="{Binding !IsOverLimitPrompt}"
-                        ToolTip.Tip="From your lists: take a task from Later or Come back to" AutomationProperties.Name="From your lists">
+                        ToolTip.Tip="From your lists: take a task from Later, Come back to, Unfinished or Auto-saved" AutomationProperties.Name="From your lists">
                     <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
                     <Button.Flyout>
                         <Flyout Placement="BottomEdgeAlignedRight" Opening="OnListPickerOpening">

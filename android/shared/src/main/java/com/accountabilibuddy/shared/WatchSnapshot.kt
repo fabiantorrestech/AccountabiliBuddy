@@ -25,6 +25,8 @@ data class RunningSession(
      */
     val planningStartedAt: Instant? = null,
     val planningEndsAt: Instant? = null,
+    /** ADR 60: the PC went off with this session running: its timer is paused and it counts nothing. Left out by older phones. */
+    val pcOff: Boolean = false,
 ) {
     /** True while the PC is planning (before its focus countdown); its time keeps counting past [planningEndsAt] until it is answered. */
     val isPlanning: Boolean get() = planningEndsAt != null && !onBreak

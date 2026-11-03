@@ -58,10 +58,10 @@ public static class SyncFileBuilder
                 bool added = counted.Record.Mode == SessionMode.Added;
                 string? profile = added ? null : profileName(counted.Record.ProfileId);
                 IReadOnlyList<SessionTask>? tasks = tasksOf?.Invoke(counted.Record.StartedAt);
-                // The running session goes whole, except for its planning stage (not focus time): the devices count focus from when
-                // planning ended. Its other away stretches come out once it has ended.
+                // The running session goes whole, except for its planning stage and time with the PC off (not focus time): the devices
+                // count focus from when planning ended. Its other away stretches come out once it has ended.
                 IReadOnlyList<AwayStretch> cut = counted.Record.Away is not { Count: > 0 } away ? []
-                    : counted.Running ? away.Where(stretch => stretch.Kind == AwayKind.Planning).ToList()
+                    : counted.Running ? away.Where(stretch => stretch.Kind is AwayKind.Planning or AwayKind.DeviceOff).ToList()
                     : away;
                 if (cut.Count == 0)
                 {
@@ -80,7 +80,8 @@ public static class SyncFileBuilder
                 }
 
                 return pieces.Select((piece, index) => new SyncSession(
-                    piece.Start, counted.Running && piece.End >= counted.End ? null : piece.End, profile, added, index == 0 ? tasks : null));
+                    piece.Start, counted.Running && piece.End >= counted.End ? null : piece.End, profile, added, index == 0 ? tasks : null,
+                    OffMinutesBefore(cut, piece.Start)));
             })
             .Where(session => session.End is not DateTimeOffset end || end > from)
             .ToList();
@@ -89,6 +90,13 @@ public static class SyncFileBuilder
             .Select(mark => new SyncDrift(mark.Start, mark.End, mark.ProcessName, mark.Domain, mark.Section))
             .ToList();
         return new SyncFile(SyncFile.CurrentFormatVersion, written, sessions, marks, dayPlan, documents, coversFrom);
+    }
+
+    // ADR 60: the time with the PC off that ended where this piece starts; only times travel, never why.
+    private static int? OffMinutesBefore(IReadOnlyList<AwayStretch> cut, DateTimeOffset pieceStart)
+    {
+        double minutes = cut.Where(stretch => stretch.Kind == AwayKind.DeviceOff && stretch.To == pieceStart).Sum(stretch => (stretch.To - stretch.From).TotalMinutes);
+        return minutes >= 1 ? (int)Math.Round(minutes) : null;
     }
 
     /// <summary>

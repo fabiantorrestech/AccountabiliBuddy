@@ -430,6 +430,13 @@
                                Text="Open Settings › Alerts &amp; on-screen › PC overlay to pick where it lives (over the taskbar, covering the tray, at the left end, beside the tray, or floating bottom right or left), its size, shape, progress and what it shows. Nothing about what is blocked or when changed; only where and how it is drawn." />
                 </StackPanel>
 
+                <!-- The quit safeguard (ADR 59) -->
+                <StackPanel IsVisible="{Binding IsQuitSafeguard}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="Optional, and off unless you turn it on: AccountabiliBuddy can refuse to quit during the parts of your day you pick, during a session, or all the time. You can change this later in Settings › Guards." />
+                    <views:QuitGuardCard DataContext="{Binding QuitGuard}" />
+                </StackPanel>
+
                 <!-- The Ctrl+Alt panel -->
                 <StackPanel IsVisible="{Binding IsPanelCtrlAlt}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
                     <TextBlock Classes="body" TextWrapping="Wrap"

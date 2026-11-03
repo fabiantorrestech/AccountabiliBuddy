@@ -218,7 +218,7 @@ public sealed class ActivityRecorder : IDisposable
         {
             SessionEventKind kind = end.EarlyEndReason is not null ? SessionEventKind.EndedEarly : SessionEventKind.Ended;
             var ended = new SessionEvent(
-                _timeProvider.GetUtcNow(), kind, end.Ended.Mode, end.Ended.ProfileId, Reason: end.EarlyEndReason);
+                end.At ?? _timeProvider.GetUtcNow(), kind, end.Ended.Mode, end.Ended.ProfileId, Reason: end.EarlyEndReason);
             Enqueue(() => _log.RecordSessionEventAsync(ended));
         }
     }

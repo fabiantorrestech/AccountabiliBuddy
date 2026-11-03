@@ -204,6 +204,9 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sessionItems(
         }
     }
     if (pc.updateNeeded != null) item(key = "update-needed") { MutedLine(pc.updateNeeded) }
+    if (pc.offMinutesToday > 0) {
+        item(key = "pc-off-today") { MutedLine("PC off ${com.accountabilibuddy.shared.WatchText.duration(pc.offMinutesToday)} during sessions today (not counted)") }
+    }
     if (pc.waiting != null) item(key = "waiting") { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { WaitingLine(pc, clock, actions.onCancelWaiting) } }
     if (!planning && !session.isBreak && tasks != null && tasks.tasks.isNotEmpty()) item(key = "steps") { StepsCard(tasks) }
     if (info != null && (info.goalMinutes != null || info.focusedMinutes > 0)) item(key = "ring") { RingCard(info.focusedMinutes, info.goalMinutes) }

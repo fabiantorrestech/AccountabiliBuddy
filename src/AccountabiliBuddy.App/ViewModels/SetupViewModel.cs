@@ -87,7 +87,16 @@ public sealed partial class SetupViewModel : ObservableObject
 
     private bool CanGrantStartup => !IsStartupGranted;
 
-    private bool CanRevokeStartup => IsStartupGranted && !IsLocked;
+    private bool CanRevokeStartup => IsStartupGranted && !IsLocked && !(StartupLocked?.Invoke() ?? false);
+
+    /// <summary>The quit safeguard is on (ADR 59): starting at sign-in stays on. Set by the app.</summary>
+    public Func<bool>? StartupLocked { get; set; }
+
+    /// <summary>The quit safeguard went on or off.</summary>
+    public void RefreshStartupLock()
+    {
+        RevokeStartupCommand.NotifyCanExecuteChanged();
+    }
 
     partial void OnIsLockedChanged(bool value)
     {

@@ -92,6 +92,14 @@ public partial class App : Application
     private BedtimeReminderService? _bedtimeReminder;
     private ColdTurkeyService? _coldTurkey;
     private ColdTurkeyKeysService? _coldTurkeyKeys;
+    private QuitGuardService? _quitGuard;
+    private static readonly TimeSpan SessionHeartbeat = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan GoingOffWriteBudget = TimeSpan.FromSeconds(2);
+    private PcOffSettingsService? _pcOff;
+    private AccountabiliBuddy.App.Services.Sync.SyncCoordinator? _syncCoordinator;
+    private bool _windowsEndingHandled;
+    private DateTimeOffset _lastSessionWrite = DateTimeOffset.MinValue;
+    private QuitGuardViewModel? _quitGuardViewModel;
     private AccountabiliBuddy.App.Services.Setup.SetupFeaturesService? _setupFeatures;
     private EnforcementPresenter? _presenter;
     private Window? _coldTurkeyKeyWindow;
@@ -186,6 +194,7 @@ public partial class App : Application
             // The app lives in the tray; only Quit ends it.
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             desktop.Exit += (_, _) => DisposeServices();
+            desktop.ShutdownRequested += (_, _) => OnWindowsEnding();
 
             string? problem = BuildServicesAndWindow();
             if (problem is not null)
@@ -281,7 +290,7 @@ public partial class App : Application
 
         _browserSource = new NamedPipeBrowserSource(time);
         var browserSetup = new WindowsBrowserSetup(AppPaths.NativeHostPath, AppPaths.BundledExtensionFolder, dataDirectory);
-        _checkpoints = new SessionCheckpointService(_sessions, documents);
+        _checkpoints = new SessionCheckpointService(_sessions, documents, new RegistryBootIdProvider().GetBootId());
         SavedSession? savedSession = _checkpoints.LoadBlocking();
         // Loaded before the sessions start, so an unlock in effect is known at launch.
         _unlocks = new UnlockService(_sessions, documents);
@@ -329,8 +338,10 @@ public partial class App : Application
         var exemptionDefaults = new ExemptionDefaultsService(documents);
         exemptionDefaults.LoadBlocking();
         presenter.PreTickedExemptionProfiles = () => exemptionDefaults.PreTicked;
+        // ADR 59: an update closes the app itself, past the app's Exit event.
+        var velopackUpdater = new VelopackUpdater { BeforeRestart = () => _quitGuard?.StandDown() };
         _updates = new UpdateService(
-            new VelopackUpdater(), _sessions, documents, presenter.ShowNotice, () => _mainWindow?.IsVisible == true);
+            velopackUpdater, _sessions, documents, presenter.ShowNotice, () => _mainWindow?.IsVisible == true);
         _updates.LoadBlocking();
         // How far escalation may go (the computer types' "notice and overlay only", ADR 22).
         var enforcementLimit = new EnforcementLimitService(documents);
@@ -360,6 +371,11 @@ public partial class App : Application
         overlaySettings.LoadBlocking();
         var sleepSettings = new SleepSettingsService(documents, time, _sessions!, () => _configuration!.Current.Locks.LooseningDelay);
         sleepSettings.LoadBlocking();
+        // ADR 60: what happens to a session when the PC goes off during it.
+        var pcOff = new PcOffSettingsService(documents, time, _sessions!, () => _configuration!.Current.Locks.LooseningDelay);
+        pcOff.LoadBlocking();
+        _pcOff = pcOff;
+        _sessions!.OffSettings = () => pcOff.Current;
         _ = FollowPlanForSleepAsync(documents, sleepSettings);
         _bedtimeReminder = new BedtimeReminderService(sleepSettings, documents, time, () => _configuration!.Current.DayPlan);
         _bedtimeReminder.LoadBlocking();
@@ -629,7 +645,7 @@ public partial class App : Application
         goal.LoadBlocking();
         var syncEditTimes = new AccountabiliBuddy.App.Services.Sync.SyncEditTimesService(_configuration, sleepSettings, dayBarSettings, goal, documents, time);
         syncEditTimes.LoadBlocking();
-        var syncCoordinator = new AccountabiliBuddy.App.Services.Sync.SyncCoordinator(
+        var syncCoordinator = _syncCoordinator = new AccountabiliBuddy.App.Services.Sync.SyncCoordinator(
             _sessions, _configuration, activityLog, omittedSessions, deletedUsage, privacy, sleepSettings, dayBarSettings, goal, documents, syncSettings,
             syncIdentity, receivedDevices, syncEditTimes);
         syncCoordinator.Gaps = sessionGaps;
@@ -876,6 +892,7 @@ public partial class App : Application
             Appearance = new AppearanceViewModel(appTheme),
             WorkHours = _workHours,
             Keys = _coldTurkeyKeys,
+            QuitGuard = _quitGuardViewModel,
             ColdTurkey = _coldTurkey,
             OtherBlockers = new WindowsOtherBlockerDetector(),
             OpenDpAssistant = () => _showDpAssistant?.Invoke(),
@@ -1286,15 +1303,41 @@ public partial class App : Application
         _coldTurkey!.Changed += (_, _) => coldTurkeyKeys.CheckSoon();
         coldTurkeyKeys.Start();
 
+        // ADR 59: the quit safeguard, off by default.
+        var quitWatchdog = new AccountabiliBuddy.Platform.Windows.Startup.ProcessQuitWatchdog(
+            Program.InstanceName, Environment.ProcessPath!, StartupOptions.WatchdogArgument);
+        var quitGuard = new QuitGuardService(
+            documents, time, _sessions!, coldTurkeyKeys, quitWatchdog, () => _configuration!.Current.Locks.LooseningDelay, () => effectivePlan.Current,
+            () =>
+            {
+                // Never for a build that isn't the installed app (dotnet run, a test copy).
+                if (AppPaths.IsInstalled && !startupRegistrar.IsEnabled)
+                {
+                    startupRegistrar.Enable();
+                }
+            });
+        quitGuard.LoadBlocking();
+        quitGuard.FocusedOn = _workHours!.FocusedOn;
+        quitGuard.NightFallback = _workHours.NightFallback;
+        _quitGuard = quitGuard;
+        setupViewModel.StartupLocked = () => quitGuard.Current.On;
+        quitGuard.Changed += (_, _) => setupViewModel.RefreshStartupLock();
+        _quitGuardViewModel = new QuitGuardViewModel(quitGuard, _sessions!) { ShowSpareKey = () => ShowColdTurkeyKey(ColdTurkeyKeyMode.SpareKey) };
+        _configuration!.Changed += (_, _) => _quitGuardViewModel.Refresh();
+        mainViewModel.QuitGuard = _quitGuardViewModel;
+        mainViewModel.Settings.PcOffPage = new PcOffSettingsViewModel(_pcOff!, _sessions!);
+        quitGuard.Start();
+
         // The migration assistant: features added since the last version that aren't set up yet.
         var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
-            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks, planHelperDismissals, overlaySettings, calendarOverlay), BackupService.AppVersion);
+            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks, planHelperDismissals, overlaySettings, calendarOverlay, quitGuard), BackupService.AppVersion);
         setupFeatures.LoadBlocking();
         _setupFeatures = setupFeatures;
         coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();
         appTheme.Changed += (_, _) => setupFeatures.Refresh();
         sessionTasks.Changed += (_, _) => setupFeatures.Refresh();
         syncSettings.Changed += (_, _) => setupFeatures.Refresh();
+        quitGuard.Changed += (_, _) => setupFeatures.Refresh();
         _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
         // The store raises this on any thread, inside a lock: only post.
         calendarOverlay.Changed += (_, _) => Dispatcher.UIThread.Post(setupFeatures.Refresh);
@@ -1435,21 +1478,22 @@ public partial class App : Application
         // Turning sleep mode off waits the same way (and not during a session).
         _sessions.Ticked += (_, _) => _ = sleepSettings.ApplyPendingOffIfDueAsync();
         _sessions.StateChanged += (_, _) => _ = sleepSettings.ApplyPendingOffIfDueAsync();
+        _sessions.Ticked += (_, _) =>
+        {
+            _ = pcOff.ApplyPendingIfDueAsync();
+            WriteSessionHeartbeat();
+        };
+        _sessions.StateChanged += (_, _) => _ = pcOff.ApplyPendingIfDueAsync();
+        _sessions.SessionGapHandled += (_, report) => ShowSessionGap(report, presenter);
 
         _recorder.Start();
-        SessionResume? resumed = _sessions.Start(savedSession);
+        _sessions.Start(savedSession);
         // Until now the saved session wasn't put back, so the calendar overlay treated a session as running (nothing loosens).
         effectivePlan.MarkSessionStateKnown();
         // An erase the last run could not finish (a focus session was running) is done now, after a crashed session is resumed so
         // that it still waits for that one.
         _ = _syncRemoval!.ApplyPendingErasesQuietlyAsync();
         _ = sessionTasks.AfterStartupAsync();
-        if (resumed is not null && _sessions.State.IsActive)
-        {
-            presenter.ShowNotice(
-                "Session resumed",
-                $"AccountabiliBuddy was closed for {DescribeGap(resumed.ClosedFor)}. Your session kept running.");
-        }
         _icons.Start(_activityWatcher, _browserSource);
         _programPaths.Start(_activityWatcher);
         _updates.Start();
@@ -1461,7 +1505,8 @@ public partial class App : Application
         // What the overlay and its Ctrl+Alt panel ask the app: the same commands and gates as the Today page.
         _sessions!.SessionCompleted += (_, finished) =>
         {
-            if (finished.IsRealSession && finished.Phase == Core.Domain.SessionPhase.Focus && finished.PhaseStartedAt is { } began && finished.PhaseEndsAt is { } ended)
+            // A phase that ran out while the PC was off isn't "done" (ADR 60).
+            if (!_sessions.IsCatchingUp && finished.IsRealSession && finished.Phase == Core.Domain.SessionPhase.Focus && finished.PhaseStartedAt is { } began && finished.PhaseEndsAt is { } ended)
             {
                 presenter.ShowSessionDone($"{(int)(ended - began).TotalMinutes} min done", _deepWork is { Progress.Met: true } ? "Today's goal is met." : "A good moment for a break.");
             }
@@ -2472,6 +2517,108 @@ public partial class App : Application
         return _mainWindow is { IsVisible: true } ? _mainWindow : null;
     }
 
+    // ADR 60: says what a gap did to the session. A session closed by it is always told; the rest only with the setting on.
+    private void ShowSessionGap(SessionGapReport report, EnforcementPresenter presenter)
+    {
+        string off = DescribeGap(report.Gap);
+        string cause = SessionGapCause(report);
+        string wentOff = TimeZoneInfo.ConvertTime(report.LastAliveAt, _sessions!.TimeProvider.LocalTimeZone).ToString("t");
+        switch (report.Outcome)
+        {
+            case Core.Domain.SessionGapOutcome.ClosedLongGap:
+                presenter.ShowNotice("Session closed", $"Your PC was off for {off}{cause}, so the session ended when it went off, at {wentOff}. Only the time before that counts.");
+                return;
+            case Core.Domain.SessionGapOutcome.EndPassed:
+                string planned = report.OriginalEnd is DateTimeOffset end ? TimeZoneInfo.ConvertTime(end, _sessions.TimeProvider.LocalTimeZone).ToString("t") : "Its end";
+                presenter.ShowNotice("Session closed", $"Your PC was off for {off}{cause}. Its planned end, {planned}, passed meanwhile, so it ended when the PC went off, at {wentOff}. Only the time before that counts.");
+                return;
+            case Core.Domain.SessionGapOutcome.Quiet:
+                return;
+        }
+
+        if (!_pcOff!.Current.TellMe)
+        {
+            return;
+        }
+
+        string timer = report.Outcome == Core.Domain.SessionGapOutcome.KeptEnd
+            ? "Your session kept its original end time."
+            : _sessions.State switch
+            {
+                { IsAway: true } => "Your session is still stepped away.",
+                { IsPlanning: true } => "Your session is still planning.",
+                { PhaseEndsAt: DateTimeOffset phaseEnd } => $"Timer paused: {Math.Max(1, (int)Math.Ceiling((phaseEnd - _sessions.Now).TotalMinutes))} min left.",
+                _ => "Timer paused. That time isn't counted.",
+            };
+        presenter.ShowChoice("Your PC was off", $"It was off for {off}{cause}. {timer}", "End session…", () => _ = _endFlow!.TryEndSessionAsync(VisibleMainWindow()), () => { });
+    }
+
+    // What the PC can tell about why it was off, to word the notice only.
+    private string SessionGapCause(SessionGapReport report)
+    {
+        if (report.Saved is not SavedSession saved)
+        {
+            return " (it was asleep)";
+        }
+
+        if (saved.BootId is not null && saved.BootId == new RegistryBootIdProvider().GetBootId())
+        {
+            return " (AccountabiliBuddy was closed)";
+        }
+
+        Core.Domain.ShutdownCause cause = new AccountabiliBuddy.Platform.Windows.Power.EventLogShutdownCauseReader().Read(saved.LastAliveAt - TimeSpan.FromMinutes(1));
+        return cause switch
+        {
+            Core.Domain.ShutdownCause.WindowsUpdate => " (looks like Windows Update restarted it)",
+            Core.Domain.ShutdownCause.Unexpected => " (looks like it lost power or crashed)",
+            Core.Domain.ShutdownCause.ShutDown => " (it was shut down or restarted)",
+            _ => saved.WindowsEnding ? " (it was shut down or restarted)" : string.Empty,
+        };
+    }
+
+    // ADR 60: a file at least every 5 minutes while a session runs, so other devices can tell a quiet PC from a slow sync.
+    private void WriteSessionHeartbeat()
+    {
+        if (_sessions is not { State.IsRealSession: true } || _sessions.Now - _lastSessionWrite < SessionHeartbeat)
+        {
+            return;
+        }
+
+        _lastSessionWrite = _sessions.Now;
+        _ = WriteSyncFilesAsync();
+    }
+
+    private Task WriteSyncFilesAsync()
+    {
+        return Task.WhenAll(
+            _syncFolder?.WriteNowAsync() ?? Task.CompletedTask,
+            _syncDrive?.WriteNowAsync() ?? Task.CompletedTask,
+            _syncRelay?.WriteNowAsync() ?? Task.CompletedTask);
+    }
+
+    // ADR 60: Windows is shutting down with a session running. Noted for the next boot, and one last file tells the other devices;
+    // only about 2 seconds are spent on it, and the quiet check covers a file that doesn't make it.
+    private void OnWindowsEnding()
+    {
+        if (_windowsEndingHandled || _sessions is not { State.IsRealSession: true })
+        {
+            return;
+        }
+
+        _windowsEndingHandled = true;
+        _checkpoints?.MarkWindowsEnding();
+        if (_syncCoordinator is null)
+        {
+            return;
+        }
+
+        _syncCoordinator.GoingOffAt = _sessions.Now;
+        using var budget = new CancellationTokenSource(GoingOffWriteBudget);
+        Task writes = WriteSyncFilesAsync();
+        _ = writes.ContinueWith(_ => { try { budget.Cancel(); } catch (ObjectDisposedException) { } }, TaskScheduler.Default);
+        Dispatcher.UIThread.MainLoop(budget.Token);
+    }
+
     private static string DescribeGap(TimeSpan gap)
     {
         return gap.TotalMinutes < 1 ? "less than a minute"
@@ -2481,6 +2628,13 @@ public partial class App : Application
 
     private async Task QuitAsync()
     {
+        // ADR 59: while the safeguard holds, Quit is refused and says why.
+        if (_quitGuard?.CurrentLock() is QuitLock quitLock)
+        {
+            _presenter?.ShowNotice("Quit is locked", QuitGuardService.Describe(quitLock));
+            return;
+        }
+
         // Quitting ends the running session, so it is not resumed at the next launch.
         // During focus that is the same as ending it early (friction); in a break it just ends.
         if (_sessions is { State.IsActive: true } && !await _endFlow!.TryEndSessionAsync(VisibleMainWindow()))
@@ -2505,6 +2659,8 @@ public partial class App : Application
 
     private void DisposeServices()
     {
+        // ADR 59: every clean exit passes here, so nothing brings the app back after one.
+        _quitGuard?.StandDown();
         _instanceSignals?.Dispose();
         _hotkey?.Dispose();
         _stepAway?.Dispose();

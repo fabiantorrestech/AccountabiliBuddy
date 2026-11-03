@@ -254,7 +254,7 @@ public partial class OverlayPreview : UserControl
             extent += 30;
             // Only as tall as the tile needs above the taskbar.
             SetCrop(extent, target.AlignRight, atTop: false, height: ScreenHeight - y + 14, rightInset: rightInset);
-            tile.Opacity = 1;
+            tile.Opacity = settings.TileOpacity(model.ShowsSession, held: false);
         };
     }
 

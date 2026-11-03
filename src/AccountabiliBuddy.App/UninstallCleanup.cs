@@ -14,6 +14,8 @@ public static class UninstallCleanup
 {
     public static void Run()
     {
+        // First: a running quit watchdog (ADR 59) must not bring the app back or keep its files open.
+        TryRun(() => AccountabiliBuddy.Platform.Windows.Startup.ProcessQuitWatchdog.SignalStandDown(Program.InstanceName));
         TryRun(() =>
         {
             var startup = new RunKeyStartupRegistrar(AppPaths.LaunchPath, StartupOptions.MinimizedArgument);

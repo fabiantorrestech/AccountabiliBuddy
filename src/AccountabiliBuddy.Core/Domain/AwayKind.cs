@@ -27,4 +27,10 @@ public enum AwayKind
     /// away; only folded into a record by <see cref="Engine.SessionHistoryBuilder"/> from the planning events. Appended last.
     /// </summary>
     Planning,
+
+    /// <summary>
+    /// The PC was off, asleep or the app wasn't running during the session (ADR 60): non-work session time, never focus. Never an
+    /// engine away; only folded into a record from the Interrupted/Resumed events. Appended last.
+    /// </summary>
+    DeviceOff,
 }

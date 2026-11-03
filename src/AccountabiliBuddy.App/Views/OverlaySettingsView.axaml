@@ -147,6 +147,38 @@
             </StackPanel>
         </Border>
         <Border Classes="row">
+            <StackPanel Spacing="10">
+                <StackPanel>
+                    <TextBlock Text="Opacity" />
+                    <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="How solid the overlay looks, 20 to 100%. The Ctrl+Alt values need Hold to peek on. The corner clock and the panel keep their own look." />
+                </StackPanel>
+                <Grid ColumnDefinitions="*,220,44" ColumnSpacing="10">
+                    <TextBlock Text="During a session, at rest" VerticalAlignment="Center" />
+                    <Slider Grid.Column="1" Minimum="20" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding SessionOpacityPercent}"
+                            VerticalAlignment="Center" AutomationProperties.Name="During a session, at rest" />
+                    <TextBlock Grid.Column="2" Text="{Binding SessionOpacityPercent, StringFormat='{}{0:0}%'}" Classes="muted" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                </Grid>
+                <Grid ColumnDefinitions="*,220,44" ColumnSpacing="10" IsEnabled="{Binding HoldToPeek}">
+                    <TextBlock Text="During a session, Ctrl+Alt held" VerticalAlignment="Center" />
+                    <Slider Grid.Column="1" Minimum="20" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding SessionHeldOpacityPercent}"
+                            VerticalAlignment="Center" AutomationProperties.Name="During a session, Ctrl+Alt held" />
+                    <TextBlock Grid.Column="2" Text="{Binding SessionHeldOpacityPercent, StringFormat='{}{0:0}%'}" Classes="muted" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                </Grid>
+                <Grid ColumnDefinitions="*,220,44" ColumnSpacing="10">
+                    <TextBlock Text="No session, at rest" VerticalAlignment="Center" />
+                    <Slider Grid.Column="1" Minimum="20" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding TimelineOpacityPercent}"
+                            VerticalAlignment="Center" AutomationProperties.Name="No session, at rest" />
+                    <TextBlock Grid.Column="2" Text="{Binding TimelineOpacityPercent, StringFormat='{}{0:0}%'}" Classes="muted" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                </Grid>
+                <Grid ColumnDefinitions="*,220,44" ColumnSpacing="10" IsEnabled="{Binding HoldToPeek}">
+                    <TextBlock Text="No session, Ctrl+Alt held" VerticalAlignment="Center" />
+                    <Slider Grid.Column="1" Minimum="20" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding TimelineHeldOpacityPercent}"
+                            VerticalAlignment="Center" AutomationProperties.Name="No session, Ctrl+Alt held" />
+                    <TextBlock Grid.Column="2" Text="{Binding TimelineHeldOpacityPercent, StringFormat='{}{0:0}%'}" Classes="muted" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                </Grid>
+            </StackPanel>
+        </Border>
+        <Border Classes="row">
             <StackPanel Spacing="8">
                 <Button Command="{Binding ToggleOrderCommand}" Classes="quiet" HorizontalContentAlignment="Stretch" Padding="0" MinHeight="0">
                     <Grid ColumnDefinitions="*,Auto">

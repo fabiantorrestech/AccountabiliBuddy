@@ -248,6 +248,7 @@
                             <Border Classes="sPanel">
                                 <StackPanel Margin="0,0,0,-1">
                                     <views:SettingsUnlocksCard DataContext="{Binding Settings}" />
+                                    <views:QuitGuardCard DataContext="{Binding QuitGuard}" />
                                     <Border Classes="sRow" search:SearchArea.Name="Cold Turkey" DataContext="{Binding Integrations}" x:DataType="vm:IntegrationsViewModel">
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                             <StackPanel Spacing="2" VerticalAlignment="Center">

@@ -22,7 +22,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 public sealed partial class TasksViewModel : ObservableObject, IDisposable
 {
     /// <summary>Past sessions' unfinished tasks listed on the page: the last two weeks (the Archive keeps all 90 days).</summary>
-    private static readonly TimeSpan PastShown = TimeSpan.FromDays(14);
+    internal static readonly TimeSpan PastShown = TimeSpan.FromDays(14);
 
     private readonly SessionTasksService _tasks;
     private readonly LaterStore _later;

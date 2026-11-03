@@ -93,6 +93,12 @@ public sealed class ColdTurkeyKeysService : IDisposable
     /// <summary>True when the user has written down and retyped the current spare key: the password lock is in use.</summary>
     public bool HasSpareKey => _state.KeyConfirmedAt is not null && _state.ProtectedPassword is not null;
 
+    /// <summary>The typed text is the spare key in use (ADR 59: leaving the quit safeguard's "All the time"). Typing it replaces nothing.</summary>
+    public bool IsSpareKey(string typed)
+    {
+        return HasSpareKey && Unprotect(_state.ProtectedPassword) is string key && Same(typed, key);
+    }
+
     /// <summary>A new spare key waiting to be written down and retyped (null when none).</summary>
     public string? PendingSpareKey => Unprotect(_state.ProtectedPending);
 

@@ -167,6 +167,7 @@ object EssentialsLaunch {
     internal fun sessionOnBreak(app: CompanionApp, now: Instant): Boolean =
         app.sync.received.value
             .filter { it.file.device.kind == SyncDeviceCard.KIND_PC }
+            .filter { PcFileControl.guardsHold(it.file, now) }
             .mapNotNull { PcFileControl.liveRunning(it.file, now) }
             .filter { it.phaseEndAt(now)?.let { end -> now.isBefore(end) } ?: true }
             .maxByOrNull { it.phaseStartedAt }?.isBreak == true
@@ -177,6 +178,8 @@ object EssentialsLaunch {
     internal fun realSessionStart(app: CompanionApp, now: Instant): Pair<Instant, Instant?>? {
         return app.sync.received.value
             .filter { it.file.device.kind == SyncDeviceCard.KIND_PC }
+            // ADR 60: a PC that went off holds the phone for 10 minutes, then lets go until it's back.
+            .filter { PcFileControl.guardsHold(it.file, now) }
             .mapNotNull { PcFileControl.liveRunning(it.file, now) }
             .filter { it.phaseEndAt(now)?.let { end -> now.isBefore(end) } ?: true }
             .maxByOrNull { it.phaseStartedAt }

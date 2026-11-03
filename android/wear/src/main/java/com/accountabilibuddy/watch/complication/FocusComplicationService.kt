@@ -42,7 +42,7 @@ class FocusComplicationService : SuspendingComplicationDataSourceService() {
     private fun data(type: ComplicationType, glance: Glance, running: RunningSession? = null): ComplicationData? {
         val description = PlainComplicationText.Builder("${glance.title}: ${glance.headline}, ${glance.detail}").build()
         val text = running?.let(::timer) ?: PlainComplicationText.Builder(glance.shortText).build()
-        val title = running?.let { PlainComplicationText.Builder(if (it.onBreak) "Break" else if (it.isPlanning) "Planning" else it.profile ?: "Focus").build() }
+        val title = running?.let { PlainComplicationText.Builder(if (it.pcOff) "PC off" else if (it.onBreak) "Break" else if (it.isPlanning) "Planning" else it.profile ?: "Focus").build() }
         return when (type) {
             ComplicationType.RANGED_VALUE -> RangedValueComplicationData.Builder(glance.value, 0f, glance.max, description)
                 .setText(text)
@@ -61,6 +61,10 @@ class FocusComplicationService : SuspendingComplicationDataSourceService() {
 
     // The watch face counts it: down to the phase's end ("24:59"), or up from its start for a session with no set end.
     private fun timer(running: RunningSession): ComplicationText {
+        if (running.pcOff) {
+            return PlainComplicationText.Builder("Paused").build()
+        }
+
         if (running.isPlanning) {
             // The PC's planning stage (not focus time) counts down to its own end; past it, it waits for "Ready?" on the PC.
             val planningEnd = running.planningEndsAt

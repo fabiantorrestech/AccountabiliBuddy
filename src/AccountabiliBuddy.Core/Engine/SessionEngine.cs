@@ -357,6 +357,20 @@ public sealed class SessionEngine
     }
 
     /// <summary>
+    /// The PC was off for <paramref name="gap"/> and the timer pauses for it (ADR 60): the phase's start and end move later, as on a
+    /// return from a step away. A session already stepped away moves when the user is back, so it stays as it is.
+    /// </summary>
+    public void MoveOnBy(TimeSpan gap)
+    {
+        if (!State.IsActive || State.IsAway || gap <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        SetState(State with { PhaseStartedAt = State.PhaseStartedAt + gap, PhaseEndsAt = State.PhaseEndsAt + gap });
+    }
+
+    /// <summary>
     /// Everything needed to carry on with the current session after the app restarts. A test session is saved as no
     /// session: it never comes back after a restart.
     /// </summary>
